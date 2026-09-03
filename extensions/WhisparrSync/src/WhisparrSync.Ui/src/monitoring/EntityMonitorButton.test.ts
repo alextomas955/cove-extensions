@@ -65,11 +65,14 @@ vi.mock("@cove-extensions/ui-shared/postAction", () => ({
 const { WhisparrPerformerActions, WhisparrStudioActions } = await import("./EntityMonitorButton");
 const {
   ACTION_ABSENT_IN_THIS_VERSION,
+  ACTION_DID_NOT_REACH_WHISPARR,
+  ACTION_REFLECT_OWNED,
   ACTION_SEARCH_ALL_MONITORED,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   MONITORED_IN_WHISPARR,
   MONITORING_COULD_NOT_BE_READ,
   MONITOR_IN_WHISPARR,
+  REFLECT_OWNED_SKIPPED,
   SCOPE_ALL_SCENES,
   STOP_MONITORING_IN_WHISPARR,
 } = await import("../common/ui/copy");
@@ -323,6 +326,58 @@ test("each verb this build serves posts its own route rather than the monitor on
   await sleep(COMMIT_MS);
   expect(posted().at(-1)?.endsWith("/unmonitor")).toBe(true);
   expect(posted()).toHaveLength(2);
+});
+
+/** A generation holding the capability the reflect-owned row is gated on. */
+const REFLECTING = ["monitorStudio", "reflectOwnedFiles"];
+
+/** The reflect-owned row of an open menu, which this build does serve a route for. */
+async function pressReflectOwned(rendered: Awaited<ReturnType<typeof render>>) {
+  rendered.button?.click();
+  await sleep(COMMIT_MS);
+  const reflect = rendered
+    .rows()
+    .find((row) => (row.getAttribute("title") ?? "").startsWith(ACTION_REFLECT_OWNED));
+  expect(reflect?.disabled).toBe(false);
+  reflect?.click();
+  await sleep(COMMIT_MS);
+  return rendered.container.querySelector('[role="status"]');
+}
+
+test("an action the server answered and skipped states the reason at the control", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.resolve({ skipped: "hardLinksOff", jobId: null, refusal: "none" });
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = await pressReflectOwned(rendered);
+
+  expect(notice?.textContent).toBe(REFLECT_OWNED_SKIPPED);
+  expect(
+    sent
+      .filter((call) => call.method === "POST")
+      .at(-1)
+      ?.path.endsWith("/reflect-owned"),
+  ).toBe(true);
+});
+
+test("an action that never reached the instance says that instead", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = await pressReflectOwned(rendered);
+
+  expect(notice?.textContent).toBe(ACTION_DID_NOT_REACH_WHISPARR);
+});
+
+test("an action that was carried out states nothing at the control", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.resolve({ skipped: null, jobId: "job-1", refusal: "none" });
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = await pressReflectOwned(rendered);
+
+  expect(notice).toBeNull();
 });
 
 test("an item this build serves no route for is offered dimmed rather than pressed into nothing", async () => {
