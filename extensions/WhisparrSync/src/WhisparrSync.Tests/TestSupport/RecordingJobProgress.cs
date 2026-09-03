@@ -3,7 +3,10 @@ using Cove.Core.Interfaces;
 namespace WhisparrSync.Tests.TestSupport;
 
 /// <summary>One unit a run reported, with the outcome it was completed under.</summary>
-public sealed record ReportedUnit(string UnitId, JobUnitOutcome? Outcome);
+/// <param name="UnitId">Which entity the unit was about.</param>
+/// <param name="Outcome">How it was completed, or null while it is still open.</param>
+/// <param name="Message">What the completion named, or null where it named nothing.</param>
+public sealed record ReportedUnit(string UnitId, JobUnitOutcome? Outcome, string? Message = null);
 
 /// <summary>
 /// A host job progress that records what a run declared and reported, in order.
@@ -43,7 +46,8 @@ internal sealed class RecordingJobProgress : IJobProgress
         var unit = new RecordedUnit(unitId);
         Units.Add(new ReportedUnit(unitId, null));
         var index = Units.Count - 1;
-        unit.OnComplete = outcome => Units[index] = Units[index] with { Outcome = outcome };
+        unit.OnComplete = (outcome, message) =>
+            Units[index] = Units[index] with { Outcome = outcome, Message = message };
         return unit;
     }
 
@@ -53,7 +57,7 @@ internal sealed class RecordingJobProgress : IJobProgress
 
         public JobUnitOutcome? Outcome { get; private set; }
 
-        public Action<JobUnitOutcome>? OnComplete { get; set; }
+        public Action<JobUnitOutcome, string?>? OnComplete { get; set; }
 
         public void Report(double progress, string? message = null)
         {
@@ -67,7 +71,7 @@ internal sealed class RecordingJobProgress : IJobProgress
             }
 
             Outcome = outcome;
-            OnComplete?.Invoke(outcome);
+            OnComplete?.Invoke(outcome, message);
         }
 
         public void Dispose()
