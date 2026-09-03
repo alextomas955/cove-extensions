@@ -74,7 +74,7 @@ test("a first read that fails leaves no content, so nothing paints a state", () 
   expect(store.getSnapshot().read.hasContent).toBe(false);
 });
 
-test("an action in flight is reported, and its answer replaces the view", () => {
+test("an action in flight is reported, and finishing it paints no answer of its own", () => {
   const store = createMonitoringStore();
   store.mounted(FIRST);
   store.loaded(FIRST, view(false));
@@ -82,8 +82,12 @@ test("an action in flight is reported, and its answer replaces the view", () => 
   store.beginAction(FIRST);
   expect(store.getSnapshot().acting).toBe(true);
 
-  store.acted(FIRST, view(true));
+  store.actionSucceeded(FIRST);
   expect(store.getSnapshot().acting).toBe(false);
+  // What the entity now is comes from the read that follows, never from the action's own answer.
+  expect(store.getSnapshot().view?.monitored).toBe(false);
+
+  store.loaded(FIRST, view(true));
   expect(store.getSnapshot().view?.monitored).toBe(true);
 });
 

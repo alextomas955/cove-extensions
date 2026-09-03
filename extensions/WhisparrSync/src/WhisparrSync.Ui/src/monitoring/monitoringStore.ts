@@ -52,7 +52,11 @@ export interface MonitoringStore {
   loaded: (entity: MonitoredEntity, view: EntityMonitoringView) => void;
   readFailed: (entity: MonitoredEntity, message: string) => void;
   beginAction: (entity: MonitoredEntity) => void;
-  acted: (entity: MonitoredEntity, view: EntityMonitoringView) => void;
+  /**
+   * The action was carried out. It carries no view: what the instance now holds is read back, so
+   * nothing here paints an answer composed from what the browser asked for.
+   */
+  actionSucceeded: (entity: MonitoredEntity) => void;
   actionFailed: (entity: MonitoredEntity, message: string) => void;
 }
 
@@ -124,14 +128,8 @@ export function createMonitoringStore(): MonitoringStore {
       settle(entity, (current) => ({ ...current, acting: true, actionError: null }));
     },
 
-    acted(entity, view) {
-      settle(entity, (current) => ({
-        ...current,
-        read: { reading: false, failed: false, hasContent: true },
-        view,
-        acting: false,
-        actionError: null,
-      }));
+    actionSucceeded(entity) {
+      settle(entity, (current) => ({ ...current, acting: false, actionError: null }));
     },
 
     actionFailed(entity, message) {

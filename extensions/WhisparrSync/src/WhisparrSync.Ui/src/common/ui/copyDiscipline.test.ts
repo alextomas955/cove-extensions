@@ -82,7 +82,13 @@ const RENDERED_BY_THE_IMPORT_BANNER = [
 
 /** The entity control's two names. It carries the product's mark instead of a word, so its
  * accessible name is the only name it has. */
-const RENDERED_BY_THE_ENTITY_CONTROL = ["MONITOR_IN_WHISPARR", "MONITORED_IN_WHISPARR"];
+const RENDERED_BY_THE_ENTITY_CONTROL = [
+  "MONITOR_IN_WHISPARR",
+  "MONITORED_IN_WHISPARR",
+  "MONITORING_COULD_NOT_BE_READ",
+  "ACTION_DID_NOT_REACH_WHISPARR",
+  "ACTION_ABSENT_IN_THIS_VERSION",
+];
 
 /**
  * The scope names, the two consequence sentences that must be read before a scope is chosen, and one
