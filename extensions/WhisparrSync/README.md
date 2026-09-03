@@ -37,7 +37,7 @@ Whisparr tab and the reconciliation table's Whisparr column. See the
 Both **v3 (Eros)** and **v2** are supported. On v2 the extension connects, imports what Whisparr
 acquires (webhook + polling reconcile), and reconciles by **file path and fuzzy title/year**.
 
-The one difference in the *import/reconcile* path is match precision: Whisparr v2 is ThePornDB-native
+The one difference in the _import/reconcile_ path is match precision: Whisparr v2 is ThePornDB-native
 and carries **no StashDB id** on any scene, so the authoritative StashDB-id match — the durable
 identity key v3 matching leads with — cannot apply to v2. This is a permanent property of v2's data
 model, not a missing feature: more v2 scenes land in unmatched / needs-review than on v3. See
@@ -45,7 +45,7 @@ model, not a missing feature: more v2 scenes land in unmatched / needs-review th
 
 ### Outward controls on v3 and v2
 
-The controls that *write to* Whisparr work on **both v3 and v2**, keyed on the id each version carries:
+The controls that _write to_ Whisparr work on **both v3 and v2**, keyed on the id each version carries:
 v3 resolves its Whisparr target by the entity's **StashDB** id, v2 by its **ThePornDB (TPDB)** id
 (Cove stores both when the metadata source provides them). v2 is Sonarr-shaped — a **site is a
 series** and a **scene is an episode** — so a Cove **studio** monitors as a v2 site: the extension adds
@@ -58,19 +58,19 @@ reading **"Currently available on Whisparr v3 (Eros)"** — never a silent no-op
 implies you must migrate (v2 and v3 are both first-class). The extension refuses each cleanly
 (`VersionMismatch("v2")`, no wire call).
 
-| Outward control | Whisparr v2 | Reason |
-| --- | --- | --- |
-| Monitor a studio | Works | mapped to a v2 site (series) resolved by its TPDB id; add-then-monitor, non-grabbing |
-| Search all monitored (bulk) | Works | runs the v2 episode search over the site's episodes — the one grab-capable v2 verb |
-| Monitor a performer | v3 only | v2 has no performer entity at all — performers are embedded episode metadata, nothing monitorable |
-| Add / monitor a single scene | v3 only | v2 has no `POST /episode`; a scene is acquired by adding its site and searching the episode, so there is no independent per-scene add |
-| Grab quality upgrades | v3 only | Sonarr has no cutoff-upgrade-only search variant; v2 keeps a single grab verb (the episode search) by design |
-| Add all missing (bulk) | v3 only | builds on the per-scene add, which v2 lacks |
-| Exclude a scene / interactive release grab / per-scene status view | v3 only | v2 exclusions and releases are TPDB-keyed and cannot be tied back to a Cove scene without a scene-level id |
+| Outward control                                                    | Whisparr v2 | Reason                                                                                                                                |
+| ------------------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Monitor a studio                                                   | Works       | mapped to a v2 site (series) resolved by its TPDB id; add-then-monitor, non-grabbing                                                  |
+| Search all monitored (bulk)                                        | Works       | runs the v2 episode search over the site's episodes — the one grab-capable v2 verb                                                    |
+| Monitor a performer                                                | v3 only     | v2 has no performer entity at all — performers are embedded episode metadata, nothing monitorable                                     |
+| Add / monitor a single scene                                       | v3 only     | v2 has no `POST /episode`; a scene is acquired by adding its site and searching the episode, so there is no independent per-scene add |
+| Grab quality upgrades                                              | v3 only     | Sonarr has no cutoff-upgrade-only search variant; v2 keeps a single grab verb (the episode search) by design                          |
+| Add all missing (bulk)                                             | v3 only     | builds on the per-scene add, which v2 lacks                                                                                           |
+| Exclude a scene / interactive release grab / per-scene status view | v3 only     | v2 exclusions and releases are TPDB-keyed and cannot be tied back to a Cove scene without a scene-level id                            |
 
 What works on v2: connect, import (webhook + polling reconcile), reconciliation, the read-only status
 derivation over the reconciliation map, and the studio-monitor / status / search outward path above.
-Scene-level id-grade *matching* on v2 still needs a ThePornDB oshash/phash bridge, scoped as a future
+Scene-level id-grade _matching_ on v2 still needs a ThePornDB oshash/phash bridge, scoped as a future
 milestone — see [Architecture](./docs/ARCHITECTURE.md#whisparr-v2-adapter).
 
 ## Documentation

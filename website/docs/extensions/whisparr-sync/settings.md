@@ -8,11 +8,11 @@ appears.
 
 ## Connection
 
-| Setting | What it does | Default | Values |
-| --------- | -------------- | --------- | -------- |
-| Whisparr URL | The address of your Whisparr instance the extension calls. | empty | A URL, e.g. `http://localhost:6969` |
-| API key | Authenticates the outbound call to Whisparr. Stored server-side; never shown back to you. | empty | Your Whisparr API key (from Whisparr → Settings → General → API Key) |
-| Whisparr version | Which Whisparr API generation to use. A successful test auto-selects the detected version. | v3 (Eros) | v3 (Eros) / v2 |
+| Setting          | What it does                                                                               | Default   | Values                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------ | --------- | -------------------------------------------------------------------- |
+| Whisparr URL     | The address of your Whisparr instance the extension calls.                                 | empty     | A URL, e.g. `http://localhost:6969`                                  |
+| API key          | Authenticates the outbound call to Whisparr. Stored server-side; never shown back to you.  | empty     | Your Whisparr API key (from Whisparr → Settings → General → API Key) |
+| Whisparr version | Which Whisparr API generation to use. A successful test auto-selects the detected version. | v3 (Eros) | v3 (Eros) / v2                                                       |
 
 ### API key (write-only)
 
@@ -67,14 +67,14 @@ scanner has to be able to read it there. In practice that means both mount the s
 same location (for example both at `/data/media`). There is no path-mapping setting; if the two see
 the library at different paths, point Whisparr's root folder at the path Cove uses.
 
-If they *don't* line up, the settings page shows a red **"Sync problem — Cove can't find imported
+If they _don't_ line up, the settings page shows a red **"Sync problem — Cove can't find imported
 files"** banner naming the offending path, so you're never left guessing why imports aren't appearing.
 It clears itself as soon as one import succeeds.
 
 ## Import webhook
 
-| Setting | What it does | Default | Values |
-| --------- | -------------- | --------- | -------- |
+| Setting     | What it does                                                                                                                 | Default                                         | Values   |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------- |
 | Webhook URL | A ready-to-use URL with an embedded secret that Whisparr posts events to. Editable so you can set a host Whisparr can reach. | read from Whisparr, or derived on first connect | Editable |
 
 The URL and its **Registered** status are read from the **"Cove Whisparr Sync"** connection in your
@@ -90,16 +90,16 @@ own, re-applied on every register. The host you set is remembered, so a refresh 
 of reverting to the browser address. Cove receives events at this URL and ingests the imported file in
 place; see the [Connect guide](./guide) for the host-reachability note and how auto-import behaves.
 
-Below the buttons a **status line** tells you honestly where the webhook stands: *registered, last
-event `{time}` ago* once events have arrived, *registered, no events received yet* after you register
-but before the first import, or an amber *not registered yet* prompt otherwise. A muted helper line is
+Below the buttons a **status line** tells you honestly where the webhook stands: _registered, last
+event `{time}` ago_ once events have arrived, _registered, no events received yet_ after you register
+but before the first import, or an amber _not registered yet_ prompt otherwise. A muted helper line is
 always shown: the URL must be reachable **by Whisparr, not from your browser** — if Whisparr runs on
 another host or in a container, use an address it can reach (for example
 `http://host.docker.internal:5073`), not `localhost`.
 
 ![The Import webhook section of the Whisparr Sync settings page, showing the read-only webhook URL field, the Copy URL and Register in Whisparr buttons, and a "Registered · last event" status line.](/img/whisparr-sync/settings-import-webhook.png)
 
-*The Import webhook section: the read-only webhook URL, its Copy URL and Register in Whisparr buttons, and the registration status line.*
+_The Import webhook section: the read-only webhook URL, its Copy URL and Register in Whisparr buttons, and the registration status line._
 
 :::note Correcting the webhook host
 Before a connection exists, the URL is derived from the address you open Cove at, which is not always
@@ -125,18 +125,18 @@ root — it only imports them in place.)
 How Whisparr adds a scene when you send it from Cove. The two dropdowns are disabled until a
 successful test, then populate from your instance.
 
-| Setting | What it does | Default | Values |
-| --------- | -------------- | --------- | -------- |
-| Root folder | The Whisparr root folder this library maps to. | none | One of your instance's root folders (loaded live) |
-| Quality profile | The quality profile new items are added with. | none | One of your instance's quality profiles (loaded live) |
-| Tags on add | Tags applied to what Whisparr adds. Keep `cove` so reconciliation can recognise its own adds. | `cove` | Any tags |
-| Monitor new items by default | Whether a scene Cove adds is set monitored (Whisparr keeps looking to grab and upgrade it). | on | on / off |
-| Allow quality upgrades | Let Whisparr replace a grabbed release with a better one, up to the profile cutoff. Applies on Whisparr v3 (Eros) only — Whisparr v2 has no cutoff-upgrade search, so the toggle is shown disabled there and your setting is kept for when you connect a v3 instance. | on | on / off |
-| Search on add | Locked off. Cove keeps adds search-free so an add can never start a grab loop; only an explicit **Search now** grabs. | off (fixed) | off (not editable) |
+| Setting                      | What it does                                                                                                                                                                                                                                                          | Default     | Values                                                |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------- |
+| Root folder                  | The Whisparr root folder this library maps to.                                                                                                                                                                                                                        | none        | One of your instance's root folders (loaded live)     |
+| Quality profile              | The quality profile new items are added with.                                                                                                                                                                                                                         | none        | One of your instance's quality profiles (loaded live) |
+| Tags on add                  | Tags applied to what Whisparr adds. Keep `cove` so reconciliation can recognise its own adds.                                                                                                                                                                         | `cove`      | Any tags                                              |
+| Monitor new items by default | Whether a scene Cove adds is set monitored (Whisparr keeps looking to grab and upgrade it).                                                                                                                                                                           | on          | on / off                                              |
+| Allow quality upgrades       | Let Whisparr replace a grabbed release with a better one, up to the profile cutoff. Applies on Whisparr v3 (Eros) only — Whisparr v2 has no cutoff-upgrade search, so the toggle is shown disabled there and your setting is kept for when you connect a v3 instance. | on          | on / off                                              |
+| Search on add                | Locked off. Cove keeps adds search-free so an add can never start a grab loop; only an explicit **Search now** grabs.                                                                                                                                                 | off (fixed) | off (not editable)                                    |
 
 ![The Add defaults section of the Whisparr Sync settings page, showing the root folder and quality profile dropdowns, the tags-on-add field with a "cove" tag, and the monitor-new-items, allow-upgrades, and search-on-add toggles.](/img/whisparr-sync/settings-add-defaults.png)
 
-*The Add defaults section: root folder, quality profile, tags on add, and the monitor / upgrade / search-on-add toggles.*
+_The Add defaults section: root folder, quality profile, tags on add, and the monitor / upgrade / search-on-add toggles._
 
 :::note Monitoring reuses these — no per-entity prompt (advanced)
 When you [monitor a studio or performer](./monitoring), the extension creates it in Whisparr (if it
@@ -152,12 +152,12 @@ Cove's real files, so turning any of these on lets Whisparr rename or remove fil
 points at. The section reads the live values from Whisparr; edits save through the page's **Save** bar
 (the server changes only the toggle you flipped and preserves the rest of Whisparr's config).
 
-| Setting | Wire field | Whisparr endpoint | What turning it on does | Default |
-| --------- | ----------- | ------------------ | ------------------------ | --------- |
-| Rename movie files | `RenameMovies` | Naming | Whisparr renames files in the shared library. | off |
-| Replace illegal characters | `ReplaceIllegalCharacters` | Naming | Whisparr rewrites filenames. | off |
-| Auto-rename folders | `AutoRenameFolders` | Media management | Whisparr renames folders Cove points at. | off |
-| Delete empty folders | `DeleteEmptyFolders` | Media management | Whisparr removes folders in the shared tree. | off |
+| Setting                    | Wire field                 | Whisparr endpoint | What turning it on does                       | Default |
+| -------------------------- | -------------------------- | ----------------- | --------------------------------------------- | ------- |
+| Rename movie files         | `RenameMovies`             | Naming            | Whisparr renames files in the shared library. | off     |
+| Replace illegal characters | `ReplaceIllegalCharacters` | Naming            | Whisparr rewrites filenames.                  | off     |
+| Auto-rename folders        | `AutoRenameFolders`        | Media management  | Whisparr renames folders Cove points at.      | off     |
+| Delete empty folders       | `DeleteEmptyFolders`       | Media management  | Whisparr removes folders in the shared tree.  | off     |
 
 When any of the four is on, an amber **"Whisparr may change files in your library"** warning names the
 on-settings and the in-place risk. Before you've connected, the section prompts you to test the
@@ -188,11 +188,11 @@ The feature is two decoupled steps:
   want Whisparr to keep watching these entities. Adding and monitoring are not fused: you can register
   your library as owned without arming any monitoring.
 
-| Control | What it does | Default | Values |
-| --------- | -------------- | --------- | -------- |
-| Sync my library to Whisparr | Registers every identified studio/performer (and v3 owned scene) in Whisparr as present, non-grabbing. | — | Button |
-| Also monitor what I sync | Whether the sync also sets the synced entities monitored. | off | on / off |
-| Monitor scope | When monitoring is on, how much Whisparr watches. | New releases only | New releases only / All releases |
+| Control                     | What it does                                                                                           | Default           | Values                           |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------- | -------------------------------- |
+| Sync my library to Whisparr | Registers every identified studio/performer (and v3 owned scene) in Whisparr as present, non-grabbing. | —                 | Button                           |
+| Also monitor what I sync    | Whether the sync also sets the synced entities monitored.                                              | off               | on / off                         |
+| Monitor scope               | When monitoring is on, how much Whisparr watches.                                                      | New releases only | New releases only / All releases |
 
 If **Also monitor what I sync** is on, pick a **scope**. **New releases only** (the default) monitors
 each entity for genuinely new future scenes while leaving its existing back-catalogue visible but

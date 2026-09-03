@@ -26,7 +26,8 @@ export const SCREENSHOT_TARGETS = [
     file: "reconciliation.png",
     surface: "reconciliation",
     label: "Reconciliation table",
-    description: "The read-only reconciliation table — matched, unmatched, and needs-review scenes.",
+    description:
+      "The read-only reconciliation table — matched, unmatched, and needs-review scenes.",
   },
   {
     file: "scene-panel.png",
@@ -44,7 +45,8 @@ export const SCREENSHOT_TARGETS = [
     file: "monitor-studio.png",
     surface: "monitor-studio",
     label: "Studio / Monitor",
-    description: "A studio page's Whisparr menu monitor toggle and the quiet grabbed-count status line.",
+    description:
+      "A studio page's Whisparr menu monitor toggle and the quiet grabbed-count status line.",
   },
   {
     file: "library-status.png",

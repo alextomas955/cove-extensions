@@ -70,7 +70,9 @@ export async function registerWebhookNotification({ whisparr, version, coveWebho
     fields,
   });
   if (!res.ok) {
-    throw new Error(`registerWebhookNotification(${version}): POST /api/v3/notification failed (${res.status}): ${res.text}`);
+    throw new Error(
+      `registerWebhookNotification(${version}): POST /api/v3/notification failed (${res.status}): ${res.text}`,
+    );
   }
   return res.json.id;
 }
@@ -99,14 +101,22 @@ export async function triggerImport({ whisparr, version, term = "Tushy" }) {
 }
 
 async function triggerImportV3({ whisparr, term }) {
-  const lookup = await whisparrApi(whisparr, "GET", `/api/v3/movie/lookup?term=${encodeURIComponent(term)}`);
+  const lookup = await whisparrApi(
+    whisparr,
+    "GET",
+    `/api/v3/movie/lookup?term=${encodeURIComponent(term)}`,
+  );
   if (!lookup.ok || !Array.isArray(lookup.json) || lookup.json.length === 0) {
-    throw new Error(`triggerImport(v3): movie lookup for "${term}" returned no rows (${lookup.status}): ${lookup.text}`);
+    throw new Error(
+      `triggerImport(v3): movie lookup for "${term}" returned no rows (${lookup.status}): ${lookup.text}`,
+    );
   }
-  const candidate = lookup.json.find((m) => Number.isInteger(m.tmdbId) && m.tmdbId > 0) ?? lookup.json[0];
+  const candidate =
+    lookup.json.find((m) => Number.isInteger(m.tmdbId) && m.tmdbId > 0) ?? lookup.json[0];
 
   const profiles = await whisparrApi(whisparr, "GET", "/api/v3/qualityprofile");
-  const qualityProfileId = Array.isArray(profiles.json) && profiles.json.length > 0 ? profiles.json[0].id : 1;
+  const qualityProfileId =
+    Array.isArray(profiles.json) && profiles.json.length > 0 ? profiles.json[0].id : 1;
 
   const movie = await addMovie(whisparr, candidate, qualityProfileId);
   const moviePath = movie.path;
@@ -157,11 +167,15 @@ async function addMovie(whisparr, candidate, qualityProfileId) {
 
   // A re-run against a warm container already has the movie — resolve the existing row by its tmdbId.
   const existing = await whisparrApi(whisparr, "GET", "/api/v3/movie");
-  const found = (Array.isArray(existing.json) ? existing.json : []).find((m) => m.tmdbId === candidate.tmdbId);
+  const found = (Array.isArray(existing.json) ? existing.json : []).find(
+    (m) => m.tmdbId === candidate.tmdbId,
+  );
   if (found) {
     return found;
   }
-  throw new Error(`triggerImport(v3): POST /api/v3/movie failed (${add.status}) and no existing row: ${add.text}`);
+  throw new Error(
+    `triggerImport(v3): POST /api/v3/movie failed (${add.status}) and no existing row: ${add.text}`,
+  );
 }
 
 /** Writes a small named file into the movie folder and hands it to the service user so import can read it. */
@@ -170,7 +184,9 @@ async function dropFile(whisparr, folder, fileName) {
     `mkdir -p "${folder}" && ` +
     `dd if=/dev/zero of="${folder}/${fileName}" bs=1024 count=64 2>/dev/null && ` +
     `chown -R hotio:hotio "${folder}"`;
-  const { exitCode, output } = await whisparr.container.exec(["sh", "-c", script], { user: "root" });
+  const { exitCode, output } = await whisparr.container.exec(["sh", "-c", script], {
+    user: "root",
+  });
   if (exitCode !== 0) {
     throw new Error(`triggerImport(v3): could not stage import file in ${folder}: ${output}`);
   }
@@ -188,7 +204,9 @@ async function resolveManualImportRow(whisparr, folder, filePath) {
   const target = normalize(filePath);
   const row = rows.find((r) => normalize(r.path) === target) ?? rows[0];
   if (!row) {
-    throw new Error(`triggerImport(v3): manualimport listed no rows for ${folder} (${listing.status}): ${listing.text}`);
+    throw new Error(
+      `triggerImport(v3): manualimport listed no rows for ${folder} (${listing.status}): ${listing.text}`,
+    );
   }
   return row;
 }
@@ -202,12 +220,15 @@ async function resolveManualImportRow(whisparr, folder, filePath) {
 async function triggerImportV2({ whisparr, tpdbId = V2_SITE_TPDB_ID }) {
   const lookup = await whisparrApi(whisparr, "GET", `/api/v3/series/lookup?term=tpdb:${tpdbId}`);
   if (!lookup.ok || !Array.isArray(lookup.json) || lookup.json.length === 0) {
-    throw new Error(`triggerImport(v2): series lookup for tpdb:${tpdbId} returned no rows (${lookup.status}): ${lookup.text}`);
+    throw new Error(
+      `triggerImport(v2): series lookup for tpdb:${tpdbId} returned no rows (${lookup.status}): ${lookup.text}`,
+    );
   }
   const addable = lookup.json.find((s) => s.tvdbId === tpdbId) ?? lookup.json[0];
 
   const profiles = await whisparrApi(whisparr, "GET", "/api/v3/qualityprofile");
-  const qualityProfileId = Array.isArray(profiles.json) && profiles.json.length > 0 ? profiles.json[0].id : 1;
+  const qualityProfileId =
+    Array.isArray(profiles.json) && profiles.json.length > 0 ? profiles.json[0].id : 1;
 
   const series = await addSeries(whisparr, addable, tpdbId, qualityProfileId);
   const seriesPath = series.path;
@@ -267,7 +288,11 @@ async function addSeries(whisparr, addable, tpdbId, qualityProfileId) {
     seasonFolder: true,
     // Loop-safe: register the site + mark episodes wanted WITHOUT grabbing (mirrors V2Adapter.BuildSiteAddBody);
     // the container is hermetic anyway, but the real import below is a ManualImport, never a grab.
-    addOptions: { monitor: "all", searchForMissingEpisodes: false, searchForCutoffUnmetEpisodes: false },
+    addOptions: {
+      monitor: "all",
+      searchForMissingEpisodes: false,
+      searchForCutoffUnmetEpisodes: false,
+    },
   });
   if (add.ok) {
     return add.json;
@@ -276,11 +301,15 @@ async function addSeries(whisparr, addable, tpdbId, qualityProfileId) {
   // A re-run against a warm container already has the site — v2 answers a duplicate add with a 400
   // SeriesExistsValidator, so resolve the existing row by its tvdbId (the TPDB site id).
   const existing = await whisparrApi(whisparr, "GET", "/api/v3/series");
-  const found = (Array.isArray(existing.json) ? existing.json : []).find((s) => s.tvdbId === tpdbId);
+  const found = (Array.isArray(existing.json) ? existing.json : []).find(
+    (s) => s.tvdbId === tpdbId,
+  );
   if (found) {
     return found;
   }
-  throw new Error(`triggerImport(v2): POST /api/v3/series failed (${add.status}) and no existing row: ${add.text}`);
+  throw new Error(
+    `triggerImport(v2): POST /api/v3/series failed (${add.status}) and no existing row: ${add.text}`,
+  );
 }
 
 /** The parent of a POSIX-ish container path ("/config/media" -> "/config"); "/" when there is no parent. */
@@ -316,7 +345,12 @@ async function waitForEpisodes(whisparr, seriesId, { timeoutMs = 90_000, interva
  * @param {{ networkName: string, token: string, coveUrl?: string, alias?: string }} opts
  * @returns {Promise<{ alias: string, port: number, urlFromWhisparr: string, stop: () => Promise<void> }>}
  */
-export async function startTokenShim({ networkName, token, coveUrl = "http://cove:5073", alias = "cove-token-shim" }) {
+export async function startTokenShim({
+  networkName,
+  token,
+  coveUrl = "http://cove:5073",
+  alias = "cove-token-shim",
+}) {
   const port = 8080;
   const script = `
 const http = require("http");

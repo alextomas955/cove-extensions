@@ -6,7 +6,10 @@ import { WhisparrSettingsPage } from "../lib/pages/settings-page.mjs";
 
 const EXTENSION_ID = "com.alextomas955.whisparrsync";
 
-test("the reconciliation section renders read-only on the settings tab", async ({ page, baseUrl }) => {
+test("the reconciliation section renders read-only on the settings tab", async ({
+  page,
+  baseUrl,
+}) => {
   const settings = new WhisparrSettingsPage(page, baseUrl);
   await settings.goto();
 

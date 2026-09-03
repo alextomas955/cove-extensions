@@ -22,7 +22,7 @@ config element:
   containing the literal token `{route}` that Whisparr substitutes with the actual metadata route.
 - Defaults (pinned builds):
   - v3 (eros): `<WhisparrMetadata>https://api.whisparr.com/v4/{route}</WhisparrMetadata>`
-  - v2:        `<WhisparrMetadata>https://api.whisparr.com/v3/{route}</WhisparrMetadata>`
+  - v2: `<WhisparrMetadata>https://api.whisparr.com/v3/{route}</WhisparrMetadata>`
 - **To override:** rewrite the element to point at a local server, keeping `{route}`, e.g.
   `http://host.docker.internal:9797/{route}` (host) or `http://skyhook-stub:9797/{route}` (a container
   alias on the shared Docker network). Whisparr reads `config.xml` **at startup only**, so a
@@ -40,13 +40,13 @@ Whisparr issues these metadata routes (the `{route}` substitution). The proxy fo
 
 ### v3 (eros → `api.whisparr.com/v4`)
 
-| Whisparr API call | Metadata route Whisparr issues | Recording | Returns |
-|-------------------|--------------------------------|-----------|---------|
-| `GET /api/v3/movie/lookup?term={text}` | `GET /movie/search?q={text}&year=` | `v3-movie-search-tushy.json` | array of scene rows |
-| `GET /api/v3/movie/lookup?term=stash:{uuid}` | `GET /scene/{stashUuid}` | (scene-by-id; not committed — see note) | one scene object |
-| `POST /api/v3/movie {tmdbId:{id}}` | `GET /movie/{tmdbId}` | `v3-movie-{tmdbId}.json` | one movie object |
-| `POST /api/v3/studio {foreignId:{stashUuid}}` | `GET /site/{stashUuid}` | `v3-site-tushy-raw.json` | one studio (site) object |
-| `GET /api/v3/studio?stashId={uuid}` | *(no metadata call — returns already-added studios only)* | — | added studios |
+| Whisparr API call                             | Metadata route Whisparr issues                            | Recording                               | Returns                  |
+| --------------------------------------------- | --------------------------------------------------------- | --------------------------------------- | ------------------------ |
+| `GET /api/v3/movie/lookup?term={text}`        | `GET /movie/search?q={text}&year=`                        | `v3-movie-search-tushy.json`            | array of scene rows      |
+| `GET /api/v3/movie/lookup?term=stash:{uuid}`  | `GET /scene/{stashUuid}`                                  | (scene-by-id; not committed — see note) | one scene object         |
+| `POST /api/v3/movie {tmdbId:{id}}`            | `GET /movie/{tmdbId}`                                     | `v3-movie-{tmdbId}.json`                | one movie object         |
+| `POST /api/v3/studio {foreignId:{stashUuid}}` | `GET /site/{stashUuid}`                                   | `v3-site-tushy-raw.json`                | one studio (site) object |
+| `GET /api/v3/studio?stashId={uuid}`           | _(no metadata call — returns already-added studios only)_ | —                                       | added studios            |
 
 - v3 studio/site identity is a **StashDB UUID** carried in `ForeignIds.StashId`; scenes carry a numeric
   `ForeignIds.TmdbId` and (for StashDB-sourced scenes) a `StashId`. The Tushy catalog's scenes in the v4
@@ -63,10 +63,10 @@ Whisparr issues these metadata routes (the `{route}` substitution). The proxy fo
 
 ### v2 (`api.whisparr.com/v3`, Sonarr-shaped: site = series, scene = episode)
 
-| Whisparr API call | Metadata route Whisparr issues | Recording | Returns |
-|-------------------|--------------------------------|-----------|---------|
-| `GET /api/v3/series/lookup?term={text}` | `GET /site/search?q={text}` | `v2-site-search-tushy.json` | array of site rows |
-| `GET /api/v3/series/lookup?term=tpdb:{id}` | `GET /site/{tpdbId}` | `v2-site-3417.json` | one site object with embedded `Episodes[]` |
+| Whisparr API call                          | Metadata route Whisparr issues | Recording                   | Returns                                    |
+| ------------------------------------------ | ------------------------------ | --------------------------- | ------------------------------------------ |
+| `GET /api/v3/series/lookup?term={text}`    | `GET /site/search?q={text}`    | `v2-site-search-tushy.json` | array of site rows                         |
+| `GET /api/v3/series/lookup?term=tpdb:{id}` | `GET /site/{tpdbId}`           | `v2-site-3417.json`         | one site object with embedded `Episodes[]` |
 
 - v2 site identity is a **ThePornDB id** carried in Sonarr's `tvdbId` slot (`ForeignId` in the metadata
   response). Scenes are embedded as `Episodes[]` on the site, each with its own numeric `ForeignId` and a
@@ -87,10 +87,10 @@ is likewise **no key requirement** — the stub is the metadata source.
 
 `GET /api/v3/notification/schema`, Webhook implementation fields:
 
-| Version | Webhook fields | Verdict |
-|---------|----------------|---------|
-| v3 (eros) | `url`, `method`, `username`, `password`, **`headers`** | **Custom headers supported** — Cove's `X-Cove-Token` can be sent directly. |
-| v2 | `url`, `method`, `username`, `password` | **Basic-Auth only, no custom-header field** — a **token-injecting shim** is required for `X-Cove-Token`. |
+| Version   | Webhook fields                                         | Verdict                                                                                                  |
+| --------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| v3 (eros) | `url`, `method`, `username`, `password`, **`headers`** | **Custom headers supported** — Cove's `X-Cove-Token` can be sent directly.                               |
+| v2        | `url`, `method`, `username`, `password`                | **Basic-Auth only, no custom-header field** — a **token-injecting shim** is required for `X-Cove-Token`. |
 
 ## Offline-resolution proof
 

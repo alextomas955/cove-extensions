@@ -57,37 +57,37 @@ obviously-synthetic patterns.
 
 A **studio** and a **performer** record each carry:
 
-| Field | Meaning |
-| --- | --- |
-| `id` | Synthetic id (`studio-*` / `performer-*`). |
-| `name` | Fake display name. |
-| `thumbnail` | Path to the record's placeholder PNG. |
+| Field       | Meaning                                    |
+| ----------- | ------------------------------------------ |
+| `id`        | Synthetic id (`studio-*` / `performer-*`). |
+| `name`      | Fake display name.                         |
+| `thumbnail` | Path to the record's placeholder PNG.      |
 
 A **scene** record carries:
 
-| Field | Meaning |
-| --- | --- |
-| `id` | Synthetic id (`scene-alpha` … `scene-epsilon`). |
-| `title` | Fake display title. |
-| `whisparrState` | One of the five states below. |
-| `stashId` | Synthetic StashDB id (`stash-synthetic-000N`). |
-| `path` | Fake on-disk path under `/synthetic/`. |
-| `studio` | The owning studio's `id`. |
-| `performers` | An array of performer `id`s. |
-| `thumbnail` | Path to the scene's placeholder PNG. |
+| Field           | Meaning                                         |
+| --------------- | ----------------------------------------------- |
+| `id`            | Synthetic id (`scene-alpha` … `scene-epsilon`). |
+| `title`         | Fake display title.                             |
+| `whisparrState` | One of the five states below.                   |
+| `stashId`       | Synthetic StashDB id (`stash-synthetic-000N`).  |
+| `path`          | Fake on-disk path under `/synthetic/`.          |
+| `studio`        | The owning studio's `id`.                       |
+| `performers`    | An array of performer `id`s.                    |
+| `thumbnail`     | Path to the scene's placeholder PNG.            |
 
 ### Whisparr states
 
 Each scene carries exactly one `whisparrState`, and the five scenes cover every state the status UI
 renders. Each state's thumbnail is tinted a fixed color so a screenshot can tell them apart.
 
-| `whisparrState` | Scene | Thumbnail tint |
-| --- | --- | --- |
-| `downloaded` | scene-alpha | green |
-| `monitored` | scene-beta | blue |
-| `unmonitored` | scene-gamma | slate |
-| `not-added` | scene-delta | amber |
-| `excluded` | scene-epsilon | red |
+| `whisparrState` | Scene         | Thumbnail tint |
+| --------------- | ------------- | -------------- |
+| `downloaded`    | scene-alpha   | green          |
+| `monitored`     | scene-beta    | blue           |
+| `unmonitored`   | scene-gamma   | slate          |
+| `not-added`     | scene-delta   | amber          |
+| `excluded`      | scene-epsilon | red            |
 
 ## How the suite uses it
 

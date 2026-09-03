@@ -27,10 +27,10 @@ capture (see `../skyhook/README.md`).
 
 ## Files
 
-| File | Version | Identity key | Entries |
-|------|---------|--------------|---------|
+| File              | Version   | Identity key                        | Entries                                                                                             |
+| ----------------- | --------- | ----------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `v3-stashdb.json` | v3 (eros) | StashDB UUID (`ForeignIds.StashId`) | `Tushy Raw` studio + a scene text-search + a single `Tushy Raw` scene (per-scene add by StashDB id) |
-| `v2-tpdb.json` | v2 | ThePornDB id (Sonarr `tvdbId` slot) | `Tushy` site (`tvdbId 3417`) + a site text-search |
+| `v2-tpdb.json`    | v2        | ThePornDB id (Sonarr `tvdbId` slot) | `Tushy` site (`tvdbId 3417`) + a site text-search                                                   |
 
 Each entry carries `lookupPath` = the exact SkyHook route Whisparr issues for that id, and `recording` =
 the committed scrubbed response that serves it. Those `lookupPath`s are the keys in

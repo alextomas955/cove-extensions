@@ -17,23 +17,23 @@
 // Deliberately hermetic: no indexer and no download client are configured, so nothing can ever grab —
 // the live/offline specs assert the extension's OUTWARD wire attribution (origin tag + searchForMovie:
 // false), not a real download.
-import { GenericContainer, Wait } from 'testcontainers';
+import { GenericContainer, Wait } from "testcontainers";
 
 // Both v2 and v3 listen on 6969 internally; only the image differs. v2 is Sonarr-shaped (site = series,
 // scene = episode) and pins its root folder at /config/media per the v2 outward contract, whereas v3
 // provisions /data/media.
 const VERSIONS = {
-  v3: { image: 'ghcr.io/hotio/whisparr:v3', rootFolder: '/data/media' },
-  v2: { image: 'ghcr.io/hotio/whisparr:v2', rootFolder: '/config/media' },
+  v3: { image: "ghcr.io/hotio/whisparr:v3", rootFolder: "/data/media" },
+  v2: { image: "ghcr.io/hotio/whisparr:v2", rootFolder: "/config/media" },
 };
 const WHISPARR_PORT = 6969;
-const ALIAS = 'whisparr';
+const ALIAS = "whisparr";
 
 /** Parses the <ApiKey>…</ApiKey> element out of Whisparr's config.xml. Throws if it is not present yet. */
 function parseApiKey(configXml) {
   const match = /<ApiKey>([^<]+)<\/ApiKey>/.exec(configXml);
   if (!match) {
-    throw new Error('startWhisparr: could not read <ApiKey> from /config/config.xml');
+    throw new Error("startWhisparr: could not read <ApiKey> from /config/config.xml");
   }
   return match[1].trim();
 }
@@ -44,12 +44,12 @@ function parseApiKey(configXml) {
  * the element before `</Config>` on the (not-observed on the pinned builds) chance it is absent.
  */
 async function overrideMetadataUrl(container, metadataUrl) {
-  const escaped = metadataUrl.replace(/[|&\\]/g, '\\$&');
+  const escaped = metadataUrl.replace(/[|&\\]/g, "\\$&");
   const replace = `sed -i 's|<WhisparrMetadata>[^<]*</WhisparrMetadata>|<WhisparrMetadata>${escaped}</WhisparrMetadata>|' /config/config.xml`;
   const insert = `sed -i 's|</Config>|  <WhisparrMetadata>${escaped}</WhisparrMetadata>\\n</Config>|' /config/config.xml`;
   await container.exec(
-    ['sh', '-c', `grep -q '<WhisparrMetadata>' /config/config.xml && ${replace} || ${insert}`],
-    { user: 'root' },
+    ["sh", "-c", `grep -q '<WhisparrMetadata>' /config/config.xml && ${replace} || ${insert}`],
+    { user: "root" },
   );
 }
 
@@ -60,7 +60,9 @@ async function waitForPing(baseUrlFromHost, { timeoutMs = 120_000, intervalMs = 
     if (res?.ok) return;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
-  throw new Error(`startWhisparr: container did not answer /ping within ${timeoutMs}ms at ${baseUrlFromHost}`);
+  throw new Error(
+    `startWhisparr: container did not answer /ping within ${timeoutMs}ms at ${baseUrlFromHost}`,
+  );
 }
 
 /**
@@ -75,7 +77,7 @@ async function waitForPing(baseUrlFromHost, { timeoutMs = 120_000, intervalMs = 
  *   - `metadataUrl` the `<WhisparrMetadata>` URL template (e.g. from the SkyHook stub). When set, the
  *     config is rewritten and the container restarted so lookups resolve offline at the stub.
  */
-export async function startWhisparr({ networkName, version = 'v3', metadataUrl, dataVolume } = {}) {
+export async function startWhisparr({ networkName, version = "v3", metadataUrl, dataVolume } = {}) {
   const spec = VERSIONS[version];
   if (!spec) {
     throw new Error(`startWhisparr: unsupported version "${version}" (expected 'v2' or 'v3')`);
@@ -88,16 +90,16 @@ export async function startWhisparr({ networkName, version = 'v3', metadataUrl, 
     .withExposedPorts(WHISPARR_PORT)
     .withNetworkMode(networkName)
     .withNetworkAliases(ALIAS)
-    .withEnvironment({ PUID: '501', PGID: '20', TZ: 'Etc/UTC' })
-    .withWaitStrategy(Wait.forHttp('/ping', WHISPARR_PORT).forStatusCode(200))
+    .withEnvironment({ PUID: "501", PGID: "20", TZ: "Etc/UTC" })
+    .withWaitStrategy(Wait.forHttp("/ping", WHISPARR_PORT).forStatusCode(200))
     .withStartupTimeout(120_000);
   if (dataVolume) {
-    builder = builder.withBindMounts([{ source: dataVolume, target: '/data', mode: 'rw' }]);
+    builder = builder.withBindMounts([{ source: dataVolume, target: "/data", mode: "rw" }]);
   }
   const container = await builder.start();
 
   // The key lives only in the running container's config — read it out of band (never from a committed value).
-  const { output } = await container.exec(['cat', '/config/config.xml']);
+  const { output } = await container.exec(["cat", "/config/config.xml"]);
   const apiKey = parseApiKey(output);
 
   if (metadataUrl) {
@@ -118,21 +120,23 @@ export async function startWhisparr({ networkName, version = 'v3', metadataUrl, 
   // Provision a root folder so the settings dropdowns (CONN-05) and the add path have a real target. The
   // directory is created + owned inside the container first, then registered through the (Sonarr-shaped)
   // v3 API surface both versions expose.
-  await container.exec(['mkdir', '-p', spec.rootFolder], { user: 'root' });
+  await container.exec(["mkdir", "-p", spec.rootFolder], { user: "root" });
   // The hotio images run the Whisparr service as the `hotio` user, and Whisparr's FolderWritableValidator
   // rejects a root folder the service user cannot write (400 FolderWritableValidator). The dir is created
   // as root, so hand it to `hotio` or the registration below silently fails and the root list stays empty.
-  await container.exec(['chown', '-R', 'hotio:hotio', spec.rootFolder], { user: 'root' }).catch(() => {});
+  await container
+    .exec(["chown", "-R", "hotio:hotio", spec.rootFolder], { user: "root" })
+    .catch(() => {});
   if (dataVolume) {
     // The shared volume is written by three services running as different uids (Cove, Whisparr's hotio,
     // qBit's 1655). Make /data + the download dir group/other-permissive so Whisparr can read qBit's
     // completed file and hardlink it into the root folder regardless of which uid created it.
-    await container.exec(['mkdir', '-p', '/data/downloads'], { user: 'root' }).catch(() => {});
-    await container.exec(['chmod', '-R', '0777', '/data'], { user: 'root' }).catch(() => {});
+    await container.exec(["mkdir", "-p", "/data/downloads"], { user: "root" }).catch(() => {});
+    await container.exec(["chmod", "-R", "0777", "/data"], { user: "root" }).catch(() => {});
   }
   await fetch(`${baseUrlFromHost}/api/v3/rootfolder`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey },
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
     body: JSON.stringify({ path: spec.rootFolder }),
   }).catch(() => {
     // A pre-existing root (or an image that seeds one) is fine — the spec asserts the list is non-empty.

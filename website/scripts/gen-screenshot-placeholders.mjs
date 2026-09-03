@@ -14,7 +14,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
 
-import { SCREENSHOT_TARGETS, IMG_OUTPUT_SUBPATH } from "../../extensions/WhisparrSync/e2e/lib/screenshot-targets.mjs";
+import {
+  SCREENSHOT_TARGETS,
+  IMG_OUTPUT_SUBPATH,
+} from "../../extensions/WhisparrSync/e2e/lib/screenshot-targets.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url)); // …/website/scripts
 const REPO_ROOT = join(HERE, "..", ".."); // repo root

@@ -23,18 +23,18 @@ The backend is a `FullExtensionBase` split across partials (`WhisparrSync.cs` / 
 / `WhisparrSync.Logging.cs`). Everything crossing to Whisparr goes through one transport client and
 one version-adapter seam; the handlers hold no wire knowledge.
 
-| Layer | Responsibility | Location |
-| --- | --- | --- |
-| `Client/WhisparrClient` | Transport only: `X-Api-Key` header, per-call timeout, status-/content-type guard, retry on idempotent GETs. Classifies every call into a typed `WhisparrResult<T>` (ok / badKey / unreachable / notWhisparr) instead of throwing. | `Client/` |
-| `Adapters/IWhisparrAdapter` + `V3Adapter` / `V2Adapter` | The version-adapter boundary — each adapter owns its version's endpoint paths and payload shapes. `AdapterSelector` maps `3 → V3Adapter`, `2 → V2Adapter`, and **refuses** any other version (never a silent wrong-adapter call). | `Adapters/` |
-| `Push/SceneActions` + `Monitor/EntityMonitor` | The outward mutation spine: register / monitor / search a scene, monitor a studio/performer, and the bulk variants. | `Push/`, `Monitor/` |
-| `Scene/SceneStatusProjector` | Derives each scene's read-only 4-state Whisparr status from the reconciliation movie set + one exclusion read — **no StashDB call**. | `Scene/` |
-| `Matching/IdentityMatcher` + `MatchStateStore` + `ReconciliationService` | Zero-mutation reconciliation: a single id-only match (StashDB id on v3, ThePornDB id on v2) and the Confirm/Reject match store (its only writes). | `Matching/` |
-| `Ingest/WebhookReceiver` + `IngestCoordinator` + `WhisparrRootGuard` | Turns a Whisparr On-Import into a Cove item **in place**; the root guard is fail-closed and the coordinator holds no relocation primitive. | `Ingest/` |
-| `Reconcile/ReconcileJob` + `ReconcileScheduler` | The `PeriodicTimer` polling backstop: an exclusive `IJobService` reconcile every 15 min over `GET /history` since a stored checkpoint. | `Reconcile/` |
-| `State/EventLedger` + `ImportLog` + `Checkpoint` | The cross-channel idempotency key (`SHA-256(downloadId | NormalizePath(path))`), the append-only import audit journal, and the poll checkpoint — all single-blob over `IExtensionStore`. | `State/` |
-| `Options/WhisparrOptions` + `OptionsStore` | One JSON blob over `IExtensionStore`; a corrupt/absent blob loads as safe defaults. The API key + webhook secret live here, server-side only. | `Options/` |
-| `Safety/RootOverlapDetector`, `Webhook/WebhookUrlBuilder` | Best-effort re-grab-loop advisory; webhook-secret mint + URL builder. | `Safety/`, `Webhook/` |
+| Layer                                                                    | Responsibility                                                                                                                                                                                                                    | Location                                                                                                                        |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `Client/WhisparrClient`                                                  | Transport only: `X-Api-Key` header, per-call timeout, status-/content-type guard, retry on idempotent GETs. Classifies every call into a typed `WhisparrResult<T>` (ok / badKey / unreachable / notWhisparr) instead of throwing. | `Client/`                                                                                                                       |
+| `Adapters/IWhisparrAdapter` + `V3Adapter` / `V2Adapter`                  | The version-adapter boundary — each adapter owns its version's endpoint paths and payload shapes. `AdapterSelector` maps `3 → V3Adapter`, `2 → V2Adapter`, and **refuses** any other version (never a silent wrong-adapter call). | `Adapters/`                                                                                                                     |
+| `Push/SceneActions` + `Monitor/EntityMonitor`                            | The outward mutation spine: register / monitor / search a scene, monitor a studio/performer, and the bulk variants.                                                                                                               | `Push/`, `Monitor/`                                                                                                             |
+| `Scene/SceneStatusProjector`                                             | Derives each scene's read-only 4-state Whisparr status from the reconciliation movie set + one exclusion read — **no StashDB call**.                                                                                              | `Scene/`                                                                                                                        |
+| `Matching/IdentityMatcher` + `MatchStateStore` + `ReconciliationService` | Zero-mutation reconciliation: a single id-only match (StashDB id on v3, ThePornDB id on v2) and the Confirm/Reject match store (its only writes).                                                                                 | `Matching/`                                                                                                                     |
+| `Ingest/WebhookReceiver` + `IngestCoordinator` + `WhisparrRootGuard`     | Turns a Whisparr On-Import into a Cove item **in place**; the root guard is fail-closed and the coordinator holds no relocation primitive.                                                                                        | `Ingest/`                                                                                                                       |
+| `Reconcile/ReconcileJob` + `ReconcileScheduler`                          | The `PeriodicTimer` polling backstop: an exclusive `IJobService` reconcile every 15 min over `GET /history` since a stored checkpoint.                                                                                            | `Reconcile/`                                                                                                                    |
+| `State/EventLedger` + `ImportLog` + `Checkpoint`                         | The cross-channel idempotency key (`SHA-256(downloadId                                                                                                                                                                            | NormalizePath(path))`), the append-only import audit journal, and the poll checkpoint — all single-blob over `IExtensionStore`. | `State/` |
+| `Options/WhisparrOptions` + `OptionsStore`                               | One JSON blob over `IExtensionStore`; a corrupt/absent blob loads as safe defaults. The API key + webhook secret live here, server-side only.                                                                                     | `Options/`                                                                                                                      |
+| `Safety/RootOverlapDetector`, `Webhook/WebhookUrlBuilder`                | Best-effort re-grab-loop advisory; webhook-secret mint + URL builder.                                                                                                                                                             | `Safety/`, `Webhook/`                                                                                                           |
 
 The minimal-API surface is mounted under `/api/extensions/com.alextomas955.whisparrsync/` and is
 permission-checked **in the handler** — the host's `[RequiresPermission]` filter is inert on
@@ -50,16 +50,16 @@ Cove-initiated action can never start a grab/import feedback loop. Treat them as
 they earn comments, and `V2OutwardParityTests` / `NoMutationTests` are the contract tests that guard
 them.
 
-- **Every *add* issues `searchForMovie:false`** — per-scene add, add-all-missing, and owned-scene
+- **Every _add_ issues `searchForMovie:false`** — per-scene add, add-all-missing, and owned-scene
   availability registration all register the movie in Whisparr **without grabbing**.
 - **Only an explicit user "Search" grabs.** The single grab-capable actions are "Search now" /
   "Search all monitored" / "Search for upgrades" (`MoviesSearch`) and the interactive "Grab this
   release". Turning monitoring on never triggers a search.
 - **Every mutation is origin-tagged `cove-sync`** (read-or-created via `GET`/`POST /tag`) and
   **idempotent** — a 409/exists is treated as **success**, not a duplicate.
-- **No second ingest path.** Any grab that results imports back through the *same* On-Import webhook
-  + polling reconcile, which is already idempotent (`EventLedger`), so a Cove-initiated add cannot
-  feed a re-ingest loop.
+- **No second ingest path.** Any grab that results imports back through the _same_ On-Import webhook
+  - polling reconcile, which is already idempotent (`EventLedger`), so a Cove-initiated add cannot
+    feed a re-ingest loop.
 - **Never move or delete inside a Whisparr root.** `IngestCoordinator` imports in place and holds no
   filesystem-relocation API at all; `NoMutationTests` fails if a `File.Move`/`Delete`/`Directory.*`
   call is ever added to the coordinator source.
@@ -147,7 +147,7 @@ property-level `[JsonConverter]`, and the frontend `*Logic.ts` label maps key on
 - **`@cove-ext/ui-shared`** (`shared/cove-extensions-ui/`) — shared field primitives + their pure
   logic, resolved from **raw TS source** through a Vite `resolve.alias` + tsconfig path (never a
   node_modules install), so Vite transforms it through the same pipeline as the bundle's own source.
-- **`@cove/extension-sdk`** — the Cove *frontend* host SDK, vendored as a committed `file:` tarball
+- **`@cove/extension-sdk`** — the Cove _frontend_ host SDK, vendored as a committed `file:` tarball
   under `src/WhisparrSync.Ui/vendor/` (not published to npm; `npm ci` installs it offline).
 
 ## Tests & e2e
@@ -165,11 +165,11 @@ property-level `[JsonConverter]`, and the frontend `*Logic.ts` label maps key on
 
 ## Comments — where they are earned in Whisparr Sync
 
-The monorepo comment / doc policy (root `CLAUDE.md`) applies. Whisparr Sync's value is a *loop-free,
-file-safe* sync, so the invariants that earn a comment here are the safety-critical ones: the
+The monorepo comment / doc policy (root `CLAUDE.md`) applies. Whisparr Sync's value is a _loop-free,
+file-safe_ sync, so the invariants that earn a comment here are the safety-critical ones: the
 `searchForMovie:false` / origin-tag / 409-as-success loop-safety contract, the import-in-place
 never-move-or-delete rule, the fail-closed root guard and token gate, the cross-channel ledger
 idempotency key, the version-adapter identity rule (why v3 keys outward on StashDB and v2 on TPDB, why
-the StashDB *match* leg still no-ops on v2, and why each no-analog capability defers), and the host
+the StashDB _match_ leg still no-ops on v2, and why each no-analog capability defers), and the host
 UI-slot quirks (top-level-props, the pill-gated card slots + their version/entity gating, the pinned
 enum casing). Comment those; leave the obvious code uncommented.

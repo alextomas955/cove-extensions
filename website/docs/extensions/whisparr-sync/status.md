@@ -12,13 +12,13 @@ default** — turning it on changes nothing in Cove or Whisparr.
 Every scene resolves to exactly one Whisparr state. The state is derived from the reconciliation movie
 set the extension already builds plus a read of Whisparr's exclusion list — **no new StashDB calls**.
 
-| State | Label | Meaning | How it is derived |
-| ------- | ------- | --------- | ------------------- |
-| `downloaded` | Downloaded | Whisparr has the scene as a movie with a file on disk. | The scene's Whisparr movie has `hasFile: true`. |
-| `monitored` | Monitored | Whisparr is tracking the scene and watching for it, but has no file yet. | The movie is present and monitored, `hasFile: false`. |
-| `unmonitored` | Unmonitored | The scene is in Whisparr but not being watched for. | The movie is present, not monitored, `hasFile: false`. |
-| `notAdded` | Not added | Whisparr does not have the scene at all. | No Whisparr movie resolves for the scene's StashDB id. |
-| `excluded` | Excluded | The scene is on Whisparr's exclusion list, so Whisparr will not add it. | The scene's StashDB id appears in Whisparr's exclusions (v3 only). |
+| State         | Label       | Meaning                                                                  | How it is derived                                                  |
+| ------------- | ----------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `downloaded`  | Downloaded  | Whisparr has the scene as a movie with a file on disk.                   | The scene's Whisparr movie has `hasFile: true`.                    |
+| `monitored`   | Monitored   | Whisparr is tracking the scene and watching for it, but has no file yet. | The movie is present and monitored, `hasFile: false`.              |
+| `unmonitored` | Unmonitored | The scene is in Whisparr but not being watched for.                      | The movie is present, not monitored, `hasFile: false`.             |
+| `notAdded`    | Not added   | Whisparr does not have the scene at all.                                 | No Whisparr movie resolves for the scene's StashDB id.             |
+| `excluded`    | Excluded    | The scene is on Whisparr's exclusion list, so Whisparr will not add it.  | The scene's StashDB id appears in Whisparr's exclusions (v3 only). |
 
 The library status row shows a count for each of the four primary states — **Downloaded · Monitored ·
 Not added · Excluded** — with each count marked by its own glyph. `Unmonitored` is reported per scene
@@ -58,7 +58,7 @@ restates Cove-owned metadata such as release date or file size.
 
 ![A scene's detail rail in Cove with the Whisparr tab open, showing the status badge and the Add, Monitor, and Search controls.](/img/whisparr-sync/scene-panel.png)
 
-*The scene-detail Whisparr tab, shown against a synthetic fixture library — no real media.*
+_The scene-detail Whisparr tab, shown against a synthetic fixture library — no real media._
 
 ### Library toolbar summary
 
@@ -70,7 +70,7 @@ removable view option, like Cove's other toolbar toggles.
 
 ![The videos library toolbar in Cove with the Whisparr pill turned on, revealing the per-state glyph-marked count summary on its own row below the toolbar.](/img/whisparr-sync/library-status.png)
 
-*The library status pill and its per-state count row, shown against a synthetic fixture library — no real media.*
+_The library status pill and its per-state count row, shown against a synthetic fixture library — no real media._
 
 When you multi-select scenes in the library, the selection bar's **Whisparr** action opens the batch
 menu with its six ordered actions — Add to Whisparr, Monitor, Unmonitor, Search now, Search for
@@ -80,7 +80,7 @@ skips scenes that are not in Whisparr.
 
 ![The videos-list selection bar in Cove with the Whisparr batch menu open, showing the Add to Whisparr, Monitor, Unmonitor, Search now, Search for upgrades, and Exclude actions.](/img/whisparr-sync/videos-batch.png)
 
-*The videos-list Whisparr batch menu, shown against a synthetic fixture library — no real media.*
+_The videos-list Whisparr batch menu, shown against a synthetic fixture library — no real media._
 
 ### Reconciliation Whisparr column
 

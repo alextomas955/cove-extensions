@@ -35,7 +35,7 @@ When an entity is monitored, a single quiet line appears under its stat tiles:
 
 ![A studio page in Cove with the Whisparr menu open from the action-row Whisparr button, showing Monitor in Whisparr checked, the monitor-scope choices, Add all missing, Search all monitored, and a "Monitored in Whisparr · X of Y scenes" line at the foot of the menu.](/img/whisparr-sync/monitor-studio.png)
 
-*A studio's Whisparr menu, monitored, with the scene-count status line — shown against a synthetic fixture library, no real media.*
+_A studio's Whisparr menu, monitored, with the scene-count status line — shown against a synthetic fixture library, no real media._
 
 The count is Whisparr's own, exactly as its studio/performer view shows it: **147** scenes in this
 entity's full catalog, **1** already present in your Whisparr library. When Whisparr lists no catalog

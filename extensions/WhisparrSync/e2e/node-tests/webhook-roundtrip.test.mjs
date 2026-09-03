@@ -18,13 +18,19 @@ const COVE_WEBHOOK_URL = `http://cove:5073/api/extensions/${EXTENSION_ID}/webhoo
 
 let ctx;
 
-before(async () => {
-  ctx = await startWhisparrSyncHarness({ version: "v3" });
-}, { timeout: 600_000 });
+before(
+  async () => {
+    ctx = await startWhisparrSyncHarness({ version: "v3" });
+  },
+  { timeout: 600_000 },
+);
 
-after(async () => {
-  await ctx?.stop();
-}, { timeout: 120_000 });
+after(
+  async () => {
+    await ctx?.stop();
+  },
+  { timeout: 120_000 },
+);
 
 test("a real Whisparr On-Import round-trips to Cove and is ingested", async () => {
   const { api, whisparr } = ctx;
@@ -36,7 +42,12 @@ test("a real Whisparr On-Import round-trips to Cove and is ingested", async () =
   const token = new URL(urlRes.json.url).searchParams.get("token");
   assert.ok(token && token.length > 0, "a webhook secret was minted and returned");
 
-  await registerWebhookNotification({ whisparr, version: "v3", coveWebhookUrl: COVE_WEBHOOK_URL, token });
+  await registerWebhookNotification({
+    whisparr,
+    version: "v3",
+    coveWebhookUrl: COVE_WEBHOOK_URL,
+    token,
+  });
 
   const imported = await triggerImport({ whisparr, version: "v3" });
 
@@ -56,12 +67,23 @@ test("a real Whisparr On-Import round-trips to Cove and is ingested", async () =
   const log = await pollUntil(
     async () => (await api.get(`/api/extensions/${EXTENSION_ID}/import-log`)).json,
     (l) => Array.isArray(l?.entries) && l.entries.some(matchesImport),
-    { timeoutMs: 120_000, intervalMs: 1000, label: "a webhook On-Import entry referencing the imported movie" },
+    {
+      timeoutMs: 120_000,
+      intervalMs: 1000,
+      label: "a webhook On-Import entry referencing the imported movie",
+    },
   );
 
   const entry = log.entries.find(matchesImport);
   assert.ok(entry, "an import-log entry for the real On-Import round-trip exists");
   assert.equal(entry.source, "webhook", "the entry came in over the inbound webhook");
-  assert.equal(String(entry.eventType).toLowerCase(), "download", "it is a Whisparr On-Import (Download) event");
-  assert.ok(withinMovieFolder(entry.path), `the entry references the imported movie (path: ${entry.path})`);
+  assert.equal(
+    String(entry.eventType).toLowerCase(),
+    "download",
+    "it is a Whisparr On-Import (Download) event",
+  );
+  assert.ok(
+    withinMovieFolder(entry.path),
+    `the entry references the imported movie (path: ${entry.path})`,
+  );
 });

@@ -10,13 +10,19 @@ import { startWhisparrSyncHarness, EXTENSION_ID } from "../lib/setup.mjs";
 
 let ctx;
 
-before(async () => {
-  ctx = await startWhisparrSyncHarness({ version: "v3" });
-}, { timeout: 600_000 });
+before(
+  async () => {
+    ctx = await startWhisparrSyncHarness({ version: "v3" });
+  },
+  { timeout: 600_000 },
+);
 
-after(async () => {
-  await ctx?.stop();
-}, { timeout: 120_000 });
+after(
+  async () => {
+    await ctx?.stop();
+  },
+  { timeout: 120_000 },
+);
 
 test("Test-connection detects a v3 (Eros) build with a non-empty instance name", async () => {
   const { api, whisparr } = ctx;

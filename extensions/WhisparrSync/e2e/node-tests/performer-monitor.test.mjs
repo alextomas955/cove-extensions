@@ -31,13 +31,19 @@ async function findPerformer(foreignId) {
   return rows.filter((p) => p.foreignId === foreignId);
 }
 
-before(async () => {
-  ctx = await startWhisparrSyncHarness({ version: "v3" });
-}, { timeout: 600_000 });
+before(
+  async () => {
+    ctx = await startWhisparrSyncHarness({ version: "v3" });
+  },
+  { timeout: 600_000 },
+);
 
-after(async () => {
-  await ctx?.stop();
-}, { timeout: 120_000 });
+after(
+  async () => {
+    await ctx?.stop();
+  },
+  { timeout: 120_000 },
+);
 
 test("monitoring a performer adds a real, monitored, cove-sync-tagged Whisparr performer row", async () => {
   const { api, remoteIds } = ctx;
@@ -49,7 +55,10 @@ test("monitoring a performer adds a real, monitored, cove-sync-tagged Whisparr p
   };
 
   const res = await api.post(`/api/extensions/${EXTENSION_ID}/monitor`, body);
-  assert.ok(res.status < 500, `performer monitor did not error (status ${res.status}, body: ${res.text})`);
+  assert.ok(
+    res.status < 500,
+    `performer monitor did not error (status ${res.status}, body: ${res.text})`,
+  );
 
   // A fresh performer CREATE queues a RefreshPerformers that rebuilds the row after the flip PUT, so poll.
   const matches = await pollUntil(
@@ -96,5 +105,8 @@ test("a repeated identical performer monitor call is idempotent — one row, sti
 
   const { json: tags } = await whisparrGet("/api/v3/tag");
   const originTag = (Array.isArray(tags) ? tags : []).find((t) => t.label === ORIGIN_TAG);
-  assert.ok(originTag && matches[0].tags?.includes(originTag.id), `still carries the ${ORIGIN_TAG} tag`);
+  assert.ok(
+    originTag && matches[0].tags?.includes(originTag.id),
+    `still carries the ${ORIGIN_TAG} tag`,
+  );
 });

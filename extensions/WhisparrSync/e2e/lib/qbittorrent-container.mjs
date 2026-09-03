@@ -16,33 +16,33 @@
 // (bind-mounted into both), so Whisparr imports by hardlink exactly as in production — no copy, no move
 // across volumes. The caller passes the shared host dir; qBit writes completed files under
 // `<downloadDir>/whisparr`.
-import { GenericContainer, Wait } from 'testcontainers';
+import { GenericContainer, Wait } from "testcontainers";
 
-const IMAGE = process.env.QBIT_IMAGE ?? 'ghcr.io/linuxserver/qbittorrent:4.6.7';
+const IMAGE = process.env.QBIT_IMAGE ?? "ghcr.io/linuxserver/qbittorrent:4.6.7";
 const QBIT_PORT = 8080;
-const ALIAS = 'qbittorrent';
-const CATEGORY = 'whisparr';
+const ALIAS = "qbittorrent";
+const CATEGORY = "whisparr";
 
 // Pre-seeded qBittorrent.conf: WebUI on 8080, auth bypassed for any subnet, CSRF/host-header validation
 // off (the WebUI is reached by container alias + a mapped host port, neither of which matches qBit's
 // default same-origin expectation). Written before first start so qBit never generates a random password.
 function configFileContent(downloadDirInContainer) {
   return [
-    '[BitTorrent]',
-    'Session\\DefaultSavePath=' + downloadDirInContainer,
-    'Session\\TempPathEnabled=false',
-    '',
-    '[Preferences]',
-    'WebUI\\Address=*',
-    'WebUI\\Port=' + QBIT_PORT,
-    'WebUI\\LocalHostAuth=false',
-    'WebUI\\AuthSubnetWhitelistEnabled=true',
-    'WebUI\\AuthSubnetWhitelist=0.0.0.0/0',
-    'WebUI\\CSRFProtection=false',
-    'WebUI\\HostHeaderValidation=false',
-    'Downloads\\SavePath=' + downloadDirInContainer,
-    '',
-  ].join('\n');
+    "[BitTorrent]",
+    "Session\\DefaultSavePath=" + downloadDirInContainer,
+    "Session\\TempPathEnabled=false",
+    "",
+    "[Preferences]",
+    "WebUI\\Address=*",
+    "WebUI\\Port=" + QBIT_PORT,
+    "WebUI\\LocalHostAuth=false",
+    "WebUI\\AuthSubnetWhitelistEnabled=true",
+    "WebUI\\AuthSubnetWhitelist=0.0.0.0/0",
+    "WebUI\\CSRFProtection=false",
+    "WebUI\\HostHeaderValidation=false",
+    "Downloads\\SavePath=" + downloadDirInContainer,
+    "",
+  ].join("\n");
 }
 
 /**
@@ -55,25 +55,32 @@ function configFileContent(downloadDirInContainer) {
  * @returns {Promise<{ urlFromHost: string, urlFromWhisparr: string, category: string,
  *   apiFromHost: (path: string, init?: object) => Promise<Response>, stop: () => Promise<void> }>}
  */
-export async function startQBittorrent({ networkName, dataVolume, dataMount = '/data', downloadDir = '/data/downloads' }) {
+export async function startQBittorrent({
+  networkName,
+  dataVolume,
+  dataMount = "/data",
+  downloadDir = "/data/downloads",
+}) {
   if (!networkName) {
-    throw new Error('startQBittorrent: networkName is required');
+    throw new Error("startQBittorrent: networkName is required");
   }
   if (!dataVolume) {
-    throw new Error('startQBittorrent: dataVolume is required (shared with Whisparr for hardlink import)');
+    throw new Error(
+      "startQBittorrent: dataVolume is required (shared with Whisparr for hardlink import)",
+    );
   }
 
   const container = await new GenericContainer(IMAGE)
     .withExposedPorts(QBIT_PORT)
     .withNetworkMode(networkName)
     .withNetworkAliases(ALIAS)
-    .withEnvironment({ PUID: '1655', PGID: '1655', TZ: 'Etc/UTC', WEBUI_PORT: String(QBIT_PORT) })
+    .withEnvironment({ PUID: "1655", PGID: "1655", TZ: "Etc/UTC", WEBUI_PORT: String(QBIT_PORT) })
     // Mount the shared volume at /data (same as Whisparr) so /data/downloads resolves to the SAME files.
-    .withBindMounts([{ source: dataVolume, target: dataMount, mode: 'rw' }])
+    .withBindMounts([{ source: dataVolume, target: dataMount, mode: "rw" }])
     .withCopyContentToContainer([
-      { content: configFileContent(downloadDir), target: '/config/qBittorrent/qBittorrent.conf' },
+      { content: configFileContent(downloadDir), target: "/config/qBittorrent/qBittorrent.conf" },
     ])
-    .withWaitStrategy(Wait.forHttp('/api/v2/app/version', QBIT_PORT).forStatusCode(200))
+    .withWaitStrategy(Wait.forHttp("/api/v2/app/version", QBIT_PORT).forStatusCode(200))
     .withStartupTimeout(120_000)
     .start();
 
@@ -83,8 +90,8 @@ export async function startQBittorrent({ networkName, dataVolume, dataMount = '/
 
   // Create the `whisparr` category so a grab assigned to it lands in the shared download dir.
   await fetch(`${urlFromHost}/api/v2/torrents/createCategory`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ category: CATEGORY, savePath: downloadDir }),
   }).catch(() => {});
 

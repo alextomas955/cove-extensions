@@ -51,13 +51,19 @@ function queueRecords(json) {
   return json?.records ?? [];
 }
 
-before(async () => {
-  ctx = await startWhisparrSyncHarness({ version: "v2" });
-}, { timeout: 600_000 });
+before(
+  async () => {
+    ctx = await startWhisparrSyncHarness({ version: "v2" });
+  },
+  { timeout: 600_000 },
+);
 
-after(async () => {
-  await ctx?.stop();
-}, { timeout: 120_000 });
+after(
+  async () => {
+    await ctx?.stop();
+  },
+  { timeout: 120_000 },
+);
 
 test("monitoring a studio adds a real, monitored, cove-sync-tagged v2 site (series) row", async () => {
   const { api, remoteIds } = ctx;
@@ -78,7 +84,9 @@ test("monitoring a studio adds a real, monitored, cove-sync-tagged v2 site (seri
   // real monitored row is observable.
   const matches = await pollUntil(
     () => listSeries(),
-    (rows) => findSiteByTvdbId(rows, tvdbId).length === 1 && findSiteByTvdbId(rows, tvdbId)[0].monitored === true,
+    (rows) =>
+      findSiteByTvdbId(rows, tvdbId).length === 1 &&
+      findSiteByTvdbId(rows, tvdbId)[0].monitored === true,
     { timeoutMs: 90_000, label: "a single monitored v2 site row for the allowlist TPDB id" },
   );
   const site = findSiteByTvdbId(matches, tvdbId)[0];
@@ -120,15 +128,24 @@ test("a repeated identical monitor call is idempotent — one v2 site row, still
 
   const matches = await pollUntil(
     () => listSeries(),
-    (rows) => findSiteByTvdbId(rows, tvdbId).length === 1 && findSiteByTvdbId(rows, tvdbId)[0].monitored === true,
+    (rows) =>
+      findSiteByTvdbId(rows, tvdbId).length === 1 &&
+      findSiteByTvdbId(rows, tvdbId)[0].monitored === true,
     { timeoutMs: 60_000, label: "still exactly one monitored v2 site row after the re-add" },
   );
   const sites = findSiteByTvdbId(matches, tvdbId);
-  assert.equal(sites.length, 1, "no duplicate v2 site row was created (400-exists treated as success)");
+  assert.equal(
+    sites.length,
+    1,
+    "no duplicate v2 site row was created (400-exists treated as success)",
+  );
 
   const { json: tags } = await whisparrGet("/api/v3/tag");
   const originTag = (Array.isArray(tags) ? tags : []).find((t) => t.label === ORIGIN_TAG);
-  assert.ok(originTag && sites[0].tags?.includes(originTag.id), `still carries the ${ORIGIN_TAG} tag`);
+  assert.ok(
+    originTag && sites[0].tags?.includes(originTag.id),
+    `still carries the ${ORIGIN_TAG} tag`,
+  );
 });
 
 // v2 fetches a fresh site's episode list asynchronously after the create, so the count settles a beat
@@ -169,8 +186,16 @@ test("status projection reads grabbed-of-total over the real v2 site episode sta
   // client), so grabbed is 0 — but the counts are asserted against the container's own episode state.
   // The projection serializes present/catalog counts as scenesPresent (episodes with a file) over
   // scenesTotal (all site episodes) — the Phase-30 "Monitored · present/catalog" contract.
-  assert.equal(res.json.scenesTotal, realEpisodes.length, "status total matches the real v2 episode count");
-  assert.equal(res.json.scenesPresent, realGrabbed, "status present matches the real v2 hasFile episode count");
+  assert.equal(
+    res.json.scenesTotal,
+    realEpisodes.length,
+    "status total matches the real v2 episode count",
+  );
+  assert.equal(
+    res.json.scenesPresent,
+    realGrabbed,
+    "status present matches the real v2 hasFile episode count",
+  );
   assert.equal(res.json.hasCounts, true, "the site status carries real of-total counts");
 });
 
@@ -192,14 +217,20 @@ test("an explicit Search issues the EpisodeSearch command v2 accepts, and loop-s
     Monitored: true,
     Scope: "AllScenes",
   });
-  assert.ok(flip.status < 500, `AllScenes monitor did not error (status ${flip.status}, body: ${flip.text})`);
+  assert.ok(
+    flip.status < 500,
+    `AllScenes monitor did not error (status ${flip.status}, body: ${flip.text})`,
+  );
 
   const monitored = await pollUntil(
     () => loadedEpisodes(site.id),
     (eps) => eps.some((e) => e.monitored === true),
     { timeoutMs: 60_000, label: "at least one monitored v2 episode after the AllScenes cascade" },
   );
-  assert.ok(monitored.some((e) => e.monitored === true), "the site has monitored episodes to search");
+  assert.ok(
+    monitored.some((e) => e.monitored === true),
+    "the site has monitored episodes to search",
+  );
 
   const res = await api.post(`/api/extensions/${EXTENSION_ID}/bulk-search-monitored`, {
     Kind: "studio",

@@ -14,7 +14,11 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { startWhisparrSyncHarness, EXTENSION_ID } from "../lib/setup.mjs";
-import { registerWebhookNotification, triggerImport, startTokenShim } from "../lib/whisparr-webhook.mjs";
+import {
+  registerWebhookNotification,
+  triggerImport,
+  startTokenShim,
+} from "../lib/whisparr-webhook.mjs";
 
 // The v2 Webhook posts to the token shim (a service alias on the shared network), which injects X-Cove-Token
 // and forwards to Cove's own alias (cove:5073) — never the test process's mapped-host localhost.
@@ -29,14 +33,20 @@ let shim;
 // The real import fired in the first test; the reconcile-contract test asserts against the same landed item.
 let imported;
 
-before(async () => {
-  ctx = await startWhisparrSyncHarness({ version: "v2" });
-}, { timeout: 600_000 });
+before(
+  async () => {
+    ctx = await startWhisparrSyncHarness({ version: "v2" });
+  },
+  { timeout: 600_000 },
+);
 
-after(async () => {
-  await shim?.stop().catch(() => {});
-  await ctx?.stop();
-}, { timeout: 120_000 });
+after(
+  async () => {
+    await shim?.stop().catch(() => {});
+    await ctx?.stop();
+  },
+  { timeout: 120_000 },
+);
 
 // Reads Whisparr v2's own Sonarr-shaped API on its mapped host port with the out-of-band key (never the
 // extension's), mirroring v2-parity.test.mjs. Used for the history-reconcile contract read.
@@ -82,16 +92,27 @@ test("a real Whisparr v2 On-Import (series+episode) round-trips to Cove and is i
   const log = await pollUntil(
     async () => (await api.get(`/api/extensions/${EXTENSION_ID}/import-log`)).json,
     (l) => Array.isArray(l?.entries) && l.entries.some(matchesImport),
-    { timeoutMs: 120_000, intervalMs: 1000, label: "a v2 webhook On-Import entry referencing the imported episode" },
+    {
+      timeoutMs: 120_000,
+      intervalMs: 1000,
+      label: "a v2 webhook On-Import entry referencing the imported episode",
+    },
   );
 
   const entry = log.entries.find(matchesImport);
   assert.ok(entry, "an import-log entry for the real v2 On-Import round-trip exists");
   assert.equal(entry.source, "webhook", "the entry came in over the inbound webhook");
-  assert.equal(String(entry.eventType).toLowerCase(), "download", "it is a Whisparr On-Import (Download) event");
+  assert.equal(
+    String(entry.eventType).toLowerCase(),
+    "download",
+    "it is a Whisparr On-Import (Download) event",
+  );
   // The v2 payload is series+episode-shaped (episodeFile.Path), distinct from v3's movie payload; a path under
   // the site folder confirms Cove parsed the v2 branch, not merely that the log grew.
-  assert.ok(withinSiteFolder(entry.path), `the entry references the imported episode file (path: ${entry.path})`);
+  assert.ok(
+    withinSiteFolder(entry.path),
+    `the entry references the imported episode file (path: ${entry.path})`,
+  );
 });
 
 test("the v2 downloadFolderImported history event reconciles against real Cove state", async () => {
@@ -112,15 +133,22 @@ test("the v2 downloadFolderImported history event reconciles against real Cove s
     return valueOf(data, "importedPath") ?? valueOf(data, "droppedPath");
   };
   const isRealImport = (record) =>
-    String(record?.eventType).toLowerCase() === IMPORT_HISTORY_EVENT.toLowerCase() && withinSiteFolder(pathOf(record));
+    String(record?.eventType).toLowerCase() === IMPORT_HISTORY_EVENT.toLowerCase() &&
+    withinSiteFolder(pathOf(record));
 
   const records = await pollUntil(
     async () => {
-      const { json } = await whisparrGet("/api/v3/history?page=1&pageSize=50&sortKey=date&sortDirection=descending");
+      const { json } = await whisparrGet(
+        "/api/v3/history?page=1&pageSize=50&sortKey=date&sortDirection=descending",
+      );
       return Array.isArray(json?.records) ? json.records : [];
     },
     (recs) => recs.some(isRealImport),
-    { timeoutMs: 120_000, intervalMs: 1000, label: "a v2 downloadFolderImported history row for the imported episode" },
+    {
+      timeoutMs: 120_000,
+      intervalMs: 1000,
+      label: "a v2 downloadFolderImported history row for the imported episode",
+    },
   );
 
   const record = records.find(isRealImport);
@@ -131,14 +159,20 @@ test("the v2 downloadFolderImported history event reconciles against real Cove s
     "the reconcile contract eventType matches the real v2 wire value",
   );
   const importedPath = pathOf(record);
-  assert.ok(withinSiteFolder(importedPath), `the history row carries the real imported path (${importedPath})`);
+  assert.ok(
+    withinSiteFolder(importedPath),
+    `the history row carries the real imported path (${importedPath})`,
+  );
 
   // Tie the genuine v2 history event to REAL Cove state: the same imported path Cove already ingested (via the
   // round-trip's webhook entry) is the path this downloadFolderImported record exposes — so the reconcile
   // backstop, which derives the identical shared ImportKey from this history row, drives the same Cove item.
   const log = (await api.get(`/api/extensions/${EXTENSION_ID}/import-log`)).json;
   const coveEntry = log.entries.find((e) => withinSiteFolder(e.path));
-  assert.ok(coveEntry, "Cove's real ingest state reflects the imported episode the v2 history event references");
+  assert.ok(
+    coveEntry,
+    "Cove's real ingest state reflects the imported episode the v2 history event references",
+  );
   assert.equal(
     norm(coveEntry.path),
     norm(importedPath),

@@ -24,9 +24,13 @@ test("the webhook rejects unsigned / unknown / Test events and ingests nothing",
   // (a) No token at all.
   expect(await postWebhook({}, { eventType: "Download" })).not.toBe(200);
   // (b) An unknown / garbage token.
-  expect(await postWebhook({ "X-Cove-Token": "totally-bogus-token" }, { eventType: "Download" })).not.toBe(200);
+  expect(
+    await postWebhook({ "X-Cove-Token": "totally-bogus-token" }, { eventType: "Download" }),
+  ).not.toBe(200);
   // (c) A well-formed body whose eventType is Test, still with a bogus token — rejected on the token first.
-  expect(await postWebhook({ "X-Cove-Token": "totally-bogus-token" }, { eventType: "Test" })).not.toBe(200);
+  expect(
+    await postWebhook({ "X-Cove-Token": "totally-bogus-token" }, { eventType: "Test" }),
+  ).not.toBe(200);
 
   // Nothing was ingested — the extension's own import log stays empty.
   const log = await api.get(`/api/extensions/${EXTENSION_ID}/import-log`);

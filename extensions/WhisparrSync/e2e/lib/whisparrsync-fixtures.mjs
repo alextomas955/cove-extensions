@@ -6,17 +6,17 @@
 //
 // This module serves the browser tier only. The non-browser correctness specs bring their own stack up
 // through lib/setup.mjs and never import Playwright.
-import { test as baseTest, expect } from '@cove-extensions/e2e';
-import { seedVideo } from '@cove-extensions/e2e/seed-media';
-import { pollJob, pollUntil } from '@cove-extensions/e2e/poll';
-import { resolveExtensionPaths } from '@cove-extensions/e2e/resolve-extension';
-import { seedCorpus } from './seed-fixtures.mjs';
+import { test as baseTest, expect } from "@cove-extensions/e2e";
+import { seedVideo } from "@cove-extensions/e2e/seed-media";
+import { pollJob, pollUntil } from "@cove-extensions/e2e/poll";
+import { resolveExtensionPaths } from "@cove-extensions/e2e/resolve-extension";
+import { seedCorpus } from "./seed-fixtures.mjs";
 
-export const EXTENSION_ID = 'com.alextomas955.whisparrsync';
+export const EXTENSION_ID = "com.alextomas955.whisparrsync";
 
 export const WHISPARRSYNC_EXTENSION = resolveExtensionPaths(import.meta.url, {
-  srcProject: 'WhisparrSync',
-  uiProject: 'WhisparrSync.Ui',
+  srcProject: "WhisparrSync",
+  uiProject: "WhisparrSync.Ui",
 });
 
 export const test = baseTest.extend({

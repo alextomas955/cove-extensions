@@ -9,8 +9,10 @@
 
 /** POSTs a schema-derived config to a Whisparr endpoint, filling named fields. Returns the created row. */
 async function addFromSchema(whisparr, resource, implementation, overrides, fieldValues) {
-  const headers = { 'X-Api-Key': whisparr.apiKey, 'Content-Type': 'application/json' };
-  const schemaRes = await fetch(`${whisparr.baseUrlFromHost}/api/v3/${resource}/schema`, { headers });
+  const headers = { "X-Api-Key": whisparr.apiKey, "Content-Type": "application/json" };
+  const schemaRes = await fetch(`${whisparr.baseUrlFromHost}/api/v3/${resource}/schema`, {
+    headers,
+  });
   const schemas = schemaRes.ok ? await schemaRes.json() : [];
   const schema = schemas.find((s) => s.implementation === implementation);
   if (!schema) {
@@ -19,15 +21,19 @@ async function addFromSchema(whisparr, resource, implementation, overrides, fiel
   const body = {
     ...schema,
     ...overrides,
-    fields: schema.fields.map((f) => (f.name in fieldValues ? { ...f, value: fieldValues[f.name] } : f)),
+    fields: schema.fields.map((f) =>
+      f.name in fieldValues ? { ...f, value: fieldValues[f.name] } : f,
+    ),
   };
   const res = await fetch(`${whisparr.baseUrlFromHost}/api/v3/${resource}?forceSave=true`, {
-    method: 'POST',
+    method: "POST",
     headers,
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    throw new Error(`provisionPipeline: add ${implementation} failed HTTP ${res.status}: ${await res.text()}`);
+    throw new Error(
+      `provisionPipeline: add ${implementation} failed HTTP ${res.status}: ${await res.text()}`,
+    );
   }
   return res.json();
 }
@@ -38,39 +44,66 @@ async function addFromSchema(whisparr, resource, implementation, overrides, fiel
  *
  * @param {{ whisparr, fakeIndexer, qbit, api?, extensionId?: string, registerWebhook?: boolean }} opts
  */
-export async function provisionPipeline({ whisparr, fakeIndexer, qbit, api, extensionId, registerWebhook = true }) {
-  const headers = { 'X-Api-Key': whisparr.apiKey, 'Content-Type': 'application/json' };
+export async function provisionPipeline({
+  whisparr,
+  fakeIndexer,
+  qbit,
+  api,
+  extensionId,
+  registerWebhook = true,
+}) {
+  const headers = { "X-Api-Key": whisparr.apiKey, "Content-Type": "application/json" };
 
   // Torznab indexer → the fake indexer. enableInteractiveSearch MUST be true (schema default is false →
   // an interactive search finds "0 active indexers"); categories [6000,2000] match the caps mapping so
   // the release is not filtered out ("no results in the configured categories").
   const indexer = await addFromSchema(
     whisparr,
-    'indexer',
-    'Torznab',
-    { name: 'FakeIndexer', enableRss: false, enableInteractiveSearch: true, enableAutomaticSearch: true, priority: 1 },
-    { baseUrl: fakeIndexer.urlFromWhisparr, apiPath: fakeIndexer.apiPath ?? '/api', apiKey: '', categories: [6000, 2000] },
+    "indexer",
+    "Torznab",
+    {
+      name: "FakeIndexer",
+      enableRss: false,
+      enableInteractiveSearch: true,
+      enableAutomaticSearch: true,
+      priority: 1,
+    },
+    {
+      baseUrl: fakeIndexer.urlFromWhisparr,
+      apiPath: fakeIndexer.apiPath ?? "/api",
+      apiKey: "",
+      categories: [6000, 2000],
+    },
   );
 
   // qBittorrent download client → the qBit container alias. The `whisparr` category routes completed
   // files into the shared download dir Whisparr imports from.
   const client = await addFromSchema(
     whisparr,
-    'downloadclient',
-    'QBittorrent',
-    { name: 'qBittorrent', enable: true, priority: 1 },
-    { host: 'qbittorrent', port: 8080, useSsl: false, username: 'admin', password: '', movieCategory: qbit.category ?? 'whisparr' },
+    "downloadclient",
+    "QBittorrent",
+    { name: "qBittorrent", enable: true, priority: 1 },
+    {
+      host: "qbittorrent",
+      port: 8080,
+      useSsl: false,
+      username: "admin",
+      password: "",
+      movieCategory: qbit.category ?? "whisparr",
+    },
   );
 
   // The fixture media has ~0s runtime, so Whisparr's DetectSample would hold import in importPending;
   // relax the media-management config so a "sample"-length file still imports for the pipeline assertion.
-  const mmRes = await fetch(`${whisparr.baseUrlFromHost}/api/v3/config/mediamanagement`, { headers });
+  const mmRes = await fetch(`${whisparr.baseUrlFromHost}/api/v3/config/mediamanagement`, {
+    headers,
+  });
   if (mmRes.ok) {
     const mm = await mmRes.json();
     // enableMediaInfo:false skips storing MediaInfo; the DetectSample runtime check is instead skipped by
     // the fixture scene's Duration:0 metadata (Whisparr treats 0-runtime as indeterminate, not a sample).
     await fetch(`${whisparr.baseUrlFromHost}/api/v3/config/mediamanagement`, {
-      method: 'PUT',
+      method: "PUT",
       headers,
       body: JSON.stringify({ ...mm, enableMediaInfo: false }),
     }).catch(() => {});
@@ -81,9 +114,14 @@ export async function provisionPipeline({ whisparr, fakeIndexer, qbit, api, exte
   // lift the max) so a hermetic sub-MB fixture passes the size gate.
   const qdRes = await fetch(`${whisparr.baseUrlFromHost}/api/v3/qualitydefinition`, { headers });
   if (qdRes.ok) {
-    const defs = (await qdRes.json()).map((d) => ({ ...d, minSize: 0, maxSize: null, preferredSize: null }));
+    const defs = (await qdRes.json()).map((d) => ({
+      ...d,
+      minSize: 0,
+      maxSize: null,
+      preferredSize: null,
+    }));
     await fetch(`${whisparr.baseUrlFromHost}/api/v3/qualitydefinition/update`, {
-      method: 'PUT',
+      method: "PUT",
       headers,
       body: JSON.stringify(defs),
     }).catch(() => {});

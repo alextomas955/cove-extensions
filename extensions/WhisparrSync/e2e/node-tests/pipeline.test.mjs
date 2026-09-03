@@ -36,13 +36,19 @@ async function qbitTorrents() {
   return res.ok ? res.json() : [];
 }
 
-before(async () => {
-  ctx = await startWhisparrSyncHarness({ version: "v3", pipeline: true });
-}, { timeout: 900_000 });
+before(
+  async () => {
+    ctx = await startWhisparrSyncHarness({ version: "v3", pipeline: true });
+  },
+  { timeout: 900_000 },
+);
 
-after(async () => {
-  await ctx?.stop();
-}, { timeout: 180_000 });
+after(
+  async () => {
+    await ctx?.stop();
+  },
+  { timeout: 180_000 },
+);
 
 test("a Cove-owned scene, searched, grabs a real release that downloads to 100% and imports back", async () => {
   const { api, remoteIds } = ctx;
@@ -52,7 +58,9 @@ test("a Cove-owned scene, searched, grabs a real release that downloads to 100% 
   assert.ok(ctx.provisioned?.downloadClientId, "the qBittorrent download client was provisioned");
 
   // Add the scene (monitored, NON-grabbing) → a real Whisparr movie row.
-  const add = await api.post(`/api/extensions/${EXTENSION_ID}/scene-add`, { CoveId: remoteIds.sceneVideoId });
+  const add = await api.post(`/api/extensions/${EXTENSION_ID}/scene-add`, {
+    CoveId: remoteIds.sceneVideoId,
+  });
   assert.ok(add.status < 500, `scene-add did not error (status ${add.status}, body: ${add.text})`);
 
   const movie = await pollUntil(
@@ -65,20 +73,34 @@ test("a Cove-owned scene, searched, grabs a real release that downloads to 100% 
   );
 
   // Loop-safety: the ADD alone must not have grabbed anything.
-  assert.equal((await qbitTorrents()).length, 0, "the non-grabbing add left the download client empty");
+  assert.equal(
+    (await qbitTorrents()).length,
+    0,
+    "the non-grabbing add left the download client empty",
+  );
 
   // Register the On-Import webhook (real minted secret, via the shared-network cove alias) BEFORE the
   // grab, so Whisparr's post-import notification round-trips to Cove and the extension logs the ingest.
   const urlRes = await api.get(`/api/extensions/${EXTENSION_ID}/webhook-url`);
   const token = new URL(urlRes.json.url).searchParams.get("token");
   assert.ok(token, "a webhook secret was minted");
-  await registerWebhookNotification({ whisparr: ctx.whisparr, version: "v3", coveWebhookUrl: COVE_WEBHOOK_URL, token });
+  await registerWebhookNotification({
+    whisparr: ctx.whisparr,
+    version: "v3",
+    coveWebhookUrl: COVE_WEBHOOK_URL,
+    token,
+  });
 
   // Interactive grab: list the indexer releases for the scene, then grab one. This is the user-driven
   // path that forces the grab (automatic MoviesSearch applies match/quality gates that a hermetic fake
   // release cannot satisfy; the interactive pick is exactly how a user grabs a specific release).
   const releases = await pollUntil(
-    async () => (await api.post(`/api/extensions/${EXTENSION_ID}/scene-releases-list`, { CoveId: remoteIds.sceneVideoId })).json,
+    async () =>
+      (
+        await api.post(`/api/extensions/${EXTENSION_ID}/scene-releases-list`, {
+          CoveId: remoteIds.sceneVideoId,
+        })
+      ).json,
     (r) => Array.isArray(r?.releases) && r.releases.length > 0,
     { timeoutMs: 60_000, label: "the fake indexer returns a release for the scene" },
   );
@@ -88,7 +110,10 @@ test("a Cove-owned scene, searched, grabs a real release that downloads to 100% 
     Guid: pick.guid,
     IndexerId: pick.indexerId,
   });
-  assert.ok(grab.json?.grabbed, `scene-grab-release grabbed the release (status ${grab.status}, body: ${grab.text})`);
+  assert.ok(
+    grab.json?.grabbed,
+    `scene-grab-release grabbed the release (status ${grab.status}, body: ${grab.text})`,
+  );
 
   // 1) qBit downloads the webseed torrent to 100% (no peers).
   await pollUntil(
@@ -109,29 +134,57 @@ test("a Cove-owned scene, searched, grabs a real release that downloads to 100% 
     // Surface the exact import blocker (queue status messages) before failing — the stack tears down after.
     const queue = (await whisparrGet("/api/v3/queue?pageSize=20")).json;
     const rows = (queue?.records ?? queue ?? []).map((r) => ({
-      status: r.status, state: r.trackedDownloadState, tds: r.trackedDownloadStatus,
+      status: r.status,
+      state: r.trackedDownloadState,
+      tds: r.trackedDownloadStatus,
       msgs: (r.statusMessages ?? []).flatMap((m) => [m.title, ...(m.messages ?? [])]),
     }));
     console.error("IMPORT DIAGNOSTIC queue:", JSON.stringify(rows, null, 2));
     const logs = await ctx.whisparr.container.logs().catch(() => null);
     if (logs) {
-      const text = await new Promise((res) => { let b = ""; logs.on("data", (d) => (b += d)); logs.on("end", () => res(b)); setTimeout(() => res(b), 3000); });
-      console.error("WHISPARR LOG tail:\n" + text.split("\n").filter((l) => /import|sample|reject|manual|not.*found|runtime|movie/i.test(l)).slice(-15).join("\n"));
+      const text = await new Promise((res) => {
+        let b = "";
+        logs.on("data", (d) => (b += d));
+        logs.on("end", () => res(b));
+        setTimeout(() => res(b), 3000);
+      });
+      console.error(
+        "WHISPARR LOG tail:\n" +
+          text
+            .split("\n")
+            .filter((l) => /import|sample|reject|manual|not.*found|runtime|movie/i.test(l))
+            .slice(-15)
+            .join("\n"),
+      );
     }
     throw err;
   }
 
   const history = (await whisparrGet(`/api/v3/history?pageSize=20&movieId=${movie.id}`)).json;
   const events = (history?.records ?? []).map((r) => r.eventType);
-  assert.ok(events.includes("downloadFolderImported"), `history shows an import (${events.join(",")})`);
+  assert.ok(
+    events.includes("downloadFolderImported"),
+    `history shows an import (${events.join(",")})`,
+  );
 
   // 4) Whisparr's On-Import fired the webhook → Cove received + logged it. The extension's import log is
   // the load-bearing proof of the ingest (a webhook-sourced Download entry), not the notification's status.
   const entry = await pollUntil(
     async () => (await api.get(`/api/extensions/${EXTENSION_ID}/import-log`)).json,
-    (log) => (log?.entries ?? []).some((e) => e.source === "webhook" && String(e.eventType).toLowerCase() === "download"),
-    { timeoutMs: 120_000, intervalMs: 1000, label: "a webhook On-Import entry reached Cove's import log" },
+    (log) =>
+      (log?.entries ?? []).some(
+        (e) => e.source === "webhook" && String(e.eventType).toLowerCase() === "download",
+      ),
+    {
+      timeoutMs: 120_000,
+      intervalMs: 1000,
+      label: "a webhook On-Import entry reached Cove's import log",
+    },
   );
   const webhookEntry = entry.entries.find((e) => e.source === "webhook");
-  assert.equal(String(webhookEntry.eventType).toLowerCase(), "download", "the ingested entry is a Whisparr On-Import");
+  assert.equal(
+    String(webhookEntry.eventType).toLowerCase(),
+    "download",
+    "the ingested entry is a Whisparr On-Import",
+  );
 });

@@ -35,13 +35,19 @@ async function findStudio(foreignId) {
   return rows.filter((s) => s.foreignId === foreignId);
 }
 
-before(async () => {
-  ctx = await startWhisparrSyncHarness({ version: "v3" });
-}, { timeout: 600_000 });
+before(
+  async () => {
+    ctx = await startWhisparrSyncHarness({ version: "v3" });
+  },
+  { timeout: 600_000 },
+);
 
-after(async () => {
-  await ctx?.stop();
-}, { timeout: 120_000 });
+after(
+  async () => {
+    await ctx?.stop();
+  },
+  { timeout: 120_000 },
+);
 
 test("monitoring a studio adds a real, monitored, cove-sync-tagged Whisparr studio row", async () => {
   const { api, remoteIds } = ctx;
@@ -103,5 +109,8 @@ test("a repeated identical monitor call is idempotent — one row, still monitor
 
   const { json: tags } = await whisparrGet("/api/v3/tag");
   const originTag = (Array.isArray(tags) ? tags : []).find((t) => t.label === ORIGIN_TAG);
-  assert.ok(originTag && matches[0].tags?.includes(originTag.id), `still carries the ${ORIGIN_TAG} tag`);
+  assert.ok(
+    originTag && matches[0].tags?.includes(originTag.id),
+    `still carries the ${ORIGIN_TAG} tag`,
+  );
 });

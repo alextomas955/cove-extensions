@@ -33,13 +33,19 @@ function queueRecords(json) {
   return json?.records ?? [];
 }
 
-before(async () => {
-  ctx = await startWhisparrSyncHarness({ version: "v3" });
-}, { timeout: 600_000 });
+before(
+  async () => {
+    ctx = await startWhisparrSyncHarness({ version: "v3" });
+  },
+  { timeout: 600_000 },
+);
 
-after(async () => {
-  await ctx?.stop();
-}, { timeout: 120_000 });
+after(
+  async () => {
+    await ctx?.stop();
+  },
+  { timeout: 120_000 },
+);
 
 test("a Cove-initiated add is non-grabbing — a real row lands and the Whisparr queue stays empty", async () => {
   const { api, remoteIds } = ctx;

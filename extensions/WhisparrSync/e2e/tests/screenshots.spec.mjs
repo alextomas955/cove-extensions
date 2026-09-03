@@ -101,7 +101,9 @@ test.describe("docs screenshots", () => {
       }
     }
 
-    console.log(`[screenshots] captured ${String(captured.length)}/${String(SCREENSHOT_TARGETS.length)}: ${captured.join(", ")}`);
+    console.log(
+      `[screenshots] captured ${String(captured.length)}/${String(SCREENSHOT_TARGETS.length)}: ${captured.join(", ")}`,
+    );
     expect(captured.length, "no surface could be captured — is the harness up?").toBeGreaterThan(0);
   });
 });

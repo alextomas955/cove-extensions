@@ -13,11 +13,11 @@ running container at runtime, never from a file in this repository.
 
 ## The three tiers
 
-| Tier | What it proves | Runner | Where it runs |
-| --- | --- | --- | --- |
-| **A — hermetic** | Cove-only UI and API behavior: the settings page, scene panel, library toolbar and batch menu, read-only reconciliation, and inbound-webhook rejection | Playwright (browser) | PR CI |
-| **B — container correctness** | Real Whisparr-side state for add / monitor / search, the webhook round-trip, and v2 parity, against a real Whisparr container with an offline metadata stub | `node --test` | PR CI (fork-safe) |
-| **C — live** | The committed metadata recordings still match the real service (a drift check) | `node --test` | Local / manual |
+| Tier                          | What it proves                                                                                                                                              | Runner               | Where it runs     |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ----------------- |
+| **A — hermetic**              | Cove-only UI and API behavior: the settings page, scene panel, library toolbar and batch menu, read-only reconciliation, and inbound-webhook rejection      | Playwright (browser) | PR CI             |
+| **B — container correctness** | Real Whisparr-side state for add / monitor / search, the webhook round-trip, and v2 parity, against a real Whisparr container with an offline metadata stub | `node --test`        | PR CI (fork-safe) |
+| **C — live**                  | The committed metadata recordings still match the real service (a drift check)                                                                              | `node --test`        | Local / manual    |
 
 CI runs tiers A and B on every pull request, fully offline: neither references a repository secret,
 so both run on fork pull requests where secrets are absent. Tier B points Whisparr's metadata source at

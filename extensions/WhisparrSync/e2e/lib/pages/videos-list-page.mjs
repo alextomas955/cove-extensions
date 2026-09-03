@@ -8,7 +8,9 @@ export class VideosListPage {
     this.page = page;
     this.baseUrl = baseUrl;
     // WhisparrLibraryToggle: a button toggling aria-pressed, labelled "Show/Hide Whisparr status".
-    this.libraryToggleButton = page.getByRole("button", { name: /Show Whisparr status|Hide Whisparr status/ });
+    this.libraryToggleButton = page.getByRole("button", {
+      name: /Show Whisparr status|Hide Whisparr status/,
+    });
     // The selection-bar bulk action (AddAction label "Whisparr") — appears once one or more cards are selected.
     this.whisparrBatchButton = page.getByRole("button", { name: "Whisparr", exact: true });
     // The imperative chooser mounted by whisparrBatchSelected — role="menu" aria-label "Whisparr · N items".
@@ -26,7 +28,9 @@ export class VideosListPage {
 
   /** Locates a video card by its displayed filename (mirrors Renamer's VideosPage.cardByFilename). */
   cardByFilename(filename) {
-    return this.page.locator("div", { has: this.page.getByRole("link", { name: `Open video ${filename}` }) }).last();
+    return this.page
+      .locator("div", { has: this.page.getByRole("link", { name: `Open video ${filename}` }) })
+      .last();
   }
 
   async selectCard(filename) {

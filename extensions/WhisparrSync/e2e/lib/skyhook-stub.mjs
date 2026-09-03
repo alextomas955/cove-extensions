@@ -6,20 +6,20 @@
 //
 // Structural offline guarantee: there is NO forwarding/upstream code path in this server — a request
 // with no matching recording returns an empty array, it can never fall through to api.whisparr.com.
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { readFileSync } from 'node:fs';
-import { GenericContainer, Wait } from 'testcontainers';
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { readFileSync } from "node:fs";
+import { GenericContainer, Wait } from "testcontainers";
 
 const HERE = dirname(fileURLToPath(import.meta.url)); // …/extensions/WhisparrSync/e2e/lib
-const SKYHOOK_DIR = join(HERE, '..', 'fixtures', 'skyhook');
-const ALIAS = 'skyhook-stub';
+const SKYHOOK_DIR = join(HERE, "..", "fixtures", "skyhook");
+const ALIAS = "skyhook-stub";
 const STUB_PORT = 9797;
 
 // The stub runs Node's own http server inside a stock Node image; no npm install is needed (node:http
 // only), keeping the stub free of any package install. Overridable for environments that
 // pin a locally-cached Node image instead of pulling the default.
-const STUB_IMAGE = process.env.SKYHOOK_STUB_IMAGE ?? 'node:22-alpine';
+const STUB_IMAGE = process.env.SKYHOOK_STUB_IMAGE ?? "node:22-alpine";
 
 /**
  * Loads index.json and its referenced recordings into a `{ route: responseJson }` map.
@@ -30,10 +30,10 @@ const STUB_IMAGE = process.env.SKYHOOK_STUB_IMAGE ?? 'node:22-alpine';
  * id against its metadata source, so fully-synthetic ids resolve to zero rows and cannot prove sync.
  */
 function loadRecordings() {
-  const index = JSON.parse(readFileSync(join(SKYHOOK_DIR, 'index.json'), 'utf8'));
+  const index = JSON.parse(readFileSync(join(SKYHOOK_DIR, "index.json"), "utf8"));
   const recordings = {};
   for (const [route, file] of Object.entries(index)) {
-    recordings[route] = JSON.parse(readFileSync(join(SKYHOOK_DIR, file), 'utf8'));
+    recordings[route] = JSON.parse(readFileSync(join(SKYHOOK_DIR, file), "utf8"));
   }
   return recordings;
 }
@@ -50,7 +50,7 @@ function loadRecordings() {
  */
 export async function startSkyHookStub({ networkName }) {
   if (!networkName) {
-    throw new Error('startSkyHookStub: networkName is required');
+    throw new Error("startSkyHookStub: networkName is required");
   }
   const recordings = loadRecordings();
 
@@ -71,8 +71,8 @@ server.listen(${STUB_PORT}, '0.0.0.0');
     .withNetworkMode(networkName)
     .withNetworkAliases(ALIAS)
     .withExposedPorts(STUB_PORT)
-    .withCopyContentToContainer([{ content: script, target: '/stub/server.cjs' }])
-    .withCommand(['node', '/stub/server.cjs'])
+    .withCopyContentToContainer([{ content: script, target: "/stub/server.cjs" }])
+    .withCommand(["node", "/stub/server.cjs"])
     .withWaitStrategy(Wait.forListeningPorts())
     .withStartupTimeout(60_000)
     .start();

@@ -6,7 +6,11 @@ import { test, expect, seedCorpus } from "../lib/whisparrsync-fixtures.mjs";
 import { VideosListPage } from "../lib/pages/videos-list-page.mjs";
 import { ScenePanel } from "../lib/pages/scene-panel.mjs";
 
-test("the library Whisparr toggle is present and OFF by default", async ({ harness, baseUrl, page }) => {
+test("the library Whisparr toggle is present and OFF by default", async ({
+  harness,
+  baseUrl,
+  page,
+}) => {
   await seedCorpus({ container: harness.container, baseUrl });
 
   const videos = new VideosListPage(page, baseUrl);

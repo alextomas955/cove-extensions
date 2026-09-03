@@ -55,35 +55,35 @@ All are mounted under `/api/extensions/com.alextomas955.whisparrsync/` and are p
 **in the handler** (the host's `[RequiresPermission]` filter is inert on minimal-API endpoints). The
 side-effect-free read projections gate on `extensions.read`; every route that reaches the stored
 credentials or makes an outbound call gates on `extensions.configure` (the host confirms
-`extensions.configure` *implies* `extensions.read`, so a route that must exclude read-only users has to
+`extensions.configure` _implies_ `extensions.read`, so a route that must exclude read-only users has to
 require `configure`). The one deliberate exception is the inbound `/webhook` route, which carries no Cove
 principal at all — a shared-secret token is its auth, so it omits the principal gate entirely.
 
-| Route | Method | Permission | Purpose |
-| ------- | -------- | ----------- | --------- |
-| `/test-connection` | POST | configure | Classify the connection; return version + instance name on success |
-| `/status` | GET | read | Whether the extension is configured (no key) |
-| `/options` | GET | read | The persisted options as a redaction-safe view (no key, only `hasApiKey`) |
-| `/options` | POST | configure | Persist URL / version / root folder / quality profile (write-only key) |
-| `/rootfolders` | POST | configure | The instance's root folders (creds in the body) |
-| `/qualityprofiles` | POST | configure | The instance's quality profiles (creds in the body) |
-| `/webhook-url` | GET | configure | The webhook URL + `registered` status, read from Whisparr's own "Cove Whisparr Sync" connection (`GET /api/v3/notification`, find-by-name); a derived default + `registered:false` when the connection is absent or Whisparr is unreachable |
-| `/register-webhook` | POST | configure | Idempotent update-or-create of the Cove webhook connection (find → PUT-update else POST-create; a unique-name 400 / 409 is success), persisting the resolved host; v3 and v2 |
-| `/reconciliation` | GET | read | The last persisted match map + status counts (a pure store read) |
-| `/webhook` | POST | anonymous (token) | Inbound Whisparr On-Import receiver — ingests the imported file |
-| `/import-log` | GET | read | The auto-import audit log: every attempt with its result, source, time, path, and Cove item + counts |
-| `/root-overlap` | GET | read | A best-effort advisory: whether a Cove library root overlaps a Whisparr root (a re-grab-loop risk) |
-| `/scene-folder-overlap` | GET | configure | A best-effort **v3-only** advisory: whether a Whisparr root's trailing segment doubles the Scene Folder Format's leading literal (Eros path-doubling); quiet 200 empty set on v2 or any failed read |
-| `/monitor` | POST | configure | Toggle a studio/performer's monitored state in Whisparr (add-then-flip); body carries the entity's remote ids only |
-| `/monitor-status` | POST | configure | The quiet-status projection for a studio/performer: added / monitored / scenesPresent / scenesTotal (Whisparr's own present-in-library / catalog counts) |
-| `/scene-add` | POST | configure | Register one scene in Whisparr as non-grabbing (`searchForMovie:false`, origin-tagged); body carries the Cove id only |
-| `/scene-search` | POST | configure | Trigger a Whisparr search for one already-added scene (`MoviesSearch`) — the only per-scene route that may grab |
-| `/scene-monitor` | POST | configure | Set one scene's monitored state (add-then-flip when not-added); Cove id + target flag |
-| `/bulk-add-missing` | POST | configure | Register every Cove scene not yet in Whisparr for the entity, as a local diff (no StashDB GraphQL), all non-grabbing; kind + Cove entity id |
-| `/bulk-search-monitored` | POST | configure | Trigger a Whisparr search across the entity's monitored scenes; kind + the entity's remote ids |
-| `/videos-batch` | POST | configure | One batch op — add / monitor / unmonitor / search / searchUpgrades / exclude — over a capped selection of Cove video ids from the videos-list multi-selection; **v3-only**, stored creds only, each id resolved to a scene server-side, run as a Job-Drawer job |
-| `/sync-preview` | GET | configure | Whole-library counts of what will register vs be skipped (no metadata id), read under `CovePrincipal.System()` |
-| `/sync-library` | POST | configure | Enqueue the exclusive `whisparr-sync-library` job that registers the whole library as owned (+ optional monitor) |
+| Route                    | Method | Permission        | Purpose                                                                                                                                                                                                                                                         |
+| ------------------------ | ------ | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/test-connection`       | POST   | configure         | Classify the connection; return version + instance name on success                                                                                                                                                                                              |
+| `/status`                | GET    | read              | Whether the extension is configured (no key)                                                                                                                                                                                                                    |
+| `/options`               | GET    | read              | The persisted options as a redaction-safe view (no key, only `hasApiKey`)                                                                                                                                                                                       |
+| `/options`               | POST   | configure         | Persist URL / version / root folder / quality profile (write-only key)                                                                                                                                                                                          |
+| `/rootfolders`           | POST   | configure         | The instance's root folders (creds in the body)                                                                                                                                                                                                                 |
+| `/qualityprofiles`       | POST   | configure         | The instance's quality profiles (creds in the body)                                                                                                                                                                                                             |
+| `/webhook-url`           | GET    | configure         | The webhook URL + `registered` status, read from Whisparr's own "Cove Whisparr Sync" connection (`GET /api/v3/notification`, find-by-name); a derived default + `registered:false` when the connection is absent or Whisparr is unreachable                     |
+| `/register-webhook`      | POST   | configure         | Idempotent update-or-create of the Cove webhook connection (find → PUT-update else POST-create; a unique-name 400 / 409 is success), persisting the resolved host; v3 and v2                                                                                    |
+| `/reconciliation`        | GET    | read              | The last persisted match map + status counts (a pure store read)                                                                                                                                                                                                |
+| `/webhook`               | POST   | anonymous (token) | Inbound Whisparr On-Import receiver — ingests the imported file                                                                                                                                                                                                 |
+| `/import-log`            | GET    | read              | The auto-import audit log: every attempt with its result, source, time, path, and Cove item + counts                                                                                                                                                            |
+| `/root-overlap`          | GET    | read              | A best-effort advisory: whether a Cove library root overlaps a Whisparr root (a re-grab-loop risk)                                                                                                                                                              |
+| `/scene-folder-overlap`  | GET    | configure         | A best-effort **v3-only** advisory: whether a Whisparr root's trailing segment doubles the Scene Folder Format's leading literal (Eros path-doubling); quiet 200 empty set on v2 or any failed read                                                             |
+| `/monitor`               | POST   | configure         | Toggle a studio/performer's monitored state in Whisparr (add-then-flip); body carries the entity's remote ids only                                                                                                                                              |
+| `/monitor-status`        | POST   | configure         | The quiet-status projection for a studio/performer: added / monitored / scenesPresent / scenesTotal (Whisparr's own present-in-library / catalog counts)                                                                                                        |
+| `/scene-add`             | POST   | configure         | Register one scene in Whisparr as non-grabbing (`searchForMovie:false`, origin-tagged); body carries the Cove id only                                                                                                                                           |
+| `/scene-search`          | POST   | configure         | Trigger a Whisparr search for one already-added scene (`MoviesSearch`) — the only per-scene route that may grab                                                                                                                                                 |
+| `/scene-monitor`         | POST   | configure         | Set one scene's monitored state (add-then-flip when not-added); Cove id + target flag                                                                                                                                                                           |
+| `/bulk-add-missing`      | POST   | configure         | Register every Cove scene not yet in Whisparr for the entity, as a local diff (no StashDB GraphQL), all non-grabbing; kind + Cove entity id                                                                                                                     |
+| `/bulk-search-monitored` | POST   | configure         | Trigger a Whisparr search across the entity's monitored scenes; kind + the entity's remote ids                                                                                                                                                                  |
+| `/videos-batch`          | POST   | configure         | One batch op — add / monitor / unmonitor / search / searchUpgrades / exclude — over a capped selection of Cove video ids from the videos-list multi-selection; **v3-only**, stored creds only, each id resolved to a scene server-side, run as a Job-Drawer job |
+| `/sync-preview`          | GET    | configure         | Whole-library counts of what will register vs be skipped (no metadata id), read under `CovePrincipal.System()`                                                                                                                                                  |
+| `/sync-library`          | POST   | configure         | Enqueue the exclusive `whisparr-sync-library` job that registers the whole library as owned (+ optional monitor)                                                                                                                                                |
 
 `/monitor` and `/monitor-status` are `configure`-gated for the same reason as the list routes:
 they reach the stored credentials to call Whisparr. Both are POST because each carries a `RemoteIds`
@@ -95,8 +95,8 @@ match store and never touches the stored credentials.
 
 ## The reconciliation match model
 
-Reconciliation answers one question for every Whisparr scene: *which Cove item, if any, is the same
-thing?* It never mutates Cove or Whisparr: the matching engine reads the Cove library `AsNoTracking`,
+Reconciliation answers one question for every Whisparr scene: _which Cove item, if any, is the same
+thing?_ It never mutates Cove or Whisparr: the matching engine reads the Cove library `AsNoTracking`,
 correlates it against the Whisparr movie list, and persists the result in the extension's own match
 store, which `/reconciliation` reads back. The matching engine also feeds the read-only per-scene
 Whisparr status surfaces.
@@ -109,7 +109,7 @@ So WhisparrSync correlates the two systems by the id they already share rather t
 weaker identification system of its own.
 
 An exact, case-insensitive id match auto-applies. A movie-typed id is never compared against a Cove
-scene UUID. If *two* Cove videos share the same remote id (Cove does not enforce cross-video
+scene UUID. If _two_ Cove videos share the same remote id (Cove does not enforce cross-video
 uniqueness), the scene is sent to **needs-review** instead of being matched to an arbitrary one.
 Anything with no id match at all is **unmatched** — the safe default, never a silent guess. An
 unidentified file simply stays unmatched until Cove's own scraper attaches an id; the very next
@@ -130,7 +130,7 @@ read.
 
 Monitoring is a two-control feature that shares one server-side spine. The UI rides Cove's native
 slots: a single **action-row button** (`WhisparrMonitorButton` on
-`studio-detail-actions` / `performer-detail-actions`) is the *only* monitor control, and a
+`studio-detail-actions` / `performer-detail-actions`) is the _only_ monitor control, and a
 display-only **status line** (`WhisparrStatusLine` on `*-detail-bottom`) shows the quiet count. Both
 slot components read their entity from **top-level props** (`props.studio` / `props.performer`) per
 Cove's slot contract — never `props.context.*` — and forward the entity's own Cove remote ids to the
@@ -143,7 +143,7 @@ and monitors as a site (see [Whisparr v2 adapter](#whisparr-v2-adapter)); a perf
 `monitored: false` if absent (applying the configured root folder and quality profile plus a
 read-or-create `cove-sync` origin tag), then PUTs the target monitored state. Creating an entity that
 already exists is treated as success (a 409/exists is not a duplicate). **Turning monitoring on never
-triggers a Whisparr search** — but on v3 it does fire a targeted metadata *refresh* Cove owns, then
+triggers a Whisparr search** — but on v3 it does fire a targeted metadata _refresh_ Cove owns, then
 reconciles the discovered catalogue to your chosen scope (see
 [Monitor-acquire semantics](#monitor-acquire-semantics-catalogue-population) below); a refresh discovers
 scenes, it never grabs.
@@ -172,7 +172,7 @@ the **New releases only** scope: leaving the studio monitored and relying on Whi
 refresh does not avoid an all-monitored back-catalogue — it only defers it, so within a day "New releases
 only" silently becomes "All scenes" and the whole back-catalogue is RSS-grab-eligible.
 
-So on a v3 monitor-on Cove **owns the population moment**. After the flip sticks it fires a *targeted*
+So on a v3 monitor-on Cove **owns the population moment**. After the flip sticks it fires a _targeted_
 metadata refresh scoped to that one entity (`RefreshStudios {studioIds:[id]}` /
 `RefreshPerformers {performerIds:[id]}`), waits for the queued command to report completed, then
 reconciles the discovered catalogue's `monitored` flag to your chosen scope with one bulk
@@ -198,7 +198,7 @@ in flight) so many heavier per-entity refreshes never storm Whisparr's command q
 
 ## The scene Whisparr-status surfaces
 
-Scene status answers, for every scene, *what is its Whisparr state?* — one of **downloaded /
+Scene status answers, for every scene, _what is its Whisparr state?_ — one of **downloaded /
 monitored / unmonitored / notAdded / excluded**. It is read-only and opt-in; nothing is mutated and
 no StashDB call is made.
 
@@ -227,8 +227,8 @@ Two further reconciliation-clarity reads are `read`-gated (`extensions.read`) ra
   reconciliation match, and the Whisparr `SceneStatusProjector.Detail` in one call — **no new StashDB
   call**. A monitored-but-fileless scene degrades honestly to a bare `Monitored` stage with no invented
   quality/cutoff. The `Downloading` in-flight stage is deferred (no Whisparr queue read this release).
-Every `NO_STASHDB_IDENTITY` response now also carries a `provider` field derived from the connected
-version (`StashDB` on v3, `ThePornDB` on v2) so the UI names the provider without hardcoding it.
+  Every `NO_STASHDB_IDENTITY` response now also carries a `provider` field derived from the connected
+  version (`StashDB` on v3, `ThePornDB` on v2) so the UI names the provider without hardcoding it.
 
 The `SceneWhisparrState` enum's wire casing is **pinned to camelCase** by a property-level
 `[JsonConverter]` on `SceneDetail.State` — a property attribute out-ranks the plain
@@ -289,7 +289,7 @@ POSTs them; each handler resolves the Whisparr identity server-side and delegate
   level — MonitorScope (New releases only / All scenes) is an entity concept, and a scene is one
   Whisparr movie with a boolean `monitored`, so there is nothing to scope.
 
-**Loop-safety.** Every *add* — per-scene add, add-all-missing, bulk Monitor's register-first leg,
+**Loop-safety.** Every _add_ — per-scene add, add-all-missing, bulk Monitor's register-first leg,
 and owned-scene availability registration — issues `searchForMovie:false`, so it registers the
 movie in Whisparr **without grabbing**; a monitor flip itself is a PUT, never a `/command`. Only the
 explicit Search actions — "Search for this scene", "Search all monitored", and the bulk Search now /
@@ -352,7 +352,7 @@ and no nag banner: the job runs only when the user clicks Sync.
 ## Whisparr v2 adapter
 
 Whisparr v2 is a **Sonarr fork**: content is modeled as **series (a studio/site) → episodes (scenes)**,
-sourced from **ThePornDB (TPDB)**, and served under the *same* `/api/v3` path prefix as v3. `V2Adapter`
+sourced from **ThePornDB (TPDB)**, and served under the _same_ `/api/v3` path prefix as v3. `V2Adapter`
 sits behind the same `IWhisparrAdapter` port as `V3Adapter` and reuses the whole pipeline — the
 transport client, options, identity matcher, ingest coordinator, webhook receiver, and reconcile job
 are all version-agnostic. Only two things are genuinely v2-shaped.
@@ -376,7 +376,7 @@ id-only rule as v3, just keyed on a different id.
 
 Whisparr v2 scenes carry a **TPDB scene id** and no StashDB id anywhere (verified: 0 StashDB ids
 across 627 scenes of a real studio; a TPDB scene's own links expose no scene-level StashDB id either —
-only *performers* carry StashDB links). So there is no `v2 scene → StashDB scene` join to make. The
+only _performers_ carry StashDB links). So there is no `v2 scene → StashDB scene` join to make. The
 adapter carries the TPDB id in `ForeignId`, and the `"v2scene"` sentinel keeps it out of the StashDB
 check so a TPDB integer id can never be compared to — and falsely matched against — a Cove StashDB
 UUID; instead it is compared against the video's TPDB ids. A v2 scene with no ThePornDB id yet (not
@@ -385,7 +385,7 @@ unidentified v3 scene.
 
 ### The outward surface on v2 (studio-monitor GO via TPDB; capability-specific defers)
 
-The *outward* surface works on v2, keyed on the identity v2 actually carries. Where v3 resolves its
+The _outward_ surface works on v2, keyed on the identity v2 actually carries. Where v3 resolves its
 Whisparr target by the StashDB id, v2 resolves by the **ThePornDB (TPDB)** id in Sonarr's `tvdbId`
 slot; `WhisparrOptions.IdentityEndpoint` picks the endpoint per connected version
 (`StashDbEndpoint` → v3, `TpdbEndpoint` → v2) and `Api.ResolveRemoteId` returns the entity's matching
@@ -410,15 +410,15 @@ The capabilities with no v2 analog DEFER on v2 — a classified `VersionMismatch
 transport** (zero wire calls, no stray `cove-sync` tag; the seam reads the adapter's `SupportsSceneAdd`
 / `SupportsEntityMonitor(kind)` capability flags to defer before resolving root/origin-tag):
 
-| # | Capability | v2 mechanism | Verdict | Reason |
-| --- | --- | --- | :---: | --- |
-| 1 | studio-monitor / status | `series` add-then-flip + episode counts, keyed on `tvdbId` (TPDB) | **GO** | a site (series) is monitorable and resolvable by the TPDB id a Cove studio carries |
-| 2 | search-all-monitored | `EpisodeSearch` cmd over the site's episodes | **GO** | the site's episodes are the search input; the one grab-capable v2 verb, non-grab add stays search-free |
-| 3 | performer-monitor | none (`/performer`, `/credit` 404) | DEFER | no performer entity at all — performers are embedded `episode.actors` metadata, nothing monitorable |
-| 4 | scene-add / scene-monitor | none (no `POST /episode`) | DEFER | episodes are not independently addable (they arrive with a series import); a scene is acquired by adding its site and searching the episode |
-| 5 | search-for-upgrades | no cutoff-upgrade-only variant | DEFER | Sonarr has no cutoff-unmet-only search; v2 keeps a single grab verb (the episode search) by design |
-| 6 | bulk-add-missing | none | DEFER | builds on the per-scene add, which v2 lacks |
-| 7 | exclusions / interactive release grab / per-scene status views | `/importlistexclusion` + `/release?episodeId=` exist | DEFER | endpoints exist but return TPDB-keyed rows that cannot be tied back to a Cove scene without a scene-level id |
+| #   | Capability                                                     | v2 mechanism                                                      | Verdict | Reason                                                                                                                                      |
+| --- | -------------------------------------------------------------- | ----------------------------------------------------------------- | :-----: | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | studio-monitor / status                                        | `series` add-then-flip + episode counts, keyed on `tvdbId` (TPDB) | **GO**  | a site (series) is monitorable and resolvable by the TPDB id a Cove studio carries                                                          |
+| 2   | search-all-monitored                                           | `EpisodeSearch` cmd over the site's episodes                      | **GO**  | the site's episodes are the search input; the one grab-capable v2 verb, non-grab add stays search-free                                      |
+| 3   | performer-monitor                                              | none (`/performer`, `/credit` 404)                                |  DEFER  | no performer entity at all — performers are embedded `episode.actors` metadata, nothing monitorable                                         |
+| 4   | scene-add / scene-monitor                                      | none (no `POST /episode`)                                         |  DEFER  | episodes are not independently addable (they arrive with a series import); a scene is acquired by adding its site and searching the episode |
+| 5   | search-for-upgrades                                            | no cutoff-upgrade-only variant                                    |  DEFER  | Sonarr has no cutoff-unmet-only search; v2 keeps a single grab verb (the episode search) by design                                          |
+| 6   | bulk-add-missing                                               | none                                                              |  DEFER  | builds on the per-scene add, which v2 lacks                                                                                                 |
+| 7   | exclusions / interactive release grab / per-scene status views | `/importlistexclusion` + `/release?episodeId=` exist              |  DEFER  | endpoints exist but return TPDB-keyed rows that cannot be tied back to a Cove scene without a scene-level id                                |
 
 Loop-safety holds identically to v3: the v2 add is non-grabbing (`searchForMissingEpisodes:false`) and
 origin-tagged, the monitor flip carries no `addOptions`, and only the explicit episode search issues a

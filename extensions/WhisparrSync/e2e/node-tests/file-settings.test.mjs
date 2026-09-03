@@ -19,20 +19,29 @@ let ctx;
 async function whisparr(method, path, body) {
   const res = await fetch(`${ctx.whisparr.baseUrlFromHost}${path}`, {
     method,
-    headers: { "X-Api-Key": ctx.whisparr.apiKey, ...(body ? { "Content-Type": "application/json" } : {}) },
+    headers: {
+      "X-Api-Key": ctx.whisparr.apiKey,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
   return { status: res.status, json: text ? JSON.parse(text) : undefined };
 }
 
-before(async () => {
-  ctx = await startWhisparrSyncHarness({ version: "v3" });
-}, { timeout: 600_000 });
+before(
+  async () => {
+    ctx = await startWhisparrSyncHarness({ version: "v3" });
+  },
+  { timeout: 600_000 },
+);
 
-after(async () => {
-  await ctx?.stop();
-}, { timeout: 120_000 });
+after(
+  async () => {
+    await ctx?.stop();
+  },
+  { timeout: 120_000 },
+);
 
 test("Cove file-settings write Whisparr's naming + media-management config (RMW preserves unknown fields)", async () => {
   const { api } = ctx;
@@ -52,19 +61,38 @@ test("Cove file-settings write Whisparr's naming + media-management config (RMW 
     AutoRenameFolders: true,
     DeleteEmptyFolders: true,
   });
-  assert.ok(set.status < 500, `file-settings write did not error (status ${set.status}, body: ${set.text})`);
+  assert.ok(
+    set.status < 500,
+    `file-settings write did not error (status ${set.status}, body: ${set.text})`,
+  );
 
   const naming1 = (await whisparr("GET", "/api/v3/config/naming")).json;
   const media1 = (await whisparr("GET", "/api/v3/config/mediamanagement")).json;
   assert.equal(naming1.renameMovies, true, "renameMovies reflected in Whisparr");
-  assert.equal(naming1.replaceIllegalCharacters, true, "replaceIllegalCharacters reflected in Whisparr");
+  assert.equal(
+    naming1.replaceIllegalCharacters,
+    true,
+    "replaceIllegalCharacters reflected in Whisparr",
+  );
   // Whisparr maps auto-rename-folders onto renameFolders on some builds; accept either name.
-  assert.equal(media1.autoRenameFolders ?? media1.renameFolders, true, "autoRenameFolders reflected in Whisparr");
+  assert.equal(
+    media1.autoRenameFolders ?? media1.renameFolders,
+    true,
+    "autoRenameFolders reflected in Whisparr",
+  );
   assert.equal(media1.deleteEmptyFolders, true, "deleteEmptyFolders reflected in Whisparr");
 
   // 2) RMW preserved the unrelated fields (a partial body would have wiped them).
-  assert.equal(naming1.standardMovieFormat, namingSentinel, "the RMW preserved the unrelated naming field");
-  assert.equal("recycleBin" in media1, mediaSentinelPresent, "the RMW preserved the unrelated media field");
+  assert.equal(
+    naming1.standardMovieFormat,
+    namingSentinel,
+    "the RMW preserved the unrelated naming field",
+  );
+  assert.equal(
+    "recycleBin" in media1,
+    mediaSentinelPresent,
+    "the RMW preserved the unrelated media field",
+  );
 
   // 3) Whisparr→Cove: flip renameMovies off directly in Whisparr, then the extension's read reflects it.
   await whisparr("PUT", "/api/v3/config/naming", { ...naming1, renameMovies: false });
@@ -75,7 +103,11 @@ test("Cove file-settings write Whisparr's naming + media-management config (RMW 
   );
   assert.equal(reflected.renameMovies, false, "Whisparr→Cove: renameMovies change reflected");
   // The other three stayed on — the reverse read is a true read, not a reset.
-  assert.equal(reflected.replaceIllegalCharacters, true, "unrelated toggles unchanged by the reverse read");
+  assert.equal(
+    reflected.replaceIllegalCharacters,
+    true,
+    "unrelated toggles unchanged by the reverse read",
+  );
 
   // Restore a clean config.
   await api.post(`/api/extensions/${EXTENSION_ID}/file-settings`, {

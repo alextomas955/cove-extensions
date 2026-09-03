@@ -33,20 +33,29 @@ function queueRecords(json) {
   return json?.records ?? [];
 }
 
-before(async () => {
-  ctx = await startWhisparrSyncHarness({ version: "v3" });
-}, { timeout: 600_000 });
+before(
+  async () => {
+    ctx = await startWhisparrSyncHarness({ version: "v3" });
+  },
+  { timeout: 600_000 },
+);
 
-after(async () => {
-  await ctx?.stop();
-}, { timeout: 120_000 });
+after(
+  async () => {
+    await ctx?.stop();
+  },
+  { timeout: 120_000 },
+);
 
 test("pushing a Cove-owned scene adds a real, cove-sync-tagged, non-grabbing Whisparr movie", async () => {
   const { api, remoteIds } = ctx;
 
   // The harness reserves one seeded video to carry the per-scene StashDB id — /scene-add resolves the
   // scene server-side from this Cove id, so without it there is nothing to push.
-  assert.ok(remoteIds.sceneVideoId, "a seeded video was reserved to carry the per-scene StashDB id");
+  assert.ok(
+    remoteIds.sceneVideoId,
+    "a seeded video was reserved to carry the per-scene StashDB id",
+  );
   assert.ok(remoteIds.sceneRemoteId, "the allowlist yielded a per-scene StashDB id");
 
   const add = await api.post(`/api/extensions/${EXTENSION_ID}/scene-add`, {
@@ -59,14 +68,20 @@ test("pushing a Cove-owned scene adds a real, cove-sync-tagged, non-grabbing Whi
   const movies = await pollUntil(
     async () => {
       const { json } = await whisparrGet("/api/v3/movie");
-      return (Array.isArray(json) ? json : []).filter((m) => m.foreignId === remoteIds.sceneRemoteId);
+      return (Array.isArray(json) ? json : []).filter(
+        (m) => m.foreignId === remoteIds.sceneRemoteId,
+      );
     },
     (rows) => rows.length === 1,
     { timeoutMs: 60_000, label: "the Cove-pushed scene is present as a Whisparr movie row" },
   );
   assert.equal(movies.length, 1, "exactly one Cove-pushed movie row exists for the scene");
   const movie = movies[0];
-  assert.equal(movie.foreignId, remoteIds.sceneRemoteId, "the movie's foreignId is the scene's StashDB id");
+  assert.equal(
+    movie.foreignId,
+    remoteIds.sceneRemoteId,
+    "the movie's foreignId is the scene's StashDB id",
+  );
 
   // The cove-sync origin tag is attached — resolve its id from Whisparr's own tag list, then confirm
   // membership on the movie row (the loop-safety attribution contract, proven against real state).

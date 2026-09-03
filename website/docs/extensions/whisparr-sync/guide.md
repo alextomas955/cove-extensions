@@ -40,17 +40,17 @@ Do this in Whisparr's own web UI before you connect Cove:
 
 ![Whisparr v3 Media Management settings showing Movie Naming, File Management, and the Root Folders list.](/img/whisparr-sync/whisparr-v3-media-management.png)
 
-*Whisparr v3's Media Management page — the movie-shaped model (Movie Naming) and the root folders
-Cove imports into.*
+_Whisparr v3's Media Management page — the movie-shaped model (Movie Naming) and the root folders
+Cove imports into._
 
 ![Whisparr v3 Indexers settings — an empty Indexers list with an add button, above the shared indexer Options.](/img/whisparr-sync/whisparr-v3-indexers.png)
 
-*Settings → Indexers on Whisparr v3 — add at least one indexer here so Whisparr has somewhere to
-search.*
+_Settings → Indexers on Whisparr v3 — add at least one indexer here so Whisparr has somewhere to
+search._
 
 ![Whisparr v3 General settings Security section, with the API Key field and its copy control.](/img/whisparr-sync/whisparr-v3-general-apikey.png)
 
-*Settings → General on Whisparr v3 — the API key you paste into Cove lives in the Security section.*
+_Settings → General on Whisparr v3 — the API key you paste into Cove lives in the Security section._
 
 ### Connect Cove to Whisparr v3
 
@@ -66,8 +66,8 @@ On the Whisparr Sync settings page:
 
 ![The Whisparr Sync Connection section connected to a Whisparr v3 instance, showing the detected version v3 (Eros) and a green "Connected to Whisparr" result with the instance version.](/img/whisparr-sync/settings-connection.png)
 
-*The Connection section after a successful v3 test: the key stored server-side ("Key is set"), the
-detected version, and the reported instance version.*
+_The Connection section after a successful v3 test: the key stored server-side ("Key is set"), the
+detected version, and the reported instance version._
 
 ## Configure Whisparr v2
 
@@ -87,17 +87,17 @@ In Whisparr's own web UI:
 
 ![Whisparr v2 Media Management settings showing Episode Naming, File Management, and the Root Folders list.](/img/whisparr-sync/whisparr-v2-media-management.png)
 
-*Whisparr v2's Media Management page — the series-shaped model (Episode Naming, Multi Episode Style)
-that follows from a site being a series.*
+_Whisparr v2's Media Management page — the series-shaped model (Episode Naming, Multi Episode Style)
+that follows from a site being a series._
 
 ![Whisparr v2 Indexers settings — an empty Indexers list with an add button, above the shared indexer Options.](/img/whisparr-sync/whisparr-v2-indexers.png)
 
-*Settings → Indexers on Whisparr v2 — add at least one indexer so Whisparr has somewhere to search.*
+_Settings → Indexers on Whisparr v2 — add at least one indexer so Whisparr has somewhere to search._
 
 ![Whisparr v2 General settings Security section, with the API Key field and its copy control.](/img/whisparr-sync/whisparr-v2-general-apikey.png)
 
-*Settings → General on Whisparr v2 — the API key lives in the Security section, the same place as
-v3.*
+_Settings → General on Whisparr v2 — the API key lives in the Security section, the same place as
+v3._
 
 ### Connect Cove to Whisparr v2
 
@@ -113,8 +113,8 @@ version change:
 
 ![The Whisparr Sync Connection section connected to a Whisparr v2 instance, showing the detected version v2 and a green "Connected to Whisparr" result with the instance version.](/img/whisparr-sync/settings-connection-v2.png)
 
-*The same Connection section pointed at a v2 instance: the detected version is v2, and the reported
-instance version confirms it.*
+_The same Connection section pointed at a v2 instance: the detected version is v2, and the reported
+instance version confirms it._
 
 Some controls have no equivalent on Whisparr v2 and read **"Currently available on Whisparr v3
 (Eros)"** there — you never have to migrate; v2 and v3 are both fully supported. On v2 a Cove studio
@@ -243,7 +243,7 @@ You drive a whole studio or performer from the extension's Whisparr menu.
      Cove and Whisparr to see the file at the same path (see [Storage requirement](./settings#storage-requirement)).
      On Whisparr v2 the file is registered
      in place; on Whisparr v3 (Eros) it is copied into the movie's folder (a hardlink, so no extra disk, when
-     Whisparr's *Use Hard Links* setting is on). Register the scenes first with **Add all missing**.
+     Whisparr's _Use Hard Links_ setting is on). Register the scenes first with **Add all missing**.
    - **Search all monitored** — ask Whisparr to search and grab across the entity's monitored scenes.
 
 **Add all missing** and **Search all monitored** appear only once the entity is monitored — the menu

@@ -25,7 +25,7 @@ The summary line reads `{N} matched · {M} unmatched · {K} need review · {T} s
 
 ![The read-only reconciliation section on the Whisparr Sync settings page. Once you run a reconcile it lists scenes with their match state, match method, and Cove item, filtered by the segment chips above it.](/img/whisparr-sync/reconciliation.png)
 
-*The read-only reconciliation section, shown against a synthetic fixture library — no real media.*
+_The read-only reconciliation section, shown against a synthetic fixture library — no real media._
 
 ## Read the segments
 

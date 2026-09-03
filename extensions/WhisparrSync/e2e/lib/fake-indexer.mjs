@@ -20,12 +20,12 @@
 //     or an interactive search reports "0 active indexers" — see setup provisioning.
 //   • the fixture's runtime is ~0s, so Whisparr flags it a SAMPLE vs the scene's expected runtime;
 //     the harness must disable sample rejection (mediamanagement) for the grab→import assertion.
-import { GenericContainer, Wait } from 'testcontainers';
+import { GenericContainer, Wait } from "testcontainers";
 
-const IMAGE = process.env.FAKE_INDEXER_IMAGE ?? 'node:22-alpine';
-const ALIAS = 'fake-indexer';
+const IMAGE = process.env.FAKE_INDEXER_IMAGE ?? "node:22-alpine";
+const ALIAS = "fake-indexer";
 const PORT = 9898;
-const MEDIA_IN_CONTAINER = '/fixture/media.mp4';
+const MEDIA_IN_CONTAINER = "/fixture/media.mp4";
 
 /**
  * Starts the Torznab stub joined to {@link networkName} under the alias `fake-indexer`, serving the
@@ -37,12 +37,14 @@ const MEDIA_IN_CONTAINER = '/fixture/media.mp4';
  * @returns {Promise<{ urlFromWhisparr: string, urlFromHost: string, apiPath: string,
  *   stop: () => Promise<void> }>}
  */
-export async function startFakeIndexer({ networkName, mediaHostPath, site = 'Tushy Raw' }) {
+export async function startFakeIndexer({ networkName, mediaHostPath, site = "Tushy Raw" }) {
   if (!networkName) {
-    throw new Error('startFakeIndexer: networkName is required');
+    throw new Error("startFakeIndexer: networkName is required");
   }
   if (!mediaHostPath) {
-    throw new Error('startFakeIndexer: mediaHostPath is required (a valid tiny MP4 ffprobe can parse)');
+    throw new Error(
+      "startFakeIndexer: mediaHostPath is required (a valid tiny MP4 ffprobe can parse)",
+    );
   }
 
   // The served script — inline (mirrors skyhook-stub.mjs); reads the bind-mounted fixture at startup.
@@ -147,8 +149,8 @@ server.listen(PORT, '0.0.0.0', () => console.log('fake-indexer serving ' + SIZE 
     .withNetworkMode(networkName)
     .withNetworkAliases(ALIAS)
     .withExposedPorts(PORT)
-    .withBindMounts([{ source: mediaHostPath, target: MEDIA_IN_CONTAINER, mode: 'ro' }])
-    .withCommand(['node', '-e', script])
+    .withBindMounts([{ source: mediaHostPath, target: MEDIA_IN_CONTAINER, mode: "ro" }])
+    .withCommand(["node", "-e", script])
     .withWaitStrategy(Wait.forListeningPorts())
     .withStartupTimeout(60_000)
     .start();
@@ -159,8 +161,7 @@ server.listen(PORT, '0.0.0.0', () => console.log('fake-indexer serving ' + SIZE 
   return {
     urlFromWhisparr: `http://${ALIAS}:${PORT}`,
     urlFromHost: `http://${host}:${port}`,
-    apiPath: '/api',
+    apiPath: "/api",
     stop: () => container.stop(),
   };
 }
-
