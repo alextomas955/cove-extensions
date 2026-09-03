@@ -1,4 +1,5 @@
 using Cove.Core.Auth;
+using Cove.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Connection;
 using WhisparrSync.Monitoring;
@@ -25,6 +26,7 @@ internal static class BindingServices
     {
         services.AddSingleton<ICurrentPrincipalAccessor>(_ => null!);
         services.AddSingleton<IConnectionTestRunner>(_ => null!);
+        services.AddSingleton<IJobService>(_ => null!);
         services.AddSingleton<IWhisparrClient>(_ => null!);
         services.AddSingleton<IEntityIdentityPort>(_ => null!);
         services.AddSingleton<ICredentialPort>(_ => null!);

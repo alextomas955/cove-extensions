@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Cove.Core.Auth;
+using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Cove.Sdk;
@@ -15,10 +16,13 @@ using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Jobs;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
-
+// The SDK declares a job-progress interface of its own, and the one the host's job service hands a
+// work delegate is the core's. An unqualified reference compiles and means the other one.
+using CoreJobProgress = Cove.Core.Interfaces.IJobProgress;
 // Two types in this assembly are named MonitorScope: the stored settings default carries the spec's
 // earlier vocabulary, and the acting one carries the two names both generations use. They share a
 // member name, so an unqualified reference compiles and means the other one.
@@ -40,6 +44,8 @@ public sealed partial class WhisparrSync
     private string MonitorRoute => RouteBase + "/entity/{kind}/{coveId}/monitor";
     private string UnmonitorRoute => RouteBase + "/entity/{kind}/{coveId}/unmonitor";
     private string MonitorScopeRoute => RouteBase + "/entity/{kind}/{coveId}/scope";
+    private string BulkMonitorRoute => RouteBase + "/entities/bulk-monitor";
+    private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
 
     // Derived from the same builder the registered address is, so the route Whisparr is told to call
     // and the route this extension mounts cannot drift apart.
@@ -130,6 +136,21 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
+        // The same tier again: one gesture aiming this extension's stored credential at a third party
+        // for every entity in a selection is not a lesser act than doing it for one.
+        endpoints.MapPost(BulkMonitorRoute,
+            (MonitorBulkRequest request, ICurrentPrincipalAccessor principal, IJobService jobs,
+             IServiceScopeFactory scopes)
+                => BulkMonitorEnqueue(request, principal, jobs, scopes))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapGet(JobStatusRoute,
+            (string jobId, ICurrentPrincipalAccessor principal, IJobService jobs)
+                => BulkJobStatusOf(jobId, principal, jobs))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
         // The ONE route of this extension that answers a caller holding no Cove permission, and it
         // says so with the SDK's own convention rather than by declaring nothing. An endpoint
         // declaring no convention also admits an anonymous caller, but silently and with a host
@@ -171,9 +192,30 @@ public sealed partial class WhisparrSync
     /// <summary>The settings tab this extension mounts, and the tab its one section targets.</summary>
     private const string SettingsTabKey = "whisparr-sync";
 
+    /// <summary>The name the bundle registers this extension's bulk action handler under.</summary>
+    /// <remarks>
+    /// Byte-identical to the key in the bundle's own handler map. The host resolves one to the other
+    /// by exact string and dispatches nothing, with no error, when they differ.
+    /// </remarks>
+    private const string BulkHandlerName = "whisparrMonitorSelected";
+
     /// <summary>
-    /// The surfaces the host mounts: one dedicated settings tab, and one control in each of the
-    /// studio and performer pages' own action rows.
+    /// The spelling the host's selection bar passes for a studio selection.
+    /// </summary>
+    /// <remarks>
+    /// The bar normalizes only the two media plurals; every studio and performer call site passes the
+    /// RAW PLURAL, and the host matches an action's declared types by exact string membership. A
+    /// singular spelling makes the button simply not appear, with no error anywhere, which is why the
+    /// registration and the route's own parse read the same constant.
+    /// </remarks>
+    private const string StudiosSelectionType = "studios";
+
+    /// <inheritdoc cref="StudiosSelectionType"/>
+    private const string PerformersSelectionType = "performers";
+
+    /// <summary>
+    /// The surfaces the host mounts: one dedicated settings tab, one control in each of the studio
+    /// and performer pages' own action rows, and one bulk action per selection bar.
     /// </summary>
     /// <remarks>
     /// Page layout, so the host renders the panel full-width with no card chrome and this extension
@@ -184,6 +226,18 @@ public sealed partial class WhisparrSync
     /// The action-row slot is the only position an extension can reach on either page. The host's
     /// own entity-action contribution point answers with an empty list for anything but a video or an
     /// image, so a control registered there would never render at all.
+    /// </para>
+    /// <para>
+    /// The bulk action is registered ONCE PER ENTITY KIND rather than once carrying both types: the
+    /// host allows a single required permission per action and filters visibility by both the entity
+    /// type in context and that permission, so one action covering both kinds would still be one
+    /// visibility gate. Each declares a handler and NO api endpoint, because the handler has to ask
+    /// for a verb and a scope before anything is sent.
+    /// </para>
+    /// <para>
+    /// The manifest is built once and cannot vary by generation, so the buttons are always
+    /// registered: the button's PRESENCE is a manifest fact and a verb's AVAILABILITY is a runtime
+    /// one, enforced in the handler and again at the route.
     /// </para>
     /// </remarks>
     public override UIManifest GetUIManifest()
@@ -200,6 +254,30 @@ public sealed partial class WhisparrSync
                 componentName: "WhisparrSyncPage")
             .AddSlot("studio-detail-actions", componentName: "WhisparrStudioActions", order: 100)
             .AddSlot("performer-detail-actions", componentName: "WhisparrPerformerActions", order: 100)
+            .AddAction(
+                id: "whisparr-monitor-selected-studios",
+                label: "Monitor in Whisparr",
+                actionType: "bulk",
+                entityTypes: [StudiosSelectionType],
+                icon: "eye",
+                apiEndpoint: null,
+                handlerName: BulkHandlerName,
+                order: 100,
+                requiredPermission: Permissions.ExtensionsConfigure,
+                // The work reports into the host's own Job Drawer, so its queued-success alert would
+                // say the same thing twice.
+                suppressSuccessAlert: true)
+            .AddAction(
+                id: "whisparr-monitor-selected-performers",
+                label: "Monitor in Whisparr",
+                actionType: "bulk",
+                entityTypes: [PerformersSelectionType],
+                icon: "eye",
+                apiEndpoint: null,
+                handlerName: BulkHandlerName,
+                order: 100,
+                requiredPermission: Permissions.ExtensionsConfigure,
+                suppressSuccessAlert: true)
             .WithJsBundle("index.mjs")
             .Build();
 
@@ -502,15 +580,31 @@ public sealed partial class WhisparrSync
         }
 
         return TypedResults.Ok(
-            await ChangingHeldEntityAsync(entityKind, coveId, target, identities, log, Unmonitoring, ct)
+            await UnmonitorResolvedAsync(entityKind, coveId, target, identities, log, ct)
                 .ConfigureAwait(false));
+    }
+
+    /// <summary>Stops <paramref name="target"/> monitoring one entity it is known to be able to.</summary>
+    /// <remarks>
+    /// Separate from the route so the bulk path reaches the SAME statement of the verb. Two
+    /// statements of one gesture is how a selection comes to behave differently from a click.
+    /// </remarks>
+    private static Task<EntityMonitoringView> UnmonitorResolvedAsync(
+        WhisparrEntityKind kind,
+        int coveId,
+        MonitoringTarget target,
+        IEntityIdentityPort identities,
+        ILogger log,
+        CancellationToken ct)
+    {
+        return ChangingHeldEntityAsync(kind, coveId, target, identities, log, Unmonitoring, ct);
 
         async Task<EntityMonitoringView> Unmonitoring(
             HeldActing acting, int entityId, bool monitored, CancellationToken changeCt)
         {
             if (!monitored)
             {
-                return State(entityKind, target, monitored: false);
+                return State(kind, target, monitored: false);
             }
 
             var flipped = await ContainedAsync(
@@ -519,8 +613,8 @@ public sealed partial class WhisparrSync
 
             return flipped is null
                 || MonitoringProjector.Accepted(flipped.StatusCode) != MonitorRefusalKind.None
-                    ? Refused(entityKind, target, MonitorRefusalKind.InstanceRefused)
-                    : State(entityKind, target, monitored: false);
+                    ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
+                    : State(kind, target, monitored: false);
         }
     }
 
@@ -589,6 +683,211 @@ public sealed partial class WhisparrSync
                 || MonitoringProjector.Accepted(applied.StatusCode) != MonitorRefusalKind.None
                     ? Refused(entityKind, target, MonitorRefusalKind.InstanceRefused)
                     : State(entityKind, target, monitored);
+        }
+    }
+
+    /// <summary>
+    /// How many Cove ids one bulk request may carry.
+    /// </summary>
+    /// <remarks>
+    /// Each id is fanned out into per-entity requests against a third party, so a caller-supplied
+    /// array is an unbounded fan-out. The bound is applied before anything is encoded or enqueued,
+    /// and it sits far above any selection a page can make. A larger job is the caller's to split.
+    /// </remarks>
+    private const int MaxEntityIdsPerRequest = 1000;
+
+    /// <summary>The prefix the host mints onto every job type this extension enqueues.</summary>
+    private string OwnJobTypePrefix => "ext:" + Id + ":";
+
+    /// <summary>Enqueues one bulk monitoring gesture over a whole selection.</summary>
+    /// <remarks>
+    /// The gate is re-checked here, in the first statement, because the host's own permission filter
+    /// is inert on a minimal-API endpoint - and the required permission the manifest declares beside
+    /// the action is a UI affordance only, which hides a button and enforces nothing.
+    /// <para>
+    /// The id array is capped BEFORE anything is encoded or enqueued, and an oversized one is refused
+    /// with the bound named so a caller can split rather than guess.
+    /// </para>
+    /// <para>
+    /// An empty selection is refused rather than enqueued. A job that does nothing still appears in
+    /// the host's Job Drawer, where it reads as work that happened.
+    /// </para>
+    /// <para>
+    /// Enqueued EXCLUSIVE. A monitor batch mutates only Whisparr's own flags, so exclusivity is not
+    /// required for correctness; what it prevents is two batches over overlapping selections issuing
+    /// overlapping adds. This is reasoned rather than measured, and the cost if it is wrong is that
+    /// two batches run one after the other.
+    /// </para>
+    /// </remarks>
+    internal Results<Accepted<JobEnqueued>, BadRequest<ErrorCode>, ForbiddenCode> BulkMonitorEnqueue(
+        MonitorBulkRequest request,
+        ICurrentPrincipalAccessor principal,
+        IJobService jobs,
+        IServiceScopeFactory scopes)
+    {
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(jobs);
+
+        if (!TryParseSelectionType(request.EntityType, out _))
+        {
+            return TypedResults.BadRequest(new ErrorCode("UNSUPPORTED_ENTITY_TYPE"));
+        }
+
+        if (request.EntityIds is not { } entityIds)
+        {
+            return TypedResults.BadRequest(new ErrorCode("MISSING_ENTITY_IDS"));
+        }
+
+        if (entityIds.Length > MaxEntityIdsPerRequest)
+        {
+            return TypedResults.BadRequest(new ErrorCode("TOO_MANY_IDS", MaxEntityIdsPerRequest));
+        }
+
+        if (entityIds.Length == 0)
+        {
+            return TypedResults.BadRequest(new ErrorCode("NOTHING_SELECTED"));
+        }
+
+        var parameters = MonitoringBulkJob.Encode(
+            request.EntityType!, request.Verb, request.Scope, entityIds);
+
+        var jobId = jobs.Enqueue(
+            OwnJobTypePrefix + MonitoringBulkJob.JobId,
+            $"[{Name}] Monitoring, {entityIds.Length} selected",
+            (progress, ct) => RunBulkMonitorAsync(parameters, scopes, progress, ct),
+            exclusive: true);
+
+        return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
+    }
+
+    /// <summary>Where one of this extension's own runs has got to.</summary>
+    /// <remarks>
+    /// This extension serves it because Cove gates its own job route on unrestricted read, so a
+    /// scoped account is refused there even for a run it started itself.
+    /// <para>
+    /// A job whose type does not carry this extension's own prefix is answered NOT FOUND rather than
+    /// forbidden. Answering forbidden would confirm that the id names a real job, which is exactly the
+    /// fact the host's own gate withholds, and would make this route a way around that gate rather
+    /// than a replacement for the part of it this extension owns.
+    /// </para>
+    /// </remarks>
+    internal Results<Ok<BulkJobStatus>, NotFound, ForbiddenCode> BulkJobStatusOf(
+        string jobId, ICurrentPrincipalAccessor principal, IJobService jobs)
+    {
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(jobs);
+
+        var job = jobs.GetJob(jobId);
+        return job is null || !job.Type.StartsWith(OwnJobTypePrefix, StringComparison.Ordinal)
+            ? TypedResults.NotFound()
+            : TypedResults.Ok(BulkJobStatus.From(job));
+    }
+
+    /// <summary>Runs one enqueued batch.</summary>
+    /// <remarks>
+    /// The parameters are decoded tolerantly, so a batch nobody can read does nothing rather than
+    /// faulting inside the host's job runner. A verb or a selection type the map does not name is
+    /// that same case.
+    /// <para>
+    /// The target is resolved once, on the first entity's turn, and reused for the rest: it is one
+    /// stored read and one credential read, and taking them per entity would be a batch of them.
+    /// </para>
+    /// <para>
+    /// A cancellation is rethrown after the summary is written, so the host classifies the run as
+    /// cancelled rather than completed while the reader is still told what it managed to do.
+    /// </para>
+    /// </remarks>
+    private async Task RunBulkMonitorAsync(
+        IReadOnlyDictionary<string, string> parameters,
+        IServiceScopeFactory scopes,
+        CoreJobProgress progress,
+        CancellationToken ct)
+    {
+        var batch = MonitoringBulkJob.Decode(parameters);
+
+        MonitoringTarget? target = null;
+        var targetResolved = false;
+
+        var run = TryParseSelectionType(batch.EntityType, out var kind) && batch.Verb is { } verb
+            ? await MonitoringBulkJob.RunAsync(
+                batch.EntityIds, scopes, ActOnOneAsync, progress, ct).ConfigureAwait(false)
+            : MonitorBulkRun.NothingSelected;
+
+        progress.SetSummary(MonitoringBulkJob.SummaryOf(run));
+        ct.ThrowIfCancellationRequested();
+
+        async Task<MonitorRefusalKind> ActOnOneAsync(
+            IServiceProvider services, int coveId, CancellationToken entityCt)
+        {
+            if (!targetResolved)
+            {
+                target = await ResolveTargetAsync(
+                    services.GetRequiredService<OptionsStore>(),
+                    services.GetRequiredService<ICredentialPort>(),
+                    services.GetRequiredService<IWhisparrClient>(),
+                    entityCt).ConfigureAwait(false);
+                targetResolved = true;
+            }
+
+            if (target is not { } resolved)
+            {
+                return MonitorRefusalKind.NotConfigured;
+            }
+
+            var identities = services.GetRequiredService<IEntityIdentityPort>();
+
+            // The same statement of each verb the single-entity route reaches, so a selection cannot
+            // behave differently from a click. A verb the connected generation cannot honour is
+            // answered per entity by that shared path rather than failing the batch.
+            var view = verb switch
+            {
+                MonitorBulkVerb.Monitor => await MonitorResolvedAsync(
+                    kind,
+                    coveId,
+                    resolved,
+                    identities,
+                    _log,
+                    ActingFor(kind, resolved, batch.Scope ?? MonitorScope.FutureScenes),
+                    entityCt).ConfigureAwait(false),
+                MonitorBulkVerb.Unmonitor => await UnmonitorResolvedAsync(
+                    kind, coveId, resolved, identities, _log, entityCt).ConfigureAwait(false),
+                _ => throw new InvalidOperationException(
+                    $"{verb} is not a verb the bulk surface carries."),
+            };
+
+            return view.Refusal;
+        }
+    }
+
+    /// <summary>
+    /// The entity kind <paramref name="entityType"/> names, in the spelling the selection bar passes.
+    /// </summary>
+    /// <remarks>
+    /// Matched against the same constants the registration declares, so what the bar has to send to
+    /// see the button and what the route accepts cannot drift apart.
+    /// </remarks>
+    private static bool TryParseSelectionType(string? entityType, out WhisparrEntityKind kind)
+    {
+        switch (entityType)
+        {
+            case StudiosSelectionType:
+                kind = WhisparrEntityKind.Studio;
+                return true;
+            case PerformersSelectionType:
+                kind = WhisparrEntityKind.Performer;
+                return true;
+            default:
+                kind = default;
+                return false;
         }
     }
 
