@@ -22,6 +22,33 @@ export const MONITOR_IN_WHISPARR = "Monitor in Whisparr";
 export const MONITORED_IN_WHISPARR = "Monitored in Whisparr";
 
 /**
+ * The entity's monitored state could not be read.
+ *
+ * The second sentence is the point of the message. A control that fell back to its unmonitored
+ * appearance would report, confidently, that Whisparr is not monitoring the entity - which is a
+ * different fact from not knowing, and the one that would make a reader stop looking.
+ */
+export const MONITORING_COULD_NOT_BE_READ =
+  "Cove could not read what Whisparr monitors for this. That is not the same as Whisparr monitoring nothing.";
+
+/**
+ * An action that never reached the instance.
+ *
+ * Says that nothing changed, because the alternative reading - that it changed and the answer was
+ * lost - is the one a reader will otherwise assume and act on.
+ */
+export const ACTION_DID_NOT_REACH_WHISPARR =
+  "Cove could not carry that out. Nothing here was changed; try again shortly.";
+
+/**
+ * An action this build of the extension does not carry out.
+ *
+ * Names the version rather than the reason, because no setting and no instance changes the answer.
+ */
+export const ACTION_ABSENT_IN_THIS_VERSION =
+  "This version of Whisparr Sync does not carry out this action.";
+
+/**
  * The narrower monitor scope, in Whisparr's own words.
  *
  * Both generations use these two names, so neither is this product's coinage and neither has to be

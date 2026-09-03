@@ -6,8 +6,9 @@
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
+import { postAction } from "@cove-extensions/ui-shared/postAction";
 
-import type { EntityMonitoringView, MonitorScope, WhisparrEntityKind } from "../wire/api";
+import type { EntityMonitoringView, WhisparrEntityKind } from "../wire/api";
 import { api } from "../common/lib/extension";
 import {
   createMonitoringStore,
@@ -19,8 +20,13 @@ import {
 /** What the hook hands the control. */
 export interface Monitoring {
   readonly state: MonitoringState;
-  /** Monitors the entity at `scope`, then reports the state the server answered with. */
-  readonly monitor: (scope: MonitorScope) => void;
+  /**
+   * Carries out one verb for this entity and then reads the state back.
+   *
+   * @param verb the route this verb is served at, off the entity's own base
+   * @param body what that route is sent
+   */
+  readonly act: (verb: string, body: unknown) => void;
 }
 
 function messageFor(err: unknown): string {
@@ -52,22 +58,23 @@ export function useMonitoring(kind: WhisparrEntityKind, coveId: number): Monitor
     [store],
   );
 
-  const monitor = useCallback(
-    (scope: MonitorScope) => {
+  const act = useCallback(
+    (verb: string, body: unknown) => {
       const entity: MonitoredEntity = { kind, coveId };
       store.beginAction(entity);
-      requestJson<EntityMonitoringView>(routeFor(entity, "monitor"), {
-        method: "POST",
-        body: JSON.stringify({ scope }),
-      })
-        .then((view) => {
-          store.acted(entity, view);
+      postAction(routeFor(entity, verb), body)
+        .then(() => {
+          // Read the state back rather than paint what the action answered with. The instance
+          // decides what it now holds, and its own catalogue refresh can move that between the
+          // answer and the next frame.
+          store.actionSucceeded(entity);
+          read(entity);
         })
         .catch((err: unknown) => {
           store.actionFailed(entity, messageFor(err));
         });
     },
-    [store, kind, coveId],
+    [store, read, kind, coveId],
   );
 
   // Keyed on the entity rather than a bare boolean. The host keeps this component across a
@@ -83,5 +90,5 @@ export function useMonitoring(kind: WhisparrEntityKind, coveId: number): Monitor
     read(entity);
   }, [store, read, kind, coveId]);
 
-  return { state, monitor };
+  return { state, act };
 }
