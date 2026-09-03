@@ -76,9 +76,16 @@ internal static class ComposedAdds
     private static readonly DateTimeOffset Now = new(2026, 9, 2, 0, 0, 0, TimeSpan.Zero);
 
     /// <summary>A studio as an instance holds one, for the verbs that read before they write.</summary>
+    /// <remarks>
+    /// It carries both acquisition-suppressing spellings set TRUE, which is what an instance answers
+    /// with for a studio a person added in the instance's own interface with search-on-add ticked. A
+    /// body composed by cloning this one carries whatever it holds, so a fixture without them cannot
+    /// fail an assertion about what such a body says.
+    /// </remarks>
     private const string HeldStudio = """
         {"id":4,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","monitored":true,
-         "afterDate":"2026-09-02","qualityProfileId":4,"rootFolderPath":"/config/library","tags":[7]}
+         "afterDate":"2026-09-02","qualityProfileId":4,"rootFolderPath":"/config/library","tags":[7],
+         "searchOnAdd":true,"addOptions":{"searchForMovie":true}}
         """;
 
     /// <summary>Every generation this product can be connected to.</summary>
@@ -111,11 +118,21 @@ internal static class ComposedAdds
         V3BodyProjector.SetStudioMonitored(4, monitored: false),
         V3BodyProjector.SetPerformerMonitored(11, monitored: true),
         V3BodyProjector.SetPerformerMonitored(11, monitored: false),
-        V3BodyProjector.WithScope(Held(), MonitorScope.FutureScenes, Now),
-        V3BodyProjector.WithScope(Held(), MonitorScope.AllScenes, Now),
+        .. EveryScopeChange(),
         V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Studio, 4),
         V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Performer, 11),
         V2BodyProjector.RefreshCatalogue(3),
+    ];
+
+    /// <summary>Every scope change, over the resource an instance answered a read with.</summary>
+    /// <remarks>
+    /// The one verb this product composes by cloning a whole instance response rather than field for
+    /// field, so it is the one whose body carries members this product never wrote.
+    /// </remarks>
+    public static IReadOnlyList<JsonObject> EveryScopeChange() =>
+    [
+        V3BodyProjector.WithScope(Held(), MonitorScope.FutureScenes, Now),
+        V3BodyProjector.WithScope(Held(), MonitorScope.AllScenes, Now),
     ];
 
     /// <summary>
@@ -233,7 +250,8 @@ internal static class ComposedAdds
                     + "never-search assertions cover it."),
         };
 
-    private static JsonObject Held()
+    /// <summary>The resource every scope change is composed over.</summary>
+    public static JsonObject Held()
         => (JsonObject)JsonNode.Parse(HeldStudio)!;
 }
 
@@ -391,6 +409,74 @@ public sealed class NonGrabbingBodyTests
             body => Assert.All(
                 ComposedAdds.GrabbingCommandNames,
                 name => Assert.DoesNotContain(name, body.ToJsonString(), StringComparison.Ordinal)));
+    }
+
+    /// <summary>
+    /// No body composed on a path that must not acquire carries an acquisition-suppressing spelling
+    /// set true, in either generation's spellings.
+    /// </summary>
+    /// <remarks>
+    /// Absence and false are both admissible here, because the flag flips and the catalogue refreshes
+    /// carry no such member at all: what is refused is a member present and TRUE. The adds are
+    /// asserted present-and-false separately, which is a stronger rule those bodies can keep.
+    /// <para>
+    /// Both generations' spellings are read over every body. A body composed by cloning what an
+    /// instance answered carries whatever that instance holds rather than what this product wrote, so
+    /// the flag reaching a request is not decided by which generation's projector composed it.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void NoNonGrabbingBodyCarriesASuppressionSpellingSetTrue()
+    {
+        var bodies = ComposedAdds.EveryNonGrabbingBody();
+        var paths = ComposedAdds.Generations
+            .SelectMany(ComposedAdds.SuppressionPathsOn)
+            .ToArray();
+
+        Assert.NotEmpty(bodies);
+        Assert.NotEmpty(paths);
+        Assert.All(
+            bodies,
+            body => Assert.All(
+                paths,
+                path => Assert.NotEqual<bool?>(
+                    true, ComposedAdds.At(body, path)?.GetValue<bool>())));
+    }
+
+    /// <summary>
+    /// A scope change overwrites both suppression spellings on the resource it is composed over, each
+    /// present as a member and each false.
+    /// </summary>
+    /// <remarks>
+    /// The resource is what the instance answered a read with, so it carries the user's own flags: a
+    /// studio added in the instance's interface with search-on-add ticked holds both spellings true,
+    /// and a clone that left them alone would re-assert them on a request this product originated.
+    /// <para>
+    /// Overwritten rather than removed, and presence is asserted apart from the value. Removal would
+    /// rest on the instance defaulting an absent member to false, which was never measured.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AScopeChangeOverwritesBothSuppressionSpellingsOnWhatTheInstanceHeld()
+    {
+        var paths = ComposedAdds.SuppressionPathsOn(WhisparrGeneration.V3);
+        var scopeChanges = ComposedAdds.EveryScopeChange();
+
+        // The resource composed over holds both spellings true, which is the case a body carrying
+        // neither cannot be asserted against.
+        Assert.All(
+            paths,
+            path => Assert.True(ComposedAdds.At(ComposedAdds.Held(), path)!.GetValue<bool>()));
+
+        Assert.NotEmpty(scopeChanges);
+        Assert.All(
+            scopeChanges,
+            body =>
+            {
+                Assert.All(paths, path => Assert.NotNull(ComposedAdds.At(body, path)));
+                Assert.All(
+                    paths, path => Assert.False(ComposedAdds.At(body, path)!.GetValue<bool>()));
+            });
     }
 
     /// <summary>
