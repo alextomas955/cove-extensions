@@ -32,6 +32,12 @@ const COMPONENT_MAP_KEY = /([A-Za-z_$][\w$]*)\s*(?::\s*[A-Za-z_$][\w$]*)?\s*(?:,
 /** Every `componentName:` argument in the manifest override. */
 const MANIFEST_COMPONENT_NAME = /componentName:\s*"([^"]*)"/g;
 
+/** The whole body of the bundle's `actionHandlers` map. */
+const ACTION_HANDLER_MAP = /actionHandlers\s*=\s*\{([^}]*)\}/;
+
+/** The name the manifest's bulk actions declare their handler under. */
+const MANIFEST_HANDLER_NAME = /BulkHandlerName\s*=\s*"([^"]*)"/g;
+
 /** Every capture of `pattern` in `file`, with the match count asserted to be at least one. */
 function readAll(pattern: RegExp, file: string): string[] {
   const source = readFileSync(file, "utf8");
@@ -49,10 +55,29 @@ function bundleKeys(): string[] {
   return [...body![1].matchAll(COMPONENT_MAP_KEY)].map((match) => match[1]);
 }
 
+function handlerKeys(): string[] {
+  const source = readFileSync(bundleEntry, "utf8");
+  const body = ACTION_HANDLER_MAP.exec(source);
+  expect(body, `no action-handler map found in ${bundleEntry}`).not.toBeNull();
+  return [...body![1].matchAll(COMPONENT_MAP_KEY)].map((match) => match[1]);
+}
+
 test("every name the C# manifest advertises is a key this bundle registers", () => {
   const advertised = readAll(MANIFEST_COMPONENT_NAME, manifestSource);
   const registered = bundleKeys();
 
   expect(registered.length).toBeGreaterThan(0);
   expect([...advertised].sort()).toEqual([...registered].sort());
+});
+
+/**
+ * The same exact-string rule governs an action handler. A key that does not match the manifest's
+ * handler name leaves the host dispatching nothing when the bulk button is pressed, with no error.
+ */
+test("every handler name the C# manifest declares is a key this bundle registers", () => {
+  const declared = readAll(MANIFEST_HANDLER_NAME, manifestSource);
+  const registered = handlerKeys();
+
+  expect(registered.length).toBeGreaterThan(0);
+  expect([...new Set(declared)].sort()).toEqual([...registered].sort());
 });

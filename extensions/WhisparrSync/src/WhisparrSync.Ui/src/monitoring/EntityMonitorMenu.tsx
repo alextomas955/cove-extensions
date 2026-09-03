@@ -14,19 +14,8 @@ import { createPortal } from "react-dom";
 import { useOverlayKeys } from "@cove-extensions/ui-shared/overlay";
 
 import { OFF_SCREEN } from "../common/ui/offScreen";
+import { monitorMenuItemKey } from "./monitorMenuLogic";
 import type { MonitorMenu, MonitorMenuItem } from "./monitorMenuLogic";
-
-/** A stable key for one item, so two secondary actions are not the same row to React. */
-function keyOf(item: MonitorMenuItem): string {
-  switch (item.item) {
-    case "scope":
-      return `scope:${item.scope}`;
-    case "secondary":
-      return `secondary:${item.action}`;
-    default:
-      return item.item;
-  }
-}
 
 /**
  * One row of the menu.
@@ -134,7 +123,7 @@ export function EntityMonitorMenu({
         // Every row carries a menu role. The overlay's roving focus selects on `[role^="menuitem"]`,
         // so a row without one is invisible to the arrow keys.
         <MenuRow
-          key={keyOf(item)}
+          key={monitorMenuItemKey(item)}
           role={item.item === "scope" ? "menuitemradio" : "menuitem"}
           checked={item.item === "scope" ? item.selected : undefined}
           label={item.label}
