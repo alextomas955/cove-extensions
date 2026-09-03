@@ -40,7 +40,25 @@ public enum MonitorRefusalKind
     /// The entity carries no identifier in the connected generation's own namespace, so there is
     /// nothing to name it by.
     /// </summary>
+    /// <remarks>
+    /// One kind whether the library holds no link at all or holds one only in the other generation's
+    /// namespace. The two are the same fact from the reader's side, because the namespace that counts
+    /// is whichever the connected instance identifies entities in, and the sentence names the
+    /// connected instance rather than a provider.
+    /// </remarks>
     NoIdentityInThisNamespace,
+
+    /// <summary>
+    /// The entity carries several different identifiers in the connected generation's namespace, so
+    /// which one names it is undecided.
+    /// </summary>
+    /// <remarks>
+    /// A refusal rather than a first-row pick. The rows are matched by the host's own
+    /// same-source rule, which treats two spellings of one provider as one source, so an entity can
+    /// hold two matching rows carrying two different identifiers. Taking whichever came first would
+    /// aim this extension's stored credential at whichever entity the row order happened to name.
+    /// </remarks>
+    SeveralIdentitiesInThisNamespace,
 
     /// <summary>The connected generation holds no capability that could honour this.</summary>
     CapabilityAbsentOnThisGeneration,
