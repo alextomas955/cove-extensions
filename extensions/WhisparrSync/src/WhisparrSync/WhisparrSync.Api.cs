@@ -822,7 +822,9 @@ public sealed partial class WhisparrSync
                 batch.EntityIds, scopes, ActOnOneAsync, progress, ct).ConfigureAwait(false)
             : MonitorBulkRun.NothingSelected;
 
-        progress.SetSummary(MonitoringBulkJob.SummaryOf(run));
+        // The host's progress carries no summary field, so the run's one line rides the final
+        // report's sub-task.
+        progress.Report(1d, MonitoringBulkJob.SummaryOf(run));
         ct.ThrowIfCancellationRequested();
 
         async Task<MonitorRefusalKind> ActOnOneAsync(
