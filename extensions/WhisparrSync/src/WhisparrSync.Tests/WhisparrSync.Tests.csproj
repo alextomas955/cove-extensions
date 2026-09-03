@@ -134,6 +134,7 @@
     <Compile Remove="Monitoring\ReflectOwnedNeverTransfersTests.cs" />
     <Compile Remove="Monitoring\ReflectOwnedRouteTests.cs" />
     <Compile Remove="Monitoring\RefusalPrecedenceTests.cs" />
+    <Compile Remove="Monitoring\SearchGrabbingRouteTests.cs" />
     <Compile Remove="Monitoring\SecondaryVerbTests.cs" />
     <Compile Remove="TestSupport\MonitorHost.cs" />
   </ItemGroup>
