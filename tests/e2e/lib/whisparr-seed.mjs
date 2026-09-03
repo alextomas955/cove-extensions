@@ -1,6 +1,7 @@
-// The two pre-seeds a Whisparr fixture needs before anything can be asked of it: the configuration
-// file v2 must already hold when it starts, because that generation takes its API key from nowhere
-// else, and the import history neither generation offers any way to create.
+// The pre-seeds a Whisparr fixture needs before anything can be asked of it: the configuration file
+// v2 must already hold when it starts, because that generation takes its API key from nowhere else;
+// the import history neither generation offers any way to create; and the catalogue entities whose
+// add route would otherwise be a call to the vendor's metadata service.
 //
 // Delivered as content into the create→start window rather than through a bind mount, for the same
 // reason nothing else in this harness bind-mounts: the host's Docker file-sharing configuration
@@ -18,6 +19,22 @@ const DATABASES = { v3: "/config/whisparr3.db", v2: "/config/whisparr2.db" };
 // path.
 const SEEDER_SOURCE = join(import.meta.dirname, "whisparr-seed-history.py");
 const SEEDER_TARGET = "/tmp/whisparr-seed-history.py";
+
+/** @see SEEDER_SOURCE */
+const ENTITY_SEEDER_SOURCE = join(import.meta.dirname, "whisparr-seed-entities.py");
+const ENTITY_SEEDER_TARGET = "/tmp/whisparr-seed-entities.py";
+
+// The resource each seeded kind is projected under. The id in the path is the FOREIGN one the seed
+// wrote rather than the row id, which is the addressing the extension itself uses.
+const ENTITY_PATHS = { studio: "/api/v3/studio", performer: "/api/v3/performer" };
+
+// What the instance offers to add against. Its first entry fills the seed's NOT NULL profile column.
+const QUALITY_PROFILE_PATH = "/api/v3/qualityprofile";
+
+// The catalogue tables this harness seeds exist on the v3 schema alone; v2 carries its own
+// Sonarr-lineage shape and is addressed as a series. Declared rather than attempted, so a caller
+// asking for the wrong generation is told which one seeds entities instead of failing on a column.
+const ENTITY_GENERATIONS = ["v3"];
 
 // Enough rows to span every event type the seeder writes, which is what makes the integer-to-name
 // rendering observable rather than assumed.
@@ -139,6 +156,126 @@ export async function seedHistory({
     eventTypeNames: renderedEventTypes(written, readBack.json.records),
     readBack,
   };
+}
+
+/**
+ * Writes one studio or performer into a generation's own database, and answers with it as that
+ * instance's API then projects it.
+ *
+ * The datastore rather than the add route, and that is the whole reason this exists: an add resolves
+ * its foreign id against the vendor's metadata service, so it is a call to a third party this
+ * harness does not control. The pinned v3 build relays that service's own failure for an id it
+ * cannot resolve, which would make an entity's mere existence depend on someone else's uptime.
+ *
+ * The read-back is not decoration. A row the app will not project is indistinguishable from one that
+ * was never written, and a spec asserting against an entity that is not there fails naming its own
+ * assertion rather than the seed.
+ *
+ * `qualityProfileId` defaults to the first profile the instance offers, because the column is NOT
+ * NULL and the instance owns the value. It is read from the instance rather than assumed to be 1.
+ *
+ * @param {{container: import("testcontainers").StartedTestContainer, api: {get: Function},
+ *          generation: "v3", kind: "studio"|"performer", foreignId: string, title: string,
+ *          rootFolderPath: string, qualityProfileId?: number, monitored?: boolean}} options
+ * @returns {Promise<object>} the entity as the instance projects it, its row id included
+ */
+export async function seedEntity({
+  container,
+  api,
+  generation,
+  kind,
+  foreignId,
+  title,
+  rootFolderPath,
+  qualityProfileId,
+  monitored = false,
+}) {
+  if (!ENTITY_GENERATIONS.includes(generation)) {
+    throw new Error(
+      `seedEntity: no catalogue seed is wired for generation "${generation}"; it is wired for ${ENTITY_GENERATIONS.join(", ")}.`,
+    );
+  }
+  const entityPath = ENTITY_PATHS[kind];
+  if (entityPath === undefined) {
+    throw new Error(
+      `seedEntity: no resource is declared for kind "${kind}"; declared kinds are ${Object.keys(ENTITY_PATHS).join(", ")}.`,
+    );
+  }
+  if (!rootFolderPath) {
+    throw new Error(
+      "seedEntity: no rootFolderPath given; the column is NOT NULL and a registered root is the only value the instance accepts.",
+    );
+  }
+
+  const profileId = qualityProfileId ?? (await firstQualityProfileId(api, generation));
+
+  await container.copyFilesToContainer([
+    { source: ENTITY_SEEDER_SOURCE, target: ENTITY_SEEDER_TARGET },
+  ]);
+  // A copied file arrives root-owned, and the chown is the only step here needing root. The seeder
+  // runs AS the app's own user so the write-ahead and shared-memory siblings it touches keep
+  // belonging to the process that has to go on using them.
+  await container.exec(["chown", APP_USER, ENTITY_SEEDER_TARGET], { user: "root" });
+
+  const written = await container.exec(
+    [
+      "python3",
+      ENTITY_SEEDER_TARGET,
+      "--db",
+      DATABASES[generation],
+      "--kind",
+      kind,
+      "--foreign-id",
+      foreignId,
+      "--title",
+      title,
+      "--quality-profile-id",
+      String(profileId),
+      "--root-folder-path",
+      rootFolderPath,
+      "--monitored",
+      monitored ? "true" : "false",
+    ],
+    { user: APP_USER },
+  );
+  if (written.exitCode !== 0) {
+    throw new Error(
+      `seedEntity: the seeder exited ${written.exitCode} writing a ${kind} "${foreignId}" into ${DATABASES[generation]} on ${generation}: ${written.output}`,
+    );
+  }
+
+  const projected = await api.get(`${entityPath}/${encodeURIComponent(foreignId)}`);
+  if (projected.status !== 200) {
+    throw new Error(
+      `seedEntity: ${generation} answered GET ${entityPath}/${foreignId} with ${projected.status} after the seed reported ${written.output.trim()}. ` +
+        "The row is in the table and the app will not project it, so nothing asserted against this entity would be about the extension.",
+    );
+  }
+  return projected.json;
+}
+
+/**
+ * The first quality profile the instance offers.
+ *
+ * Polled rather than read once: a freshly started instance answers this route before it has finished
+ * writing its own defaults, so a single read races that write and reports an instance with none.
+ */
+async function firstQualityProfileId(api, generation) {
+  const { settled, value, note } = await attemptUntil(
+    async (_signal, record) => {
+      const profiles = await api.get(QUALITY_PROFILE_PATH);
+      record(`${profiles.status} with ${profiles.json?.length ?? "no"} profile(s)`);
+      const id = profiles.json?.[0]?.id;
+      return typeof id === "number" ? { value: id } : null;
+    },
+    { timeoutMs: READ_BACK_TIMEOUT_MS, intervalMs: 500, label: "firstQualityProfileId" },
+  );
+  if (!settled) {
+    throw new Error(
+      `seedEntity: GET ${QUALITY_PROFILE_PATH} on ${generation} last answered ${note} after ${READ_BACK_TIMEOUT_MS}ms, so no entity can be seeded: the column is NOT NULL and the instance owns the value.`,
+    );
+  }
+  return value;
 }
 
 async function runSeeder(container, generation, count, database, data, eventTypes) {
