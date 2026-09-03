@@ -7,7 +7,8 @@
  * There is no status line and no count of any sort. Whisparr's own catalogue count is unstable while
  * a refresh runs, so a number here would be wrong through no fault of this product.
  */
-import { useRef, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { createPortal } from "react-dom";
 // From the subpath rather than the barrel, so drawing a menu does not pull the whole primitives
 // module - and its host-only imports - into this slice.
 import { useOverlayKeys } from "@cove-extensions/ui-shared/overlay";
@@ -106,6 +107,7 @@ export function EntityMonitorMenu({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const at = useAnchoredTo(triggerRef);
 
   useOverlayKeys(ref, {
     onClose,
@@ -120,12 +122,13 @@ export function EntityMonitorMenu({
     restoreFocus: true,
   });
 
-  return (
+  return createPortal(
     <div
       ref={ref}
       role="menu"
       aria-label={label}
-      className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-lg border border-border bg-surface py-1 text-left shadow-xl"
+      style={at}
+      className="fixed z-50 w-72 overflow-hidden rounded-lg border border-border bg-surface py-1 text-left shadow-xl"
     >
       {menu.items.map((item) => (
         // Every row carries a menu role. The overlay's roving focus selects on `[role^="menuitem"]`,
@@ -142,6 +145,42 @@ export function EntityMonitorMenu({
           }}
         />
       ))}
-    </div>
+    </div>,
+    document.body,
   );
+}
+
+/**
+ * Where to put the menu, given the control it belongs to.
+ *
+ * Fixed and portaled to the document rather than laid out beside the control, because the host
+ * clips its entity hero: the action row sits inside a container carrying `overflow-hidden`, so a
+ * panel in the flow there is cut off at the hero's own edge with nothing to see and no error. The
+ * host's own overflow menu leaves that container for the same reason.
+ *
+ * The offset and the gutter are the host's own numbers, so the two menus line up the same way.
+ */
+function useAnchoredTo(triggerRef: RefObject<HTMLElement | null>): CSSProperties {
+  const [at, setAt] = useState<CSSProperties>({ top: 0, right: 0 });
+
+  useEffect(() => {
+    const place = () => {
+      const anchor = triggerRef.current;
+      if (anchor === null) return;
+      const rect = anchor.getBoundingClientRect();
+      setAt({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) });
+    };
+
+    place();
+    window.addEventListener("resize", place);
+    // Capture, so the menu follows a scroll of any container between it and the document rather
+    // than only of the document itself.
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [triggerRef]);
+
+  return at;
 }
