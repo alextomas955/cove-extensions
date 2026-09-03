@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
+    <!-- An xUnit v3 test project is a self-hosting Microsoft Testing Platform executable; the
+         framework refuses to build one that is not. -->
+    <OutputType>Exe</OutputType>
     <!-- inherits net10.0 / nullable / implicitusings from Directory.Build.props -->
     <!-- a test project is never a Cove plugin: neutralize the inherited dynamic-loading flag -->
     <EnableDynamicLoading>false</EnableDynamicLoading>
@@ -25,16 +28,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="xunit" />
-    <PackageReference Include="xunit.runner.visualstudio" />
-    <!--
-      TEST-ONLY: runtime Skip.IfNot(...) with a visible reason on xUnit v2 (Assert.Skip is v3-only, and
-      this project pins xunit 2.9.3). Reserved for live-instance-gated tests so they skip WITH a reason
-      rather than silently. Never bundled into the deployed WhisparrSync.dll (IsPackable=false).
-    -->
-    <PackageReference Include="Xunit.SkippableFact" />
-    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="xunit.v3" />
     <!--
       TEST-ONLY runtime closure: EndpointAuthTests instantiates the FullExtensionBase subclass, whose type
       surface (IDataExtension.ConfigureModel(ModelBuilder)) references EF Core. Cove.Sdk marks EF Core as

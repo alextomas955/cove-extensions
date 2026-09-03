@@ -494,7 +494,7 @@ public sealed class V2OutwardParityTests
         AssertCleanRefusal(result, handler);
     }
 
-    // === LIVE probe (SkippableFact) — no-ops without a reachable v2 ===
+    // === LIVE probe — no-ops without a reachable v2 ===
 
     // The end-to-end confirmation of the no-refresh-on-v2 decision against a REAL v2 instance: monitor a
     // THROWAWAY site under NewReleases and confirm the discovered back-catalogue is NOT left all-monitored (the
@@ -502,7 +502,7 @@ public sealed class V2OutwardParityTests
     // live env AND an explicit disposable-site TPDB id so the default CI run never mutates a live seed; SKIPS
     // WITH A REASON when either is absent or the site has no episodes yet. The API key is read from the env and
     // used only for the X-Api-Key header — never logged or asserted on.
-    [SkippableFact]
+    [Fact]
     [Trait("Tier", "LiveE2E")]
     public async Task StudioMonitor_LiveV2_NewReleases_LeavesBackCatalogueUnmonitored_OrSkip()
     {
@@ -510,10 +510,10 @@ public sealed class V2OutwardParityTests
         var apiKey = Env("WHISPARR_V2_E2E_KEY", "WHISPARR_V2_KEY");
         var disposableTpdb = Environment.GetEnvironmentVariable("WHISPARR_V2_E2E_DISPOSABLE_TPDB");
 
-        Skip.If(
+        Assert.SkipWhen(
             string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(apiKey),
             "live v2 gate not set — export WHISPARR_V2_E2E_URL + WHISPARR_V2_E2E_KEY to run the live v2 probe");
-        Skip.If(
+        Assert.SkipWhen(
             string.IsNullOrWhiteSpace(disposableTpdb),
             "no disposable site — export WHISPARR_V2_E2E_DISPOSABLE_TPDB=<throwaway site tpdb id> to run the mutating v2 NewReleases probe");
 
@@ -534,7 +534,7 @@ public sealed class V2OutwardParityTests
 
         var episodes = await client.ListEpisodesAsync(baseUrl!, apiKey!, site!.Id, CancellationToken.None);
         Assert.Equal(WhisparrResultState.Ok, episodes.State);
-        Skip.If(
+        Assert.SkipWhen(
             episodes.Value!.Length == 0,
             "the disposable site has no episodes yet (Whisparr fetches them asynchronously) — re-run once the catalogue populated");
 

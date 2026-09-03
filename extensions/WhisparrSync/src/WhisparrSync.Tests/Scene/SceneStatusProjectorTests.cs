@@ -18,7 +18,11 @@ public sealed class SceneStatusProjectorTests
         int id, string? stashId, bool monitored, bool hasFile,
         string? itemType = "movie", string? foreignId = null,
         string? qualityName = null, bool? cutoffNotMet = null)
-        => new(
+    {
+        var quality = qualityName is null
+            ? null
+            : new WhisparrFileQuality(new WhisparrQualityName(qualityName));
+        return new(
             Id: id,
             Title: $"Movie {id}",
             Year: 2021,
@@ -27,10 +31,9 @@ public sealed class SceneStatusProjectorTests
             ItemType: itemType,
             Monitored: monitored,
             HasFile: hasFile,
-            MovieFile: hasFile
-                ? new WhisparrMovieFile(id, $"/media/{id}.mkv", qualityName is null ? null : new WhisparrFileQuality(new WhisparrQualityName(qualityName)))
-                : null,
+            MovieFile: hasFile ? new WhisparrMovieFile(id, $"/media/{id}.mkv", quality) : null,
             QualityCutoffNotMet: cutoffNotMet);
+    }
 
     private static CoveVideo Video(int id, params string[] stashIds)
         => new(id, $"Video {id}", new DateOnly(2021, 1, 1), stashIds, [], [], []);

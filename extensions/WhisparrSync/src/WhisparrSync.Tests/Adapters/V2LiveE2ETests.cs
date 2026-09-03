@@ -9,7 +9,7 @@ namespace WhisparrSync.Tests.Adapters;
 /// The live Whisparr v2 end-to-end confirmation. Unlike every other
 /// test in this suite — which fakes the outbound boundary with <c>FakeHttpMessageHandler</c> — these facts
 /// talk to a REAL running v2 instance over a real <see cref="HttpClient"/>. They are therefore
-/// <see cref="SkippableFactAttribute">SkippableFact</see>s gated on two environment variables:
+/// <see cref="FactAttribute">Fact</see>s gated on two environment variables:
 /// <c>WHISPARR_V2_E2E_URL</c> and <c>WHISPARR_V2_E2E_KEY</c> (the short <c>WHISPARR_V2_URL</c>/
 /// <c>WHISPARR_V2_KEY</c> aliases are also honored). When either is absent the facts SKIP WITH A VISIBLE
 /// REASON so the default CI run stays green and never depends on a live instance.
@@ -43,7 +43,7 @@ public sealed class V2LiveE2ETests
 
     /// <summary>
     /// Reads the live v2 URL + key from the environment (primary <c>WHISPARR_V2_E2E_*</c> names, then the
-    /// <c>WHISPARR_V2_*</c> aliases). <see cref="Skip.IfNot"/> when either is absent, so a fact gated on this
+    /// <c>WHISPARR_V2_*</c> aliases). <see cref="Assert.SkipWhen(bool, string)"/> when either is absent, so a fact gated on this
     /// helper skips WITH a reason rather than failing on a bare CI runner. The key is returned, never logged.
     /// </summary>
     private static (WhisparrClient Client, string BaseUrl, string ApiKey) LiveClientOrSkip()
@@ -51,7 +51,7 @@ public sealed class V2LiveE2ETests
         var baseUrl = Env("WHISPARR_V2_E2E_URL", "WHISPARR_V2_URL");
         var apiKey = Env("WHISPARR_V2_E2E_KEY", "WHISPARR_V2_KEY");
 
-        Skip.If(
+        Assert.SkipWhen(
             string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(apiKey),
             "live v2 gate not set — export WHISPARR_V2_E2E_URL + WHISPARR_V2_E2E_KEY to run the live v2 E2E");
 
@@ -69,7 +69,7 @@ public sealed class V2LiveE2ETests
     /// A1 (connect): a live <c>GET /api/v3/system/status</c> is Ok, reports a major==2 version, and
     /// <see cref="AdapterSelector.Select"/> routes it to a <see cref="V2Adapter"/> (not a version mismatch).
     /// </summary>
-    [SkippableFact]
+    [Fact]
     public async Task Connect_LiveV2_ReportsMajor2_AndSelectsV2Adapter()
     {
         var (client, baseUrl, apiKey) = LiveClientOrSkip();
@@ -89,7 +89,7 @@ public sealed class V2LiveE2ETests
     /// <c>ItemType == "v2scene"</c>) so the StashDB matcher leg no-ops; and every downloaded (<c>HasFile</c>)
     /// row carries a non-empty <c>MovieFile.Path</c> — the A1 path source the import/match legs read.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     public async Task Enumerate_LiveV2_SynthesizesScenes_WithV2SceneGuard_AndPathsForDownloaded()
     {
         var (client, baseUrl, apiKey) = LiveClientOrSkip();
@@ -119,7 +119,7 @@ public sealed class V2LiveE2ETests
     /// yet (no file has been grabbed/imported), the fact SKIPS WITH A REASON so the A2 gap is explicit rather
     /// than a false pass — fire a grab or a manual import into the seeded Vixen series to exercise it.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     public async Task ImportHistoryKeys_LiveV2_ExposeImportedPathAndDownloadId_OrSkip()
     {
         var (client, baseUrl, apiKey) = LiveClientOrSkip();
@@ -146,7 +146,7 @@ public sealed class V2LiveE2ETests
             }
         }
 
-        Skip.If(
+        Assert.SkipWhen(
             import is null,
             $"no live v2 '{ImportEventType}' history row — fire a grab or manual import into the seeded series to confirm A2");
 
@@ -172,7 +172,7 @@ public sealed class V2LiveE2ETests
     /// paths' loop-safety is proven offline by <c>V2OutwardParityTests</c> and <c>V2AdapterTests</c>. SKIPS
     /// WITH A REASON when the live gate is unset or the seed has no added site with a TPDB id.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     public async Task GoOutward_LiveV2_ResolvesSeededSite_StatusAndAttributedIds_ReadOnly()
     {
         Assert.NotEmpty(GoOutwardCapabilities);
@@ -184,7 +184,7 @@ public sealed class V2LiveE2ETests
         Assert.Equal(WhisparrResultState.Ok, series.State);
 
         var seeded = Array.Find(series.Value!, s => s.TvdbId is > 0);
-        Skip.If(
+        Assert.SkipWhen(
             seeded is null,
             "no added v2 site with a TPDB id on the live seed — add one (e.g. the seeded Vixen studio) to confirm the GO outward resolve path");
 
