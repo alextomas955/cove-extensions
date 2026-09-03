@@ -157,6 +157,22 @@ internal sealed class MonitorHost : IAsyncDisposable
         return studio.Id;
     }
 
+    /// <summary>Adds one more identity row to a studio already seeded.</summary>
+    /// <remarks>
+    /// Exists so a case can hold two rows the host's same-source rule treats as one source, which is
+    /// the shape a first-row pick would resolve silently.
+    /// </remarks>
+    public async Task AddStudioIdentityAsync(int studioId, string endpoint, string remoteId)
+    {
+        _db.Add(new StudioRemoteId
+        {
+            StudioId = studioId,
+            Endpoint = endpoint,
+            RemoteId = remoteId,
+        });
+        await _db.SaveChangesAsync(TestCt);
+    }
+
     /// <summary>Seeds one performer, with an identity row when an endpoint is named.</summary>
     /// <remarks>
     /// Seeded through the same context as a studio, so a case can hold both kinds at once and a path
@@ -192,12 +208,35 @@ internal sealed class MonitorHost : IAsyncDisposable
     public Task<EntityMonitoringView> MonitorRawAsync(int studioId, string body)
         => MonitorRawAsync("studio", studioId, body);
 
-    public async Task<EntityMonitoringView> MonitorRawAsync(string kind, int coveId, string body)
+    public Task<EntityMonitoringView> MonitorRawAsync(string kind, int coveId, string body)
+        => ActRawAsync(kind, coveId, "monitor", body);
+
+    public Task<EntityMonitoringView> UnmonitorAsync(string kind, int coveId)
+        => ActRawAsync(kind, coveId, "unmonitor", "{}");
+
+    public Task<EntityMonitoringView> ChangeScopeAsync(string kind, int coveId, string scope)
+        => ActRawAsync(kind, coveId, "scope", $$"""{"scope":"{{scope}}"}""");
+
+    /// <summary>Posts <paramref name="body"/> to one entity's <paramref name="verb"/> route.</summary>
+    /// <remarks>
+    /// The raw string is sent rather than a serialized record, so a case can carry members the
+    /// request contract declares nothing for.
+    /// </remarks>
+    public async Task<EntityMonitoringView> ActRawAsync(
+        string kind, int coveId, string verb, string body)
     {
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
-        var answered = await Http.PostAsync(RouteFor(kind, coveId, "monitor"), content, TestCt);
+        var answered = await Http.PostAsync(RouteFor(kind, coveId, verb), content, TestCt);
         answered.EnsureSuccessStatusCode();
         return (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
+    }
+
+    /// <summary>The raw answer to one entity's <paramref name="verb"/> route.</summary>
+    public async Task<HttpResponseMessage> PostRawAsync(
+        string kind, int coveId, string verb, string body)
+    {
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+        return await Http.PostAsync(RouteFor(kind, coveId, verb), content, TestCt);
     }
 
     public async Task<EntityMonitoringView> ReadMonitoringAsync(int studioId)
