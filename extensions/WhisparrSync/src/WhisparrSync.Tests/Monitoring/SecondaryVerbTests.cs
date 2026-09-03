@@ -293,11 +293,12 @@ public sealed class SecondaryVerbTests
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
         using var http = new HttpClient(handler);
-        var acting = (IWhisparrReflectOwnedActing)new WhisparrClient(http, NullLogger.Instance);
+        var client = new WhisparrClient(http, NullLogger.Instance);
 
-        await acting.ReadHardlinkSettingAsync(Address, Key, TestCt);
-        await acting.ListImportableFilesAsync(Address, Key, "/config/library/Vixen & Co", TestCt);
-        await acting.AttachOwnedFilesAsync(
+        await ((IWhisparrReflectOwnedActing)client).ReadHardlinkSettingAsync(Address, Key, TestCt);
+        await ((IWhisparrReflectOwnedActing)client).ListImportableFilesAsync(
+            Address, Key, "/config/library/Vixen & Co", TestCt);
+        await ((IWhisparrReflectOwnedActing)client).AttachOwnedFilesAsync(
             Address, Key, new JsonArray(new JsonObject { ["path"] = "/config/library/a.mp4" }), TestCt);
 
         Assert.Equal("/api/v3/config/mediamanagement", handler.Requests[0].Path);
