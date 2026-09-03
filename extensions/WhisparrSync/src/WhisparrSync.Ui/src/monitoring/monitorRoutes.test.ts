@@ -1,10 +1,11 @@
 /**
- * The entity verbs the control offers, against the entity verbs the server actually mounts.
+ * The entity verbs the rules module offers, against the entity verbs the server actually mounts.
  *
- * The control renders a menu item disabled when this build serves no route for it. Whether that is
- * still true is a fact about the SERVER, and the browser cannot see it: an item wired to a route
- * nobody mounted posts into a 404, and a route mounted with no item is a verb no reader can reach.
- * Both read as nothing happening.
+ * Both surfaces read their routes from that one module: the entity menu renders a row disabled when
+ * it answers null, and the selection overlay does not offer the row at all. Whether a route exists
+ * is a fact about the SERVER, and the browser cannot see it: an item wired to a route nobody mounted
+ * posts into a 404, and a route mounted with no item is a verb no reader can reach. Both read as
+ * nothing happening.
  *
  * The wire document is emitted from the shipped route registrations, so it is the one place that
  * knows. A source pin rather than a DOM test, and in its own file for that reason: the rendering
@@ -24,7 +25,7 @@ const wireDocument = path.resolve(
   "openapi.json",
 );
 
-const control = path.join(import.meta.dirname, "EntityMonitorButton.tsx");
+const rules = path.join(import.meta.dirname, "monitorMenuLogic.ts");
 
 /** Every verb the server mounts a POST for on one entity, read from the emitted document. */
 function mountedVerbs(): string[] {
@@ -39,11 +40,11 @@ function mountedVerbs(): string[] {
 }
 
 test("the verbs the control can carry out are exactly the ones the server mounts", () => {
-  const source = readFileSync(control, "utf8");
+  const source = readFileSync(rules, "utf8");
   const offered = [...source.matchAll(/^const ([A-Z_]+)_ROUTE = "([a-z-]+)";$/gm)].map(
     (match) => match[2],
   );
 
-  expect(offered, "the control declares no entity verb at all").not.toHaveLength(0);
+  expect(offered, "the rules module declares no entity verb at all").not.toHaveLength(0);
   expect(offered.sort()).toEqual(mountedVerbs());
 });

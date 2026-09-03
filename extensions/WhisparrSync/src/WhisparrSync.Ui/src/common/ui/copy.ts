@@ -132,6 +132,38 @@ export const SEARCH_ALL_MONITORED =
 /** The item that turns monitoring off. Named for what it does, not for the flag it writes. */
 export const STOP_MONITORING_IN_WHISPARR = "Stop monitoring in Whisparr";
 
+/**
+ * What the selection overlay asks, above the actions it offers.
+ *
+ * Says "every" rather than naming a count. The count is on screen in the selection bar the reader
+ * just used, and a second copy of it here would be a second thing that can be wrong.
+ */
+export const BULK_CHOOSE_AN_ACTION = "Choose what to do with every entity you selected.";
+
+/**
+ * Where the result of a selection appears.
+ *
+ * Stated before the work starts, because nothing on the page the reader is looking at changes when
+ * it finishes.
+ */
+export const BULK_REPORTS_IN_THE_JOB_DRAWER =
+  "This runs in the background. Its progress, and its result for each entity, appear in Cove's job list.";
+
+/**
+ * Nothing could be offered, because what the connected Whisparr can do was not read.
+ *
+ * Offering a guessed set would put a verb in front of the reader that the instance cannot honour,
+ * and the refusal that followed would read as a fault in the product.
+ */
+export const BULK_ACTIONS_COULD_NOT_BE_OFFERED =
+  "Cove could not read what the connected Whisparr can do, so it offered nothing. Nothing was changed; try again shortly.";
+
+/** The overlay's way out, on the choice it presents. */
+export const BULK_CANCEL = "Cancel";
+
+/** The overlay's way out when there is nothing to choose between. */
+export const BULK_CLOSE = "Close";
+
 /** The three secondary actions, named as the product names them everywhere it offers them. */
 export const ACTION_ADD_ALL_MISSING = "Add all missing";
 export const ACTION_REFLECT_OWNED = "Reflect owned";
