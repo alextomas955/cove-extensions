@@ -23,7 +23,12 @@ import {
 } from "../common/ui/copy";
 import type { WhisparrEntityKind } from "../wire/api";
 import { EntityMonitorMenu } from "./EntityMonitorMenu";
-import { monitorMenu, routeFor, type MonitorMenuItem } from "./monitorMenuLogic";
+import {
+  describeReflectOwnedSkip,
+  monitorMenu,
+  routeFor,
+  type MonitorMenuItem,
+} from "./monitorMenuLogic";
 import { WhisparrMark } from "./WhisparrMark";
 import { useMonitoring } from "./useMonitoring";
 
@@ -85,6 +90,15 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
   // With no visible label the accessible name is the only name the control has, so it leads and the
   // reason follows it, and the hover text is that same string.
   const spoken = unavailable === null ? name : `${name}, ${unavailable}`;
+
+  // A skip is a settled answer and a failure is no answer at all, so each has its own sentence. The
+  // failure reads first: an action that never arrived cannot also have been skipped.
+  const outcome =
+    state.actionError !== null
+      ? ACTION_DID_NOT_REACH_WHISPARR
+      : state.actionSkip === null
+        ? null
+        : describeReflectOwnedSkip(state.actionSkip);
 
   const items = (menu?.items ?? []).map((item) =>
     routeFor(item, monitored) === null
@@ -169,14 +183,14 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
         />
       ) : null}
 
-      {state.actionError === null ? null : (
+      {outcome === null ? null : (
         // Beneath the control rather than in place of it: the control still reports what the entity
         // is, and this reports what the last gesture did.
         <p
           role="status"
           className="absolute right-0 z-50 mt-2 w-72 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-secondary shadow-xl"
         >
-          {ACTION_DID_NOT_REACH_WHISPARR}
+          {outcome}
         </p>
       )}
     </div>

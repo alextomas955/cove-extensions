@@ -8,6 +8,7 @@ using Cove.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
@@ -65,6 +66,9 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     public RecordingWhisparrClient Client { get; private set; } = null!;
 
+    /// <summary>The folder source over this host's own library, as the routes resolve it.</summary>
+    public IEntityFolderPort Folders { get; private set; } = null!;
+
     /// <summary>The host job service the bulk route enqueues into.</summary>
     public RecordingJobService Jobs { get; } = new();
 
@@ -120,6 +124,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         builder.Services.AddSingleton<IWhisparrClient>(host.Client);
         builder.Services.AddSingleton<IJobService>(host.Jobs);
         builder.Services.AddSingleton<IEntityIdentityPort>(new EntityIdentityPort(host._db, options));
+        host.Folders = new EntityFolderPort(host._db);
+        builder.Services.AddSingleton(host.Folders);
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton<ICredentialPort>(credentials);
 
@@ -207,6 +213,22 @@ internal sealed class MonitorHost : IAsyncDisposable
         return performer.Id;
     }
 
+    /// <summary>Seeds one video file the studio <paramref name="studioId"/> names holds.</summary>
+    /// <remarks>
+    /// A folder already seeded at <paramref name="folderPath"/> is reused, so a case can put two of
+    /// one entity's files in a single folder and see whether the folder is answered twice.
+    /// </remarks>
+    public Task SeedStudioFileAsync(int studioId, string folderPath)
+        => SeedVideoFileAsync(folderPath, studioId, null);
+
+    /// <summary>Seeds one video file linked to the performer <paramref name="performerId"/> names.</summary>
+    /// <remarks>
+    /// Linked through the join row rather than through the studio column: a performer's files reach
+    /// them by a different table, so a port reading the studio column would answer nothing here.
+    /// </remarks>
+    public Task SeedPerformerFileAsync(int performerId, string folderPath)
+        => SeedVideoFileAsync(folderPath, null, performerId);
+
     public Task<EntityMonitoringView> MonitorAsync(int studioId)
         => MonitorAsync("studio", studioId);
 
@@ -250,6 +272,18 @@ internal sealed class MonitorHost : IAsyncDisposable
         return await Http.PostAsync(RouteBase + "/entities/bulk-monitor", content, TestCt);
     }
 
+    /// <summary>The raw answer to one entity's reflect-owned route, which takes no body at all.</summary>
+    public Task<HttpResponseMessage> ReflectOwnedAsync(string kind, int coveId)
+        => Http.PostAsync(RouteFor(kind, coveId, "reflect-owned"), content: null, TestCt);
+
+    /// <summary>The reflect-owned route's answer, read as the contract it declares.</summary>
+    public async Task<ReflectOwnedEnqueued> ReflectOwnedViewAsync(string kind, int coveId)
+    {
+        var answered = await ReflectOwnedAsync(kind, coveId);
+        answered.EnsureSuccessStatusCode();
+        return (await answered.Content.ReadFromJsonAsync<ReflectOwnedEnqueued>(TestCt))!;
+    }
+
     /// <summary>The raw answer to this extension's own job-status route.</summary>
     public Task<HttpResponseMessage> ReadJobStatusAsync(string jobId)
         => Http.GetAsync(RouteBase + "/job-status/" + jobId, TestCt);
@@ -280,6 +314,37 @@ internal sealed class MonitorHost : IAsyncDisposable
         await _app.DisposeAsync();
         await _db.DisposeAsync();
         await _connection.DisposeAsync();
+    }
+
+    private async Task SeedVideoFileAsync(string folderPath, int? studioId, int? performerId)
+    {
+        var basename = "scene " + (++_seeded).ToString(CultureInfo.InvariantCulture) + ".mp4";
+
+        var folder = await _db.Set<Folder>().FirstOrDefaultAsync(row => row.Path == folderPath, TestCt);
+        if (folder is null)
+        {
+            folder = new Folder { Path = folderPath };
+            _db.Add(folder);
+            await _db.SaveChangesAsync(TestCt);
+        }
+
+        var video = new Video { Title = basename, StudioId = studioId };
+        _db.Add(video);
+        await _db.SaveChangesAsync(TestCt);
+
+        if (performerId is { } linked)
+        {
+            _db.Add(new VideoPerformer { VideoId = video.Id, PerformerId = linked });
+            await _db.SaveChangesAsync(TestCt);
+        }
+
+        _db.Add(new VideoFile
+        {
+            Basename = basename,
+            ParentFolderId = folder.Id,
+            VideoId = video.Id,
+        });
+        await _db.SaveChangesAsync(TestCt);
     }
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;

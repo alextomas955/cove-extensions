@@ -13,6 +13,7 @@ import type {
   EntityMonitoringView,
   MonitorRefusalKind,
   MonitorScope,
+  ReflectOwnedSkipReason,
   WhisparrCapability,
   WhisparrEntityKind,
   WhisparrGeneration,
@@ -33,6 +34,8 @@ import {
   NO_INSTANCE_CONNECTED,
   PERFORMER_HAS_NO_FUTURE_ONLY_SCOPE,
   REFLECT_OWNED,
+  REFLECT_OWNED_SKIPPED,
+  REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
   SCOPE_ALL_SCENES,
   SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED,
   SCOPE_FUTURE_SCENES,
@@ -48,6 +51,9 @@ export type MonitorScopeChoice = NonNullable<MonitorScope>;
 
 /** A generation something can be connected to. The wire type admits null, which is "none". */
 export type ConnectedGeneration = NonNullable<WhisparrGeneration>;
+
+/** A reason the server can name. The wire type admits null, which is "nothing was skipped". */
+export type ReflectOwnedSkip = NonNullable<ReflectOwnedSkipReason>;
 
 /** The three items that appear only once the entity is monitored. */
 export type SecondaryAction = "addAllMissing" | "reflectOwned" | "searchAllMonitored";
@@ -204,6 +210,9 @@ const UNMONITOR_ROUTE = "unmonitor";
 /** Changing the scope of something already monitored, which is not the same verb as monitoring. */
 const SCOPE_ROUTE = "scope";
 
+/** Linking the files the library already holds into place on the instance. */
+const REFLECT_OWNED_ROUTE = "reflect-owned";
+
 /**
  * Which route each secondary action is served at, or null where this build serves none.
  *
@@ -211,12 +220,25 @@ const SCOPE_ROUTE = "scope";
  * disabled when the answer is null and the selection overlay does not offer it at all, so the two
  * cannot come to disagree about which verbs this build carries out.
  *
- * Total by TYPE, so a secondary action added later has to be classified here.
+ * Total by TYPE, so a secondary action added later has to be classified here. Every non-null value
+ * names one of the route constants above rather than repeating its text, and a pin reads the two
+ * against each other.
  */
 const SECONDARY_ACTION_ROUTES: Record<SecondaryAction, string | null> = {
   addAllMissing: null,
-  reflectOwned: null,
+  reflectOwned: REFLECT_OWNED_ROUTE,
   searchAllMonitored: null,
+};
+
+/**
+ * What each skip reason states at the control.
+ *
+ * Total by TYPE, so a reason added to the wire enum fails this build rather than rendering a
+ * sentence about a setting nobody read.
+ */
+const REFLECT_OWNED_SKIP_SENTENCE: Record<ReflectOwnedSkip, string> = {
+  hardLinksOff: REFLECT_OWNED_SKIPPED,
+  hardLinkSettingUnreadable: REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
 };
 
 /** What each scope is called, in the instance's own words. */
@@ -289,6 +311,11 @@ export function capabilityBehindAction(action: SecondaryAction): WhisparrCapabil
 /** Which item of this menu <code>capability</code> gates, or null where it gates none. */
 export function actionBehindCapability(capability: WhisparrCapability): SecondaryAction | null {
   return ITEM_BEHIND_CAPABILITY[capability];
+}
+
+/** What <code>reason</code> states at the control when reflect owned linked nothing. */
+export function describeReflectOwnedSkip(reason: ReflectOwnedSkip): string {
+  return REFLECT_OWNED_SKIP_SENTENCE[reason];
 }
 
 /**

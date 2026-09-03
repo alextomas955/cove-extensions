@@ -94,6 +94,8 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddScoped<IEntityIdentityPort>(services => new EntityIdentityPort(
             services.GetRequiredService<DbContext>(),
             services.GetRequiredService<OptionsStore>()));
+        services.AddScoped<IEntityFolderPort>(
+            services => new EntityFolderPort(services.GetRequiredService<DbContext>()));
 
         // A singleton, so the request scopes and the background worker queue behind ONE gate. Per
         // scope it would be a gate per request and would serialise nothing.

@@ -85,20 +85,41 @@ leaves the monitor flag alone.
 The menu does not report which scope is in force. Whisparr's answer to Cove does not carry the
 scope, so the menu always marks Future Scenes whatever the studio is actually set to.
 
-## The three items this version does not carry out
+## The three items that appear once the entity is monitored
 
-Once Whisparr monitors the entity, three more items appear in the menu. **This version carries out
-none of them.** Each row is present and disabled, and says `This version of Whisparr Sync does not
-carry out this action.` They are described here so you know what they will do when they arrive, and
-what the last one will cost.
+Once Whisparr monitors the entity, three more items appear in the menu. This version carries out one
+of them.
+
+### Reflect owned
+
+Whisparr links each file you already own into its scene's folder. This costs no extra disk while
+Whisparr's hard-link setting is on. The behaviour is the same on both generations, because neither
+offers an import mode that only links. Whisparr's hard-link setting lives in its own media
+management configuration and is on by default.
+
+**It runs by itself when you turn monitoring on**, so turning monitoring on is one press and no
+dialog. Press the item to run it again at any time.
+
+The work runs in the background. Its progress and its result appear in Cove's job list, and nothing
+on the entity page changes while it runs.
+
+Before anything is sent, Cove reads Whisparr's hard-link setting:
+
+- With the setting **on**, Whisparr is asked to link the files, one of the entity's folders at a
+  time.
+- With the setting **off**, nothing is sent and the control says so. Every matched file would
+  otherwise be copied in full and use disk twice, and neither Whisparr generation offers a mode that
+  only links.
+- When the setting **cannot be read**, nothing is sent either, and the control says that instead.
+
+### The two items this version does not carry out
+
+Each row is present and disabled, and says `This version of Whisparr Sync does not carry out this
+action.` They are described here so you know what they will do when they arrive, and what the second
+one will cost.
 
 - **Add all missing.** Registers every scene Cove holds that Whisparr does not. Nothing is
   downloaded. Whisparr v3 (Eros) only: no route on Whisparr v2 adds a catalogue item.
-- **Reflect owned.** Whisparr links each file you already own into its scene's folder. This costs no
-  extra disk while Whisparr's hard-link setting is on, and is skipped, with the reason stated, while
-  that setting is off. The behaviour is the same on both generations, because neither offers an
-  import mode that only links. Whisparr's hard-link setting lives in its own media management
-  configuration and is on by default.
 - **Search all monitored.** Asks Whisparr to search for every scene it wants for the entity and to
   download what it finds. **This is the one action that downloads.**
 
@@ -131,8 +152,9 @@ your own metadata provider address, set it under **Metadata provider endpoints**
 | Reflect owned        | Yes                | Yes         |
 | Search all monitored | Yes                | Yes         |
 
-The last three rows are what the generation can honour. This version of Whisparr Sync carries out
-none of the three on either generation, as above.
+The last three rows are what the generation can honour. Of those three, this version of Whisparr
+Sync carries out Reflect owned, on either generation. Add all missing and Search all monitored are
+not carried out, as above.
 
 ## Monitor a whole selection
 

@@ -103,6 +103,32 @@ test("an action that fails releases the control and says why", () => {
   expect(store.getSnapshot().view?.monitored).toBe(false);
 });
 
+test("an action the server answered and skipped is neither a success nor a failure", () => {
+  const store = createMonitoringStore();
+  store.mounted(FIRST);
+  store.loaded(FIRST, view(true));
+  store.beginAction(FIRST);
+  store.actionSkipped(FIRST, "hardLinksOff");
+
+  const state = store.getSnapshot();
+  expect(state.acting).toBe(false);
+  expect(state.actionError).toBeNull();
+  expect(state.actionSkip).toBe("hardLinksOff");
+});
+
+test("the next gesture clears the skip the previous one recorded", () => {
+  const store = createMonitoringStore();
+  store.mounted(FIRST);
+  store.beginAction(FIRST);
+  store.actionSkipped(FIRST, "hardLinksOff");
+  store.beginAction(FIRST);
+
+  expect(store.getSnapshot().actionSkip).toBeNull();
+
+  store.actionSucceeded(FIRST);
+  expect(store.getSnapshot().actionSkip).toBeNull();
+});
+
 test("two reads settling in reverse order leave the mounted entity's state on screen", () => {
   const store = createMonitoringStore();
 
