@@ -23,6 +23,22 @@ internal static class V3BodyProjector
     /// </remarks>
     internal const string AfterDateFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 
+    /// <summary>The monitor type covering one catalogue item and nothing around it.</summary>
+    /// <remarks>
+    /// One of the four this generation's contract declares. The other three widen what is monitored
+    /// beyond the item being registered.
+    /// </remarks>
+    internal const string SceneOnlyMonitorType = "sceneOnly";
+
+    /// <summary>The add method recording that a person asked for the item.</summary>
+    internal const string ManualAddMethod = "manual";
+
+    /// <summary>This generation's catalogue-refresh command for a studio.</summary>
+    internal const string RefreshStudiosCommand = "RefreshStudios";
+
+    /// <summary>This generation's catalogue-refresh command for a performer.</summary>
+    internal const string RefreshPerformersCommand = "RefreshPerformers";
+
     /// <summary>Adds the studio <paramref name="foreignId"/> names, monitored at the given scope.</summary>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="scope"/> is not a scope this product expresses, or <paramref name="defaults"/>
@@ -69,6 +85,61 @@ internal static class V3BodyProjector
     /// </exception>
     internal static JsonObject AddPerformer(string foreignId, AddDefaults defaults)
         => Add(foreignId, defaults);
+
+    /// <summary>Adds the scene <paramref name="foreignId"/> names to the instance's catalogue.</summary>
+    /// <remarks>
+    /// The monitor type covers the scene alone: this registers one catalogue item the library holds
+    /// and the instance does not, and a wider type would monitor items nobody asked about. The add
+    /// method records that a person asked for it rather than a list producing it.
+    /// <para>
+    /// No profile is read off the parent entity. A scene the instance's own catalogue refresh creates
+    /// inherits its parent's profile from the instance, so copying one here would be this product
+    /// deciding something the instance owns.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="defaults"/> names no usable quality profile.
+    /// </exception>
+    internal static JsonObject AddScene(string foreignId, AddDefaults defaults)
+    {
+        var body = Add(foreignId, defaults);
+        var addOptions = (JsonObject)body["addOptions"]!;
+        addOptions["monitor"] = SceneOnlyMonitorType;
+        addOptions["addMethod"] = ManualAddMethod;
+        return body;
+    }
+
+    /// <summary>The command asking the instance to re-read one entity's catalogue.</summary>
+    /// <remarks>
+    /// An id ARRAY, which is this generation's spelling. The other generation names a single scalar
+    /// id, and a body carrying the other's shape is accepted and does nothing at all.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="kind"/> is not a kind this product expresses, or <paramref name="entityId"/>
+    /// is below one.
+    /// </exception>
+    internal static JsonObject RefreshCatalogue(WhisparrEntityKind kind, int entityId)
+        => kind switch
+        {
+            WhisparrEntityKind.Studio => Command(RefreshStudiosCommand, "studioIds", entityId),
+            WhisparrEntityKind.Performer
+                => Command(RefreshPerformersCommand, "performerIds", entityId),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(kind), kind, "This is not an entity kind this product expresses."),
+        };
+
+    /// <summary>One command naming one entity, in this generation's id-array spelling.</summary>
+    internal static JsonObject Command(string name, string idsProperty, int entityId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(idsProperty);
+        ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
+        return new JsonObject
+        {
+            ["name"] = name,
+            [idsProperty] = new JsonArray(entityId),
+        };
+    }
 
     /// <summary>Sets only the monitored flag on the studio <paramref name="entityId"/> names.</summary>
     /// <remarks>
