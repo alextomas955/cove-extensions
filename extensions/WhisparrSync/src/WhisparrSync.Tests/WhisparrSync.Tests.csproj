@@ -116,9 +116,24 @@
     <PackageReference Include="Cove.Plugins" />
   </ItemGroup>
 
-  <!-- COVE-ABSENT COMPILE SET: these reach the host's own context and entity types directly. -->
+  <!-- COVE-ABSENT COMPILE SET: these reach the host's own context and entity types directly.
+       A file that stands a MonitorHost belongs here too: that host owns a real CoveContext, so a
+       route test consuming it reaches those same types without naming one itself. -->
   <ItemGroup Condition="'$(CoveSourceMode)' == 'none'">
     <Compile Remove="Import\CoveLibraryPortTests.cs" />
     <Compile Remove="Import\SystemPrincipalTests.cs" />
+    <Compile Remove="Import\UpgradePathTests.cs" />
+    <Compile Remove="Invariants\AbsentCapabilityTests.cs" />
+    <Compile Remove="Invariants\SafetyInvariantTests.cs" />
+    <Compile Remove="Monitoring\AddDefaultsProjectorTests.cs" />
+    <Compile Remove="Monitoring\BulkEndpointTests.cs" />
+    <Compile Remove="Monitoring\EntityFolderPortTests.cs" />
+    <Compile Remove="Monitoring\EntityIdentityPortTests.cs" />
+    <Compile Remove="Monitoring\MonitorPathTests.cs" />
+    <Compile Remove="Monitoring\NonGrabbingBodyTests.cs" />
+    <Compile Remove="Monitoring\ReflectOwnedRouteTests.cs" />
+    <Compile Remove="Monitoring\RefusalPrecedenceTests.cs" />
+    <Compile Remove="Monitoring\SecondaryVerbTests.cs" />
+    <Compile Remove="TestSupport\MonitorHost.cs" />
   </ItemGroup>
 </Project>
