@@ -69,7 +69,9 @@ internal sealed class MonitorHost : IAsyncDisposable
     private string RouteBase { get; set; } = null!;
 
     public static async Task<MonitorHost> CreateAsync(
-        FakePrincipalAccessor? principal = null, string? apiKey = StoredKey)
+        FakePrincipalAccessor? principal = null,
+        string? apiKey = StoredKey,
+        WhisparrGeneration generation = WhisparrGeneration.V3)
     {
         var host = new MonitorHost();
         (host._db, host._connection) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -88,17 +90,14 @@ internal sealed class MonitorHost : IAsyncDisposable
 
         var options = new OptionsStore(new FakeStore());
         await options.SaveAsync(
-            new WhisparrSyncOptions
-            {
-                SelectedGeneration = WhisparrGeneration.V3,
-                V3 = new WhisparrSyncGenerationConnection { Address = StoredAddress },
-            },
+            new WhisparrSyncOptions { SelectedGeneration = generation }.WithConnectionFor(
+                generation, new WhisparrSyncGenerationConnection { Address = StoredAddress }),
             TestCt);
 
         var credentials = new RecordingCredentialPort();
         if (apiKey is not null)
         {
-            credentials.Holding(WhisparrGeneration.V3, apiKey);
+            credentials.Holding(generation, apiKey);
         }
 
         var builder = WebApplication.CreateSlimBuilder();

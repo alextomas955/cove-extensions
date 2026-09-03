@@ -18,6 +18,62 @@ namespace WhisparrSync.Monitoring;
 /// </remarks>
 internal static class MonitoringProjector
 {
+    /// <summary>Which of the reasons an entity may not be monitorable were observed.</summary>
+    /// <remarks>
+    /// The identity slot carries a kind rather than a flag, because the library can fail to name an
+    /// entity in more than one way and each is a different sentence.
+    /// </remarks>
+    /// <param name="NoConnectionConfigured">No instance is configured at all.</param>
+    /// <param name="CapabilityAbsentOnThisGeneration">
+    /// The connected generation holds no capability that could honour this.
+    /// </param>
+    /// <param name="IdentityRefusal">
+    /// Why the library names no single entity in this generation's namespace, or
+    /// <see cref="MonitorRefusalKind.None"/>.
+    /// </param>
+    internal readonly record struct MonitorReasons(
+        bool NoConnectionConfigured,
+        bool CapabilityAbsentOnThisGeneration,
+        MonitorRefusalKind IdentityRefusal);
+
+    /// <summary>The one refusal to answer when more than one reason holds.</summary>
+    /// <remarks>
+    /// More than one reason holds often: an entity with no metadata link, on the older generation,
+    /// with nothing configured, has all three. A user reads ONE sentence, so which reason wins is a
+    /// decision rather than an accident of the order the reads happen in, and it is stated here and
+    /// nowhere else.
+    /// <para>
+    /// The order, and why each reason sits where it does:
+    /// </para>
+    /// <para>
+    /// 1. Nothing configured. Nothing else is knowable: with no instance there is no generation, so
+    /// the generation gap cannot even be evaluated, and whether the entity's metadata link matches is
+    /// undecided. Naming the metadata link when the real problem is that no instance is configured
+    /// sends the reader to the wrong screen.
+    /// </para>
+    /// <para>
+    /// 2. The generation gap. The connected generation cannot honour this at all, so whether the
+    /// entity carries a matching identifier makes no difference to the answer.
+    /// </para>
+    /// <para>
+    /// 3. The metadata link. The narrowest reason, and the only one the reader can act on from the
+    /// page in front of them, because both detail pages already show the provider link chips.
+    /// </para>
+    /// <para>
+    /// A reason the caller has not observed is passed as none. That is safe BECAUSE of this order: a
+    /// later reason goes unobserved only when an earlier one already holds, and an earlier one wins
+    /// either way.
+    /// </para>
+    /// </remarks>
+    internal static MonitorRefusalKind FirstRefusal(MonitorReasons reasons)
+        => reasons switch
+        {
+            { NoConnectionConfigured: true } => MonitorRefusalKind.NotConfigured,
+            { CapabilityAbsentOnThisGeneration: true }
+                => MonitorRefusalKind.CapabilityAbsentOnThisGeneration,
+            _ => reasons.IdentityRefusal,
+        };
+
     /// <summary>Whether the instance holds the entity that was read.</summary>
     internal enum EntityReading
     {

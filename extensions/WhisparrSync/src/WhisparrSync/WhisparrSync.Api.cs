@@ -389,29 +389,11 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));
         }
 
-        var reading = entityKind switch
-        {
-            WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
-                .Match(
-                    acting => ReadResolvedAsync(
-                        entityKind,
-                        coveId,
-                        target,
-                        identities,
-                        log,
-                        (address, key, foreignId, readCt) => acting.ReadStudioAsync(
-                            address, key, target.Generation, foreignId, readCt),
-                        ct),
-                    _ => RefusedAsync(entityKind, target)),
-            WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
-                .Match(
-                    acting => ReadResolvedAsync(
-                        entityKind, coveId, target, identities, log, acting.ReadPerformerAsync, ct),
-                    _ => RefusedAsync(entityKind, target)),
-            _ => Task.FromResult(RefusedForUnhandledKind(entityKind, target)),
-        };
+        var reading = await ReadResolvedAsync(
+            entityKind, coveId, target, identities, log, ReadingEntity(entityKind, target), ct)
+            .ConfigureAwait(false);
 
-        return TypedResults.Ok(await reading.ConfigureAwait(false));
+        return TypedResults.Ok(reading);
     }
 
     /// <summary>Monitors one Cove entity on the connected instance, in one gesture.</summary>
@@ -468,38 +450,14 @@ public sealed partial class WhisparrSync
         // and on this generation that is not undone by narrowing the scope again.
         var scope = request.Scope ?? MonitorScope.FutureScenes;
 
-        var monitoring = entityKind switch
-        {
-            WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
-                .Match(
-                    acting => MonitorResolvedAsync(
-                        entityKind,
-                        coveId,
-                        target,
-                        identities,
-                        log,
-                        foreignId => ActingOn(acting, target, foreignId, scope),
-                        ct),
-                    _ => RefusedAsync(entityKind, target)),
+        // No scope reaches the performer arm. The field a future-only scope is expressed through
+        // exists on the studio resource and on no other, so a scope a caller named for a performer
+        // names nothing the request could carry.
+        var monitoring = await MonitorResolvedAsync(
+            entityKind, coveId, target, identities, log, ActingFor(entityKind, target, scope), ct)
+            .ConfigureAwait(false);
 
-            // No scope reaches this arm. The field a future-only scope is expressed through exists on
-            // the studio resource and on no other, so a scope a caller named for a performer names
-            // nothing the request could carry.
-            WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
-                .Match(
-                    acting => MonitorResolvedAsync(
-                        entityKind,
-                        coveId,
-                        target,
-                        identities,
-                        log,
-                        foreignId => ActingOn(acting, target, foreignId),
-                        ct),
-                    _ => RefusedAsync(entityKind, target)),
-            _ => Task.FromResult(RefusedForUnhandledKind(entityKind, target)),
-        };
-
-        return TypedResults.Ok(await monitoring.ConfigureAwait(false));
+        return TypedResults.Ok(monitoring);
     }
 
     /// <summary>Stops the connected instance monitoring one Cove entity.</summary>
@@ -729,21 +687,19 @@ public sealed partial class WhisparrSync
         MonitoringTarget target,
         IEntityIdentityPort identities,
         ILogger log,
-        Func<Uri, string, string, CancellationToken, Task<WhisparrResponse>> readEntity,
+        Func<string, CancellationToken, Task<WhisparrResponse>>? readEntity,
         CancellationToken ct)
     {
         var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
             .ConfigureAwait(false);
-        if (identity.ForeignId is not { } foreignId)
+
+        if (readEntity is not { } reading || identity.ForeignId is not { } foreignId)
         {
-            return Refused(kind, target, identity.Refusal);
+            return Refused(kind, target, RefusalAmong(readEntity is null, identity.Refusal));
         }
 
         var read = await ContainedAsync(
-            () => readEntity(target.BaseAddress, target.ApiKey, foreignId, ct),
-            target,
-            log,
-            ct).ConfigureAwait(false);
+            () => reading(foreignId, ct), target, log, ct).ConfigureAwait(false);
 
         return read is null
             ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
@@ -763,17 +719,18 @@ public sealed partial class WhisparrSync
         MonitoringTarget target,
         IEntityIdentityPort identities,
         ILogger log,
-        Func<string, KindActing> actingFor,
+        Func<string, KindActing>? actingFor,
         CancellationToken ct)
     {
         var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
             .ConfigureAwait(false);
-        if (identity.ForeignId is not { } foreignId)
+
+        if (actingFor is not { } aiming || identity.ForeignId is not { } foreignId)
         {
-            return Refused(kind, target, identity.Refusal);
+            return Refused(kind, target, RefusalAmong(actingFor is null, identity.Refusal));
         }
 
-        var acting = actingFor(foreignId);
+        var acting = aiming(foreignId);
         var read = await ContainedAsync(() => acting.Held.ReadEntity(ct), target, log, ct)
             .ConfigureAwait(false);
         if (read is null)
@@ -862,31 +819,16 @@ public sealed partial class WhisparrSync
         Func<HeldActing, int, bool, CancellationToken, Task<EntityMonitoringView>> change,
         CancellationToken ct)
     {
-        var acting = kind switch
-        {
-            WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
-                .Match<Func<string, HeldActing>?>(
-                    studio => foreignId => HeldOn(studio, target, foreignId), _ => null),
-            WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
-                .Match<Func<string, HeldActing>?>(
-                    performer => foreignId => HeldOn(performer, target, foreignId), _ => null),
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(kind), kind, "This is not an entity kind this product expresses."),
-        };
-
-        if (acting is null)
-        {
-            return Refused(kind, target, MonitorRefusalKind.CapabilityAbsentOnThisGeneration);
-        }
-
+        var acting = HeldActingFor(kind, target);
         var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
             .ConfigureAwait(false);
-        if (identity.ForeignId is not { } named)
+
+        if (acting is not { } actingFor || identity.ForeignId is not { } named)
         {
-            return Refused(kind, target, identity.Refusal);
+            return Refused(kind, target, RefusalAmong(acting is null, identity.Refusal));
         }
 
-        var held = acting(named);
+        var held = actingFor(named);
         var read = await ContainedAsync(() => held.ReadEntity(ct), target, log, ct)
             .ConfigureAwait(false);
         if (read is null)
@@ -945,33 +887,88 @@ public sealed partial class WhisparrSync
     }
 
     /// <summary>
-    /// The refusal for a kind this route has no arm for.
+    /// Which refusal to answer, given the two reasons a resolved flow can observe.
     /// </summary>
     /// <remarks>
-    /// The capability table is the authority, so a generation that HOLDS the capability while this
-    /// route cannot act on it is a fault rather than a refusal: a capability is registered with the
+    /// A connection has already been established wherever this is reached, so the first reason of the
+    /// precedence cannot hold here. The order among the rest is not restated: it is read from the one
+    /// place that states it, so a change there moves every route at once.
+    /// </remarks>
+    private static MonitorRefusalKind RefusalAmong(
+        bool capabilityAbsent, MonitorRefusalKind identityRefusal)
+        => MonitoringProjector.FirstRefusal(new MonitoringProjector.MonitorReasons(
+            NoConnectionConfigured: false,
+            CapabilityAbsentOnThisGeneration: capabilityAbsent,
+            IdentityRefusal: identityRefusal));
+
+    /// <summary>How one entity is read, or null where the generation cannot read that kind.</summary>
+    private static Func<string, CancellationToken, Task<WhisparrResponse>>? ReadingEntity(
+        WhisparrEntityKind kind, MonitoringTarget target)
+        => kind switch
+        {
+            WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
+                .Match<Func<string, CancellationToken, Task<WhisparrResponse>>?>(
+                    acting => (foreignId, readCt) => acting.ReadStudioAsync(
+                        target.BaseAddress, target.ApiKey, target.Generation, foreignId, readCt),
+                    _ => null),
+            WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
+                .Match<Func<string, CancellationToken, Task<WhisparrResponse>>?>(
+                    acting => (foreignId, readCt) => acting.ReadPerformerAsync(
+                        target.BaseAddress, target.ApiKey, foreignId, readCt),
+                    _ => null),
+            _ => NoArmFor<Func<string, CancellationToken, Task<WhisparrResponse>>>(kind, target),
+        };
+
+    /// <summary>How one entity is monitored, or null where the generation cannot monitor that kind.</summary>
+    private static Func<string, KindActing>? ActingFor(
+        WhisparrEntityKind kind, MonitoringTarget target, MonitorScope scope)
+        => kind switch
+        {
+            WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
+                .Match<Func<string, KindActing>?>(
+                    acting => foreignId => ActingOn(acting, target, foreignId, scope), _ => null),
+            WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
+                .Match<Func<string, KindActing>?>(
+                    acting => foreignId => ActingOn(acting, target, foreignId), _ => null),
+            _ => NoArmFor<Func<string, KindActing>>(kind, target),
+        };
+
+    /// <summary>
+    /// How one entity the instance holds is changed, or null where the generation cannot.
+    /// </summary>
+    private static Func<string, HeldActing>? HeldActingFor(
+        WhisparrEntityKind kind, MonitoringTarget target)
+        => kind switch
+        {
+            WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
+                .Match<Func<string, HeldActing>?>(
+                    acting => foreignId => HeldOn(acting, target, foreignId), _ => null),
+            WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
+                .Match<Func<string, HeldActing>?>(
+                    acting => foreignId => HeldOn(acting, target, foreignId), _ => null),
+            _ => NoArmFor<Func<string, HeldActing>>(kind, target),
+        };
+
+    /// <summary>Nothing to act through for a kind no route has an arm for.</summary>
+    /// <remarks>
+    /// The capability table is the authority, so a generation that HOLDS the capability while no
+    /// route can act on it is a fault rather than a refusal: a capability is registered with the
     /// member that honours it, never ahead of it, and reporting a gap that does not exist would send
     /// the user to a sentence about their instance.
     /// </remarks>
-    private static EntityMonitoringView RefusedForUnhandledKind(
-        WhisparrEntityKind kind, MonitoringTarget target)
+    private static T? NoArmFor<T>(WhisparrEntityKind kind, MonitoringTarget target)
+        where T : class
     {
         var capability = MonitoringProjector.CapabilityFor(kind);
         return target.Capabilities.Held.Contains(capability)
             ? throw new InvalidOperationException(
-                $"{target.Generation} holds {capability}, but this route has no arm acting on a {kind}.")
-            : Refused(kind, target, MonitorRefusalKind.CapabilityAbsentOnThisGeneration);
+                $"{target.Generation} holds {capability}, but no route has an arm acting on a {kind}.")
+            : null;
     }
 
     private static EntityMonitoringView Refused(
         WhisparrEntityKind kind, MonitoringTarget target, MonitorRefusalKind refusal)
         => EntityMonitoringView.Refused(kind, target.Generation, target.Capabilities.Held, refusal);
-
-    /// <summary>The refusal a generation holding no role for <paramref name="kind"/> answers with.</summary>
-    private static Task<EntityMonitoringView> RefusedAsync(
-        WhisparrEntityKind kind, MonitoringTarget target)
-        => Task.FromResult(
-            Refused(kind, target, MonitorRefusalKind.CapabilityAbsentOnThisGeneration));
 
     private static EntityMonitoringView State(
         WhisparrEntityKind kind, MonitoringTarget target, bool monitored)
