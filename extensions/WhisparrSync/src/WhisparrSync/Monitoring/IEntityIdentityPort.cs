@@ -11,6 +11,16 @@ public sealed record IdentityResolution(string? ForeignId, MonitorRefusalKind Re
     public static IdentityResolution Unmatched { get; } =
         new(null, MonitorRefusalKind.NoIdentityInThisNamespace);
 
+    /// <summary>
+    /// The entity carries several different identifiers in the namespace asked about.
+    /// </summary>
+    /// <remarks>
+    /// Answered instead of one of them. Which entity the outbound request would name depends on
+    /// which row was read first, and row order is not something a caller or a reader chose.
+    /// </remarks>
+    public static IdentityResolution Ambiguous { get; } =
+        new(null, MonitorRefusalKind.SeveralIdentitiesInThisNamespace);
+
     /// <summary>The entity is named by <paramref name="foreignId"/>.</summary>
     public static IdentityResolution At(string foreignId)
         => new(foreignId, MonitorRefusalKind.None);

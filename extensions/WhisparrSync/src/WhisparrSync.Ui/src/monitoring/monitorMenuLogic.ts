@@ -37,6 +37,7 @@ import {
   SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED,
   SCOPE_FUTURE_SCENES,
   SEARCH_ALL_MONITORED,
+  SEVERAL_IDENTITIES_IN_THIS_NAMESPACE,
   STOP_MONITORING_IN_WHISPARR,
   UNMONITORING_DOES_NOT_RETRACT,
   WAITING_FOR_WHISPARR,
@@ -103,6 +104,10 @@ const REFUSALS: Record<MonitorRefusalKind, MonitorRefusal> = {
   notConfigured: { sentence: NO_INSTANCE_CONNECTED, leavesNothingToOffer: true },
   noIdentityInThisNamespace: {
     sentence: NO_IDENTITY_IN_THIS_NAMESPACE,
+    leavesNothingToOffer: true,
+  },
+  severalIdentitiesInThisNamespace: {
+    sentence: SEVERAL_IDENTITIES_IN_THIS_NAMESPACE,
     leavesNothingToOffer: true,
   },
   capabilityAbsentOnThisGeneration: {
@@ -206,6 +211,7 @@ export const MONITOR_REFUSAL_KINDS: readonly MonitorRefusalKind[] = [
   "none",
   "notConfigured",
   "noIdentityInThisNamespace",
+  "severalIdentitiesInThisNamespace",
   "capabilityAbsentOnThisGeneration",
   "noQualityProfile",
   "noRootFolder",

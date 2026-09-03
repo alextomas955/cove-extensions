@@ -45,10 +45,24 @@ internal sealed class EntityIdentityPort(DbContext db, OptionsStore options) : I
         // The endpoint rule is the host's, which no provider can translate, so it is applied in
         // memory. Comparing the two spellings as strings would answer that an entity the host itself
         // treats as identified carries no identity.
-        var found = carried.Find(row => EndpointMatchGuard.SameSource(row.Endpoint, namespaced));
-        return found is null || string.IsNullOrWhiteSpace(found.RemoteId)
-            ? IdentityResolution.Unmatched
-            : IdentityResolution.At(found.RemoteId);
+        //
+        // Distinct values rather than matching rows: the same-source rule treats two spellings of one
+        // provider as one source, so two rows carrying the same identifier name one entity and are no
+        // ambiguity, while two carrying different ones leave the choice to row order.
+        var named = carried
+            .Where(row => EndpointMatchGuard.SameSource(row.Endpoint, namespaced)
+                && !string.IsNullOrWhiteSpace(row.RemoteId))
+            .Select(row => row.RemoteId)
+            .Distinct(StringComparer.Ordinal)
+            .Take(2)
+            .ToList();
+
+        return named.Count switch
+        {
+            0 => IdentityResolution.Unmatched,
+            1 => IdentityResolution.At(named[0]),
+            _ => IdentityResolution.Ambiguous,
+        };
     }
 
     /// <summary>The identity rows the library holds for one entity, as a query.</summary>

@@ -65,10 +65,13 @@ vi.mock("@cove-extensions/ui-shared/postAction", () => ({
 const { WhisparrPerformerActions, WhisparrStudioActions } = await import("./EntityMonitorButton");
 const {
   ACTION_ABSENT_IN_THIS_VERSION,
+  ACTION_SEARCH_ALL_MONITORED,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   MONITORED_IN_WHISPARR,
   MONITORING_COULD_NOT_BE_READ,
   MONITOR_IN_WHISPARR,
+  SCOPE_ALL_SCENES,
+  STOP_MONITORING_IN_WHISPARR,
 } = await import("../common/ui/copy");
 
 const sleep = (ms: number) =>
@@ -290,7 +293,7 @@ test("a v2 performer keeps its control, disabled, saying what the generation can
   );
 });
 
-test("an item this build serves no route for is offered dimmed rather than pressed into nothing", async () => {
+test("each verb this build serves posts its own route rather than the monitor one", async () => {
   readAnswer = () => Promise.resolve(view({ monitored: true }));
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
@@ -298,13 +301,49 @@ test("an item this build serves no route for is offered dimmed rather than press
   await sleep(COMMIT_MS);
 
   const rows = rendered.rows();
-  expect(rows.length).toBeGreaterThan(0);
-  expect(rows.every((row) => row.disabled)).toBe(true);
-  expect(
-    rows.some((row) => (row.getAttribute("title") ?? "").endsWith(ACTION_ABSENT_IN_THIS_VERSION)),
-  ).toBe(true);
+  const scope = rows.find((row) => (row.getAttribute("title") ?? "").startsWith(SCOPE_ALL_SCENES));
+  const unmonitor = rows.find((row) =>
+    (row.getAttribute("title") ?? "").startsWith(STOP_MONITORING_IN_WHISPARR),
+  );
 
-  rows[0].click();
+  // A scope change on something already monitored is a different verb from monitoring it, so the
+  // two must not share a route: posting the monitor route here would re-add an entity the instance
+  // already holds.
+  // The POSTs alone. Each action is followed by a read back, so the last call recorded is a GET
+  // whichever route the action used.
+  const posted = () => sent.filter((call) => call.method === "POST").map((call) => call.path);
+
+  expect(scope?.disabled).toBe(false);
+  scope?.click();
+  await sleep(COMMIT_MS);
+  expect(posted().at(-1)?.endsWith("/scope")).toBe(true);
+
+  expect(unmonitor?.disabled).toBe(false);
+  unmonitor?.click();
+  await sleep(COMMIT_MS);
+  expect(posted().at(-1)?.endsWith("/unmonitor")).toBe(true);
+  expect(posted()).toHaveLength(2);
+});
+
+test("an item this build serves no route for is offered dimmed rather than pressed into nothing", async () => {
+  // A capability the generation DOES hold, so the row is not dimmed for the capability reason and
+  // the only thing left to dim it is the absent route.
+  readAnswer = () =>
+    Promise.resolve(view({ monitored: true, capabilities: ["monitorStudio", "searchMonitored"] }));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  rendered.button?.click();
+  await sleep(COMMIT_MS);
+
+  const search = rendered
+    .rows()
+    .find((row) => (row.getAttribute("title") ?? "").startsWith(ACTION_SEARCH_ALL_MONITORED));
+
+  expect(search).toBeDefined();
+  expect(search?.disabled).toBe(true);
+  expect(search?.getAttribute("title")?.endsWith(ACTION_ABSENT_IN_THIS_VERSION)).toBe(true);
+
+  search?.click();
   await sleep(COMMIT_MS);
   expect(sent.filter((call) => call.method === "POST")).toEqual([]);
 });
