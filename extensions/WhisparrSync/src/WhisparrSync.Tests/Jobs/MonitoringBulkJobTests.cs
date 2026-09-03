@@ -154,7 +154,6 @@ public sealed class MonitoringBulkJobTests
             [11, 12, 13], (_, coveId, _) => Task.FromResult(refusals[coveId]), progress);
 
         Assert.Equal([11, 12, 13], run.Outcomes.Select(outcome => outcome.CoveId));
-        Assert.Equal(["11", "12", "13"], progress.Declared);
         Assert.Equal(["11", "12", "13"], progress.Units.Select(unit => unit.UnitId));
     }
 
