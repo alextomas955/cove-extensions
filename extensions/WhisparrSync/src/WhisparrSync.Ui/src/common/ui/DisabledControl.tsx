@@ -10,22 +10,10 @@
  * A wrapper rather than an addition to `Button`: the shared primitives file is consumed by every
  * extension, and this system belongs to this one.
  */
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@cove-extensions/ui-shared";
 
-/**
- * Off-screen but still in the accessibility tree and still a text node. An inline style rather than
- * a utility class, because the host's Tailwind JIT never scans this bundle and a class it does not
- * emit contributes no declaration at all.
- */
-const OFF_SCREEN: CSSProperties = {
-  position: "absolute",
-  width: "1px",
-  height: "1px",
-  overflow: "hidden",
-  whiteSpace: "nowrap",
-  clipPath: "inset(50%)",
-};
+import { OFF_SCREEN } from "./offScreen";
 
 type DisabledControlProps = {
   /** What the control is called. Always announced first, and drawn on screen only where no icon is given. */
