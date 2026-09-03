@@ -7,8 +7,9 @@ What exists today is a settings tab that tests a connection, reports which Whisp
 answered, keeps each generation's connection separately, and registers Cove's import callback in the
 instance; the import path behind that callback, which brings a delivered file into the Cove library;
 and a Whisparr control on studio and performer pages and in their selection bars that monitors and
-unmonitors an entity on the connected instance. So this extension both changes your library and
-changes what a third party monitors. It never asks Whisparr to search.
+unmonitors an entity on the connected instance and asks Whisparr to link the files Cove already
+holds for it into place. So this extension both changes your library and changes what a third party
+monitors. It never asks Whisparr to search.
 
 ## Documentation
 

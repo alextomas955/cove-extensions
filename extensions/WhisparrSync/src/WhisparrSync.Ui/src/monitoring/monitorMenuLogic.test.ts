@@ -11,6 +11,8 @@ import {
   ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE,
   ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
   PERFORMER_HAS_NO_FUTURE_ONLY_SCOPE,
+  REFLECT_OWNED_SKIPPED,
+  REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
   SCOPE_ALL_SCENES,
   SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED,
   SCOPE_FUTURE_SCENES,
@@ -18,9 +20,12 @@ import {
   WAITING_FOR_WHISPARR,
 } from "../common/ui/copy";
 import {
+  bulkMonitorActions,
   capabilityBehindAction,
   describeMonitorRefusal,
+  describeReflectOwnedSkip,
   monitorMenu,
+  routeFor,
   CAPABILITY_ORDER,
   ENTITY_KINDS,
   GENERATIONS,
@@ -357,6 +362,42 @@ describe("an action already on its way", () => {
     );
 
     expect(search?.reason).toBe(CAP_UNAVAILABLE_ON_THIS_GENERATION);
+  });
+});
+
+describe("the verbs this build carries out", () => {
+  function secondaryItem(action: SecondaryAction): MonitorMenuItem {
+    const menu = monitorMenu(view({ kind: "studio", monitored: true }), false);
+    const item = menu.items.find((entry) => entry.item === "secondary" && entry.action === action);
+    if (item === undefined) throw new Error(`the menu offers no ${action} row`);
+    return item;
+  }
+
+  it("carries reflect owned out at its own route, on a generation holding the capability", () => {
+    const reflect = secondaryItem("reflectOwned");
+
+    expect(reflect.enabled).toBe(true);
+    expect(reflect.reason).toBeNull();
+    expect(routeFor(reflect, true)).toBe("reflect-owned");
+  });
+
+  it("still answers null for the two verbs no route is mounted for", () => {
+    for (const action of ["addAllMissing", "searchAllMonitored"] as const) {
+      expect(routeFor(secondaryItem(action), true), action).toBeNull();
+    }
+  });
+
+  it("offers reflect owned to the selection bar not at all, because no bulk verb carries it", () => {
+    const offer = bulkMonitorActions(view({ kind: "studio" }));
+
+    expect(offer.actions.map((action) => action.verb)).toEqual(["monitor", "monitor", "unmonitor"]);
+  });
+
+  it("states one sentence per skip reason", () => {
+    expect(describeReflectOwnedSkip("hardLinksOff")).toBe(REFLECT_OWNED_SKIPPED);
+    expect(describeReflectOwnedSkip("hardLinkSettingUnreadable")).toBe(
+      REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
+    );
   });
 });
 

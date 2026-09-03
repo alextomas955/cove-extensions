@@ -121,6 +121,15 @@ export const REFLECT_OWNED =
 export const REFLECT_OWNED_SKIPPED =
   "Skipped: with Whisparr's hard-link setting off each file would be copied rather than linked, and would use disk twice.";
 
+/**
+ * Why nothing was linked when the setting itself could not be read.
+ *
+ * Its own sentence rather than the one above, which states a setting is off. Reporting a value
+ * nobody read as a value that was read is the reading a user would act on.
+ */
+export const REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE =
+  "Skipped: Cove could not read Whisparr's hard-link setting, so it could not establish that linking these files would cost no extra disk.";
+
 /** What add all missing does. Says what it does not do, because the name suggests acquisition. */
 export const ADD_ALL_MISSING =
   "Registers every scene Cove holds that Whisparr does not. Nothing is downloaded.";

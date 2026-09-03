@@ -140,7 +140,10 @@ const RENDERED_AS_A_MONITOR_REFUSAL = [
 ];
 
 /** The outcome sentence for the one secondary action that can decline to do anything. */
-const RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED = ["REFLECT_OWNED_SKIPPED"];
+const RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED = [
+  "REFLECT_OWNED_SKIPPED",
+  "REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE",
+];
 
 /**
  * The kind whose sentence is the surface's to write, because the spec's affordance for it is to name

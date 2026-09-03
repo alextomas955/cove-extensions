@@ -4,16 +4,6 @@ using WhisparrSync.Contracts;
 
 namespace WhisparrSync.Monitoring;
 
-/// <summary>Why nothing was linked.</summary>
-internal enum ReflectOwnedSkipReason
-{
-    /// <summary>The instance's hard-link setting is off, so an import would copy the data.</summary>
-    HardLinksOff,
-
-    /// <summary>The setting could not be read, so whether an import would copy is unknown.</summary>
-    HardLinkSettingUnreadable,
-}
-
 /// <summary>Whether to ask the instance to link files into place, or why not.</summary>
 /// <param name="Act">True when the instance links rather than copies.</param>
 /// <param name="Reason">Why nothing is asked for, or null when <paramref name="Act"/> is true.</param>

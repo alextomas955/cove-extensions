@@ -43,6 +43,7 @@ public sealed class WhisparrSyncOpenApiDocumentTests : ExtensionOpenApiDocumentT
         typeof(MonitorScope),
         typeof(WhisparrEntityKind),
         typeof(MonitorRefusalKind),
+        typeof(ReflectOwnedSkipReason),
         typeof(WhisparrCapability),
     ];
 
