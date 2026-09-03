@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
+using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Monitoring;
@@ -148,8 +149,8 @@ public sealed class ReflectOwnedPlannerTests
 
         Assert.NotNull(newer);
         Assert.NotNull(older);
-        Assert.Equal(7, ((JsonObject)Assert.Single(newer))["movieId"]!.GetValue<int>());
-        Assert.Equal(3, ((JsonObject)Assert.Single(older))["seriesId"]!.GetValue<int>());
+        Assert.Equal(7, Assert.IsType<JsonObject>(Assert.Single(newer))["movieId"]!.GetValue<int>());
+        Assert.Equal(3, Assert.IsType<JsonObject>(Assert.Single(older))["seriesId"]!.GetValue<int>());
         Assert.DoesNotContain("unknown.mp4", newer.ToJsonString(), StringComparison.Ordinal);
         Assert.DoesNotContain("unknown.mp4", older.ToJsonString(), StringComparison.Ordinal);
     }
@@ -180,8 +181,8 @@ public sealed class ReflectOwnedPlannerTests
     public void QualityAndLanguagesComeFromTheRowsAndAreNeverFabricated()
     {
         var row = (JsonObject)JsonNode.Parse(V3MatchedRow)!;
-        var entry = (JsonObject)Assert.Single(
-            ReflectOwnedPlanner.Files(WhisparrGeneration.V3, $"[{V3MatchedRow}]")!);
+        var entry = Assert.IsType<JsonObject>(Assert.Single(
+            ReflectOwnedPlanner.Files(WhisparrGeneration.V3, $"[{V3MatchedRow}]")!));
 
         Assert.Equal(row["quality"]!.ToJsonString(), entry["quality"]!.ToJsonString());
         Assert.Equal(row["languages"]!.ToJsonString(), entry["languages"]!.ToJsonString());
@@ -202,10 +203,10 @@ public sealed class ReflectOwnedPlannerTests
     [Fact]
     public void TheFileEntryIsSpelledPerGenerationAsEachInterfaceSpellsIt()
     {
-        var newer = (JsonObject)Assert.Single(
-            ReflectOwnedPlanner.Files(WhisparrGeneration.V3, $"[{V3MatchedRow}]")!);
-        var older = (JsonObject)Assert.Single(
-            ReflectOwnedPlanner.Files(WhisparrGeneration.V2, $"[{V2MatchedRow}]")!);
+        var newer = Assert.IsType<JsonObject>(Assert.Single(
+            ReflectOwnedPlanner.Files(WhisparrGeneration.V3, $"[{V3MatchedRow}]")!));
+        var older = Assert.IsType<JsonObject>(Assert.Single(
+            ReflectOwnedPlanner.Files(WhisparrGeneration.V2, $"[{V2MatchedRow}]")!));
 
         Assert.Equal(
             [
