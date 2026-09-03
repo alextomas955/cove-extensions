@@ -18,11 +18,20 @@ internal sealed record AddDefaultsResolution(AddDefaults? Defaults, MonitorRefus
 /// <summary>What an entity is added with, read from the instance rather than assumed.</summary>
 /// <remarks>
 /// Pure. Both values are the instance's own and neither is this product's to choose: the profile is
-/// the first the instance offered, in the order it offered them, with no sort and no re-ordering.
+/// the first the instance offered, in the order it offered them, with no sort and no re-ordering. A
+/// sort would make the choice depend on this code rather than on the instance, and what is wanted is
+/// the one the instance offers first.
 /// <para>
 /// An empty list of either is a stop taken BEFORE anything is sent. That is not belt and braces: the
 /// newer generation accepts a quality profile id of zero, echoes it back, and the entity then
 /// monitors happily and can never acquire anything, so refusing here is the only guard there is.
+/// The same holds for a missing library root, which a fresh instance has: that generation's add then
+/// answers a conflict carrying a full stack trace, and a user's first monitor would show it.
+/// </para>
+/// <para>
+/// One profile is taken and no second decision follows it. A scene a catalogue refresh creates
+/// inherits its own entity's profile, so where that profile is also the one offered first there is
+/// still a single choice and a branch for the coincidence would be a branch for nothing.
 /// </para>
 /// </remarks>
 internal static class AddDefaultsProjector
