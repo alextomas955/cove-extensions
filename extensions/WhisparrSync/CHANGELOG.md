@@ -2,6 +2,34 @@
 
 User-facing changes, newest first.
 
+## 1.2.0 - Monitor a studio or a performer
+
+A Whisparr button now sits on studio and performer pages and in those lists' selection bars. This is
+the first release in which Whisparr Sync changes what your Whisparr instance monitors.
+
+- **Monitor a studio or a performer from its own page, in one click.** A studio is offered Whisparr's
+  own two scopes, Future Scenes and All Scenes, with Future Scenes as the default.
+  **Read this before choosing All Scenes:** it marks every scene Whisparr already lists for the
+  studio as wanted, which spends indexer traffic and disk, and on Whisparr v3 (Eros) changing the
+  scope back to Future Scenes does not undo it. A performer is offered no scope, because Whisparr
+  expresses no future-only option for one, so monitoring a performer covers everything it lists.
+- **Unmonitoring stops new scenes and retracts nothing.** What All Scenes already made wanted stays
+  wanted, and Whisparr will still acquire it. Nothing is deleted, in Cove or in Whisparr.
+- **Nothing here asks Whisparr to search.** Monitoring, unmonitoring and changing a scope never
+  start a search; what you mark wanted is what Whisparr then acquires on its own schedule.
+- **The same two gestures for a whole selection**, from the studios and performers selection bars.
+  A selection runs as one background job, and its progress and its result for each entity appear in
+  Cove's job list.
+- **Whisparr v2 cannot monitor a performer**, and no route on it registers a catalogue item. The
+  button and the affected menu items are shown disabled with the reason rather than hidden.
+- **Three menu items are shown and are not carried out in this release.** Add all missing, reflect
+  owned and search all monitored appear once an entity is monitored, each disabled and each saying
+  so. They are described in the documentation so their cost is known before they arrive, and search
+  all monitored will be the one action that downloads.
+- **Imports now reach your library.** A delivery through the registered callback is matched against
+  your Cove library folders and brought in, and the settings tab reports what could not be placed.
+  The 1.1.0 note saying nothing is imported yet no longer holds.
+
 ## 1.1.0 - Connect to Whisparr
 
 The **Whisparr Sync** tab under Settings → Extensions is now a working connection page.

@@ -12,7 +12,7 @@ changes what a third party monitors. It never asks Whisparr to search.
 
 ## Documentation
 
-**User docs live on the docs site, start there:**
+**Start with the user documentation:**
 
 - **[Whisparr Sync docs](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync)** - overview and index
 - **[Monitor a studio or a performer](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/monitoring)** - the entity control, the two scopes and what each costs
