@@ -15,7 +15,7 @@
  * Never color-only — each state pairs a StatusText with a lucide glyph. Host token classes only; no raw HTML.
  */
 import { CheckCircle2, AlertTriangle, Copy } from "lucide-react";
-import { Button, Field, SectionCard, Spinner, StatusText } from "@cove-ext/ui-shared";
+import { Button, Field, SectionCard, Spinner, StatusText } from "@cove-extensions/ui-shared";
 import { relativeTime, ticksToEpochMs } from "./importLogLogic";
 import { resolveWebhookStatus } from "./webhookLogic";
 

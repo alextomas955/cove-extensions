@@ -12,7 +12,7 @@
  * class renders its own copy + icon + color, and a non-v3 instance is refused with an amber advisory.
  */
 import { CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
-import { Badge, Button, Field, SectionCard, Spinner, StatusText } from "@cove-ext/ui-shared";
+import { Badge, Button, Field, SectionCard, Spinner, StatusText } from "@cove-extensions/ui-shared";
 import {
   connectionCopy,
   type ConnectionResult,

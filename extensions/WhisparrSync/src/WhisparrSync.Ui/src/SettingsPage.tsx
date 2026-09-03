@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { request } from "@cove/extension-sdk";
-import { Button, Spinner, StatusText } from "@cove-ext/ui-shared";
+import { Button, Spinner, StatusText } from "@cove-extensions/ui-shared";
 import { ConnectionSettingsPanel } from "./ConnectionSettingsPanel";
 import { ImportWebhookSection } from "./ImportWebhookSection";
 import { AddDefaultsSection } from "./AddDefaultsSection";

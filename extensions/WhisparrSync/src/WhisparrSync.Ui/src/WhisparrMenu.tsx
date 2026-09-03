@@ -32,7 +32,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, Circle, CircleDot, FileCheck2, Loader, PlusCircle, Search } from "lucide-react";
 import { request, ApiError } from "@cove/extension-sdk";
-import { StatusText } from "@cove-ext/ui-shared";
+import { StatusText } from "@cove-extensions/ui-shared";
 import { WhisparrLogo } from "./WhisparrLogo";
 import {
   DEFAULT_MONITOR_SCOPE,

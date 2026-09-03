@@ -15,7 +15,7 @@
  * (Whisparr-only rule). Styling uses host Tailwind token classes only.
  */
 import { AlertTriangle } from "lucide-react";
-import { StatusText } from "@cove-ext/ui-shared";
+import { StatusText } from "@cove-extensions/ui-shared";
 import { WhisparrLogo } from "./WhisparrLogo";
 import {
   MONITORED_LABEL,

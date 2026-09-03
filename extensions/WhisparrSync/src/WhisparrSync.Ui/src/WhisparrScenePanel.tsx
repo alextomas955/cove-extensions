@@ -36,7 +36,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { request, ApiError } from "@cove/extension-sdk";
-import { StatusText } from "@cove-ext/ui-shared";
+import { StatusText } from "@cove-extensions/ui-shared";
 import type { EntityTabProps } from "@cove/extension-sdk";
 import { VERSION_CAPABILITY_COPY, WHISPARR_UNAVAILABLE_COPY } from "./monitorLogic";
 import { missingIdMessage } from "./identityGuardLogic";

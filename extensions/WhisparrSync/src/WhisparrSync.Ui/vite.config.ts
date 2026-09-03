@@ -14,16 +14,16 @@ import path from "node:path";
 // (omitted from `external`). Externalizing it would 404 at runtime.
 export default defineConfig({
   plugins: [react()],
-  // The shared UI module (`shared/cove-extensions-ui/`) is resolved from its raw TS source through
+  // The shared UI module (`shared/ui-shared/`) is resolved from its raw TS source through
   // this alias — not a node_modules install — so Vite transforms it through the same pipeline as
   // this package's own `src/`, and its `react`/`lucide-react` imports stay externalized by the
   // rollup `external` list below (nothing host-provided is bundled). Kept identical to the sibling
   // extension's config and mirrored by the tsconfig `paths` entry.
   resolve: {
     alias: {
-      "@cove-ext/ui-shared": path.resolve(
+      "@cove-extensions/ui-shared": path.resolve(
         __dirname,
-        "../../../../shared/cove-extensions-ui/src/index.ts",
+        "../../../../shared/ui-shared/src/index.ts",
       ),
     },
   },

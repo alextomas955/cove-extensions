@@ -12,7 +12,7 @@
  * on v2 it renders a version note instead of the toggles.
  */
 import { AlertTriangle } from "lucide-react";
-import { SectionCard, SectionGroupHeader, StatusText, Toggle } from "@cove-ext/ui-shared";
+import { SectionCard, SectionGroupHeader, StatusText, Toggle } from "@cove-extensions/ui-shared";
 import { notLoadedMessage } from "./connectionAvailabilityLogic";
 import {
   FILE_SETTING_FIELDS,

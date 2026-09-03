@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { request, ApiError } from "@cove/extension-sdk";
-import { Button, SectionCard, Select, Spinner, StatusText, Toggle } from "@cove-ext/ui-shared";
+import { Button, SectionCard, Select, Spinner, StatusText, Toggle } from "@cove-extensions/ui-shared";
 import { notLoadedMessage } from "./connectionAvailabilityLogic";
 import {
   DEFAULT_SYNC_SCOPE,

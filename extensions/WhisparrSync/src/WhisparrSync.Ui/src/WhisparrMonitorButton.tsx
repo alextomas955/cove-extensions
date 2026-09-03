@@ -19,7 +19,7 @@
  * Tailwind token classes only (no hex, no CSS bundle) so check-classes passes.
  */
 import { useCallback, useRef, useState } from "react";
-import { StatusText } from "@cove-ext/ui-shared";
+import { StatusText } from "@cove-extensions/ui-shared";
 import { WhisparrLogo } from "./WhisparrLogo";
 import { entityKindOf, entityOf, monitorButtonTitle, type SlotProps } from "./monitorLogic";
 import { missingIdMessage } from "./identityGuardLogic";
