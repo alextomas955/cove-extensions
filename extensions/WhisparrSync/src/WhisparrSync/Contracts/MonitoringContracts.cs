@@ -97,10 +97,6 @@ public sealed record MonitorBulkRun(
         => new(MonitorBulkOutcomeKind.Cancelled, outcomes);
 }
 
-/// <summary>The job id an enqueue answered with.</summary>
-/// <param name="JobId">What to ask this extension's own status route about.</param>
-public sealed record JobEnqueued(string JobId);
-
 /// <summary>Why a monitor could not be applied, or that it was.</summary>
 /// <remarks>
 /// One value per reason, never collapsed into a generic failure: each sends the user somewhere
