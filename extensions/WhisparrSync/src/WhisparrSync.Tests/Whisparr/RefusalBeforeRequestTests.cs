@@ -113,6 +113,7 @@ public sealed class RefusalBeforeRequestTests
                 WhisparrCapability.MonitorPerformer,
                 WhisparrCapability.RegisterMissingScenes,
                 WhisparrCapability.ReflectOwnedFiles,
+                WhisparrCapability.SearchMonitored,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
         Assert.Equal(
@@ -120,6 +121,7 @@ public sealed class RefusalBeforeRequestTests
                 WhisparrCapability.OutOfBandCallbackSecret,
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
+                WhisparrCapability.SearchMonitored,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);
     }

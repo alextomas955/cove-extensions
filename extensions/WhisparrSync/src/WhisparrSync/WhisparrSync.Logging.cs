@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Monitoring;
 
 namespace WhisparrSync;
 
@@ -228,6 +229,15 @@ internal static partial class WhisparrSyncLog
     internal static partial void EntityLookupNotDistinct(
         ILogger logger,
         WhisparrGeneration generation);
+
+    // The one verb that can make an instance download, recorded because it is the only one that
+    // spends the user's bandwidth and disk. The entity KIND and nothing else: which entity, which
+    // instance and which key are all either caller-supplied or credentials, and a log sink is durable
+    // and readable. Without this line the one action a user would want an audit trail for leaves none.
+    [LoggerMessage(
+        EventId = 2119, Level = LogLevel.Information,
+        Message = "[WhisparrSync] a search was issued for a {Kind} the connected instance monitors")]
+    internal static partial void SearchIssued(ILogger logger, WhisparrEntityKind kind);
 
     // A write dropped because the blob it would have been built on could not be read, so the fold ran
     // on defaults. The stored configuration is what survives; the update the caller asked for is

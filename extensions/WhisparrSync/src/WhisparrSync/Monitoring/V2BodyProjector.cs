@@ -29,6 +29,18 @@ internal static class V2BodyProjector
     /// <summary>What every add and every scope change spells a future-only catalogue with.</summary>
     private const string FutureCatalogueOnly = "future";
 
+    /// <summary>This generation's search command. The one verb that downloads.</summary>
+    internal const string SeriesSearchCommand = "SeriesSearch";
+
+    /// <summary>The command asking the instance to look for what one entity monitors and lacks.</summary>
+    /// <remarks>
+    /// Composed only for a caller holding the grabbing role. It is the one body this product can
+    /// compose that makes an instance acquire anything.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="entityId"/> is below one.</exception>
+    internal static JsonObject SearchMonitored(int entityId)
+        => Command(SeriesSearchCommand, entityId);
+
     /// <summary>This generation's catalogue-refresh command.</summary>
     internal const string RefreshSeriesCommand = "RefreshSeries";
 
