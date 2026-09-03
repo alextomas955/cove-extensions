@@ -9,7 +9,7 @@ namespace WhisparrSync.Tests.TestSupport;
 public sealed record ReportedUnit(string UnitId, JobUnitOutcome? Outcome, string? Message = null);
 
 /// <summary>
-/// A host job progress that records what a run declared and reported, in order.
+/// A host job progress that records what a run reported, in order.
 /// </summary>
 /// <remarks>
 /// The order is the whole point: a batch reporting its entities in any order other than the one the
@@ -21,25 +21,10 @@ internal sealed class RecordingJobProgress : IJobProgress
     /// <summary>Every unit started, in the order it was started.</summary>
     public List<ReportedUnit> Units { get; } = [];
 
-    /// <summary>The unit ids declared up front, or empty where none were.</summary>
-    public List<string> Declared { get; } = [];
+    /// <summary>Every parent-level report, with the arguments it carried, in order.</summary>
+    public List<(double Fraction, string? SubTask)> Reports { get; } = [];
 
-    /// <summary>The summary the run set, or null where it set none.</summary>
-    public string? Summary { get; private set; }
-
-    public void Report(double progress, string? subTask = null)
-    {
-    }
-
-    public void SetSummary(string summary) => Summary = summary;
-
-    public void DeclareUnits(IEnumerable<(string UnitId, string? Label)> units)
-    {
-        foreach (var (unitId, _) in units)
-        {
-            Declared.Add(unitId);
-        }
-    }
+    public void Report(double progress, string? subTask = null) => Reports.Add((progress, subTask));
 
     public IJobUnit StartUnit(string unitId, string? label = null)
     {
