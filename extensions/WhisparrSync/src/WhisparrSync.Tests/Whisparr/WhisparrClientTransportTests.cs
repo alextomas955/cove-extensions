@@ -1,6 +1,9 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
+using System.Text;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
@@ -218,6 +221,101 @@ public sealed class WhisparrClientTransportTests
     }
 
     /// <summary>
+    /// A connection dropped part way through an answer raises an I/O failure, not a request one.
+    /// </summary>
+    /// <remarks>
+    /// Which type it is decides which filters contain it, so it is read off a real socket rather than
+    /// asserted from a double. The body is read out of the response stream instead of being buffered
+    /// inside the send, and the framework reports a stream that ended before its declared length as
+    /// <c>HttpIOException</c>, which derives from <see cref="IOException"/> and NOT from
+    /// <see cref="HttpRequestException"/>. The second assertion is the one that matters: a filter
+    /// naming only the request type lets this reach a route whose declared results hold no failure.
+    /// </remarks>
+    [Fact]
+    public async Task ABodyThatEndsBeforeItsDeclaredLengthRaisesAnIoFailureRatherThanARequestFailure()
+    {
+        var (port, served) = Serving(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 100000\r\n\r\n",
+            async stream =>
+            {
+                await stream.WriteAsync(Encoding.ASCII.GetBytes("""[{"id":1}]"""));
+                await stream.FlushAsync();
+            },
+            connections: WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read));
+        using var http = new HttpClient();
+
+        var failure = await Assert.ThrowsAnyAsync<Exception>(() => ReadThroughAsync(http, port));
+
+        Assert.IsAssignableFrom<IOException>(failure);
+        Assert.False(
+            failure is HttpRequestException,
+            $"{failure.GetType().FullName} is an HttpRequestException, so a filter naming only that "
+                + "type would still contain a truncated answer and this case proves nothing");
+        await served;
+    }
+
+    /// <summary>
+    /// An instance that answers its headers and then stops sending is bounded by the configured
+    /// timeout, and the bound is reported the way a timeout is.
+    /// </summary>
+    /// <remarks>
+    /// The client asks for the headers and reads the body itself, so the framework's own timeout is
+    /// already satisfied by the time the body phase begins and a stalled body ends when the SERVER
+    /// gives up rather than when the client does. The bound the client applies to the whole attempt
+    /// is what this case reads, and it reads it as an elapsed time rather than as a property,
+    /// because a property would agree with itself.
+    /// <para>
+    /// <see cref="TimeoutException"/> as the cause is what tells this bound from the caller's own
+    /// token, and <see cref="TaskCanceledException"/> as the type is what carries it into the
+    /// unreachable classification a closed port reaches.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task AnAnswerThatStallsAfterItsHeadersIsBoundedByTheConfiguredTimeout()
+    {
+        var stalling = new TaskCompletionSource();
+        var (port, served) = Serving(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 100000\r\n\r\n",
+            _ => stalling.Task,
+            connections: 1);
+        var bound = TimeSpan.FromMilliseconds(400);
+        using var http = new HttpClient { Timeout = bound };
+        var started = Stopwatch.StartNew();
+
+        var failure = await Assert.ThrowsAsync<TaskCanceledException>(
+            () => ReadThroughAsync(http, port));
+
+        started.Stop();
+        Assert.IsType<TimeoutException>(failure.InnerException);
+        Assert.True(
+            started.Elapsed < TimeSpan.FromSeconds(5),
+            $"the read ran for {started.Elapsed} against a {bound} bound, so the bound held nothing");
+        stalling.SetResult();
+        await served;
+    }
+
+    /// <summary>An answer carrying a byte-order mark parses.</summary>
+    /// <remarks>
+    /// A framework-level string read skips the encoding preamble before decoding;
+    /// <c>Encoding.GetString</c> does not. The expected value is the literal the handler was given, so
+    /// a read that carried the mark onward reports here. Without the skip the returned body begins
+    /// <c>U+FEFF</c> and every projector that parses it answers null, which reads as the entity being
+    /// absent on every page and every press with nothing saying why.
+    /// </remarks>
+    [Fact]
+    public async Task AnAnswerCarryingAByteOrderMarkIsDecodedWithoutIt()
+    {
+        const string sent = """[{"id":1,"title":"Vixen Mélodie"}]""";
+        var handler = BodyRecordingHandler.AnsweringWithAByteOrderMarkAhead(sent);
+        using var http = new HttpClient(handler);
+
+        var answered = await ReadThroughAsync(http);
+
+        Assert.Equal(sent, answered.Body);
+        Assert.NotNull(JsonNode.Parse(answered.Body));
+    }
+
+    /// <summary>
     /// The history read composes onto a base carrying a proxy subpath, presents the key, and asks
     /// each lineage for its own metadata entity.
     /// </summary>
@@ -378,6 +476,15 @@ public sealed class WhisparrClientTransportTests
             10,
             TestContext.Current.CancellationToken);
 
+    private static Task<WhisparrResponse> ReadThroughAsync(HttpClient http, int port)
+        => new WhisparrClient(http, NullLogger.Instance).ReadHistoryAsync(
+            new Uri($"http://127.0.0.1:{port}"),
+            SomeKey,
+            WhisparrGeneration.V3,
+            1,
+            10,
+            TestContext.Current.CancellationToken);
+
     private static async Task<ConnectionTestView> TestAsync(string address)
         => await NewTester().TestAsync(address, SomeKey, TestContext.Current.CancellationToken);
 
@@ -413,6 +520,54 @@ public sealed class WhisparrClientTransportTests
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();
         return port;
+    }
+
+    /// <summary>
+    /// Serves <paramref name="connections"/> connections, writing <paramref name="head"/> and then
+    /// running <paramref name="then"/> on each, and answers the port it listens on.
+    /// </summary>
+    /// <remarks>
+    /// A real socket rather than a message handler, because what these cases measure is the type the
+    /// framework itself raises out of a response stream. A handler can only raise the type it was
+    /// written to raise, which would make the assertion an assertion about the test.
+    /// <para>
+    /// The count is the read class's attempt count, not one: a failure the client re-issues after
+    /// reaches a stopped listener on its second attempt, and a refused connection raises a different
+    /// type from the one under test.
+    /// </para>
+    /// </remarks>
+    private static (int Port, Task Served) Serving(
+        string head, Func<NetworkStream, Task> then, int connections)
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var served = Task.Run(async () =>
+        {
+            try
+            {
+                for (var answered = 0; answered < connections; answered++)
+                {
+                    using var accepted = await listener.AcceptTcpClientAsync();
+                    await using var stream = accepted.GetStream();
+                    var request = new byte[8192];
+                    var requested = await stream.ReadAsync(request);
+                    if (requested == 0)
+                    {
+                        return;
+                    }
+
+                    await stream.WriteAsync(Encoding.ASCII.GetBytes(head));
+                    await stream.FlushAsync();
+                    await then(stream);
+                }
+            }
+            finally
+            {
+                listener.Stop();
+            }
+        });
+        return (port, served);
     }
 
     /// <summary>

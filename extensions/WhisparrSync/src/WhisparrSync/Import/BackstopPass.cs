@@ -128,7 +128,8 @@ internal sealed class BackstopPass(
                 // failed pass.
                 throw;
             }
-            catch (Exception failure) when (failure is HttpRequestException or TaskCanceledException)
+            catch (Exception failure)
+                when (failure is HttpRequestException or IOException or TaskCanceledException)
             {
                 return Ended(BackstopPassOutcome.RefusedUnreachable);
             }

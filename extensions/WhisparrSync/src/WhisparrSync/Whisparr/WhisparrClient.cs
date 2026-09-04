@@ -121,6 +121,12 @@ public interface IWhisparrClient
     /// <paramref name="baseAddress"/> is relative, or its scheme is neither http nor https.
     /// </exception>
     /// <exception cref="HttpRequestException">The request produced no response.</exception>
+    /// <exception cref="IOException">
+    /// The response ended before the length it declared. The body is read out of the response stream
+    /// rather than buffered inside the send, so a connection dropped part way through one raises this
+    /// rather than <see cref="HttpRequestException"/>. Every caller that contains one contains the
+    /// other, because both mean no whole answer arrived.
+    /// </exception>
     /// <exception cref="TaskCanceledException">The request outlived the client's timeout.</exception>
     Task<WhisparrResponse> ReadStatusAsync(Uri baseAddress, string apiKey, CancellationToken ct);
 
@@ -709,6 +715,11 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
     /// <see cref="HttpRequestException"/>, which this product's failure classification reduces to a
     /// type name a refused connection produces too, so a caller could not tell this product's own
     /// limit from an instance it never reached.
+    /// <para>
+    /// The timeout set here is the number the send bounds a whole attempt with, not only the number
+    /// the framework applies. The framework's own timeout ends at the headers once the body is asked
+    /// for separately, so the send reads this value and bounds both phases with it.
+    /// </para>
     /// </remarks>
     internal static void Configure(HttpClient client)
     {
@@ -775,8 +786,13 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         return SendAsync(baseAddress, apiKey, method, path, body, ct);
     }
 
-    // Null when the connection never established, which is the one failure a read may be re-issued
-    // after. A status, however unwelcome, is an answer and is returned.
+    // Null when no whole answer arrived, which is the one failure a read may be re-issued after. A
+    // status, however unwelcome, is an answer and is returned.
+    //
+    // Two failures reach that reading rather than one. A connection that never established raises
+    // HttpRequestException. A body that ended before its declared length raises IOException, because
+    // the body is read out of the response stream here rather than buffered inside the send, and the
+    // stream reports a truncation as an I/O failure.
     //
     // An answer past the read bound is an answer too: it carries its own refusal rather than throwing,
     // so it returns here on the first attempt and is not downloaded a second time.
@@ -787,7 +803,7 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         {
             return await SendAsync(baseAddress, apiKey, method, path, body, ct).ConfigureAwait(false);
         }
-        catch (HttpRequestException)
+        catch (Exception failure) when (failure is HttpRequestException or IOException)
         {
             return null;
         }
@@ -804,23 +820,43 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
                 body.ToJsonString(), Encoding.UTF8, MediaTypeNames.Application.Json);
         }
 
-        using var response = await http
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
-            .ConfigureAwait(false);
-        var contentType = response.Content.Headers.ContentType?.ToString();
-        var answered = await ReadWithinBoundAsync(response.Content, ct).ConfigureAwait(false);
+        // The whole attempt is bounded here, headers and body alike. The client's own timeout stops
+        // at the headers once the body is asked for separately, so a body phase left to it runs
+        // until the instance itself gives up. The number is read off the client rather than restated,
+        // so one setting bounds one attempt.
+        using var attempt = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        attempt.CancelAfter(http.Timeout);
 
-        if (answered is null)
+        try
         {
-            WhisparrSyncLog.ResponseBeyondReadBound(
-                log, request.RequestUri?.Host ?? string.Empty, MaxResponseBytes);
-            return new WhisparrResponse((int)response.StatusCode, contentType, string.Empty)
-            {
-                Refusal = MonitorRefusalKind.AnswerTooLargeToRead,
-            };
-        }
+            using var response = await http
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, attempt.Token)
+                .ConfigureAwait(false);
+            var contentType = response.Content.Headers.ContentType?.ToString();
+            var answered = await ReadWithinBoundAsync(response.Content, attempt.Token)
+                .ConfigureAwait(false);
 
-        return new WhisparrResponse((int)response.StatusCode, contentType, answered);
+            if (answered is null)
+            {
+                WhisparrSyncLog.ResponseBeyondReadBound(
+                    log, request.RequestUri?.Host ?? string.Empty, MaxResponseBytes);
+                return new WhisparrResponse((int)response.StatusCode, contentType, string.Empty)
+                {
+                    Refusal = MonitorRefusalKind.AnswerTooLargeToRead,
+                };
+            }
+
+            return new WhisparrResponse((int)response.StatusCode, contentType, answered);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // Reported as the framework reports its own timeout, so a caller classifying the failure
+            // does not have to know where the bound lives. A shutdown fails the filter and propagates
+            // as itself, which is what keeps it classified as cancelled rather than as a verdict
+            // about the instance.
+            throw new TaskCanceledException(
+                "The request outlived the bound on one attempt.", new TimeoutException(), attempt.Token);
+        }
     }
 
     // Null when the answer is past the bound. Read here rather than bounded by the handler, so the
@@ -844,7 +880,7 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
                 var read = await stream.ReadAsync(chunk.AsMemory(0, wanted), ct).ConfigureAwait(false);
                 if (read == 0)
                 {
-                    return EncodingFor(content).GetString(buffered.GetBuffer(), 0, (int)buffered.Length);
+                    return Decode(EncodingFor(content), buffered);
                 }
 
                 await buffered.WriteAsync(chunk.AsMemory(0, read), ct).ConfigureAwait(false);
@@ -852,6 +888,23 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
 
             return null;
         }
+    }
+
+    // Decoded without the encoding's preamble, which a framework-level string read also skips. A
+    // preamble left in place puts U+FEFF at the front of the string, and every reader of a body here
+    // parses it as JSON: the parse then fails and each of them answers null, so a BOM-prefixed
+    // instance would read as holding nothing anywhere, with nothing saying why.
+    private static string Decode(Encoding encoding, MemoryStream buffered)
+    {
+        var preamble = encoding.Preamble;
+        var buffer = buffered.GetBuffer();
+        var length = (int)buffered.Length;
+        var offset = length >= preamble.Length
+            && buffer.AsSpan(0, preamble.Length).SequenceEqual(preamble)
+                ? preamble.Length
+                : 0;
+
+        return encoding.GetString(buffer, offset, length - offset);
     }
 
     // The charset the answer names, which is what a framework-level string read honours. Decoding as
