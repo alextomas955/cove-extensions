@@ -64,6 +64,11 @@ and what your Whisparr instance monitors.
   and then asks Whisparr to re-read the entity's catalogue. Nothing is downloaded, a scene Whisparr
   already holds is left alone, and nothing already wanted, queued or acquired is retracted. It runs
   in the background and reports in Cove's job list. Whisparr v3 (Eros) only.
+- **A press Whisparr declines says so.** Whisparr declining, not answering, or offering no quality
+  profile or no root folder now states that reason beneath the button instead of appearing to do
+  nothing. Nothing is sent and nothing is changed, and the button stays pressable so you can fix the
+  instance and try again. It applies to every item in the menu, and to monitoring, unmonitoring and
+  changing a scope.
 
 Two things worth knowing before you enter a key:
 
