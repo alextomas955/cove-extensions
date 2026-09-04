@@ -149,6 +149,7 @@ const RENDERED_AS_A_MONITOR_REFUSAL = [
   "INSTANCE_REFUSED",
   "INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ",
   "INSTANCE_HOLDS_NO_SUCH_ENTRY",
+  "INSTANCE_DID_NOT_REPORT_THE_CHANGE",
 ];
 
 /** The outcome sentence for the one secondary action that can decline to do anything. */

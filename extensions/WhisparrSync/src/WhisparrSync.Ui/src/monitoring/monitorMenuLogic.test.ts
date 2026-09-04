@@ -93,7 +93,6 @@ describe("the item set is written down for every combination the wire enums allo
     expect(CAPABILITY_ORDER).toHaveLength(6);
     expect(ENTITY_KINDS).toHaveLength(2);
     expect(GENERATIONS).toHaveLength(2);
-    expect(MONITOR_REFUSAL_KINDS).toHaveLength(10);
     expect(SCOPE_ORDER).toHaveLength(2);
     expect(SECONDARY_ACTIONS).toHaveLength(3);
   });
@@ -408,21 +407,37 @@ const EXPECTED_NOTICE: Record<MonitorRefusalKind, string | null> = {
     "Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.",
   instanceRefused: "Whisparr would not do this. Nothing here was changed.",
   answerTooLargeToRead:
-    "Whisparr's answer was larger than this extension reads at once, so nothing was changed. Your Whisparr answered correctly.",
+    "Whisparr's answer was larger than this extension reads at once. Your Whisparr answered correctly. Reload the page for its current state.",
   instanceHoldsNoSuchEntity:
     "Whisparr no longer holds this entry, so there was nothing to act on. Reload the page for its current state.",
+  instanceDidNotReportTheChange:
+    "Whisparr accepted the change but does not report it. Reload the page for its current state.",
 };
 
 describe("which refusal speaks beneath the control, and which speaks at it", () => {
+  /**
+   * The roster's own totality, derived from a record that has it by TYPE.
+   *
+   * The roster is `readonly MonitorRefusalKind[]`, so a subset of the wire enum type-checks and a
+   * count written here by hand would still pass after a kind was added and left out. Six of the
+   * enumerations in this file iterate the roster, so a kind missing from it drops silently out of
+   * all six. `EXPECTED_NOTICE` is `Record<MonitorRefusalKind, ...>` and cannot be a subset, which
+   * makes it the honest source for what the roster has to hold.
+   */
+  it("holds every kind the wire enum declares, with nothing named twice", () => {
+    expect([...MONITOR_REFUSAL_KINDS].sort()).toEqual(Object.keys(EXPECTED_NOTICE).sort());
+  });
+
   it("gives a notice to every kind that leaves something to offer, and to no other", () => {
     for (const kind of MONITOR_REFUSAL_KINDS) {
       expect(refusalNoticeFor(kind), kind).toBe(EXPECTED_NOTICE[kind]);
     }
 
     const speaking = MONITOR_REFUSAL_KINDS.filter((kind) => refusalNoticeFor(kind) !== null);
-    expect(speaking).toHaveLength(5);
+    expect(speaking).toHaveLength(6);
     expect([...speaking].sort()).toEqual([
       "answerTooLargeToRead",
+      "instanceDidNotReportTheChange",
       "instanceHoldsNoSuchEntity",
       "instanceRefused",
       "noQualityProfile",

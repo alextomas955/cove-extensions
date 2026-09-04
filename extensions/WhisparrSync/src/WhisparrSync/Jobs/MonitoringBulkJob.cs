@@ -223,13 +223,19 @@ public static class MonitoringBulkJob
     /// An instance holding no such entity is the one refusal from an instance that is still a skip.
     /// The unit was passed over for a stated reason and nothing was sent that failed.
     /// </para>
+    /// <para>
+    /// A change the instance did not report is a FAILURE and not a skip, however much it resembles an
+    /// absence. The request left and was accepted, so the unit was not passed over, and the entity is
+    /// not known to be monitored.
+    /// </para>
     /// </remarks>
     private static JobUnitOutcome UnitOutcomeFor(MonitorRefusalKind refusal)
         => refusal switch
         {
             MonitorRefusalKind.None => JobUnitOutcome.Succeeded,
             MonitorRefusalKind.InstanceRefused
-                or MonitorRefusalKind.AnswerTooLargeToRead => JobUnitOutcome.Failed,
+                or MonitorRefusalKind.AnswerTooLargeToRead
+                or MonitorRefusalKind.InstanceDidNotReportTheChange => JobUnitOutcome.Failed,
             MonitorRefusalKind.NotConfigured
                 or MonitorRefusalKind.NoIdentityInThisNamespace
                 or MonitorRefusalKind.SeveralIdentitiesInThisNamespace

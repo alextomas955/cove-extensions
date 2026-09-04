@@ -221,9 +221,20 @@ public enum MonitorRefusalKind
     /// <summary>The instance answered, and does not hold the entity.</summary>
     /// <remarks>
     /// Distinct from <see cref="InstanceRefused"/> because the instance declined nothing: it reported
-    /// an absence, which is a different thing for a reader to act on.
+    /// an absence, which is a different thing for a reader to act on. Only a read taken BEFORE
+    /// anything was sent can state it; a read taken after an accepted write reports the change not
+    /// arriving rather than an absence.
     /// </remarks>
     InstanceHoldsNoSuchEntity,
+
+    /// <summary>The change was accepted, and the read taken straight after it does not report it.</summary>
+    /// <remarks>
+    /// Its own kind because it is the one refusal reached only after a write left. Every other kind
+    /// can say nothing was changed; this one cannot, so it must not borrow a sentence that does. What
+    /// the instance now holds is unknown here rather than unchanged, whether the read found no entity,
+    /// found one it does not monitor, or could not be classified at all.
+    /// </remarks>
+    InstanceDidNotReportTheChange,
 }
 
 /// <summary>What one entity's monitoring looks like, as the entity page reads it.</summary>
