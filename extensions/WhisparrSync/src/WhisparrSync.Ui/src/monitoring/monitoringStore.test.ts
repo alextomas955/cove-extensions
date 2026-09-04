@@ -48,7 +48,6 @@ test("a read that answers puts the view on screen", () => {
   const state = store.getSnapshot();
   expect(state.view?.monitored).toBe(true);
   expect(state.read).toEqual({ reading: false, failed: false, hasContent: true });
-  expect(state.readError).toBeNull();
 });
 
 test("a failed re-read keeps the content it had and raises the failure", () => {
@@ -57,19 +56,19 @@ test("a failed re-read keeps the content it had and raises the failure", () => {
   store.beginRead(FIRST);
   store.loaded(FIRST, view(true));
   store.beginRead(FIRST);
-  store.readFailed(FIRST, "503 unavailable");
+  store.readFailed(FIRST);
 
   const state = store.getSnapshot();
   expect(state.view?.monitored).toBe(true);
   expect(state.read).toEqual({ reading: false, failed: true, hasContent: true });
-  expect(state.readError).toBe("503 unavailable");
+  expect(state.actionFailed).toBe(false);
 });
 
 test("a first read that fails leaves no content, so nothing paints a state", () => {
   const store = createMonitoringStore();
   store.mounted(FIRST);
   store.beginRead(FIRST);
-  store.readFailed(FIRST, "500 nope");
+  store.readFailed(FIRST);
 
   expect(store.getSnapshot().view).toBeNull();
   expect(store.getSnapshot().read.hasContent).toBe(false);
@@ -92,16 +91,37 @@ test("an action in flight is reported, and finishing it paints no answer of its 
   expect(store.getSnapshot().view?.monitored).toBe(true);
 });
 
-test("an action that fails releases the control and says why", () => {
+test("an action that fails releases the control and is recorded as failed", () => {
   const store = createMonitoringStore();
   store.mounted(FIRST);
   store.loaded(FIRST, view(false));
   store.beginAction(FIRST);
-  store.actionFailed(FIRST, "403 forbidden");
+  store.actionFailed(FIRST);
 
   expect(store.getSnapshot().acting).toBe(false);
-  expect(store.getSnapshot().actionError).toBe("403 forbidden");
+  expect(store.getSnapshot().actionFailed).toBe(true);
   expect(store.getSnapshot().view?.monitored).toBe(false);
+});
+
+// The two failure entries take the entity and nothing else, so there is no channel through which an
+// instance's own response text could enter this state at all. Asserted on the arity rather than on
+// the stored value: a value nothing supplied cannot be found, so an assertion looking for one would
+// pass whatever the signature admitted.
+test("neither failure entry admits a message, so instance text has no way in", () => {
+  const store = createMonitoringStore();
+
+  expect(store.readFailed.length).toBe(1);
+  expect(store.actionFailed.length).toBe(1);
+
+  store.mounted(FIRST);
+  store.beginRead(FIRST);
+  store.readFailed(FIRST);
+  store.beginAction(FIRST);
+  store.actionFailed(FIRST);
+
+  const state = store.getSnapshot();
+  expect(typeof state.actionFailed).toBe("boolean");
+  expect(state.read).toEqual({ reading: false, failed: true, hasContent: false });
 });
 
 test("an action the server answered and skipped is neither a success nor a failure", () => {
@@ -113,7 +133,7 @@ test("an action the server answered and skipped is neither a success nor a failu
 
   const state = store.getSnapshot();
   expect(state.acting).toBe(false);
-  expect(state.actionError).toBeNull();
+  expect(state.actionFailed).toBe(false);
   expect(state.actionSkip).toBe("hardLinksOff");
 });
 
@@ -140,7 +160,7 @@ test("an action the instance refused is neither a success, a failure nor a skip"
 
   const state = store.getSnapshot();
   expect(state.acting).toBe(false);
-  expect(state.actionError).toBeNull();
+  expect(state.actionFailed).toBe(false);
   expect(state.actionSkip).toBeNull();
   expect(state.actionRefusal).toBe("noQualityProfile");
 });
@@ -175,7 +195,7 @@ test("the next gesture clears the refusal the previous one recorded", () => {
   expect(store.getSnapshot().actionRefusal).toBeNull();
 
   store.actionRefused(FIRST, "noRootFolder");
-  store.actionFailed(FIRST, "500 nope");
+  store.actionFailed(FIRST);
   expect(store.getSnapshot().actionRefusal).toBeNull();
 });
 
@@ -214,10 +234,10 @@ test("a late failure for an entity that has left the screen changes nothing", ()
   store.beginRead(FIRST);
   store.mounted(SECOND);
   store.loaded(SECOND, view(true));
-  store.readFailed(FIRST, "504 gateway timeout");
+  store.readFailed(FIRST);
 
   const state = store.getSnapshot();
-  expect(state.readError).toBeNull();
+  expect(state.actionFailed).toBe(false);
   expect(state.read.failed).toBe(false);
   expect(state.view?.monitored).toBe(true);
 });
