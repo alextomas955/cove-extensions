@@ -31,6 +31,11 @@ namespace WhisparrSync.Tests.Whisparr;
 /// that drive it build their own <see cref="HttpClient"/> over a stub and none of them calls
 /// <c>Configure</c>.
 /// </para>
+/// <para>
+/// The bound on how LONG one attempt may take is the client's own timeout, so the case that drives it
+/// sets a short one rather than waiting out the shipped number. What ties the shipped number to that
+/// bound is a case of its own over <c>Configure</c>.
+/// </para>
 /// </remarks>
 public sealed class WhisparrClientTransportTests
 {
@@ -144,6 +149,25 @@ public sealed class WhisparrClientTransportTests
         Assert.Equal(2, WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read));
         Assert.Equal(WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Configure));
         Assert.Equal(WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor((WhisparrVerbClass)(-1)));
+    }
+
+    /// <summary>
+    /// The shipped timeout constant is the number a whole attempt is bounded by.
+    /// </summary>
+    /// <remarks>
+    /// The send bounds itself with the value the client carries, and this is where that value comes
+    /// from. Without this the constant could stop reaching the client and the bound would silently
+    /// become whatever the framework defaults to, leaving the constant's own summary false again and
+    /// nothing saying so.
+    /// </remarks>
+    [Fact]
+    public void TheShippedTimeoutIsTheNumberAnAttemptIsBoundedBy()
+    {
+        using var configured = new HttpClient();
+
+        WhisparrClient.Configure(configured);
+
+        Assert.Equal(WhisparrClient.RequestTimeout, configured.Timeout);
     }
 
     /// <summary>The bound this client reads one answer within is a narrowing.</summary>
