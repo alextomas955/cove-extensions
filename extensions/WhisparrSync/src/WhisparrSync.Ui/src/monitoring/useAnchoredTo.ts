@@ -25,9 +25,9 @@ export interface AnchoredPlacement {
   readonly at: CSSProperties;
   /**
    * The room between the overlay's own top and the viewport's bottom gutter, or null until the
-   * control has been measured. A panel bounds itself to this so it scrolls instead of running off
-   * the viewport; null means no bound is known yet, and a bound guessed before the measurement
-   * would be a wrong one.
+   * control has been measured. This is the room for the whole overlay, so an overlay with more than
+   * one part bounds the container and not one part; null means no bound is known yet, and a bound
+   * guessed before the measurement would be a wrong one.
    */
   readonly availableHeight: number | null;
 }
