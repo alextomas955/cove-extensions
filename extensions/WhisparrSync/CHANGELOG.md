@@ -53,6 +53,9 @@ and what your Whisparr instance monitors.
 - **On Whisparr v2, an entity that instance cannot identify now says so.** It reports that Cove
   holds no link the connected Whisparr can identify the entity by, which sends you to the entity's
   link chips, instead of reporting that Whisparr refused - which sent you nowhere.
+- **Monitoring a studio on Whisparr v2 no longer depends on how much that instance holds.** Cove asks
+  v2 about the one studio you pressed rather than about its whole catalogue. On a large v2 instance
+  the button now works where it previously reported that Whisparr had refused.
 - **Whisparr links the files you already own into place, by itself.** Turning monitoring on for a
   studio or a performer starts that work in the background with no second press and no dialog, and so
   does monitoring a whole selection, once per entity inside that selection's own run. **Reflect
