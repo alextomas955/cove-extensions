@@ -1,4 +1,3 @@
-using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -333,12 +332,9 @@ public sealed class AddAllMissingPlannerTests
         RecordingWhisparrClient client, string identity, CancellationToken ct)
         => await client.AddSceneAsync(Instance, StoredKey, identity, Defaults, ct);
 
-    private static async Task<bool> Refresh(RecordingWhisparrClient client, CancellationToken ct)
-    {
-        var answered = await client.RefreshCatalogueAsync(
+    private static async Task Refresh(RecordingWhisparrClient client, CancellationToken ct)
+        => await client.RefreshCatalogueAsync(
             Instance, StoredKey, WhisparrEntityKind.Studio, 31, ct);
-        return MonitoringProjector.Accepted(answered.StatusCode) == MonitorRefusalKind.None;
-    }
 
     /// <summary>The identifiers, handed over one at a time as the library's own source hands them.</summary>
     /// <remarks>
