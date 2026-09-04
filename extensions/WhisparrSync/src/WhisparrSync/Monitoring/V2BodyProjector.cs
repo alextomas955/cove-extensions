@@ -269,8 +269,13 @@ internal static class V2LookupProjector
     /// <remarks>
     /// The lookup answers with no instance-side identifier until an entity has been added, so whether
     /// the instance holds it is a second question and its own listing is what answers it. Only the
-    /// matched entry is returned: the listing grows with what the instance holds and nothing carries
-    /// that onward.
+    /// matched entry is returned.
+    /// <para>
+    /// The match stays even where the listing was asked for one entity. The answer is read on its
+    /// parsed shape and never on the fact that a filter was asked for, because this generation
+    /// publishes no contract and accepting a query it silently ignored would return an entity nobody
+    /// named.
+    /// </para>
     /// </remarks>
     internal static JsonObject? HeldEntry(string? listed, int entityId)
     {
