@@ -72,6 +72,10 @@ and what your Whisparr instance monitors.
   nothing. Nothing is sent and nothing is changed, and the button stays pressable so you can fix the
   instance and try again. It applies to every item in the menu, and to monitoring, unmonitoring and
   changing a scope.
+- **A press that could not complete names the right party.** Where it previously reported all three
+  as Whisparr declining, it now says which one happened: Whisparr declined, Whisparr no longer holds
+  the entry, or Whisparr's answer was larger than the extension reads at once. The second sends you
+  to a reload rather than to your instance, and the third says your instance answered correctly.
 
 Two things worth knowing before you enter a key:
 
