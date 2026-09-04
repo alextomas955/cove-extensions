@@ -340,7 +340,16 @@ async function pressReflectOwned(rendered: Awaited<ReturnType<typeof render>>) {
   expect(reflect?.disabled).toBe(false);
   reflect?.click();
   await sleep(COMMIT_MS);
-  return rendered.container.querySelector('[role="status"]');
+  // Queried from the document for the reason the menu is: the hero clips its children, so the
+  // notice leaves that container too and is not reachable from the control's own subtree.
+  return document.body.querySelector('[role="status"]');
+}
+
+/** The element the trigger sits in, which is the subtree inside the host's clipping hero. */
+function wrapperOf(rendered: Awaited<ReturnType<typeof render>>): Element {
+  const wrapper = rendered.button?.parentElement ?? null;
+  expect(wrapper).not.toBeNull();
+  return wrapper as Element;
 }
 
 test("an action the server answered and skipped states the reason at the control", async () => {
@@ -367,6 +376,55 @@ test("an action that never reached the instance says that instead", async () => 
   const notice = await pressReflectOwned(rendered);
 
   expect(notice?.textContent).toBe(ACTION_DID_NOT_REACH_WHISPARR);
+});
+
+test("a failure notice leaves the container the menu had to leave", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = await pressReflectOwned(rendered);
+
+  expect(notice).not.toBeNull();
+  expect(wrapperOf(rendered).contains(notice)).toBe(false);
+  expect(document.body.contains(notice)).toBe(true);
+  expect(notice?.getAttribute("role")).toBe("status");
+});
+
+test("a failure notice is anchored to the control, on the menu's own placement", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = (await pressReflectOwned(rendered)) as HTMLElement | null;
+
+  // The menu is still open, so the two are placed from the same trigger in the same frame: a
+  // notice at the document origin would carry neither offset.
+  const menu = rendered.menu() as HTMLElement | null;
+  expect(menu).not.toBeNull();
+  expect(notice?.style.top).toBe(menu?.style.top);
+  expect(notice?.style.right).toBe(menu?.style.right);
+  expect(notice?.style.top).not.toBe("");
+});
+
+test("a skipped action's notice leaves that container too", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.resolve({ skipped: "hardLinksOff", jobId: null, refusal: "none" });
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = await pressReflectOwned(rendered);
+
+  expect(notice?.textContent).toBe(REFLECT_OWNED_SKIPPED);
+  expect(wrapperOf(rendered).contains(notice)).toBe(false);
+  expect(document.body.contains(notice)).toBe(true);
+});
+
+test("nothing pressed at all leaves no notice anywhere in the document", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+
+  await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  expect(document.body.querySelector('[role="status"]')).toBeNull();
 });
 
 test("an action that was carried out states nothing at the control", async () => {
