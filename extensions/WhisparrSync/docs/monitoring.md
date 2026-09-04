@@ -87,8 +87,9 @@ scope, so the menu always marks Future Scenes whatever the studio is actually se
 
 ## The three items that appear once the entity is monitored
 
-Once Whisparr monitors the entity, three more items appear in the menu. This version carries out one
-of them.
+Once Whisparr monitors the entity, three more items appear in the menu. This version carries out two
+of them. One of those two is the only thing in Whisparr Sync that downloads, and it says so on its
+own row.
 
 ### Reflect owned
 
@@ -112,16 +113,31 @@ Before anything is sent, Cove reads Whisparr's hard-link setting:
   only links.
 - When the setting **cannot be read**, nothing is sent either, and the control says that instead.
 
-### The two items this version does not carry out
+### Search all monitored
 
-Each row is present and disabled, and says `This version of Whisparr Sync does not carry out this
-action.` They are described here so you know what they will do when they arrive, and what the second
-one will cost.
+**This is the one action in Whisparr Sync that downloads.** Everything else the extension does sets
+flags in Whisparr and tells Whisparr where files you already own are.
+
+Press it and Whisparr is asked to look for every scene it wants for this studio or performer, and to
+download what it finds. It acts only on what the entity is already monitoring, so the scope you chose
+when you turned monitoring on is what decides how much it covers. It changes no flag: an entity is
+monitoring exactly what it was monitoring before you pressed it.
+
+It is offered for one studio or one performer at a time, from that entity's own menu. **It is not
+offered for a whole selection**, so a selection of a thousand entities cannot become a thousand
+searches.
+
+Cove reports only that Whisparr accepted the request. What Whisparr then does with it is Whisparr's
+own: which indexers it asks, what it accepts and how long it takes are its settings, and its own
+screens are where the result appears.
+
+### The item this version does not carry out
+
+The row is present and disabled, and says `This version of Whisparr Sync does not carry out this
+action.` It is described here so you know what it will do when it arrives.
 
 - **Add all missing.** Registers every scene Cove holds that Whisparr does not. Nothing is
   downloaded. Whisparr v3 (Eros) only: no route on Whisparr v2 adds a catalogue item.
-- **Search all monitored.** Asks Whisparr to search for every scene it wants for the entity and to
-  download what it finds. **This is the one action that downloads.**
 
 ## Why the button or an item is unavailable
 
@@ -153,7 +169,7 @@ your own metadata provider address, set it under **Metadata provider endpoints**
 | Search all monitored | Yes                | Yes         |
 
 The last three rows are what the generation can honour. Of those three, this version of Whisparr
-Sync carries out Reflect owned, on either generation. Add all missing and Search all monitored are
+Sync carries out Reflect owned and Search all monitored, on either generation. Add all missing is
 not carried out, as above.
 
 ## Monitor a whole selection
@@ -167,8 +183,9 @@ An overlay asks what to do with every entity you selected:
   Whisparr**.
 - A performer selection is offered **Monitor in Whisparr** and **Stop monitoring in Whisparr**.
 
-The three items above that this version does not carry out are not offered in bulk either. Closing
-the overlay without choosing sends nothing.
+None of the three items above is offered in bulk. Search all monitored is left out of the selection
+bar on purpose: one press over a large selection would become one search per entity. Closing the
+overlay without choosing sends nothing.
 
 What you choose runs as one background job. Its progress and its result for each entity appear in
 Cove's job list, and it ends with a line saying how many were applied and how many were refused.
@@ -182,3 +199,5 @@ One gesture takes at most 1000 entities. A larger selection is refused, so split
   itself needs.
 - **Changing** it, from the button or from the selection bar, needs permission to configure
   extensions. No default Viewer or Member role holds it.
+- **Search all monitored** needs that same permission. It is the one action here that spends your
+  bandwidth and your disk, so it is not reachable by a reader who cannot configure the extension.

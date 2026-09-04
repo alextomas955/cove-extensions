@@ -26,7 +26,9 @@ Installing this release adds a **Whisparr Sync** tab under Settings → Extensio
 It also adds a Whisparr button to studio and performer pages, and one to those lists' selection bars:
 
 - **Monitor a studio or a performer from its own page**, in one click, at either of Whisparr's two
-  scopes. Whisparr Sync never asks Whisparr to search.
+  scopes. Monitoring itself asks Whisparr to search for nothing.
+- **Ask Whisparr to search for what it monitors**, from that same menu. This is the one action in
+  Whisparr Sync that downloads, it is named on its own row, and nothing else here reaches it.
 - **Unmonitor from the same menu.** It stops Whisparr wanting new scenes and retracts nothing that
   is already wanted.
 - **Do the same for a whole selection**, as one background job that reports in Cove's job list.

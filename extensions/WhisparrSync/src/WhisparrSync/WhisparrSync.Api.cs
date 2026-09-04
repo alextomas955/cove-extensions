@@ -45,6 +45,8 @@ public sealed partial class WhisparrSync
     private string UnmonitorRoute => RouteBase + "/entity/{kind}/{coveId}/unmonitor";
     private string MonitorScopeRoute => RouteBase + "/entity/{kind}/{coveId}/scope";
     private string ReflectOwnedRoute => RouteBase + "/entity/{kind}/{coveId}/reflect-owned";
+    private string SearchAllMonitoredRoute =>
+        RouteBase + "/entity/{kind}/{coveId}/search-all-monitored";
     private string BulkMonitorRoute => RouteBase + "/entities/bulk-monitor";
     private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
 
@@ -139,6 +141,22 @@ public sealed partial class WhisparrSync
              ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
              CancellationToken ct)
                 => UnmonitorEntityAsync(
+                    kind, coveId, principal, options, credentials, client, identities, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The configure tier, and the reach decision is this route's own rather than the monitor
+        // route's borrowed. Its reach is one Cove entity named by the route segment and its effect is
+        // bounded by what that entity already monitors, so it is neither a whole-library verb nor a
+        // body-named one. The tier is the configure tier for two reasons rather than one: the route
+        // aims this extension's stored credential at a third party AND it spends the reader's
+        // bandwidth and disk. It is the most consequential route this extension mounts, and it must
+        // not sit at a tier a caller who cannot configure the extension can reach.
+        endpoints.MapPost(SearchAllMonitoredRoute,
+            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
+             CancellationToken ct)
+                => SearchAllMonitoredEntityAsync(
                     kind, coveId, principal, options, credentials, client, identities, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
@@ -828,6 +846,112 @@ public sealed partial class WhisparrSync
                     ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
                     : State(kind, target, monitored: false);
         }
+    }
+
+    /// <summary>
+    /// Asks the connected instance to search for what it monitors for one Cove entity.
+    /// </summary>
+    /// <remarks>
+    /// The ONE route of this extension whose effect spends the reader's bandwidth and disk, and the
+    /// one place in this product that obtains <see cref="IWhisparrSearchGrabbing"/>. Everything else
+    /// here sets flags and tells the instance where files already are.
+    /// <para>
+    /// Takes NO request body at all, like the unmonitor route. There is no verb member, no scope
+    /// member and no identifier member anywhere in its input, so a body omitting a field and binding
+    /// to a permissive default is not expressible on this route by construction rather than by a
+    /// check. Which entity is named by the route segment, and the identifier the instance is given
+    /// comes from the stored identity row and then from the instance's own record.
+    /// </para>
+    /// <para>
+    /// Given its own path from identity to call rather than routed through the shared delegate seam
+    /// the monitor, unmonitor and scope verbs go through. A shared flow that can carry a grabbing verb
+    /// is exactly the shape "one gesture grows into acquisition" describes, and the seam's value is
+    /// that no delegate it takes can express this one.
+    /// </para>
+    /// <para>
+    /// The entity is read before anything is asked for. An entity the instance does not hold monitors
+    /// nothing there, so the command would name a row that does not exist and the read is what turns
+    /// that into a refusal instead of a request.
+    /// </para>
+    /// </remarks>
+    internal static async Task<Results<Ok<EntityMonitoringView>, BadRequest, ForbiddenCode>>
+        SearchAllMonitoredEntityAsync(
+            string kind,
+            int coveId,
+            ICurrentPrincipalAccessor principal,
+            OptionsStore options,
+            ICredentialPort credentials,
+            IWhisparrClient client,
+            IEntityIdentityPort identities,
+            ILogger log,
+            CancellationToken ct)
+    {
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(identities);
+
+        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind))
+        {
+            return TypedResults.BadRequest();
+        }
+
+        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+            is not { } target)
+        {
+            return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));
+        }
+
+        // Obtained BY NAME, and this is the only call site in the product that does so. A generation
+        // holding no search has no implementation to hand over, which is the refusal below rather
+        // than a member that accepts the call and declines it.
+        var grabbing = target.Capabilities.Obtain<IWhisparrSearchGrabbing>()
+            .Match<IWhisparrSearchGrabbing?>(held => held, _ => null);
+        var reading = HeldActingFor(entityKind, target);
+
+        // Identity first, so a refusal costs no outbound request. SEC-4: the outbound identifier is
+        // resolved server-side from the stored rows, and nothing a caller supplied reaches it.
+        var identity = await identities.ResolveAsync(entityKind, coveId, target.Generation, ct)
+            .ConfigureAwait(false);
+
+        if (grabbing is null || reading is not { } actingFor || identity.ForeignId is not { } named)
+        {
+            return TypedResults.Ok(
+                Refused(
+                    entityKind,
+                    target,
+                    RefusalAmong(grabbing is null || reading is null, identity.Refusal)));
+        }
+
+        var read = await ContainedAsync(() => actingFor(named).ReadEntity(ct), target, log, ct)
+            .ConfigureAwait(false);
+
+        if (read is null
+            || MonitoringProjector.Reading(read.StatusCode) != MonitoringProjector.EntityReading.Held
+            || MonitoringProjector.EntityIdIn(read.Body) is not { } entityId)
+        {
+            return TypedResults.Ok(Refused(entityKind, target, MonitorRefusalKind.InstanceRefused));
+        }
+
+        // Read before the search and answered after it: a search changes what the instance goes
+        // looking for and never the flag, so reporting the flag the search itself set would report
+        // something that did not happen.
+        var monitored = MonitoringProjector.MonitoredIn(read.Body);
+
+        var searched = await ContainedAsync(
+            () => grabbing.SearchMonitoredAsync(
+                target.BaseAddress, target.ApiKey, target.Generation, entityKind, entityId, ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+
+        return TypedResults.Ok(
+            searched is null
+                || MonitoringProjector.Accepted(searched.StatusCode) != MonitorRefusalKind.None
+                    ? Refused(entityKind, target, MonitorRefusalKind.InstanceRefused)
+                    : State(entityKind, target, monitored));
     }
 
     /// <summary>Changes the monitor scope the connected instance holds for one Cove entity.</summary>
