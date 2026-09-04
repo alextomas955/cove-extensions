@@ -735,20 +735,29 @@ public sealed partial class WhisparrSync
         progress.Report(1d, ReflectOwnedJob.SummaryOf(run));
         ct.ThrowIfCancellationRequested();
 
-        async Task<ReflectOwnedAiming?> AimAsync(IServiceProvider services, CancellationToken runCt)
+        // Nothing this product could not resolve names a skip reason. A reader sent to the instance's
+        // hard-link setting because no connection was configured would be sent to a value nobody read.
+        async Task<ReflectOwnedAim> AimAsync(IServiceProvider services, CancellationToken runCt)
         {
             if (await ResolveTargetAsync(
                     services.GetRequiredService<OptionsStore>(),
                     services.GetRequiredService<ICredentialPort>(),
                     services.GetRequiredService<IWhisparrClient>(),
-                    runCt).ConfigureAwait(false) is not { } target
-                || ReflectOwnedActingOn(target) is not { } acting
-                || !(await ReflectOwnedDecisionAsync(target, acting, runCt).ConfigureAwait(false)).Act)
+                    runCt).ConfigureAwait(false) is not { } target)
             {
-                return null;
+                return new ReflectOwnedAim(null, null);
             }
 
-            return AimedAt(target, acting);
+            if (ReflectOwnedActingOn(target) is not { } acting)
+            {
+                return new ReflectOwnedAim(null, null);
+            }
+
+            var decision = await ReflectOwnedDecisionAsync(target, acting, runCt).ConfigureAwait(false);
+
+            return decision.Act
+                ? new ReflectOwnedAim(AimedAt(target, acting), null)
+                : new ReflectOwnedAim(null, decision.Reason);
         }
     }
 
