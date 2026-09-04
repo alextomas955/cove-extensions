@@ -130,6 +130,66 @@ test("the next gesture clears the skip the previous one recorded", () => {
   expect(store.getSnapshot().actionSkip).toBeNull();
 });
 
+test("an action the instance refused is neither a success, a failure nor a skip", () => {
+  const store = createMonitoringStore();
+  store.mounted(FIRST);
+  store.loaded(FIRST, view(false));
+  store.beginAction(FIRST);
+  store.actionSkipped(FIRST, "hardLinksOff");
+  store.actionRefused(FIRST, "noQualityProfile");
+
+  const state = store.getSnapshot();
+  expect(state.acting).toBe(false);
+  expect(state.actionError).toBeNull();
+  expect(state.actionSkip).toBeNull();
+  expect(state.actionRefusal).toBe("noQualityProfile");
+});
+
+// The hook reads the state back after every press, so a `loaded` that cleared the field would erase
+// the sentence in the same frame it was set.
+test("the read that follows a refused action leaves the reason on screen", () => {
+  const store = createMonitoringStore();
+  store.mounted(FIRST);
+  store.beginAction(FIRST);
+  store.actionRefused(FIRST, "instanceRefused");
+  store.loaded(FIRST, view(false));
+
+  expect(store.getSnapshot().actionRefusal).toBe("instanceRefused");
+  expect(store.getSnapshot().view?.monitored).toBe(false);
+});
+
+test("the next gesture clears the refusal the previous one recorded", () => {
+  const store = createMonitoringStore();
+  store.mounted(FIRST);
+
+  store.actionRefused(FIRST, "noRootFolder");
+  store.beginAction(FIRST);
+  expect(store.getSnapshot().actionRefusal).toBeNull();
+
+  store.actionRefused(FIRST, "noRootFolder");
+  store.actionSucceeded(FIRST);
+  expect(store.getSnapshot().actionRefusal).toBeNull();
+
+  store.actionRefused(FIRST, "noRootFolder");
+  store.actionSkipped(FIRST, "hardLinksOff");
+  expect(store.getSnapshot().actionRefusal).toBeNull();
+
+  store.actionRefused(FIRST, "noRootFolder");
+  store.actionFailed(FIRST, "500 nope");
+  expect(store.getSnapshot().actionRefusal).toBeNull();
+});
+
+test("a refusal for an entity that has left the screen changes nothing", () => {
+  const store = createMonitoringStore();
+
+  store.mounted(FIRST);
+  store.mounted(SECOND);
+  store.loaded(SECOND, view(true));
+  store.actionRefused(FIRST, "instanceRefused");
+
+  expect(store.getSnapshot().actionRefusal).toBeNull();
+});
+
 test("two reads settling in reverse order leave the mounted entity's state on screen", () => {
   const store = createMonitoringStore();
 
