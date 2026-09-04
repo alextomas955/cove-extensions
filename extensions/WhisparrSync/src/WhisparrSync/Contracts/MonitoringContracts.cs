@@ -49,6 +49,25 @@ public enum ReflectOwnedSkipReason
 public sealed record ReflectOwnedEnqueued(
     ReflectOwnedSkipReason? Skipped, string? JobId, MonitorRefusalKind Refusal);
 
+/// <summary>What asking for one entity's missing scenes to be registered produced.</summary>
+/// <remarks>
+/// Exactly one of the two carries the answer: a refusal taken before anything was sent, or the id
+/// of the run that was started.
+/// <para>
+/// The request has no body at all, so it carries no identifier member for the same reason
+/// <see cref="MonitorEntityRequest"/> does not: the route names the Cove entity, and every
+/// identifier the instance is given - the entity's and each scene's - is read on the server from the
+/// library's own rows.
+/// </para>
+/// <para>
+/// It carries no count either. What the run did is a line in the host's job list, and a count here
+/// would be a number read before the run had offered anything.
+/// </para>
+/// </remarks>
+/// <param name="JobId">The run this extension's own status route answers about, or null.</param>
+/// <param name="Refusal">Why nothing could be started, or that something was.</param>
+public sealed record AddAllMissingEnqueued(string? JobId, MonitorRefusalKind Refusal);
+
 /// <summary>Which verb one bulk gesture carries.</summary>
 /// <remarks>
 /// A verb is written down here only once a route serves it for a single entity. The selection bar
