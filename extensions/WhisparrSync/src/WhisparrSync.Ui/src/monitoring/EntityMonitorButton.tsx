@@ -17,19 +17,13 @@ import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import {
   ACTION_ABSENT_IN_THIS_VERSION,
-  ACTION_DID_NOT_REACH_WHISPARR,
   MONITORED_IN_WHISPARR,
   MONITORING_COULD_NOT_BE_READ,
   MONITOR_IN_WHISPARR,
 } from "../common/ui/copy";
 import type { WhisparrEntityKind } from "../wire/api";
 import { EntityMonitorMenu } from "./EntityMonitorMenu";
-import {
-  describeReflectOwnedSkip,
-  monitorMenu,
-  routeFor,
-  type MonitorMenuItem,
-} from "./monitorMenuLogic";
+import { controlNotice, monitorMenu, routeFor, type MonitorMenuItem } from "./monitorMenuLogic";
 import { useAnchoredTo } from "./useAnchoredTo";
 import { WhisparrMark } from "./WhisparrMark";
 import { useMonitoring } from "./useMonitoring";
@@ -94,14 +88,15 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
   // reason follows it, and the hover text is that same string.
   const spoken = unavailable === null ? name : `${name}, ${unavailable}`;
 
-  // A skip is a settled answer and a failure is no answer at all, so each has its own sentence. The
-  // failure reads first: an action that never arrived cannot also have been skipped.
-  const outcome =
-    state.actionError !== null
-      ? ACTION_DID_NOT_REACH_WHISPARR
-      : state.actionSkip === null
-        ? null
-        : describeReflectOwnedSkip(state.actionSkip);
+  // A press refusal outranks the view's own, and a failed read contributes none: the control already
+  // says the read failed, and a refusal sentence beside it would be two answers about one instance.
+  // Nothing is filtered here - the rule for which refusal speaks where lives in `controlNotice`
+  // alone, so there is one place to get it wrong rather than two.
+  const outcome = controlNotice({
+    failed: state.actionError !== null,
+    refusal: state.actionRefusal ?? (region.status === "failed" ? null : (view?.refusal ?? null)),
+    skip: state.actionSkip,
+  });
 
   const items = (menu?.items ?? []).map((item) =>
     routeFor(item, monitored) === null
