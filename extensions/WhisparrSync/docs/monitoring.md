@@ -136,6 +136,11 @@ Whisparr's hard-link setting is on. The behaviour is the same on both generation
 offers an import mode that only links. Whisparr's hard-link setting lives in its own media
 management configuration and is on by default.
 
+Whisparr takes charge of each file it links and names it by its own rules. Cove and Whisparr read the
+same library folders, so a later rename inside Whisparr can reach a file Cove holds. Whether such a
+rename changes the library's own entry, or only Whisparr's own link to that file, is not known. Do
+not assume it cannot.
+
 **It runs by itself when you turn monitoring on**, so turning monitoring on is one press and no
 dialog. Press the item to run it again at any time. Monitoring a whole selection runs it too, once
 per entity, on the same hard-link condition and inside the selection's own background job. When the
