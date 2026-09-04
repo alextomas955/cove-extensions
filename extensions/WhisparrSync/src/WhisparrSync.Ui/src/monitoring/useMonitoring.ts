@@ -5,7 +5,7 @@
  * reading must never paint the state it does not have yet.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
+import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 
 import type { EntityMonitoringView, WhisparrEntityKind } from "../wire/api";
@@ -35,10 +35,6 @@ export interface Monitoring {
   readonly act: (verb: MonitorActionRoute, body: unknown) => void;
 }
 
-function messageFor(err: unknown): string {
-  return err instanceof ApiError ? `${String(err.status)} ${err.body}` : String(err);
-}
-
 /** The route for one entity. Per entity, so it cannot be a module-scope constant. */
 function routeFor(entity: MonitoredEntity, verb: string): string {
   return api(`entity/${entity.kind}/${String(entity.coveId)}/${verb}`);
@@ -57,8 +53,8 @@ export function useMonitoring(kind: WhisparrEntityKind, coveId: number): Monitor
         .then((view) => {
           store.loaded(entity, view);
         })
-        .catch((err: unknown) => {
-          store.readFailed(entity, messageFor(err));
+        .catch(() => {
+          store.readFailed(entity);
         });
     },
     [store],
@@ -86,8 +82,8 @@ export function useMonitoring(kind: WhisparrEntityKind, coveId: number): Monitor
           }
           read(entity);
         })
-        .catch((err: unknown) => {
-          store.actionFailed(entity, messageFor(err));
+        .catch(() => {
+          store.actionFailed(entity);
         });
     },
     [store, read, kind, coveId],

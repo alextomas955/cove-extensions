@@ -26,14 +26,20 @@ export interface MonitoringState {
   readonly read: AsyncRead;
   /** Null before any read has answered. */
   readonly view: EntityMonitoringView | null;
-  readonly readError: string | null;
   /** An action is in flight, so the control is not pressable again. */
   readonly acting: boolean;
-  readonly actionError: string | null;
+  /**
+   * The last action produced no answer at all.
+   *
+   * Records THAT it produced none, and deliberately not what the answer would have been. The text an
+   * instance sends back is its own, one generation answers a refused add with a stack trace inside
+   * it, and a field holding that is a standing invitation for something to render it.
+   */
+  readonly actionFailed: boolean;
   /**
    * The reason the last action was answered and did nothing, or null.
    *
-   * Held apart from the error. A skip is a settled answer from the instance and a failure is no
+   * Held apart from the failure. A skip is a settled answer from the instance and a failure is no
    * answer at all, and the two send the reader somewhere different.
    */
   readonly actionSkip: ReflectOwnedSkip | null;
@@ -54,9 +60,8 @@ export interface MonitoringState {
 export const INITIAL_MONITORING_STATE: MonitoringState = {
   read: INITIAL_ASYNC_READ,
   view: null,
-  readError: null,
   acting: false,
-  actionError: null,
+  actionFailed: false,
   actionSkip: null,
   actionRefusal: null,
 };
@@ -68,7 +73,7 @@ export interface MonitoringStore {
   mounted: (entity: MonitoredEntity) => void;
   beginRead: (entity: MonitoredEntity) => void;
   loaded: (entity: MonitoredEntity, view: EntityMonitoringView) => void;
-  readFailed: (entity: MonitoredEntity, message: string) => void;
+  readFailed: (entity: MonitoredEntity) => void;
   beginAction: (entity: MonitoredEntity) => void;
   /**
    * The action was carried out. It carries no view: what the instance now holds is read back, so
@@ -79,7 +84,7 @@ export interface MonitoringStore {
   actionSkipped: (entity: MonitoredEntity, reason: ReflectOwnedSkip) => void;
   /** The instance refused the action, so nothing was sent on and nothing changed. */
   actionRefused: (entity: MonitoredEntity, refusal: MonitorRefusalKind) => void;
-  actionFailed: (entity: MonitoredEntity, message: string) => void;
+  actionFailed: (entity: MonitoredEntity) => void;
 }
 
 /** Whether two entity references name the same entity. */
@@ -123,7 +128,6 @@ export function createMonitoringStore(): MonitoringStore {
       settle(entity, (current) => ({
         ...current,
         read: { reading: true, failed: false, hasContent: current.view !== null },
-        readError: null,
       }));
     },
 
@@ -132,17 +136,15 @@ export function createMonitoringStore(): MonitoringStore {
         ...current,
         read: { reading: false, failed: false, hasContent: true },
         view,
-        readError: null,
       }));
     },
 
-    readFailed(entity, message) {
+    readFailed(entity) {
       // Whatever was read earlier stays: it was true when it was served, and discarding it would
       // take a correct answer off the screen to show one that says less.
       settle(entity, (current) => ({
         ...current,
         read: { reading: false, failed: true, hasContent: current.view !== null },
-        readError: message,
       }));
     },
 
@@ -150,7 +152,7 @@ export function createMonitoringStore(): MonitoringStore {
       settle(entity, (current) => ({
         ...current,
         acting: true,
-        actionError: null,
+        actionFailed: false,
         actionSkip: null,
         actionRefusal: null,
       }));
@@ -160,7 +162,7 @@ export function createMonitoringStore(): MonitoringStore {
       settle(entity, (current) => ({
         ...current,
         acting: false,
-        actionError: null,
+        actionFailed: false,
         actionSkip: null,
         actionRefusal: null,
       }));
@@ -170,7 +172,7 @@ export function createMonitoringStore(): MonitoringStore {
       settle(entity, (current) => ({
         ...current,
         acting: false,
-        actionError: null,
+        actionFailed: false,
         actionSkip: reason,
         actionRefusal: null,
       }));
@@ -180,17 +182,17 @@ export function createMonitoringStore(): MonitoringStore {
       settle(entity, (current) => ({
         ...current,
         acting: false,
-        actionError: null,
+        actionFailed: false,
         actionSkip: null,
         actionRefusal: refusal,
       }));
     },
 
-    actionFailed(entity, message) {
+    actionFailed(entity) {
       settle(entity, (current) => ({
         ...current,
         acting: false,
-        actionError: message,
+        actionFailed: true,
         actionSkip: null,
         actionRefusal: null,
       }));

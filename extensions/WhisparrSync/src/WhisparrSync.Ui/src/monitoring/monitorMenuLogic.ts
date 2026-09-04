@@ -64,9 +64,15 @@ export type ReflectOwnedSkip = NonNullable<ReflectOwnedSkipReason>;
 /** The three items that appear only once the entity is monitored. */
 export type SecondaryAction = "addAllMissing" | "reflectOwned" | "searchAllMonitored";
 
+/**
+ * What every row carries, however it is pressed.
+ *
+ * The reason is the only representation of whether the row can be pressed: a reason disables it and
+ * an absent reason enables it. There is deliberately no second boolean, so a row that is dimmed with
+ * nothing to hear cannot be expressed.
+ */
 interface MenuItemFace {
   readonly label: string;
-  readonly enabled: boolean;
   /** The one sentence saying why it cannot be pressed, or null when it can. */
   readonly reason: string | null;
   /** What is stated beneath it, in the order it reads. */
@@ -467,7 +473,6 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
     // A permanent reason reads ahead of the transient one: a control that will never work should not
     // say it is waiting.
     reason: unavailable ?? transient,
-    enabled: unavailable === null && !inFlight,
     sentences,
   });
 

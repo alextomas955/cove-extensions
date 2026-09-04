@@ -93,14 +93,14 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
   // Nothing is filtered here - the rule for which refusal speaks where lives in `controlNotice`
   // alone, so there is one place to get it wrong rather than two.
   const outcome = controlNotice({
-    failed: state.actionError !== null,
+    failed: state.actionFailed,
     refusal: state.actionRefusal ?? (region.status === "failed" ? null : (view?.refusal ?? null)),
     skip: state.actionSkip,
   });
 
   const items = (menu?.items ?? []).map((item) =>
     routeFor(item, monitored) === null
-      ? { ...item, enabled: false, reason: item.reason ?? ACTION_ABSENT_IN_THIS_VERSION }
+      ? { ...item, reason: item.reason ?? ACTION_ABSENT_IN_THIS_VERSION }
       : item,
   );
 
