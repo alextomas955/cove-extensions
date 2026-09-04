@@ -478,7 +478,7 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
                 CultureInfo.InvariantCulture,
                 $"{SeriesPath}?{SeriesByEntityIdQuery}={site.EntityId}"),
             ct).ConfigureAwait(false);
-        if (!IsSuccess(listed.StatusCode))
+        if (Refused(listed))
         {
             return listed;
         }
@@ -528,7 +528,7 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
                 $"{SeriesLookupPath}?term={Uri.EscapeDataString(V2BodyProjector.LookupTerm(foreignId))}"),
             ct).ConfigureAwait(false);
 
-        if (!IsSuccess(lookup.StatusCode))
+        if (Refused(lookup))
         {
             return (null, lookup);
         }
@@ -554,6 +554,13 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
     }
 
     private static bool IsSuccess(int statusCode) => statusCode is >= 200 and < 300;
+
+    // A refusal the send read for itself outranks the status, which is the rule
+    // MonitoringProjector.Classify applies too. An answer past the read bound arrives with whatever
+    // status the instance gave, so a success one, and with an empty body: parsing that body would
+    // report the entity as absent and lose the reason the send established.
+    private static bool Refused(WhisparrResponse answered)
+        => answered.Refusal is not MonitorRefusalKind.None || !IsSuccess(answered.StatusCode);
 
     public Task<WhisparrResponse> ReadPerformerAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
