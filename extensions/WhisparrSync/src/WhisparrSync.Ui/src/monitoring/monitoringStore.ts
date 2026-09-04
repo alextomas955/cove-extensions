@@ -10,7 +10,7 @@
  * for the first can settle after the second has mounted and would otherwise paint one entity's state
  * onto the other.
  */
-import type { EntityMonitoringView, WhisparrEntityKind } from "../wire/api";
+import type { EntityMonitoringView, MonitorRefusalKind, WhisparrEntityKind } from "../wire/api";
 import type { ReflectOwnedSkip } from "./monitorMenuLogic";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import { INITIAL_ASYNC_READ } from "../common/ui/asyncRegionLogic";
@@ -37,6 +37,14 @@ export interface MonitoringState {
    * answer at all, and the two send the reader somewhere different.
    */
   readonly actionSkip: ReflectOwnedSkip | null;
+  /**
+   * What the instance refused the last action for, or null.
+   *
+   * Held apart from the view's own refusal, and outranking it: the read route composes no add, so it
+   * can never answer the two add-defaults kinds, and the read that follows every action overwrites
+   * the view with an answer that names no refusal at all.
+   */
+  readonly actionRefusal: MonitorRefusalKind | null;
 }
 
 /**
@@ -50,6 +58,7 @@ export const INITIAL_MONITORING_STATE: MonitoringState = {
   acting: false,
   actionError: null,
   actionSkip: null,
+  actionRefusal: null,
 };
 
 export interface MonitoringStore {
@@ -68,6 +77,8 @@ export interface MonitoringStore {
   actionSucceeded: (entity: MonitoredEntity) => void;
   /** The action was answered and did nothing, for the reason the server named. */
   actionSkipped: (entity: MonitoredEntity, reason: ReflectOwnedSkip) => void;
+  /** The instance refused the action, so nothing was sent on and nothing changed. */
+  actionRefused: (entity: MonitoredEntity, refusal: MonitorRefusalKind) => void;
   actionFailed: (entity: MonitoredEntity, message: string) => void;
 }
 
@@ -141,6 +152,7 @@ export function createMonitoringStore(): MonitoringStore {
         acting: true,
         actionError: null,
         actionSkip: null,
+        actionRefusal: null,
       }));
     },
 
@@ -150,6 +162,7 @@ export function createMonitoringStore(): MonitoringStore {
         acting: false,
         actionError: null,
         actionSkip: null,
+        actionRefusal: null,
       }));
     },
 
@@ -159,6 +172,17 @@ export function createMonitoringStore(): MonitoringStore {
         acting: false,
         actionError: null,
         actionSkip: reason,
+        actionRefusal: null,
+      }));
+    },
+
+    actionRefused(entity, refusal) {
+      settle(entity, (current) => ({
+        ...current,
+        acting: false,
+        actionError: null,
+        actionSkip: null,
+        actionRefusal: refusal,
       }));
     },
 
@@ -168,6 +192,7 @@ export function createMonitoringStore(): MonitoringStore {
         acting: false,
         actionError: message,
         actionSkip: null,
+        actionRefusal: null,
       }));
     },
   };

@@ -8,8 +8,14 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 
-import type { EntityMonitoringView, ReflectOwnedEnqueued, WhisparrEntityKind } from "../wire/api";
+import type { EntityMonitoringView, WhisparrEntityKind } from "../wire/api";
 import { api } from "../common/lib/extension";
+import {
+  monitorRefusalIn,
+  reflectOwnedSkipIn,
+  type MonitorActionAnswer,
+  type MonitorActionRoute,
+} from "./monitorMenuLogic";
 import {
   createMonitoringStore,
   type MonitoredEntity,
@@ -26,7 +32,7 @@ export interface Monitoring {
    * @param verb the route this verb is served at, off the entity's own base
    * @param body what that route is sent
    */
-  readonly act: (verb: string, body: unknown) => void;
+  readonly act: (verb: MonitorActionRoute, body: unknown) => void;
 }
 
 function messageFor(err: unknown): string {
@@ -59,19 +65,24 @@ export function useMonitoring(kind: WhisparrEntityKind, coveId: number): Monitor
   );
 
   const act = useCallback(
-    (verb: string, body: unknown) => {
+    (verb: MonitorActionRoute, body: unknown) => {
       const entity: MonitoredEntity = { kind, coveId };
       store.beginAction(entity);
-      postAction<Partial<ReflectOwnedEnqueued>>(routeFor(entity, verb), body)
+      postAction<MonitorActionAnswer>(routeFor(entity, verb), body)
         .then((answered) => {
-          // The answer's skip reason is the ONE thing read off it. A verb that was carried out is
-          // read back from the instance instead, because it decides what it now holds and its own
-          // catalogue refresh can move that between the answer and the next frame.
-          const skipped = answered.skipped ?? null;
-          if (skipped === null) {
-            store.actionSucceeded(entity);
-          } else {
+          // A refusal is read off the PRESS rather than off the read that follows it. The read route
+          // composes no add, so it can never answer either add-defaults kind, and its fresh view
+          // overwrites this one. What was carried out is still read back from the instance, because
+          // it decides what it now holds and its own catalogue refresh can move that between the
+          // answer and the next frame.
+          const refusal = monitorRefusalIn(answered);
+          const skipped = reflectOwnedSkipIn(answered);
+          if (refusal !== null && refusal !== "none") {
+            store.actionRefused(entity, refusal);
+          } else if (skipped !== null) {
             store.actionSkipped(entity, skipped);
+          } else {
+            store.actionSucceeded(entity);
           }
           read(entity);
         })

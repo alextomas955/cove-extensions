@@ -10,9 +10,11 @@
  * needs no edit here.
  */
 import type {
+  AddAllMissingEnqueued,
   EntityMonitoringView,
   MonitorRefusalKind,
   MonitorScope,
+  ReflectOwnedEnqueued,
   ReflectOwnedSkipReason,
   WhisparrCapability,
   WhisparrEntityKind,
@@ -20,6 +22,7 @@ import type {
 } from "../wire/api";
 import {
   ACTION_ADD_ALL_MISSING,
+  ACTION_DID_NOT_REACH_WHISPARR,
   ACTION_REFLECT_OWNED,
   ACTION_SEARCH_ALL_MONITORED,
   ADD_ALL_MISSING,
@@ -228,6 +231,31 @@ const REFLECT_OWNED_ROUTE = "reflect-owned";
 const SEARCH_ALL_MONITORED_ROUTE = "search-all-monitored";
 
 /**
+ * Which answer each acting route serves, named as the component the emitted wire document declares
+ * for that route's 200 response.
+ *
+ * Four of the six answer the entity's own state and two answer an enqueued job, so one stand-in type
+ * for all six typechecks only while every answer happens to spell one member the same way. Every key
+ * is the declared route constant rather than its text, and <code>monitorRoutes.test.ts</code> reads
+ * these values against the document itself.
+ */
+export const MONITOR_ACTION_ANSWER_SCHEMAS = {
+  [MONITOR_ROUTE]: "EntityMonitoringView",
+  [UNMONITOR_ROUTE]: "EntityMonitoringView",
+  [SCOPE_ROUTE]: "EntityMonitoringView",
+  [SEARCH_ALL_MONITORED_ROUTE]: "EntityMonitoringView",
+  [REFLECT_OWNED_ROUTE]: "ReflectOwnedEnqueued",
+  [ADD_ALL_MISSING_ROUTE]: "AddAllMissingEnqueued",
+} as const;
+
+/** One route an action is carried out at. */
+export type MonitorActionRoute = keyof typeof MONITOR_ACTION_ANSWER_SCHEMAS;
+
+/** Whatever one of those routes can answer. */
+export type MonitorActionAnswer =
+  EntityMonitoringView | ReflectOwnedEnqueued | AddAllMissingEnqueued;
+
+/**
  * Which route each secondary action is served at, or null where this build serves none.
  *
  * The ONE place either surface learns whether a verb is reachable. The entity menu renders a row
@@ -238,7 +266,7 @@ const SEARCH_ALL_MONITORED_ROUTE = "search-all-monitored";
  * names one of the route constants above rather than repeating its text, and a pin reads the two
  * against each other.
  */
-const SECONDARY_ACTION_ROUTES: Record<SecondaryAction, string | null> = {
+const SECONDARY_ACTION_ROUTES: Record<SecondaryAction, MonitorActionRoute | null> = {
   addAllMissing: ADD_ALL_MISSING_ROUTE,
   reflectOwned: REFLECT_OWNED_ROUTE,
   searchAllMonitored: SEARCH_ALL_MONITORED_ROUTE,
@@ -330,6 +358,74 @@ export function actionBehindCapability(capability: WhisparrCapability): Secondar
 /** What <code>reason</code> states at the control when reflect owned linked nothing. */
 export function describeReflectOwnedSkip(reason: ReflectOwnedSkip): string {
   return REFLECT_OWNED_SKIP_SENTENCE[reason];
+}
+
+function memberOf(answer: unknown, member: string): unknown {
+  return answer !== null && typeof answer === "object"
+    ? (answer as Record<string, unknown>)[member]
+    : null;
+}
+
+/**
+ * The refusal <code>answer</code> carries, or null where it carries none this build recognises.
+ *
+ * An answer with no such member is a live path rather than a guarded-against one: the POST helper
+ * resolves an empty object for an empty 2xx body and for an unparseable one. Validated against the
+ * key set of the sentence record, which is total by TYPE, so a kind added to the wire enum is
+ * accepted here and still forces a sentence decision in that record.
+ */
+export function monitorRefusalIn(answer: unknown): MonitorRefusalKind | null {
+  const value = memberOf(answer, "refusal");
+  return typeof value === "string" && Object.hasOwn(REFUSALS, value)
+    ? (value as MonitorRefusalKind)
+    : null;
+}
+
+/** The skip reason <code>answer</code> carries, or null where it carries none this build recognises. */
+export function reflectOwnedSkipIn(answer: unknown): ReflectOwnedSkip | null {
+  const value = memberOf(answer, "skipped");
+  return typeof value === "string" && Object.hasOwn(REFLECT_OWNED_SKIP_SENTENCE, value)
+    ? (value as ReflectOwnedSkip)
+    : null;
+}
+
+/**
+ * What <code>kind</code> states beneath the control, or null where it states nothing there.
+ *
+ * The same flag decides both surfaces. A refusal that leaves nothing to offer speaks in the
+ * control's own name and is silent here, so the two cannot come to disagree about which reason a
+ * reader is given where.
+ */
+export function refusalNoticeFor(kind: MonitorRefusalKind): string | null {
+  const refusal = describeMonitorRefusal(kind);
+  return refusal.leavesNothingToOffer ? null : refusal.sentence;
+}
+
+/**
+ * The one sentence beneath the control after the last gesture, or null where there is none.
+ *
+ * The precedence is over the NOTICES rather than over the inputs, which is what keeps a healthy
+ * answer from silencing a skip: <code>none</code> is a refusal kind and is what every healthy read
+ * answers, so a branch that stopped at a non-null refusal would answer null for the common case and
+ * never reach the skip. Falling through on a null notice also covers the kinds that empty the menu,
+ * with no second list of which those are.
+ *
+ * A failure reads ahead of both: an action that never arrived cannot also have been refused or
+ * passed over.
+ */
+export function controlNotice({
+  failed,
+  refusal,
+  skip,
+}: {
+  failed: boolean;
+  refusal: MonitorRefusalKind | null;
+  skip: ReflectOwnedSkip | null;
+}): string | null {
+  if (failed) return ACTION_DID_NOT_REACH_WHISPARR;
+  const refused = refusal === null ? null : refusalNoticeFor(refusal);
+  if (refused !== null) return refused;
+  return skip === null ? null : describeReflectOwnedSkip(skip);
 }
 
 /**
@@ -431,7 +527,7 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
  * @param item the menu item pressed
  * @param monitored whether the connected instance already monitors the entity
  */
-export function routeFor(item: MonitorMenuItem, monitored: boolean): string | null {
+export function routeFor(item: MonitorMenuItem, monitored: boolean): MonitorActionRoute | null {
   switch (item.item) {
     case "monitor":
       return MONITOR_ROUTE;
