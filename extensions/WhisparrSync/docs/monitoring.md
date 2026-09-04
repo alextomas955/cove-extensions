@@ -97,11 +97,10 @@ Future Scenes is pre-selected as the cheaper of the two.
 Once Whisparr monitors the entity, three more items appear in the menu, in the order below. One of
 the three is the only thing in Whisparr Sync that downloads, and it says so on its own row.
 
-**A refusal of one of these three is silent in this version.** Whisparr Sync sends nothing, changes
-nothing and starts no background job, but the menu shows no sentence saying why. Reflect owned
-skipping because of Whisparr's hard-link setting is the one exception, and it does say so. So if
-pressing one of these three appears to do nothing at all, the cause is at the instance: it is
-unreachable, or it offers no quality profile or no library root.
+**A refusal of one of these three is silent in this version.** Nothing is sent, nothing is changed,
+no background job starts, and the menu shows no sentence saying why. Reflect owned skipping because
+of Whisparr's hard-link setting is the one exception, and it does say so. See
+[When a press says nothing](#when-a-press-says-nothing).
 
 ### Add all missing
 
@@ -183,6 +182,26 @@ Cove decides the reason in this order and shows one reason, not several.
 | Cove holds more than one conflicting link for this entity.                         | Cove holds two links from the same source naming different entities, so neither can be chosen. Remove the ones that do not belong on the entity's page in Cove.             |
 | Cove could not read what Whisparr monitors for this.                               | The read failed. The button says so rather than falling back to its unmonitored appearance, because not knowing is a different fact from Whisparr monitoring nothing.       |
 | Waiting for Whisparr to answer the last thing you asked for.                       | A gesture is still on its way. Every item is disabled until it settles.                                                                                                     |
+
+### When a press says nothing
+
+The six reasons above are read when the page opens, so the control is already disabled and already
+carrying its reason before you press anything.
+
+Three more reasons can only appear in answer to a press, and **this version states none of them**.
+The action is refused, nothing is sent and nothing is changed, and then the menu simply settles: no
+sentence, no dimmed control, no job in Cove's job list.
+
+| What was refused                                        | What you see |
+| ------------------------------------------------------- | ------------ |
+| Whisparr offers no quality profile                      | Nothing      |
+| Whisparr offers no root folder                          | Nothing      |
+| Whisparr answered and declined, or could not be reached | Nothing      |
+
+So if a press appears to do nothing at all, the cause is at the instance rather than in Cove. Check
+that Whisparr is reachable, and that it offers at least one quality profile and at least one root
+folder. This applies to monitoring, unmonitoring and changing a scope as much as to the three items
+above.
 
 **About the link:** Whisparr v3 (Eros) identifies against StashDB and Whisparr v2 against
 ThePornDB, so which link an entity needs depends on which generation Cove uses. Studio and performer
