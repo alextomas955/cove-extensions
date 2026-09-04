@@ -83,6 +83,15 @@ and what your Whisparr instance monitors.
   as Whisparr declining, it now says which one happened: Whisparr declined, Whisparr no longer holds
   the entry, or Whisparr's answer was larger than the extension reads at once. The second sends you
   to a reload rather than to your instance, and the third says your instance answered correctly.
+- **Every item in the menu is reachable with the arrow keys**, including on Whisparr v2, where the
+  item Whisparr cannot carry out is present and dimmed. The arrow keys used to stop on that dimmed
+  item and go no further, which put **Reflect owned** and **Search all monitored** out of reach
+  without a pointer. While a gesture is on its way and every item is dimmed, an arrow press now
+  leaves your place alone instead of moving nowhere.
+- **A long menu scrolls instead of being cut off, and the message about your last press sits below
+  the menu rather than over it.** A menu taller than the space under the button used to lose its
+  last items with nothing to see, and the sentence saying what the last press did used to cover the
+  items it was about.
 
 Two things worth knowing before you enter a key:
 
