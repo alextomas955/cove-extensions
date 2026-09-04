@@ -589,8 +589,14 @@ public sealed partial class WhisparrSync
         // exists on the studio resource and on no other, so a scope a caller named for a performer
         // names nothing the request could carry.
         var monitoring = await MonitorResolvedAsync(
-            entityKind, coveId, target, identities, log, ActingFor(entityKind, target, scope), ct)
-            .ConfigureAwait(false);
+            entityKind,
+            coveId,
+            target,
+            identities,
+            log,
+            ActingFor(entityKind, target, scope),
+            ExpressesAScope(entityKind) ? scope : null,
+            ct).ConfigureAwait(false);
 
         // From HERE and not from the resolved member the bulk path also reaches: a selection of a
         // thousand entities must not become a thousand background runs. One reflect step per entity
@@ -1069,7 +1075,7 @@ public sealed partial class WhisparrSync
         {
             if (!monitored)
             {
-                return State(kind, target, monitored: false);
+                return State(kind, target, monitored: false, scope: null);
             }
 
             var flipped = await ContainedAsync(
@@ -1079,7 +1085,7 @@ public sealed partial class WhisparrSync
             return flipped is null
                 || MonitoringProjector.Accepted(flipped.StatusCode) != MonitorRefusalKind.None
                     ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
-                    : State(kind, target, monitored: false);
+                    : State(kind, target, monitored: false, scope: null);
         }
     }
 
@@ -1186,7 +1192,11 @@ public sealed partial class WhisparrSync
             searched is null
                 || MonitoringProjector.Accepted(searched.StatusCode) != MonitorRefusalKind.None
                     ? Refused(entityKind, target, MonitorRefusalKind.InstanceRefused)
-                    : State(entityKind, target, monitored));
+                    : State(
+                        entityKind,
+                        target,
+                        monitored,
+                        ScopeHeld(entityKind, target, monitored, read.Body)));
     }
 
     /// <summary>Changes the monitor scope the connected instance holds for one Cove entity.</summary>
@@ -1250,10 +1260,15 @@ public sealed partial class WhisparrSync
             var applied = await ContainedAsync(
                 () => setScope(entityId, scope, changeCt), target, log, changeCt).ConfigureAwait(false);
 
+            // The scope the instance just took, not one read back: this is the one path where the
+            // product knows what was applied because it applied it. An entity nothing monitors has
+            // no scope in force whatever was written, so that answers none.
+            MonitorScope? inForce = monitored ? scope : null;
+
             return applied is null
                 || MonitoringProjector.Accepted(applied.StatusCode) != MonitorRefusalKind.None
                     ? Refused(entityKind, target, MonitorRefusalKind.InstanceRefused)
-                    : State(entityKind, target, monitored);
+                    : State(entityKind, target, monitored, inForce);
         }
     }
 
@@ -1430,6 +1445,7 @@ public sealed partial class WhisparrSync
                     identities,
                     _log,
                     ActingFor(kind, resolved, batch.Scope ?? MonitorScope.FutureScenes),
+                    ExpressesAScope(kind) ? batch.Scope ?? MonitorScope.FutureScenes : null,
                     entityCt).ConfigureAwait(false),
                 MonitorBulkVerb.Unmonitor => await UnmonitorResolvedAsync(
                     kind, coveId, resolved, identities, _log, entityCt).ConfigureAwait(false),
@@ -1578,13 +1594,26 @@ public sealed partial class WhisparrSync
             : MonitoringProjector.Reading(read.StatusCode) switch
             {
                 // Not held is not a refusal: the entity is simply not monitored yet.
-                MonitoringProjector.EntityReading.NotHeld => State(kind, target, monitored: false),
-                MonitoringProjector.EntityReading.Held
-                    => State(kind, target, MonitoringProjector.MonitoredIn(read.Body)),
+                MonitoringProjector.EntityReading.NotHeld
+                    => State(kind, target, monitored: false, scope: null),
+                MonitoringProjector.EntityReading.Held => Held(read.Body),
                 _ => Refused(kind, target, MonitorRefusalKind.InstanceRefused),
             };
+
+        EntityMonitoringView Held(string body)
+        {
+            var monitored = MonitoringProjector.MonitoredIn(body);
+            return State(kind, target, monitored, ScopeHeld(kind, target, monitored, body));
+        }
     }
 
+    /// <summary>Monitors one entity, at <paramref name="composedScope"/> where it is added.</summary>
+    /// <remarks>
+    /// <paramref name="composedScope"/> is answered only on the branch that ADDS the entity, which is
+    /// the one branch where this product composed the scope itself. An entity the instance already
+    /// holds keeps its own, so that branch reads the instance's answer instead. Null for a kind that
+    /// expresses no scope.
+    /// </remarks>
     private static async Task<EntityMonitoringView> MonitorResolvedAsync(
         WhisparrEntityKind kind,
         int coveId,
@@ -1592,6 +1621,7 @@ public sealed partial class WhisparrSync
         IEntityIdentityPort identities,
         ILogger log,
         Func<string, KindActing>? actingFor,
+        MonitorScope? composedScope,
         CancellationToken ct)
     {
         var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
@@ -1649,7 +1679,7 @@ public sealed partial class WhisparrSync
 
         return added is null || MonitoringProjector.Accepted(added.StatusCode) != MonitorRefusalKind.None
             ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
-            : State(kind, target, monitored: true);
+            : State(kind, target, monitored: true, composedScope);
     }
 
     /// <summary>Whether <paramref name="kind"/> expresses a monitor scope at all.</summary>
@@ -1713,7 +1743,7 @@ public sealed partial class WhisparrSync
             case MonitoringProjector.EntityReading.Held:
                 break;
             case MonitoringProjector.EntityReading.NotHeld:
-                return State(kind, target, monitored: false);
+                return State(kind, target, monitored: false, scope: null);
             default:
                 return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
         }
@@ -1739,9 +1769,13 @@ public sealed partial class WhisparrSync
         ILogger log,
         CancellationToken ct)
     {
+        // The flip leaves the date gate the instance holds alone, so the scope after it is the one
+        // the read already carried, read at the state the entity is left in.
+        var scope = ScopeHeld(kind, target, monitored: true, body);
+
         if (MonitoringProjector.MonitoredIn(body))
         {
-            return State(kind, target, monitored: true);
+            return State(kind, target, monitored: true, scope);
         }
 
         if (MonitoringProjector.EntityIdIn(body) is not { } entityId)
@@ -1755,7 +1789,7 @@ public sealed partial class WhisparrSync
         return flipped is null
             || MonitoringProjector.Accepted(flipped.StatusCode) != MonitorRefusalKind.None
                 ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
-                : State(kind, target, monitored: true);
+                : State(kind, target, monitored: true, scope);
     }
 
     /// <summary>
@@ -1843,9 +1877,19 @@ public sealed partial class WhisparrSync
         => EntityMonitoringView.Refused(kind, target.Generation, target.Capabilities.Held, refusal);
 
     private static EntityMonitoringView State(
-        WhisparrEntityKind kind, MonitoringTarget target, bool monitored)
+        WhisparrEntityKind kind, MonitoringTarget target, bool monitored, MonitorScope? scope)
         => EntityMonitoringView.State(
-            kind, target.Generation, target.Capabilities.Held, monitored);
+            kind, target.Generation, target.Capabilities.Held, monitored, scope);
+
+    /// <summary>The scope the entity <paramref name="body"/> describes is held at.</summary>
+    /// <remarks>
+    /// The instance's own answer is the only source. Neither acting path may substitute the scope it
+    /// asked for here: what an add composed and what a later read reports are different facts, and
+    /// this generation answers a body whose fields it dropped with a success.
+    /// </remarks>
+    private static MonitorScope? ScopeHeld(
+        WhisparrEntityKind kind, MonitoringTarget target, bool monitored, string? body)
+        => MonitoringProjector.ScopeIn(kind, target.Generation, monitored, body);
 
     /// <summary>
     /// <paramref name="request"/>'s answer, or null when it produced none.
