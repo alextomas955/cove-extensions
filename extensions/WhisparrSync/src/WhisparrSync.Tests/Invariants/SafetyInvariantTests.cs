@@ -321,6 +321,12 @@ public sealed class SafetyInvariantTests
     /// <remarks>
     /// The type-level half of the guarantee: a call site that never obtains that role cannot express
     /// the request, whatever it intended. What a composed body says is asserted above.
+    /// <para>
+    /// The guarantee is not that nothing can grab. Exactly one named gesture reaches exactly one
+    /// grabbing member, and nothing else does. This states the second half at the level of the type
+    /// set; the behavioural half, that every other mounted verb reaches none, is driven over the
+    /// mounted route set in the body group.
+    /// </para>
     /// </remarks>
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]

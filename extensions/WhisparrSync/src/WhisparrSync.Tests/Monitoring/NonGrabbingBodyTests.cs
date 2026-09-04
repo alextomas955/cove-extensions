@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
@@ -52,8 +53,21 @@ internal static class ComposedAdds
         "EpisodeSearch",
     ];
 
+    /// <summary>
+    /// The entity verbs that MAY reach a grabbing command, transcribed by name.
+    /// </summary>
+    /// <remarks>
+    /// Subtracted from the mounted set below rather than added to it. A caller asserts the
+    /// subtraction has exactly one member, so a second grabbing route mounted later cannot be
+    /// absorbed into this list without the assertion that names the count failing first.
+    /// </remarks>
+    public static readonly string[] GrabbingEntityVerbs = ["search-all-monitored"];
+
     /// <summary>A scene the library holds that an instance's catalogue does not.</summary>
     private const string SceneForeignId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
+
+    /// <summary>The one-entity path every entity verb hangs off, as the emitted document spells it.</summary>
+    private const string EntityPathPrefix = "/entity/{kind}/{coveId}/";
 
     /// <summary>
     /// Every capability whose verb can make an instance acquire something, transcribed rather than
@@ -253,6 +267,60 @@ internal static class ComposedAdds
     /// <summary>The resource every scope change is composed over.</summary>
     public static JsonObject Held()
         => (JsonObject)JsonNode.Parse(HeldStudio)!;
+
+    /// <summary>
+    /// The verb of every one-entity route the shipped wire document declares a POST for.
+    /// </summary>
+    /// <remarks>
+    /// Read out of the EMITTED document rather than from a hand-written array, and for the same
+    /// reason the case list above reads the capability table: the failure to catch is a route mounted
+    /// later and never driven through an assertion that it grabs nothing. A transcribed list would go
+    /// on agreeing with itself while that route did whatever it liked. The document is emitted from
+    /// the shipped registrations, so it cannot.
+    /// <para>
+    /// It is the same document the browser's own route pin reads, so the two surfaces and this
+    /// assertion cannot come to disagree about which verbs this build mounts.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<string> MountedEntityVerbs()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(WireDocumentPath()));
+
+        return
+        [
+            .. document.RootElement.GetProperty("paths").EnumerateObject()
+                .Where(path => path.Value.TryGetProperty("post", out _))
+                .Where(path => path.Name.Contains(EntityPathPrefix, StringComparison.Ordinal))
+                .Select(path => path.Name[
+                    (path.Name.IndexOf(EntityPathPrefix, StringComparison.Ordinal)
+                        + EntityPathPrefix.Length)..])
+                .Where(verb => !verb.Contains('/', StringComparison.Ordinal))
+                .Order(StringComparer.Ordinal)
+        ];
+    }
+
+    /// <summary>Where the committed wire document lives, above this test assembly.</summary>
+    /// <exception cref="InvalidOperationException">
+    /// It was not found. An enumeration over a document that is not there would answer an empty verb
+    /// list, and every assertion driven from it would then hold over nothing.
+    /// </exception>
+    private static string WireDocumentPath()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            var candidate = Path.Combine(directory.FullName, "wire", "openapi.json");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"No wire/openapi.json was found above {AppContext.BaseDirectory}, so the mounted route "
+                + "set cannot be read and an assertion over it would hold over nothing.");
+    }
 }
 
 /// <summary>
@@ -263,6 +331,12 @@ internal static class ComposedAdds
 /// The type-level half — which members can add and which single member can grab — is asserted in the
 /// invariant group. Nothing here reads a status or a count: the subject is the body that would reach
 /// an instance and the order in which the requests would leave.
+/// <para>
+/// The guarantee is not that no grabbing verb is reachable. It is that exactly one named gesture
+/// reaches exactly one, and that every OTHER mounted verb reaches none. The second half is driven
+/// here over the mounted set read from the emitted document, so a verb mounted later is covered
+/// without an edit.
+/// </para>
 /// </remarks>
 public sealed class NonGrabbingBodyTests
 {
@@ -276,6 +350,8 @@ public sealed class NonGrabbingBodyTests
     /// this false whether or not its case was added — and a case added without a registration makes it
     /// false too.
     /// </remarks>
+    private static CancellationToken TestCt => TestContext.Current.CancellationToken;
+
     [Fact]
     public void TheCaseListIsDerivedFromTheRegisteredCapabilityTable()
     {
@@ -514,6 +590,99 @@ public sealed class NonGrabbingBodyTests
             host.Client.Verbs,
             verb => Assert.NotEqual(
                 WhisparrVerbClass.Grab, Invariants.OutboundSeam.VerbClassByMember[verb]));
+    }
+
+    /// <summary>
+    /// Every mounted entity verb except the search reaches no grabbing-class verb at any position.
+    /// </summary>
+    /// <remarks>
+    /// Every index of each ordered verb log rather than its last entry: a grab issued BEFORE an act
+    /// would be just as acquiring, and an assertion reading only the final entry would not see it.
+    /// <para>
+    /// The mounted set comes from the emitted document rather than from a list written here, so a
+    /// verb mounted later is covered without an edit. The subtraction is asserted to have exactly one
+    /// member, so it cannot quietly grow to cover a second grabbing route.
+    /// </para>
+    /// <para>
+    /// Each verb is driven on its own host and its log is asserted non-empty, so a verb that reached
+    /// the instance not at all cannot satisfy this. The union is asserted to hold an acting verb for
+    /// the same reason at the level of the whole case.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task EveryMountedEntityVerbButTheSearchReachesNoGrabbingVerb()
+    {
+        var mounted = ComposedAdds.MountedEntityVerbs();
+        var nonGrabbing = mounted
+            .Except(ComposedAdds.GrabbingEntityVerbs, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.NotEmpty(mounted);
+        Assert.Equal(
+            ComposedAdds.GrabbingEntityVerbs,
+            mounted.Except(nonGrabbing, StringComparer.Ordinal));
+        Assert.Single(mounted.Except(nonGrabbing, StringComparer.Ordinal));
+
+        List<string> recorded = [];
+        foreach (var verb in nonGrabbing)
+        {
+            await using var host = await MonitorHost.CreateAsync();
+            host.Client
+                .Answering(
+                    nameof(IWhisparrStudioActing.ReadStudioAsync),
+                    MonitorHost.Json(200, """{"id":9,"monitored":false}"""))
+                .Answering(
+                    nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
+                    MonitorHost.Json(200, """{"copyUsingHardlinks":true}"""));
+
+            var studioId = await host.SeedStudioAsync(
+                MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+            await host.SeedStudioFileAsync(studioId, "/library/vixen/2026");
+
+            var answered = await host.PostRawAsync(
+                "studio", studioId, verb, """{"scope":"futureScenes"}""");
+            Assert.True(answered.IsSuccessStatusCode, verb);
+
+            // Driven to COMPLETION: a verb whose work is enqueued has issued nothing yet, and the
+            // requests that would grab are the ones the run makes rather than the ones the route does.
+            if (host.Jobs.Enqueued.Count > 0)
+            {
+                await host.Jobs.RunLastAsync(new RecordingJobProgress(), TestCt);
+            }
+
+            Assert.NotEmpty(host.Client.Verbs);
+            Assert.All(
+                host.Client.Verbs,
+                sent => Assert.NotEqual(
+                    WhisparrVerbClass.Grab, Invariants.OutboundSeam.VerbClassByMember[sent]));
+            recorded.AddRange(host.Client.Verbs);
+        }
+
+        Assert.Contains(
+            recorded, sent => Invariants.OutboundSeam.VerbClassByMember[sent] == WhisparrVerbClass.Act);
+    }
+
+    /// <summary>
+    /// The grabbing filter runs over a non-empty set, and every capability in it is really held.
+    /// </summary>
+    /// <remarks>
+    /// The enumeration above excludes the grabbing capabilities from the bodies it asserts
+    /// non-grabbing. An EMPTY exclusion list would make that filter a no-op and every
+    /// <c>Assert.All</c> over it vacuous, which is the shape a list emptied by an edit would take.
+    /// Each member is also asserted really held, so a capability nothing registers cannot be sitting
+    /// in it standing for a real one.
+    /// </remarks>
+    [Fact]
+    public void TheGrabbingCapabilityFilterIsNonEmptyAndEveryMemberIsReallyHeld()
+    {
+        Assert.NotEmpty(ComposedAdds.GrabbingCapabilities);
+        Assert.NotEmpty(ComposedAdds.GrabbingEntityVerbs);
+
+        Assert.All(
+            ComposedAdds.GrabbingCapabilities,
+            grabbing => Assert.Contains(
+                ComposedAdds.Generations,
+                generation => GenerationCapabilities.CapabilitiesOf(generation).Contains(grabbing)));
     }
 
     /// <summary>
