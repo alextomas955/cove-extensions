@@ -228,18 +228,24 @@ public static class MonitoringBulkJob
     /// A refusal this product took before contacting the instance is a SKIP: the entity was passed
     /// over for a stated reason. Only an answer from the instance itself is a failure.
     /// </para>
+    /// <para>
+    /// An instance holding no such entity is the one refusal from an instance that is still a skip.
+    /// The unit was passed over for a stated reason and nothing was sent that failed.
+    /// </para>
     /// </remarks>
     private static JobUnitOutcome UnitOutcomeFor(MonitorRefusalKind refusal)
         => refusal switch
         {
             MonitorRefusalKind.None => JobUnitOutcome.Succeeded,
-            MonitorRefusalKind.InstanceRefused => JobUnitOutcome.Failed,
+            MonitorRefusalKind.InstanceRefused
+                or MonitorRefusalKind.AnswerTooLargeToRead => JobUnitOutcome.Failed,
             MonitorRefusalKind.NotConfigured
                 or MonitorRefusalKind.NoIdentityInThisNamespace
                 or MonitorRefusalKind.SeveralIdentitiesInThisNamespace
                 or MonitorRefusalKind.CapabilityAbsentOnThisGeneration
                 or MonitorRefusalKind.NoQualityProfile
-                or MonitorRefusalKind.NoRootFolder => JobUnitOutcome.Skipped,
+                or MonitorRefusalKind.NoRootFolder
+                or MonitorRefusalKind.InstanceHoldsNoSuchEntity => JobUnitOutcome.Skipped,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(refusal), refusal, "This refusal kind has no unit outcome written down for it."),
         };

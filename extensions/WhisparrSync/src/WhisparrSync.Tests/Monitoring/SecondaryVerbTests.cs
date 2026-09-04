@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
@@ -438,12 +439,70 @@ public sealed class SecondaryVerbTests
         Assert.Contains(typeof(IWhisparrSearchGrabbing), typeof(WhisparrClient).GetInterfaces());
     }
 
+    /// <summary>
+    /// A search on an entity the instance does not hold states that absence, not that the instance
+    /// declined.
+    /// </summary>
+    /// <remarks>
+    /// Driven through the mounted route rather than through a projector: the function that states the
+    /// rule is private to the API, so a projector call would assert something no user reaches. The
+    /// expected kind is a literal.
+    /// </remarks>
+    [Fact]
+    public async Task ASearchOnAnEntityTheInstanceDoesNotHoldStatesThatRatherThanTheInstanceRefusing()
+    {
+        await using var host = await AbsentEntityHost();
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var answered = await host.Http.PostAsync(
+            host.RouteFor("studio", studioId, "search-all-monitored"), content: null, TestCt);
+        answered.EnsureSuccessStatusCode();
+        var view = (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
+
+        Assert.Equal(MonitorRefusalKind.InstanceHoldsNoSuchEntity, view.Refusal);
+        Assert.DoesNotContain(
+            nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync), host.Client.Verbs);
+    }
+
+    /// <summary>
+    /// Add all missing on an entity the instance does not hold states the same absence, so the two
+    /// secondary routes do not disagree about one fact.
+    /// </summary>
+    /// <remarks>
+    /// The expected kind is a literal here too, written out rather than read off the other route, so
+    /// the two are pinned separately and a change to one is reported.
+    /// </remarks>
+    [Fact]
+    public async Task AddAllMissingOnAnEntityTheInstanceDoesNotHoldStatesThatRatherThanTheInstanceRefusing()
+    {
+        await using var host = await AbsentEntityHost();
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var enqueued = await host.AddAllMissingViewAsync("studio", studioId);
+
+        Assert.Equal(MonitorRefusalKind.InstanceHoldsNoSuchEntity, enqueued.Refusal);
+        Assert.Null(enqueued.JobId);
+    }
+
     /// <summary>An answer a request is given when nothing about the answer is the subject.</summary>
     private const string EmptyEntity = """{"id":1}""";
 
     private static Uri Address { get; } = new(MonitorHost.StoredAddress);
 
     private static string Key => MonitorHost.StoredKey;
+
+    // The instance answers the held read as not holding the entity. The stored 404 is the instance's
+    // own answer rather than one this product composed, which is what makes the reading a fact read
+    // off the wire.
+    private static async Task<MonitorHost> AbsentEntityHost()
+    {
+        var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(
+            nameof(IWhisparrStudioActing.ReadStudioAsync), MonitorHost.Json(404, EmptyEntity));
+        return host;
+    }
 
     private static RecordingWhisparrClient Recorder()
         => new(RecordingWhisparrClient.Json(201, """{"id":11}"""));
