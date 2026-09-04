@@ -503,7 +503,14 @@ public sealed partial class WhisparrSync
             return new ForbiddenCode();
         }
 
-        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind))
+        // Both halves, in ONE expression, at every entity route. The parse succeeds for an integer
+        // naming no member, and every arm below classifies a kind by switching on it and throwing for
+        // one it cannot express - by design, because a kind resolving to a default arm would act on
+        // the wrong table. So the parse alone lets untrusted route input reach a throw inside a
+        // handler whose declared results hold no failure. Splitting the two into separate statements
+        // is what lets a later edit take one away.
+        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind)
+            || !Enum.IsDefined(entityKind))
         {
             return TypedResults.BadRequest();
         }
@@ -569,7 +576,8 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(identities);
 
-        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind))
+        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind)
+            || !Enum.IsDefined(entityKind))
         {
             return TypedResults.BadRequest();
         }
@@ -655,7 +663,8 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(identities);
         ArgumentNullException.ThrowIfNull(jobs);
 
-        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind))
+        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind)
+            || !Enum.IsDefined(entityKind))
         {
             return TypedResults.BadRequest();
         }
@@ -838,7 +847,8 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(identities);
         ArgumentNullException.ThrowIfNull(jobs);
 
-        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind))
+        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind)
+            || !Enum.IsDefined(entityKind))
         {
             return TypedResults.BadRequest();
         }
@@ -1039,7 +1049,8 @@ public sealed partial class WhisparrSync
 
         ArgumentNullException.ThrowIfNull(identities);
 
-        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind))
+        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind)
+            || !Enum.IsDefined(entityKind))
         {
             return TypedResults.BadRequest();
         }
@@ -1134,7 +1145,8 @@ public sealed partial class WhisparrSync
 
         ArgumentNullException.ThrowIfNull(identities);
 
-        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind))
+        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind)
+            || !Enum.IsDefined(entityKind))
         {
             return TypedResults.BadRequest();
         }
@@ -1232,6 +1244,7 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(identities);
 
         if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind)
+            || !Enum.IsDefined(entityKind)
             || !ExpressesAScope(entityKind)
             || request.Scope is not { } scope)
         {
