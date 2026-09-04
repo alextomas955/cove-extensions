@@ -1822,6 +1822,15 @@ public sealed partial class WhisparrSync
     /// and unknown is not evidence.
     /// </para>
     /// <para>
+    /// The refusal it answers is <see cref="MonitorRefusalKind.InstanceDidNotReportTheChange"/> and
+    /// not the refusal a read's own classification names. This site is reached only after a write was
+    /// accepted, so an absence here is not "there was nothing to act on" and a reading this product
+    /// rejected is not "nothing was changed": the sentences those kinds carry would tell a reader
+    /// that nothing happened when something may well have. A refusal the answering seam read for
+    /// itself is kept, because that names this product's own limit rather than what the instance now
+    /// holds.
+    /// </para>
+    /// <para>
     /// The cost is one more outbound read per entity, which a batch pays per selected entity. It
     /// already issues a read and a write for each, so this is what turns a reported outcome into an
     /// observed one for a third of an increase.
@@ -1843,14 +1852,21 @@ public sealed partial class WhisparrSync
         }
 
         var answer = MonitoringProjector.Classify(read);
-        return answer.Reading == MonitoringProjector.EntityReading.Held
-            && MonitoringProjector.MonitoredIn(read.Body)
-                ? State(
-                    kind,
-                    target,
-                    monitored: true,
-                    ScopeHeld(kind, target, monitored: true, read.Body))
-                : Refused(kind, target, RefusalIn(answer));
+        if (answer.Reading == MonitoringProjector.EntityReading.Held
+            && MonitoringProjector.MonitoredIn(read.Body))
+        {
+            return State(
+                kind,
+                target,
+                monitored: true,
+                ScopeHeld(kind, target, monitored: true, read.Body));
+        }
+
+        var refusal = answer.Refusal is MonitorRefusalKind.None
+            ? MonitorRefusalKind.InstanceDidNotReportTheChange
+            : answer.Refusal;
+
+        return Refused(kind, target, refusal);
     }
 
     /// <summary>Whether <paramref name="kind"/> expresses a monitor scope at all.</summary>
