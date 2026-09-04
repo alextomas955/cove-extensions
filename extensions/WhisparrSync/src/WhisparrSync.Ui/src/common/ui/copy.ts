@@ -177,6 +177,33 @@ export const BULK_REPORTS_IN_THE_JOB_DRAWER =
 export const BULK_ACTIONS_COULD_NOT_BE_OFFERED =
   "Cove could not read what the connected Whisparr can do, so it offered nothing. Nothing was changed; try again shortly.";
 
+/**
+ * How many entities one run may carry.
+ *
+ * The route's own bound, declared here because the sentence below names it. A test compares this
+ * number against the route's `MaxEntityIdsPerRequest`, which is what stops the two drifting apart in
+ * silence. This library already holds more entities of one kind than the bound admits, so a reader
+ * who selects everything reaches it.
+ */
+export const MAX_ENTITY_IDS_PER_REQUEST = 1000;
+
+/**
+ * Why a selection larger than the bound did nothing.
+ *
+ * Names the bound rather than hiding it. A reader who selected everything cannot act on "too many",
+ * and acting on part of the selection at a time is what works.
+ */
+export const BULK_SELECTION_IS_OVER_THE_BOUND = `Cove acts on at most ${String(MAX_ENTITY_IDS_PER_REQUEST)} entities in one run, and you selected more. Nothing was changed; select fewer and repeat over the rest.`;
+
+/**
+ * Any other refusal of the whole gesture.
+ *
+ * Quotes nothing the instance said. This generation answers a refusal with a body carrying a full
+ * stack trace, and a sentence built from that body would put it in front of the reader.
+ */
+export const BULK_SELECTION_WAS_NOT_STARTED =
+  "Cove could not start this run. Nothing was changed; try again shortly.";
+
 /** The overlay's way out, on the choice it presents. */
 export const BULK_CANCEL = "Cancel";
 
