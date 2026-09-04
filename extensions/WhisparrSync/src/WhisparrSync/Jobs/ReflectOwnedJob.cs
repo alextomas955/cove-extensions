@@ -118,13 +118,40 @@ public static class ReflectOwnedJob
                 return Untaken;
             }
 
-            return await ReflectOwnedPlanner.RunAsync(
-                aimed.Generation,
-                services.GetRequiredService<IEntityFolderPort>().FoldersFor(kind, batch.CoveId, ct),
-                aimed.ReadImportable,
-                aimed.Attach,
-                ct).ConfigureAwait(false);
+            return await RunOneAsync(services, aimed, kind, batch.CoveId, ct).ConfigureAwait(false);
         });
+    }
+
+    /// <summary>
+    /// Reads one entity's folders through <paramref name="aimed"/> and hands the rows that can be
+    /// attached to the instance.
+    /// </summary>
+    /// <remarks>
+    /// The ONE folder loop, reached by the enqueued run above and by a selection's per-entity step.
+    /// It takes an open <paramref name="services"/> rather than opening its own scope, because a
+    /// selection is already inside one that is elevated to System.
+    /// </remarks>
+    /// <param name="services">Elevated services the folder read is made through.</param>
+    /// <param name="aimed">What the run acts through, resolved by its caller.</param>
+    /// <param name="kind">Which entity kind the run is about.</param>
+    /// <param name="coveId">Which entity.</param>
+    /// <param name="ct">Cancelled when the host stops the job.</param>
+    internal static Task<ReflectOwnedRun> RunOneAsync(
+        IServiceProvider services,
+        ReflectOwnedAiming aimed,
+        WhisparrEntityKind kind,
+        int coveId,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(aimed);
+
+        return ReflectOwnedPlanner.RunAsync(
+            aimed.Generation,
+            services.GetRequiredService<IEntityFolderPort>().FoldersFor(kind, coveId, ct),
+            aimed.ReadImportable,
+            aimed.Attach,
+            ct);
     }
 
     /// <summary>The one line the host's Job Drawer shows for <paramref name="run"/>.</summary>

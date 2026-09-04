@@ -748,27 +748,36 @@ public sealed partial class WhisparrSync
                 return null;
             }
 
-            return new ReflectOwnedAiming(
-                target.Generation,
-                async (folder, readCt) => (await ContainedAsync(
-                        () => acting.ListImportableFilesAsync(
-                            target.BaseAddress, target.ApiKey, folder, readCt),
-                        target,
-                        _log,
-                        readCt).ConfigureAwait(false))
-                    is { } parsed && MonitoringProjector.Accepted(parsed.StatusCode) == MonitorRefusalKind.None
-                        ? parsed.Body
-                        : null,
-                async (files, attachCt) => (await ContainedAsync(
-                        () => acting.AttachOwnedFilesAsync(
-                            target.BaseAddress, target.ApiKey, files, attachCt),
-                        target,
-                        _log,
-                        attachCt).ConfigureAwait(false))
-                    is { } attached
-                    && MonitoringProjector.Accepted(attached.StatusCode) == MonitorRefusalKind.None);
+            return AimedAt(target, acting);
         }
     }
+
+    /// <summary>What a reflect-owned run needs from <paramref name="target"/>, already aimed at it.</summary>
+    /// <remarks>
+    /// The ONE statement of the work, reached by the entity's own enqueued run and by a selection's
+    /// per-entity step alike. Two statements of one gesture is how a selection comes to behave
+    /// differently from a click.
+    /// </remarks>
+    private ReflectOwnedAiming AimedAt(MonitoringTarget target, IWhisparrReflectOwnedActing acting)
+        => new(
+            target.Generation,
+            async (folder, readCt) => (await ContainedAsync(
+                    () => acting.ListImportableFilesAsync(
+                        target.BaseAddress, target.ApiKey, folder, readCt),
+                    target,
+                    _log,
+                    readCt).ConfigureAwait(false))
+                is { } parsed && MonitoringProjector.Accepted(parsed.StatusCode) == MonitorRefusalKind.None
+                    ? parsed.Body
+                    : null,
+            async (files, attachCt) => (await ContainedAsync(
+                    () => acting.AttachOwnedFilesAsync(
+                        target.BaseAddress, target.ApiKey, files, attachCt),
+                    target,
+                    _log,
+                    attachCt).ConfigureAwait(false))
+                is { } attached
+                && MonitoringProjector.Accepted(attached.StatusCode) == MonitorRefusalKind.None);
 
     /// <summary>
     /// The role that links owned files into place on <paramref name="target"/>, or null where the
@@ -1421,6 +1430,13 @@ public sealed partial class WhisparrSync
         MonitoringTarget? target = null;
         var targetResolved = false;
 
+        ReflectOwnedAiming? linkingThrough = null;
+        ReflectOwnedSkipReason? linkingSkipped = null;
+        var linkingResolved = false;
+        var foldersAttached = 0;
+        var foldersRefused = 0;
+        var linkingReached = false;
+
         var run = TryParseSelectionType(batch.EntityType, out var kind) && batch.Verb is { } verb
             ? await MonitoringBulkJob.RunAsync(
                 batch.EntityIds, scopes, ActOnOneAsync, progress, ct).ConfigureAwait(false)
@@ -1428,7 +1444,13 @@ public sealed partial class WhisparrSync
 
         // The host's progress carries no summary field, so the run's one line rides the final
         // report's sub-task.
-        progress.Report(1d, MonitoringBulkJob.SummaryOf(run));
+        progress.Report(
+            1d,
+            MonitoringBulkJob.SummaryOf(
+                run,
+                linkingReached
+                    ? new MonitorBulkLinking(linkingSkipped, foldersAttached, foldersRefused)
+                    : null));
         ct.ThrowIfCancellationRequested();
 
         async Task<MonitorRefusalKind> ActOnOneAsync(
@@ -1471,7 +1493,47 @@ public sealed partial class WhisparrSync
                     $"{verb} is not a verb the bulk surface carries."),
             };
 
+            // Inline rather than enqueued, and only for a monitor a read confirmed. The click
+            // enqueues so the request does not wait for an entity's folder set; a selection is
+            // already inside a run, and enqueuing per entity would make one gesture a run per entity.
+            if (verb == MonitorBulkVerb.Monitor
+                && view is { Refusal: MonitorRefusalKind.None, Monitored: true })
+            {
+                await LinkOwnedAsync(services, resolved, coveId, entityCt).ConfigureAwait(false);
+            }
+
             return view.Refusal;
+        }
+
+        async Task LinkOwnedAsync(
+            IServiceProvider services, MonitoringTarget resolved, int coveId, CancellationToken entityCt)
+        {
+            if (!linkingResolved)
+            {
+                linkingResolved = true;
+
+                // The hard-link setting is a property of the INSTANCE, resolved once for the batch
+                // the way the target is. A selection of a thousand entities must not read one value
+                // a thousand times.
+                if (ReflectOwnedActingOn(resolved) is { } acting)
+                {
+                    linkingReached = true;
+                    var decision = await ReflectOwnedDecisionAsync(resolved, acting, entityCt)
+                        .ConfigureAwait(false);
+                    linkingSkipped = decision.Reason;
+                    linkingThrough = decision.Act ? AimedAt(resolved, acting) : null;
+                }
+            }
+
+            if (linkingThrough is not { } aimed)
+            {
+                return;
+            }
+
+            var linked = await ReflectOwnedJob
+                .RunOneAsync(services, aimed, kind, coveId, entityCt).ConfigureAwait(false);
+            foldersAttached += linked.FoldersAttached;
+            foldersRefused += linked.FoldersRefused;
         }
     }
 
