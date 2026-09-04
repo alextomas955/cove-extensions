@@ -74,6 +74,17 @@ internal static class AddAllMissingPlanner
     /// </remarks>
     internal const string AlreadyHeldErrorCode = "MovieExistsValidator";
 
+    /// <summary>What <paramref name="answer"/> says happened, or that nothing did.</summary>
+    /// <remarks>
+    /// The refusal the answering seam states on the answer itself is read BEFORE the status, because
+    /// the bounded read states one on a success status and an empty body: an answer this product
+    /// could not hold says nothing about whether the scene was registered.
+    /// </remarks>
+    internal static SceneRegistration Classify(WhisparrResponse? answer)
+        => answer is null || answer.Refusal is not MonitorRefusalKind.None
+            ? SceneRegistration.Refused
+            : Classify(answer.StatusCode, answer.Body);
+
     /// <summary>What <paramref name="statusCode"/> and <paramref name="body"/> say happened.</summary>
     /// <remarks>
     /// The status separates an accepted registration from a refused one and separates nothing else:
@@ -137,10 +148,7 @@ internal static class AddAllMissingPlanner
                 ct.ThrowIfCancellationRequested();
                 offered++;
 
-                var answer = await register(identity, ct).ConfigureAwait(false);
-                switch (answer is null
-                    ? SceneRegistration.Refused
-                    : Classify(answer.StatusCode, answer.Body))
+                switch (Classify(await register(identity, ct).ConfigureAwait(false)))
                 {
                     case SceneRegistration.Registered:
                         registered++;
