@@ -214,17 +214,24 @@ become one search per entity, and one press of Add all missing would become one 
 entity. Closing the overlay without choosing sends nothing.
 
 What you choose runs as one background job. Its progress and its result for each entity appear in
-Cove's job list, and it ends with a line saying how many were applied and how many were refused.
-Nothing on the page you are looking at changes when it finishes.
+Cove's job list, and it ends with Cove's own count of those results. An entity Whisparr now monitors
+counts as succeeded. An entity Whisparr declined counts as failed. An entity refused before anything
+was sent counts as skipped: no usable link, several conflicting links, a capability the connected
+generation lacks, or Whisparr offering no quality profile or no library root. Nothing on the page you
+are looking at changes when it finishes.
 
-An entity counts as applied only when Whisparr, read again after the change, says it monitors it.
-An accepted request that left the entity unmonitored is counted as refused.
+An entity counts as succeeded only when Whisparr, read again after the change, says it monitors it.
+An accepted request that left the entity unmonitored counts as failed.
 
 **Monitoring a selection also links the files Cove already holds**, for every entity in it, on the
 same condition [Reflect owned](#reflect-owned) states: Cove reads Whisparr's hard-link setting once
-for the whole run, and with that setting off, or unreadable, it links nothing. The run's own summary
-line says which of the two happened, apart from the applied and refused counts, so a skipped link
-never reads as a refused monitor.
+for the whole run, and with that setting off, or unreadable, it links nothing.
+
+**The job list does not tell you whether anything was linked.** Cove computes a run's closing line
+from the per-entity counts alone, so the line Whisparr Sync composes about the linking step never
+reaches it. The counts are the honest count of the monitoring: an entity Whisparr now monitors
+counts as succeeded whether or not its files were linked. To see whether linking is happening, run
+**Reflect owned** on one entity from its own menu, where its result does appear.
 
 **Stop monitoring in Whisparr** over a selection leaves behind exactly what it leaves behind for one
 entity: it does not retract what All Scenes already made wanted. The overlay states that on the row
@@ -237,8 +244,9 @@ use rather than an edge case.
 
 ## Permissions
 
-- **Reading** whether Whisparr monitors an entity needs the same Cove permission the entity page
-  itself needs.
+- **Reading** whether Whisparr monitors an entity needs Cove's **Videos** view permission
+  (`videos.read`). Every default read-only role holds it. A custom role that grants studio or
+  performer viewing without it does not, and the button then says Cove could not read the state.
 - **Changing** it, from the button or from the selection bar, needs permission to configure
   extensions. No default Viewer or Member role holds it.
 - **Search all monitored** needs that same permission. It is the one action here that spends your
