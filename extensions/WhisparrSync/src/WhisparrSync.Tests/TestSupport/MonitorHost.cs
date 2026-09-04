@@ -347,6 +347,18 @@ internal sealed class MonitorHost : IAsyncDisposable
         return (await answered.Content.ReadFromJsonAsync<ReflectOwnedEnqueued>(TestCt))!;
     }
 
+    /// <summary>The raw answer to one entity's add-all-missing route, which takes no body at all.</summary>
+    public Task<HttpResponseMessage> AddAllMissingAsync(string kind, int coveId)
+        => Http.PostAsync(RouteFor(kind, coveId, "add-all-missing"), content: null, TestCt);
+
+    /// <summary>The add-all-missing route's answer, read as the contract it declares.</summary>
+    public async Task<AddAllMissingEnqueued> AddAllMissingViewAsync(string kind, int coveId)
+    {
+        var answered = await AddAllMissingAsync(kind, coveId);
+        answered.EnsureSuccessStatusCode();
+        return (await answered.Content.ReadFromJsonAsync<AddAllMissingEnqueued>(TestCt))!;
+    }
+
     /// <summary>The raw answer to this extension's own job-status route.</summary>
     public Task<HttpResponseMessage> ReadJobStatusAsync(string jobId)
         => Http.GetAsync(RouteBase + "/job-status/" + jobId, TestCt);
