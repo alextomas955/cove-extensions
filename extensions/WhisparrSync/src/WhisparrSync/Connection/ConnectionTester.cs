@@ -54,7 +54,8 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
             // A shutdown is not a verdict about the address, so it must not be reported as one.
             throw;
         }
-        catch (Exception failure) when (failure is HttpRequestException or TaskCanceledException)
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
             // Best-effort, and therefore exactly one line. The caller turns this into an answer for the
             // user, so nothing here rethrows and nothing here is swallowed in silence.
