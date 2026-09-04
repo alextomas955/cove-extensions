@@ -7,6 +7,7 @@ import type {
   WhisparrGeneration,
 } from "../wire/api";
 import {
+  ACTION_DID_NOT_REACH_WHISPARR,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE,
   ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
@@ -23,9 +24,13 @@ import {
 import {
   bulkMonitorActions,
   capabilityBehindAction,
+  controlNotice,
   describeMonitorRefusal,
   describeReflectOwnedSkip,
   monitorMenu,
+  monitorRefusalIn,
+  reflectOwnedSkipIn,
+  refusalNoticeFor,
   routeFor,
   CAPABILITY_ORDER,
   ENTITY_KINDS,
@@ -35,6 +40,7 @@ import {
   SECONDARY_ACTIONS,
   type MonitorMenuItem,
   type MonitorScopeChoice,
+  type ReflectOwnedSkip,
   type SecondaryAction,
 } from "./monitorMenuLogic";
 
@@ -376,6 +382,95 @@ describe("one refusal, one sentence", () => {
       const menu = monitorMenu(view({ kind: "studio", refusal: kind }), false);
       expect(menu.available, kind).toBe(false);
       expect(menu.items, kind).toEqual([]);
+    }
+  });
+});
+
+describe("which refusal speaks beneath the control, and which speaks at it", () => {
+  /**
+   * One flag divides the two surfaces, so the division is read off it rather than off a second list.
+   *
+   * The expected value is computed from {@link describeMonitorRefusal}, which is the other reader of
+   * the same record: a copied sentence here would agree with a wrong record.
+   */
+  it("gives a notice to every kind that leaves something to offer, and to no other", () => {
+    for (const kind of MONITOR_REFUSAL_KINDS) {
+      const refusal = describeMonitorRefusal(kind);
+      const expected = refusal.leavesNothingToOffer ? null : refusal.sentence;
+      expect(refusalNoticeFor(kind), kind).toBe(expected);
+    }
+
+    const speaking = MONITOR_REFUSAL_KINDS.filter((kind) => refusalNoticeFor(kind) !== null);
+    expect(speaking).toHaveLength(3);
+    expect([...speaking].sort()).toEqual(["instanceRefused", "noQualityProfile", "noRootFolder"]);
+  });
+
+  it("reads a failure ahead of a refusal notice, and a refusal notice ahead of a skip", () => {
+    const skips: readonly (ReflectOwnedSkip | null)[] = [
+      "hardLinksOff",
+      "hardLinkSettingUnreadable",
+      null,
+    ];
+
+    for (const failed of [true, false]) {
+      for (const skip of skips) {
+        for (const refusal of [...MONITOR_REFUSAL_KINDS, null]) {
+          const notice = refusal === null ? null : refusalNoticeFor(refusal);
+          const expected = failed
+            ? ACTION_DID_NOT_REACH_WHISPARR
+            : (notice ?? (skip === null ? null : describeReflectOwnedSkip(skip)));
+
+          expect(
+            controlNotice({ failed, refusal, skip }),
+            `${String(failed)} ${String(refusal)} ${String(skip)}`,
+          ).toBe(expected);
+        }
+      }
+    }
+  });
+
+  /**
+   * The case an enumeration cannot catch on its own.
+   *
+   * An enumeration that computes its expected value through `refusalNoticeFor` agrees with an
+   * implementation that stops at the first non-null REFUSAL rather than the first non-null NOTICE.
+   * `none` is what every healthy answer carries, so that implementation would silence every skip.
+   */
+  it("falls through to the skip where the refusal's own notice is null", () => {
+    expect(controlNotice({ failed: false, refusal: "none", skip: "hardLinksOff" })).toBe(
+      describeReflectOwnedSkip("hardLinksOff"),
+    );
+    expect(controlNotice({ failed: false, refusal: "notConfigured", skip: "hardLinksOff" })).toBe(
+      describeReflectOwnedSkip("hardLinksOff"),
+    );
+  });
+
+  /**
+   * What the POST helper can really resolve.
+   *
+   * Its contract answers an empty object for an empty 2xx body and for any non-ApiError raised after
+   * a 2xx, which includes an unparseable one, so an answer carrying neither member is a live path.
+   */
+  it("answers no refusal and no skip for an answer that carries neither", () => {
+    const answers: readonly unknown[] = [
+      {},
+      null,
+      7,
+      { refusal: "notAKind" },
+      { refusal: 7 },
+      { skipped: "notASkip" },
+    ];
+
+    for (const answer of answers) {
+      expect(monitorRefusalIn(answer), JSON.stringify(answer)).toBeNull();
+      expect(reflectOwnedSkipIn(answer), JSON.stringify(answer)).toBeNull();
+    }
+
+    for (const kind of MONITOR_REFUSAL_KINDS) {
+      expect(monitorRefusalIn({ refusal: kind }), kind).toBe(kind);
+    }
+    for (const skip of ["hardLinksOff", "hardLinkSettingUnreadable"] as const) {
+      expect(reflectOwnedSkipIn({ skipped: skip }), skip).toBe(skip);
     }
   });
 });
