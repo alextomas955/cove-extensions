@@ -112,6 +112,7 @@ public sealed class RefusalPrecedenceTests
         var produced = new HashSet<MonitorRefusalKind>(Reachable())
         {
             await TheKindAnAnswerPastTheReadBoundProducesAsync(),
+            await TheKindAnEntityTheInstanceDoesNotHoldProducesAsync(),
         };
 
         foreach (var kind in Enum.GetValues<MonitorRefusalKind>())
@@ -224,6 +225,17 @@ public sealed class RefusalPrecedenceTests
             TestContext.Current.CancellationToken);
 
         return MonitoringProjector.Classify(answered).Refusal;
+    }
+
+    // The function stating this one is private to the API, so the honest producer is a route reading
+    // an entity the instance does not hold.
+    private static async Task<MonitorRefusalKind> TheKindAnEntityTheInstanceDoesNotHoldProducesAsync()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        return (await host.AddAllMissingViewAsync("studio", studioId)).Refusal;
     }
 
     private static IEnumerable<MonitorRefusalKind> Reachable()

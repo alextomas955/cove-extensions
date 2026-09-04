@@ -1960,6 +1960,32 @@ public sealed partial class WhisparrSync
                 .ConfigureAwait(false);
     }
 
+    /// <summary>Which refusal a classified answer states.</summary>
+    /// <remarks>
+    /// Total over both members of the answer, in this order. A refusal the answering seam read for
+    /// itself outranks the status, for the reason <see cref="MonitoringProjector.Classify"/> states.
+    /// A not-held reading is its own fact: the instance reported an absence rather than declining, and
+    /// a reader acts on the two differently. Everything left is the instance refusing, which includes
+    /// a held entity the flow rejected for a reason of its own, such as one carrying no
+    /// instance-side id.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="answer"/> carries a reading this product does not express. Every reading is
+    /// named, so one added later stops here rather than arriving under whichever arm a fallthrough
+    /// chose.
+    /// </exception>
+    private static MonitorRefusalKind RefusalIn(MonitoringProjector.EntityAnswer answer)
+        => (answer.Refusal, answer.Reading) switch
+        {
+            (not MonitorRefusalKind.None, _) => answer.Refusal,
+            (_, MonitoringProjector.EntityReading.NotHeld)
+                => MonitorRefusalKind.InstanceHoldsNoSuchEntity,
+            (_, MonitoringProjector.EntityReading.Held or MonitoringProjector.EntityReading.Refused)
+                => MonitorRefusalKind.InstanceRefused,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(answer), answer.Reading, "This reading has no refusal written down for it."),
+        };
+
     /// <summary>
     /// Which refusal to answer, given the two reasons a resolved flow can observe.
     /// </summary>
@@ -1968,17 +1994,6 @@ public sealed partial class WhisparrSync
     /// precedence cannot hold here. The order among the rest is not restated: it is read from the one
     /// place that states it, so a change there moves every route at once.
     /// </remarks>
-    /// <summary>Which refusal a classified answer states.</summary>
-    /// <remarks>
-    /// An answer that names no entity always states one, and a read the flow rejected for a reason
-    /// of its own - a held entity carrying no instance-side id - states none, which is the instance
-    /// refusing.
-    /// </remarks>
-    private static MonitorRefusalKind RefusalIn(MonitoringProjector.EntityAnswer answer)
-        => answer.Refusal == MonitorRefusalKind.None
-            ? MonitorRefusalKind.InstanceRefused
-            : answer.Refusal;
-
     private static MonitorRefusalKind RefusalAmong(
         bool capabilityAbsent, MonitorRefusalKind identityRefusal)
         => MonitoringProjector.FirstRefusal(new MonitoringProjector.MonitorReasons(

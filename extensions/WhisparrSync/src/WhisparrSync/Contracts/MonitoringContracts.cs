@@ -217,6 +217,13 @@ public enum MonitorRefusalKind
     /// correctly.
     /// </remarks>
     AnswerTooLargeToRead,
+
+    /// <summary>The instance answered, and does not hold the entity.</summary>
+    /// <remarks>
+    /// Distinct from <see cref="InstanceRefused"/> because the instance declined nothing: it reported
+    /// an absence, which is a different thing for a reader to act on.
+    /// </remarks>
+    InstanceHoldsNoSuchEntity,
 }
 
 /// <summary>What one entity's monitoring looks like, as the entity page reads it.</summary>
