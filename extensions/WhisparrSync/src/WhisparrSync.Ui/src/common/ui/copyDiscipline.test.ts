@@ -145,6 +145,8 @@ const RENDERED_AS_A_MONITOR_REFUSAL = [
   "INSTANCE_OFFERS_NO_QUALITY_PROFILE",
   "INSTANCE_OFFERS_NO_ROOT_FOLDER",
   "INSTANCE_REFUSED",
+  "INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ",
+  "INSTANCE_HOLDS_NO_SUCH_ENTRY",
 ];
 
 /** The outcome sentence for the one secondary action that can decline to do anything. */

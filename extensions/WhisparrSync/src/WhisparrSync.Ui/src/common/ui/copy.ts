@@ -268,6 +268,24 @@ export const INSTANCE_OFFERS_NO_ROOT_FOLDER =
 export const INSTANCE_REFUSED = "Whisparr would not do this. Nothing here was changed.";
 
 /**
+ * The instance answered, and the answer was past what this extension reads at once.
+ *
+ * Names this extension as the party that stopped, because Whisparr did nothing wrong. Names no byte
+ * count, no buffer and no setting: none of the three is something the reader can act on.
+ */
+export const INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ =
+  "Whisparr's answer was larger than this extension reads at once, so nothing was changed. Your Whisparr answered correctly.";
+
+/**
+ * The instance answered, and holds no such entry.
+ *
+ * The noun is "entry" rather than "scene": both routes that state this act on a studio or a
+ * performer.
+ */
+export const INSTANCE_HOLDS_NO_SUCH_ENTRY =
+  "Whisparr no longer holds this entry, so there was nothing to act on. Reload the page for its current state.";
+
+/**
  * The version-gap sentence, for a capability the connected generation does not have.
  *
  * Never wording that suggests migrating, and never a generic "not supported".

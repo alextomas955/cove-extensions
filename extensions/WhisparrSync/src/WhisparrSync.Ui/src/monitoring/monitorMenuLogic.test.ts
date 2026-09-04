@@ -9,6 +9,8 @@ import type {
 import {
   ACTION_DID_NOT_REACH_WHISPARR,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
+  INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ,
+  INSTANCE_HOLDS_NO_SUCH_ENTRY,
   ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE,
   ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
   PERFORMER_HAS_NO_FUTURE_ONLY_SCOPE,
@@ -91,7 +93,7 @@ describe("the item set is written down for every combination the wire enums allo
     expect(CAPABILITY_ORDER).toHaveLength(6);
     expect(ENTITY_KINDS).toHaveLength(2);
     expect(GENERATIONS).toHaveLength(2);
-    expect(MONITOR_REFUSAL_KINDS).toHaveLength(8);
+    expect(MONITOR_REFUSAL_KINDS).toHaveLength(10);
     expect(SCOPE_ORDER).toHaveLength(2);
     expect(SECONDARY_ACTIONS).toHaveLength(3);
   });
@@ -401,8 +403,28 @@ describe("which refusal speaks beneath the control, and which speaks at it", () 
     }
 
     const speaking = MONITOR_REFUSAL_KINDS.filter((kind) => refusalNoticeFor(kind) !== null);
-    expect(speaking).toHaveLength(3);
-    expect([...speaking].sort()).toEqual(["instanceRefused", "noQualityProfile", "noRootFolder"]);
+    expect(speaking).toHaveLength(5);
+    expect([...speaking].sort()).toEqual([
+      "answerTooLargeToRead",
+      "instanceHoldsNoSuchEntity",
+      "instanceRefused",
+      "noQualityProfile",
+      "noRootFolder",
+    ]);
+  });
+
+  it("speaks this extension's own read bound as this extension's, not as Whisparr declining", () => {
+    expect(describeMonitorRefusal("answerTooLargeToRead").sentence).toBe(
+      INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ,
+    );
+    expect(refusalNoticeFor("answerTooLargeToRead")).toBe(INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ);
+  });
+
+  it("speaks an absent entry as an absence, not as Whisparr declining", () => {
+    expect(describeMonitorRefusal("instanceHoldsNoSuchEntity").sentence).toBe(
+      INSTANCE_HOLDS_NO_SUCH_ENTRY,
+    );
+    expect(refusalNoticeFor("instanceHoldsNoSuchEntity")).toBe(INSTANCE_HOLDS_NO_SUCH_ENTRY);
   });
 
   it("reads a failure ahead of a refusal notice, and a refusal notice ahead of a skip", () => {

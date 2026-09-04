@@ -29,6 +29,8 @@ import {
   ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE,
   ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
+  INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ,
+  INSTANCE_HOLDS_NO_SUCH_ENTRY,
   INSTANCE_OFFERS_NO_QUALITY_PROFILE,
   INSTANCE_OFFERS_NO_ROOT_FOLDER,
   INSTANCE_REFUSED,
@@ -134,6 +136,14 @@ const REFUSALS: Record<MonitorRefusalKind, MonitorRefusal> = {
   noQualityProfile: { sentence: INSTANCE_OFFERS_NO_QUALITY_PROFILE, leavesNothingToOffer: false },
   noRootFolder: { sentence: INSTANCE_OFFERS_NO_ROOT_FOLDER, leavesNothingToOffer: false },
   instanceRefused: { sentence: INSTANCE_REFUSED, leavesNothingToOffer: false },
+  answerTooLargeToRead: {
+    sentence: INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ,
+    leavesNothingToOffer: false,
+  },
+  instanceHoldsNoSuchEntity: {
+    sentence: INSTANCE_HOLDS_NO_SUCH_ENTRY,
+    leavesNothingToOffer: false,
+  },
 };
 
 /**
@@ -304,6 +314,8 @@ export const MONITOR_REFUSAL_KINDS: readonly MonitorRefusalKind[] = [
   "noQualityProfile",
   "noRootFolder",
   "instanceRefused",
+  "answerTooLargeToRead",
+  "instanceHoldsNoSuchEntity",
 ];
 
 /**
