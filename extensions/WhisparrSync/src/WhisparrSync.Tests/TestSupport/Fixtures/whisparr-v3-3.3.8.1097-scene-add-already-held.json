@@ -1,0 +1,14 @@
+[
+  {
+    "propertyName": "ForeignId",
+    "errorMessage": "This item has already been added",
+    "attemptedValue": "023bacff-8d1d-4f27-bac5-bdaf833f5616",
+    "severity": "error",
+    "errorCode": "MovieExistsValidator",
+    "formattedMessagePlaceholderValues": {
+      "propertyName": "Foreign Id",
+      "propertyValue": "023bacff-8d1d-4f27-bac5-bdaf833f5616",
+      "propertyPath": "ForeignId"
+    }
+  }
+]
