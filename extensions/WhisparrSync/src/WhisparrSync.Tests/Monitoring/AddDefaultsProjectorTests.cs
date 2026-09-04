@@ -255,7 +255,8 @@ public sealed class AddDefaultsProjectorTests
         await using var host = await MonitorHost.CreateAsync();
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
-            MonitorHost.Json(200, """{"id":1,"foreignId":"x","monitored":false}"""));
+            MonitorHost.Json(200, """{"id":1,"foreignId":"x","monitored":false}"""),
+            MonitorHost.Json(200, """{"id":1,"foreignId":"x","monitored":true}"""));
         var studioId = await host.SeedStudioAsync(
             MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
