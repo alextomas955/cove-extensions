@@ -53,7 +53,7 @@ const FORBIDDEN_IN_A_CAPABILITY_GAP = [
 ];
 
 /** Sentences declared here for a surface that arrives in a later plan, and rendered by nothing yet. */
-const DECLARED_FOR_LATER = ["SEARCH_WITH_NO_ENTRY", "WHISPARR_MAY_RENAME"];
+const DECLARED_FOR_LATER = ["SEARCH_WITH_NO_ENTRY"];
 
 /** Sentences the connect surface reads through its own kind table. */
 const RENDERED_BY_THE_CONNECT_SURFACE = ["CONNECT_NOT_CONFIGURED", "CONNECT_KEY_REJECTED"];
@@ -91,9 +91,10 @@ const RENDERED_BY_THE_ENTITY_CONTROL = [
 ];
 
 /**
- * The scope names, the two consequence sentences that must be read before a scope is chosen, and one
- * per secondary action. Each is placed on a menu item by `monitoring/monitorMenuLogic.ts`; the menu
- * that draws those items arrives with the rest of the entity surface.
+ * The scope names, the two consequence sentences that must be read before a scope is chosen, one per
+ * secondary action, and the consequence of the one secondary action that hands files to Whisparr.
+ * Each is placed on a menu item by `monitoring/monitorMenuLogic.ts`; the menu that draws those items
+ * arrives with the rest of the entity surface.
  */
 const CARRIED_BY_THE_MONITOR_MENU_ITEMS = [
   "SCOPE_FUTURE_SCENES",
@@ -104,6 +105,7 @@ const CARRIED_BY_THE_MONITOR_MENU_ITEMS = [
   "UNMONITORING_DOES_NOT_RETRACT",
   "PERFORMER_HAS_NO_FUTURE_ONLY_SCOPE",
   "REFLECT_OWNED",
+  "WHISPARR_MAY_RENAME",
   "ADD_ALL_MISSING",
   "SEARCH_ALL_MONITORED",
   "STOP_MONITORING_IN_WHISPARR",
