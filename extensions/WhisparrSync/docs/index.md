@@ -27,6 +27,8 @@ It also adds a Whisparr button to studio and performer pages, and one to those l
 
 - **Monitor a studio or a performer from its own page**, in one click, at either of Whisparr's two
   scopes. Monitoring itself asks Whisparr to search for nothing.
+- **Register the scenes Cove holds that Whisparr does not**, from that same menu. Nothing is
+  downloaded, and a scene Whisparr already holds is left alone.
 - **Ask Whisparr to search for what it monitors**, from that same menu. This is the one action in
   Whisparr Sync that downloads, it is named on its own row, and nothing else here reaches it.
 - **Unmonitor from the same menu.** It stops Whisparr wanting new scenes and retracts nothing that
