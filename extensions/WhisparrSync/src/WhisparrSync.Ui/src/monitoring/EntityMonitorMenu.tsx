@@ -7,7 +7,7 @@
  * There is no status line and no count of any sort. Whisparr's own catalogue count is unstable while
  * a refresh runs, so a number here would be wrong through no fault of this product.
  */
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { Fragment, useRef, type RefObject } from "react";
 import { createPortal } from "react-dom";
 // From the subpath rather than the barrel, so drawing a menu does not pull the whole primitives
 // module - and its host-only imports - into this slice.
@@ -16,6 +16,7 @@ import { useOverlayKeys } from "@cove-extensions/ui-shared/overlay";
 import { OFF_SCREEN } from "../common/ui/offScreen";
 import { monitorMenuItemKey } from "./monitorMenuLogic";
 import type { MonitorMenu, MonitorMenuItem } from "./monitorMenuLogic";
+import { useAnchoredTo } from "./useAnchoredTo";
 
 /**
  * One row of the menu.
@@ -150,39 +151,4 @@ function lastScopeKey(menu: MonitorMenu): string | null {
   const scopes = menu.items.filter((item) => item.item === "scope");
   const last = scopes.at(-1);
   return last === undefined ? null : monitorMenuItemKey(last);
-}
-
-/**
- * Where to put the menu, given the control it belongs to.
- *
- * Fixed and portaled to the document rather than laid out beside the control, because the host
- * clips its entity hero: the action row sits inside a container carrying `overflow-hidden`, so a
- * panel in the flow there is cut off at the hero's own edge with nothing to see and no error. The
- * host's own overflow menu leaves that container for the same reason.
- *
- * The offset and the gutter are the host's own numbers, so the two menus line up the same way.
- */
-function useAnchoredTo(triggerRef: RefObject<HTMLElement | null>): CSSProperties {
-  const [at, setAt] = useState<CSSProperties>({ top: 0, right: 0 });
-
-  useEffect(() => {
-    const place = () => {
-      const anchor = triggerRef.current;
-      if (anchor === null) return;
-      const rect = anchor.getBoundingClientRect();
-      setAt({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) });
-    };
-
-    place();
-    window.addEventListener("resize", place);
-    // Capture, so the menu follows a scroll of any container between it and the document rather
-    // than only of the document itself.
-    window.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
-    };
-  }, [triggerRef]);
-
-  return at;
 }
