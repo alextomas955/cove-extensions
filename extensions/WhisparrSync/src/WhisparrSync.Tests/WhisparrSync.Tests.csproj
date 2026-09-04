@@ -142,6 +142,7 @@
     <Compile Remove="Monitoring\RouteInputGuardTests.cs" />
     <Compile Remove="Monitoring\SearchGrabbingRouteTests.cs" />
     <Compile Remove="Monitoring\SecondaryVerbTests.cs" />
+    <Compile Remove="Monitoring\V2LookupRefusalTests.cs" />
     <Compile Remove="TestSupport\MonitorHost.cs" />
   </ItemGroup>
 </Project>
