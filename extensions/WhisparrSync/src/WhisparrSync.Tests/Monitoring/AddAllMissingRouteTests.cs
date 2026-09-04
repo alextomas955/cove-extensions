@@ -110,7 +110,8 @@ public sealed class AddAllMissingRouteTests
     }
 
     /// <summary>
-    /// An entity the instance does not hold has no catalogue to add to, so nothing is sent.
+    /// An entity the instance does not hold has no catalogue to add to, so nothing is sent, and the
+    /// refusal names the absence rather than the instance declining.
     /// </summary>
     [Fact]
     public async Task AnEntityTheInstanceDoesNotHoldIsRefusedWithNoSceneSent()
@@ -120,7 +121,7 @@ public sealed class AddAllMissingRouteTests
 
         var enqueued = await host.AddAllMissingViewAsync("studio", studioId);
 
-        Assert.Equal(MonitorRefusalKind.InstanceRefused, enqueued.Refusal);
+        Assert.Equal(MonitorRefusalKind.InstanceHoldsNoSuchEntity, enqueued.Refusal);
         Assert.Null(enqueued.JobId);
         Assert.DoesNotContain(nameof(IWhisparrMissingSceneActing.AddSceneAsync), host.Client.Verbs);
         Assert.Empty(host.Jobs.Enqueued);
