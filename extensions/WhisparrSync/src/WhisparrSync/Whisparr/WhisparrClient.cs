@@ -249,6 +249,10 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
     private const string V3EntityQuery = "includeMovie=true";
     private const string V2EntityQuery = "includeEpisode=true";
 
+    // The field the older generation's own lookup answers an entity's numeric id in. It is misnamed
+    // after an unrelated television database and names no such thing here.
+    private const string SeriesByEntityIdQuery = "tvdbId";
+
     /// <summary>How long one attempt may take before it is reported as unreachable.</summary>
     internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
@@ -443,9 +447,14 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
     /// <remarks>
     /// Two reads, because this generation answers the question through no single route: its lookup
     /// resolves the identifier to an entity and carries no instance-side id until that entity has been
-    /// added, and its own listing is what says whether it has been. Only the matched entry is carried
-    /// onward. The listing is asked for whole and unpaged, so the response this reads grows with the
-    /// number of series the instance holds, however few entries reach a caller.
+    /// added, and its own listing is what says whether it has been. The second read names the one
+    /// entity the lookup resolved, so what it answers does not vary with how much the instance holds,
+    /// and only the matched entry is carried onward.
+    /// <para>
+    /// The query value is the numeric id the lookup answered and is not escaped: an int has no
+    /// representation carrying a separator, so escaping it would imply it could name another route.
+    /// <see cref="ReadEntityAsync"/> escapes its own identifier because that one is a string.
+    /// </para>
     /// </remarks>
     private async Task<WhisparrResponse> ReadHeldSeriesAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
@@ -456,7 +465,13 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
             return resolved.Answer;
         }
 
-        var listed = await ReadAsync(baseAddress, apiKey, SeriesPath, ct).ConfigureAwait(false);
+        var listed = await ReadAsync(
+            baseAddress,
+            apiKey,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{SeriesPath}?{SeriesByEntityIdQuery}={site.EntityId}"),
+            ct).ConfigureAwait(false);
         if (!IsSuccess(listed.StatusCode))
         {
             return listed;

@@ -1,0 +1,100 @@
+[
+  {
+    "title": "Vixen",
+    "sortTitle": "vixen",
+    "status": "continuing",
+    "ended": false,
+    "overview": "Vixen is a part of the Vixen Media Group network.",
+    "network": "Vixen Media Group",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/1/poster.jpg",
+        "remoteUrl": "https://cdn.theporndb.net/sites/7b/46/51/38b286d58db5f1b6d6b2a7bccc10e41/poster/01J4FSKP3KZTWQ0H099P5TJXPN.png"
+      },
+      {
+        "coverType": "logo",
+        "url": "/MediaCover/1/logo.jpg",
+        "remoteUrl": "https://cdn.theporndb.net/sites/55/a1/94/f64f52a2a701e66e9ddf1c71500829d/logo/Vixen---Logo.png"
+      }
+    ],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [
+      {
+        "seasonNumber": 2016,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2017,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2018,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2019,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2020,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2021,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2022,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2023,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2024,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2025,
+        "monitored": true
+      },
+      {
+        "seasonNumber": 2026,
+        "monitored": true
+      }
+    ],
+    "year": 2016,
+    "path": "/probe-root/Vixen",
+    "qualityProfileId": 1,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 40,
+    "tvdbId": 3372,
+    "cleanTitle": "vixen",
+    "titleSlug": "vixen",
+    "rootFolderPath": "/probe-root",
+    "genres": [],
+    "tags": [],
+    "added": "2026-09-04T15:50:37Z",
+    "addOptions": {
+      "searchForMissingEpisodes": false,
+      "searchForCutoffUnmetEpisodes": false,
+      "ignoreEpisodesWithFiles": false,
+      "ignoreEpisodesWithoutFiles": false,
+      "episodesToMonitor": [],
+      "monitor": "all"
+    },
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "id": 1
+  }
+]

@@ -246,7 +246,7 @@ public sealed class MonitorPathTests
         Assert.DoesNotContain("tpdb", handler.Targets[0], StringComparison.OrdinalIgnoreCase);
 
         Assert.Equal(HttpMethod.Post, handler.Requests[1].Method);
-        Assert.Equal("/api/v3/series", handler.Requests[1].Path);
+        Assert.Equal("/api/v3/series", handler.Targets[1]);
 
         var body = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[1].Body));
         Assert.Equal(3372, body["tvdbId"]!.GetValue<int>());
@@ -318,7 +318,9 @@ public sealed class MonitorPathTests
                 V2StoredIdentifier,
                 TestCt);
 
-        Assert.Equal("/api/v3/series", handler.Requests[1].Path);
+        // The recorded query, never the recorded path: AbsolutePath alone cannot tell a read narrowed
+        // to one entity from one that asked the instance for its whole catalogue.
+        Assert.Equal("/api/v3/series?tvdbId=3372", handler.Targets[1]);
         Assert.Equal(
             MonitoringProjector.EntityReading.Held, MonitoringProjector.Classify(read).Reading);
         Assert.Equal(1, MonitoringProjector.EntityIdIn(read.Body));
@@ -381,7 +383,7 @@ public sealed class MonitorPathTests
                 .Order());
 
         Assert.Equal(HttpMethod.Post, handler.Requests[1].Method);
-        Assert.Equal("/api/v3/seasonpass", handler.Requests[1].Path);
+        Assert.Equal("/api/v3/seasonpass", handler.Targets[1]);
         var scope = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[1].Body));
         Assert.Equal(
             1,
