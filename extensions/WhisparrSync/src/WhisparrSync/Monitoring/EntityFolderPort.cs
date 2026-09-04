@@ -18,6 +18,14 @@ namespace WhisparrSync.Monitoring;
 /// The path answered is the folder's own, never the denormalized full path a file carries: the
 /// instance is asked to parse a directory, and a file path names no directory to read.
 /// </para>
+/// <para>
+/// A blank path is excluded IN the query, for the same reason the de-duplication is: a filter over
+/// the materialized sequence would load every row to drop a few. The consumer that reads a folder,
+/// <c>ListImportableFilesAsync</c>, refuses a blank one with an <see cref="ArgumentException"/>,
+/// which no exception filter on the route and no catch in the run contains, so a blank row reaching
+/// it faults the whole run instead of skipping one folder. On a selection that is every entity
+/// after the first losing its outcome.
+/// </para>
 /// </remarks>
 internal sealed class EntityFolderPort(DbContext db) : IEntityFolderPort
 {
@@ -35,6 +43,7 @@ internal sealed class EntityFolderPort(DbContext db) : IEntityFolderPort
 
         var folders = files
             .AsNoTracking()
+            .Where(file => !string.IsNullOrWhiteSpace(file.ParentFolder!.Path))
             .Select(file => file.ParentFolder!.Path)
             .Distinct()
             .OrderBy(path => path)

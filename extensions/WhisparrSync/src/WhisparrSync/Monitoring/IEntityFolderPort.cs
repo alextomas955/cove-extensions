@@ -16,6 +16,10 @@ public interface IEntityFolderPort
     /// A folder appears once however many of the entity's files sit in it, and the de-duplication is
     /// the database's rather than the caller's. An id below one answers nothing, because there is no
     /// entity for it to be about.
+    /// <para>
+    /// A blank path is never answered. A caller hands each path straight into a request that names a
+    /// directory to read, and a blank one names none.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="kind"/> is not a kind this product expresses.
