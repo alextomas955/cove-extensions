@@ -30,6 +30,7 @@ import {
   ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ,
+  INSTANCE_DID_NOT_REPORT_THE_CHANGE,
   INSTANCE_HOLDS_NO_SUCH_ENTRY,
   INSTANCE_OFFERS_NO_QUALITY_PROFILE,
   INSTANCE_OFFERS_NO_ROOT_FOLDER,
@@ -149,6 +150,10 @@ const REFUSALS: Record<MonitorRefusalKind, MonitorRefusal> = {
   },
   instanceHoldsNoSuchEntity: {
     sentence: INSTANCE_HOLDS_NO_SUCH_ENTRY,
+    leavesNothingToOffer: false,
+  },
+  instanceDidNotReportTheChange: {
+    sentence: INSTANCE_DID_NOT_REPORT_THE_CHANGE,
     leavesNothingToOffer: false,
   },
 };
@@ -329,6 +334,7 @@ export const MONITOR_REFUSAL_KINDS: readonly MonitorRefusalKind[] = [
   "instanceRefused",
   "answerTooLargeToRead",
   "instanceHoldsNoSuchEntity",
+  "instanceDidNotReportTheChange",
 ];
 
 /**

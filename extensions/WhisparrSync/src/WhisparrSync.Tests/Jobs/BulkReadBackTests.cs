@@ -54,7 +54,7 @@ public sealed class BulkReadBackTests
 
         var unit = Assert.Single(progress.Units);
         Assert.NotEqual(JobUnitOutcome.Succeeded, unit.Outcome);
-        Assert.Equal(nameof(MonitorRefusalKind.InstanceRefused), unit.Message);
+        Assert.Equal(nameof(MonitorRefusalKind.InstanceDidNotReportTheChange), unit.Message);
     }
 
     /// <summary>A run reporting the unit above as applied is the record a reader cannot act on.</summary>
@@ -217,7 +217,7 @@ public sealed class BulkReadBackTests
         var view = await host.MonitorAsync(studio);
 
         Assert.False(view.Monitored);
-        Assert.Equal(MonitorRefusalKind.InstanceRefused, view.Refusal);
+        Assert.Equal(MonitorRefusalKind.InstanceDidNotReportTheChange, view.Refusal);
     }
 
     private static Task<int> SeedAsync(MonitorHost host)

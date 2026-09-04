@@ -79,10 +79,12 @@ and what your Whisparr instance monitors.
   nothing. Nothing is sent and nothing is changed, and the button stays pressable so you can fix the
   instance and try again. It applies to every item in the menu, and to monitoring, unmonitoring and
   changing a scope.
-- **A press that could not complete names the right party.** Where it previously reported all three
+- **A press that could not complete names the right party.** Where it previously reported all four
   as Whisparr declining, it now says which one happened: Whisparr declined, Whisparr no longer holds
-  the entry, or Whisparr's answer was larger than the extension reads at once. The second sends you
-  to a reload rather than to your instance, and the third says your instance answered correctly.
+  the entry, Whisparr's answer was larger than the extension reads at once, or Whisparr accepted the
+  change and does not report it. The second sends you to a reload rather than to your instance, the
+  third says your instance answered correctly, and the fourth is the only one of the four that does
+  not tell you nothing was changed, because after an accepted change that would not be true.
 - **Every item in the menu is reachable with the arrow keys**, including on Whisparr v2, where the
   item Whisparr cannot carry out is present and dimmed. The arrow keys used to stop on that dimmed
   item and go no further, which put **Reflect owned** and **Search all monitored** out of reach
