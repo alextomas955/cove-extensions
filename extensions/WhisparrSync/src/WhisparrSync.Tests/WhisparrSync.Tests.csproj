@@ -140,6 +140,7 @@
     <Compile Remove="Monitoring\ReflectOwnedRouteTests.cs" />
     <Compile Remove="Monitoring\RefusalPrecedenceTests.cs" />
     <Compile Remove="Monitoring\RouteInputGuardTests.cs" />
+    <Compile Remove="Monitoring\ScopeInForceTests.cs" />
     <Compile Remove="Monitoring\SearchGrabbingRouteTests.cs" />
     <Compile Remove="Monitoring\SecondaryVerbTests.cs" />
     <Compile Remove="Monitoring\V2LookupRefusalTests.cs" />

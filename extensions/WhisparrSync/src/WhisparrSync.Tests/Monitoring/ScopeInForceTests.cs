@@ -31,6 +31,9 @@ public sealed class ScopeInForceTests
     /// <summary>The same studio, added without the gate, so the member is not there at all.</summary>
     private static string DateGateAbsent => ProbeFixtures.Read(DateGateAbsentFixture);
 
+    /// <summary>The spelling this library holds the older generation's identity rows under.</summary>
+    private const string V2Endpoint = "theporndb.net/graphql";
+
     /// <summary>Bodies that report nothing at all about a scope.</summary>
     public static TheoryData<string?> BodiesThatReportNothing
     {
@@ -170,6 +173,57 @@ public sealed class ScopeInForceTests
             WhisparrGeneration.V3,
             [],
             MonitorRefusalKind.NoIdentityInThisNamespace).Scope);
+    }
+
+    /// <summary>
+    /// An acting route answers the scope its own read-back reports, not the one the request asked
+    /// for.
+    /// </summary>
+    /// <remarks>
+    /// Driven through the mounted route, because every other case here calls the projection and so
+    /// asserts nothing about what an acting path answers. The read-back body deliberately names a
+    /// DIFFERENT scope from the request: a case where the two agree passes against the substitution
+    /// as well and reports nothing.
+    /// <para>
+    /// The host answers the entity read twice, as not held and then as held and monitored, and the
+    /// held answer carries no date gate. So the request asks for the narrower scope and the read
+    /// reports the wider one, which is the disagreement. Both expected values are literals.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task AnActingRoutesAnswerCarriesTheScopeItsOwnReadReports()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var view = await host.MonitorRawAsync(studioId, """{"scope":"futureScenes"}""");
+
+        Assert.Equal(MonitorRefusalKind.None, view.Refusal);
+        Assert.True(view.Monitored);
+        Assert.Equal(MonitorScope.AllScenes, view.Scope);
+    }
+
+    /// <summary>
+    /// An acting route answers no scope where its own read named none, rather than the one the
+    /// request asked for.
+    /// </summary>
+    /// <remarks>
+    /// The older generation reports no scope for a studio at all, so this is the reading a
+    /// substitution most obviously breaks: null says the read carried none, and it is distinct from
+    /// every particular scope.
+    /// </remarks>
+    [Fact]
+    public async Task AnActingRoutesAnswerCarriesNoScopeWhereItsReadNamedNone()
+    {
+        await using var host = await MonitorHost.CreateAsync(generation: WhisparrGeneration.V2);
+        var studioId = await host.SeedStudioAsync(V2Endpoint, MonitorHost.StudioRemoteIdValue);
+
+        var view = await host.MonitorRawAsync(studioId, """{"scope":"futureScenes"}""");
+
+        Assert.Equal(MonitorRefusalKind.None, view.Refusal);
+        Assert.True(view.Monitored);
+        Assert.Null(view.Scope);
     }
 
     /// <summary>
