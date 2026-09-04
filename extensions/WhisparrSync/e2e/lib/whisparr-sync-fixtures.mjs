@@ -34,6 +34,17 @@ export const extensionRoute = (path) => `/api/extensions/${EXTENSION_ID}/${path}
  */
 export const STASHDB_ENDPOINT = "https://stashdb.org/graphql";
 
+/**
+ * How long an absence is watched for before it is reported as one.
+ *
+ * Declared here rather than in each spec: one value and one reasoning, two readers. A command the
+ * instance has not issued yet is indistinguishable from one it will never issue, and a row a menu
+ * has not rendered yet is indistinguishable from one it never will. An absence read immediately
+ * after the gesture that could have produced it is bounded by whatever delay the run happened to
+ * have, which is not a window anyone chose.
+ */
+export const SETTLE_DWELL_MS = 8_000;
+
 /** The library root a seeded Whisparr entity is registered under. */
 export const WHISPARR_ROOT = "/whisparr-media";
 
