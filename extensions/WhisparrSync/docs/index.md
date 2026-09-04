@@ -29,6 +29,9 @@ It also adds a Whisparr button to studio and performer pages, and one to those l
   scopes. Monitoring itself asks Whisparr to search for nothing.
 - **Register the scenes Cove holds that Whisparr does not**, from that same menu. Nothing is
   downloaded, and a scene Whisparr already holds is left alone.
+- **Ask Whisparr to link the files you already own into place**, from that same menu. It also runs
+  by itself when you turn monitoring on. Nothing is copied: with Whisparr's hard-link setting off,
+  or unreadable, nothing is sent and the control says so.
 - **Ask Whisparr to search for what it monitors**, from that same menu. This is the one action in
   Whisparr Sync that downloads, it is named on its own row, and nothing else here reaches it.
 - **Unmonitor from the same menu.** It stops Whisparr wanting new scenes and retracts nothing that
