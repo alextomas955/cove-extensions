@@ -87,9 +87,35 @@ scope, so the menu always marks Future Scenes whatever the studio is actually se
 
 ## The three items that appear once the entity is monitored
 
-Once Whisparr monitors the entity, three more items appear in the menu. This version carries out two
-of them. One of those two is the only thing in Whisparr Sync that downloads, and it says so on its
-own row.
+Once Whisparr monitors the entity, three more items appear in the menu, in the order below. One of
+the three is the only thing in Whisparr Sync that downloads, and it says so on its own row.
+
+### Add all missing
+
+Registers every scene Cove holds that Whisparr does not. Nothing is downloaded.
+
+Cove reads the identifiers its own scenes carry for this studio or performer and offers each one to
+Whisparr, one at a time. **A scene Whisparr already holds is left alone.** Whisparr answers that it
+already has it, Cove counts it and nothing about it is changed: the item registers what is absent
+and retracts nothing.
+
+Only the scenes Cove can name are offered. A scene carrying no link in the namespace the connected
+Whisparr identifies by is left out, because there is nothing to name it by.
+
+Each registration carries the first quality profile and the first library root Whisparr offers. Cove
+reads both when you press the item, and reads them again when the work starts, because they are
+Whisparr's to change in between. An instance offering neither is refused before anything is sent,
+and the control says which one is missing.
+
+Once every scene has been offered, Cove asks Whisparr to re-read the entity's catalogue. That is how
+a newly registered scene reaches Whisparr's own lists.
+
+The work runs in the background. Its progress and its result appear in Cove's job list, which ends
+with a line saying how many were registered, how many Whisparr already held and how many it refused.
+Nothing on the entity page changes while it runs.
+
+Whisparr v3 (Eros) only: no route on Whisparr v2 adds a catalogue item at all, so the row is
+disabled there and says so.
 
 ### Reflect owned
 
@@ -131,14 +157,6 @@ Cove reports only that Whisparr accepted the request. What Whisparr then does wi
 own: which indexers it asks, what it accepts and how long it takes are its settings, and its own
 screens are where the result appears.
 
-### The item this version does not carry out
-
-The row is present and disabled, and says `This version of Whisparr Sync does not carry out this
-action.` It is described here so you know what it will do when it arrives.
-
-- **Add all missing.** Registers every scene Cove holds that Whisparr does not. Nothing is
-  downloaded. Whisparr v3 (Eros) only: no route on Whisparr v2 adds a catalogue item.
-
 ## Why the button or an item is unavailable
 
 Cove decides the reason in this order and shows one reason, not several.
@@ -168,9 +186,8 @@ your own metadata provider address, set it under **Metadata provider endpoints**
 | Reflect owned        | Yes                | Yes         |
 | Search all monitored | Yes                | Yes         |
 
-The last three rows are what the generation can honour. Of those three, this version of Whisparr
-Sync carries out Reflect owned and Search all monitored, on either generation. Add all missing is
-not carried out, as above.
+Each row is what the connected generation can honour. A row a generation cannot honour is shown
+disabled and carries its reason.
 
 ## Monitor a whole selection
 
@@ -183,9 +200,10 @@ An overlay asks what to do with every entity you selected:
   Whisparr**.
 - A performer selection is offered **Monitor in Whisparr** and **Stop monitoring in Whisparr**.
 
-None of the three items above is offered in bulk. Search all monitored is left out of the selection
-bar on purpose: one press over a large selection would become one search per entity. Closing the
-overlay without choosing sends nothing.
+None of the three items above is offered in bulk, and both of the ones that act on a whole
+catalogue are left out on purpose: over a large selection, one press of Search all monitored would
+become one search per entity, and one press of Add all missing would become one background run per
+entity. Closing the overlay without choosing sends nothing.
 
 What you choose runs as one background job. Its progress and its result for each entity appear in
 Cove's job list, and it ends with a line saying how many were applied and how many were refused.
