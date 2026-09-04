@@ -94,7 +94,9 @@ public sealed class BulkReadBackTests
         await host.RunEnqueuedBatchAsync(progress);
 
         Assert.Equal(JobUnitOutcome.Succeeded, Assert.Single(progress.Units).Outcome);
-        Assert.Equal((1d, "1 applied, 0 refused."), Assert.Single(progress.Reports));
+        Assert.Equal(
+            (1d, "1 applied, 0 refused. No files were linked: Whisparr's hard-link setting could not be read."),
+            Assert.Single(progress.Reports));
     }
 
     /// <summary>
@@ -162,11 +164,15 @@ public sealed class BulkReadBackTests
     }
 
     /// <summary>
-    /// The read-back is ONE more request per entity, so a batch of a thousand gains a thousand reads
-    /// rather than a multiple of them.
+    /// The entity is read exactly TWICE: once to decide what to send, once to classify what the
+    /// instance then holds. A batch of a thousand gains a thousand reads rather than a multiple.
     /// </summary>
+    /// <remarks>
+    /// The whole ordered log is asserted rather than a count of one verb, so a request added anywhere
+    /// in the sequence is reported here.
+    /// </remarks>
     [Fact]
-    public async Task AOneEntityBatchIssuesExactlyOneMoreReadThanTheAddPathAlreadyIssued()
+    public async Task AOneEntityBatchReadsTheEntityTwiceAndNoMore()
     {
         await using var host = await MonitorHost.CreateAsync();
         host.Client.Answering(
@@ -185,6 +191,7 @@ public sealed class BulkReadBackTests
                 nameof(IWhisparrClient.ReadRootFoldersAsync),
                 nameof(IWhisparrStudioActing.AddMonitoredStudioAsync),
                 nameof(IWhisparrStudioActing.ReadStudioAsync),
+                nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
             ],
             host.Client.Verbs);
     }
