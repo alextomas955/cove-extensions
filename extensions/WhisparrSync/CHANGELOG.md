@@ -44,7 +44,9 @@ and what your Whisparr instance monitors.
   is already monitoring, and it is deliberately not offered for a whole selection.
 - **The same two gestures for a whole selection**, from the studios and performers selection bars.
   A selection runs as one background job, and its progress and its result for each entity appear in
-  Cove's job list.
+  Cove's job list. One gesture takes at most 1000 entities; select more and Cove states the bound and
+  changes nothing, so you can act on part of the selection at a time. Each entity is reported applied
+  only where Whisparr, read back afterwards, says it monitors it.
 - **Whisparr v2 cannot monitor a performer**, and no route on it registers a catalogue item. The
   button and the affected menu items are shown disabled with the reason rather than hidden.
 - **Whisparr links the files you already own into place, by itself.** Turning monitoring on for a

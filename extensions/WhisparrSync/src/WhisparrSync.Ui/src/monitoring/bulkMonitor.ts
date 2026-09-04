@@ -19,12 +19,16 @@
  * and the refusal would read as a fault in the product.
  */
 import { createElement } from "react";
-import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
+import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import type { ActionPayload, HandlerResult } from "@cove-extensions/ui-shared";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 
 import { api } from "../common/lib/extension";
-import { BULK_ACTIONS_COULD_NOT_BE_OFFERED } from "../common/ui/copy";
+import {
+  BULK_ACTIONS_COULD_NOT_BE_OFFERED,
+  BULK_SELECTION_IS_OVER_THE_BOUND,
+  BULK_SELECTION_WAS_NOT_STARTED,
+} from "../common/ui/copy";
 import type { EntityMonitoringView, WhisparrEntityKind } from "../wire/api";
 import { BulkMonitorChoice } from "./BulkMonitorChoice";
 import {
@@ -71,16 +75,63 @@ export async function monitorSelected(
     return { cancelled: true };
   }
 
-  // PascalCase, matching the C# request record. Requests bind case-insensitively while responses are
-  // camelCase, so the casing is read from the server per direction rather than assumed to be one.
-  await postAction(api("entities/bulk-monitor"), {
-    EntityType: payload.entityType,
-    Verb: chosen.verb,
-    Scope: chosen.scope,
-    EntityIds: payload.entityIds,
-  });
+  try {
+    // PascalCase, matching the C# request record. Requests bind case-insensitively while responses
+    // are camelCase, so the casing is read from the server per direction rather than assumed to be
+    // one.
+    await postAction(api("entities/bulk-monitor"), {
+      EntityType: payload.entityType,
+      Verb: chosen.verb,
+      Scope: chosen.scope,
+      EntityIds: payload.entityIds,
+    });
+  } catch (refusal) {
+    // Nothing is rethrown. A HandlerResult carries no error member, so anything escaping here
+    // reaches the host's own alert, which shows the answer's raw text.
+    await stated(refusalSentenceFor(refusal));
+    return { cancelled: true };
+  }
 
   return {};
+}
+
+/**
+ * The sentence one refused gesture is stated in.
+ *
+ * Chosen on the code the answer names rather than on any of its text. This generation answers a
+ * refusal with a body carrying a full stack trace, so the body is read for its code and for nothing
+ * else, and what the reader sees comes from the copy module.
+ */
+function refusalSentenceFor(refusal: unknown): string {
+  return refusal instanceof ApiError && codeNamedIn(refusal.body) === "TOO_MANY_IDS"
+    ? BULK_SELECTION_IS_OVER_THE_BOUND
+    : BULK_SELECTION_WAS_NOT_STARTED;
+}
+
+/** The code one refusal answer names, or null where it named none that could be read. */
+function codeNamedIn(answer: string): string | null {
+  try {
+    const named: unknown = JSON.parse(answer);
+    return typeof named === "object" && named !== null && "code" in named
+      ? typeof named.code === "string"
+        ? named.code
+        : null
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Shows one sentence over the selection, with a way out and nothing to choose between.
+ *
+ * The same overlay the offer path reaches when it has nothing to offer, rather than a second surface
+ * saying the same kind of thing in a different place.
+ */
+async function stated(reason: string): Promise<void> {
+  await presentOverlay<BulkMonitorAction>((finish) =>
+    createElement(BulkMonitorChoice, { actions: [], reason, onChoose: finish }),
+  );
 }
 
 async function offeredFor(kind: WhisparrEntityKind, coveId: number): Promise<BulkMonitorOffer> {
