@@ -67,6 +67,7 @@ public sealed class MonitorPathTests
                 nameof(IWhisparrClient.ReadQualityProfilesAsync),
                 nameof(IWhisparrClient.ReadRootFoldersAsync),
                 nameof(IWhisparrStudioActing.AddMonitoredStudioAsync),
+                nameof(IWhisparrStudioActing.ReadStudioAsync),
             ],
             host.Client.Verbs);
 
@@ -709,6 +710,7 @@ public sealed class MonitorPathTests
                 nameof(IWhisparrClient.ReadQualityProfilesAsync),
                 nameof(IWhisparrClient.ReadRootFoldersAsync),
                 nameof(IWhisparrPerformerActing.AddMonitoredPerformerAsync),
+                nameof(IWhisparrPerformerActing.ReadPerformerAsync),
             ],
             host.Client.Verbs);
         Assert.DoesNotContain(nameof(IWhisparrStudioActing.AddMonitoredStudioAsync), host.Client.Verbs);

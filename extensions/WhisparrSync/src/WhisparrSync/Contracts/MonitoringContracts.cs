@@ -89,18 +89,25 @@ public enum MonitorBulkVerb
 /// The ids are Cove's own and nothing else identifying is expressible. Which entity each one names
 /// on the instance is read from its stored identity row inside the batch, so the same rule holds
 /// here as on the single-entity routes: an identifier a caller put in the body reaches nothing.
+/// <para>
+/// Every member is nullable, the verb included. A non-nullable verb binds a body that names none to
+/// the first member declared, which would make a selection acted on under a verb nobody named.
+/// </para>
 /// </remarks>
 /// <param name="EntityType">
 /// The type the host's selection bar passed, in the spelling it passed it. The bar normalizes only
 /// the two media plurals, so studios and performers arrive plural and are matched as they arrive.
 /// </param>
-/// <param name="Verb">Which gesture to carry out for every selected entity.</param>
+/// <param name="Verb">
+/// Which gesture to carry out for every selected entity. Null is a refusal rather than a default:
+/// the verb decides what the request is, so there is nothing for an unnamed one to fall back to.
+/// </param>
 /// <param name="Scope">
 /// How much of each entity's catalogue to cover, or null where the verb expresses no scope.
 /// </param>
 /// <param name="EntityIds">The Cove ids selected.</param>
 public sealed record MonitorBulkRequest(
-    string? EntityType, MonitorBulkVerb Verb, MonitorScope? Scope, int[]? EntityIds);
+    string? EntityType, MonitorBulkVerb? Verb, MonitorScope? Scope, int[]? EntityIds);
 
 /// <summary>What one selected entity's turn in a batch produced.</summary>
 /// <param name="CoveId">The Cove entity this outcome is about.</param>
