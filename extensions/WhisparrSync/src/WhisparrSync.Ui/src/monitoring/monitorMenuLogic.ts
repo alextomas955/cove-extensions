@@ -50,6 +50,7 @@ import {
   STOP_MONITORING_IN_WHISPARR,
   UNMONITORING_DOES_NOT_RETRACT,
   WAITING_FOR_WHISPARR,
+  WHISPARR_MAY_RENAME,
 } from "../common/ui/copy";
 
 /** A scope a caller can actually choose. The wire type admits null, which is "take the default". */
@@ -221,11 +222,17 @@ const SECONDARY_LABEL: Record<SecondaryAction, string> = {
   searchAllMonitored: ACTION_SEARCH_ALL_MONITORED,
 };
 
-/** What each secondary action states beneath itself. */
-const SECONDARY_SENTENCE: Record<SecondaryAction, string> = {
-  addAllMissing: ADD_ALL_MISSING,
-  reflectOwned: REFLECT_OWNED,
-  searchAllMonitored: SEARCH_ALL_MONITORED,
+/**
+ * What each secondary action states beneath itself, in the order it reads.
+ *
+ * Total by TYPE, so a secondary action added later fails this build rather than rendering a row with
+ * nothing stated under it. Reflect owned states two: what it does, and the consequence of Whisparr
+ * taking charge of the files it links.
+ */
+const SECONDARY_SENTENCES: Record<SecondaryAction, readonly string[]> = {
+  addAllMissing: [ADD_ALL_MISSING],
+  reflectOwned: [REFLECT_OWNED, WHISPARR_MAY_RENAME],
+  searchAllMonitored: [SEARCH_ALL_MONITORED],
 };
 
 /** Turning monitoring on, at a chosen scope. Only reached for an entity not yet monitored. */
@@ -521,7 +528,7 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
   const secondary: MonitorMenuItem[] = SECONDARY_ACTIONS.map((action) => ({
     ...face(
       SECONDARY_LABEL[action],
-      [SECONDARY_SENTENCE[action]],
+      SECONDARY_SENTENCES[action],
       held.has(capabilityBehindAction(action)) ? null : CAP_UNAVAILABLE_ON_THIS_GENERATION,
     ),
     item: "secondary" as const,

@@ -386,18 +386,37 @@ describe("one refusal, one sentence", () => {
   });
 });
 
+/**
+ * What each kind must state beneath the control, transcribed by hand from `common/ui/copy.ts`.
+ *
+ * Not derived from the record the functions under test read, and not assembled from the imported
+ * constants either: a record entry pointing at the wrong constant satisfies every reader of that
+ * record at once, and importing the constant here would make this table agree with it.
+ *
+ * Typed over the wire union, so a kind added to the enum fails the build here. That is the totality
+ * an enumeration over the kinds was buying, without taking its expected value from the subject.
+ */
+const EXPECTED_NOTICE: Record<MonitorRefusalKind, string | null> = {
+  none: null,
+  notConfigured: null,
+  noIdentityInThisNamespace: null,
+  severalIdentitiesInThisNamespace: null,
+  capabilityAbsentOnThisGeneration: null,
+  noQualityProfile:
+    "Whisparr offers no quality profile, so nothing was sent. Add one in Whisparr and try again.",
+  noRootFolder:
+    "Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.",
+  instanceRefused: "Whisparr would not do this. Nothing here was changed.",
+  answerTooLargeToRead:
+    "Whisparr's answer was larger than this extension reads at once, so nothing was changed. Your Whisparr answered correctly.",
+  instanceHoldsNoSuchEntity:
+    "Whisparr no longer holds this entry, so there was nothing to act on. Reload the page for its current state.",
+};
+
 describe("which refusal speaks beneath the control, and which speaks at it", () => {
-  /**
-   * One flag divides the two surfaces, so the division is read off it rather than off a second list.
-   *
-   * The expected value is computed from {@link describeMonitorRefusal}, which is the other reader of
-   * the same record: a copied sentence here would agree with a wrong record.
-   */
   it("gives a notice to every kind that leaves something to offer, and to no other", () => {
     for (const kind of MONITOR_REFUSAL_KINDS) {
-      const refusal = describeMonitorRefusal(kind);
-      const expected = refusal.leavesNothingToOffer ? null : refusal.sentence;
-      expect(refusalNoticeFor(kind), kind).toBe(expected);
+      expect(refusalNoticeFor(kind), kind).toBe(EXPECTED_NOTICE[kind]);
     }
 
     const speaking = MONITOR_REFUSAL_KINDS.filter((kind) => refusalNoticeFor(kind) !== null);
@@ -435,7 +454,7 @@ describe("which refusal speaks beneath the control, and which speaks at it", () 
     for (const failed of [true, false]) {
       for (const skip of skips) {
         for (const refusal of [...MONITOR_REFUSAL_KINDS, null]) {
-          const notice = refusal === null ? null : refusalNoticeFor(refusal);
+          const notice = refusal === null ? null : EXPECTED_NOTICE[refusal];
           const expected = failed
             ? ACTION_DID_NOT_REACH_WHISPARR
             : (notice ?? (skip === null ? null : describeReflectOwnedSkip(skip)));
@@ -450,11 +469,11 @@ describe("which refusal speaks beneath the control, and which speaks at it", () 
   });
 
   /**
-   * The case an enumeration cannot catch on its own.
+   * The two kinds that carry a refusal and state nothing of their own, named rather than enumerated.
    *
-   * An enumeration that computes its expected value through `refusalNoticeFor` agrees with an
-   * implementation that stops at the first non-null REFUSAL rather than the first non-null NOTICE.
-   * `none` is what every healthy answer carries, so that implementation would silence every skip.
+   * The precedence is over the NOTICES, not over the refusals. An implementation that stopped at the
+   * first non-null refusal would silence every skip, because `none` is what every healthy answer
+   * carries.
    */
   it("falls through to the skip where the refusal's own notice is null", () => {
     expect(controlNotice({ failed: false, refusal: "none", skip: "hardLinksOff" })).toBe(
