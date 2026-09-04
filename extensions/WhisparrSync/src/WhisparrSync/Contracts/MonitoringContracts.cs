@@ -221,16 +221,25 @@ public enum MonitorRefusalKind
 /// What the connected generation can do. The browser reads its menu from this rather than from a
 /// generation table of its own, so a capability that is absent is refused in one place.
 /// </param>
+/// <param name="Scope">
+/// Which scope the entity is monitored at, or null where the product does not know.
+/// <para>
+/// Null is DISTINCT from any particular scope: it says the answer this read carried named none, so
+/// the browser must mark no scope at all rather than fall back to a default. It carries no date and
+/// no part of any response body, only a classified value.
+/// </para>
+/// </param>
 public sealed record EntityMonitoringView(
     WhisparrEntityKind Kind,
     WhisparrGeneration? Generation,
     bool Monitored,
     MonitorRefusalKind Refusal,
-    IReadOnlyList<WhisparrCapability> Capabilities)
+    IReadOnlyList<WhisparrCapability> Capabilities,
+    MonitorScope? Scope)
 {
     /// <summary>A refusal taken before any instance was contacted, with nothing configured.</summary>
     public static EntityMonitoringView NotConfigured(WhisparrEntityKind kind)
-        => new(kind, null, false, MonitorRefusalKind.NotConfigured, []);
+        => new(kind, null, false, MonitorRefusalKind.NotConfigured, [], null);
 
     /// <summary>A refusal naming <paramref name="refusal"/>, with the entity left unmonitored.</summary>
     public static EntityMonitoringView Refused(
@@ -238,13 +247,18 @@ public sealed record EntityMonitoringView(
         WhisparrGeneration generation,
         IReadOnlyList<WhisparrCapability> capabilities,
         MonitorRefusalKind refusal)
-        => new(kind, generation, false, refusal, capabilities);
+        => new(kind, generation, false, refusal, capabilities, null);
 
     /// <summary>The entity's state as the instance reports it.</summary>
+    /// <remarks>
+    /// <paramref name="scope"/> has no default. A defaulted one would let a call site that never
+    /// decided the question answer a scope the instance did not report.
+    /// </remarks>
     public static EntityMonitoringView State(
         WhisparrEntityKind kind,
         WhisparrGeneration generation,
         IReadOnlyList<WhisparrCapability> capabilities,
-        bool monitored)
-        => new(kind, generation, monitored, MonitorRefusalKind.None, capabilities);
+        bool monitored,
+        MonitorScope? scope)
+        => new(kind, generation, monitored, MonitorRefusalKind.None, capabilities, scope);
 }
