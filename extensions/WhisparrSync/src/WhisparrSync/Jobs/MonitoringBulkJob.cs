@@ -16,6 +16,17 @@ namespace WhisparrSync.Jobs;
 public sealed record MonitorBulkBatch(
     string EntityType, MonitorBulkVerb? Verb, MonitorScope? Scope, int[] EntityIds);
 
+/// <summary>What one batch's linking step did across every entity it reached.</summary>
+/// <remarks>
+/// The hard-link setting is the INSTANCE's rather than the entity's, so a batch is skipped whole or
+/// acts whole and the reason is one for the run rather than one per entity.
+/// </remarks>
+/// <param name="Skipped">Why no file was linked, or null where the step ran.</param>
+/// <param name="FoldersAttached">How many folders the instance took, across every entity.</param>
+/// <param name="FoldersRefused">How many it declined.</param>
+public sealed record MonitorBulkLinking(
+    ReflectOwnedSkipReason? Skipped, int FoldersAttached, int FoldersRefused);
+
 /// <summary>
 /// The bulk monitoring job's id, its (de)serialization onto the host's string-only parameter map,
 /// and the batch loop every selection runs through.
@@ -158,8 +169,18 @@ public static class MonitoringBulkJob
     /// Counts rather than a list. The per-entity answers are the run's own units, which the drawer
     /// shows in the order they were started; a sentence naming every entity would grow with the
     /// selection.
+    /// <para>
+    /// The linking work is reported APART from the monitor outcomes. A monitor that took while the
+    /// linking step was passed over is not a refused monitor, and one number for both would read as
+    /// one.
+    /// </para>
     /// </remarks>
-    internal static string SummaryOf(MonitorBulkRun run)
+    /// <param name="run">How the batch ended and what each entity's turn produced.</param>
+    /// <param name="linking">
+    /// What the linking step did, or null where the batch's verb reaches no linking step and the
+    /// connected generation's ability to link is therefore not something the run can report on.
+    /// </param>
+    internal static string SummaryOf(MonitorBulkRun run, MonitorBulkLinking? linking = null)
     {
         ArgumentNullException.ThrowIfNull(run);
 
@@ -173,8 +194,29 @@ public static class MonitoringBulkJob
         var ending = run.Outcome == MonitorBulkOutcomeKind.Cancelled ? ", then stopped" : string.Empty;
 
         return string.Create(
-            CultureInfo.InvariantCulture, $"{applied} applied, {refused} refused{ending}.");
+                CultureInfo.InvariantCulture, $"{applied} applied, {refused} refused{ending}.")
+            + (linking is { } linked ? " " + LinkingIn(linked) : string.Empty);
     }
+
+    /// <summary>The one sentence <paramref name="linking"/> is reported in.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="linking"/> names a skip reason this product does not express.
+    /// </exception>
+    private static string LinkingIn(MonitorBulkLinking linking)
+        => linking.Skipped switch
+        {
+            null => string.Create(
+                CultureInfo.InvariantCulture,
+                $"{linking.FoldersAttached} linked, {linking.FoldersRefused} refused."),
+            ReflectOwnedSkipReason.HardLinksOff
+                => "No files were linked: Whisparr's hard-link setting is off.",
+            ReflectOwnedSkipReason.HardLinkSettingUnreadable
+                => "No files were linked: Whisparr's hard-link setting could not be read.",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(linking),
+                linking.Skipped,
+                "This skip reason has no sentence written down for it."),
+        };
 
     /// <summary>
     /// Which unit outcome one refusal kind is reported under.
