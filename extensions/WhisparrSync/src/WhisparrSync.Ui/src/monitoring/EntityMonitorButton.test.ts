@@ -347,6 +347,11 @@ async function pressReflectOwned(rendered: Awaited<ReturnType<typeof render>>) {
   return document.body.querySelector('[role="status"]');
 }
 
+/** How many times `sentence` is written anywhere in the document. */
+function occurrencesOf(sentence: string): number {
+  return document.body.textContent.split(sentence).length - 1;
+}
+
 /** The element the trigger sits in, which is the subtree inside the host's clipping hero. */
 function wrapperOf(rendered: Awaited<ReturnType<typeof render>>): Element {
   const wrapper = rendered.button?.parentElement ?? null;
@@ -400,13 +405,73 @@ test("a failure notice is anchored to the control, on the menu's own placement",
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
   const notice = (await pressReflectOwned(rendered)) as HTMLElement | null;
 
-  // The menu is still open, so the two are placed from the same trigger in the same frame: a
-  // notice at the document origin would carry neither offset.
-  const menu = rendered.menu() as HTMLElement | null;
+  // The menu is still open, so the two share one placed container rather than each carrying the
+  // same rectangle: two elements placed at one rectangle is what made the notice cover the menu.
+  const menu = rendered.menu() as HTMLElement;
   expect(menu).not.toBeNull();
-  expect(notice?.style.top).toBe(menu?.style.top);
-  expect(notice?.style.right).toBe(menu?.style.right);
-  expect(notice?.style.top).not.toBe("");
+  const container = menu.parentElement!;
+  expect(container.contains(notice)).toBe(true);
+  expect(container.style.top).not.toBe("");
+  expect(notice?.style.top).toBe("");
+});
+
+/**
+ * jsdom reports every element rectangle as zeroes, so no geometric assertion is available and none
+ * may be written: one would pass on any layout at all. What stands in for it is the document order
+ * the paint follows from, which compareDocumentPosition reports directly.
+ */
+test("with the menu open the notice follows the menu and is not inside it", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  const notice = (await pressReflectOwned(rendered)) as HTMLElement;
+  const menu = rendered.menu() as HTMLElement;
+
+  expect(notice).not.toBeNull();
+  expect(menu).not.toBeNull();
+
+  // The two assertions that tell this shape apart from the one that covered the menu. Both elements
+  // were children of the body before, each carrying the same rectangle, so sharing a parent and
+  // following in document order were already true of the covering shape and guard nothing on their
+  // own.
+  expect(notice.parentElement).not.toBe(document.body);
+  expect(notice.classList.contains("fixed")).toBe(false);
+
+  expect(menu.contains(notice)).toBe(false);
+  expect(notice.parentElement).toBe(menu.parentElement);
+  expect(menu.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeGreaterThan(
+    0,
+  );
+});
+
+test("with the menu closed the notice still renders", async () => {
+  readAnswer = () => Promise.resolve(view({ refusal: "instanceRefused" }));
+
+  await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(1);
+  expect(document.body.querySelector('[role="menu"]')).toBeNull();
+  expect(document.body.querySelector('[role="status"]')?.textContent).toBe(INSTANCE_REFUSED);
+});
+
+test("the notice appears exactly once whichever way the menu is", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
+  actionAnswer = () => Promise.resolve({ skipped: "hardLinksOff", jobId: null, refusal: "none" });
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  await pressReflectOwned(rendered);
+
+  expect(rendered.menu()).not.toBeNull();
+  expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(1);
+  expect(occurrencesOf(REFLECT_OWNED_SKIPPED)).toBe(1);
+
+  rendered.button?.click();
+  await sleep(COMMIT_MS);
+
+  expect(rendered.menu()).toBeNull();
+  expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(1);
+  expect(occurrencesOf(REFLECT_OWNED_SKIPPED)).toBe(1);
 });
 
 test("a skipped action's notice leaves that container too", async () => {

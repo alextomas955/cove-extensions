@@ -81,10 +81,18 @@ function MenuRow({
   );
 }
 
+/**
+ * The surface an outcome sentence is drawn on, shared with the control's own standalone notice so
+ * the two read the same whether the menu is open or closed.
+ */
+export const NOTICE_SURFACE_CLASS =
+  "rounded-lg border border-border bg-surface px-3 py-2 text-xs text-secondary shadow-xl";
+
 export function EntityMonitorMenu({
   menu,
   label,
   triggerRef,
+  notice,
   onSelect,
   onClose,
 }: {
@@ -93,11 +101,16 @@ export function EntityMonitorMenu({
   label: string;
   /** The control that opened it. */
   triggerRef: RefObject<HTMLElement | null>;
+  /**
+   * What the last gesture did, stated below the menu, or null where there is nothing to say. The
+   * menu stays open while an action runs, so this is where a refusal or a skip is read.
+   */
+  notice?: string | null;
   onSelect: (item: MonitorMenuItem) => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const at = useAnchoredTo(triggerRef);
+  const placement = useAnchoredTo(triggerRef);
 
   useOverlayKeys(ref, {
     onClose,
@@ -113,34 +126,52 @@ export function EntityMonitorMenu({
   });
 
   return createPortal(
-    <div
-      ref={ref}
-      role="menu"
-      aria-label={label}
-      style={at}
-      className="fixed z-50 w-72 overflow-hidden rounded-lg border border-border bg-surface py-1 text-left shadow-xl"
-    >
-      {menu.items.map((item) => (
-        <Fragment key={monitorMenuItemKey(item)}>
-          {/* Every row carries a menu role. The overlay's roving focus selects on
-              `[role^="menuitem"]`, so a row without one is invisible to the arrow keys. */}
-          <MenuRow
-            role={item.item === "scope" ? "menuitemradio" : "menuitem"}
-            checked={item.item === "scope" ? item.selected : undefined}
-            label={item.label}
-            sentences={item.sentences}
-            reason={item.reason}
-            onSelect={() => {
-              onSelect(item);
-            }}
-          />
-          {/* Outside every row, because it is true of the pair rather than of one option, and
-              carries no role so the arrow keys pass over it. */}
-          {menu.scopeNote !== null && monitorMenuItemKey(item) === lastScopeKey(menu) ? (
-            <p className="px-3 py-2 text-xs text-secondary">{menu.scopeNote}</p>
-          ) : null}
-        </Fragment>
-      ))}
+    // One positioned container holding the panel and the notice, so flow layout stacks them and
+    // neither has to win a z-index contest with the other. The overlay ref is on the container, so
+    // a press on the notice does not count as outside and close the menu the notice reports on.
+    <div ref={ref} style={placement.at} className="fixed z-50 w-72">
+      <div
+        role="menu"
+        aria-label={label}
+        // Bounded to the room below the trigger and scrolling inside that bound, so every row is
+        // reachable with a pointer at any trigger position. Deliberately no flip above the trigger:
+        // that would add a second placement mode and a measurement loop to buy the same
+        // reachability. The bound is inline because the host's Tailwind JIT never scans this bundle,
+        // so no arbitrary-value height class would render.
+        style={{ maxHeight: placement.availableHeight ?? undefined }}
+        className="overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-surface py-1 text-left shadow-xl"
+      >
+        {menu.items.map((item) => (
+          <Fragment key={monitorMenuItemKey(item)}>
+            {/* Every row carries a menu role. The overlay's roving focus selects on
+                `[role^="menuitem"]`, so a row without one is invisible to the arrow keys. */}
+            <MenuRow
+              role={item.item === "scope" ? "menuitemradio" : "menuitem"}
+              checked={item.item === "scope" ? item.selected : undefined}
+              label={item.label}
+              sentences={item.sentences}
+              reason={item.reason}
+              onSelect={() => {
+                onSelect(item);
+              }}
+            />
+            {/* Outside every row, because it is true of the pair rather than of one option, and
+                carries no role so the arrow keys pass over it. */}
+            {menu.scopeNote !== null && monitorMenuItemKey(item) === lastScopeKey(menu) ? (
+              <p className="px-3 py-2 text-xs text-secondary">{menu.scopeNote}</p>
+            ) : null}
+          </Fragment>
+        ))}
+      </div>
+
+      {/* A sibling of the menu element and never a child of it: a `menu` role admits `menuitem`,
+          `group` and `separator` children only, and a screen reader may drop a status paragraph
+          placed inside one. */}
+      {notice === null || notice === undefined ? null : (
+        <p role="status" className={`mt-1 ${NOTICE_SURFACE_CLASS}`}>
+          {notice}
+        </p>
+      )}
     </div>,
     document.body,
   );
