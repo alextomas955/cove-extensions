@@ -291,7 +291,7 @@ public sealed class MonitorPathTests
 
         Assert.Equal(HttpMethod.Get, Assert.Single(handler.Requests).Method);
         Assert.NotEqual(
-            MonitorRefusalKind.None, MonitoringProjector.Accepted(answered.StatusCode));
+            MonitorRefusalKind.None, MonitoringProjector.Accepted(answered));
     }
 
     /// <summary>
@@ -320,7 +320,7 @@ public sealed class MonitorPathTests
 
         Assert.Equal("/api/v3/series", handler.Requests[1].Path);
         Assert.Equal(
-            MonitoringProjector.EntityReading.Held, MonitoringProjector.Reading(read.StatusCode));
+            MonitoringProjector.EntityReading.Held, MonitoringProjector.Classify(read).Reading);
         Assert.Equal(1, MonitoringProjector.EntityIdIn(read.Body));
         Assert.True(MonitoringProjector.MonitoredIn(read.Body));
         Assert.DoesNotContain("Tushy Raw", read.Body, StringComparison.Ordinal);
@@ -346,7 +346,7 @@ public sealed class MonitorPathTests
                 TestCt);
 
         Assert.Equal(
-            MonitoringProjector.EntityReading.NotHeld, MonitoringProjector.Reading(read.StatusCode));
+            MonitoringProjector.EntityReading.NotHeld, MonitoringProjector.Classify(read).Reading);
     }
 
     /// <summary>

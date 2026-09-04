@@ -303,8 +303,17 @@ internal static class V2LookupProjector
             return null;
         }
 
-        var title = site["title"]?.GetValue<string>();
-        var titleSlug = site["titleSlug"]?.GetValue<string>();
+        // Read the same way the identifier above is. This generation publishes no contract, so a
+        // field's type cannot be assumed, and a node that is not a string reads as unreadable rather
+        // than throwing out of the seam.
+        var title = site["title"] is JsonValue titled && titled.TryGetValue<string>(out var name)
+            ? name
+            : null;
+        var titleSlug = site["titleSlug"] is JsonValue slugged
+            && slugged.TryGetValue<string>(out var slug)
+                ? slug
+                : null;
+
         return string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(titleSlug)
             ? null
             : new V2Site(entityId, title, titleSlug);
