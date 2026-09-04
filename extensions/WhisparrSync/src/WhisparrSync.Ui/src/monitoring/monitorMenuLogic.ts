@@ -213,6 +213,9 @@ const SCOPE_ROUTE = "scope";
 /** Linking the files the library already holds into place on the instance. */
 const REFLECT_OWNED_ROUTE = "reflect-owned";
 
+/** The one verb here that makes the instance go and download. Its own row and its own route. */
+const SEARCH_ALL_MONITORED_ROUTE = "search-all-monitored";
+
 /**
  * Which route each secondary action is served at, or null where this build serves none.
  *
@@ -227,7 +230,7 @@ const REFLECT_OWNED_ROUTE = "reflect-owned";
 const SECONDARY_ACTION_ROUTES: Record<SecondaryAction, string | null> = {
   addAllMissing: null,
   reflectOwned: REFLECT_OWNED_ROUTE,
-  searchAllMonitored: null,
+  searchAllMonitored: SEARCH_ALL_MONITORED_ROUTE,
 };
 
 /**
