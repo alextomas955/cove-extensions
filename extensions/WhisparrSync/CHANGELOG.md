@@ -34,8 +34,11 @@ and what your Whisparr instance monitors.
   expresses no future-only option for one, so monitoring a performer covers everything it lists.
 - **Unmonitoring stops new scenes and retracts nothing.** What All Scenes already made wanted stays
   wanted, and Whisparr will still acquire it. Nothing is deleted, in Cove or in Whisparr.
-- **Nothing here asks Whisparr to search.** Monitoring, unmonitoring and changing a scope never
-  start a search; what you mark wanted is what Whisparr then acquires on its own schedule.
+- **One action asks Whisparr to search, and it is the only one.** Monitoring, unmonitoring and
+  changing a scope never start a search; what you mark wanted is what Whisparr then acquires on its
+  own schedule. **Search all monitored**, in the entity's own menu, is the one thing here that asks
+  Whisparr to go and download. It acts on one studio or one performer at a time, on what that entity
+  is already monitoring, and it is deliberately not offered for a whole selection.
 - **The same two gestures for a whole selection**, from the studios and performers selection bars.
   A selection runs as one background job, and its progress and its result for each entity appear in
   Cove's job list.
@@ -46,10 +49,9 @@ and what your Whisparr instance monitors.
   **Reflect owned** in the menu runs it again at any time. Its progress appears in Cove's job list.
   Nothing is copied: Cove reads Whisparr's hard-link setting first, and with that setting off, or
   unreadable, it sends nothing and says so at the control rather than duplicating every matched file.
-- **Two menu items are shown and are not carried out in this version.** Add all missing and search
-  all monitored appear once an entity is monitored, each disabled and each saying so. They are
-  described in the documentation so their cost is known before they arrive, and search all monitored
-  will be the one action that downloads.
+- **One menu item is shown and is not carried out in this version.** Add all missing appears once
+  an entity is monitored, disabled and saying so. It is described in the documentation so its cost
+  is known before it arrives. It downloads nothing when it does.
 
 Two things worth knowing before you enter a key:
 

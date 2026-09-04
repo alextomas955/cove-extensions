@@ -65,9 +65,9 @@ vi.mock("@cove-extensions/ui-shared/postAction", () => ({
 const { WhisparrPerformerActions, WhisparrStudioActions } = await import("./EntityMonitorButton");
 const {
   ACTION_ABSENT_IN_THIS_VERSION,
+  ACTION_ADD_ALL_MISSING,
   ACTION_DID_NOT_REACH_WHISPARR,
   ACTION_REFLECT_OWNED,
-  ACTION_SEARCH_ALL_MONITORED,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   MONITORED_IN_WHISPARR,
   MONITORING_COULD_NOT_BE_READ,
@@ -382,23 +382,26 @@ test("an action that was carried out states nothing at the control", async () =>
 
 test("an item this build serves no route for is offered dimmed rather than pressed into nothing", async () => {
   // A capability the generation DOES hold, so the row is not dimmed for the capability reason and
-  // the only thing left to dim it is the absent route.
+  // the only thing left to dim it is the absent route. Add all missing is the one verb left in that
+  // state: the other two are served, and a row this build cannot carry out has to stay legible.
   readAnswer = () =>
-    Promise.resolve(view({ monitored: true, capabilities: ["monitorStudio", "searchMonitored"] }));
+    Promise.resolve(
+      view({ monitored: true, capabilities: ["monitorStudio", "registerMissingScenes"] }),
+    );
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
   rendered.button?.click();
   await sleep(COMMIT_MS);
 
-  const search = rendered
+  const unserved = rendered
     .rows()
-    .find((row) => (row.getAttribute("title") ?? "").startsWith(ACTION_SEARCH_ALL_MONITORED));
+    .find((row) => (row.getAttribute("title") ?? "").startsWith(ACTION_ADD_ALL_MISSING));
 
-  expect(search).toBeDefined();
-  expect(search?.disabled).toBe(true);
-  expect(search?.getAttribute("title")?.endsWith(ACTION_ABSENT_IN_THIS_VERSION)).toBe(true);
+  expect(unserved).toBeDefined();
+  expect(unserved?.disabled).toBe(true);
+  expect(unserved?.getAttribute("title")?.endsWith(ACTION_ABSENT_IN_THIS_VERSION)).toBe(true);
 
-  search?.click();
+  unserved?.click();
   await sleep(COMMIT_MS);
   expect(sent.filter((call) => call.method === "POST")).toEqual([]);
 });

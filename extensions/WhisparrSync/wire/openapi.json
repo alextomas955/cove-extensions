@@ -392,6 +392,57 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/search-all-monitored": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMonitoringView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/scope": {
       "post": {
         "tags": [
