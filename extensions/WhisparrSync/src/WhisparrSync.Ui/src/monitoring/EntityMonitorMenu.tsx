@@ -129,17 +129,24 @@ export function EntityMonitorMenu({
     // One positioned container holding the panel and the notice, so flow layout stacks them and
     // neither has to win a z-index contest with the other. The overlay ref is on the container, so
     // a press on the notice does not count as outside and close the menu the notice reports on.
-    <div ref={ref} style={placement.at} className="fixed z-50 w-72">
+    //
+    // The room below the trigger bounds this container rather than the panel inside it, and the
+    // column hands the notice its own height out of that room at layout time. The bound is inline
+    // because the host's Tailwind JIT never scans this bundle, so no arbitrary-value height class
+    // would render.
+    <div
+      ref={ref}
+      style={{ ...placement.at, maxHeight: placement.availableHeight ?? undefined }}
+      className="fixed z-50 flex w-72 flex-col"
+    >
       <div
         role="menu"
         aria-label={label}
-        // Bounded to the room below the trigger and scrolling inside that bound, so every row is
-        // reachable with a pointer at any trigger position. Deliberately no flip above the trigger:
-        // that would add a second placement mode and a measurement loop to buy the same
-        // reachability. The bound is inline because the host's Tailwind JIT never scans this bundle,
-        // so no arbitrary-value height class would render.
-        style={{ maxHeight: placement.availableHeight ?? undefined }}
-        className="overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-surface py-1 text-left shadow-xl"
+        // Scrolls inside whatever room the column leaves it, so every row is reachable with a
+        // pointer at any trigger position; `min-h-0` is what lets it shrink below its own content.
+        // Deliberately no flip above the trigger: that would add a second placement mode and a
+        // measurement loop to buy the same reachability.
+        className="min-h-0 overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-surface py-1 text-left shadow-xl"
       >
         {menu.items.map((item) => (
           <Fragment key={monitorMenuItemKey(item)}>
@@ -166,9 +173,10 @@ export function EntityMonitorMenu({
 
       {/* A sibling of the menu element and never a child of it: a `menu` role admits `menuitem`,
           `group` and `separator` children only, and a screen reader may drop a status paragraph
-          placed inside one. */}
+          placed inside one. `shrink-0` so the column takes its height out of the panel, which
+          scrolls, rather than out of the sentence a reader has to read. */}
       {notice === null || notice === undefined ? null : (
-        <p role="status" className={`mt-1 ${NOTICE_SURFACE_CLASS}`}>
+        <p role="status" className={`mt-1 shrink-0 ${NOTICE_SURFACE_CLASS}`}>
           {notice}
         </p>
       )}
