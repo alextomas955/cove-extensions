@@ -49,6 +49,7 @@ public sealed class EndpointPermissionTests
         "POST /api/extensions/com.alextomas955.whisparrsync/callback/register",
         "POST /api/extensions/com.alextomas955.whisparrsync/connection/test",
         "POST /api/extensions/com.alextomas955.whisparrsync/entities/bulk-monitor",
+        "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/add-all-missing",
         "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitor",
         "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/reflect-owned",
         "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/search-all-monitored",
