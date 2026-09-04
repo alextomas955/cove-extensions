@@ -102,6 +102,14 @@ internal static class V3BodyProjector
     /// inherits its parent's profile from the instance, so copying one here would be this product
     /// deciding something the instance owns.
     /// </para>
+    /// <para>
+    /// The title member is the IDENTIFIER, and it is there because a scene add carrying no title is
+    /// refused outright. The instance validates the member for emptiness and then replaces it with
+    /// what its own metadata provider answers, so no value sent here survives and the identifier is
+    /// the one value that is true of the request. An identifier the provider cannot resolve is
+    /// refused rather than stored under whatever was sent, so there is no answer in which a reader
+    /// sees this. Both halves are pinned.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="defaults"/> names no usable quality profile.
@@ -109,6 +117,7 @@ internal static class V3BodyProjector
     internal static JsonObject AddScene(string foreignId, AddDefaults defaults)
     {
         var body = Add(foreignId, defaults);
+        body["title"] = foreignId;
         var addOptions = (JsonObject)body["addOptions"]!;
         addOptions["monitor"] = SceneOnlyMonitorType;
         addOptions["addMethod"] = ManualAddMethod;
