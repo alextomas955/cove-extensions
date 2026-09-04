@@ -65,6 +65,10 @@ and what your Whisparr instance monitors.
   it was - beneath the button for a press you made, and on the background run's own line in Cove's
   job list when turning monitoring on started it. A selection's run does not report it, so run
   **Reflect owned** on one entity to see.
+- **Whisparr names the files it links.** A file Whisparr links is Whisparr's to name from then on,
+  by its own naming rules. Cove and Whisparr read the same library folders, so a later rename inside
+  Whisparr can reach a file Cove holds. Whether such a rename changes the library's own entry, or
+  only Whisparr's own link to that file, is not known.
 - **Register the scenes Cove holds that Whisparr does not.** **Add all missing**, in the entity's
   own menu, offers Whisparr every scene Cove holds under that studio or performer, one at a time,
   and then asks Whisparr to re-read the entity's catalogue. Nothing is downloaded, a scene Whisparr
