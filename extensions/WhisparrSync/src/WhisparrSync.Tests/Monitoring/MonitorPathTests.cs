@@ -9,8 +9,6 @@ using WhisparrSync.Tests.Invariants;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
-using MonitorScope = WhisparrSync.Monitoring.MonitorScope;
-
 namespace WhisparrSync.Tests.Monitoring;
 
 /// <summary>
@@ -132,6 +130,86 @@ public sealed class MonitorPathTests
         Assert.False(body["moviesMonitored"]!.GetValue<bool>());
         Assert.False(addOptions["moviesMonitored"]!.GetValue<bool>());
         Assert.Equal(4, body["qualityProfileId"]!.GetValue<int>());
+    }
+
+    /// <summary>
+    /// A monitor request naming no scope is carried out at the STORED default, not at a literal in
+    /// the acting path.
+    /// </summary>
+    /// <remarks>
+    /// Presence of the date gate is the whole assertion, because its absence is how the wider scope
+    /// is expressed: this generation's own help text says an empty value is ignored, so there is no
+    /// value that states the wider scope and omission is the statement.
+    /// </remarks>
+    [Theory]
+    [InlineData(MonitorScope.AllScenes, false)]
+    [InlineData(MonitorScope.FutureScenes, true)]
+    public async Task AMonitorNamingNoScopeIsCarriedOutAtTheStoredDefault(
+        MonitorScope stored, bool carriesTheDateGate)
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.NotFound, ""),
+            (HttpStatusCode.OK, MonitorHost.UnsortedProfiles),
+            (HttpStatusCode.OK, MonitorHost.OneRootFolder),
+            (HttpStatusCode.Created, MonitorHost.AddedStudio));
+        await using var host = await MonitorHost.CreateAsync(bytes: handler, defaultScope: stored);
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        await host.MonitorRawAsync(studioId, "{}");
+
+        var add = Assert.Single(handler.Requests, request => request.Path == "/api/v3/studio");
+        var body = Assert.IsType<JsonObject>(JsonNode.Parse(add.Body));
+        Assert.Equal(carriesTheDateGate, body.ContainsKey("afterDate"));
+    }
+
+    /// <summary>A scope the request names wins over the stored default.</summary>
+    [Fact]
+    public async Task AScopeTheRequestNamesWinsOverTheStoredDefault()
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.NotFound, ""),
+            (HttpStatusCode.OK, MonitorHost.UnsortedProfiles),
+            (HttpStatusCode.OK, MonitorHost.OneRootFolder),
+            (HttpStatusCode.Created, MonitorHost.AddedStudio));
+        await using var host = await MonitorHost.CreateAsync(
+            bytes: handler, defaultScope: MonitorScope.AllScenes);
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        await host.MonitorRawAsync(studioId, """{"scope":"futureScenes"}""");
+
+        var add = Assert.Single(handler.Requests, request => request.Path == "/api/v3/studio");
+        Assert.True(Assert.IsType<JsonObject>(JsonNode.Parse(add.Body)).ContainsKey("afterDate"));
+    }
+
+    /// <summary>
+    /// The bulk path's per-entity step reads the same stored default, so a selection cannot behave
+    /// differently from a click.
+    /// </summary>
+    [Theory]
+    [InlineData(MonitorScope.AllScenes, false)]
+    [InlineData(MonitorScope.FutureScenes, true)]
+    public async Task ABulkMonitorNamingNoScopeIsCarriedOutAtTheStoredDefault(
+        MonitorScope stored, bool carriesTheDateGate)
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.NotFound, ""),
+            (HttpStatusCode.OK, MonitorHost.UnsortedProfiles),
+            (HttpStatusCode.OK, MonitorHost.OneRootFolder),
+            (HttpStatusCode.Created, MonitorHost.AddedStudio));
+        await using var host = await MonitorHost.CreateAsync(bytes: handler, defaultScope: stored);
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var enqueued = await host.PostBulkAsync(
+            $$"""{"entityType":"studios","verb":"monitor","entityIds":[{{studioId}}]}""");
+        enqueued.EnsureSuccessStatusCode();
+        await host.RunEnqueuedBatchAsync(new RecordingJobProgress());
+
+        var add = Assert.Single(handler.Requests, request => request.Path == "/api/v3/studio");
+        var body = Assert.IsType<JsonObject>(JsonNode.Parse(add.Body));
+        Assert.Equal(carriesTheDateGate, body.ContainsKey("afterDate"));
     }
 
     /// <summary>

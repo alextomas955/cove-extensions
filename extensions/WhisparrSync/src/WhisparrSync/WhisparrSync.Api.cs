@@ -23,10 +23,6 @@ using WhisparrSync.Whisparr;
 // The SDK declares a job-progress interface of its own, and the one the host's job service hands a
 // work delegate is the core's. An unqualified reference compiles and means the other one.
 using CoreJobProgress = Cove.Core.Interfaces.IJobProgress;
-// Two types in this assembly are named MonitorScope: the stored settings default carries the spec's
-// earlier vocabulary, and the acting one carries the two names both generations use. They share a
-// member name, so an unqualified reference compiles and means the other one.
-using MonitorScope = WhisparrSync.Monitoring.MonitorScope;
 
 namespace WhisparrSync;
 
@@ -588,10 +584,11 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));
         }
 
-        // The product's own default rather than the instance's. Choosing the narrower scope wrongly
-        // costs one more gesture; choosing the wider one wrongly marks a whole back catalogue wanted,
-        // and on this generation that is not undone by narrowing the scope again.
-        var scope = request.Scope ?? MonitorScope.FutureScenes;
+        // The stored default rather than the instance's own, and read off the load that resolved the
+        // connection rather than through a second one. There is no literal beside it: with a
+        // non-nullable stored member there is nothing to fall back from, and a second fallback would
+        // be a second answer to one question.
+        var scope = request.Scope ?? target.DefaultMonitorScope;
 
         // No scope reaches the performer arm. The field a future-only scope is expressed through
         // exists on the studio resource and on no other, so a scope a caller named for a performer
@@ -1457,8 +1454,8 @@ public sealed partial class WhisparrSync
                     resolved,
                     identities,
                     _log,
-                    ActingFor(kind, resolved, batch.Scope ?? MonitorScope.FutureScenes),
-                    ExpressesAScope(kind) ? batch.Scope ?? MonitorScope.FutureScenes : null,
+                    ActingFor(kind, resolved, batch.Scope ?? resolved.DefaultMonitorScope),
+                    ExpressesAScope(kind) ? batch.Scope ?? resolved.DefaultMonitorScope : null,
                     entityCt).ConfigureAwait(false),
                 MonitorBulkVerb.Unmonitor => await UnmonitorResolvedAsync(
                     kind, coveId, resolved, identities, _log, entityCt).ConfigureAwait(false),
@@ -1494,12 +1491,17 @@ public sealed partial class WhisparrSync
     }
 
     /// <summary>What the connected instance is, and what its generation can honour.</summary>
+    /// <remarks>
+    /// The stored default scope rides here because the same load that resolved the connection read
+    /// it, so an acting path takes it without issuing a second read.
+    /// </remarks>
     private sealed record MonitoringTarget(
         WhisparrGeneration Generation,
         Uri BaseAddress,
         string ApiKey,
         WhisparrCapabilitySet Capabilities,
-        IWhisparrClient Reads);
+        IWhisparrClient Reads,
+        MonitorScope DefaultMonitorScope);
 
     /// <summary>The instance to act against, or null when none is configured.</summary>
     private static async Task<MonitoringTarget?> ResolveTargetAsync(
@@ -1521,7 +1523,8 @@ public sealed partial class WhisparrSync
                 baseAddress,
                 apiKey,
                 GenerationCapabilities.For(generation, WhisparrRoleSet.From(client)),
-                client)
+                client,
+                stored.DefaultMonitorScope)
             : null;
     }
 
