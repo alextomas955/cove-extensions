@@ -177,7 +177,7 @@ public interface IWhisparrClient
     /// <summary>Creates one notification.</summary>
     /// <remarks>
     /// Never re-issued on a failure, whatever the failure is. The instance enforces name uniqueness,
-    /// so a second attempt after an answer that did not arrive is refused rather than duplicated —
+    /// so a second attempt after an answer that did not arrive is refused rather than duplicated -
     /// but the answer to that refusal is indistinguishable from a real one, so the re-issue is not
     /// made at all.
     /// </remarks>
@@ -444,7 +444,8 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
     /// Two reads, because this generation answers the question through no single route: its lookup
     /// resolves the identifier to an entity and carries no instance-side id until that entity has been
     /// added, and its own listing is what says whether it has been. Only the matched entry is carried
-    /// onward, so the listing's size reaches nothing.
+    /// onward. The listing is asked for whole and unpaged, so the response this reads grows with the
+    /// number of series the instance holds, however few entries reach a caller.
     /// </remarks>
     private async Task<WhisparrResponse> ReadHeldSeriesAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
