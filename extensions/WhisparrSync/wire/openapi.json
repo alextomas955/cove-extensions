@@ -1260,7 +1260,14 @@
             ]
           },
           "verb": {
-            "$ref": "#/components/schemas/MonitorBulkVerb"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MonitorBulkVerb"
+              }
+            ]
           },
           "scope": {
             "oneOf": [
@@ -1287,7 +1294,8 @@
       "MonitorBulkVerb": {
         "enum": [
           "monitor",
-          "unmonitor"
+          "unmonitor",
+          null
         ]
       },
       "MonitorEntityRequest": {

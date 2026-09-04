@@ -108,12 +108,21 @@ internal sealed class MonitorHost : IAsyncDisposable
 
         // Every read answers 200 with an empty object unless a test queues something else, so a verb
         // no test named is still a recorded call rather than a throw.
+        //
+        // Each entity read answers twice: not held, then held and monitored. That is one instance
+        // acting on the add between the two reads, and it is what the monitor path's own read-back
+        // then classifies the outcome from. A single answer would describe an instance that took the
+        // add and never held the entity, which is the refused case rather than the ordinary one.
         host.Client = new RecordingWhisparrClient(Json(200, "{}"))
             .Answering(nameof(IWhisparrClient.ReadQualityProfilesAsync), Json(200, UnsortedProfiles))
             .Answering(nameof(IWhisparrClient.ReadRootFoldersAsync), Json(200, OneRootFolder))
-            .Answering(nameof(IWhisparrStudioActing.ReadStudioAsync), Json(404, ""))
+            .Answering(
+                nameof(IWhisparrStudioActing.ReadStudioAsync), Json(404, ""), Json(200, AddedStudio))
             .Answering(nameof(IWhisparrStudioActing.AddMonitoredStudioAsync), Json(201, AddedStudio))
-            .Answering(nameof(IWhisparrPerformerActing.ReadPerformerAsync), Json(404, ""))
+            .Answering(
+                nameof(IWhisparrPerformerActing.ReadPerformerAsync),
+                Json(404, ""),
+                Json(200, AddedPerformer))
             .Answering(
                 nameof(IWhisparrPerformerActing.AddMonitoredPerformerAsync),
                 Json(201, AddedPerformer));
