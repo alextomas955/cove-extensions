@@ -470,6 +470,10 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
     // clips its children; whether that escape works is the hero's own geometry and only a rendered
     // page has it. Both halves are asserted: that a clipping ancestor EXISTS, so the escape is about
     // something, and that the notice is not inside it.
+    //
+    // The escape is read as an ascent to the body rather than as a parent check, because with the
+    // menu open the notice is a flow sibling of the `role="menu"` element inside the one anchored
+    // container: its own parent is that container, and the container is the child of the body.
     const escape = await page.evaluate((sentence) => {
       const trigger = Array.from(document.querySelectorAll("button")).find((button) =>
         (button.getAttribute("aria-label") ?? "").startsWith("Monitored in Whisparr"),
@@ -478,6 +482,25 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
         (node.textContent ?? "").includes(sentence),
       );
       if (trigger === undefined || notice === undefined) return null;
+
+      // The ancestor-or-self the node reaches the body through, and how far below the body it sits.
+      const ascent = (node) => {
+        const chain = [];
+        let root = node;
+        while (root.parentElement !== null && root.parentElement !== document.body) {
+          root = root.parentElement;
+          chain.push(String(root.className).slice(0, 140));
+        }
+        const classes = String(root.className).split(/\s+/);
+        return {
+          depthBelowBody: chain.length,
+          chain,
+          rootClassName: String(root.className).slice(0, 140),
+          rootIsAnchoredContainer: ["fixed", "z-50", "w-72"].every((name) =>
+            classes.includes(name),
+          ),
+        };
+      };
 
       const clipping = [];
       let insideAClipper = false;
@@ -505,8 +528,22 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
       }
 
       const box = notice.getBoundingClientRect();
+      const rectangle = (node) => {
+        const measured = node.getBoundingClientRect();
+        return {
+          top: Math.round(measured.top),
+          bottom: Math.round(measured.bottom),
+          height: Math.round(measured.height),
+        };
+      };
+      // The panel the notice shares its container with, so a notice drawn past the viewport names
+      // what pushed it there rather than only where it landed.
+      const menu = document.querySelector('[role="menu"]');
+      const container = menu === null ? null : menu.parentElement;
+
       return {
-        parentIsBody: notice.parentElement === document.body,
+        noticeAscent: ascent(notice),
+        triggerAscent: ascent(trigger),
         insideAClipper,
         clipping,
         notice: {
@@ -515,6 +552,16 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
           left: Math.round(box.left),
           right: Math.round(box.right),
         },
+        panel:
+          menu === null
+            ? null
+            : {
+                menu: rectangle(menu),
+                menuMaxHeight: menu.style.maxHeight,
+                menuScrolls: menu.scrollHeight > menu.clientHeight,
+                container: container === null ? null : rectangle(container),
+                noticeSharesTheContainer: notice.parentElement === container,
+              },
         viewport: { width: window.innerWidth, height: window.innerHeight },
       };
     }, REFLECT_OWNED_SKIPPED);
@@ -532,9 +579,19 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
       `the notice renders inside a clipping ancestor of the control (${JSON.stringify(escape.clipping)}), so the host's hero cuts it off with nothing to see and no error`,
     ).toBe(false);
     expect(
-      escape.parentIsBody,
-      "the notice is not a child of the document body, so it did not leave the hero through the portal path the menu uses",
+      escape.noticeAscent.depthBelowBody,
+      `the notice sits ${escape.noticeAscent.depthBelowBody} elements below the body through ${JSON.stringify(escape.noticeAscent.chain)}, so it renders inside the page's own tree rather than in the anchored container it shares with the menu`,
+    ).toBeLessThanOrEqual(1);
+    expect(
+      escape.noticeAscent.rootIsAnchoredContainer,
+      `the notice reaches the body through an element carrying ${JSON.stringify(escape.noticeAscent.rootClassName)} rather than the anchored container's own classes, so it did not leave the hero through the portal path the menu uses`,
     ).toBe(true);
+    // The same ascent applied to the control, which the host mounts inside its hero. A check that
+    // reported an escape for every node would report one here too.
+    expect(
+      escape.triggerAscent.depthBelowBody,
+      `the control the host mounted in its hero reads as ${escape.triggerAscent.depthBelowBody} elements below the body, so the ascent above cannot tell a portaled node from a nested one`,
+    ).toBeGreaterThan(1);
 
     // What the source reading could not settle is whether the notice is where a reader can read it.
     // Playwright's own visibility is a non-empty box and a visible style; neither says an ancestor is
@@ -547,7 +604,7 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
         escape.notice.left >= 0 &&
         escape.notice.bottom <= escape.viewport.height &&
         escape.notice.right <= escape.viewport.width,
-      `the notice is drawn at ${JSON.stringify(escape.notice)} in a ${JSON.stringify(escape.viewport)} viewport, so part of it is off screen and a reader cannot read what the gesture did`,
+      `the notice is drawn at ${JSON.stringify(escape.notice)} in a ${JSON.stringify(escape.viewport)} viewport, so part of it is off screen and a reader cannot read what the gesture did. The panel it shares its container with: ${JSON.stringify(escape.panel)}`,
     ).toBe(true);
 
     // And nothing was asked of the instance for a verb it declined.
