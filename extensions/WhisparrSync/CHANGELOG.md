@@ -93,8 +93,9 @@ and what your Whisparr instance monitors.
 - **A long menu scrolls instead of being cut off, and the message about your last press sits below
   the menu, on screen, rather than over it.** A menu taller than the space under the button used to
   lose its last items with nothing to see, and the sentence saying what the last press did used to
-  cover the items it was about. The menu now takes the space the message needs out of its own, so
-  both are readable however long the menu is.
+  cover the items it was about. The menu now takes the space the message needs out of its own, so a
+  menu of any length scrolls and the message keeps its place below it. In a window too short to hold
+  both under the button, the menu keeps a readable height instead of collapsing to a sliver.
 
 Two things worth knowing before you enter a key:
 
