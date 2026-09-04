@@ -210,7 +210,7 @@ public sealed class SearchGrabbingRouteTests
     [Fact]
     public async Task NoOtherMountedGestureReachesAGrabbingVerbAtAnyPosition()
     {
-        await using var host = await HoldingHost(HeldNotMonitored);
+        await using var host = await HoldingHost(HeldNotMonitored, HeldAndMonitored);
         var studioId = await SeededStudio(host);
         await host.SeedStudioFileAsync(studioId, "/library/vixen/2026");
 
@@ -257,11 +257,19 @@ public sealed class SearchGrabbingRouteTests
     }
 
     /// <summary>A host whose instance answers a studio read with <paramref name="studio"/>.</summary>
-    private static async Task<MonitorHost> HoldingHost(string studio)
+    /// <summary>One host whose studio read answers <paramref name="studio"/> in turn.</summary>
+    /// <remarks>
+    /// Several answers describe one instance acting between two reads, which is what the monitor
+    /// path's own read-back then classifies from. The last one repeats, so a case that names one
+    /// answer describes an instance that never changes.
+    /// </remarks>
+    private static async Task<MonitorHost> HoldingHost(params string[] studio)
     {
         var host = await MonitorHost.CreateAsync();
         host.Client
-            .Answering(nameof(IWhisparrStudioActing.ReadStudioAsync), MonitorHost.Json(200, studio))
+            .Answering(
+                nameof(IWhisparrStudioActing.ReadStudioAsync),
+                [.. studio.Select(answer => MonitorHost.Json(200, answer))])
             .Answering(
                 nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
                 MonitorHost.Json(200, LinksIntoPlace));
