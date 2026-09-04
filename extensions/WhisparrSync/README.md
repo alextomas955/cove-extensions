@@ -9,10 +9,10 @@ instance; the import path behind that callback, which brings a delivered file in
 and a Whisparr control on studio and performer pages and in their selection bars that monitors and
 unmonitors an entity on the connected instance, registers the scenes Cove holds that the instance's
 catalogue does not, asks Whisparr to link the files Cove already holds for it into place, and asks
-Whisparr to search for what a monitored entity wants. So this extension
-changes your library, changes what a third party monitors, and has one action that spends the user's
-bandwidth and disk. That last one is a separately named row on a single entity, it is absent from
-the selection bar, and it is the only thing here that downloads.
+Whisparr to search for what a monitored entity wants. So this extension changes your library,
+changes what a third party monitors, and has one action that spends the user's bandwidth and disk.
+That last one is a separately named row on a single entity, it is absent from the selection bar, and
+it is the only thing here that downloads.
 
 ## Documentation
 
