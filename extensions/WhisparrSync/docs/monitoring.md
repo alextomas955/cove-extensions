@@ -193,15 +193,17 @@ control.
 The six reasons above are the first kind. They are read when the page opens, so the control is
 already disabled and already carrying its reason before you press anything.
 
-Three more reasons are the second kind. Each of them is one attempt failing rather than the entity
+Five more reasons are the second kind. Each of them is one attempt failing rather than the entity
 being unmonitorable, so the control stays pressable: nothing is sent, nothing is changed and no
 background job starts, and fixing the instance and pressing again is the whole remedy.
 
-| What was refused                                        | What you see                                                                                |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Whisparr offers no quality profile                      | Whisparr offers no quality profile, so nothing was sent. Add one in Whisparr and try again. |
-| Whisparr offers no root folder                          | Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.     |
-| Whisparr answered and declined, or could not be reached | Whisparr would not do this. Nothing here was changed.                                       |
+| What was refused                                         | What you see                                                                                                              |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Whisparr offers no quality profile                       | Whisparr offers no quality profile, so nothing was sent. Add one in Whisparr and try again.                               |
+| Whisparr offers no root folder                           | Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.                                   |
+| Whisparr answered and declined, or could not be reached  | Whisparr would not do this. Nothing here was changed.                                                                     |
+| Whisparr no longer holds the entry                       | Whisparr no longer holds this entry, so there was nothing to act on. Reload the page for its current state.               |
+| Whisparr's answer was larger than the extension can read | Whisparr's answer was larger than this extension reads at once, so nothing was changed. Your Whisparr answered correctly. |
 
 Cove reads the quality profile before the root folder, so an instance offering neither names the
 quality profile.
@@ -210,6 +212,13 @@ The first two arrive only in answer to a press. No read asks Whisparr for a qual
 root folder, because only an action composes something to add. The third arrives on a press and also
 on the read the page opens with, where an unreachable instance produces it: there too the control
 stays pressable and the sentence appears beneath it, so a reload is one gesture away.
+
+The fourth arrives on Search all monitored, on Add all missing, and on the read Cove takes straight
+after a change it asked for. It is Whisparr answering that it holds nothing under that entry, which
+is a different fact from Whisparr declining, so reloading the page is the remedy rather than
+changing anything in Whisparr. The fifth arrives on any read or press, and it is this extension's
+own limit rather than a fault in your instance: nothing in Whisparr needs changing, and a later
+press may well be answered with less.
 
 This applies to monitoring, unmonitoring and changing a scope as much as to the three items above.
 
@@ -250,10 +259,11 @@ entity. Closing the overlay without choosing sends nothing.
 
 What you choose runs as one background job. Its progress and its result for each entity appear in
 Cove's job list, and it ends with Cove's own count of those results. An entity Whisparr now monitors
-counts as succeeded. An entity Whisparr declined counts as failed. An entity refused before anything
-was sent counts as skipped: no usable link, several conflicting links, a capability the connected
-generation lacks, or Whisparr offering no quality profile or no library root. Nothing on the page you
-are looking at changes when it finishes.
+counts as succeeded. An entity Whisparr declined counts as failed, and so does one whose answer was
+larger than the extension reads at once. An entity passed over for a stated reason counts as
+skipped: no usable link, several conflicting links, a capability the connected generation lacks,
+Whisparr offering no quality profile or no library root, or Whisparr no longer holding the entry.
+Nothing on the page you are looking at changes when it finishes.
 
 An entity counts as succeeded only when Whisparr, read again after the change, says it monitors it.
 An accepted request that left the entity unmonitored counts as failed.
