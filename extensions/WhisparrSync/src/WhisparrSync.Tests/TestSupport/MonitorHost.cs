@@ -71,6 +71,9 @@ internal sealed class MonitorHost : IAsyncDisposable
     /// <summary>The folder source over this host's own library, as the routes resolve it.</summary>
     public IEntityFolderPort Folders { get; private set; } = null!;
 
+    /// <summary>The scene-identity source over this host's own library, as the routes resolve it.</summary>
+    public IEntitySceneIdentityPort SceneIdentities { get; private set; } = null!;
+
     /// <summary>The bytes that actually left, or null where this host stands the recorder instead.</summary>
     public BodyRecordingHandler? Bytes { get; private set; }
 
@@ -152,6 +155,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         builder.Services.AddSingleton<IEntityIdentityPort>(new EntityIdentityPort(host._db, options));
         host.Folders = new EntityFolderPort(host._db);
         builder.Services.AddSingleton(host.Folders);
+        host.SceneIdentities = new EntitySceneIdentityPort(host._db, options);
+        builder.Services.AddSingleton(host.SceneIdentities);
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton<ICredentialPort>(credentials);
 
@@ -255,6 +260,38 @@ internal sealed class MonitorHost : IAsyncDisposable
     public Task SeedPerformerFileAsync(int performerId, string folderPath)
         => SeedVideoFileAsync(folderPath, null, performerId);
 
+    /// <summary>Seeds one scene the studio <paramref name="studioId"/> names holds.</summary>
+    /// <remarks>
+    /// A scene rather than a file: what the registration verb offers an instance is the identifier a
+    /// video carries, and a video carries one whether or not the library holds a file for it.
+    /// </remarks>
+    public Task<int> SeedStudioSceneAsync(int studioId, string? endpoint, string? remoteId)
+        => SeedSceneAsync(studioId, null, endpoint, remoteId);
+
+    /// <summary>Seeds one scene linked to the performer <paramref name="performerId"/> names.</summary>
+    /// <remarks>
+    /// Linked through the join row rather than through the studio column, so a source reading the
+    /// studio column answers nothing here.
+    /// </remarks>
+    public Task<int> SeedPerformerSceneAsync(int performerId, string? endpoint, string? remoteId)
+        => SeedSceneAsync(null, performerId, endpoint, remoteId);
+
+    /// <summary>Adds one more identity row to a scene already seeded.</summary>
+    /// <remarks>
+    /// Exists so a case can hold two rows the host's same-source rule treats as one source, which is
+    /// the shape a database-side distinct on the raw pair cannot collapse.
+    /// </remarks>
+    public async Task AddSceneIdentityAsync(int videoId, string endpoint, string remoteId)
+    {
+        _db.Add(new VideoRemoteId
+        {
+            VideoId = videoId,
+            Endpoint = endpoint,
+            RemoteId = remoteId,
+        });
+        await _db.SaveChangesAsync(TestCt);
+    }
+
     public Task<EntityMonitoringView> MonitorAsync(int studioId)
         => MonitorAsync("studio", studioId);
 
@@ -341,6 +378,28 @@ internal sealed class MonitorHost : IAsyncDisposable
         await _app.DisposeAsync();
         await _db.DisposeAsync();
         await _connection.DisposeAsync();
+    }
+
+    private async Task<int> SeedSceneAsync(
+        int? studioId, int? performerId, string? endpoint, string? remoteId)
+    {
+        var title = "Scene " + (++_seeded).ToString(CultureInfo.InvariantCulture);
+        var video = new Video { Title = title, StudioId = studioId };
+        _db.Add(video);
+        await _db.SaveChangesAsync(TestCt);
+
+        if (performerId is { } linked)
+        {
+            _db.Add(new VideoPerformer { VideoId = video.Id, PerformerId = linked });
+            await _db.SaveChangesAsync(TestCt);
+        }
+
+        if (endpoint is not null && remoteId is not null)
+        {
+            await AddSceneIdentityAsync(video.Id, endpoint, remoteId);
+        }
+
+        return video.Id;
     }
 
     private async Task SeedVideoFileAsync(string folderPath, int? studioId, int? performerId)
