@@ -557,9 +557,14 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
             ? null
             : {
                 menu: rectangle(menu),
-                menuMaxHeight: menu.style.maxHeight,
+                menuOverflowY: getComputedStyle(menu).overflowY,
                 menuScrolls: menu.scrollHeight > menu.clientHeight,
+                menuScrollHeight: menu.scrollHeight,
+                menuClientHeight: menu.clientHeight,
                 container: container === null ? null : rectangle(container),
+                // The bound is on the container, because the container is what has to fit the
+                // room below the trigger: the notice takes its own height out of that room.
+                containerMaxHeight: container === null ? "" : container.style.maxHeight,
                 noticeSharesTheContainer: notice.parentElement === container,
               },
         viewport: { width: window.innerWidth, height: window.innerHeight },
@@ -606,6 +611,17 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
         escape.notice.right <= escape.viewport.width,
       `the notice is drawn at ${JSON.stringify(escape.notice)} in a ${JSON.stringify(escape.viewport)} viewport, so part of it is off screen and a reader cannot read what the gesture did. The panel it shares its container with: ${JSON.stringify(escape.panel)}`,
     ).toBe(true);
+    // Regression guards rather than discriminators: both already held before the notice was given
+    // its own room. The panel is what the room is taken from, so it is the part that could be
+    // driven off screen or left unscrollable by a change to how the room is divided.
+    expect(
+      escape.panel.menu.top >= 0 && escape.panel.menu.bottom <= escape.viewport.height,
+      `the menu is drawn at ${JSON.stringify(escape.panel.menu)} in a ${JSON.stringify(escape.viewport)} viewport, so part of it is off screen`,
+    ).toBe(true);
+    expect(
+      escape.panel.menuOverflowY,
+      `the menu resolves overflow-y to ${escape.panel.menuOverflowY} while holding ${String(escape.panel.menuScrollHeight)}px of rows in ${String(escape.panel.menuClientHeight)}px, so a row past the bound cannot be reached with a pointer`,
+    ).toBe("auto");
 
     // And nothing was asked of the instance for a verb it declined.
     await page.waitForTimeout(SETTLE_DWELL_MS);
