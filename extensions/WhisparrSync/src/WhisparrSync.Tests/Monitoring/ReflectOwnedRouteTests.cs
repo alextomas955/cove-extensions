@@ -244,6 +244,60 @@ public sealed class ReflectOwnedRouteTests
         Assert.Contains(progress.Reports, report => report.SubTask is not null);
     }
 
+    /// <summary>
+    /// A folder whose listing the run could not read is counted as refused, and is told apart from a
+    /// folder holding nothing importable.
+    /// </summary>
+    /// <remarks>
+    /// The two answers reach the same place through the same seam. Counting the refused folder as
+    /// nothing importable leaves the run's own line reporting a clean pass over a folder it never
+    /// read, and this listing is the one read in the verb whose answer size grows with the folder.
+    /// </remarks>
+    [Fact]
+    public async Task AFolderWhoseListingWasRefusedIsCountedAsRefusedRatherThanAsEmpty()
+    {
+        await using var host = await LinkingHost();
+        host.Client.Answering(
+            nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync),
+            MonitorHost.Json(200, string.Empty)
+                with
+            { Refusal = MonitorRefusalKind.AnswerTooLargeToRead });
+        var studioId = await SeededStudio(host);
+        await host.SeedStudioFileAsync(studioId, Later);
+
+        await host.ReflectOwnedViewAsync("studio", studioId);
+        var progress = new RecordingJobProgress();
+        await host.Jobs.RunLastAsync(progress, TestCt);
+
+        Assert.Contains(progress.Reports, report => report.SubTask == "0 linked, 1 refused.");
+        Assert.DoesNotContain(
+            nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync), host.Client.Verbs);
+    }
+
+    /// <summary>
+    /// A folder the instance listed nothing importable in is neither attached nor refused.
+    /// </summary>
+    /// <remarks>
+    /// The control for the case above. Without it, counting every unattached folder as refused
+    /// would pass the assertion there and report every empty folder as a failure.
+    /// </remarks>
+    [Fact]
+    public async Task AFolderHoldingNothingImportableIsCountedAsNeitherAttachedNorRefused()
+    {
+        await using var host = await LinkingHost();
+        host.Client.Answering(
+            nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync),
+            MonitorHost.Json(200, "[]"));
+        var studioId = await SeededStudio(host);
+        await host.SeedStudioFileAsync(studioId, Later);
+
+        await host.ReflectOwnedViewAsync("studio", studioId);
+        var progress = new RecordingJobProgress();
+        await host.Jobs.RunLastAsync(progress, TestCt);
+
+        Assert.Contains(progress.Reports, report => report.SubTask == "0 linked, 0 refused.");
+    }
+
     private static async Task<MonitorHost> LinkingHost()
     {
         var host = await MonitorHost.CreateAsync();

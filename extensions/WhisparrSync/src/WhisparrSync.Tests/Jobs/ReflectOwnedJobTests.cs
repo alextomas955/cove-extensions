@@ -101,7 +101,7 @@ public sealed class ReflectOwnedJobTests
         var run = await RunAsync(
             OneStudio,
             Acting(
-                (_, _) => Task.FromResult<string?>(Attachable),
+                (_, _) => Task.FromResult(ImportableListing.Listed(Attachable)),
                 (_, _) => Task.FromResult(true)),
             "/library/one");
 
@@ -122,7 +122,7 @@ public sealed class ReflectOwnedJobTests
         var run = await RunAsync(
             OneStudio,
             Acting(
-                (_, _) => Task.FromResult<string?>(Attachable),
+                (_, _) => Task.FromResult(ImportableListing.Listed(Attachable)),
                 (_, _) =>
                 {
                     stopping.Cancel();
@@ -145,7 +145,7 @@ public sealed class ReflectOwnedJobTests
 
     /// <summary>An aim that acts, reading and attaching through the delegates supplied.</summary>
     private static Func<IServiceProvider, CancellationToken, Task<ReflectOwnedAim>> Acting(
-        Func<string, CancellationToken, Task<string?>> read,
+        Func<string, CancellationToken, Task<ImportableListing>> read,
         Func<JsonArray, CancellationToken, Task<bool>> attach)
         => (_, _) => Task.FromResult(
             new ReflectOwnedAim(new ReflectOwnedAiming(WhisparrGeneration.V3, read, attach), null));
