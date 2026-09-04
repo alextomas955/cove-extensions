@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 
@@ -101,22 +102,66 @@ internal static class MonitoringProjector
                 nameof(kind), kind, "This is not an entity kind this product expresses."),
         };
 
-    /// <summary>What <paramref name="statusCode"/> says about whether the entity is held.</summary>
-    internal static EntityReading Reading(int statusCode)
-        => statusCode switch
+    /// <summary>What an entity answer says, and which refusal to state where it refuses.</summary>
+    /// <param name="Reading">Whether the instance holds the entity.</param>
+    /// <param name="Refusal">
+    /// Which refusal a reader is told, or <see cref="MonitorRefusalKind.None"/> on anything but a
+    /// refusal.
+    /// </param>
+    internal readonly record struct EntityAnswer(EntityReading Reading, MonitorRefusalKind Refusal);
+
+    /// <summary>What <paramref name="answered"/> says about whether the entity is held.</summary>
+    /// <remarks>
+    /// A refusal the answering seam read out of a parsed body wins over the status. The older
+    /// generation resolves an identifier through a lookup that answers a success alongside the fact
+    /// that it named nothing, so the status there is about the request rather than about the entity,
+    /// and reading it would report the wrong reason to a reader who can act on the right one.
+    /// </remarks>
+    internal static EntityAnswer Classify(WhisparrResponse answered)
+    {
+        ArgumentNullException.ThrowIfNull(answered);
+
+        if (answered.Refusal is not MonitorRefusalKind.None)
+        {
+            return new EntityAnswer(EntityReading.Refused, answered.Refusal);
+        }
+
+        var reading = answered.StatusCode switch
         {
             200 => EntityReading.Held,
             404 => EntityReading.NotHeld,
             _ => EntityReading.Refused,
         };
 
-    /// <summary>Whether the write <paramref name="statusCode"/> answered was accepted.</summary>
+        return new EntityAnswer(
+            reading,
+            reading == EntityReading.Refused
+                ? MonitorRefusalKind.InstanceRefused
+                : MonitorRefusalKind.None);
+    }
+
+    /// <summary>Whether the write <paramref name="answered"/> answered was accepted.</summary>
     /// <remarks>
-    /// A conflict is never read as "it already exists": the entity is read before the add, so a
-    /// conflict here is the instance declining, and the one measured cause of it is a value the add
-    /// was composed without.
+    /// A refusal the answering seam read out of a parsed body wins, for the reason
+    /// <see cref="Classify"/> states: on the older generation an add is preceded by a lookup, so a
+    /// lookup naming no entity refused before any write left and the status belongs to that read.
     /// </remarks>
-    internal static MonitorRefusalKind Accepted(int statusCode)
+    internal static MonitorRefusalKind Accepted(WhisparrResponse answered)
+    {
+        ArgumentNullException.ThrowIfNull(answered);
+
+        return answered.Refusal is MonitorRefusalKind.None
+            ? AcceptedStatus(answered.StatusCode)
+            : answered.Refusal;
+    }
+
+    /// <summary>Whether the write status <paramref name="statusCode"/> was accepted.</summary>
+    /// <remarks>
+    /// For a caller holding a status and no answer. A conflict is never read as "it already exists":
+    /// the entity is read before the add, so a conflict here is the instance declining, and the one
+    /// measured cause of it is a value the add was composed without.
+    /// </remarks>
+    internal static MonitorRefusalKind AcceptedStatus(int statusCode)
         => statusCode is >= 200 and < 300
             ? MonitorRefusalKind.None
             : MonitorRefusalKind.InstanceRefused;

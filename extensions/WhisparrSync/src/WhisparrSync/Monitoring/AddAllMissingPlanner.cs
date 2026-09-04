@@ -93,7 +93,7 @@ internal static class AddAllMissingPlanner
     /// </remarks>
     internal static SceneRegistration Classify(int statusCode, string? body)
     {
-        if (MonitoringProjector.Accepted(statusCode) == MonitorRefusalKind.None)
+        if (MonitoringProjector.AcceptedStatus(statusCode) == MonitorRefusalKind.None)
         {
             return SceneRegistration.Registered;
         }
