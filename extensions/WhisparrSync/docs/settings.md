@@ -129,11 +129,11 @@ Three options exist in Whisparr Sync's stored settings and have **no control on 
 They are listed here because they are part of what the extension stores, not because you can set them
 from the page.
 
-| Option                      | What it is for                                                                            | Default                                  | Read today                        |
-| --------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------- |
-| Callback host               | The host the callback address is built on before a registration exists.                   | Blank - derived from the request host    | Yes                               |
-| Metadata provider endpoints | Which metadata provider configured in Cove counts as the identity source, per generation. | Blank - each provider's standard address | Yes, by the import path           |
-| Default monitor scope       | The scope used when a caller does not ask for one. Both scopes are non-grabbing.          | New releases only                        | No - stored, and nothing reads it |
+| Option                      | What it is for                                                                            | Default                                  | Read today                  |
+| --------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------- |
+| Callback host               | The host the callback address is built on before a registration exists.                   | Blank - derived from the request host    | Yes                         |
+| Metadata provider endpoints | Which metadata provider configured in Cove counts as the identity source, per generation. | Blank - each provider's standard address | Yes, by the import path     |
+| Default monitor scope       | The scope used when a caller does not ask for one. Both scopes are non-grabbing.          | Future Scenes                            | Yes, by both monitor routes |
 
 **Callback host** you never type directly: it is written for you from the callback address you edit,
 which is what makes that edit survive a refresh.
@@ -141,9 +141,11 @@ which is what makes that edit survive a refresh.
 **Metadata provider endpoints** decides which provider an imported scene's identity is stamped
 against. Leave it blank unless you run more than one provider for the same generation.
 
-**Default monitor scope** is stored and nothing reads it yet. Setting it today changes no behaviour.
-It is documented here so that when a caller for it arrives, its default is the one stated above
-rather than a value chosen silently.
+**Default monitor scope** is the scope a monitor request is carried out at when it names none. Both
+the single-entity route and the bulk one read this same stored value, so a selection cannot behave
+differently from a click. The entity menu and the selection bar both name a scope for a studio, so
+in the shipped interface this decides a studio's scope only for a request that came from somewhere
+else.
 
 Saving the settings tab never touches any of the three: the page submits no value for them, and a
 save leaves whatever is stored exactly as it was.
