@@ -11,6 +11,7 @@
  * their narrowest and their field names are pinned in a test against the host source.
  */
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
@@ -29,6 +30,7 @@ import {
   routeFor,
   type MonitorMenuItem,
 } from "./monitorMenuLogic";
+import { useAnchoredTo } from "./useAnchoredTo";
 import { WhisparrMark } from "./WhisparrMark";
 import { useMonitoring } from "./useMonitoring";
 
@@ -64,6 +66,7 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
   const { state, act } = useMonitoring(kind, coveId);
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const noticeAt = useAnchoredTo(triggerRef);
 
   const view = state.view;
   const monitored = view?.monitored === true;
@@ -107,7 +110,7 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
   );
 
   return (
-    <div className="relative">
+    <div>
       <button
         ref={triggerRef}
         type="button"
@@ -183,16 +186,21 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
         />
       ) : null}
 
-      {outcome === null ? null : (
-        // Beneath the control rather than in place of it: the control still reports what the entity
-        // is, and this reports what the last gesture did.
-        <p
-          role="status"
-          className="absolute right-0 z-50 mt-2 w-72 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-secondary shadow-xl"
-        >
-          {outcome}
-        </p>
-      )}
+      {outcome === null
+        ? null
+        : // Beneath the control rather than in place of it: the control still reports what the
+          // entity is, and this reports what the last gesture did. Portaled for the reason the menu
+          // is - the host's hero clips its children, and `z-50` does not escape that.
+          createPortal(
+            <p
+              role="status"
+              style={noticeAt}
+              className="fixed z-50 w-72 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-secondary shadow-xl"
+            >
+              {outcome}
+            </p>,
+            document.body,
+          )}
     </div>
   );
 }
