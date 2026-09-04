@@ -126,6 +126,7 @@
     <Compile Remove="Invariants\AbsentCapabilityTests.cs" />
     <Compile Remove="Invariants\SafetyInvariantTests.cs" />
     <Compile Remove="Monitoring\AddDefaultsProjectorTests.cs" />
+    <Compile Remove="Monitoring\AddAllMissingRouteTests.cs" />
     <Compile Remove="Monitoring\BulkEndpointTests.cs" />
     <Compile Remove="Monitoring\EntityFolderPortTests.cs" />
     <Compile Remove="Monitoring\EntityIdentityPortTests.cs" />
