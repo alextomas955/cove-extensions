@@ -126,6 +126,8 @@ const RENDERED_BY_THE_BULK_OVERLAY = [
   "BULK_CHOOSE_AN_ACTION",
   "BULK_REPORTS_IN_THE_JOB_DRAWER",
   "BULK_ACTIONS_COULD_NOT_BE_OFFERED",
+  "BULK_SELECTION_IS_OVER_THE_BOUND",
+  "BULK_SELECTION_WAS_NOT_STARTED",
   "BULK_CANCEL",
   "BULK_CLOSE",
 ];
@@ -284,5 +286,20 @@ describe("no sentence is orphaned and no kind is silent", () => {
     ]) {
       expect(declared, name).toContain(name);
     }
+  });
+});
+
+describe("the bound the over-the-bound sentence names is the server's own", () => {
+  /** The route that declares it, read as text: the bound is a C# constant with no wire spelling. */
+  const ROUTES = path.resolve(SRC, "../../WhisparrSync/WhisparrSync.Api.cs");
+
+  it("names the number the route refuses above", () => {
+    const declared = /MaxEntityIdsPerRequest\s*=\s*(\d+)/.exec(readFileSync(ROUTES, "utf8"));
+
+    expect(declared, "the route declares no MaxEntityIdsPerRequest").not.toBeNull();
+    expect(copy.MAX_ENTITY_IDS_PER_REQUEST).toBe(Number(declared?.[1]));
+    expect(copy.BULK_SELECTION_IS_OVER_THE_BOUND).toContain(
+      String(copy.MAX_ENTITY_IDS_PER_REQUEST),
+    );
   });
 });
