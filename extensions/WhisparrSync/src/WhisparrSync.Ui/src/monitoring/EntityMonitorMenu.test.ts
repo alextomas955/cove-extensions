@@ -509,5 +509,34 @@ test("the menu panel scrolls rather than clipping", async () => {
   const panel = mounted.panel() as HTMLElement;
   expect(panel.classList.contains("overflow-y-auto")).toBe(true);
   expect(panel.classList.contains("overflow-hidden")).toBe(false);
-  expect(panel.style.maxHeight).not.toBe("");
+  expect(panel.parentElement?.style.maxHeight).not.toBe("");
+});
+
+test("the room below the trigger bounds the container, and the notice cannot be squeezed out of it", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), false);
+  await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      notice: "The instance declined the verb.",
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const panel = document.body.querySelector<HTMLElement>('[role="menu"]')!;
+  const container = panel.parentElement!;
+  const notice = document.body.querySelector<HTMLElement>('[role="status"]')!;
+
+  // jsdom reports every element rectangle as zeroes, so the height the notice keeps out of the
+  // room is not measurable here. What is measurable is which element carries the bound and which
+  // of the two children the column may shrink: the panel may, the notice may not.
+  expect(container.style.maxHeight).not.toBe("");
+  expect(panel.style.maxHeight).toBe("");
+  expect(container.classList.contains("flex")).toBe(true);
+  expect(container.classList.contains("flex-col")).toBe(true);
+  expect(panel.classList.contains("min-h-0")).toBe(true);
+  expect(notice.classList.contains("shrink-0")).toBe(true);
+  expect(notice.parentElement).toBe(container);
 });
