@@ -381,6 +381,17 @@ internal sealed class MonitorHost : IAsyncDisposable
     public Task RunEnqueuedBatchAsync(RecordingJobProgress progress)
         => Jobs.RunLastAsync(progress, TestCt);
 
+    /// <summary><paramref name="answered"/> read as the monitoring contract it declares.</summary>
+    /// <remarks>
+    /// Exists for a case that asserts the status BEFORE the body. The helpers that post and read in
+    /// one call throw on a failure status, which is a throw where the status itself is the subject.
+    /// </remarks>
+    public static async Task<EntityMonitoringView> ReadViewAsync(HttpResponseMessage answered)
+    {
+        ArgumentNullException.ThrowIfNull(answered);
+        return (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
+    }
+
     /// <summary>The raw answer to one entity's <paramref name="verb"/> route.</summary>
     public async Task<HttpResponseMessage> PostRawAsync(
         string kind, int coveId, string verb, string body)

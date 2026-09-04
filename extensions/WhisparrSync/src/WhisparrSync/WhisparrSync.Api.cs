@@ -2099,9 +2099,15 @@ public sealed partial class WhisparrSync
     /// </summary>
     /// <remarks>
     /// Contained rather than propagated: it is raised into a route whose declared results hold no
-    /// failure. Exactly one line is emitted, from a filter naming the two exceptions it contains, and
-    /// a named outcome is returned. A shutdown rethrows, because it is not a verdict about the
+    /// failure. Exactly one line is emitted, from a filter naming every exception it contains, and a
+    /// named outcome is returned. A shutdown rethrows, because it is not a verdict about the
     /// instance.
+    /// <para>
+    /// The filter names an I/O failure as well as a request one. The client reads a body out of the
+    /// response stream, so a connection dropped part way through an answer raises
+    /// <see cref="IOException"/> rather than <see cref="HttpRequestException"/>; a batch that let one
+    /// escape would lose the record of every entity it had already acted on.
+    /// </para>
     /// </remarks>
     private static async Task<WhisparrResponse?> ContainedAsync(
         Func<Task<WhisparrResponse>> request,
@@ -2117,7 +2123,8 @@ public sealed partial class WhisparrSync
         {
             throw;
         }
-        catch (Exception failure) when (failure is HttpRequestException or TaskCanceledException)
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
             WhisparrSyncLog.MonitoringRequestContained(
                 log, target.Generation, WhisparrSyncLog.Classify(failure), target.BaseAddress.Host);

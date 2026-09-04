@@ -102,7 +102,8 @@ internal sealed class ReportedRootPort(
             // A shutdown is not a reading about the instance, so it must not be held as one.
             throw;
         }
-        catch (Exception failure) when (failure is HttpRequestException or TaskCanceledException)
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
             WhisparrSyncLog.ReportedRootReadFailed(log, generation, baseAddress.Host);
 
