@@ -82,6 +82,7 @@ function viewOf(over: Partial<EntityMonitoringView> = {}): EntityMonitoringView 
     monitored: false,
     refusal: "none",
     capabilities: EVERY_CAPABILITY,
+    scope: null,
     ...over,
   };
 }
