@@ -394,8 +394,30 @@ describe("the verbs this build carries out", () => {
     }
   });
 
-  it("still answers null for the one verb no route is mounted for", () => {
-    expect(routeFor(secondaryItem("addAllMissing"), true)).toBeNull();
+  it("carries add all missing out at its own route, on a generation holding the capability", () => {
+    const addAllMissing = secondaryItem("addAllMissing");
+
+    expect(addAllMissing.enabled).toBe(true);
+    expect(addAllMissing.reason).toBeNull();
+    expect(routeFor(addAllMissing, true)).toBe("add-all-missing");
+  });
+
+  /**
+   * The absence from the selection bar is DERIVED, exactly as the search verb's is.
+   *
+   * The entity menu can carry the verb out, so the bar leaving it out cannot be read as the row
+   * being unavailable. What excludes it is that the bulk route declares no verb reaching it.
+   */
+  it("offers add all missing to no selection while carrying it out per entity", () => {
+    for (const kind of ENTITY_KINDS) {
+      const offer = bulkMonitorActions(view({ kind }));
+
+      expect(routeFor(secondaryItem("addAllMissing"), true)).not.toBeNull();
+      expect(
+        offer.actions.filter((action) => action.key.includes("addAllMissing")),
+        kind,
+      ).toEqual([]);
+    }
   });
 
   it("offers reflect owned to the selection bar not at all, because no bulk verb carries it", () => {
