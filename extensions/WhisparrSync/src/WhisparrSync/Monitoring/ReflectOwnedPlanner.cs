@@ -28,8 +28,16 @@ internal enum ReflectOwnedRunOutcome
 /// <param name="Outcome">Whether every folder was read.</param>
 /// <param name="FoldersAttached">How many folders' files the instance accepted.</param>
 /// <param name="FoldersRefused">How many folders' files the instance declined.</param>
+/// <param name="Skipped">
+/// Why NOTHING was attempted. Null both for a run that ran and for a run that was not aimed for a
+/// cause other than the instance's linking setting, because no setting was read on that path and
+/// naming one would send a reader to a value nobody looked at.
+/// </param>
 internal sealed record ReflectOwnedRun(
-    ReflectOwnedRunOutcome Outcome, int FoldersAttached, int FoldersRefused);
+    ReflectOwnedRunOutcome Outcome,
+    int FoldersAttached,
+    int FoldersRefused,
+    ReflectOwnedSkipReason? Skipped = null);
 
 /// <summary>Whether, and with what, an instance is asked to link files the library already holds.</summary>
 /// <remarks>
