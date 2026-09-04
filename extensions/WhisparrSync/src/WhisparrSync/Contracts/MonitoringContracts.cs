@@ -209,6 +209,14 @@ public enum MonitorRefusalKind
 
     /// <summary>The instance answered, and would not do it.</summary>
     InstanceRefused,
+
+    /// <summary>The instance answered, and the answer was larger than this product will read.</summary>
+    /// <remarks>
+    /// Distinct from <see cref="InstanceRefused"/> because the instance did nothing wrong: the limit
+    /// is this product's own, so a reader sent to look at the instance would find it answering
+    /// correctly.
+    /// </remarks>
+    AnswerTooLargeToRead,
 }
 
 /// <summary>What one entity's monitoring looks like, as the entity page reads it.</summary>
