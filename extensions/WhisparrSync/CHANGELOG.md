@@ -89,9 +89,10 @@ and what your Whisparr instance monitors.
   without a pointer. While a gesture is on its way and every item is dimmed, an arrow press now
   leaves your place alone instead of moving nowhere.
 - **A long menu scrolls instead of being cut off, and the message about your last press sits below
-  the menu rather than over it.** A menu taller than the space under the button used to lose its
-  last items with nothing to see, and the sentence saying what the last press did used to cover the
-  items it was about.
+  the menu, on screen, rather than over it.** A menu taller than the space under the button used to
+  lose its last items with nothing to see, and the sentence saying what the last press did used to
+  cover the items it was about. The menu now takes the space the message needs out of its own, so
+  both are readable however long the menu is.
 
 Two things worth knowing before you enter a key:
 
