@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -349,6 +350,103 @@ public sealed class MonitorPathTests
 
         Assert.Equal(
             MonitoringProjector.EntityReading.NotHeld, MonitoringProjector.Classify(read).Reading);
+    }
+
+    /// <summary>
+    /// However large an answer the older generation's listing gives, only the matched entry is
+    /// carried onward.
+    /// </summary>
+    /// <remarks>
+    /// The answer is generated here rather than captured, because it is an INPUT for a size property
+    /// and not a response any instance sent. A fabricated document in the fixtures directory would
+    /// break that directory's own contract, which is that every file in it is verbatim.
+    /// <para>
+    /// Driven through the transport double rather than through the role seam, so the two-request
+    /// assembly itself is what runs. A double standing in at the seam answers the assembled reading
+    /// and never assembles one.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task TheOlderGenerationsHeldReadIsNotGivenTheWholeCatalogueToParse()
+    {
+        var listing = new JsonArray();
+        for (var entry = 1; entry <= 20_000; entry += 1)
+        {
+            // Numbered from a base the resolved entity's own id sits below, so no unmatched entry can
+            // carry it and the match below is the only one there is.
+            var unmatched = entry + 100_000;
+            listing.Add(new JsonObject
+            {
+                ["id"] = unmatched,
+                ["tvdbId"] = unmatched,
+                ["title"] = string.Create(CultureInfo.InvariantCulture, $"Entry {unmatched}"),
+            });
+        }
+
+        // Last, so the walk that finds it has read every other entry first.
+        listing.Add(new JsonObject
+        {
+            ["id"] = 3373,
+            ["tvdbId"] = 3372,
+            ["title"] = "Vixen",
+            ["monitored"] = true,
+        });
+
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.OK, listing.ToJsonString()));
+        using var http = new HttpClient(handler);
+
+        var read = await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+            .ReadStudioAsync(
+                new Uri(MonitorHost.StoredAddress),
+                MonitorHost.StoredKey,
+                WhisparrGeneration.V2,
+                V2StoredIdentifier,
+                TestCt);
+
+        Assert.Equal("/api/v3/series?tvdbId=3372", handler.Targets[1]);
+        Assert.Equal(
+            3372,
+            Assert.IsType<JsonObject>(JsonNode.Parse(read.Body))["tvdbId"]!.GetValue<int>());
+        Assert.Equal(3373, MonitoringProjector.EntityIdIn(read.Body));
+
+        // The whole answer is over a megabyte. Only the matched entry reaches a caller, so what a
+        // caller holds does not vary with how much the instance does.
+        Assert.True(
+            read.Body.Length < 4096,
+            $"the read carried {read.Body.Length} characters onward out of a {listing.ToJsonString().Length}-character answer.");
+    }
+
+    /// <summary>
+    /// An entity the instance does not hold reads as not held on the narrowed read exactly as it did
+    /// on the unfiltered one, which is not a refusal.
+    /// </summary>
+    /// <remarks>
+    /// The listing answer is the one the pinned build sent for an entity id it holds nothing under.
+    /// Pinning the client's own answer here keeps a later change to this reading's CALLERS honest:
+    /// the reading itself is the precondition for adding the entity, not a report about the instance.
+    /// </remarks>
+    [Fact]
+    public async Task TheOlderGenerationsHeldReadOfAnEntityTheInstanceDoesNotHoldIsTheFilteredAnswer()
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.OK, V2OneSite),
+            (HttpStatusCode.OK,
+                ProbeFixtures.Read("whisparr-v2-2.2.0.231-series-by-tvdbid-absent.json")));
+        using var http = new HttpClient(handler);
+
+        var read = await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+            .ReadStudioAsync(
+                new Uri(MonitorHost.StoredAddress),
+                MonitorHost.StoredKey,
+                WhisparrGeneration.V2,
+                V2StoredIdentifier,
+                TestCt);
+
+        Assert.Equal("/api/v3/series?tvdbId=3372", handler.Targets[1]);
+        Assert.Equal(
+            MonitoringProjector.EntityReading.NotHeld, MonitoringProjector.Classify(read).Reading);
+        Assert.Equal(MonitorRefusalKind.None, MonitoringProjector.Classify(read).Refusal);
     }
 
     /// <summary>
