@@ -1,6 +1,7 @@
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 
 namespace WhisparrSync.Tests.Options;
@@ -34,8 +35,8 @@ public sealed class AdvancedOptionDefaultsTests
     private const string ExtensionId = "com.alextomas955.whisparrsync";
 
     [Fact]
-    public void TheDefaultMonitorScopeIsNewReleasesOnly()
-        => Assert.Equal(MonitorScope.NewReleasesOnly, new WhisparrSyncOptions().DefaultMonitorScope);
+    public void TheDefaultMonitorScopeIsFutureScenes()
+        => Assert.Equal(MonitorScope.FutureScenes, new WhisparrSyncOptions().DefaultMonitorScope);
 
     /// <summary>
     /// Both metadata provider endpoints are blank by default, which means each provider's standard

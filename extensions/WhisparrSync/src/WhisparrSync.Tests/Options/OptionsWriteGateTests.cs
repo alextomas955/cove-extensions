@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using Cove.Plugins;
 using Microsoft.Extensions.Logging;
+using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 
 namespace WhisparrSync.Tests.Options;

@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Options;
 
@@ -24,22 +25,58 @@ internal static class BoundedText
         => text is null || text.Length <= maxLength ? text : text[..maxLength];
 }
 
-/// <summary>How much of an entity's catalogue monitoring arms.</summary>
+/// <summary>
+/// Reads the withdrawn spelling of the narrower monitor scope, and writes only the current one.
+/// </summary>
 /// <remarks>
-/// Neither scope searches or downloads. The wire spelling is declared on the type; an equivalent
-/// converter in a serializer options collection would outrank it rather than duplicate it.
+/// A blob written before the two scope enums were collapsed into one names the narrower scope by a
+/// word the surviving enum does not declare. The store reports a blob it cannot bind as not bound
+/// and every layer above then reads defaults, so one unrecognised word would silently reset an
+/// install's address, endpoints and callback host as well as its scope.
+/// <para>
+/// Declared on the PROPERTY. The enum type's own attribute is the wire spelling for every other use
+/// of the enum and must not be widened to accept a word no wire document declares, and an entry in
+/// a serializer options collection would outrank that attribute rather than agree with it.
+/// </para>
+/// <para>
+/// Any spelling this does not recognise reads as the narrower scope, never the wider one: choosing
+/// the narrow scope wrongly costs one more gesture, and choosing the wide one wrongly marks a whole
+/// back catalogue wanted, which on the newer generation narrowing the scope again does not undo.
+/// </para>
+/// <para>
+/// Temporary. Nothing has released from this repo, so once no stored blob anywhere can carry the
+/// withdrawn word this converter and its property attribute can be deleted outright.
+/// </para>
 /// </remarks>
-[JsonConverter(typeof(CamelCaseStringEnumConverter))]
-public enum MonitorScope
+public sealed class WithdrawnMonitorScopeSpelling : JsonConverter<MonitorScope>
 {
-    /// <summary>Future scenes are wanted; the back-catalogue stays visible but unarmed.</summary>
-    NewReleasesOnly,
+    /// <summary>The word the withdrawn vocabulary named the narrower scope by.</summary>
+    private const string WithdrawnNarrowScope = "newReleasesOnly";
 
-    /// <summary>
-    /// Everything the entity offers becomes wanted, including scenes the user already owns, which
-    /// Whisparr has no file for and will therefore try to re-acquire.
-    /// </summary>
-    AllScenes,
+    public override MonitorScope Read(
+        ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.String)
+        {
+            reader.Skip();
+            return MonitorScope.FutureScenes;
+        }
+
+        var stored = reader.GetString();
+        return string.Equals(stored, WithdrawnNarrowScope, StringComparison.OrdinalIgnoreCase)
+            || !Enum.TryParse<MonitorScope>(stored, ignoreCase: true, out var named)
+            || !Enum.IsDefined(named)
+                ? MonitorScope.FutureScenes
+                : named;
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer, MonitorScope value, JsonSerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        writer.WriteStringValue(
+            JsonNamingPolicy.CamelCase.ConvertName(value.ToString()));
+    }
 }
 
 /// <summary>What a redelivery naming a different file does to the item that already exists.</summary>
@@ -375,10 +412,11 @@ public sealed record WhisparrSyncOptions
 
     /// <summary>The monitor scope used when a caller does not specify one.</summary>
     /// <remarks>
-    /// Defaults to <see cref="MonitorScope.NewReleasesOnly"/>, which leaves the existing
-    /// back-catalogue unarmed. Both scopes stay non-grabbing whatever this is set to.
+    /// Defaults to <see cref="MonitorScope.FutureScenes"/>, which leaves the existing back-catalogue
+    /// unarmed. Both scopes stay non-grabbing whatever this is set to.
     /// </remarks>
-    public MonitorScope DefaultMonitorScope { get; init; } = MonitorScope.NewReleasesOnly;
+    [JsonConverter(typeof(WithdrawnMonitorScopeSpelling))]
+    public MonitorScope DefaultMonitorScope { get; init; } = MonitorScope.FutureScenes;
 
     /// <summary>Which metadata provider counts as the identity source, per generation.</summary>
     /// <remarks>
