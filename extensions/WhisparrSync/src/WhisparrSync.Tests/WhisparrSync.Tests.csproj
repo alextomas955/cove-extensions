@@ -120,6 +120,7 @@
        A file that stands a MonitorHost belongs here too: that host owns a real CoveContext, so a
        route test consuming it reaches those same types without naming one itself. -->
   <ItemGroup Condition="'$(CoveSourceMode)' == 'none'">
+    <Compile Remove="ContainedTransportFailureTests.cs" />
     <Compile Remove="Import\CoveLibraryPortTests.cs" />
     <Compile Remove="Import\SystemPrincipalTests.cs" />
     <Compile Remove="Import\UpgradePathTests.cs" />
