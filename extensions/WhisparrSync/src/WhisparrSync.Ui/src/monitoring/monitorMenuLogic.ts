@@ -39,6 +39,7 @@ import {
   SCOPE_ALL_SCENES,
   SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED,
   SCOPE_FUTURE_SCENES,
+  SCOPE_IN_FORCE_IS_NOT_REPORTED,
   SEARCH_ALL_MONITORED,
   SEVERAL_IDENTITIES_IN_THIS_NAMESPACE,
   STOP_MONITORING_IN_WHISPARR,
@@ -84,6 +85,13 @@ export interface MonitorMenu {
   readonly available: boolean;
   /** The one sentence to state at the control, or null when there is nothing to say. */
   readonly reason: string | null;
+  /**
+   * The one sentence to state beneath the scope rows, or null when there is nothing to say.
+   *
+   * Set only where a scope IS in force and the read did not report which, so a reader looking at an
+   * unmarked pair is told why none is marked rather than left to read it as a fault.
+   */
+  readonly scopeNote: string | null;
   readonly items: readonly MonitorMenuItem[];
 }
 
@@ -342,7 +350,7 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
     refusal.sentence ?? (cannotMonitorThisKind ? CAP_UNAVAILABLE_ON_THIS_GENERATION : null);
   const available = !refusal.leavesNothingToOffer && !cannotMonitorThisKind;
   if (!available) {
-    return { available, reason, items: [] };
+    return { available, reason, scopeNote: null, items: [] };
   }
 
   const transient = inFlight ? WAITING_FOR_WHISPARR : null;
@@ -355,14 +363,24 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
     sentences,
   });
 
-  const scopes: MonitorMenuItem[] = OFFERS_A_SCOPE_PAIR[view.kind]
+  // The same two rows mean two different things. On an entity nothing monitors they are the monitor
+  // gesture, and the mark is the choice this menu will carry out, which defaults to the cheaper
+  // scope. On a monitored entity they are a report of what Whisparr holds, and a mark is a claim
+  // about the instance: an answer that named no scope must leave every row unmarked.
+  const offersAScopePair = OFFERS_A_SCOPE_PAIR[view.kind];
+  const scopes: MonitorMenuItem[] = offersAScopePair
     ? SCOPE_ORDER.map((scope) => ({
         ...face(SCOPE_LABEL[scope], scopeSentences(scope, view.generation), null),
         item: "scope" as const,
         scope,
-        selected: scope === DEFAULT_SCOPE,
+        selected: view.monitored ? scope === view.scope : scope === DEFAULT_SCOPE,
       }))
     : [];
+
+  const scopeNote =
+    offersAScopePair && view.monitored && view.scope === null
+      ? SCOPE_IN_FORCE_IS_NOT_REPORTED
+      : null;
 
   const monitorItem: MonitorMenuItem[] =
     scopes.length === 0 && !view.monitored
@@ -379,7 +397,7 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
       : [];
 
   if (!view.monitored) {
-    return { available, reason, items: [...scopes, ...monitorItem] };
+    return { available, reason, scopeNote, items: [...scopes, ...monitorItem] };
   }
 
   const unmonitor: MonitorMenuItem = {
@@ -397,7 +415,7 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
     action,
   }));
 
-  return { available, reason, items: [...scopes, unmonitor, ...secondary] };
+  return { available, reason, scopeNote, items: [...scopes, unmonitor, ...secondary] };
 }
 
 /**

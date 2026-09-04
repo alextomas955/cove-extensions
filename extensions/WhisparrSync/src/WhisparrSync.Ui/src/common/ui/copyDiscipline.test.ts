@@ -113,6 +113,12 @@ const CARRIED_BY_THE_MONITOR_MENU_ITEMS = [
 ];
 
 /**
+ * The sentence the menu states beneath the scope pair when the read named no scope in force. Its
+ * own group rather than the item list's, because it belongs to the pair rather than to either row.
+ */
+const STATED_BENEATH_THE_SCOPE_PAIR = ["SCOPE_IN_FORCE_IS_NOT_REPORTED"];
+
+/**
  * The selection overlay's own sentences: what it asks, where the answer appears, why it sometimes
  * has nothing to offer, and its two ways out.
  */
@@ -251,6 +257,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_AS_A_MONITOR_REFUSAL,
       ...RENDERED_ON_A_STALE_READ,
       ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
+      ...STATED_BENEATH_THE_SCOPE_PAIR,
     ];
 
     const orphans = CONSTANTS.filter(
@@ -273,6 +280,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_AS_A_MONITOR_REFUSAL,
       ...RENDERED_ON_A_STALE_READ,
       ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
+      ...STATED_BENEATH_THE_SCOPE_PAIR,
     ]) {
       expect(declared, name).toContain(name);
     }
