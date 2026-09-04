@@ -91,6 +91,16 @@ export const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
   "Changing the scope back to Future Scenes does not undo this: a scene that is already wanted stays wanted.";
 
 /**
+ * That the product does not know which scope is in force, stated where a marked option would be.
+ *
+ * Whisparr's own interface never states this, so there is nothing to mimic and the sentence is this
+ * product's own. It states what is not known rather than naming a scope, because a marked option
+ * the reader did not choose is a claim about their instance that this answer did not support.
+ */
+export const SCOPE_IN_FORCE_IS_NOT_REPORTED =
+  "Whisparr's answer does not say which scope this studio is monitored at, so Cove marks none.";
+
+/**
  * What unmonitoring stops and what it leaves behind.
  *
  * The second sentence is the point of the message. A reader who unmonitors to stop acquisition has

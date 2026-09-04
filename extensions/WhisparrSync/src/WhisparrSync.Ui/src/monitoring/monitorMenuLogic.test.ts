@@ -16,6 +16,7 @@ import {
   SCOPE_ALL_SCENES,
   SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED,
   SCOPE_FUTURE_SCENES,
+  SCOPE_IN_FORCE_IS_NOT_REPORTED,
   UNMONITORING_DOES_NOT_RETRACT,
   WAITING_FOR_WHISPARR,
 } from "../common/ui/copy";
@@ -33,6 +34,7 @@ import {
   SCOPE_ORDER,
   SECONDARY_ACTIONS,
   type MonitorMenuItem,
+  type MonitorScopeChoice,
   type SecondaryAction,
 } from "./monitorMenuLogic";
 
@@ -57,6 +59,7 @@ function view(
     monitored: false,
     refusal: "none",
     capabilities: EVERY_CAPABILITY,
+    scope: null,
     ...over,
   };
 }
@@ -71,6 +74,10 @@ function secondaries(items: readonly MonitorMenuItem[]): readonly SecondaryActio
 
 function scopeLabels(items: readonly MonitorMenuItem[]): readonly string[] {
   return items.flatMap((item) => (item.item === "scope" ? [item.label] : []));
+}
+
+function selectedScopes(items: readonly MonitorMenuItem[]): readonly string[] {
+  return items.flatMap((item) => (item.item === "scope" && item.selected ? [item.label] : []));
 }
 
 describe("the item set is written down for every combination the wire enums allow", () => {
@@ -151,19 +158,59 @@ describe("the studio menu", () => {
 });
 
 describe("the scope pair", () => {
-  it("reads Future Scenes first with Future Scenes taken, whatever the generation and the state", () => {
+  it("reads Future Scenes first, whatever the generation and the state", () => {
     for (const generation of GENERATIONS) {
       for (const monitored of [false, true]) {
         const menu = monitorMenu(view({ kind: "studio", generation, monitored }), false);
-        const scopes = menu.items.flatMap((item) => (item.item === "scope" ? [item] : []));
 
         expect(scopeLabels(menu.items), `${generation} ${String(monitored)}`).toEqual([
           SCOPE_FUTURE_SCENES,
           SCOPE_ALL_SCENES,
         ]);
-        expect(scopes.map((scope) => scope.selected)).toEqual([true, false]);
       }
     }
+  });
+
+  it("pre-selects Future Scenes while the entity is not monitored, on both generations", () => {
+    for (const generation of GENERATIONS) {
+      const menu = monitorMenu(
+        view({ kind: "studio", generation, monitored: false, scope: null }),
+        false,
+      );
+
+      expect(selectedScopes(menu.items), generation).toEqual([SCOPE_FUTURE_SCENES]);
+      expect(menu.scopeNote, generation).toBeNull();
+    }
+  });
+
+  it("marks the scope the read reported once the entity is monitored", () => {
+    const marked = (scope: MonitorScopeChoice) =>
+      selectedScopes(monitorMenu(view({ kind: "studio", monitored: true, scope }), false).items);
+
+    expect(marked("allScenes")).toEqual([SCOPE_ALL_SCENES]);
+    expect(marked("futureScenes")).toEqual([SCOPE_FUTURE_SCENES]);
+  });
+
+  it("marks no scope at all on a monitored entity whose read reported none", () => {
+    const menu = monitorMenu(view({ kind: "studio", monitored: true, scope: null }), false);
+
+    expect(selectedScopes(menu.items)).toEqual([]);
+    expect(menu.items.every((item) => item.item !== "scope" || !item.selected)).toBe(true);
+  });
+
+  it("states that it does not know which scope is in force, and only where it does not", () => {
+    const noteOn = (monitored: boolean, scope: MonitorScopeChoice | null) =>
+      monitorMenu(view({ kind: "studio", monitored, scope }), false).scopeNote;
+
+    expect(noteOn(true, null)).toBe(SCOPE_IN_FORCE_IS_NOT_REPORTED);
+    expect(noteOn(true, "allScenes")).toBeNull();
+    expect(noteOn(true, "futureScenes")).toBeNull();
+    // Nothing is in force yet on an unmonitored entity, so there is nothing unknown to report.
+    expect(noteOn(false, null)).toBeNull();
+  });
+
+  it("states nothing about a scope for a performer, which is offered no pair", () => {
+    expect(monitorMenu(view({ kind: "performer", monitored: true }), false).scopeNote).toBeNull();
   });
 
   it("tells the reader beside both options that the choice does not decide what is monitored", () => {
