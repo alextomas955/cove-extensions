@@ -214,6 +214,9 @@ public sealed partial class SettingsProjectionTests
                 // directory the user configured and can hold no credential.
                 "ImportRefused.root",
                 "ReportedRootReadFailed.host",
+                // An answer larger than the client reads at once: the host, and the bound beside it as
+                // a number. The body the bound was passed reading is never given to the line.
+                "ResponseBeyondReadBound.host",
             }.Order(),
             LogTemplates()
                 .SelectMany(template => template.GetParameters(), (template, parameter) => (template, parameter))

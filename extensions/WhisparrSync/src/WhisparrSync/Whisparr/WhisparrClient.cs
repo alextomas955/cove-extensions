@@ -264,10 +264,16 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
 
     /// <summary>How much of one answer the client will hold in memory before refusing it.</summary>
     /// <remarks>
-    /// Exceeding it fails the read rather than yielding a short body, which would parse as a valid
-    /// page.
+    /// Exceeding it answers <see cref="MonitorRefusalKind.AnswerTooLargeToRead"/> with an empty body,
+    /// rather than a short body, which would parse as a valid page.
     /// </remarks>
     internal const long MaxResponseBytes = 8L * 1024 * 1024;
+
+    // One byte past the bound is what tells an answer at the bound from one over it, so the read stops
+    // there rather than buffering whatever else arrived.
+    private const long ReadCeilingBytes = MaxResponseBytes + 1;
+
+    private const int ReadChunkBytes = 64 * 1024;
 
     public async Task<WhisparrResponse> ReadStatusAsync(
         Uri baseAddress,
@@ -691,11 +697,16 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
     }
 
     /// <summary>Applies the settings every request through this client is made under.</summary>
+    /// <remarks>
+    /// The response bound is applied inside the send rather than here. A handler-level bound raises
+    /// <see cref="HttpRequestException"/>, which this product's failure classification reduces to a
+    /// type name a refused connection produces too, so a caller could not tell this product's own
+    /// limit from an instance it never reached.
+    /// </remarks>
     internal static void Configure(HttpClient client)
     {
         ArgumentNullException.ThrowIfNull(client);
         client.Timeout = RequestTimeout;
-        client.MaxResponseContentBufferSize = MaxResponseBytes;
     }
 
     /// <summary>The handler every request through this client is made through.</summary>
@@ -759,6 +770,9 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
 
     // Null when the connection never established, which is the one failure a read may be re-issued
     // after. A status, however unwelcome, is an answer and is returned.
+    //
+    // An answer past the read bound is an answer too: it carries its own refusal rather than throwing,
+    // so it returns here on the first attempt and is not downloaded a second time.
     private async Task<WhisparrResponse?> TrySendAsync(
         Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode? body, CancellationToken ct)
     {
@@ -783,12 +797,74 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
                 body.ToJsonString(), Encoding.UTF8, MediaTypeNames.Application.Json);
         }
 
-        using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
-        var answered = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        return new WhisparrResponse(
-            (int)response.StatusCode,
-            response.Content.Headers.ContentType?.ToString(),
-            answered);
+        using var response = await http
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
+            .ConfigureAwait(false);
+        var contentType = response.Content.Headers.ContentType?.ToString();
+        var answered = await ReadWithinBoundAsync(response.Content, ct).ConfigureAwait(false);
+
+        if (answered is null)
+        {
+            WhisparrSyncLog.ResponseBeyondReadBound(
+                log, request.RequestUri?.Host ?? string.Empty, MaxResponseBytes);
+            return new WhisparrResponse((int)response.StatusCode, contentType, string.Empty)
+            {
+                Refusal = MonitorRefusalKind.AnswerTooLargeToRead,
+            };
+        }
+
+        return new WhisparrResponse((int)response.StatusCode, contentType, answered);
+    }
+
+    // Null when the answer is past the bound. Read here rather than bounded by the handler, so the
+    // limit is one this product can name: the handler's own bound raises an exception whose type a
+    // refused connection shares, and no caller could tell the two apart.
+    //
+    // The body of an answer past the bound is discarded unread beyond the ceiling and never returned.
+    // A refused add on one generation answers with a full stack trace, so the value the bound was
+    // passed reading is exactly the value that must not travel.
+    private static async Task<string?> ReadWithinBoundAsync(HttpContent content, CancellationToken ct)
+    {
+        var stream = await content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        await using (stream.ConfigureAwait(false))
+        {
+            using var buffered = new MemoryStream();
+            var chunk = new byte[ReadChunkBytes];
+
+            while (buffered.Length < ReadCeilingBytes)
+            {
+                var wanted = (int)Math.Min(chunk.Length, ReadCeilingBytes - buffered.Length);
+                var read = await stream.ReadAsync(chunk.AsMemory(0, wanted), ct).ConfigureAwait(false);
+                if (read == 0)
+                {
+                    return EncodingFor(content).GetString(buffered.GetBuffer(), 0, (int)buffered.Length);
+                }
+
+                await buffered.WriteAsync(chunk.AsMemory(0, read), ct).ConfigureAwait(false);
+            }
+
+            return null;
+        }
+    }
+
+    // The charset the answer names, which is what a framework-level string read honours. Decoding as
+    // UTF-8 unconditionally would change what a non-UTF-8 instance's answer says.
+    private static Encoding EncodingFor(HttpContent content)
+    {
+        var charset = content.Headers.ContentType?.CharSet?.Trim('"');
+        if (string.IsNullOrWhiteSpace(charset))
+        {
+            return Encoding.UTF8;
+        }
+
+        try
+        {
+            return Encoding.GetEncoding(charset);
+        }
+        catch (ArgumentException)
+        {
+            return Encoding.UTF8;
+        }
     }
 
     // Relative-Uri composition drops the last segment of a base that does not end in a separator,

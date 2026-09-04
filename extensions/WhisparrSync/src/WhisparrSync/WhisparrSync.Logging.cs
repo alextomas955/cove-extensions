@@ -219,6 +219,16 @@ internal static partial class WhisparrSyncLog
         string failure,
         string host);
 
+    // One answer larger than this product reads at once, refused with its own reason rather than
+    // parsed short. The host and the bound, and nothing else - an address may carry credentials in its
+    // user-info, a path names a stored library identifier, and a log sink is durable and readable. The
+    // body is never given here: the value the bound was passed reading is the one that must not
+    // travel.
+    [LoggerMessage(
+        EventId = 2120, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] an answer from {Host} was larger than the {Bound} bytes this extension reads at once and was refused")]
+    internal static partial void ResponseBeyondReadBound(ILogger logger, string host, long bound);
+
     // A lookup that named more than one entity, refused rather than picked from. The identifier is a
     // stored library value and the answer is an upstream body, so neither is named: the generation is
     // what makes it diagnosable, and without this line a refusal nobody can explain looks the same as

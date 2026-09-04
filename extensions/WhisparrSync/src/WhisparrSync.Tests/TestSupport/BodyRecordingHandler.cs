@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
 
@@ -40,6 +41,17 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
     public static BodyRecordingHandler AnsweringInTurn(
         params (HttpStatusCode Status, string Answer)[] answers)
         => new(answers);
+
+    /// <summary>Answers with more of one answer than the client reads at once.</summary>
+    /// <remarks>
+    /// Generated rather than committed: the size is what the answer is for, so a fixture would be
+    /// eight megabytes of repository holding one fact. Declared here rather than in a case, so the
+    /// bound and the answer that passes it stay in one place.
+    /// </remarks>
+    public static BodyRecordingHandler AnsweringPastTheReadBound()
+        => Answering(
+            HttpStatusCode.OK,
+            $"[\"{new string('a', (int)WhisparrClient.MaxResponseBytes)}\"]");
 
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
