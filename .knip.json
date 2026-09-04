@@ -42,12 +42,14 @@
         "**/*.spec.mjs",
         "lib/**/*.mjs",
         "probes/run.mjs",
+        "probes/tooltip-capture.mjs",
         "probes/rows/*.mjs",
         "probes/support/*.mjs",
         "probes/lib/*.unit.test.mjs",
         "probes/lib/check-record-bounds.mjs"
       ],
-      "project": ["**/*.mjs"]
+      "project": ["**/*.mjs"],
+      "ignoreBinaries": ["pwsh"]
     },
     "extensions/Renamer/e2e": {
       "entry": ["tests/**/*.spec.mjs", "lib/**/*.mjs"],
