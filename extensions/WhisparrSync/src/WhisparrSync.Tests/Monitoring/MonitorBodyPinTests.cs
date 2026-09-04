@@ -42,6 +42,11 @@ public sealed class MonitorBodyPinTests
     private const string V3SchemasFixture = "whisparr-v3-3.3.8.1097-resource-schemas.json";
     private const string V3ImportModesFixture = "whisparr-v3-3.3.8.1097-import-modes.json";
     private const string V3CommandsFixture = "whisparr-v3-3.3.8.1097-command-payloads.json";
+    private const string V3SceneAddAcceptedFixture = "whisparr-v3-3.3.8.1097-scene-add-accepted.json";
+    private const string V3SceneAddAlreadyHeldFixture = "whisparr-v3-3.3.8.1097-scene-add-already-held.json";
+    private const string V3SceneAddUnknownFixture = "whisparr-v3-3.3.8.1097-scene-add-unknown-identifier.json";
+    private const string V3SceneAddTitlelessFixture = "whisparr-v3-3.3.8.1097-scene-add-titleless-refusal.json";
+    private const string V3SceneAddTitleReplacedFixture = "whisparr-v3-3.3.8.1097-scene-add-title-replaced.json";
 
     private const string V2LookupFixture = "whisparr-v2-2.2.0.231-series-lookup.json";
     private const string V2LookupEmptyFixture = "whisparr-v2-2.2.0.231-series-lookup-empty.json";
@@ -57,6 +62,12 @@ public sealed class MonitorBodyPinTests
 
     /// <summary>The identifier the entity that was added is named by on the newer generation.</summary>
     private const string StudioForeignId = "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e";
+
+    /// <summary>The identifier the scene that was registered twice is named by.</summary>
+    private const string RegisteredSceneForeignId = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
+
+    /// <summary>The identifier the registration control used, which no provider lists.</summary>
+    private const string UnknownSceneForeignId = "00000000-0000-4000-8000-000000000000";
 
     /// <summary>The numeric identifier the older generation's lookup answered for one entity.</summary>
     private const int SiteEntityId = 3372;
@@ -93,6 +104,113 @@ public sealed class MonitorBodyPinTests
             StudioForeignId, MonitorScope.AllScenes, Defaults, Now);
         Assert.True(composed.ContainsKey("rootFolderPath"), $"the add omits a column {V3Build} requires");
         Assert.True(composed.ContainsKey("tags"), $"the add omits a column {V3Build} requires");
+    }
+
+    /// <summary>
+    /// A scene registration carrying no title is refused by a validator, so every composed scene add
+    /// carries one.
+    /// </summary>
+    /// <remarks>
+    /// Claimed of build 3.3.8.1097, from the document a registration carrying only the identifier and
+    /// the columns the studio add carries produced. The scene resource has a rule set in front of it
+    /// where the studio resource has none, and the rule it fails on is emptiness rather than absence:
+    /// a whitespace title is refused in the same words.
+    /// </remarks>
+    [Fact]
+    public void TheNewerGenerationRefusesASceneRegistrationCarryingNoTitle()
+    {
+        var refusal = Assert.IsType<JsonObject>(Array(V3SceneAddTitlelessFixture).Single());
+
+        Assert.Equal("Title", refusal["propertyName"]!.GetValue<string>());
+        Assert.Equal("NotEmptyValidator", refusal["errorCode"]!.GetValue<string>());
+        Assert.Equal("'Title' must not be empty.", refusal["errorMessage"]!.GetValue<string>());
+
+        var composed = V3BodyProjector.AddScene(RegisteredSceneForeignId, Defaults);
+        Assert.False(
+            string.IsNullOrWhiteSpace(composed["title"]?.GetValue<string>()),
+            $"the scene registration omits the member {V3Build} refuses an empty one on");
+    }
+
+    /// <summary>
+    /// A scene the instance already holds is named by an error code, and the control that names no
+    /// scene at all carries no error code at all, so the two are told apart on that member.
+    /// </summary>
+    /// <remarks>
+    /// Claimed of build 3.3.8.1097, from the documents a second registration of one scene and a
+    /// registration of a well-formed identifier no provider lists produced. Both answer the same
+    /// status and the same content type, so a classifier reading either would report a scene the
+    /// instance holds as a refusal and a scene nothing lists as held. The member that separates them
+    /// is what a run classifies on.
+    /// </remarks>
+    [Fact]
+    public void TheNewerGenerationNamesASceneItAlreadyHoldsByAnErrorCodeTheControlDoesNotCarry()
+    {
+        var alreadyHeld = Assert.IsType<JsonObject>(Array(V3SceneAddAlreadyHeldFixture).Single());
+        var unknown = Assert.IsType<JsonObject>(Array(V3SceneAddUnknownFixture).Single());
+
+        Assert.Equal("ForeignId", alreadyHeld["propertyName"]!.GetValue<string>());
+        Assert.Equal("MovieExistsValidator", alreadyHeld["errorCode"]!.GetValue<string>());
+        Assert.Equal(
+            "This item has already been added", alreadyHeld["errorMessage"]!.GetValue<string>());
+        Assert.Equal(
+            RegisteredSceneForeignId, alreadyHeld["attemptedValue"]!.GetValue<string>());
+
+        Assert.Equal("StashDB", unknown["propertyName"]!.GetValue<string>());
+        Assert.Equal(
+            "A movie with this ID was not found. Path: ", unknown["errorMessage"]!.GetValue<string>());
+        Assert.Equal(UnknownSceneForeignId, unknown["attemptedValue"]!.GetValue<string>());
+        Assert.False(
+            unknown.ContainsKey("errorCode"),
+            $"{V3Build} names the control by an error code, so the two are no longer told apart on it");
+    }
+
+    /// <summary>
+    /// The title a scene registration carried is replaced by the instance's own, so the value sent
+    /// reaches nothing a reader sees.
+    /// </summary>
+    /// <remarks>
+    /// Claimed of build 3.3.8.1097, from the document a registration whose title member was the
+    /// identifier itself produced. The whole record is the instance's own resolution of that
+    /// identifier: the title, the folder it chose and the studio it attributed the scene to.
+    /// </remarks>
+    [Fact]
+    public void TheNewerGenerationReplacesTheTitleASceneRegistrationCarried()
+    {
+        var registered = Object(V3SceneAddTitleReplacedFixture);
+        const string sentAsTitle = "027393c9-e589-4548-8a7f-c04292a9de14";
+
+        Assert.Equal(sentAsTitle, registered["foreignId"]!.GetValue<string>());
+        Assert.Equal("Nadia Noel", registered["title"]!.GetValue<string>());
+        Assert.NotEqual(sentAsTitle, registered["title"]!.GetValue<string>());
+        Assert.Equal("1000 Facials", registered["studioTitle"]!.GetValue<string>());
+        Assert.DoesNotContain(
+            sentAsTitle, registered["title"]!.GetValue<string>(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A scene registration the instance accepted echoes the suppression flag back set, and echoes
+    /// back the monitor type covering the one scene.
+    /// </summary>
+    /// <remarks>
+    /// Claimed of build 3.3.8.1097, from the document an accepted registration produced. The echo
+    /// drops the top-level suppression member entirely and keeps the add-options one, which is why a
+    /// composed body carries both spellings rather than whichever the echo shows.
+    /// </remarks>
+    [Fact]
+    public void ASceneRegistrationTheNewerGenerationAcceptedEchoesTheSuppressionFlagSet()
+    {
+        var registered = Object(V3SceneAddAcceptedFixture);
+        var echoed = Assert.IsType<JsonObject>(registered["addOptions"]);
+
+        Assert.Equal(RegisteredSceneForeignId, registered["foreignId"]!.GetValue<string>());
+        Assert.Equal("scene", registered["itemType"]!.GetValue<string>());
+        Assert.True(registered["monitored"]!.GetValue<bool>());
+        Assert.False(echoed["searchForMovie"]!.GetValue<bool>());
+        Assert.Equal("sceneOnly", echoed["monitor"]!.GetValue<string>());
+        Assert.Equal("manual", echoed["addMethod"]!.GetValue<string>());
+        Assert.False(
+            registered.ContainsKey("searchOnAdd"),
+            $"{V3Build} now echoes the top-level flag, so the echo is evidence about it");
     }
 
     /// <summary>
