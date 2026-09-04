@@ -482,6 +482,101 @@ public sealed class MonitorPathTests
 
         Assert.False(view.Monitored);
         Assert.Equal(MonitorRefusalKind.None, view.Refusal);
+        Assert.Null(view.Scope);
+    }
+
+    /// <summary>
+    /// The mount read carries the scope the instance's own answer reported, and carries none where
+    /// that answer reported nothing.
+    /// </summary>
+    /// <remarks>
+    /// Driven through the mapped route rather than through the projection, because the defect this
+    /// closes was the browser reading a scope the read never carried.
+    /// </remarks>
+    [Theory]
+    [InlineData("""{"id":1,"monitored":true,"afterDate":"2026-09-03"}""", MonitorScope.FutureScenes)]
+    [InlineData("""{"id":1,"monitored":true}""", MonitorScope.AllScenes)]
+    public async Task TheMountReadCarriesTheScopeTheInstanceReported(string body, MonitorScope scope)
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(nameof(IWhisparrStudioActing.ReadStudioAsync), Json(200, body));
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var view = await host.ReadMonitoringAsync(studioId);
+
+        Assert.True(view.Monitored);
+        Assert.Equal(scope, view.Scope);
+    }
+
+    /// <summary>
+    /// A studio the instance holds and does not monitor reports no scope, whatever date gate its
+    /// record still carries.
+    /// </summary>
+    [Fact]
+    public async Task AnUnmonitoredStudioReadCarriesNoScope()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(
+            nameof(IWhisparrStudioActing.ReadStudioAsync),
+            Json(200, """{"id":1,"monitored":false,"afterDate":"2026-09-03"}"""));
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var view = await host.ReadMonitoringAsync(studioId);
+
+        Assert.False(view.Monitored);
+        Assert.Null(view.Scope);
+    }
+
+    /// <summary>A performer reports no scope, because it expresses none on either generation.</summary>
+    [Fact]
+    public async Task APerformerReadCarriesNoScope()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(
+            nameof(IWhisparrPerformerActing.ReadPerformerAsync),
+            Json(200, """{"id":2,"monitored":true,"afterDate":"2026-09-03"}"""));
+        var performerId = await host.SeedPerformerAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.PerformerRemoteIdValue);
+
+        var answered = await host.Http.GetAsync(
+            host.RouteFor("performer", performerId, "monitoring"), TestContext.Current.CancellationToken);
+        answered.EnsureSuccessStatusCode();
+        var view = (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(
+            TestContext.Current.CancellationToken))!;
+
+        Assert.True(view.Monitored);
+        Assert.Null(view.Scope);
+    }
+
+    /// <summary>The scope-change route answers the scope it just applied.</summary>
+    [Fact]
+    public async Task TheScopeChangeAnswersTheScopeItApplied()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(
+            nameof(IWhisparrStudioActing.ReadStudioAsync),
+            Json(200, """{"id":1,"monitored":true,"afterDate":"2026-09-03"}"""));
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var view = await host.ChangeScopeAsync("studio", studioId, "allScenes");
+
+        Assert.Equal(MonitorScope.AllScenes, view.Scope);
+    }
+
+    /// <summary>Unmonitoring leaves no scope in force to report.</summary>
+    [Fact]
+    public async Task UnmonitoringAnswersNoScope()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(
+            nameof(IWhisparrStudioActing.ReadStudioAsync),
+            Json(200, """{"id":1,"monitored":true,"afterDate":"2026-09-03"}"""));
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var view = await host.UnmonitorAsync("studio", studioId);
+
+        Assert.False(view.Monitored);
+        Assert.Null(view.Scope);
     }
 
     /// <summary>An instance refusing the add is reported as a kind, never as its own words.</summary>

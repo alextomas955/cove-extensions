@@ -1033,7 +1033,8 @@
           "generation",
           "monitored",
           "refusal",
-          "capabilities"
+          "capabilities",
+          "scope"
         ],
         "type": "object",
         "properties": {
@@ -1061,6 +1062,16 @@
             "items": {
               "$ref": "#/components/schemas/WhisparrCapability"
             }
+          },
+          "scope": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MonitorScope"
+              }
+            ]
           }
         }
       },
