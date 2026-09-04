@@ -273,10 +273,12 @@ An overlay asks what to do with every entity you selected:
   Whisparr**.
 - A performer selection is offered **Monitor in Whisparr** and **Stop monitoring in Whisparr**.
 
-None of the three items above is offered in bulk, and both of the ones that act on a whole
-catalogue are left out on purpose: over a large selection, one press of Search all monitored would
+Those rows carry two verbs between them, monitor and unmonitor, and the overlay offers no others.
+**Add all missing**, **Reflect owned** and **Search all monitored** are not offered for a selection.
+Two of them are left out on purpose: over a large selection, one press of Search all monitored would
 become one search per entity, and one press of Add all missing would become one background run per
-entity. Closing the overlay without choosing sends nothing.
+entity. Reflect owned needs no row of its own, because monitoring a selection runs it for every
+entity anyway. Closing the overlay without choosing sends nothing.
 
 What you choose runs as one background job. Its progress and its result for each entity appear in
 Cove's job list, and it ends with Cove's own count of those results. An entity Whisparr now monitors
