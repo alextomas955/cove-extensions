@@ -32,11 +32,12 @@
 //
 // The sentence an action that never arrived states. It is reached from `state.actionError`, which is
 // set only when the EXTENSION's own route answers non-2xx. An unreachable Whisparr is not that case:
-// the route reaches it, fails to, and answers a refusal with a 200, which the browser reads as a
-// settled answer. So no address this spec could point the extension at produces that notice, and
-// simulating a 500 to see it would assert a condition rather than observe one. The notice's own
-// geometry is what this spec is for, and it is asserted below on the skip notice - the same portal
-// path, the same anchoring hook, on a notice a real gesture really produced.
+// the route reaches it, fails to, and answers a refusal with a 200. The browser reads that refusal
+// and states its own sentence for it, which is a different notice from this one. So no address this
+// spec could point the extension at produces the never-arrived notice, and simulating a 500 to see
+// it would assert a condition rather than observe one. The notice's own geometry is what this spec
+// is for, and it is asserted below on the skip notice - the same portal path, the same anchoring
+// hook, on a notice a real gesture really produced, and the same surface every refusal now rides.
 //
 // A spec that cannot reach a case must not pretend to.
 //
