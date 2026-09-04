@@ -64,7 +64,6 @@ vi.mock("@cove-extensions/ui-shared/postAction", () => ({
 
 const { WhisparrPerformerActions, WhisparrStudioActions } = await import("./EntityMonitorButton");
 const {
-  ACTION_ABSENT_IN_THIS_VERSION,
   ACTION_ADD_ALL_MISSING,
   ACTION_DID_NOT_REACH_WHISPARR,
   ACTION_REFLECT_OWNED,
@@ -380,28 +379,30 @@ test("an action that was carried out states nothing at the control", async () =>
   expect(notice).toBeNull();
 });
 
-test("an item this build serves no route for is offered dimmed rather than pressed into nothing", async () => {
-  // A capability the generation DOES hold, so the row is not dimmed for the capability reason and
-  // the only thing left to dim it is the absent route. Add all missing is the one verb left in that
-  // state: the other two are served, and a row this build cannot carry out has to stay legible.
+test("add all missing is pressed at its own route on a generation holding the capability", async () => {
   readAnswer = () =>
     Promise.resolve(
       view({ monitored: true, capabilities: ["monitorStudio", "registerMissingScenes"] }),
     );
+  actionAnswer = () => Promise.resolve({ jobId: "job-1", refusal: "none" });
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
   rendered.button?.click();
   await sleep(COMMIT_MS);
 
-  const unserved = rendered
+  const row = rendered
     .rows()
-    .find((row) => (row.getAttribute("title") ?? "").startsWith(ACTION_ADD_ALL_MISSING));
+    .find((entry) => (entry.getAttribute("title") ?? "").startsWith(ACTION_ADD_ALL_MISSING));
 
-  expect(unserved).toBeDefined();
-  expect(unserved?.disabled).toBe(true);
-  expect(unserved?.getAttribute("title")?.endsWith(ACTION_ABSENT_IN_THIS_VERSION)).toBe(true);
+  expect(row).toBeDefined();
+  expect(row?.disabled).toBe(false);
 
-  unserved?.click();
+  row?.click();
   await sleep(COMMIT_MS);
-  expect(sent.filter((call) => call.method === "POST")).toEqual([]);
+
+  const posted = sent.filter((call) => call.method === "POST");
+  expect(posted).toHaveLength(1);
+  expect(posted[0].path).toBe(
+    "/extensions/com.alextomas955.whisparrsync/entity/studio/1/add-all-missing",
+  );
 });
