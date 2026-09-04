@@ -20,6 +20,11 @@
 // asserted too, but it discriminates nothing on its own: this extension's actions declare
 // `suppressSuccessAlert`, so the host raises no alert on the success path either.
 //
+// THE RUN'S OWN SUMMARY SENTENCE IS NOT ASSERTED HERE, and the reason is a defect rather than a
+// choice: the host recomputes a unit-reporting job's summary from its unit tallies and mirrors that
+// onto the sub-task, so this extension's composed line - and the separate linking clause 53-18 added
+// to it - never reaches the reader. See the note at the assertion itself.
+//
 // NO SEARCH IS EXECUTED ANYWHERE IN THIS SPEC.
 //
 // IF THIS SPEC GOES RED, read the job log for a container-not-running line before debugging the UI.
@@ -29,12 +34,18 @@ import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { randomUUID } from "node:crypto";
 
+// Imported, unlike the labels below. This one is asserted for its PRESENCE in the overlay - 53-18
+// put it among the stop action's sentences and nothing else checks that it reaches a reader - so a
+// copied literal would keep passing after the shipped sentence moved out from under it.
+import { UNMONITORING_DOES_NOT_RETRACT } from "../../src/WhisparrSync.Ui/src/common/ui/copy.ts";
 import {
   connectWhisparr,
   expect,
+  EXTENSION_ID,
   extensionRoute,
   seedCovePerformer,
   seedCoveStudio,
+  SETTLE_DWELL_MS,
   STASHDB_ENDPOINT,
   whisparrAcquisitionSurface,
   whisparrActivity,
@@ -56,6 +67,19 @@ const BULK_ROUTE = extensionRoute("entities/bulk-monitor");
 
 // @see entity-monitor.spec.mjs — the same pattern, so this file names no verb that downloads.
 const SEARCH_COMMAND = /search/i;
+
+// The host's own job list, which an unrestricted account can read. The extension's status route
+// answers one job by id and so cannot say how many a gesture started, which is the whole of the
+// one-job claim below.
+const HOST_JOBS = "/api/jobs";
+const HOST_JOB_HISTORY = "/api/jobs/history";
+
+// How this extension's own jobs are typed, and the two types a selection could produce. A monitor
+// gesture over a selection runs the per-entity linking INSIDE its one job; enqueuing one run per
+// entity was the measured alternative, and these two counts are what tell the shapes apart.
+const OWN_JOB_PREFIX = `ext:${EXTENSION_ID}:`;
+const BULK_JOB_TYPE = `${OWN_JOB_PREFIX}monitoring-bulk`;
+const REFLECT_OWNED_JOB_TYPE = `${OWN_JOB_PREFIX}reflect-owned`;
 
 // How many entities this spec puts in front of the host, stated rather than derived from a page.
 const SEEDED_STUDIOS = 2;
@@ -274,6 +298,13 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
       chooserPanel(page).getByRole("button", { name: STOP_MONITORING_IN_WHISPARR }),
       "the chooser offers no unmonitor verb, so it is not reading the connected generation's capabilities",
     ).toBeVisible();
+    // What unmonitoring does NOT do, stated where the choice is made rather than after it. A reader
+    // who unmonitors to stop acquisition has not stopped it, and no other sentence in this product
+    // says so - so the overlay carrying it is the only place that fact reaches them.
+    await expect(
+      chooserPanel(page).getByText(UNMONITORING_DOES_NOT_RETRACT, { exact: false }),
+      "the chooser offers the unmonitor verb without saying what it leaves behind, so a reader stops Whisparr wanting new scenes and believes they retracted what All Scenes already made wanted",
+    ).toBeVisible();
 
     const enqueued = page.waitForResponse(
       (response) => new URL(response.url()).pathname === BULK_ROUTE,
@@ -327,7 +358,69 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
       ).toBe(true);
     }
 
-    // And nothing acquisitive was started by a gesture that touched two entities at once.
+    // 53-18's correction, taken against the instance rather than against the answer. A run reports
+    // applied from a READ of each entity, so the count it reports and the count the instance holds
+    // are the same number or the read-back is not happening.
+    const monitoredOnTheInstance = await Promise.all(
+      studioForeignIds.map(async (foreignId) =>
+        (await whisparrEntity(instance, "studio", foreignId))?.monitored === true ? 1 : 0,
+      ),
+    ).then((flags) => flags.reduce((total, flag) => total + flag, 0));
+    expect(
+      finished.entitiesApplied,
+      `the job reported ${String(finished.entitiesApplied)} applied and the instance holds ${String(monitoredOnTheInstance)} of the ${String(SEEDED_STUDIOS)} selected studios monitored, so the reported count is not a read of what the instance does`,
+    ).toBe(monitoredOnTheInstance);
+
+    // ONE job for the whole selection, and the per-entity linking inside it. Enqueuing one linking
+    // run per entity was the measured alternative, and a selection of a thousand entities is exactly
+    // where that difference stops being cosmetic.
+    const ownJobs = await Promise.all([coveApi.get(HOST_JOBS), coveApi.get(HOST_JOB_HISTORY)]).then(
+      (answers) =>
+        answers
+          .flatMap((answer) => (Array.isArray(answer.json) ? answer.json : []))
+          .filter((job) => String(job.type ?? "").startsWith(OWN_JOB_PREFIX)),
+    );
+    expect(
+      ownJobs.filter((job) => job.type === BULK_JOB_TYPE).length,
+      `the one gesture over ${String(SEEDED_STUDIOS)} studios produced ${String(ownJobs.filter((job) => job.type === BULK_JOB_TYPE).length)} bulk job(s). The extension's whole job list was ${JSON.stringify(ownJobs.map((job) => job.type))}`,
+    ).toBe(1);
+    expect(
+      ownJobs.filter((job) => job.type === REFLECT_OWNED_JOB_TYPE),
+      `the selection enqueued a separate reflect-owned run per entity rather than doing that work inside its one job. The extension's whole job list was ${JSON.stringify(ownJobs.map((job) => job.type))}`,
+    ).toEqual([]);
+
+    // What the run reports, taken on the members it owns rather than on its own sentence.
+    //
+    // THE COMPOSED LINE DOES NOT REACH A READER, AND THAT IS A DEFECT THIS SPEC RECORDS RATHER THAN
+    // PINS. The extension writes its own summary through the final progress report - "N applied, M
+    // refused." followed by a separate linking clause, which is the shape 53-18 chose so the
+    // per-entity linking is reported apart from the monitor outcomes. The host overwrites it: every
+    // unit tally recomputes `Summary` as its own "N of M units succeeded" and then mirrors that onto
+    // `SubTask`, so a job that reports units - which this one must, because the browser reads the
+    // per-entity counts off them - can never keep a sentence of its own. The reflect-owned and
+    // add-all-missing runs are unaffected and their lines are asserted in the sibling spec, because
+    // neither reports units. Asserting the absence here would read as coverage of a decision nobody
+    // took, so what is asserted is the counts, and the line is left named in the SUMMARY.
+    expect(
+      {
+        total: finished.entitiesTotal,
+        applied: finished.entitiesApplied,
+        refused: finished.entitiesRefused,
+        passedOver: finished.entitiesPassedOver,
+      },
+      `the bulk run reported ${JSON.stringify(finished)}, which does not account for every selected studio: a reader is told a total that its own parts do not add up to`,
+    ).toEqual({
+      total: SEEDED_STUDIOS,
+      applied: SEEDED_STUDIOS,
+      refused: 0,
+      passedOver: 0,
+    });
+
+    // And nothing acquisitive was started by a gesture that touched two entities at once, watched
+    // over the same named window its sibling uses rather than read the moment the poll returned. The
+    // poll's own interval is a delay the run happened to have, not a window anyone chose, and an
+    // absence bounded by an accident passes on a broken instance as readily as on a correct one.
+    await page.waitForTimeout(SETTLE_DWELL_MS);
     const after = await whisparrActivity(instance);
     expect(
       after.commandNames.filter((name) => SEARCH_COMMAND.test(name)),
