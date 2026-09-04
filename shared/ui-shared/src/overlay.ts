@@ -125,11 +125,18 @@ export function useOverlayKeys(
           // Empty is every row disabled, which is what an action in flight leaves. Returning leaves
           // the focus where it is, because there is nothing to move it to.
           if (list.length === 0) return;
+          const down = e.key === "ArrowDown";
           const current = list.indexOf(document.activeElement as HTMLElement);
+          // -1 is focus on nothing in the list, which is the state a settled press leaves: the
+          // pressed row is disabled while its action runs, the browser moves focus off it, and the
+          // rows re-enable. An arrow press from there enters the list at the end it points at, in
+          // both directions; a wrap from inside the list is the modulus below.
           const next =
-            e.key === "ArrowDown"
-              ? (current + 1) % list.length
-              : (current - 1 + list.length) % list.length;
+            current < 0
+              ? down
+                ? 0
+                : list.length - 1
+              : (current + (down ? 1 : list.length - 1)) % list.length;
           list[next]?.focus();
         }
         return;
