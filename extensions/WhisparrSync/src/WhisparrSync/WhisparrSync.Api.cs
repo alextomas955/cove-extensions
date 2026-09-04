@@ -600,7 +600,6 @@ public sealed partial class WhisparrSync
             identities,
             log,
             ActingFor(entityKind, target, scope),
-            ExpressesAScope(entityKind) ? scope : null,
             ct).ConfigureAwait(false);
 
         // From HERE and not from the resolved member the bulk path also reaches: a selection of a
@@ -1514,7 +1513,6 @@ public sealed partial class WhisparrSync
                     identities,
                     _log,
                     ActingFor(kind, resolved, batch.Scope ?? resolved.DefaultMonitorScope),
-                    ExpressesAScope(kind) ? batch.Scope ?? resolved.DefaultMonitorScope : null,
                     entityCt).ConfigureAwait(false),
                 MonitorBulkVerb.Unmonitor => await UnmonitorResolvedAsync(
                     kind, coveId, resolved, identities, _log, entityCt).ConfigureAwait(false),
@@ -1726,12 +1724,12 @@ public sealed partial class WhisparrSync
         }
     }
 
-    /// <summary>Monitors one entity, at <paramref name="composedScope"/> where it is added.</summary>
+    /// <summary>Monitors one entity, at the scope <paramref name="actingFor"/> was armed with.</summary>
     /// <remarks>
-    /// <paramref name="composedScope"/> is answered only on the branch that ADDS the entity, which is
-    /// the one branch where this product composed the scope itself. An entity the instance already
-    /// holds keeps its own, so that branch reads the instance's answer instead. Null for a kind that
-    /// expresses no scope.
+    /// The scope reaches the instance through the arm and is never answered from here: every branch
+    /// answers a read, for the reason <see cref="ScopeHeld"/> states. So a caller composing a scope
+    /// supplies it once, to <paramref name="actingFor"/>, and reads the result back off the
+    /// instance's own answer.
     /// </remarks>
     private static async Task<EntityMonitoringView> MonitorResolvedAsync(
         WhisparrEntityKind kind,
@@ -1740,7 +1738,6 @@ public sealed partial class WhisparrSync
         IEntityIdentityPort identities,
         ILogger log,
         Func<string, KindActing>? actingFor,
-        MonitorScope? composedScope,
         CancellationToken ct)
     {
         var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
@@ -1805,19 +1802,21 @@ public sealed partial class WhisparrSync
         var refused = MonitoringProjector.Accepted(added);
         return refused != MonitorRefusalKind.None
             ? Refused(kind, target, refused)
-            : await ReadBackMonitoredAsync(kind, target, acting, composedScope, log, ct)
+            : await ReadBackMonitoredAsync(kind, target, acting, log, ct)
                 .ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Reads the entity again and answers the state that read reports, at
-    /// <paramref name="scope"/> where it is monitored.
-    /// </summary>
+    /// <summary>Reads the entity again and answers the state that read reports.</summary>
     /// <remarks>
     /// The evidence a write took effect is a later read rather than the write's own status. This
     /// generation answers an add it did not understand with a created status and an echo showing the
     /// monitored field dropped, so an accepted write the instance then reports unmonitored is a
     /// refusal.
+    /// <para>
+    /// The scope answered is the read's own, for the reason <see cref="ScopeHeld"/> states: what an
+    /// add composed and what a later read reports are different facts, and this generation answers a
+    /// body whose fields it dropped with a success. So a composed scope cannot stand in for one.
+    /// </para>
     /// <para>
     /// A read that cannot be classified is a refusal too: what the instance holds is then unknown,
     /// and unknown is not evidence.
@@ -1832,7 +1831,6 @@ public sealed partial class WhisparrSync
         WhisparrEntityKind kind,
         MonitoringTarget target,
         KindActing acting,
-        MonitorScope? scope,
         ILogger log,
         CancellationToken ct)
     {
@@ -1847,7 +1845,11 @@ public sealed partial class WhisparrSync
         var answer = MonitoringProjector.Classify(read);
         return answer.Reading == MonitoringProjector.EntityReading.Held
             && MonitoringProjector.MonitoredIn(read.Body)
-                ? State(kind, target, monitored: true, scope)
+                ? State(
+                    kind,
+                    target,
+                    monitored: true,
+                    ScopeHeld(kind, target, monitored: true, read.Body))
                 : Refused(kind, target, RefusalIn(answer));
     }
 
@@ -1939,13 +1941,11 @@ public sealed partial class WhisparrSync
         ILogger log,
         CancellationToken ct)
     {
-        // The flip leaves the date gate the instance holds alone, so the scope after it is the one
-        // the read already carried, read at the state the entity is left in.
-        var scope = ScopeHeld(kind, target, monitored: true, body);
-
         if (MonitoringProjector.MonitoredIn(body))
         {
-            return State(kind, target, monitored: true, scope);
+            // Nothing is sent, so the read in hand IS the state: both the flag and the date gate it
+            // reports are what the entity is left at.
+            return State(kind, target, monitored: true, ScopeHeld(kind, target, monitored: true, body));
         }
 
         if (MonitoringProjector.EntityIdIn(body) is not { } entityId)
@@ -1965,7 +1965,7 @@ public sealed partial class WhisparrSync
         var refused = MonitoringProjector.Accepted(flipped);
         return refused != MonitorRefusalKind.None
             ? Refused(kind, target, refused)
-            : await ReadBackMonitoredAsync(kind, target, acting, scope, log, ct)
+            : await ReadBackMonitoredAsync(kind, target, acting, log, ct)
                 .ConfigureAwait(false);
     }
 
