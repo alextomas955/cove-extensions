@@ -284,7 +284,7 @@ internal static class ComposedAdds
     /// </remarks>
     public static IReadOnlyList<string> MountedEntityVerbs()
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(WireDocumentPath()));
+        using var document = JsonDocument.Parse(File.ReadAllText(WireDocument.Path()));
 
         return
         [
@@ -299,28 +299,6 @@ internal static class ComposedAdds
         ];
     }
 
-    /// <summary>Where the committed wire document lives, above this test assembly.</summary>
-    /// <exception cref="InvalidOperationException">
-    /// It was not found. An enumeration over a document that is not there would answer an empty verb
-    /// list, and every assertion driven from it would then hold over nothing.
-    /// </exception>
-    private static string WireDocumentPath()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "wire", "openapi.json");
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        throw new InvalidOperationException(
-            $"No wire/openapi.json was found above {AppContext.BaseDirectory}, so the mounted route "
-                + "set cannot be read and an assertion over it would hold over nothing.");
-    }
 }
 
 /// <summary>
