@@ -194,9 +194,10 @@ test("the panel leaves the page's own container, which clips what it holds", asy
   const panel = mounted.panel();
   expect(panel).not.toBeNull();
   // In the document rather than beside the control, and positioned against the viewport, so an
-  // ancestor hiding its overflow cannot cut the panel off.
+  // ancestor hiding its overflow cannot cut the panel off. The placement is on the container the
+  // panel and the outcome notice share, which is what stops the two stacking on one another.
   expect(mounted.container.contains(panel)).toBe(false);
-  expect(panel?.classList.contains("fixed")).toBe(true);
+  expect(panel?.parentElement?.classList.contains("fixed")).toBe(true);
 });
 
 test("the first scope option is Future Scenes and it is the one taken", async () => {
@@ -488,4 +489,25 @@ test("with every row disabled an arrow press moves nothing and raises nothing", 
     press("ArrowDown");
   }).not.toThrow();
   expect(document.activeElement).toBe(before);
+});
+
+test("the menu panel scrolls rather than clipping", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  // A class assertion is weak on its own. What carries the rest of the claim is the check-classes
+  // gate, which rejects a class the host does not emit, and the measurement that the host emits
+  // overflow-y-auto and no arbitrary max-height value.
+  const panel = mounted.panel() as HTMLElement;
+  expect(panel.classList.contains("overflow-y-auto")).toBe(true);
+  expect(panel.classList.contains("overflow-hidden")).toBe(false);
+  expect(panel.style.maxHeight).not.toBe("");
 });

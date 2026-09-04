@@ -22,7 +22,7 @@ import {
   MONITOR_IN_WHISPARR,
 } from "../common/ui/copy";
 import type { WhisparrEntityKind } from "../wire/api";
-import { EntityMonitorMenu } from "./EntityMonitorMenu";
+import { EntityMonitorMenu, NOTICE_SURFACE_CLASS } from "./EntityMonitorMenu";
 import { controlNotice, monitorMenu, routeFor, type MonitorMenuItem } from "./monitorMenuLogic";
 import { useAnchoredTo } from "./useAnchoredTo";
 import { WhisparrMark } from "./WhisparrMark";
@@ -60,7 +60,7 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
   const { state, act } = useMonitoring(kind, coveId);
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const noticeAt = useAnchoredTo(triggerRef);
+  const placement = useAnchoredTo(triggerRef);
 
   const view = state.view;
   const monitored = view?.monitored === true;
@@ -103,6 +103,9 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
       ? { ...item, reason: item.reason ?? ACTION_ABSENT_IN_THIS_VERSION }
       : item,
   );
+
+  // One representation of "the menu is on screen", so the notice's two homes cannot both render.
+  const openMenu = open ? menu : null;
 
   return (
     <div>
@@ -162,11 +165,14 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
         />
       </button>
 
-      {open && menu !== null ? (
+      {openMenu === null ? null : (
         <EntityMonitorMenu
-          menu={{ ...menu, items }}
+          menu={{ ...openMenu, items }}
           label={name}
           triggerRef={triggerRef}
+          // Inside the menu's own container, so it sits below the rows it reports on rather than
+          // over them: the two used to take the same rectangle from one anchor at the same z-index.
+          notice={outcome}
           // The menu stays open while the action runs. Every item disables until the state has been
           // read back, so what the reader sees next is what the instance answered rather than the
           // menu they pressed disappearing before it changed.
@@ -179,18 +185,19 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
             setOpen(false);
           }}
         />
-      ) : null}
+      )}
 
-      {outcome === null
+      {outcome === null || openMenu !== null
         ? null
         : // Beneath the control rather than in place of it: the control still reports what the
           // entity is, and this reports what the last gesture did. Portaled for the reason the menu
-          // is - the host's hero clips its children, and `z-50` does not escape that.
+          // is - the host's hero clips its children, and `z-50` does not escape that. With the menu
+          // open the menu's own container holds it instead, so the two do not stack on one another.
           createPortal(
             <p
               role="status"
-              style={noticeAt}
-              className="fixed z-50 w-72 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-secondary shadow-xl"
+              style={placement.at}
+              className={`fixed z-50 w-72 ${NOTICE_SURFACE_CLASS}`}
             >
               {outcome}
             </p>,
