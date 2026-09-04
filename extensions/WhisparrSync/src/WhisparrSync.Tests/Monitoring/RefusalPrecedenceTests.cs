@@ -113,6 +113,7 @@ public sealed class RefusalPrecedenceTests
         {
             await TheKindAnAnswerPastTheReadBoundProducesAsync(),
             await TheKindAnEntityTheInstanceDoesNotHoldProducesAsync(),
+            await TheKindAReadBackThatFindsNothingProducesAsync(),
         };
 
         foreach (var kind in Enum.GetValues<MonitorRefusalKind>())
@@ -236,6 +237,19 @@ public sealed class RefusalPrecedenceTests
             MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         return (await host.AddAllMissingViewAsync("studio", studioId)).Refusal;
+    }
+
+    // Stated by the API too, and reachable only after a write left: the instance takes the add and
+    // the read straight afterwards still finds nothing.
+    private static async Task<MonitorRefusalKind> TheKindAReadBackThatFindsNothingProducesAsync()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(
+            nameof(IWhisparrStudioActing.ReadStudioAsync), MonitorHost.Json(404, string.Empty));
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        return (await host.MonitorAsync(studioId)).Refusal;
     }
 
     private static IEnumerable<MonitorRefusalKind> Reachable()

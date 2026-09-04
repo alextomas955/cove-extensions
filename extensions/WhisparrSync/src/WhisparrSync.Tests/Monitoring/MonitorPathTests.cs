@@ -330,6 +330,60 @@ public sealed class MonitorPathTests
     }
 
     /// <summary>
+    /// An accepted add whose read-back finds nothing says the change was not reported, not that the
+    /// instance holds no such entry.
+    /// </summary>
+    /// <remarks>
+    /// Every other site that answers the not-held kind reads BEFORE anything is sent, so its sentence
+    /// says there was nothing to act on. Here the add left and was accepted, so that sentence would
+    /// tell a reader nothing happened when the entity may well now exist. This is the one refusal
+    /// reachable only after a write, and it is driven through the mounted route because the function
+    /// that chooses it is private to the API.
+    /// </remarks>
+    [Fact]
+    public async Task AnAcceptedAddWhoseReadBackFindsNothingSaysTheChangeWasNotReported()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(
+            nameof(IWhisparrStudioActing.ReadStudioAsync), MonitorHost.Json(404, string.Empty));
+        var studio = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var view = await host.MonitorAsync(studio);
+
+        Assert.Equal(MonitorRefusalKind.InstanceDidNotReportTheChange, view.Refusal);
+        Assert.False(view.Monitored);
+        Assert.Contains(nameof(IWhisparrStudioActing.AddMonitoredStudioAsync), host.Client.Verbs);
+    }
+
+    /// <summary>
+    /// The same site keeps a refusal the answering seam read for itself, rather than replacing it.
+    /// </summary>
+    /// <remarks>
+    /// An answer past this product's own read bound names this product as the party that stopped, and
+    /// that stays true after an accepted write: it is a fact about the read, not about what the
+    /// instance now holds. Collapsing every read-back disagreement into one kind would lose it.
+    /// </remarks>
+    [Fact]
+    public async Task AnAcceptedAddWhoseReadBackIsPastTheReadBoundKeepsThatReason()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(
+            nameof(IWhisparrStudioActing.ReadStudioAsync),
+            MonitorHost.Json(404, string.Empty),
+            new WhisparrResponse(200, "application/json", string.Empty)
+            {
+                Refusal = MonitorRefusalKind.AnswerTooLargeToRead,
+            });
+        var studio = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var view = await host.MonitorAsync(studio);
+
+        Assert.Equal(MonitorRefusalKind.AnswerTooLargeToRead, view.Refusal);
+    }
+
+    /// <summary>
     /// An answer past the read bound on either of the older generation's two reads keeps its own
     /// reason, rather than being parsed as an absence or as the instance refusing.
     /// </summary>

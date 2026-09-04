@@ -272,18 +272,32 @@ export const INSTANCE_REFUSED = "Whisparr would not do this. Nothing here was ch
  *
  * Names this extension as the party that stopped, because Whisparr did nothing wrong. Names no byte
  * count, no buffer and no setting: none of the three is something the reader can act on.
+ *
+ * Claims nothing about what did or did not happen. The read this arrives from can be the one taken
+ * straight after an accepted change, where a claim that nothing changed would be false.
  */
 export const INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ =
-  "Whisparr's answer was larger than this extension reads at once, so nothing was changed. Your Whisparr answered correctly.";
+  "Whisparr's answer was larger than this extension reads at once. Your Whisparr answered correctly. Reload the page for its current state.";
 
 /**
  * The instance answered, and holds no such entry.
  *
  * The noun is "entry" rather than "scene": both routes that state this act on a studio or a
- * performer.
+ * performer. Both read before sending anything, and both are offered only on an entry Whisparr was
+ * holding when the page opened, so "no longer" and "nothing to act on" are each true where this
+ * appears.
  */
 export const INSTANCE_HOLDS_NO_SUCH_ENTRY =
   "Whisparr no longer holds this entry, so there was nothing to act on. Reload the page for its current state.";
+
+/**
+ * The change was accepted, and the read taken straight after it does not report it.
+ *
+ * Says the change was accepted, because it was, and says nothing about the state that followed,
+ * because the read that would have established it is the one that disagreed.
+ */
+export const INSTANCE_DID_NOT_REPORT_THE_CHANGE =
+  "Whisparr accepted the change but does not report it. Reload the page for its current state.";
 
 /**
  * The version-gap sentence, for a capability the connected generation does not have.

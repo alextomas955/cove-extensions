@@ -1327,7 +1327,8 @@
           "noRootFolder",
           "instanceRefused",
           "answerTooLargeToRead",
-          "instanceHoldsNoSuchEntity"
+          "instanceHoldsNoSuchEntity",
+          "instanceDidNotReportTheChange"
         ]
       },
       "MonitorScope": {
