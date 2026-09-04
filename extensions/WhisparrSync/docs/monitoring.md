@@ -216,7 +216,14 @@ What you choose runs as one background job. Its progress and its result for each
 Cove's job list, and it ends with a line saying how many were applied and how many were refused.
 Nothing on the page you are looking at changes when it finishes.
 
-One gesture takes at most 1000 entities. A larger selection is refused, so split it.
+**Stop monitoring in Whisparr** over a selection leaves behind exactly what it leaves behind for one
+entity: it does not retract what All Scenes already made wanted. The overlay states that on the row
+before you press it.
+
+One gesture takes at most 1000 entities. Select more and Cove refuses the whole gesture, states the
+bound and changes nothing. Select fewer and repeat over the rest. A selection that lists every
+entity of a kind reaches the bound on a library of any size, so this is a limit you meet in normal
+use rather than an edge case.
 
 ## Permissions
 
