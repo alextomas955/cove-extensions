@@ -27,6 +27,7 @@ function view(monitored: boolean): EntityMonitoringView {
     monitored,
     refusal: "none",
     capabilities: ["monitorStudio"],
+    scope: null,
   };
 }
 
