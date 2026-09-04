@@ -111,17 +111,23 @@ public sealed class V2LookupRefusalTests
         Assert.Equal(MonitorRefusalKind.NoIdentityInThisNamespace, view.Refusal);
     }
 
-    /// <summary>The verbs this build mounted beside the three report it too.</summary>
+    /// <summary>The verb that downloads reports it too, on the generation that serves it.</summary>
+    /// <remarks>
+    /// The one other mounted verb this generation reaches an entity read through. Registering the
+    /// scenes a catalogue lacks refuses earlier here, for the generation gap, which is the reason the
+    /// precedence puts ahead of the metadata link.
+    /// </remarks>
     [Fact]
-    public async Task TheRegistrationVerbReportsThatSameFact()
+    public async Task TheVerbThatDownloadsReportsThatSameFact()
     {
         var (host, studioId) = await V2StudioAsync((HttpStatusCode.OK, NoMatch));
         await using var owned = host;
 
-        var enqueued = await host.AddAllMissingViewAsync("studio", studioId);
+        var answered = await host.PostRawAsync("studio", studioId, "search-all-monitored", "{}");
+        answered.EnsureSuccessStatusCode();
+        var view = await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt);
 
-        Assert.Null(enqueued.JobId);
-        Assert.Equal(MonitorRefusalKind.NoIdentityInThisNamespace, enqueued.Refusal);
+        Assert.Equal(MonitorRefusalKind.NoIdentityInThisNamespace, view!.Refusal);
     }
 
     /// <summary>
