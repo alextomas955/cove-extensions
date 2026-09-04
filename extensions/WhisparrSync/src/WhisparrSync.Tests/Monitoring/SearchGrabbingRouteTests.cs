@@ -76,6 +76,32 @@ public sealed class SearchGrabbingRouteTests
     }
 
     /// <summary>
+    /// One press issues one grabbing-class verb, and no second one.
+    /// </summary>
+    /// <remarks>
+    /// Read as a CLASS over the whole ordered log rather than as a count of one member name, so a
+    /// second grabbing member added to the seam and issued from here fails this too. One press
+    /// becoming two commands is two searches against a third party, and the verb's class has no
+    /// retry entry precisely so an attempt whose answer did not arrive is reported rather than
+    /// re-issued.
+    /// </remarks>
+    [Fact]
+    public async Task OnePressIssuesOneGrabbingClassVerbAndNoSecond()
+    {
+        await using var host = await HoldingHost(HeldAndMonitored);
+        var studioId = await SeededStudio(host);
+
+        Assert.Equal(MonitorRefusalKind.None, (await SearchViewAsync(host, "studio", studioId)).Refusal);
+
+        Assert.Single(
+            host.Client.Verbs,
+            verb => OutboundSeam.VerbClassByMember[verb] == WhisparrVerbClass.Grab);
+        Assert.Contains(
+            host.Client.Verbs,
+            verb => OutboundSeam.VerbClassByMember[verb] == WhisparrVerbClass.Read);
+    }
+
+    /// <summary>
     /// An entity the instance does not hold is refused, and no search leaves.
     /// </summary>
     /// <remarks>
