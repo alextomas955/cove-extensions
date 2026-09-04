@@ -203,20 +203,11 @@ public static class MonitoringBulkJob
     /// <paramref name="linking"/> names a skip reason this product does not express.
     /// </exception>
     private static string LinkingIn(MonitorBulkLinking linking)
-        => linking.Skipped switch
-        {
-            null => string.Create(
+        => linking.Skipped is { } skipped
+            ? ReflectOwnedJob.SentenceFor(skipped)
+            : string.Create(
                 CultureInfo.InvariantCulture,
-                $"{linking.FoldersAttached} linked, {linking.FoldersRefused} refused."),
-            ReflectOwnedSkipReason.HardLinksOff
-                => "No files were linked: Whisparr's hard-link setting is off.",
-            ReflectOwnedSkipReason.HardLinkSettingUnreadable
-                => "No files were linked: Whisparr's hard-link setting could not be read.",
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(linking),
-                linking.Skipped,
-                "This skip reason has no sentence written down for it."),
-        };
+                $"{linking.FoldersAttached} linked, {linking.FoldersRefused} refused.");
 
     /// <summary>
     /// Which unit outcome one refusal kind is reported under.
