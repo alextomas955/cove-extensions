@@ -69,6 +69,7 @@ const {
   ACTION_REFLECT_OWNED,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   INSTANCE_OFFERS_NO_QUALITY_PROFILE,
+  INSTANCE_REFUSED,
   MONITORED_IN_WHISPARR,
   MONITORING_COULD_NOT_BE_READ,
   MONITOR_IN_WHISPARR,
@@ -451,6 +452,58 @@ test("a press refused for no quality profile states that beneath the control", a
 
   expect(document.body.textContent).toContain(INSTANCE_OFFERS_NO_QUALITY_PROFILE);
   // The retry the refusal must not take away: a reader can add a profile in Whisparr and press again.
+  expect(rendered.button?.disabled).toBe(false);
+});
+
+/**
+ * The page-load half of the same discarded sentence.
+ *
+ * The menu is available, so nothing is stated in the control's own name, and the reason the read
+ * carried would otherwise reach nobody.
+ */
+test("a read answering that the instance declined states that beneath the control", async () => {
+  readAnswer = () => Promise.resolve(view({ refusal: "instanceRefused" }));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  expect(document.body.textContent).toContain(INSTANCE_REFUSED);
+  expect(rendered.button?.disabled).toBe(false);
+
+  rendered.button?.click();
+  await sleep(COMMIT_MS);
+  expect(rendered.menu()).not.toBeNull();
+});
+
+test("a read that failed says only that, with no refusal sentence beside it", async () => {
+  readAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  expect(rendered.button?.getAttribute("aria-label")).toBe(
+    `${MONITOR_IN_WHISPARR}, ${MONITORING_COULD_NOT_BE_READ}`,
+  );
+  expect(document.body.textContent).not.toContain(INSTANCE_REFUSED);
+});
+
+// The answer that is not an entity view, so the refusal is read off a second route's own type.
+test("a refused add all missing states the reason, on an answer carrying no view at all", async () => {
+  readAnswer = () =>
+    Promise.resolve(
+      view({ monitored: true, capabilities: ["monitorStudio", "registerMissingScenes"] }),
+    );
+  actionAnswer = () => Promise.resolve({ jobId: null, refusal: "instanceRefused" });
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  rendered.button?.click();
+  await sleep(COMMIT_MS);
+
+  const row = rendered
+    .rows()
+    .find((entry) => (entry.getAttribute("title") ?? "").startsWith(ACTION_ADD_ALL_MISSING));
+  row?.click();
+  await sleep(COMMIT_MS);
+
+  expect(document.body.querySelector('[role="status"]')?.textContent).toBe(INSTANCE_REFUSED);
   expect(rendered.button?.disabled).toBe(false);
 });
 

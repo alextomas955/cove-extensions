@@ -10,10 +10,15 @@
  * The wire document is emitted from the shipped route registrations, so it is the one place that
  * knows. A source pin rather than a DOM test, and in its own file for that reason: the rendering
  * tests run under jsdom, where the filesystem is not reachable.
+ *
+ * The same document also declares what each of those verbs ANSWERS, which the browser has to type
+ * to read anything off it, so that pairing is pinned here too.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { test, expect } from "vitest";
+
+import { MONITOR_ACTION_ANSWER_SCHEMAS } from "./monitorMenuLogic";
 
 const wireDocument = path.resolve(
   import.meta.dirname,
@@ -65,6 +70,29 @@ function secondaryRouteTokens(source: string): string[] {
     .filter((token) => token !== "null");
 }
 
+/** The component each mounted entity POST route declares for its 200 answer, by verb. */
+function mountedAnswers(): Map<string, string> {
+  const document = JSON.parse(readFileSync(wireDocument, "utf8")) as {
+    paths: Record<
+      string,
+      {
+        post?: {
+          responses?: Record<string, { content?: Record<string, { schema?: { $ref?: string } }> }>;
+        };
+      }
+    >;
+  };
+
+  const answers = new Map<string, string>();
+  for (const [route, methods] of Object.entries(document.paths)) {
+    const verb = /\/entity\/\{kind\}\/\{coveId\}\/([A-Za-z-]+)$/.exec(route)?.[1];
+    const ref = methods.post?.responses?.["200"]?.content?.["application/json"]?.schema?.$ref;
+    if (verb === undefined || ref === undefined) continue;
+    answers.set(verb, ref.replace("#/components/schemas/", ""));
+  }
+  return answers;
+}
+
 test("the verbs the control can carry out are exactly the ones the server mounts", () => {
   const source = readFileSync(rules, "utf8");
   const declared = declaredRoutes(source);
@@ -93,4 +121,22 @@ test("every verb the secondary map serves names a declared route constant", () =
     served.filter((token) => !declared.has(token)),
     "a secondary verb is written as something other than a declared route constant",
   ).toEqual([]);
+});
+
+/**
+ * Both sides are read, so neither is a transcribed literal.
+ *
+ * Goes red if a route's answer type moves on the server, if a verb is mounted with no browser
+ * decision made about what it answers, or if a route is folded into a shape it does not answer.
+ */
+test("each acting route is typed as the answer the emitted document declares for it", () => {
+  const answers = mountedAnswers();
+  const declared: Record<string, string> = MONITOR_ACTION_ANSWER_SCHEMAS;
+
+  expect([...answers.keys()].sort()).toEqual(mountedVerbs());
+  expect(Object.keys(declared).sort()).toEqual(mountedVerbs());
+
+  for (const [verb, component] of answers) {
+    expect(declared[verb], verb).toBe(component);
+  }
 });
