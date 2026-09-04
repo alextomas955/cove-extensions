@@ -65,7 +65,22 @@ public static class WhisparrRetryPolicy
 /// generations, so the empty case is a real observation rather than a missing one.
 /// </param>
 /// <param name="Body">The response body as text; empty when there was none.</param>
-public sealed record WhisparrResponse(int StatusCode, string? ContentType, string Body);
+public sealed record WhisparrResponse(int StatusCode, string? ContentType, string Body)
+{
+    /// <summary>Why no entity was named, where a seam read that out of a parsed body.</summary>
+    /// <remarks>
+    /// The older generation resolves an identifier through a lookup that states its answer in the
+    /// body and not in the status: an identifier its own source does not know is answered with a
+    /// success and an empty list. A seam reading that meaning states it here, so a caller classifies
+    /// the fact rather than a status this product would otherwise have had to invent, and the two
+    /// readings that mean different things to a reader stay apart.
+    /// <para>
+    /// <see cref="MonitorRefusalKind.None"/> on every answer that came from an instance, which is
+    /// classified from its status.
+    /// </para>
+    /// </remarks>
+    public MonitorRefusalKind Refusal { get; init; } = MonitorRefusalKind.None;
+}
 
 /// <summary>
 /// The one seam through which this extension talks to a Whisparr instance.
@@ -217,13 +232,12 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
     internal const string ManualImportPath = "api/v3/manualimport";
     internal const string MediaManagementConfigPath = "api/v3/config/mediamanagement";
 
-    // The two statuses this product composes rather than receives, and the only ones anywhere in it.
+    // The one status this product composes rather than receives, and the only one anywhere in it.
     // The older generation answers "do you hold this entity" through no single route, so that reading
-    // is assembled from a lookup and a listing and reported in the two spellings a caller already
+    // is assembled from a lookup and a listing and reported in the spelling a caller already
     // classifies. Named rather than written inline so a reader is not left to infer that an instance
-    // sent them.
+    // sent it.
     private const int AssembledNotHeld = 404;
-    private const int AssembledRefused = 409;
 
     // The order belongs to the verb rather than to a call: newest-first is the only order a walk that
     // stops at a stored position can read, and a call site free to spell it could ask for another.
@@ -503,9 +517,18 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
             WhisparrSyncLog.EntityLookupNotDistinct(log, WhisparrGeneration.V2);
         }
 
-        return resolution.Site is { } site
-            ? (site, lookup)
-            : (null, new WhisparrResponse(AssembledRefused, lookup.ContentType, string.Empty));
+        if (resolution.Site is { } site)
+        {
+            return (site, lookup);
+        }
+
+        // Which refusal this is comes from the parsed answer, because the status carries none: an
+        // identifier this generation's source does not know is answered with a success. Nothing of
+        // the body is carried onward, so no sentence a reader is shown can be composed from it.
+        return (null, new WhisparrResponse(lookup.StatusCode, lookup.ContentType, string.Empty)
+        {
+            Refusal = V2LookupProjector.RefusalFor(resolution.Reading),
+        });
     }
 
     private static bool IsSuccess(int statusCode) => statusCode is >= 200 and < 300;

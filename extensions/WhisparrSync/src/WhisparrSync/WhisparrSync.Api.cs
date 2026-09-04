@@ -767,7 +767,7 @@ public sealed partial class WhisparrSync
                     target,
                     _log,
                     readCt).ConfigureAwait(false))
-                is { } parsed && MonitoringProjector.Accepted(parsed.StatusCode) == MonitorRefusalKind.None
+                is { } parsed && MonitoringProjector.Accepted(parsed) == MonitorRefusalKind.None
                     ? parsed.Body
                     : null,
             async (files, attachCt) => (await ContainedAsync(
@@ -777,7 +777,7 @@ public sealed partial class WhisparrSync
                     _log,
                     attachCt).ConfigureAwait(false))
                 is { } attached
-                && MonitoringProjector.Accepted(attached.StatusCode) == MonitorRefusalKind.None);
+                && MonitoringProjector.Accepted(attached) == MonitorRefusalKind.None);
 
     /// <summary>
     /// The role that links owned files into place on <paramref name="target"/>, or null where the
@@ -914,11 +914,16 @@ public sealed partial class WhisparrSync
 
         var read = await ContainedAsync(() => actingFor(named).ReadEntity(ct), target, _log, ct)
             .ConfigureAwait(false);
-        if (read is null
-            || MonitoringProjector.Reading(read.StatusCode) != MonitoringProjector.EntityReading.Held
-            || MonitoringProjector.EntityIdIn(read.Body) is not { } entityId)
+        if (read is null)
         {
             return new AddAllMissingResolution(null, MonitorRefusalKind.InstanceRefused);
+        }
+
+        var answer = MonitoringProjector.Classify(read);
+        if (answer.Reading != MonitoringProjector.EntityReading.Held
+            || MonitoringProjector.EntityIdIn(read.Body) is not { } entityId)
+        {
+            return new AddAllMissingResolution(null, RefusalIn(answer));
         }
 
         var profiles = await ContainedAsync(
@@ -1099,10 +1104,15 @@ public sealed partial class WhisparrSync
                 () => acting.SetMonitored(entityId, false, changeCt), target, log, changeCt)
                 .ConfigureAwait(false);
 
-            return flipped is null
-                || MonitoringProjector.Accepted(flipped.StatusCode) != MonitorRefusalKind.None
-                    ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
-                    : State(kind, target, monitored: false, scope: null);
+            if (flipped is null)
+            {
+                return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
+            }
+
+            var refused = MonitoringProjector.Accepted(flipped);
+            return refused != MonitorRefusalKind.None
+                ? Refused(kind, target, refused)
+                : State(kind, target, monitored: false, scope: null);
         }
     }
 
@@ -1187,11 +1197,16 @@ public sealed partial class WhisparrSync
         var read = await ContainedAsync(() => actingFor(named).ReadEntity(ct), target, log, ct)
             .ConfigureAwait(false);
 
-        if (read is null
-            || MonitoringProjector.Reading(read.StatusCode) != MonitoringProjector.EntityReading.Held
-            || MonitoringProjector.EntityIdIn(read.Body) is not { } entityId)
+        if (read is null)
         {
             return TypedResults.Ok(Refused(entityKind, target, MonitorRefusalKind.InstanceRefused));
+        }
+
+        var answer = MonitoringProjector.Classify(read);
+        if (answer.Reading != MonitoringProjector.EntityReading.Held
+            || MonitoringProjector.EntityIdIn(read.Body) is not { } entityId)
+        {
+            return TypedResults.Ok(Refused(entityKind, target, RefusalIn(answer)));
         }
 
         // Read before the search and answered after it: a search changes what the instance goes
@@ -1208,7 +1223,7 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             searched is null
-                || MonitoringProjector.Accepted(searched.StatusCode) != MonitorRefusalKind.None
+                || MonitoringProjector.Accepted(searched) != MonitorRefusalKind.None
                     ? Refused(entityKind, target, MonitorRefusalKind.InstanceRefused)
                     : State(
                         entityKind,
@@ -1284,10 +1299,15 @@ public sealed partial class WhisparrSync
             // no scope in force whatever was written, so that answers none.
             MonitorScope? inForce = monitored ? scope : null;
 
-            return applied is null
-                || MonitoringProjector.Accepted(applied.StatusCode) != MonitorRefusalKind.None
-                    ? Refused(entityKind, target, MonitorRefusalKind.InstanceRefused)
-                    : State(entityKind, target, monitored, inForce);
+            if (applied is null)
+            {
+                return Refused(entityKind, target, MonitorRefusalKind.InstanceRefused);
+            }
+
+            var refused = MonitoringProjector.Accepted(applied);
+            return refused != MonitorRefusalKind.None
+                ? Refused(entityKind, target, refused)
+                : State(entityKind, target, monitored, inForce);
         }
     }
 
@@ -1675,16 +1695,20 @@ public sealed partial class WhisparrSync
         var read = await ContainedAsync(
             () => reading(foreignId, ct), target, log, ct).ConfigureAwait(false);
 
-        return read is null
-            ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
-            : MonitoringProjector.Reading(read.StatusCode) switch
-            {
-                // Not held is not a refusal: the entity is simply not monitored yet.
-                MonitoringProjector.EntityReading.NotHeld
-                    => State(kind, target, monitored: false, scope: null),
-                MonitoringProjector.EntityReading.Held => Held(read.Body),
-                _ => Refused(kind, target, MonitorRefusalKind.InstanceRefused),
-            };
+        if (read is null)
+        {
+            return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
+        }
+
+        var answer = MonitoringProjector.Classify(read);
+        return answer.Reading switch
+        {
+            // Not held is not a refusal: the entity is simply not monitored yet.
+            MonitoringProjector.EntityReading.NotHeld
+                => State(kind, target, monitored: false, scope: null),
+            MonitoringProjector.EntityReading.Held => Held(read.Body),
+            _ => Refused(kind, target, RefusalIn(answer)),
+        };
 
         EntityMonitoringView Held(string body)
         {
@@ -1726,7 +1750,8 @@ public sealed partial class WhisparrSync
             return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
         }
 
-        switch (MonitoringProjector.Reading(read.StatusCode))
+        var answer = MonitoringProjector.Classify(read);
+        switch (answer.Reading)
         {
             case MonitoringProjector.EntityReading.Held:
                 return await MonitorHeldEntityAsync(kind, read.Body, target, acting, log, ct)
@@ -1734,7 +1759,7 @@ public sealed partial class WhisparrSync
             case MonitoringProjector.EntityReading.NotHeld:
                 break;
             default:
-                return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
+                return Refused(kind, target, RefusalIn(answer));
         }
 
         var profiles = await ContainedAsync(
@@ -1763,8 +1788,14 @@ public sealed partial class WhisparrSync
         var added = await ContainedAsync(
             () => acting.AddMonitored(composeWith, ct), target, log, ct).ConfigureAwait(false);
 
-        return added is null || MonitoringProjector.Accepted(added.StatusCode) != MonitorRefusalKind.None
-            ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
+        if (added is null)
+        {
+            return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
+        }
+
+        var refused = MonitoringProjector.Accepted(added);
+        return refused != MonitorRefusalKind.None
+            ? Refused(kind, target, refused)
             : await ReadBackMonitoredAsync(kind, target, acting, composedScope, log, ct)
                 .ConfigureAwait(false);
     }
@@ -1799,11 +1830,16 @@ public sealed partial class WhisparrSync
         var read = await ContainedAsync(() => acting.Held.ReadEntity(ct), target, log, ct)
             .ConfigureAwait(false);
 
-        return read is not null
-            && MonitoringProjector.Reading(read.StatusCode) == MonitoringProjector.EntityReading.Held
+        if (read is null)
+        {
+            return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
+        }
+
+        var answer = MonitoringProjector.Classify(read);
+        return answer.Reading == MonitoringProjector.EntityReading.Held
             && MonitoringProjector.MonitoredIn(read.Body)
                 ? State(kind, target, monitored: true, scope)
-                : Refused(kind, target, MonitorRefusalKind.InstanceRefused);
+                : Refused(kind, target, RefusalIn(answer));
     }
 
     /// <summary>Whether <paramref name="kind"/> expresses a monitor scope at all.</summary>
@@ -1862,14 +1898,15 @@ public sealed partial class WhisparrSync
             return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
         }
 
-        switch (MonitoringProjector.Reading(read.StatusCode))
+        var answer = MonitoringProjector.Classify(read);
+        switch (answer.Reading)
         {
             case MonitoringProjector.EntityReading.Held:
                 break;
             case MonitoringProjector.EntityReading.NotHeld:
                 return State(kind, target, monitored: false, scope: null);
             default:
-                return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
+                return Refused(kind, target, RefusalIn(answer));
         }
 
         return MonitoringProjector.EntityIdIn(read.Body) is { } entityId
@@ -1911,11 +1948,16 @@ public sealed partial class WhisparrSync
             () => acting.Held.SetMonitored(entityId, true, ct), target, log, ct).ConfigureAwait(false);
 
         // Classified from a read for the same reason the add branch is, stated at ReadBackMonitoredAsync.
-        return flipped is null
-            || MonitoringProjector.Accepted(flipped.StatusCode) != MonitorRefusalKind.None
-                ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
-                : await ReadBackMonitoredAsync(kind, target, acting, scope, log, ct)
-                    .ConfigureAwait(false);
+        if (flipped is null)
+        {
+            return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
+        }
+
+        var refused = MonitoringProjector.Accepted(flipped);
+        return refused != MonitorRefusalKind.None
+            ? Refused(kind, target, refused)
+            : await ReadBackMonitoredAsync(kind, target, acting, scope, log, ct)
+                .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1926,6 +1968,17 @@ public sealed partial class WhisparrSync
     /// precedence cannot hold here. The order among the rest is not restated: it is read from the one
     /// place that states it, so a change there moves every route at once.
     /// </remarks>
+    /// <summary>Which refusal a classified answer states.</summary>
+    /// <remarks>
+    /// An answer that names no entity always states one, and a read the flow rejected for a reason
+    /// of its own - a held entity carrying no instance-side id - states none, which is the instance
+    /// refusing.
+    /// </remarks>
+    private static MonitorRefusalKind RefusalIn(MonitoringProjector.EntityAnswer answer)
+        => answer.Refusal == MonitorRefusalKind.None
+            ? MonitorRefusalKind.InstanceRefused
+            : answer.Refusal;
+
     private static MonitorRefusalKind RefusalAmong(
         bool capabilityAbsent, MonitorRefusalKind identityRefusal)
         => MonitoringProjector.FirstRefusal(new MonitoringProjector.MonitorReasons(

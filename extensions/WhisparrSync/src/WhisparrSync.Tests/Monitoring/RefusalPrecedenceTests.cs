@@ -231,6 +231,6 @@ public sealed class RefusalPrecedenceTests
 
         yield return AddDefaultsProjector.From("[]", MonitorHost.OneRootFolder).Refusal;
         yield return AddDefaultsProjector.From(MonitorHost.UnsortedProfiles, "[]").Refusal;
-        yield return MonitoringProjector.Accepted(409);
+        yield return MonitoringProjector.AcceptedStatus(409);
     }
 }
