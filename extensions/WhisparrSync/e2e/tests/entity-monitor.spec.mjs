@@ -42,6 +42,7 @@ import {
   extensionRoute,
   seedCovePerformer,
   seedCoveStudio,
+  SETTLE_DWELL_MS,
   STASHDB_ENDPOINT,
   whisparrAcquisitionSurface,
   whisparrActivity,
@@ -88,10 +89,6 @@ const BUNDLE_ATTEMPTS = 3;
 const CONTROL_BUDGET_MS = 60_000;
 const READ_SETTLED_BUDGET_MS = 60_000;
 const GESTURE_BUDGET_MS = 60_000;
-
-// A suppression is an absence, and an absence is only as good as the window it was watched over. The
-// dwell keeps a fast gesture from settling before the instance has issued whatever it is going to.
-const SETTLE_DWELL_MS = 8_000;
 
 const test = base.extend({
   monitorHarness: [
