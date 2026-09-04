@@ -1334,6 +1334,14 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest(new ErrorCode("UNSUPPORTED_ENTITY_TYPE"));
         }
 
+        // Before the id guards rather than beside them. The verb decides what the request IS, so a
+        // body naming none is refused without the size of the selection mattering: a caller told to
+        // split an over-cap selection would send two halves, each still naming no verb.
+        if (request.Verb is not { } verb)
+        {
+            return TypedResults.BadRequest(new ErrorCode("MISSING_VERB"));
+        }
+
         if (request.EntityIds is not { } entityIds)
         {
             return TypedResults.BadRequest(new ErrorCode("MISSING_ENTITY_IDS"));
@@ -1350,7 +1358,7 @@ public sealed partial class WhisparrSync
         }
 
         var parameters = MonitoringBulkJob.Encode(
-            request.EntityType!, request.Verb, request.Scope, entityIds);
+            request.EntityType!, verb, request.Scope, entityIds);
 
         var jobId = jobs.Enqueue(
             OwnJobTypePrefix + MonitoringBulkJob.JobId,
@@ -1695,7 +1703,45 @@ public sealed partial class WhisparrSync
 
         return added is null || MonitoringProjector.Accepted(added.StatusCode) != MonitorRefusalKind.None
             ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
-            : State(kind, target, monitored: true, composedScope);
+            : await ReadBackMonitoredAsync(kind, target, acting, composedScope, log, ct)
+                .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads the entity again and answers the state that read reports, at
+    /// <paramref name="scope"/> where it is monitored.
+    /// </summary>
+    /// <remarks>
+    /// The evidence a write took effect is a later read rather than the write's own status. This
+    /// generation answers an add it did not understand with a created status and an echo showing the
+    /// monitored field dropped, so an accepted write the instance then reports unmonitored is a
+    /// refusal.
+    /// <para>
+    /// A read that cannot be classified is a refusal too: what the instance holds is then unknown,
+    /// and unknown is not evidence.
+    /// </para>
+    /// <para>
+    /// The cost is one more outbound read per entity, which a batch pays per selected entity. It
+    /// already issues a read and a write for each, so this is what turns a reported outcome into an
+    /// observed one for a third of an increase.
+    /// </para>
+    /// </remarks>
+    private static async Task<EntityMonitoringView> ReadBackMonitoredAsync(
+        WhisparrEntityKind kind,
+        MonitoringTarget target,
+        KindActing acting,
+        MonitorScope? scope,
+        ILogger log,
+        CancellationToken ct)
+    {
+        var read = await ContainedAsync(() => acting.Held.ReadEntity(ct), target, log, ct)
+            .ConfigureAwait(false);
+
+        return read is not null
+            && MonitoringProjector.Reading(read.StatusCode) == MonitoringProjector.EntityReading.Held
+            && MonitoringProjector.MonitoredIn(read.Body)
+                ? State(kind, target, monitored: true, scope)
+                : Refused(kind, target, MonitorRefusalKind.InstanceRefused);
     }
 
     /// <summary>Whether <paramref name="kind"/> expresses a monitor scope at all.</summary>
@@ -1802,10 +1848,12 @@ public sealed partial class WhisparrSync
         var flipped = await ContainedAsync(
             () => acting.Held.SetMonitored(entityId, true, ct), target, log, ct).ConfigureAwait(false);
 
+        // Classified from a read for the same reason the add branch is, stated at ReadBackMonitoredAsync.
         return flipped is null
             || MonitoringProjector.Accepted(flipped.StatusCode) != MonitorRefusalKind.None
                 ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
-                : State(kind, target, monitored: true, scope);
+                : await ReadBackMonitoredAsync(kind, target, acting, scope, log, ct)
+                    .ConfigureAwait(false);
     }
 
     /// <summary>

@@ -195,7 +195,8 @@ public sealed class ReflectOwnedNeverTransfersTests
                 MonitorHost.Json(200, LinksIntoPlace))
             .Answering(
                 nameof(IWhisparrStudioActing.ReadStudioAsync),
-                MonitorHost.Json(200, """{"id":9,"monitored":false}"""));
+                MonitorHost.Json(200, """{"id":9,"monitored":false}"""),
+                MonitorHost.Json(200, """{"id":9,"monitored":true}"""));
         var studioId = await SeededStudio(host);
         await host.SeedStudioFileAsync(studioId, Later);
 
