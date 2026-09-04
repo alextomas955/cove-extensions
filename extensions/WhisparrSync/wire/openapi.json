@@ -1325,7 +1325,8 @@
           "capabilityAbsentOnThisGeneration",
           "noQualityProfile",
           "noRootFolder",
-          "instanceRefused"
+          "instanceRefused",
+          "answerTooLargeToRead"
         ]
       },
       "MonitorScope": {
