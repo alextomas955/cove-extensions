@@ -7,7 +7,7 @@
  * There is no status line and no count of any sort. Whisparr's own catalogue count is unstable while
  * a refresh runs, so a number here would be wrong through no fault of this product.
  */
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 // From the subpath rather than the barrel, so drawing a menu does not pull the whole primitives
 // module - and its host-only imports - into this slice.
@@ -120,23 +120,36 @@ export function EntityMonitorMenu({
       className="fixed z-50 w-72 overflow-hidden rounded-lg border border-border bg-surface py-1 text-left shadow-xl"
     >
       {menu.items.map((item) => (
-        // Every row carries a menu role. The overlay's roving focus selects on `[role^="menuitem"]`,
-        // so a row without one is invisible to the arrow keys.
-        <MenuRow
-          key={monitorMenuItemKey(item)}
-          role={item.item === "scope" ? "menuitemradio" : "menuitem"}
-          checked={item.item === "scope" ? item.selected : undefined}
-          label={item.label}
-          sentences={item.sentences}
-          reason={item.reason}
-          onSelect={() => {
-            onSelect(item);
-          }}
-        />
+        <Fragment key={monitorMenuItemKey(item)}>
+          {/* Every row carries a menu role. The overlay's roving focus selects on
+              `[role^="menuitem"]`, so a row without one is invisible to the arrow keys. */}
+          <MenuRow
+            role={item.item === "scope" ? "menuitemradio" : "menuitem"}
+            checked={item.item === "scope" ? item.selected : undefined}
+            label={item.label}
+            sentences={item.sentences}
+            reason={item.reason}
+            onSelect={() => {
+              onSelect(item);
+            }}
+          />
+          {/* Outside every row, because it is true of the pair rather than of one option, and
+              carries no role so the arrow keys pass over it. */}
+          {menu.scopeNote !== null && monitorMenuItemKey(item) === lastScopeKey(menu) ? (
+            <p className="px-3 py-2 text-xs text-secondary">{menu.scopeNote}</p>
+          ) : null}
+        </Fragment>
       ))}
     </div>,
     document.body,
   );
+}
+
+/** The key of the last scope row, which is the row the pair's own sentence follows. */
+function lastScopeKey(menu: MonitorMenu): string | null {
+  const scopes = menu.items.filter((item) => item.item === "scope");
+  const last = scopes.at(-1);
+  return last === undefined ? null : monitorMenuItemKey(last);
 }
 
 /**

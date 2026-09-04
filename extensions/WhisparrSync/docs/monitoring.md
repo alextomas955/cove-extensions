@@ -82,8 +82,15 @@ itself. Whisparr Sync has no control that does it.
 The two scope rows stay in the menu once monitoring is on. Choosing one there changes the scope and
 leaves the monitor flag alone.
 
-The menu does not report which scope is in force. Whisparr's answer to Cove does not carry the
-scope, so the menu always marks Future Scenes whatever the studio is actually set to.
+On Whisparr v3 (Eros) the marked row is the scope the studio is actually set to, read from
+Whisparr's own answer each time the page is opened.
+
+On Whisparr v2 that answer does not carry a scope, so **no row is marked** and the menu says it
+cannot tell which one is in force. An unmarked pair there is not a fault and not a scope of zero:
+choosing a row still applies that scope.
+
+While the studio is not monitored yet, the rows are the monitor gesture rather than a report, and
+Future Scenes is pre-selected as the cheaper of the two.
 
 ## The three items that appear once the entity is monitored
 
