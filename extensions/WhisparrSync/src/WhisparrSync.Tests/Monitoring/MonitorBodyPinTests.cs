@@ -37,6 +37,10 @@ public sealed class MonitorBodyPinTests
 
     private const string V3StudioFixture = "whisparr-v3-3.3.8.1097-studio-resource.json";
     private const string V3StudioAfterEditorFixture = "whisparr-v3-3.3.8.1097-studio-after-editor.json";
+    private const string V3StudioReadDateGateSetFixture =
+        "whisparr-v3-3.3.8.1097-studio-read-after-date-set.json";
+    private const string V3StudioReadDateGateAbsentFixture =
+        "whisparr-v3-3.3.8.1097-studio-read-after-date-absent.json";
     private const string V3MinimalRefusalFixture = "whisparr-v3-3.3.8.1097-studio-minimal-refusal.json";
     private const string V3MediaManagementFixture = "whisparr-v3-3.3.8.1097-media-management.json";
     private const string V3SchemasFixture = "whisparr-v3-3.3.8.1097-resource-schemas.json";
@@ -235,6 +239,40 @@ public sealed class MonitorBodyPinTests
         Assert.Equal(
             DateTimeOffset.Parse(sent, CultureInfo.InvariantCulture).Date,
             DateTime.Parse(held, CultureInfo.InvariantCulture).Date);
+    }
+
+    /// <summary>
+    /// A plain read of the newer generation's studio resource reports the date gate when one was
+    /// set and omits the member entirely when none was, so the read distinguishes the two scopes.
+    /// </summary>
+    /// <remarks>
+    /// Claimed of build 3.3.8.1097, from two documents a GET of one studio produced: the same
+    /// identifier added once with the gate and once without it. Present-and-null was the third
+    /// possible answer and is not what was observed, which is what licenses reading an absent member
+    /// as the wider scope rather than as an unknown.
+    /// <para>
+    /// The gate's VALUE is transcribed here and read nowhere else. No shipped member compares it,
+    /// and this pin does not either: it asserts the spelling that was answered and stops.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void TheNewerGenerationsStudioReadCarriesTheDateGateOnlyWhenOneWasSet()
+    {
+        var set = Object(V3StudioReadDateGateSetFixture);
+        var absent = Object(V3StudioReadDateGateAbsentFixture);
+
+        Assert.True(set.ContainsKey("afterDate"));
+        Assert.Equal("2026-09-03", set["afterDate"]!.GetValue<string>());
+
+        Assert.False(absent.ContainsKey("afterDate"));
+        Assert.Null(absent["afterDate"]);
+
+        // One entity, one difference: the member the two scopes are told apart by.
+        Assert.Equal(StudioForeignId, set["foreignId"]!.GetValue<string>());
+        Assert.Equal(StudioForeignId, absent["foreignId"]!.GetValue<string>());
+        Assert.Equal(
+            set.Select(member => member.Key).Where(key => key != "afterDate").Order(),
+            absent.Select(member => member.Key).Order());
     }
 
     /// <summary>

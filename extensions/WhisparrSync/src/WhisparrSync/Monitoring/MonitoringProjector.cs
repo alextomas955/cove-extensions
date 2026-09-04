@@ -149,6 +149,45 @@ internal static class MonitoringProjector
                 ? entityId
                 : null;
 
+    /// <summary>
+    /// Which scope the entity <paramref name="body"/> describes is monitored at, or null where the
+    /// product cannot say.
+    /// </summary>
+    /// <remarks>
+    /// The date gate's PRESENCE is the whole reading. Its value is never read, never compared
+    /// against a clock and never reported: what a scope covers on either side of that date is the
+    /// instance's to decide, and this product states nothing about it.
+    /// <para>
+    /// Null is not a scope. It says the product does not know which one is in force, so a caller
+    /// painting a state must paint none rather than fall back to a default.
+    /// </para>
+    /// <para>
+    /// Only the newer generation's studio read is read at all. The gate exists on that one resource
+    /// and on no other, so a performer expresses no scope, and the older generation's own read was
+    /// never measured carrying one. Both answer null, as does an unmonitored entity, which has no
+    /// scope in force to report.
+    /// </para>
+    /// <para>
+    /// The absent gate is what the wider scope looks like on this generation, so an absent member
+    /// answers <see cref="MonitorScope.AllScenes"/> rather than null. That reading is licensed by
+    /// the transcribed read in <c>MonitorBodyPinTests</c>, which is where a re-measurement goes red
+    /// if the generation starts answering the member some other way.
+    /// </para>
+    /// </remarks>
+    internal static MonitorScope? ScopeIn(
+        WhisparrEntityKind kind, WhisparrGeneration generation, bool monitored, string? body)
+    {
+        if (kind != WhisparrEntityKind.Studio
+            || generation != WhisparrGeneration.V3
+            || !monitored
+            || AsObject(body) is not { } entity)
+        {
+            return null;
+        }
+
+        return entity["afterDate"] is null ? MonitorScope.AllScenes : MonitorScope.FutureScenes;
+    }
+
     /// <summary><paramref name="body"/> as an object, or null when it is not one.</summary>
     internal static JsonObject? AsObject(string? body)
     {
