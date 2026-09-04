@@ -61,7 +61,10 @@ and what your Whisparr instance monitors.
   does monitoring a whole selection, once per entity inside that selection's own run. **Reflect
   owned** in the menu runs it again at any time. Its progress appears in Cove's job list.
   Nothing is copied: Cove reads Whisparr's hard-link setting first, and with that setting off, or
-  unreadable, it sends nothing and says so at the control rather than duplicating every matched file.
+  unreadable, it sends nothing rather than duplicating every matched file. It names which of the two
+  it was - beneath the button for a press you made, and on the background run's own line in Cove's
+  job list when turning monitoring on started it. A selection's run does not report it, so run
+  **Reflect owned** on one entity to see.
 - **Register the scenes Cove holds that Whisparr does not.** **Add all missing**, in the entity's
   own menu, offers Whisparr every scene Cove holds under that studio or performer, one at a time,
   and then asks Whisparr to re-read the entity's catalogue. Nothing is downloaded, a scene Whisparr
