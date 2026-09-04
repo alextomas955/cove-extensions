@@ -49,9 +49,11 @@ and what your Whisparr instance monitors.
   **Reflect owned** in the menu runs it again at any time. Its progress appears in Cove's job list.
   Nothing is copied: Cove reads Whisparr's hard-link setting first, and with that setting off, or
   unreadable, it sends nothing and says so at the control rather than duplicating every matched file.
-- **One menu item is shown and is not carried out in this version.** Add all missing appears once
-  an entity is monitored, disabled and saying so. It is described in the documentation so its cost
-  is known before it arrives. It downloads nothing when it does.
+- **Register the scenes Cove holds that Whisparr does not.** **Add all missing**, in the entity's
+  own menu, offers Whisparr every scene Cove holds under that studio or performer, one at a time,
+  and then asks Whisparr to re-read the entity's catalogue. Nothing is downloaded, a scene Whisparr
+  already holds is left alone, and nothing already wanted, queued or acquired is retracted. It runs
+  in the background and reports in Cove's job list. Whisparr v3 (Eros) only.
 
 Two things worth knowing before you enter a key:
 

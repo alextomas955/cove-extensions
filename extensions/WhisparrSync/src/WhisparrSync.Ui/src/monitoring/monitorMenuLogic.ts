@@ -210,6 +210,9 @@ const UNMONITOR_ROUTE = "unmonitor";
 /** Changing the scope of something already monitored, which is not the same verb as monitoring. */
 const SCOPE_ROUTE = "scope";
 
+/** Registering the scenes the library holds that the instance's own catalogue does not. */
+const ADD_ALL_MISSING_ROUTE = "add-all-missing";
+
 /** Linking the files the library already holds into place on the instance. */
 const REFLECT_OWNED_ROUTE = "reflect-owned";
 
@@ -228,7 +231,7 @@ const SEARCH_ALL_MONITORED_ROUTE = "search-all-monitored";
  * against each other.
  */
 const SECONDARY_ACTION_ROUTES: Record<SecondaryAction, string | null> = {
-  addAllMissing: null,
+  addAllMissing: ADD_ALL_MISSING_ROUTE,
   reflectOwned: REFLECT_OWNED_ROUTE,
   searchAllMonitored: SEARCH_ALL_MONITORED_ROUTE,
 };
