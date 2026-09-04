@@ -64,6 +64,59 @@ public sealed class EntityFolderPortTests
         Assert.Equal([Earlier], await FoldersOf(host, WhisparrEntityKind.Performer, performerId));
     }
 
+    /// <summary>
+    /// A folder the library holds under a blank path is not offered, because the request that reads
+    /// a folder refuses a blank one by throwing rather than by answering nothing.
+    /// </summary>
+    /// <remarks>
+    /// The real one is seeded beside it so the case separates "excluded the blank" from "answered
+    /// nothing at all".
+    /// </remarks>
+    [Fact]
+    public async Task AFileWhoseParentFolderPathIsBlankYieldsNoFolder()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        await host.SeedStudioFileAsync(studioId, string.Empty);
+        await host.SeedStudioFileAsync(studioId, Later);
+
+        Assert.Equal([Later], await FoldersOf(host, WhisparrEntityKind.Studio, studioId));
+    }
+
+    /// <summary>
+    /// A path of nothing but spaces is excluded too, matching the consumer's guard rather than a
+    /// narrower emptiness test.
+    /// </summary>
+    /// <remarks>
+    /// Spaces rather than a tab: the two engines this runs against trim different sets, and a space
+    /// is in both. This case is what pins the predicate to whitespace emptiness, so narrowing it to
+    /// an empty-string comparison later goes red here.
+    /// </remarks>
+    [Fact]
+    public async Task AFileWhoseParentFolderPathIsOnlySpacesYieldsNoFolder()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        await host.SeedStudioFileAsync(studioId, "   ");
+        await host.SeedStudioFileAsync(studioId, Later);
+
+        Assert.Equal([Later], await FoldersOf(host, WhisparrEntityKind.Studio, studioId));
+    }
+
+    /// <summary>
+    /// Two files in one folder are one folder to read, whatever else the entity holds.
+    /// </summary>
+    [Fact]
+    public async Task TwoFilesInOneFolderYieldOneFolder()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        await host.SeedStudioFileAsync(studioId, Earlier);
+        await host.SeedStudioFileAsync(studioId, Earlier);
+
+        Assert.Equal([Earlier], await FoldersOf(host, WhisparrEntityKind.Studio, studioId));
+    }
+
     [Fact]
     public async Task AnEntityHoldingNoFilesAnswersNothing()
     {
