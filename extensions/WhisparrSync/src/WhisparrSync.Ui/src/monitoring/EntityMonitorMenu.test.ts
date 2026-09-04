@@ -521,6 +521,50 @@ test("an arrow press with the focus outside the rows enters the list at its own 
   expect(document.activeElement).toBe(pressable.at(0));
 });
 
+/**
+ * The room below the control is what bounds the overlay, and a window short enough to leave almost
+ * none of it would bound the panel to a few pixels while the outcome sentence keeps its own height,
+ * pushing that sentence past the bound the container carries. The floor is stated as a lower bound
+ * rather than as the module's own number, so raising it does not fail this case.
+ */
+test("the room the overlay is given never falls below a readable floor", async () => {
+  const wasInnerHeight = window.innerHeight;
+  teardowns.push(() => {
+    Object.defineProperty(window, "innerHeight", {
+      value: wasInnerHeight,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  const menu = monitorMenu(viewOf({ monitored: true }), false);
+  await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      notice: "The instance declined the verb.",
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  Object.defineProperty(window, "innerHeight", {
+    value: 120,
+    configurable: true,
+    writable: true,
+  });
+  window.dispatchEvent(new Event("resize"));
+  await sleep(COMMIT_MS);
+
+  const container = document.body.querySelector<HTMLElement>('[role="menu"]')!.parentElement!;
+  const bound = Number.parseFloat(container.style.maxHeight);
+  // jsdom measures every rectangle as zero, so the control sits at the very top of this window and
+  // the unfloored room is the whole 120 less the offset and the gutter.
+  expect(bound).toBeGreaterThan(108);
+  expect(bound).toBeGreaterThanOrEqual(160);
+});
+
 test("the menu panel scrolls rather than clipping", async () => {
   const menu = monitorMenu(viewOf({ monitored: true }), false);
   const mounted = await mount((triggerRef) =>

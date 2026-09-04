@@ -20,6 +20,15 @@ const OFFSET = 4;
 /** The host's own margin between a panel and the viewport edge. */
 const GUTTER = 8;
 
+/**
+ * The least room an overlay is ever given, whatever the measurement says.
+ *
+ * An overlay divides this room between its parts at layout time, so a room near zero leaves a part
+ * that may not shrink taking all of it and a part that may shrink taking none. Enough for the
+ * longest outcome sentence and a row or two under it, which then scroll.
+ */
+const MIN_ROOM = 160;
+
 export interface AnchoredPlacement {
   /** The style placing the overlay beside its control. */
   readonly at: CSSProperties;
@@ -28,6 +37,10 @@ export interface AnchoredPlacement {
    * control has been measured. This is the room for the whole overlay, so an overlay with more than
    * one part bounds the container and not one part; null means no bound is known yet, and a bound
    * guessed before the measurement would be a wrong one.
+   *
+   * Never below `MIN_ROOM`. A window too short to leave that much below the control therefore gets
+   * an overlay whose lower part is below the fold, which is chosen over one bounded to a height
+   * nothing can be read in.
    */
   readonly availableHeight: number | null;
 }
@@ -46,7 +59,7 @@ export function useAnchoredTo(triggerRef: RefObject<HTMLElement | null>): Anchor
       const top = rect.bottom + OFFSET;
       setPlacement({
         at: { top, right: Math.max(GUTTER, window.innerWidth - rect.right) },
-        availableHeight: Math.max(0, window.innerHeight - top - GUTTER),
+        availableHeight: Math.max(MIN_ROOM, window.innerHeight - top - GUTTER),
       });
     };
 
