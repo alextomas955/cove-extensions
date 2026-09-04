@@ -98,8 +98,8 @@ Once Whisparr monitors the entity, three more items appear in the menu, in the o
 the three is the only thing in Whisparr Sync that downloads, and it says so on its own row.
 
 **A refused press states its reason beneath the control.** Nothing is sent, nothing is changed and
-no background job starts. Reflect owned skipping because of Whisparr's hard-link setting states its
-own reason in the same place. See [What a refused press states](#what-a-refused-press-states).
+no background job starts. A press of **Reflect owned** that skips because of Whisparr's hard-link
+setting states its own reason in the same place. See [What a refused press states](#what-a-refused-press-states).
 
 ### Add all missing
 
@@ -138,7 +138,9 @@ management configuration and is on by default.
 
 **It runs by itself when you turn monitoring on**, so turning monitoring on is one press and no
 dialog. Press the item to run it again at any time. Monitoring a whole selection runs it too, once
-per entity, on the same hard-link condition and inside the selection's own background job.
+per entity, on the same hard-link condition and inside the selection's own background job. When the
+run that started by itself has nothing to do because of the hard-link setting, its own line in Cove's
+job list says which of the two readings stopped it.
 
 The work runs in the background. Its progress and its result appear in Cove's job list, and nothing
 on the entity page changes while it runs.
@@ -147,10 +149,15 @@ Before anything is sent, Cove reads Whisparr's hard-link setting:
 
 - With the setting **on**, Whisparr is asked to link the files, one of the entity's folders at a
   time.
-- With the setting **off**, nothing is sent and the control says so. Every matched file would
-  otherwise be copied in full and use disk twice, and neither Whisparr generation offers a mode that
-  only links.
-- When the setting **cannot be read**, nothing is sent either, and the control says that instead.
+- With the setting **off**, nothing is sent. Where you are told depends on which path ran it. A press
+  of **Reflect owned** states the reason beneath the control. A run that started by itself with
+  monitoring states it on that run's own line in Cove's job list. Over a selection the reason is not
+  reported, for the reason [Monitor a whole selection](#monitor-a-whole-selection) gives. Every
+  matched file would otherwise be copied in full and use disk twice, and neither Whisparr generation
+  offers a mode that only links.
+- When the setting **cannot be read**, nothing is sent either. A press states that reason beneath the
+  control, a run that started by itself states it on its own line in Cove's job list, and a selection
+  does not report it.
 
 ### Search all monitored
 
@@ -261,8 +268,9 @@ What you choose runs as one background job. Its progress and its result for each
 Cove's job list, and it ends with Cove's own count of those results. An entity Whisparr now monitors
 counts as succeeded. An entity Whisparr declined counts as failed, and so does one whose answer was
 larger than the extension reads at once. An entity passed over for a stated reason counts as
-skipped: no usable link, several conflicting links, a capability the connected generation lacks,
-Whisparr offering no quality profile or no library root, or Whisparr no longer holding the entry.
+skipped: no Whisparr instance connected, no usable link, several conflicting links, a capability the
+connected generation lacks, Whisparr offering no quality profile or no library root, or Whisparr no
+longer holding the entry.
 Nothing on the page you are looking at changes when it finishes.
 
 An entity counts as succeeded only when Whisparr, read again after the change, says it monitors it.
