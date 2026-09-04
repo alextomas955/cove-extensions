@@ -1,5 +1,5 @@
 /**
- * Where to put an overlay, given the control it belongs to.
+ * Where to put an overlay, given the control it belongs to, and how much room there is for it.
  *
  * Fixed and portaled to the document rather than laid out beside the control, because the host
  * clips its entity hero: the action row sits inside a container carrying `overflow-hidden`, so a
@@ -10,19 +10,44 @@
  * The offset and the gutter are the host's own numbers, so the panels line up the way its do.
  *
  * @param triggerRef The control the overlay belongs to.
- * @returns The style placing the overlay beside that control.
+ * @returns The style placing the overlay beside that control, and the room below it in pixels.
  */
 import { useEffect, useState, type CSSProperties, type RefObject } from "react";
 
-export function useAnchoredTo(triggerRef: RefObject<HTMLElement | null>): CSSProperties {
-  const [at, setAt] = useState<CSSProperties>({ top: 0, right: 0 });
+/** The host's own gap between a control and the panel it opens. */
+const OFFSET = 4;
+
+/** The host's own margin between a panel and the viewport edge. */
+const GUTTER = 8;
+
+export interface AnchoredPlacement {
+  /** The style placing the overlay beside its control. */
+  readonly at: CSSProperties;
+  /**
+   * The room between the overlay's own top and the viewport's bottom gutter, or null until the
+   * control has been measured. A panel bounds itself to this so it scrolls instead of running off
+   * the viewport; null means no bound is known yet, and a bound guessed before the measurement
+   * would be a wrong one.
+   */
+  readonly availableHeight: number | null;
+}
+
+export function useAnchoredTo(triggerRef: RefObject<HTMLElement | null>): AnchoredPlacement {
+  const [placement, setPlacement] = useState<AnchoredPlacement>({
+    at: { top: 0, right: 0 },
+    availableHeight: null,
+  });
 
   useEffect(() => {
     const place = () => {
       const anchor = triggerRef.current;
       if (anchor === null) return;
       const rect = anchor.getBoundingClientRect();
-      setAt({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) });
+      const top = rect.bottom + OFFSET;
+      setPlacement({
+        at: { top, right: Math.max(GUTTER, window.innerWidth - rect.right) },
+        availableHeight: Math.max(0, window.innerHeight - top - GUTTER),
+      });
     };
 
     place();
@@ -36,5 +61,5 @@ export function useAnchoredTo(triggerRef: RefObject<HTMLElement | null>): CSSPro
     };
   }, [triggerRef]);
 
-  return at;
+  return placement;
 }
