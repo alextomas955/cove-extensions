@@ -132,7 +132,8 @@ offers an import mode that only links. Whisparr's hard-link setting lives in its
 management configuration and is on by default.
 
 **It runs by itself when you turn monitoring on**, so turning monitoring on is one press and no
-dialog. Press the item to run it again at any time.
+dialog. Press the item to run it again at any time. Monitoring a whole selection runs it too, once
+per entity, on the same hard-link condition and inside the selection's own background job.
 
 The work runs in the background. Its progress and its result appear in Cove's job list, and nothing
 on the entity page changes while it runs.
@@ -215,6 +216,15 @@ entity. Closing the overlay without choosing sends nothing.
 What you choose runs as one background job. Its progress and its result for each entity appear in
 Cove's job list, and it ends with a line saying how many were applied and how many were refused.
 Nothing on the page you are looking at changes when it finishes.
+
+An entity counts as applied only when Whisparr, read again after the change, says it monitors it.
+An accepted request that left the entity unmonitored is counted as refused.
+
+**Monitoring a selection also links the files Cove already holds**, for every entity in it, on the
+same condition [Reflect owned](#reflect-owned) states: Cove reads Whisparr's hard-link setting once
+for the whole run, and with that setting off, or unreadable, it links nothing. The run's own summary
+line says which of the two happened, apart from the applied and refused counts, so a skipped link
+never reads as a refused monitor.
 
 **Stop monitoring in Whisparr** over a selection leaves behind exactly what it leaves behind for one
 entity: it does not retract what All Scenes already made wanted. The overlay states that on the row

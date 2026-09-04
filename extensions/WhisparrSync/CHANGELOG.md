@@ -50,8 +50,9 @@ and what your Whisparr instance monitors.
 - **Whisparr v2 cannot monitor a performer**, and no route on it registers a catalogue item. The
   button and the affected menu items are shown disabled with the reason rather than hidden.
 - **Whisparr links the files you already own into place, by itself.** Turning monitoring on for a
-  studio or a performer starts that work in the background with no second press and no dialog, and
-  **Reflect owned** in the menu runs it again at any time. Its progress appears in Cove's job list.
+  studio or a performer starts that work in the background with no second press and no dialog, and so
+  does monitoring a whole selection, once per entity inside that selection's own run. **Reflect
+  owned** in the menu runs it again at any time. Its progress appears in Cove's job list.
   Nothing is copied: Cove reads Whisparr's hard-link setting first, and with that setting off, or
   unreadable, it sends nothing and says so at the control rather than duplicating every matched file.
 - **Register the scenes Cove holds that Whisparr does not.** **Add all missing**, in the entity's
