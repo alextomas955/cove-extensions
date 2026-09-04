@@ -32,6 +32,9 @@ and what your Whisparr instance monitors.
   studio as wanted, which spends indexer traffic and disk, and on Whisparr v3 (Eros) changing the
   scope back to Future Scenes does not undo it. A performer is offered no scope, because Whisparr
   expresses no future-only option for one, so monitoring a performer covers everything it lists.
+- **The menu marks the scope a monitored studio is actually set to** on Whisparr v3 (Eros), read
+  from Whisparr each time you open the page. On Whisparr v2 that answer carries no scope, so no row
+  is marked and the menu says it cannot tell which one is in force rather than marking one for you.
 - **Unmonitoring stops new scenes and retracts nothing.** What All Scenes already made wanted stays
   wanted, and Whisparr will still acquire it. Nothing is deleted, in Cove or in Whisparr.
 - **One action asks Whisparr to search, and it is the only one.** Monitoring, unmonitoring and
