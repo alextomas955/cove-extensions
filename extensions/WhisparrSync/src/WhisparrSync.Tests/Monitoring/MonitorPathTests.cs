@@ -330,6 +330,42 @@ public sealed class MonitorPathTests
     }
 
     /// <summary>
+    /// An answer past the read bound on either of the older generation's two reads keeps its own
+    /// reason, rather than being parsed as an absence or as the instance refusing.
+    /// </summary>
+    /// <remarks>
+    /// The assembly reads the status of each answer, and an answer past the bound arrives with the
+    /// success status the instance gave and an empty body. Parsing that body reports the entity as
+    /// absent on the listing and unreadable on the lookup, which is the reason this generation's
+    /// path needs its own case rather than resting on the transport one.
+    /// </remarks>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AnAnswerPastTheBoundOnEitherOlderGenerationReadKeepsItsOwnReason(
+        bool onTheLookup)
+    {
+        var past = $"[\"{new string('a', (int)WhisparrClient.MaxResponseBytes)}\"]";
+        var handler = onTheLookup
+            ? BodyRecordingHandler.AnsweringInTurn((HttpStatusCode.OK, past))
+            : BodyRecordingHandler.AnsweringInTurn(
+                (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.OK, past));
+        using var http = new HttpClient(handler);
+
+        var read = await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+            .ReadStudioAsync(
+                new Uri(MonitorHost.StoredAddress),
+                MonitorHost.StoredKey,
+                WhisparrGeneration.V2,
+                V2StoredIdentifier,
+                TestCt);
+
+        Assert.Equal(
+            MonitorRefusalKind.AnswerTooLargeToRead, MonitoringProjector.Classify(read).Refusal);
+        Assert.Empty(read.Body);
+    }
+
+    /// <summary>
     /// An entity the older generation's instance lists nowhere reads as not held, which is not a
     /// refusal: it is the precondition for adding it.
     /// </summary>
