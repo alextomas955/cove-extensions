@@ -24,10 +24,30 @@ internal enum ReflectOwnedRunOutcome
     Cancelled,
 }
 
+/// <summary>What one folder's importable listing answered.</summary>
+/// <remarks>
+/// A refused read and a folder holding nothing importable are different facts and must not travel
+/// as one absent value. The first is a folder nothing was learned about, and reporting it as the
+/// second leaves the run's own line describing a clean pass over a folder it never read.
+/// </remarks>
+/// <param name="Rows">What the instance listed, or null where nothing readable came back.</param>
+/// <param name="WasRefused">True where no answer about the folder arrived at all.</param>
+internal readonly record struct ImportableListing(string? Rows, bool WasRefused)
+{
+    /// <summary>No answer about the folder arrived.</summary>
+    internal static ImportableListing Refused { get; } = new(null, true);
+
+    /// <summary>The instance's own answer about the folder, whatever it listed.</summary>
+    internal static ImportableListing Listed(string? rows) => new(rows, false);
+}
+
 /// <summary>What a run over an entity's folders did.</summary>
 /// <param name="Outcome">Whether every folder was read.</param>
 /// <param name="FoldersAttached">How many folders' files the instance accepted.</param>
-/// <param name="FoldersRefused">How many folders' files the instance declined.</param>
+/// <param name="FoldersRefused">
+/// How many folders the run could not carry out: the instance declined their files, or its listing
+/// of them never arrived.
+/// </param>
 /// <param name="Skipped">
 /// Why NOTHING was attempted. Null both for a run that ran and for a run that was not aimed for a
 /// cause other than the instance's linking setting, because no setting was read on that path and
@@ -132,11 +152,15 @@ internal static class ReflectOwnedPlanner
     /// <remarks>
     /// A cancellation classifies the run as cancelled rather than failed, and what was attached before
     /// it stays attached: the files are in place on the instance and there is nothing to undo.
+    /// <para>
+    /// A folder whose listing was refused counts as refused. A folder the instance listed nothing
+    /// attachable in counts as neither, because that is a complete answer about the folder.
+    /// </para>
     /// </remarks>
     internal static async Task<ReflectOwnedRun> RunAsync(
         WhisparrGeneration generation,
         IAsyncEnumerable<string> folders,
-        Func<string, CancellationToken, Task<string?>> readImportable,
+        Func<string, CancellationToken, Task<ImportableListing>> readImportable,
         Func<JsonArray, CancellationToken, Task<bool>> attach,
         CancellationToken ct)
     {
@@ -152,8 +176,14 @@ internal static class ReflectOwnedPlanner
             await foreach (var folder in folders.WithCancellation(ct).ConfigureAwait(false))
             {
                 ct.ThrowIfCancellationRequested();
-                var rows = await readImportable(folder, ct).ConfigureAwait(false);
-                if (Files(generation, rows) is not { } files)
+                var listing = await readImportable(folder, ct).ConfigureAwait(false);
+                if (listing.WasRefused)
+                {
+                    refused++;
+                    continue;
+                }
+
+                if (Files(generation, listing.Rows) is not { } files)
                 {
                     continue;
                 }

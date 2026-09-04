@@ -26,7 +26,7 @@ public sealed record ReflectOwnedBatch(WhisparrEntityKind? Kind, int CoveId);
 /// <param name="Attach">Hands one folder's rows to the instance, answering whether it took them.</param>
 internal sealed record ReflectOwnedAiming(
     WhisparrGeneration Generation,
-    Func<string, CancellationToken, Task<string?>> ReadImportable,
+    Func<string, CancellationToken, Task<ImportableListing>> ReadImportable,
     Func<JsonArray, CancellationToken, Task<bool>> Attach);
 
 /// <summary>What one run acts through, and why there is nothing to act through.</summary>

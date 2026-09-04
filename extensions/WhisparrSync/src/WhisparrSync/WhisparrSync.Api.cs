@@ -776,8 +776,8 @@ public sealed partial class WhisparrSync
                     _log,
                     readCt).ConfigureAwait(false))
                 is { } parsed && MonitoringProjector.Accepted(parsed) == MonitorRefusalKind.None
-                    ? parsed.Body
-                    : null,
+                    ? ImportableListing.Listed(parsed.Body)
+                    : ImportableListing.Refused,
             async (files, attachCt) => (await ContainedAsync(
                     () => acting.AttachOwnedFilesAsync(
                         target.BaseAddress, target.ApiKey, files, attachCt),
