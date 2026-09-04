@@ -100,7 +100,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         FakePrincipalAccessor? principal = null,
         string? apiKey = StoredKey,
         WhisparrGeneration generation = WhisparrGeneration.V3,
-        BodyRecordingHandler? bytes = null)
+        BodyRecordingHandler? bytes = null,
+        MonitorScope defaultScope = MonitorScope.FutureScenes)
     {
         var host = new MonitorHost();
         (host._db, host._connection) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -119,7 +120,11 @@ internal sealed class MonitorHost : IAsyncDisposable
 
         var options = new OptionsStore(new FakeStore());
         await options.SaveAsync(
-            new WhisparrSyncOptions { SelectedGeneration = generation }.WithConnectionFor(
+            new WhisparrSyncOptions
+            {
+                SelectedGeneration = generation,
+                DefaultMonitorScope = defaultScope,
+            }.WithConnectionFor(
                 generation, new WhisparrSyncGenerationConnection { Address = StoredAddress }),
             TestCt);
 

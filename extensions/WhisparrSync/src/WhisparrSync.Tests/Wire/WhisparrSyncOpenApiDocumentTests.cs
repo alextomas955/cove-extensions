@@ -5,12 +5,8 @@ using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
-// Two types in this assembly's reach are named MonitorScope: the stored settings default carries the
-// spec's earlier vocabulary, and the acting one carries the two names both generations use. Only the
-// acting one reaches the wire.
-using MonitorScope = WhisparrSync.Monitoring.MonitorScope;
-using WhisparrEntityKind = WhisparrSync.Monitoring.WhisparrEntityKind;
 
 namespace WhisparrSync.Tests.Wire;
 

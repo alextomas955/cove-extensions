@@ -7,8 +7,6 @@ using WhisparrSync.Tests.TestSupport;
 
 using EndpointMatchGuard = WhisparrSync.Import.EndpointMatchGuard;
 
-using MonitorScope = WhisparrSync.Monitoring.MonitorScope;
-
 namespace WhisparrSync.Tests.Monitoring;
 
 /// <summary>
