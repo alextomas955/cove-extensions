@@ -1,3 +1,4 @@
+using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -183,6 +184,36 @@ public sealed class AddAllMissingPlannerTests
         Assert.Equal(1, run.Refused);
         Assert.Equal(1, run.Registered);
         Assert.Equal(AddAllMissingRunOutcome.Completed, run.Outcome);
+    }
+
+    /// <summary>
+    /// An answer larger than the read bound is refused, not registered, and the run carries on.
+    /// </summary>
+    /// <remarks>
+    /// The bounded read answers a success status and an empty body and states the refusal on the
+    /// answer itself, so a classification reading only the status and the body counts the scene as
+    /// registered and tells the reader a catalogue is complete when it is not.
+    /// </remarks>
+    [Fact]
+    public async Task AnAnswerLargerThanTheReadBoundIsRefusedRatherThanRegistered()
+    {
+        var client = Accepting();
+
+        var run = await AddAllMissingPlanner.RunAsync(
+            Identities([FirstScene, SecondScene]),
+            (identity, ct) => identity == FirstScene
+                ? Task.FromResult<WhisparrResponse?>(
+                    new WhisparrResponse(200, "application/json", string.Empty)
+                    {
+                        Refusal = MonitorRefusalKind.AnswerTooLargeToRead,
+                    })
+                : Register(client, identity, ct),
+            ct => Refresh(client, ct),
+            TestCt);
+
+        Assert.Equal(1, run.Refused);
+        Assert.Equal(1, run.Registered);
+        Assert.Equal(0, run.AlreadyHeld);
     }
 
     /// <summary>
