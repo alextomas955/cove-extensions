@@ -68,6 +68,7 @@ const {
   ACTION_DID_NOT_REACH_WHISPARR,
   ACTION_REFLECT_OWNED,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
+  INSTANCE_OFFERS_NO_QUALITY_PROFILE,
   MONITORED_IN_WHISPARR,
   MONITORING_COULD_NOT_BE_READ,
   MONITOR_IN_WHISPARR,
@@ -435,6 +436,22 @@ test("an action that was carried out states nothing at the control", async () =>
   const notice = await pressReflectOwned(rendered);
 
   expect(notice).toBeNull();
+});
+
+test("a press refused for no quality profile states that beneath the control", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+  actionAnswer = () => Promise.resolve(view({ refusal: "noQualityProfile", scope: null }));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  rendered.button?.click();
+  await sleep(COMMIT_MS);
+
+  rendered.rows()[0].click();
+  await sleep(COMMIT_MS);
+
+  expect(document.body.textContent).toContain(INSTANCE_OFFERS_NO_QUALITY_PROFILE);
+  // The retry the refusal must not take away: a reader can add a profile in Whisparr and press again.
+  expect(rendered.button?.disabled).toBe(false);
 });
 
 test("add all missing is pressed at its own route on a generation holding the capability", async () => {
