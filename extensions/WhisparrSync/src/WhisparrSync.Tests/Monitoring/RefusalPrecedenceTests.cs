@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
@@ -105,9 +107,12 @@ public sealed class RefusalPrecedenceTests
     /// </para>
     /// </remarks>
     [Fact]
-    public void EveryDeclaredRefusalKindIsProducedBySomeReachableCase()
+    public async Task EveryDeclaredRefusalKindIsProducedBySomeReachableCase()
     {
-        var produced = new HashSet<MonitorRefusalKind>(Reachable());
+        var produced = new HashSet<MonitorRefusalKind>(Reachable())
+        {
+            await TheKindAnAnswerPastTheReadBoundProducesAsync(),
+        };
 
         foreach (var kind in Enum.GetValues<MonitorRefusalKind>())
         {
@@ -204,6 +209,23 @@ public sealed class RefusalPrecedenceTests
     /// composition stops from the add-defaults decision, and the instance's own decline from the
     /// write classifier.
     /// </remarks>
+    // The one kind no pure decider answers: it is read off the transport, so the only honest way to
+    // reach it is to drive an answer past the bound through the client itself.
+    private static async Task<MonitorRefusalKind> TheKindAnAnswerPastTheReadBoundProducesAsync()
+    {
+        using var http = new HttpClient(BodyRecordingHandler.AnsweringPastTheReadBound());
+
+        var answered = await new WhisparrClient(http, NullLogger.Instance).ReadHistoryAsync(
+            new Uri("http://whisparr:6969"),
+            "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e",
+            WhisparrGeneration.V3,
+            1,
+            10,
+            TestContext.Current.CancellationToken);
+
+        return MonitoringProjector.Classify(answered).Refusal;
+    }
+
     private static IEnumerable<MonitorRefusalKind> Reachable()
     {
         foreach (var identity in new[]

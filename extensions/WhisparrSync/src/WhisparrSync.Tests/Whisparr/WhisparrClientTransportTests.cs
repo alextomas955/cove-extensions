@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
@@ -21,6 +22,11 @@ namespace WhisparrSync.Tests.Whisparr;
 /// certificate policy under test are the ones a user gets. The composed request, the retry decision
 /// and the returned content type are read off a stub handler instead: a real socket answers with
 /// nothing that says what was sent.
+/// </para>
+/// <para>
+/// The bound on how much of one answer is read holds however the client was constructed, so the cases
+/// that drive it build their own <see cref="HttpClient"/> over a stub and none of them calls
+/// <c>Configure</c>.
 /// </para>
 /// </remarks>
 public sealed class WhisparrClientTransportTests
@@ -137,24 +143,78 @@ public sealed class WhisparrClientTransportTests
         Assert.Equal(WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor((WhisparrVerbClass)(-1)));
     }
 
-    /// <summary>The configured client holds a finite amount of one answer in memory.</summary>
+    /// <summary>The bound this client reads one answer within is a narrowing.</summary>
     /// <remarks>
-    /// Read off the configured client rather than off the constant, so a <c>Configure</c> that stopped
-    /// applying it is reported. The second assertion is what makes the ceiling a narrowing: a client
-    /// nothing configured supplies the value this one has to be below, so a constant raised to what the
-    /// framework already allows fails here rather than passing against itself.
+    /// A client nothing configured supplies the value the bound has to be below, so a constant raised
+    /// to what the framework already allows fails here rather than passing against itself.
     /// </remarks>
     [Fact]
-    public void TheConfiguredClientHoldsAFiniteAnswerInMemory()
+    public void TheBoundOnOneAnswerIsANarrowing()
     {
-        using var configured = NewHttpClient();
         using var unconfigured = new HttpClient();
 
-        Assert.Equal(WhisparrClient.MaxResponseBytes, configured.MaxResponseContentBufferSize);
         Assert.True(
-            configured.MaxResponseContentBufferSize < unconfigured.MaxResponseContentBufferSize,
-            $"the ceiling is {configured.MaxResponseContentBufferSize}, which bounds nothing a client "
-                + $"nothing configured would not already refuse at {unconfigured.MaxResponseContentBufferSize}");
+            WhisparrClient.MaxResponseBytes < unconfigured.MaxResponseContentBufferSize,
+            $"the bound is {WhisparrClient.MaxResponseBytes}, which bounds nothing a client nothing "
+                + $"configured would not already refuse at {unconfigured.MaxResponseContentBufferSize}");
+    }
+
+    /// <summary>
+    /// An answer larger than this client reads at once names that reason, rather than the instance
+    /// refusing.
+    /// </summary>
+    /// <remarks>
+    /// The empty body is the third assertion rather than an aside: the value the bound was passed
+    /// reading is precisely the value that must not travel onward.
+    /// </remarks>
+    [Fact]
+    public async Task AnAnswerLargerThanThisClientWillReadIsRefusedAsThatRatherThanAsTheInstanceRefusing()
+    {
+        var handler = BodyRecordingHandler.AnsweringPastTheReadBound();
+        using var http = new HttpClient(handler);
+
+        var answered = await ReadThroughAsync(http);
+
+        Assert.Equal(
+            MonitorRefusalKind.AnswerTooLargeToRead, MonitoringProjector.Classify(answered).Refusal);
+        Assert.Equal(
+            MonitoringProjector.EntityReading.Refused, MonitoringProjector.Classify(answered).Reading);
+        Assert.Empty(answered.Body);
+    }
+
+    /// <summary>An answer within the bound comes back as it was sent.</summary>
+    /// <remarks>
+    /// The expected value is the literal the handler was given, not anything computed from the client,
+    /// so a bounded read that truncated or mis-decoded is reported here. The title carries characters
+    /// outside ASCII, which is what a read counting bytes as characters gets wrong.
+    /// </remarks>
+    [Fact]
+    public async Task AnAnswerInsideTheBoundIsReturnedWhole()
+    {
+        const string sent = """[{"id":1,"title":"Vixen Mélodie","quality":"WEBDL-1080p"}]""";
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, sent);
+        using var http = new HttpClient(handler);
+
+        var answered = await ReadThroughAsync(http);
+
+        Assert.Equal(sent, answered.Body);
+        Assert.Equal(MonitorRefusalKind.None, answered.Refusal);
+    }
+
+    /// <summary>An answer larger than the bound is not downloaded a second time.</summary>
+    /// <remarks>
+    /// The read class carries more than one attempt, and an attempt is re-issued only where the send
+    /// reached nothing. An answer past the bound is an answer, so it is returned on the first one.
+    /// </remarks>
+    [Fact]
+    public async Task AnAnswerLargerThanTheBoundIsReadOnce()
+    {
+        var handler = BodyRecordingHandler.AnsweringPastTheReadBound();
+        using var http = new HttpClient(handler);
+
+        await ReadThroughAsync(http);
+
+        Assert.Single(handler.Requests);
     }
 
     /// <summary>
@@ -307,6 +367,16 @@ public sealed class WhisparrClientTransportTests
         Assert.All(client.Histories, call => Assert.Equal(address, call.BaseAddress));
         Assert.All(client.Verbs, verb => Assert.Equal(nameof(IWhisparrClient.ReadHistoryAsync), verb));
     }
+
+    // Any read member reaches the same send, and this one is what the other transport cases drive.
+    private static Task<WhisparrResponse> ReadThroughAsync(HttpClient http)
+        => new WhisparrClient(http, NullLogger.Instance).ReadHistoryAsync(
+            new Uri("http://whisparr:6969"),
+            SomeKey,
+            WhisparrGeneration.V3,
+            1,
+            10,
+            TestContext.Current.CancellationToken);
 
     private static async Task<ConnectionTestView> TestAsync(string address)
         => await NewTester().TestAsync(address, SomeKey, TestContext.Current.CancellationToken);
