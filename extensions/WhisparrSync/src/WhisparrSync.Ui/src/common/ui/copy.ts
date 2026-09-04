@@ -378,8 +378,16 @@ export const UPGRADE_KEEPS_BOTH_FILES =
 export const UPGRADE_DROPS_THE_SUPERSEDED_FILE =
   "The new file joins the scene you already have and the file it replaces is dropped from it. That file stays on disk, for Whisparr to remove.";
 
-/** Whisparr's own renaming reaching files Cove already holds. */
-export const WHISPARR_MAY_RENAME = "Whisparr may change files in your library";
+/**
+ * Whisparr's own renaming reaching files Cove already holds.
+ *
+ * The import mode this extension sends, and the shared library roots this extension requires, are
+ * both facts about this product. Whether a later rename inside Whisparr reaches the library's own
+ * entry rather than only Whisparr's own link to it is NOT measured, which is why the sentence says
+ * a rename can reach a file rather than that it will or that it will not.
+ */
+export const WHISPARR_MAY_RENAME =
+  "Whisparr takes charge of each file it links and names it by its own rules. Because Cove and Whisparr read the same library folders, a later rename inside Whisparr can reach a file Cove holds.";
 
 /** No address or key was entered, so nothing was tried. Names the settings that would fix it. */
 export const CONNECT_NOT_CONFIGURED =
