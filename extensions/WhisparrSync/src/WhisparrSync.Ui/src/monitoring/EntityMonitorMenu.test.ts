@@ -17,11 +17,13 @@ import { EntityMonitorMenu } from "./EntityMonitorMenu";
 import { monitorMenu } from "./monitorMenuLogic";
 import {
   ACTION_ADD_ALL_MISSING,
+  ACTION_REFLECT_OWNED,
   ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   SCOPE_ALL_SCENES,
   SCOPE_FUTURE_SCENES,
   SCOPE_IN_FORCE_IS_NOT_REPORTED,
+  STOP_MONITORING_IN_WHISPARR,
 } from "../common/ui/copy";
 import type { EntityMonitoringView } from "../wire/api";
 
@@ -389,4 +391,101 @@ test("an action already on its way disables every row and says what is being wai
   expect(rows.length).toBeGreaterThan(0);
   expect(rows.every((row) => row.disabled)).toBe(true);
   expect(rows.every((row) => (row.getAttribute("title") ?? "").includes(", "))).toBe(true);
+});
+
+/**
+ * The armed menu of a studio on the older generation, with the capability set that generation
+ * actually holds: it registers no missing scene, so that one row is dimmed and two pressable rows
+ * follow it.
+ */
+const V2_STUDIO_CAPABILITIES = [
+  "outOfBandCallbackSecret",
+  "monitorStudio",
+  "reflectOwnedFiles",
+  "searchMonitored",
+] as const;
+
+/**
+ * A menu whose LAST row is dimmed, which needs a capability set no shipped generation answers with:
+ * the older one holds the search and the newer one holds all three. Written out because the hook
+ * being asserted is shared, and a set the wire admits is a set it will be handed.
+ */
+const NO_SEARCH_CAPABILITIES = ["monitorPerformer", "reflectOwnedFiles"] as const;
+
+test("the arrow keys pass a disabled row to reach the one after it", async () => {
+  const menu = monitorMenu(
+    viewOf({ generation: "v2", monitored: true, capabilities: [...V2_STUDIO_CAPABILITIES] }),
+    false,
+  );
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  // Add all missing is the dimmed row and Reflect owned is the one after it. A press that stops on
+  // the dimmed row leaves the focus there for good, because a disabled button ignores focus() and
+  // the next press then reads the same index back.
+  const rows = mounted.rows();
+  expect(rows.map((row) => row.disabled)).toEqual([false, false, false, true, false, false]);
+
+  press("ArrowDown");
+  press("ArrowDown");
+  press("ArrowDown");
+
+  expect(accessibleName(document.activeElement!)).toBe(ACTION_REFLECT_OWNED);
+});
+
+test("the arrow keys wrap past a disabled last row", async () => {
+  const menu = monitorMenu(
+    viewOf({
+      kind: "performer",
+      monitored: true,
+      capabilities: [...NO_SEARCH_CAPABILITIES],
+    }),
+    false,
+  );
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const rows = mounted.rows();
+  expect(rows.map((row) => row.disabled)).toEqual([false, true, false, true]);
+
+  press("ArrowDown");
+  expect(accessibleName(document.activeElement!)).toBe(ACTION_REFLECT_OWNED);
+
+  press("ArrowDown");
+  expect(accessibleName(document.activeElement!)).toBe(STOP_MONITORING_IN_WHISPARR);
+});
+
+test("with every row disabled an arrow press moves nothing and raises nothing", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), true);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  expect(mounted.rows().every((row) => row.disabled)).toBe(true);
+  const before = document.activeElement;
+
+  expect(() => {
+    press("ArrowDown");
+  }).not.toThrow();
+  expect(document.activeElement).toBe(before);
 });
