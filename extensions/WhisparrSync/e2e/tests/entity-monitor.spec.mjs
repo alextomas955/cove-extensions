@@ -33,11 +33,13 @@
 import { test as base, createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
+import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { randomUUID } from "node:crypto";
 
 import {
   connectWhisparr,
   expect,
+  extensionRoute,
   seedCovePerformer,
   seedCoveStudio,
   STASHDB_ENDPOINT,
@@ -64,6 +66,9 @@ const NO_IDENTITY_IN_THIS_NAMESPACE =
 const SCOPE_FUTURE_SCENES = "Future Scenes";
 const SCOPE_ALL_SCENES = "All Scenes";
 const STOP_MONITORING_IN_WHISPARR = "Stop monitoring in Whisparr";
+
+// The refusal kind meaning nothing was refused, in the wire spelling the server answers it in.
+const MONITOR_REFUSAL_NONE = "none";
 
 // A command whose name carries this is the observable form of a started search on both generations.
 // A pattern rather than the three command names, so this file names no verb that downloads and the
@@ -374,9 +379,43 @@ test("the control renders and works on both real detail pages, and the instance 
     await expect(menu, "the control did not reopen its menu").toBeVisible();
     await menu.getByRole("menuitemradio", { name: SCOPE_FUTURE_SCENES }).click();
 
+    // The extension's own read, asserted before the control's name and never instead of it. The two
+    // can disagree, and which one is wrong is what a failure has to say: a server reporting the
+    // studio monitored while the control still offers to monitor it is a browser that did not
+    // follow. A refusal here is worse than a plain false, because a refusal that leaves the menu
+    // available is dropped at the control and the gesture then reads as having done nothing.
+    const {
+      settled: readReportsMonitored,
+      value: reported,
+      note: lastRead,
+    } = await attemptUntil(
+      async (_signal, record) => {
+        const view = await coveApi.get(
+          extensionRoute(`entity/studio/${String(reachableStudio.id)}/monitoring`),
+        );
+        record(
+          `${String(view.status)} monitored=${JSON.stringify(view.json?.monitored)} refusal=${JSON.stringify(view.json?.refusal)}`,
+        );
+        return view.json?.monitored === true ? { value: view.json } : null;
+      },
+      {
+        timeoutMs: GESTURE_BUDGET_MS,
+        intervalMs: 2_000,
+        label: "the entity's own monitoring read",
+      },
+    );
+    expect(
+      readReportsMonitored,
+      `after the gesture the extension's own read never reported the studio monitored within ${GESTURE_BUDGET_MS}ms; it last answered ${lastRead}`,
+    ).toBe(true);
+    expect(
+      reported.refusal,
+      `the read reporting the studio monitored carries the refusal ${JSON.stringify(reported.refusal)}, so the server named a reason alongside a state it reports as applied`,
+    ).toBe(MONITOR_REFUSAL_NONE);
+
     await expect(
       monitoredControl(page),
-      `the control did not report the studio as monitored within ${GESTURE_BUDGET_MS}ms`,
+      `the control did not report the studio as monitored within ${GESTURE_BUDGET_MS}ms, though the extension's own read answered ${lastRead} - so the gesture reached the instance and the control did not follow it`,
     ).toBeVisible({ timeout: GESTURE_BUDGET_MS });
 
     // The instance's own answer rather than the extension's. This is the assertion the container is
