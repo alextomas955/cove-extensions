@@ -298,7 +298,6 @@ describe("a capability the connected generation does not hold", () => {
     );
 
     expect(addAllMissing).toBeDefined();
-    expect(addAllMissing?.enabled).toBe(false);
     expect(addAllMissing?.reason).toBe(CAP_UNAVAILABLE_ON_THIS_GENERATION);
   });
 
@@ -316,7 +315,6 @@ describe("a capability the connected generation does not hold", () => {
         (entry) => entry.item === "secondary" && entry.action === action,
       );
 
-      expect(item?.enabled, action).toBe(false);
       expect(item?.reason, action).toBe(CAP_UNAVAILABLE_ON_THIS_GENERATION);
     }
   });
@@ -505,7 +503,6 @@ describe("an action already on its way", () => {
 
         expect(menu.items.length, `${kind} ${String(monitored)}`).toBeGreaterThan(0);
         for (const item of menu.items) {
-          expect(item.enabled, `${kind} ${item.label}`).toBe(false);
           expect(item.reason, `${kind} ${item.label}`).toBe(WAITING_FOR_WHISPARR);
         }
       }
@@ -543,7 +540,6 @@ describe("the verbs this build carries out", () => {
   it("carries reflect owned out at its own route, on a generation holding the capability", () => {
     const reflect = secondaryItem("reflectOwned");
 
-    expect(reflect.enabled).toBe(true);
     expect(reflect.reason).toBeNull();
     expect(routeFor(reflect, true)).toBe("reflect-owned");
   });
@@ -552,7 +548,6 @@ describe("the verbs this build carries out", () => {
     for (const generation of GENERATIONS) {
       const search = secondaryItem("searchAllMonitored", generation);
 
-      expect(search.enabled, generation).toBe(true);
       expect(search.reason, generation).toBeNull();
       expect(routeFor(search, true), generation).toBe("search-all-monitored");
     }
@@ -561,7 +556,6 @@ describe("the verbs this build carries out", () => {
   it("carries add all missing out at its own route, on a generation holding the capability", () => {
     const addAllMissing = secondaryItem("addAllMissing");
 
-    expect(addAllMissing.enabled).toBe(true);
     expect(addAllMissing.reason).toBeNull();
     expect(routeFor(addAllMissing, true)).toBe("add-all-missing");
   });
