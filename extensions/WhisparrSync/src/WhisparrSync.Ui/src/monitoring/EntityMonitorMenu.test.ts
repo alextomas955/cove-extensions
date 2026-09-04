@@ -491,6 +491,36 @@ test("with every row disabled an arrow press moves nothing and raises nothing", 
   expect(document.activeElement).toBe(before);
 });
 
+/**
+ * Focus outside the row list is the state a settled press leaves: the pressed row is disabled while
+ * the gesture runs, the browser moves focus off it to the document, and the rows re-enable. Both
+ * directions have to enter the list from there, and the wrapping arithmetic is the shared hook's.
+ */
+test("an arrow press with the focus outside the rows enters the list at its own end", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const pressable = mounted.rows().filter((row) => !row.disabled);
+  expect(pressable.length).toBeGreaterThan(2);
+
+  (document.activeElement as HTMLElement).blur();
+  expect(document.activeElement).toBe(document.body);
+  press("ArrowUp");
+  expect(document.activeElement).toBe(pressable.at(-1));
+
+  (document.activeElement as HTMLElement).blur();
+  press("ArrowDown");
+  expect(document.activeElement).toBe(pressable.at(0));
+});
+
 test("the menu panel scrolls rather than clipping", async () => {
   const menu = monitorMenu(viewOf({ monitored: true }), false);
   const mounted = await mount((triggerRef) =>
