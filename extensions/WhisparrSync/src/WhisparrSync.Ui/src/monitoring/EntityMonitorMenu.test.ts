@@ -21,6 +21,7 @@ import {
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   SCOPE_ALL_SCENES,
   SCOPE_FUTURE_SCENES,
+  SCOPE_IN_FORCE_IS_NOT_REPORTED,
 } from "../common/ui/copy";
 import type { EntityMonitoringView } from "../wire/api";
 
@@ -57,6 +58,7 @@ function viewOf(overrides: Partial<EntityMonitoringView>): EntityMonitoringView 
     monitored: false,
     refusal: "none",
     capabilities: ["monitorStudio"],
+    scope: null,
     ...overrides,
   };
 }
@@ -137,6 +139,42 @@ test("every row carries a menu role, and the scope pair carries the radio role a
   expect(rows.length).toBe(2);
   expect(rows.map((row) => row.getAttribute("role"))).toEqual(["menuitemradio", "menuitemradio"]);
   expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual(["true", "false"]);
+});
+
+test("marks no radio at all, and says why, when the read reported no scope", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true, scope: null }), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const rows = mounted.rows();
+  expect(rows.length).toBeGreaterThan(0);
+  expect(rows.map((row) => row.getAttribute("aria-checked"))).not.toContain("true");
+  expect(mounted.panel()?.querySelectorAll('[aria-checked="true"]').length).toBe(0);
+  expect(mounted.panel()?.textContent).toContain(SCOPE_IN_FORCE_IS_NOT_REPORTED);
+});
+
+test("marks the reported scope, and says nothing about not knowing one", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true, scope: "allScenes" }), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitored in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const checked = [...(mounted.panel()?.querySelectorAll('[aria-checked="true"]') ?? [])];
+  expect(checked.map((row) => accessibleName(row))).toEqual([SCOPE_ALL_SCENES]);
+  expect(mounted.panel()?.textContent).not.toContain(SCOPE_IN_FORCE_IS_NOT_REPORTED);
 });
 
 test("the panel leaves the page's own container, which clips what it holds", async () => {
