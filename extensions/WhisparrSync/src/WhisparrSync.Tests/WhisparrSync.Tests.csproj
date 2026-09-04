@@ -129,6 +129,7 @@
     <Compile Remove="Monitoring\BulkEndpointTests.cs" />
     <Compile Remove="Monitoring\EntityFolderPortTests.cs" />
     <Compile Remove="Monitoring\EntityIdentityPortTests.cs" />
+    <Compile Remove="Monitoring\EntitySceneIdentityPortTests.cs" />
     <Compile Remove="Monitoring\MonitorPathTests.cs" />
     <Compile Remove="Monitoring\NonGrabbingBodyTests.cs" />
     <Compile Remove="Monitoring\ReflectOwnedNeverTransfersTests.cs" />
