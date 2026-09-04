@@ -273,7 +273,7 @@ public sealed class ReflectOwnedPlannerTests
             (_, _) =>
             {
                 reads++;
-                return Task.FromResult<string?>($"[{V3MatchedRow}]");
+                return Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]"));
             },
             (_, _) =>
             {
@@ -301,7 +301,7 @@ public sealed class ReflectOwnedPlannerTests
         var run = await ReflectOwnedPlanner.RunAsync(
             WhisparrGeneration.V3,
             Folders("Vixen", "Tushy", "Blacked"),
-            (_, _) => Task.FromResult<string?>($"[{V3MatchedRow}]"),
+            (_, _) => Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")),
             (files, _) =>
             {
                 attached.Add(files);
@@ -328,10 +328,11 @@ public sealed class ReflectOwnedPlannerTests
         var run = await ReflectOwnedPlanner.RunAsync(
             WhisparrGeneration.V3,
             Folders("/config/library/Vixen", "/config/library/Tushy", "/config/library/Empty"),
-            (folder, _) => Task.FromResult<string?>(
-                folder.EndsWith("Empty", StringComparison.Ordinal)
-                    ? "[]"
-                    : $"[{V3MatchedRow.Replace("/config/library/Vixen", folder, StringComparison.Ordinal)}]"),
+            (folder, _) => Task.FromResult(
+                ImportableListing.Listed(
+                    folder.EndsWith("Empty", StringComparison.Ordinal)
+                        ? "[]"
+                        : $"[{V3MatchedRow.Replace("/config/library/Vixen", folder, StringComparison.Ordinal)}]")),
             (files, _) =>
             {
                 attached.Add(files);
