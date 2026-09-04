@@ -1,6 +1,10 @@
+using System.Reflection;
+using System.Text.Json.Serialization;
+using Cove.Extensions.Shared;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 
 namespace WhisparrSync.Tests.Options;
@@ -304,6 +308,173 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(new ImportHealthAggregate(), loaded.ImportHealth);
         Assert.Empty(loaded.ImportRefusals);
     }
+
+    /// <summary>Exactly one exported type in the assembly is named MonitorScope.</summary>
+    /// <remarks>
+    /// Two of them, held apart by a file-scoped using alias, is a defect a legal edit triggers in
+    /// silence: dropping or reordering that one line compiles and changes which enum an outbound
+    /// body is composed from. Asserted by reflection so a second one added later goes red here
+    /// rather than needing a reviewer to notice it.
+    /// </remarks>
+    [Fact]
+    public void ExactlyOneExportedTypeIsNamedMonitorScope()
+    {
+        var named = typeof(WhisparrSyncOptions).Assembly.GetExportedTypes()
+            .Where(type => type.Name == nameof(MonitorScope))
+            .Select(type => type.FullName)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["WhisparrSync.Monitoring.MonitorScope"], named);
+    }
+
+    /// <summary>
+    /// The one surviving enum spells the two scopes in the words both generations use, and carries
+    /// no member under the vocabulary that was withdrawn.
+    /// </summary>
+    [Fact]
+    public void TheOneScopeEnumSpellsBothScopesAndNothingElse()
+    {
+        Assert.Equal(
+            ["AllScenes", "FutureScenes"],
+            Enum.GetNames<MonitorScope>().Order(StringComparer.Ordinal).ToArray());
+    }
+
+    /// <summary>The stored default is that enum, and it defaults to the narrower scope.</summary>
+    [Fact]
+    public void TheStoredDefaultIsTheActingEnumAtTheNarrowerScope()
+    {
+        Assert.Equal(
+            typeof(MonitorScope),
+            typeof(WhisparrSyncOptions).GetProperty(nameof(WhisparrSyncOptions.DefaultMonitorScope))
+                ?.PropertyType);
+        Assert.Equal(MonitorScope.FutureScenes, new WhisparrSyncOptions().DefaultMonitorScope);
+    }
+
+    /// <summary>
+    /// A stored blob naming the withdrawn scope spelling still binds WHOLE, so collapsing the enum
+    /// does not reset an install's address, endpoints and callback host to their defaults.
+    /// </summary>
+    /// <remarks>
+    /// The store reports a blob it cannot bind as not bound and every layer above then reads
+    /// defaults, so one unrecognised word is not a local problem. The withdrawn spelling named the
+    /// narrower scope, which is what it loads as.
+    /// </remarks>
+    [Fact]
+    public async Task ABlobNamingTheWithdrawnScopeSpellingStillBindsWhole()
+    {
+        var store = new FakeStore();
+        await store.SetAsync(OptionsStore.Key, WithdrawnSpellingBlob);
+
+        var load = await new OptionsStore(store).LoadBoundAsync();
+
+        Assert.True(load.Bound);
+        Assert.Equal("http://v3-host:6969/", load.Options.V3?.Address);
+        Assert.Equal("stashdb.example/graphql", load.Options.MetadataProviderEndpoints.V3);
+        Assert.Equal("https://media.example.com/cove", load.Options.CallbackHost);
+        Assert.Equal(MonitorScope.FutureScenes, load.Options.DefaultMonitorScope);
+    }
+
+    /// <summary>The current spelling of the wider scope loads as the wider scope.</summary>
+    [Fact]
+    public async Task ABlobNamingTheWiderScopeLoadsAsTheWiderScope()
+    {
+        var store = new FakeStore();
+        await store.SetAsync(OptionsStore.Key, """{"DefaultMonitorScope": "allScenes"}""");
+
+        var load = await new OptionsStore(store).LoadBoundAsync();
+
+        Assert.True(load.Bound);
+        Assert.Equal(MonitorScope.AllScenes, load.Options.DefaultMonitorScope);
+    }
+
+    /// <summary>
+    /// A spelling nothing recognises loads as the narrower scope, and never as the wider one.
+    /// </summary>
+    /// <remarks>
+    /// Choosing the narrow scope wrongly costs one more gesture. Choosing the wide one wrongly marks
+    /// a whole back catalogue wanted, which spends indexer traffic and disk, and on the newer
+    /// generation narrowing the scope again does not undo it.
+    /// </remarks>
+    [Theory]
+    [InlineData("\"somethingElse\"")]
+    [InlineData("\"\"")]
+    [InlineData("null")]
+    [InlineData("7")]
+    public async Task AnUnrecognisedScopeSpellingLoadsAsTheNarrowerScope(string stored)
+    {
+        var store = new FakeStore();
+        await store.SetAsync(
+            OptionsStore.Key,
+            $$"""{"CallbackHost": "https://media.example.com/cove", "DefaultMonitorScope": {{stored}} }""");
+
+        var load = await new OptionsStore(store).LoadBoundAsync();
+
+        Assert.True(load.Bound);
+        Assert.Equal("https://media.example.com/cove", load.Options.CallbackHost);
+        Assert.Equal(MonitorScope.FutureScenes, load.Options.DefaultMonitorScope);
+        Assert.NotEqual(MonitorScope.AllScenes, load.Options.DefaultMonitorScope);
+    }
+
+    /// <summary>A save writes the current spelling, never the withdrawn one.</summary>
+    [Fact]
+    public async Task ASaveWritesTheCurrentSpellingAndNotTheWithdrawnOne()
+    {
+        var store = new FakeStore();
+        await store.SetAsync(OptionsStore.Key, WithdrawnSpellingBlob);
+        var options = new OptionsStore(store);
+
+        await options.SaveAsync(await options.LoadAsync());
+
+        var written = await store.GetAsync(OptionsStore.Key) ?? "";
+        Assert.Contains("\"futureScenes\"", written, StringComparison.Ordinal);
+        Assert.DoesNotContain("newReleasesOnly", written, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The tolerance for the withdrawn spelling is declared on the property alone.</summary>
+    /// <remarks>
+    /// The enum type's own attribute is the wire spelling for every OTHER use of the enum and must
+    /// not be widened to accept a word no wire document declares. An entry in the shared options
+    /// collection would OUTRANK the type attribute rather than agree with it.
+    /// </remarks>
+    [Fact]
+    public void TheWithdrawnSpellingIsToleratedOnThePropertyAlone()
+    {
+        Assert.Equal(
+            [typeof(WithdrawnMonitorScopeSpelling)],
+            ConvertersOn(typeof(WhisparrSyncOptions)
+                .GetProperty(nameof(WhisparrSyncOptions.DefaultMonitorScope))!));
+        Assert.Equal(
+            [typeof(CamelCaseStringEnumConverter)],
+            ConvertersOn(typeof(MonitorScope)));
+        Assert.Empty(WhisparrSyncOptions.JsonOptions.Converters);
+    }
+
+    /// <summary>
+    /// A stored blob carrying the withdrawn scope spelling alongside a configured address.
+    /// </summary>
+    /// <remarks>
+    /// Written as a literal rather than produced by serializing anything, so it stays the blob an
+    /// install actually holds rather than one this assembly can still describe.
+    /// </remarks>
+    private const string WithdrawnSpellingBlob =
+        """
+        {
+          "SelectedGeneration": "v3",
+          "V3": {
+            "Address": "http://v3-host:6969/",
+            "RecordedVersion": "3.3.8.1097"
+          },
+          "MetadataProviderEndpoints": { "V3": "stashdb.example/graphql" },
+          "DefaultMonitorScope": "newReleasesOnly",
+          "CallbackHost": "https://media.example.com/cove"
+        }
+        """;
+
+    private static Type[] ConvertersOn(MemberInfo member)
+        => [.. member.GetCustomAttributes(typeof(JsonConverterAttribute), inherit: false)
+            .Cast<JsonConverterAttribute>()
+            .Select(attribute => attribute.ConverterType!)];
 
     /// <summary>
     /// A stored interval below the floor is honoured as the floor, and the stored value is left as
