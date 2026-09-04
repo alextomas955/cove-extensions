@@ -97,6 +97,12 @@ Future Scenes is pre-selected as the cheaper of the two.
 Once Whisparr monitors the entity, three more items appear in the menu, in the order below. One of
 the three is the only thing in Whisparr Sync that downloads, and it says so on its own row.
 
+**A refusal of one of these three is silent in this version.** Whisparr Sync sends nothing, changes
+nothing and starts no background job, but the menu shows no sentence saying why. Reflect owned
+skipping because of Whisparr's hard-link setting is the one exception, and it does say so. So if
+pressing one of these three appears to do nothing at all, the cause is at the instance: it is
+unreachable, or it offers no quality profile or no library root.
+
 ### Add all missing
 
 Registers every scene Cove holds that Whisparr does not. Nothing is downloaded.
@@ -112,7 +118,7 @@ Whisparr identifies by is left out, because there is nothing to name it by.
 Each registration carries the first quality profile and the first library root Whisparr offers. Cove
 reads both when you press the item, and reads them again when the work starts, because they are
 Whisparr's to change in between. An instance offering neither is refused before anything is sent,
-and the control says which one is missing.
+silently, as above.
 
 Once every scene has been offered, Cove asks Whisparr to re-read the entity's catalogue. That is how
 a newly registered scene reaches Whisparr's own lists.
@@ -161,9 +167,9 @@ It is offered for one studio or one performer at a time, from that entity's own 
 offered for a whole selection**, so a selection of a thousand entities cannot become a thousand
 searches.
 
-Cove reports only that Whisparr accepted the request. What Whisparr then does with it is Whisparr's
-own: which indexers it asks, what it accepts and how long it takes are its settings, and its own
-screens are where the result appears.
+Cove learns only that Whisparr accepted the request, and shows nothing further. What Whisparr then
+does with it is Whisparr's own: which indexers it asks, what it accepts and how long it takes are
+its settings, and its own screens are where the result appears.
 
 ## Why the button or an item is unavailable
 
