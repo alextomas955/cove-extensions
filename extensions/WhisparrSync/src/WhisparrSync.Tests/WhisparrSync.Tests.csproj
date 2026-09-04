@@ -124,9 +124,10 @@
     <Compile Remove="Import\SystemPrincipalTests.cs" />
     <Compile Remove="Import\UpgradePathTests.cs" />
     <Compile Remove="Invariants\AbsentCapabilityTests.cs" />
-    <Compile Remove="Jobs\BulkReadBackTests.cs" />
-    <Compile Remove="Jobs\BulkVerbGuardTests.cs" />
     <Compile Remove="Invariants\SafetyInvariantTests.cs" />
+    <Compile Remove="Jobs\BulkReadBackTests.cs" />
+    <Compile Remove="Jobs\BulkReflectOwnedTests.cs" />
+    <Compile Remove="Jobs\BulkVerbGuardTests.cs" />
     <Compile Remove="Monitoring\AddDefaultsProjectorTests.cs" />
     <Compile Remove="Monitoring\AddAllMissingRouteTests.cs" />
     <Compile Remove="Monitoring\BulkEndpointTests.cs" />
