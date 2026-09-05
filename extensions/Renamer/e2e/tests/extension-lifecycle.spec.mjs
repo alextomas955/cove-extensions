@@ -72,6 +72,13 @@ test(
     // (rather than clicking through the sidebar) avoids depending on which sub-section the sidebar
     // last expanded to, which is unrelated UI state this test shouldn't need to know about.
     await page.goto(`${isolatedHarness.baseUrl}/settings/extensions/installed`);
+    // The panel's own title first. This is the first browser navigation against this harness, so it
+    // pays the app's cold start, and a page that has not rendered satisfies the absence check below
+    // just as well as a rendered panel with no Renamer in it. Anchoring on the panel makes that check
+    // mean what it says, and makes a cold start fail here rather than several assertions later.
+    await expect(
+      page.getByRole("heading", { name: "Installed Extensions", level: 2 }),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Renamer", exact: true })).not.toBeVisible();
 
     const enable = await api.post(`/api/extensions/${EXTENSION_ID}/enable`);
