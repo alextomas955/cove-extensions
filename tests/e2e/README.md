@@ -212,8 +212,36 @@ not just a generic timeout — the harness's readiness helpers raise a specific 
 didn't happen in time. On any failure, Playwright also retains a trace (`test-results/*/trace.zip`,
 openable with `npx playwright show-trace <path>`) and a screenshot.
 
+A failing test also reports what the browser saw, which is the difference between a page that was
+slow and one that never painted. Two annotations can appear:
+
+- `[browser]` — uncaught exceptions, `console.error` output, and requests that failed outright
+  (a 404 is a response, so it is not one of these). A blank page with no entry here had no script
+  error and no failed fetch, which points at the app not having rendered yet rather than at a defect
+  in what it renders.
+- `[infrastructure]` — the host did not answer `/health`, so the failure is the container's rather
+  than the page's. A test on its own isolated harness reports its own host, not the worker's.
+
 If a container is left running after an interrupted test run, see "Parallel execution" above for
 the cleanup command.
+
+### A page that renders nothing, with `net::ERR_NETWORK_CHANGED` against the app's own assets
+
+The browser runs on the host and loads the app over a published container port. Attaching or
+detaching a container from a bridge network creates a veth on the host; the kernel runs IPv6 address
+configuration on it, and Chromium reads that as the network changing and aborts the requests it has
+in flight. Those requests are the app's own script and stylesheet chunks, so the page renders
+nothing on the correct URL, with no script error and no failed navigation to point at.
+
+Every test here brings up its own compose stack, so a run does that once per test. It is
+[chromium 974711](https://bugs.chromium.org/p/chromium/issues/detail?id=974711) and
+[docker/for-linux#914](https://github.com/docker/for-linux/issues/914); both report that it happens
+only where IPv6 is enabled on the host, and there is no Chromium flag that turns the notifier off.
+
+CI sets `net.ipv6.conf.default.disable_ipv6=1` before the suite, which is the template the kernel
+applies to interfaces created after it, so each new veth is covered and the runner's existing
+interfaces are not. Locally, disable IPv6 on the host if you see this; nothing in the harness can
+prevent it.
 
 ## How it works (implementation notes)
 

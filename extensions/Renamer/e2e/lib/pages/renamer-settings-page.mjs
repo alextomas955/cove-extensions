@@ -1,3 +1,5 @@
+import { describeRenderedPage, remainingVisitBudgetMs } from "@cove-extensions/e2e";
+
 // Page Object for the Renamer settings panel at /settings/renamer.
 const SETTINGS_PATH = "/settings/renamer";
 
@@ -123,7 +125,11 @@ export class RenamerSettingsPage {
    * to wait ON in that state, so the budget is the whole instrument.
    */
   async waitForPanel() {
-    const deadline = Date.now() + PANEL_VISIT_BUDGET_MS;
+    // Bounded by what the test has left. The budget above is what a cold container needs; a test
+    // with less than that remaining cannot be given it, and a wait that outlives the test reports
+    // the runner's generic timeout in place of the message below.
+    const budgetMs = remainingVisitBudgetMs(PANEL_VISIT_BUDGET_MS);
+    const deadline = Date.now() + budgetMs;
     let discards = 0;
     let chunkFailures = 0;
     let lostTransport = 0;
@@ -159,36 +165,18 @@ export class RenamerSettingsPage {
       if (outcome === "expired" || recoveries > MAX_RECOVERIES) {
         throw new Error(
           `The Renamer settings panel did not render at ${this.panelUrl}, giving up after ` +
-            `${recoveries} recovered navigation(s) and a ${PANEL_VISIT_BUDGET_MS}ms budget for the visit. ` +
+            `${recoveries} recovered navigation(s) and a ${budgetMs}ms budget for the visit. ` +
             `The page is now at ${this.page.url()}. ` +
             `The host sent the route to one of its own tabs ${discards} time(s) and failed to fetch ` +
             `its own settings chunk ${chunkFailures} time(s) on the way, and a navigation lost the ` +
             `transport ${lostTransport} time(s). ` +
-            `The page's own headings read: ${await this.describePage()}.`,
+            `The page's own headings read: ${await describeRenderedPage(this.page)}.`,
         );
       }
       if (!(await this.#navigate(() => this.page.goto(this.panelUrl)))) {
         lostTransport += 1;
         recoveries += 1;
       }
-    }
-  }
-
-  /**
-   * The page's headings, for the failure message above. With no signal raised the message would
-   * otherwise say only that nothing appeared, and a page showing the host's own settings reads
-   * identically there to one showing nothing at all.
-   *
-   * Never throws: it runs only on a path that is already failing, and an error here would replace a
-   * real diagnosis with this helper's own stack.
-   */
-  async describePage() {
-    try {
-      const headings = await this.page.locator("h1, h2").allInnerTexts();
-      const readable = headings.map((text) => text.trim()).filter(Boolean);
-      return readable.length ? readable.slice(0, 6).join(" | ") : "(no headings rendered)";
-    } catch (error) {
-      return `(unreadable: ${error.message})`;
     }
   }
 
