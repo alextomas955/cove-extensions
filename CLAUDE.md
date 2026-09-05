@@ -85,7 +85,8 @@ npm test                                           # tests for scripts/
 
 - Implement `IExtension` from `Cove.Plugins`, normally by subclassing `FullExtensionBase`.
   `extension.json` is the load manifest. Its `entryDll` must equal the built assembly name.
-- Never write to Cove's database directly. Go through `CoveContext` and `SaveChangesAsync`.
+- Never write to Cove's database directly. Go through the host-provided `DbContext` and
+  `SaveChangesAsync`. `CoveContext` and the rest of `Cove.Data` are host internals, not contract.
 - Run background database reads as System through `RunAsSystemAsync` in
   `shared/Cove.Extensions.Shared`. An anonymous principal returns zero rows with no error.
 - A swallowed exception emits exactly one `[LoggerMessage]` line.
@@ -158,8 +159,11 @@ Libraries reach millions of files. Nothing may grow with the library.
 
 - Tests mirror source folders. Only `TestSupport/`, `TransportSmoke/`, and e2e sit outside the
   mirror.
-- The cove-absent CI leg is a compile-and-pure-logic smoke test. Anything that references a Cove
-  type is Compile-Removed there. The containerized e2e job is the safety gate.
+- An extension has one backend test project. It references Cove's own source unconditionally, so the
+  suite needs a checkout and refuses to build without one rather than running a smaller set.
+- The cove-absent CI leg builds and publishes the extension and runs no tests. It proves the shipped
+  assembly compiles against the published Cove packages alone. The containerized e2e job is the
+  safety gate.
 - A red e2e is usually the Cove container dying, not the UI. Search the job log for "is not
   running" before debugging the test.
 

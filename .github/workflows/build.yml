@@ -231,23 +231,11 @@ jobs:
           PROJECT_PATH: ${{ matrix.extension.projectPath }}
           EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
-      # Cove-absent tier: CoveSourceMode=none Compile-Removes the cove-referencing sources, leaving every
-      # test that needs no Cove source type. The mode is DECLARED, never inferred from whether a ../cove
-      # sibling is on disk, or a smaller run reads as a pass. Before Publish, so a test failure blocks
-      # packaging. Skipped for an entry with no testProjectPath.
-      #
-      # A run that executes nothing fails rather than reporting success having asserted nothing: the
-      # Microsoft Testing Platform exits 8 on zero tests, with no configuration needed.
-      #
-      # The version properties have to match the Build step's. The test project references the
-      # extension, so a differing property set rebuilds the extension assembly unstamped, and the
-      # Publish step below ships whatever is in bin/ without recompiling it.
-      - name: Test (unit tier)
-        if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
-        run: dotnet test --project "$TEST_PROJECT_PATH" -c Release -p:CoveSourceMode=none "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
-        env:
-          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
-          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
+      # No test step here, deliberately. This job builds and publishes with CoveSourceMode=none, which
+      # is what proves the SHIPPED assembly compiles against the published Cove packages alone - the
+      # boundary Cove documents for an extension. The suite needs a real CoveContext and so needs a
+      # Cove source checkout, which this job does not make. test-cove-present runs it, against every
+      # Cove version on the matrix rather than once.
 
       # Publishes to a throwaway directory, NOT the package directory: the package receives only what
       # the assemble step below copies into it, so nothing the build happens to emit alongside the
@@ -518,10 +506,9 @@ jobs:
           path: tests/e2e/playwright-report/
           retention-days: 7
 
-  # ---- Cove-present tier. The build job above compiles against CoveSourceMode=none, which
-  # Compile-Removes every source referencing a Cove type, so the tests that need a real CoveContext
-  # never run there. This job supplies Cove by shallow-cloning the release tag the version axis
-  # resolved, which is what lets the full suite compile and run on a runner with no Cove checkout.
+  # ---- The C# suite. It needs a real CoveContext, so it needs Cove's own source, which the build
+  # job above deliberately does not have. This job supplies it by shallow-cloning the release tag the
+  # version axis resolved, so the suite runs against every Cove version on that axis rather than once.
   #
   # The mode is DECLARED, never inferred from whether a checkout landed: without an explicit
   # -p:CoveSourceMode=source a failed clone selects the cove-absent branch and a smaller run reports
@@ -590,7 +577,7 @@ jobs:
 
       # A run that executes nothing fails rather than reporting success having asserted nothing: the
       # Microsoft Testing Platform exits 8 on zero tests, with no configuration needed.
-      - name: Test (cove-present tier, Cove built from the release tag)
+      - name: Test (Cove built from the release tag)
         if: steps.check.outputs.has_tier == 'true'
         working-directory: extensions
         run: |

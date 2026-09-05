@@ -25,7 +25,7 @@ The rest of this file is for contributors working on the extension itself.
 | ---------------------------------------- | -------------------------------------------------------------------------------------- |
 | `src/Renamer/`                           | The extension class library (`IExtension`) — engine, planner, executor, API endpoints. |
 | `src/Renamer.Ui/`                        | The settings/preview panel bundle (React/TypeScript → `dist/index.mjs`).               |
-| `src/Renamer.Tests/`                     | Unit + concurrency tests.                                                              |
+| `src/Renamer.Tests/`                     | The backend suite. Needs a `../cove` source checkout.                                  |
 | `e2e/`                                   | This extension's Playwright suite (run through the shared `tests/e2e` harness).        |
 | `registry/com.alextomas955.renamer.json` | The registry manifest for this extension.                                              |
 
@@ -37,11 +37,14 @@ Build the whole monorepo (including this extension) from the repo root:
 dotnet build CoveExtensions.slnx
 ```
 
-Run the unit tier (the pure-core tests that need no live Cove checkout):
+Run the tests that need no Cove checkout, from the repo root:
 
 ```sh
-dotnet test --project src/Renamer.Tests/Renamer.Tests.csproj
+dotnet test --project extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj
 ```
+
+This needs a `../cove` sibling checkout, or `COVE_REPO` pointed at one. Without it the build stops
+with one error rather than running a smaller set.
 
 ## Frontend (the settings panel)
 

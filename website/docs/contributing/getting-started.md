@@ -33,9 +33,9 @@ Three things differ:
 
 - **Where the Cove assemblies come from.** Without a checkout they are restored packages. With one,
   the Cove projects compile from your checkout and appear by name in the build output.
-- **How much of the C# suite exists.** Without a checkout, every test file that needs Cove's own
-  types is removed from the compile set, so the test project compiles to its pure tier only and a
-  green run covers less than the full suite. With a checkout every file compiles.
+- **Whether the C# suite builds at all.** The tests need a real `CoveContext`, so without a checkout
+  the build stops with one error naming the project and how to point it at one. There is no smaller
+  set it falls back to. The extension itself builds and publishes without a checkout.
 - **Whether the host-import check can run.** It reads a generated shim out of the checkout, so with
   none present it reports that it skipped and names the file it looked for. That is expected, not a
   failure.

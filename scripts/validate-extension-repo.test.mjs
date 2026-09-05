@@ -466,7 +466,16 @@ test("a manifestOnly entry that declares a uiPath fails, naming both fields", ()
 
 // A C#-bearing entry, complete enough that only the membership check can speak: the project files
 // exist, so the existence checks are silent, and the manifest is valid for a non-manifestOnly entry.
-function csharpFixture({ solution, projectPath, testProjectPath, name = "Foo" }) {
+// `absentOnDisk` names declared paths the fixture deliberately does not plant, which is what
+// separates the declared-but-missing check from the solution-membership one — both report on the
+// same field, and a case that plants nothing cannot say which of the two spoke.
+function csharpFixture({
+  solution,
+  projectPath,
+  testProjectPath,
+  absentOnDisk = [],
+  name = "Foo",
+}) {
   const entry = validEntry("com.example.foo", "Foo", {
     name,
     manifestOnly: false,
@@ -475,7 +484,7 @@ function csharpFixture({ solution, projectPath, testProjectPath, name = "Foo" })
   });
   const filesByPath = {};
   for (const declared of [projectPath, testProjectPath]) {
-    if (declared) filesByPath[declared] = "<Project />\n";
+    if (declared && !absentOnDisk.includes(declared)) filesByPath[declared] = "<Project />\n";
   }
   if (projectPath === undefined) filesByPath[`extensions/Foo/${name}.csproj`] = "<Project />\n";
   return makeFixture({
@@ -557,6 +566,23 @@ test("a solution declaring backslash separators matches a catalog declaring forw
     // The count, not merely exit 0: a comparison that matched nothing also finds nothing to report,
     // so only a confirmed membership says the two spellings were reconciled.
     assert.match(stdout, /1 CoveExtensions\.slnx membership\(s\)/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an entry declaring no test project stays valid", () => {
+  // The field is optional to declare, and an extension with no tests at all must not be forced to
+  // grow one. The membership count is asserted rather than exit 0 alone: a run that examined nothing
+  // also exits 0.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    solution: ["extensions/Foo/Foo.csproj"],
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(stdout, /0 declared catalog path\(s\), 1 CoveExtensions\.slnx membership\(s\)/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

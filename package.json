@@ -5,8 +5,8 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "format:cs": "dotnet format CoveExtensions.slnx --severity warn --exclude ../cove/",
-    "format:cs:check": "dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --exclude ../cove/",
+    "format:cs": "node scripts/check-csharp-format.mjs --severity warn --exclude ../cove/",
+    "format:cs:check": "node scripts/check-csharp-format.mjs --verify-no-changes --severity warn --exclude ../cove/",
     "generate:wire": "node scripts/generate-wire-types.mjs",
     "jscpd": "jscpd .",
     "knip": "knip",
