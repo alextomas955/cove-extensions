@@ -34,6 +34,9 @@ only; refactors, tests, renames, and tooling do not appear. Lead with anything t
 before upgrading. Leave released entries as they shipped. Full rule:
 `website/docs/contributing/releasing.md`.
 
+Tooling: docs and changelogs name no planning or workflow tooling. No phase, plan, milestone,
+ticket, or agent references. A reader who does not use the tooling must not notice it existed.
+
 Style: second person, active voice, present tense. Sentence-case headings. Task headings use the
 bare infinitive ("Add a destination"); concept headings use noun phrases; no gerunds. Conditions
 before instructions ("If X, do Y"). Example before prose. Common path first, advanced under its own

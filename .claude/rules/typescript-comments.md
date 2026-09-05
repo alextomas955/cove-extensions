@@ -22,8 +22,10 @@ Never write:
 
 - A restatement of a name, or narration of obvious JSX or hooks.
 - Edit narration, author voice, or a comparison with code that is no longer there.
-- Process or tooling vocabulary: GSD, phases, tickets, agents.
+- Process or tooling vocabulary: phases, tickets, agents, or the name of a planning tool.
 - A measurement, or the argument for a decision.
+- A comparison with an alternative the code does not take, or a JSDoc block longer than one
+  paragraph.
 
 Write JSDoc only on the public surface (the `defineExtension` entry, exported slot and tab
 components, `*Logic.ts` contracts), and only when it states what the signature cannot. None on

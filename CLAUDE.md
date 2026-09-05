@@ -5,6 +5,9 @@ One git repo holding several Cove extensions plus the first-party code they shar
 packages. `README.md` and the docs site under `website/docs/contributing/` explain the repo for
 people.
 
+Launch Claude Code at this root, never inside an extension's folder. With a sibling `../cove`
+checkout, add `--add-dir ../cove` so SDK source is readable.
+
 This file holds only what Claude cannot read from the code. Keep it under 200 lines. Path-specific
 guidance (comment policy, docs style) lives in `.claude/rules/` and loads only when matching files
 are touched. When a change makes a rule here false, rewrite or delete the rule in the same change.
@@ -24,11 +27,16 @@ literal phrase is available, use it.
 - A heading says what the section contains. No slogans.
 - In a reply, lead with the outcome and keep supporting detail short. Match a document's length to
   what the task needs. No filler sections and no repeated summaries.
+- Shipped code, docs, changelogs, and commit messages name no planning or workflow tooling. No
+  phase, plan, milestone, ticket, or agent references.
 
 ## Commands
 
 Run from the repo root unless stated. The same script name means different things in different
 `package.json` files, so check the directory before running one.
+
+Toolchain: .NET 10 SDK, Node at the Volta pin in `package.json`, npm only. No yarn, no pnpm. Run
+every `.ps1` in this repo with `pwsh`, never Windows PowerShell 5.1.
 
 ```sh
 dotnet build CoveExtensions.slnx                   # every project; warnings are errors
@@ -43,8 +51,7 @@ npm test                                           # tests for scripts/
   then `npm run verify`. Use `cd <dir> && npm ci`, never `npm ci --prefix`.
 - C# tests: `dotnet test --project <path to .Tests.csproj>`. Do not pass `--nologo`. The testing
   platform rejects it and reports zero tests.
-- Deploy into the running dev Cove: `pwsh extensions/Renamer/scripts/deploy-dev.ps1`. Always `pwsh`,
-  never Windows PowerShell 5.1.
+- Deploy into the running dev Cove: `pwsh extensions/Renamer/scripts/deploy-dev.ps1`.
 - Test tiers and the e2e suite: `website/docs/contributing/testing.md`.
 
 ## Registry and CI

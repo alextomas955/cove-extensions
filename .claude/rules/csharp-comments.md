@@ -23,12 +23,15 @@ Never write:
 - A restatement of a name, or a description of what the next line obviously does.
 - Narration of the edit, author voice, or a comparison with code that is no longer there. That
   belongs in the commit message.
-- Process or tooling vocabulary: GSD, phases, plans, tickets, tasks, agents. Shipped code is
-  tool-agnostic.
+- Process or tooling vocabulary: phases, plans, tickets, tasks, agents, or the name of a planning
+  tool. Shipped code is tool-agnostic.
 - A measurement: a line number, count, version, date, hash, or timing. It goes stale with no
   signal. Cover it with a test, or state the durable form ("the rollback catch", not "the catch at
   :153").
 - The argument for a decision. State the constraint and stop.
+- A comparison with an alternative the code does not take ("rather than", "instead of").
+- Capitalised emphasis, arrows, or an XML doc block longer than one summary sentence and one
+  remarks paragraph.
 
 Write XML docs (`///`) only on the SDK-facing surface (the `IExtension` boundary, interfaces, shared
 contract types), and only where a tag states something the signature cannot. Skip them on internal
