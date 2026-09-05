@@ -231,11 +231,8 @@ jobs:
           PROJECT_PATH: ${{ matrix.extension.projectPath }}
           EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
-      # No test step here, deliberately. This job builds and publishes with CoveSourceMode=none, which
-      # is what proves the SHIPPED assembly compiles against the published Cove packages alone - the
-      # boundary Cove documents for an extension. The suite needs a real CoveContext and so needs a
-      # Cove source checkout, which this job does not make. test-cove-present runs it, against every
-      # Cove version on the matrix rather than once.
+      # This job makes no Cove checkout, so it runs no tests: the suite needs a real CoveContext.
+      # test-cove-present runs them.
 
       # Publishes to a throwaway directory, NOT the package directory: the package receives only what
       # the assemble step below copies into it, so nothing the build happens to emit alongside the
@@ -506,9 +503,8 @@ jobs:
           path: tests/e2e/playwright-report/
           retention-days: 7
 
-  # ---- The C# suite. It needs a real CoveContext, so it needs Cove's own source, which the build
-  # job above deliberately does not have. This job supplies it by shallow-cloning the release tag the
-  # version axis resolved, so the suite runs against every Cove version on that axis rather than once.
+  # ---- The C# suite. It needs a real CoveContext, so it needs Cove's own source. This job supplies
+  # that by shallow-cloning the release tag the version axis resolved, once per version on that axis.
   #
   # The mode is DECLARED, never inferred from whether a checkout landed: without an explicit
   # -p:CoveSourceMode=source a failed clone selects the cove-absent branch and a smaller run reports

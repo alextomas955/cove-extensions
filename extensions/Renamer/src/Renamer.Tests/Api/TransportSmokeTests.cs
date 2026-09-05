@@ -9,9 +9,8 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Api;
 
 // Drives Renamer's real minimal-API transport boundary over HTTP: MapEndpoints is mounted in an
-// in-process WebApplication/TestServer. Pins that every route the host mounts answers rather than
-// returning 404 or 405, and that a representative response round-trips its DTO. Lives in the
-// Cove-dependent test project because it needs a CovePrincipal and a real CoveContext.
+// in-process WebApplication/TestServer. Pins that every route the host mounts answers, and that a
+// representative response round-trips its DTO.
 public sealed class TransportSmokeTests
 {
     private const string Base = TransportHost.BaseRoute;
