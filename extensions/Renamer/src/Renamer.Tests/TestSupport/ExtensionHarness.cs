@@ -1,4 +1,3 @@
-using Cove.Data;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,7 +23,7 @@ internal static class ExtensionHarness
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="options"/> is null.</exception>
     internal static async Task<(global::Renamer.Renamer Extension, FakeStore Store)> CreateWithSharedContextAsync(
-        CoveContext db, RenamerOptions options, params string[] libraryPaths)
+        DbContext db, RenamerOptions options, params string[] libraryPaths)
     {
         ArgumentNullException.ThrowIfNull(options);
 

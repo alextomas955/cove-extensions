@@ -137,6 +137,6 @@ public sealed class CaptionFilenameGuardTests
                 RenamerStatus.Move, newBasename, dstFolder),
         ]);
 
-    private static RenamerExecutor RealExecutor(Cove.Data.CoveContext db)
+    private static RenamerExecutor RealExecutor(DbContext db)
         => new(new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
 }

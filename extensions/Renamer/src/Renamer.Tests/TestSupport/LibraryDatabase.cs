@@ -61,8 +61,8 @@ internal sealed class LibraryDatabase : IAsyncDisposable
         return library;
     }
 
-    public CoveContext NewContext() =>
-        new(
+    public DbContext NewContext() =>
+        new CoveContext(
             new DbContextOptionsBuilder<CoveContext>()
                 .UseSqlite(_conn)
                 .AddInterceptors(new PrincipalRecorder(Principals, CommandsExecuted))

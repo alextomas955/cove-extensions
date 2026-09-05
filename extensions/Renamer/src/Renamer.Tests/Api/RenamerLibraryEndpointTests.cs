@@ -69,7 +69,7 @@ public sealed class RenamerLibraryEndpointTests
     /// Seeds one video and one image — each in its own folder, since <c>Folder.Path</c> is
     /// unique-indexed — with real bytes on disk, and returns the two file ids.
     /// </summary>
-    private static async Task<(int VideoFileId, int ImageFileId)> SeedVideoAndImageAsync(CoveContext db, TempDir dir)
+    private static async Task<(int VideoFileId, int ImageFileId)> SeedVideoAndImageAsync(DbContext db, TempDir dir)
     {
         string videoFolder = Path.Combine(dir.Root, "videos").Replace('\\', '/');
         string imageFolder = Path.Combine(dir.Root, "images").Replace('\\', '/');

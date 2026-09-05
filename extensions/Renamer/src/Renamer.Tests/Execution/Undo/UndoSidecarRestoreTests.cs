@@ -266,7 +266,7 @@ public sealed class UndoSidecarRestoreTests
     /// what the replayer acts on is what a production undo would be handed.
     /// </summary>
     private static async Task<UndoReplayer.UndoRunResult> RenameThenUndoAsync(
-        CoveContext db, string runId, int videoId, RenamerOptions options,
+        DbContext db, string runId, int videoId, RenamerOptions options,
         Func<Task>? betweenRenameAndUndo = null)
     {
         var port = new CoveRenamerDataPort(db);
@@ -289,7 +289,7 @@ public sealed class UndoSidecarRestoreTests
         return await new UndoReplayer(port, new CapturingEventBus(), new DiskMover()).RevertAsync(batch);
     }
 
-    private static async Task<int> SeedCaptionAsync(CoveContext db, int fileId, string filename)
+    private static async Task<int> SeedCaptionAsync(DbContext db, int fileId, string filename)
     {
         var caption = new VideoCaption
         {
@@ -303,7 +303,7 @@ public sealed class UndoSidecarRestoreTests
         return caption.Id;
     }
 
-    private static async Task<string> ReadCaptionFilenameAsync(CoveContext db, int captionId)
+    private static async Task<string> ReadCaptionFilenameAsync(DbContext db, int captionId)
     {
         var caption = await db.Set<VideoCaption>().AsNoTracking().FirstAsync(c => c.Id == captionId);
         return caption.Filename;

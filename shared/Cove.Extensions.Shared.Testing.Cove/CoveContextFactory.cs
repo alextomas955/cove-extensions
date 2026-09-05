@@ -6,8 +6,16 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 namespace Cove.Extensions.Shared.Testing;
 
 /// <summary>
-/// Stands up a real <see cref="CoveContext"/> for an integration tier over SQLite-in-memory, mirroring
+/// Stands up a real <c>CoveContext</c> for an integration tier over SQLite-in-memory, mirroring
 /// Cove's own proven <c>AiCoreControllerTests</c> pattern.
+///
+/// It is HANDED BACK as <see cref="DbContext"/>, which is the type an extension is given at runtime
+/// and the only one Renamer's own code names. What these tests need from Cove is not the type but
+/// the CONFIGURED context: Cove's EF model, including the <c>(ParentFolderId, Basename)</c> unique
+/// index, and Cove's <c>SaveChangesAsync</c> overrides, which derive every touched file's
+/// <c>Path</c>. A hand-rolled context over <c>Cove.Core</c> entities would compile and run and would
+/// carry neither, so a collision or path-derivation test on one would pass while the real host
+/// failed.
 ///
 /// WHY relational SQLite (not EF-InMemory): the EF-InMemory provider does NOT enforce the
 /// <c>(ParentFolderId, Basename)</c> unique index and treats transactions as a silent no-op, so any test
@@ -27,7 +35,7 @@ internal static class CoveContextFactory
     /// caller OWNS both returned disposables and MUST dispose them:
     /// <code>await db.DisposeAsync(); await conn.DisposeAsync();</code>
     /// </summary>
-    public static async Task<(CoveContext db, SqliteConnection conn)> CreateSqliteContextAsync()
+    public static async Task<(DbContext db, SqliteConnection conn)> CreateSqliteContextAsync()
     {
         var (db, connection) = CreateSqliteContextWithoutSchema();
         await db.Database.EnsureCreatedAsync();
@@ -42,7 +50,7 @@ internal static class CoveContextFactory
     ///
     /// The caller OWNS both returned disposables, exactly as with <see cref="CreateSqliteContextAsync"/>.
     /// </summary>
-    public static (CoveContext db, SqliteConnection conn) CreateSqliteContextWithoutSchema()
+    public static (DbContext db, SqliteConnection conn) CreateSqliteContextWithoutSchema()
     {
         var connection = new SqliteConnection("Data Source=:memory:");
         connection.Open();

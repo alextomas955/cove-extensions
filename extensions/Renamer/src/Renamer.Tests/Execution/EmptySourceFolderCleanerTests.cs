@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -270,7 +271,7 @@ public sealed class EmptySourceFolderCleanerTests
         }
     }
 
-    private static RenamerExecutor NewExecutor(Cove.Data.CoveContext db, out CapturingEventBus bus)
+    private static RenamerExecutor NewExecutor(DbContext db, out CapturingEventBus bus)
     {
         bus = new CapturingEventBus();
         return new RenamerExecutor(new CoveRenamerDataPort(db), bus, new FakeRevertJournal(), "run-test", new DiskMover());

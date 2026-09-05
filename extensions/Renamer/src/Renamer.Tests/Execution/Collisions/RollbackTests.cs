@@ -1,4 +1,5 @@
 using Cove.Core.Entities;
+using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -312,7 +313,7 @@ public sealed class RollbackTests
     /// returns a <see cref="SavedFile"/> whose RecomputedPath is deliberately wrong,
     /// so the executor's post-save "recomputed Path == on-disk path" assertion fails on the success path.
     /// </summary>
-    private sealed class MismatchedRecomputedPathDataPort(Cove.Data.CoveContext db) : CoveRenamerDataPort(db)
+    private sealed class MismatchedRecomputedPathDataPort(DbContext db) : CoveRenamerDataPort(db)
     {
         public override async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
             IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
@@ -326,7 +327,7 @@ public sealed class RollbackTests
     /// Test-only port: performs the REAL save, then reports no rows at all. The production port throws
     /// when a file id is absent, so a fake is the only way to reach the executor's missing-row arm.
     /// </summary>
-    private sealed class EmptySaveResultDataPort(Cove.Data.CoveContext db) : CoveRenamerDataPort(db)
+    private sealed class EmptySaveResultDataPort(DbContext db) : CoveRenamerDataPort(db)
     {
         public override async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
             IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)

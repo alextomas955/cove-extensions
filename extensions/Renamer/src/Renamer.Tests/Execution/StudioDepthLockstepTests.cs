@@ -109,7 +109,7 @@ public sealed class StudioDepthLockstepTests
     /// Seeds <paramref name="count"/> Studio rows root→leaf (each saved before the next references its
     /// Id) and returns them in seed order (index 0 = root, index ^1 = the studio nearest the entity's
     /// direct studio).
-    private static async Task<List<Studio>> SeedAncestorChainAsync(CoveContext db, int count)
+    private static async Task<List<Studio>> SeedAncestorChainAsync(DbContext db, int count)
     {
         var chain = new List<Studio>(count);
         int? parentId = null;
@@ -126,7 +126,7 @@ public sealed class StudioDepthLockstepTests
     }
 
     private static async Task<(RenamerFileKind kind, int entityId)> SeedEntityWithStudioAsync(
-        CoveContext db, SeedKind kind, int directStudioId)
+        DbContext db, SeedKind kind, int directStudioId)
     {
         switch (kind)
         {

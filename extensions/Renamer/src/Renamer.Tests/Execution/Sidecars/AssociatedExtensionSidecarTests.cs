@@ -1,4 +1,5 @@
 using Cove.Core.Entities;
+using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -25,7 +26,7 @@ public sealed class AssociatedExtensionSidecarTests
                 RenamerStatus.Renamer, newBasename, folderPath),
         ]);
 
-    private static RenamerExecutor RealExecutor(Cove.Data.CoveContext db)
+    private static RenamerExecutor RealExecutor(DbContext db)
         => new(new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
 
     [Fact]

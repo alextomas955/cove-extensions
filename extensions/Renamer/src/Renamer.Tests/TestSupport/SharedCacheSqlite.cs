@@ -42,7 +42,7 @@ internal sealed class SharedCacheSqlite : IAsyncDisposable
     }
 
     /// <summary>Builds a <see cref="CoveContext"/> over its OWN connection to the shared database.</summary>
-    public CoveContext NewContext()
+    public DbContext NewContext()
     {
         var options = new DbContextOptionsBuilder<CoveContext>().UseSqlite(OpenConnection()).Options;
         return new CoveContext(options, principalAccessor: null);

@@ -1,6 +1,6 @@
 using Cove.Core.Entities;
 using Cove.Core.Events;
-using Cove.Data;
+using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -501,7 +501,7 @@ public sealed class UndoReplayerTests
     /// hands back a Video id that is one ahead of its VideoFile id — guaranteeing videoId ≠ fileId so
     /// the round-trip test can PROVE the published event uses the entity id, not the file id.
     /// </summary>
-    private static async Task SeedDecoyVideoAsync(CoveContext db)
+    private static async Task SeedDecoyVideoAsync(DbContext db)
     {
         db.Set<Video>().Add(new Video { Title = "decoy", Organized = true });
         await db.SaveChangesAsync();
@@ -512,7 +512,7 @@ public sealed class UndoReplayerTests
     /// second folder cannot be seeded). Returns the (videoId, fileId), which differ.
     /// </summary>
     private static async Task<(int videoId, int fileId)> SeedSecondVideoInFolderAsync(
-        CoveContext db, int folderId, string basename, string title)
+        DbContext db, int folderId, string basename, string title)
     {
         var video = new Video { Title = title, Organized = true };
         db.Set<Video>().Add(video);
@@ -533,7 +533,7 @@ public sealed class UndoReplayerTests
     /// <summary>A port whose reverse save always throws, forcing the UndoReplayer rollback path.</summary>
     private sealed class ThrowOnSaveDataPort : CoveRenamerDataPort
     {
-        public ThrowOnSaveDataPort(CoveContext db) : base(db) { }
+        public ThrowOnSaveDataPort(DbContext db) : base(db) { }
 
         public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
             IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
@@ -544,7 +544,7 @@ public sealed class UndoReplayerTests
     /// UndoReplayer's post-move OCE path — rollback to NEW, then propagate — rather than an UndoFailure.</summary>
     private sealed class CancelOnReverseSaveDataPort : CoveRenamerDataPort
     {
-        public CancelOnReverseSaveDataPort(CoveContext db) : base(db) { }
+        public CancelOnReverseSaveDataPort(DbContext db) : base(db) { }
 
         public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
             IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
@@ -555,7 +555,7 @@ public sealed class UndoReplayerTests
     /// file id is absent, so a fake is the only way to reach the replayer's missing-row arm.</summary>
     private sealed class EmptySaveResultDataPort : CoveRenamerDataPort
     {
-        public EmptySaveResultDataPort(CoveContext db) : base(db) { }
+        public EmptySaveResultDataPort(DbContext db) : base(db) { }
 
         public override async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
             IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)

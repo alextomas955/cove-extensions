@@ -19,7 +19,7 @@ internal static class ExecutorTestSeed
     /// <paramref name="height"/> of 0 renders no <c>$resolution</c> label.
     /// </summary>
     public static async Task<(int folderId, int videoId, int fileId)> SeedVideoAsync(
-        CoveContext db, string folderPath, string basename, string title,
+        DbContext db, string folderPath, string basename, string title,
         bool organized = true, DateOnly? date = null, int height = 0, CancellationToken ct = default)
     {
         var folder = new Folder { Path = folderPath.Replace('\\', '/'), ModTime = DateTime.UtcNow };
@@ -49,7 +49,7 @@ internal static class ExecutorTestSeed
     /// + a single ImageFile (<paramref name="basename"/>). Returns the (folderId, imageId, fileId).
     /// </summary>
     public static async Task<(int folderId, int imageId, int fileId)> SeedImageAsync(
-        CoveContext db, string folderPath, string basename, string title,
+        DbContext db, string folderPath, string basename, string title,
         bool organized = true, CancellationToken ct = default)
     {
         var folder = new Folder { Path = folderPath.Replace('\\', '/'), ModTime = DateTime.UtcNow };
@@ -78,7 +78,7 @@ internal static class ExecutorTestSeed
     /// + a single AudioFile (<paramref name="basename"/>). Returns the (folderId, audioId, fileId).
     /// </summary>
     public static async Task<(int folderId, int audioId, int fileId)> SeedAudioAsync(
-        CoveContext db, string folderPath, string basename, string title,
+        DbContext db, string folderPath, string basename, string title,
         bool organized = true, CancellationToken ct = default)
     {
         var folder = new Folder { Path = folderPath.Replace('\\', '/'), ModTime = DateTime.UtcNow };
@@ -107,7 +107,7 @@ internal static class ExecutorTestSeed
     /// A <paramref name="height"/> of 0 renders no <c>$resolution</c> label.
     /// </summary>
     public static async Task<int> SeedAdditionalFileAsync(
-        CoveContext db, int folderId, int videoId, string basename, int height = 0,
+        DbContext db, int folderId, int videoId, string basename, int height = 0,
         CancellationToken ct = default)
     {
         var file = new VideoFile
@@ -128,7 +128,7 @@ internal static class ExecutorTestSeed
     /// The tracker is cleared first because a failed save leaves the modified entity attached, so a
     /// tracked read would report a title that never committed.
     /// </remarks>
-    public static async Task<string?> ReadVideoTitleAsync(CoveContext db, int videoId, CancellationToken ct = default)
+    public static async Task<string?> ReadVideoTitleAsync(DbContext db, int videoId, CancellationToken ct = default)
     {
         db.ChangeTracker.Clear();
         return await db.Set<Video>().AsNoTracking()
@@ -136,7 +136,7 @@ internal static class ExecutorTestSeed
     }
 
     /// <summary>Reads back a file row's current (Basename, recomputed Path) from a fresh tracker read.</summary>
-    public static async Task<(string basename, string path)> ReadFileAsync(CoveContext db, int fileId, CancellationToken ct = default)
+    public static async Task<(string basename, string path)> ReadFileAsync(DbContext db, int fileId, CancellationToken ct = default)
     {
         var f = await db.Set<BaseFileEntity>().AsNoTracking().FirstAsync(x => x.Id == fileId, ct);
         return (f.Basename, f.Path);
