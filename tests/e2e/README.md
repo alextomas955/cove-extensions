@@ -212,6 +212,16 @@ not just a generic timeout — the harness's readiness helpers raise a specific 
 didn't happen in time. On any failure, Playwright also retains a trace (`test-results/*/trace.zip`,
 openable with `npx playwright show-trace <path>`) and a screenshot.
 
+A failing test also reports what the browser saw, which is the difference between a page that was
+slow and one that never painted. Two annotations can appear:
+
+- `[browser]` — uncaught exceptions, `console.error` output, and requests that failed outright
+  (a 404 is a response, so it is not one of these). A blank page with no entry here had no script
+  error and no failed fetch, which points at the app not having rendered yet rather than at a defect
+  in what it renders.
+- `[infrastructure]` — the host did not answer `/health`, so the failure is the container's rather
+  than the page's. A test on its own isolated harness reports its own host, not the worker's.
+
 If a container is left running after an interrupted test run, see "Parallel execution" above for
 the cleanup command.
 

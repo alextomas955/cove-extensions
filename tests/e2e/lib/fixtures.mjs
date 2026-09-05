@@ -22,7 +22,7 @@ export { createApiClient };
  */
 export function isolatedHarnessFixture(extension) {
   return [
-    async ({}, use) => {
+    async ({}, use, testInfo) => {
       // The container pair exists from startHarness() onward, so every later step belongs inside the
       // try: a bootstrap or install failure would unwind past stop() and strand a Cove instance, a
       // Postgres instance and their compose network until Ryuk reaps them. Enough of those in one run
@@ -34,6 +34,10 @@ export function isolatedHarnessFixture(extension) {
         await isolatedHarness.installExtension(extension);
         await use(isolatedHarness);
       } finally {
+        // The `page` fixture probes the WORKER harness, which is a different container on a
+        // different port from this one. A test driving this harness therefore fails with no word
+        // about the host it actually used, so the probe is repeated here against that host.
+        await noteHostIfUnreachable(isolatedHarness.baseUrl, testInfo, "isolated host");
         await isolatedHarness.stop();
       }
     },
@@ -75,6 +79,26 @@ export const test = base.extend({
     await page.addInitScript(() => {
       sessionStorage.setItem("cove-setup-dismissed", "true");
     });
+    // A page that renders nothing looks identical from a locator: no heading, no input, no request.
+    // The browser knows why and nothing was asking it, so every such failure has read "(no headings
+    // rendered)" and stopped there. These three say whether a script threw, a bundle 404'd, or the
+    // app simply had not painted yet, which are three different defects.
+    const browserProblems = [];
+    const noteProblem = (text) => {
+      if (browserProblems.length < BROWSER_PROBLEM_CAP) browserProblems.push(text);
+    };
+    page.on("pageerror", (error) => noteProblem(`uncaught ${error.message}`));
+    page.on("console", (message) => {
+      if (message.type() === "error") noteProblem(`console.error ${message.text()}`);
+    });
+    page.on("requestfailed", (request) => {
+      const failure = request.failure()?.errorText ?? "unknown";
+      // A navigation cancels the requests the previous document had in flight, and the page object
+      // re-navigates on purpose, so this one is routine rather than a finding.
+      if (failure === "net::ERR_ABORTED") return;
+      noteProblem(`${request.method()} ${request.url()} failed: ${failure}`);
+    });
+
     await page.goto(baseUrl);
     await use(page);
 
@@ -83,10 +107,11 @@ export const test = base.extend({
     // defect and sends the reader to the extension, which is the wrong place. Ask the host whether it
     // is still there and say so, once, on the failure that noticed.
     if (testInfo.status !== testInfo.expectedStatus) {
-      const note = await describeHostIfUnreachable(baseUrl);
-      if (note) {
-        testInfo.annotations.push({ type: "infrastructure", description: note });
-        console.error(`[infrastructure] ${testInfo.title}: ${note}`);
+      await noteHostIfUnreachable(baseUrl, testInfo, "host");
+      if (browserProblems.length > 0) {
+        const note = `the browser reported ${browserProblems.length} problem(s) on this page: ${browserProblems.join(" | ")}`;
+        testInfo.annotations.push({ type: "browser", description: note });
+        console.error(`[browser] ${testInfo.title}: ${note}`);
       }
     }
   },
@@ -109,6 +134,19 @@ export const test = base.extend({
 // Long enough to cross a loaded runner, short enough that a dead host does not add a further wait to
 // a spec that has already failed.
 const HOST_LIVENESS_TIMEOUT_MS = 5_000;
+
+// A page that fails in a loop can emit thousands of identical console errors, and a failure message
+// nobody can read is not a diagnosis.
+const BROWSER_PROBLEM_CAP = 20;
+
+/** Records the host's liveness on a failing test, and says nothing on a passing one. */
+async function noteHostIfUnreachable(baseUrl, testInfo, label) {
+  if (testInfo.status === testInfo.expectedStatus) return;
+  const note = await describeHostIfUnreachable(baseUrl);
+  if (!note) return;
+  testInfo.annotations.push({ type: "infrastructure", description: `${label}: ${note}` });
+  console.error(`[infrastructure] ${testInfo.title}: ${label}: ${note}`);
+}
 
 /**
  * Returns a sentence naming the host as unreachable, or null when it answers.
