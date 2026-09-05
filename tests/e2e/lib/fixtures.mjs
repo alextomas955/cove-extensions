@@ -83,9 +83,15 @@ export const test = base.extend({
     // The browser knows why and nothing was asking it, so every such failure has read "(no headings
     // rendered)" and stopped there. These three say whether a script threw, a bundle 404'd, or the
     // app simply had not painted yet, which are three different defects.
-    const browserProblems = [];
+    // Counted by text rather than collected, because the noisiest problems repeat. A host whose
+    // SignalR hub is not answering yet emits the same negotiation failure a dozen times while it
+    // retries, and a list would spend its whole cap on those and drop the one distinct error that
+    // says what actually broke.
+    const browserProblems = new Map();
     const noteProblem = (text) => {
-      if (browserProblems.length < BROWSER_PROBLEM_CAP) browserProblems.push(text);
+      const seen = browserProblems.get(text);
+      if (seen === undefined && browserProblems.size >= BROWSER_PROBLEM_CAP) return;
+      browserProblems.set(text, (seen ?? 0) + 1);
     };
     page.on("pageerror", (error) => noteProblem(`uncaught ${error.message}`));
     page.on("console", (message) => {
@@ -108,8 +114,11 @@ export const test = base.extend({
     // is still there and say so, once, on the failure that noticed.
     if (testInfo.status !== testInfo.expectedStatus) {
       await noteHostIfUnreachable(baseUrl, testInfo, "host");
-      if (browserProblems.length > 0) {
-        const note = `the browser reported ${browserProblems.length} problem(s) on this page: ${browserProblems.join(" | ")}`;
+      if (browserProblems.size > 0) {
+        const rendered = [...browserProblems].map(([text, count]) =>
+          count > 1 ? `${text} (x${count})` : text,
+        );
+        const note = `the browser reported ${browserProblems.size} distinct problem(s) on this page: ${rendered.join(" | ")}`;
         testInfo.annotations.push({ type: "browser", description: note });
         console.error(`[browser] ${testInfo.title}: ${note}`);
       }
@@ -135,8 +144,8 @@ export const test = base.extend({
 // a spec that has already failed.
 const HOST_LIVENESS_TIMEOUT_MS = 5_000;
 
-// A page that fails in a loop can emit thousands of identical console errors, and a failure message
-// nobody can read is not a diagnosis.
+// A page that fails in a loop can emit thousands of console errors, and a failure message nobody can
+// read is not a diagnosis. The cap counts DISTINCT problems, so a repeat never costs a slot.
 const BROWSER_PROBLEM_CAP = 20;
 
 /** Records the host's liveness on a failing test, and says nothing on a passing one. */
@@ -164,6 +173,23 @@ async function describeHostIfUnreachable(baseUrl) {
     return `the Cove host answered ${response.status} at ${baseUrl}/health, so this failure is the host's, not the extension's`;
   } catch (error) {
     return `the Cove host did not answer at ${baseUrl}/health (${error instanceof Error ? error.message : String(error)}) — it stopped during the run, so this failure is infrastructure rather than a defect in the page under test`;
+  }
+}
+
+/**
+ * The headings a page is currently showing, for a page object's own failure message.
+ *
+ * A wait that ends with nothing found cannot say whether the page showed the wrong thing or nothing
+ * at all, and those are different defects. Never throws: it runs only on a path that is already
+ * failing, and an error here would replace a real diagnosis with this helper's own stack.
+ */
+export async function describeRenderedPage(page, { limit = 6 } = {}) {
+  try {
+    const headings = await page.locator("h1, h2").allInnerTexts();
+    const readable = headings.map((text) => text.trim()).filter(Boolean);
+    return readable.length ? readable.slice(0, limit).join(" | ") : "(no headings rendered)";
+  } catch (error) {
+    return `(unreadable: ${error.message})`;
   }
 }
 
