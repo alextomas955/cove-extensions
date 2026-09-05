@@ -3,6 +3,7 @@ using Cove.Core.Interfaces;
 using Cove.Data;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -28,17 +29,29 @@ public sealed class TransportHost : IAsyncDisposable
 
     private readonly WebApplication _app;
     private readonly SqliteConnection _conn;
-    private readonly CoveContext _db;
+    private readonly DbContext _db;
 
     /// <summary>A client bound to the in-process server; request paths start at <see cref="BaseRoute"/>.</summary>
     public HttpClient Client { get; }
 
-    private TransportHost(WebApplication app, HttpClient client, SqliteConnection conn, CoveContext db)
+    /// <summary>
+    /// Every route the extension mounted, as an HTTP method paired with the route pattern as written
+    /// (so a parameterised route reads <c>/job-status/{jobId}</c>, not a request path).
+    /// </summary>
+    public IReadOnlyList<(string Method, string Pattern)> MountedRoutes { get; }
+
+    private TransportHost(
+        WebApplication app,
+        HttpClient client,
+        SqliteConnection conn,
+        DbContext db,
+        IReadOnlyList<(string Method, string Pattern)> mountedRoutes)
     {
         _app = app;
         Client = client;
         _conn = conn;
         _db = db;
+        MountedRoutes = mountedRoutes;
     }
 
     /// <summary>Boots a server serving the extension's routes as the given principal.</summary>
@@ -70,7 +83,15 @@ public sealed class TransportHost : IAsyncDisposable
         ext.MapEndpoints(app);
         await app.StartAsync();
 
-        return new TransportHost(app, app.GetTestClient(), conn, db);
+        var mountedRoutes = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .SelectMany(endpoint =>
+                (endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? Array.Empty<string>())
+                    .Select(method => (Method: method, Pattern: endpoint.RoutePattern.RawText ?? string.Empty)))
+            .ToArray();
+
+        return new TransportHost(app, app.GetTestClient(), conn, db, mountedRoutes);
     }
 
     public async ValueTask DisposeAsync()
