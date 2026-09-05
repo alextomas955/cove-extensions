@@ -6,8 +6,12 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 namespace Cove.Extensions.Shared.Testing;
 
 /// <summary>
-/// Stands up a real <see cref="CoveContext"/> for an integration tier over SQLite-in-memory, mirroring
-/// Cove's own proven <c>AiCoreControllerTests</c> pattern.
+/// Stands up a real <c>CoveContext</c> over SQLite-in-memory and returns it as
+/// <see cref="DbContext"/>, the type the host supplies at runtime.
+///
+/// What callers depend on is the configuration, not the type: Cove's EF model, including the
+/// <c>(ParentFolderId, Basename)</c> unique index, and Cove's <c>SaveChangesAsync</c> overrides,
+/// which derive every touched file's <c>Path</c>. Neither is reproducible from <c>Cove.Core</c>.
 ///
 /// WHY relational SQLite (not EF-InMemory): the EF-InMemory provider does NOT enforce the
 /// <c>(ParentFolderId, Basename)</c> unique index and treats transactions as a silent no-op, so any test
@@ -27,7 +31,7 @@ internal static class CoveContextFactory
     /// caller OWNS both returned disposables and MUST dispose them:
     /// <code>await db.DisposeAsync(); await conn.DisposeAsync();</code>
     /// </summary>
-    public static async Task<(CoveContext db, SqliteConnection conn)> CreateSqliteContextAsync()
+    public static async Task<(DbContext db, SqliteConnection conn)> CreateSqliteContextAsync()
     {
         var (db, connection) = CreateSqliteContextWithoutSchema();
         await db.Database.EnsureCreatedAsync();
@@ -42,7 +46,7 @@ internal static class CoveContextFactory
     ///
     /// The caller OWNS both returned disposables, exactly as with <see cref="CreateSqliteContextAsync"/>.
     /// </summary>
-    public static (CoveContext db, SqliteConnection conn) CreateSqliteContextWithoutSchema()
+    public static (DbContext db, SqliteConnection conn) CreateSqliteContextWithoutSchema()
     {
         var connection = new SqliteConnection("Data Source=:memory:");
         connection.Open();

@@ -7,11 +7,6 @@ namespace Renamer.Tests.Contracts;
 /// planner, the executor and the undo replayer - reach them with. Pure string math: no store, no
 /// database context, no filesystem.
 /// </summary>
-/// <remarks>
-/// Deliberately NOT under <c>Execution/</c>. The cove-absent CI leg removes that folder wholesale, so
-/// a pure suite placed beside the code it covers stops running on the leg where this repository's
-/// coverage is thinnest. <c>Contracts/</c> is named by no removal entry.
-/// </remarks>
 public sealed class PathOpsLogicTests
 {
     [Fact]

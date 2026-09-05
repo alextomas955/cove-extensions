@@ -34,7 +34,7 @@ This page describes the levers, not the design.
 | `sdk.rollForward` | How far the installed SDK may exceed the pinned version before `dotnet` refuses. | `disable`, `patch`, `feature`, `minor`, `major`, `latestPatch`, `latestFeature`, `latestMinor`, `latestMajor`. |
 | `test.runner`     | Which test host `dotnet test` drives.                                            | `VSTest` or `Microsoft.Testing.Platform`.                                                                      |
 
-Under `Microsoft.Testing.Platform`, `dotnet test` names a project with `--project <path.csproj>`
+Under `Microsoft.Testing.Platform`, `dotnet test` names a project with `--project <project path>`
 as the workflows in `.github/workflows/` do. A bare project path also works, so treat `--project` as
 the form this repo standardises on rather than the only accepted one.
 
@@ -64,20 +64,22 @@ Highest first:
 The selection turns on how a value _arrived_, not on whether a path happens to exist. Absence is a
 legitimate state for the sibling auto-detect and an error for an explicit configuration, so
 `Directory.Build.targets` fails the build when `source` was selected and no `Cove.Data.csproj` is at
-the resolved location. It refuses to fall back, because falling back would compile a smaller test set
-and still report success.
+the resolved location. It refuses to fall back, because the fallback would not build the projects
+that mode was chosen for.
 
 ### Check which source was selected
 
 Do not infer the selection from your working directory. The sibling auto-detect resolves `../cove`
-relative to the monorepo root, so a checkout placed anywhere else silently takes the `none` branch,
-which compiles fewer tests and reports success.
+relative to the monorepo root, so a checkout kept anywhere else takes the `none` branch unless you
+name it. Set `COVE_REPO` to that location, or pass `-p:CoveRepoRoot`; either wins over the sibling.
+Under `none`, a project that requires a checkout stops the build by name.
 
 Two things report the answer:
 
-- Every build prints one line naming the resolved mode and absolute repo root. The absolute form is
-  deliberate: it is what makes a shell's path rewriting of a POSIX `COVE_REPO` into a drive-lettered
-  path visible.
+- `dotnet build` prints one line naming the resolved mode and absolute repo root. The absolute form
+  is deliberate: it is what makes a shell's path rewriting of a POSIX `COVE_REPO` into a
+  drive-lettered path visible. `dotnet test` does not show that line, so do not go looking for it on
+  a test run.
 - Query the properties without building:
 
   ```sh
@@ -137,10 +139,12 @@ meets:
 | `EnableDynamicLoading`      | Required: every extension is loaded dynamically by the host.                                                            |
 
 `Directory.Build.targets` adds the Sonar C# analyzer to every project, unconditionally on how Cove is
-located. Two consequences worth knowing before you read a green result as a clean tree: the
-pre-commit hook runs per file, so it reports on the files you touched and not on their neighbours;
-and the CI legs build with `CoveSourceMode=none`, which sees a strict subset of the findings a
-local source build sees.
+located. Two things are worth knowing before you read a green result as a clean tree. The pre-commit
+hook runs per file, so it reports on the files you touched and not on their neighbours. And the CI
+legs do not all build the same way: the analyzer gate (`csharp-format` in `lint.yml`) builds the whole
+solution in `source` mode against a checked-out Cove, so it sees what a local source build sees. The
+Windows leg checks Cove out and builds in `source` mode too. The packaging leg builds in `none` mode,
+which is what proves the shipped assembly needs no checkout.
 
 ## Package versions
 
@@ -318,8 +322,8 @@ exclusions, and encoding. Coverage import is not among them.
 
 `lefthook.yml` at the repo root declares the pre-commit checks: Prettier and ESLint on staged files,
 the Tailwind class check for each UI bundle, the host-import check, and `dotnet format` on staged C#
-files. The formatting and lint entries fix rather than verify and restage what they changed, because
-the check costs the same either way. It is deliberately lightweight - no full build and no test run
+files. The formatting and lint entries fix rather than verify and restage what they changed, because the check
+costs the same either way. It is deliberately lightweight - no full build and no test run
 on commit.
 
 The hook runner is installed by the root `prepare` script. Before you rely on it, know that **a local

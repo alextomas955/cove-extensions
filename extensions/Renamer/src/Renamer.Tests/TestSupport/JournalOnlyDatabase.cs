@@ -41,6 +41,10 @@ internal sealed class JournalOnlyDatabase : IAsyncDisposable
 
     public ValueTask DisposeAsync() => _conn.DisposeAsync();
 
+    // Concrete because CA1859 requires it on a private member. The only consumer is the
+    // AddScoped<DbContext> registration above, which is where the host-provided type is named.
     private CoveContext NewContext() =>
-        new(new DbContextOptionsBuilder<CoveContext>().UseSqlite(_conn).Options, principalAccessor: null);
+        new CoveContext(
+            new DbContextOptionsBuilder<CoveContext>().UseSqlite(_conn).Options,
+            principalAccessor: null);
 }

@@ -1,6 +1,5 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
-using Cove.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Contracts;
@@ -221,7 +220,7 @@ public sealed class UndoRetryTests
 
     /// <summary>Seeds and forward-renames two files in ONE batch, returning them in seed order.</summary>
     private static async Task<(global::Renamer.Renamer ext, Seeded first, Seeded second)> RenameTwoAsync(
-        CoveContext db, TempDir dir)
+        DbContext db, TempDir dir)
     {
         var (ext, seeded) = await RenameManyAsync(db, dir, ["one", "two"]);
         return (ext, seeded[0], seeded[1]);
@@ -239,7 +238,7 @@ public sealed class UndoRetryTests
     /// exercised for real.
     /// </remarks>
     private static async Task<(global::Renamer.Renamer ext, IReadOnlyList<Seeded> seeded)> RenameManyAsync(
-        CoveContext db, TempDir dir, IReadOnlyList<string> stems)
+        DbContext db, TempDir dir, IReadOnlyList<string> stems)
     {
         string folderPath = dir.Root.Replace('\\', '/');
         var folder = new Folder { Path = folderPath, ModTime = DateTime.UtcNow };

@@ -1,7 +1,7 @@
 using Cove.Core.Entities;
 using Cove.Core.Events;
-using Cove.Data;
 using Cove.Plugins;
+using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -96,7 +96,7 @@ public sealed class AutoRenamerRevertLogBatchTests
     /// Seeds one throwaway Video so the next <see cref="ExecutorTestSeed.SeedVideoAsync"/> hands back a
     /// Video id one ahead of its VideoFile id — guaranteeing videoId ≠ fileId.
     /// </summary>
-    private static async Task SeedDecoyVideoAsync(CoveContext db)
+    private static async Task SeedDecoyVideoAsync(DbContext db)
     {
         db.Set<Video>().Add(new Video { Title = "decoy", Organized = true });
         await db.SaveChangesAsync();

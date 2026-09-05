@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Cove.Core.Auth;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.Execution;
@@ -26,7 +27,7 @@ public sealed class PreviewWholeBatchTests
     private static string Fwd(string p) => p.Replace('\\', '/');
 
     private static async Task<global::Renamer.Renamer> BuildExtensionAsync(
-        Cove.Data.CoveContext db, RenamerOptions options, params string[] libraryPaths)
+        DbContext db, RenamerOptions options, params string[] libraryPaths)
     {
         var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, libraryPaths);
         return ext;

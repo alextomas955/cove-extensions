@@ -18,7 +18,7 @@ namespace Renamer.Tests.Events;
 internal static class EventTestHarness
 {
     public static async Task<(global::Renamer.Renamer ext, CapturingEventBus bus, FakeStore store)> BuildAsync(
-        CoveContext db, RenamerOptions options, params string[] libraryPaths)
+        DbContext db, RenamerOptions options, params string[] libraryPaths)
     {
         var services = new ServiceCollection();
         services.AddSingleton<DbContext>(db);

@@ -1,7 +1,6 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Core.Events;
-using Cove.Data;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -35,7 +34,7 @@ public sealed class UndoEndpointTests
     /// <c>RenamerBatchJobTests.BuildExtensionAsync</c>.
     /// </summary>
     private static async Task<(global::Renamer.Renamer ext, FakeStore store)> BuildExtensionAsync(
-        CoveContext db, IEventBus bus, params string[] libraryPaths)
+        DbContext db, IEventBus bus, params string[] libraryPaths)
     {
         var services = new ServiceCollection();
         services.AddSingleton<DbContext>(db);
@@ -372,7 +371,7 @@ public sealed class UndoEndpointTests
 
     /// <summary>Seeds an Image + one ImageFile in the given (already-seeded or new) folder. Returns (imageId, fileId).</summary>
     private static async Task<(int imageId, int fileId)> SeedImageAsync(
-        CoveContext db, string folderPath, string basename, string title)
+        DbContext db, string folderPath, string basename, string title)
     {
         var folder = new Folder { Path = folderPath.Replace('\\', '/'), ModTime = DateTime.UtcNow };
         db.Set<Folder>().Add(folder);

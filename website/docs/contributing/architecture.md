@@ -64,8 +64,8 @@ Precedence, highest first:
 Explicitness is captured before any defaulting, because the choice turns on how a value arrived rather
 than on whether a path happens to exist. Absence is a legitimate state for auto-detection and an error
 for explicit configuration, and that distinction is the point of the design: a mode that cannot
-deliver what it names stops the build with one plain message instead of falling back, because a silent
-fallback compiles a smaller test set and still reports success. The gate lives in the targets file
+deliver what it names stops the build with one plain message instead of falling back, because the
+fallback would not build the projects that mode was chosen for. The gate lives in the targets file
 rather than the props file for a mechanical reason - a property group can only compute, and stopping a
 build needs a target. It prints the resolved absolute path, which is what makes a shell's rewriting of
 a POSIX path into a drive-lettered one visible at all.
@@ -154,11 +154,13 @@ a prefix match that missed a bare name would silently bundle a second React with
 break hook identity at runtime.
 
 Test support sits beside these two and is not part of the shipped layer. Helpers needing no Cove types
-are an ordinary project a test project references. The fakes that do need Cove's own types have no
-project file at all: they are pulled in as compile items under the source-mode condition, so on the
-cove-absent leg they drop out rather than failing to compile. The condition is keyed on the mode rather
-than on a path probe, because what those files need is the types, and only `source` mode supplies
-them.
+are an ordinary project a test project references.
+The fakes that do need Cove's own types have no project file at all: the test project pulls them in
+as ordinary compile items, unconditionally, rather than as a project reference, because an IDE does
+not fully respect a reference condition. Promoting that directory to a project of its own would give
+it its own dependency on a Cove checkout, one level further down.
+Nothing here decides per mode what compiles. The project simply requires a checkout, and a target in
+it says so as one plain error before the compiler runs.
 
 What belongs at repo level is decided by reach, never by a directory name. That rule, and the
 extension-local `common/` layer it implies, is on [Extension authoring

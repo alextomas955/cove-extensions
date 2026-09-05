@@ -8,7 +8,8 @@ Tick only the boxes for the extensions this PR touches.
 
 If this PR touches **Renamer**:
 
-- [ ] `dotnet test extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj` passes
+- [ ] `dotnet test extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj` passes (needs the
+      `../cove` sibling checked out)
 - [ ] `cd extensions/Renamer/src/Renamer.Ui && npm run verify` passes
 
 Always:
@@ -21,7 +22,7 @@ Describe what you actually ran and observed.
 
 Run `dotnet test` locally with the `../cove` sibling checked out. That covers what CI cannot: it compiles
 against whatever branch the sibling happens to be on, so a regression on your fork branch is visible
-there and nowhere else. CI's own C# leg compiles the cove-absent set.
+there and nowhere else. CI builds Cove from a released tag instead.
 
 ## Safety check
 

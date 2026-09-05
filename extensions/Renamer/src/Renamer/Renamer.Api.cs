@@ -143,13 +143,6 @@ public sealed partial class Renamer
             showInTaskList: true);
 
     /// <summary>
-    /// Maps the POST endpoints. Each lambda IMMEDIATELY delegates to an extracted instance
-    /// method so the logic is unit-testable without an HTTP host — <c>WebApplicationFactory</c> can't
-    /// mount extension routes, so we test the extracted methods directly. The host resolves the lambda
-    /// parameters from the request scope; <c>ICurrentPrincipalAccessor</c> is populated by the host's
-    /// CurrentPrincipalMiddleware.
-    /// </summary>
-    /// <summary>
     /// Registers every endpoint, each DECLARING the coarse gate its own handler re-checks.
     /// </summary>
     /// <remarks>
@@ -170,6 +163,11 @@ public sealed partial class Renamer
     /// Refusing such a caller outright would need the check Cove applies to its own routes with
     /// <c>[RequiresUnscopedEntityAccess]</c>, an MVC action filter that never reaches a minimal-API
     /// endpoint.
+    /// </para>
+    /// <para>
+    /// Every lambda delegates straight to an extracted instance method, so the logic is reachable
+    /// without an HTTP host. The host resolves the lambda parameters from the request scope, and
+    /// <c>ICurrentPrincipalAccessor</c> is populated by its CurrentPrincipalMiddleware.
     /// </para>
     /// </remarks>
     public override void MapEndpoints(IEndpointRouteBuilder endpoints)

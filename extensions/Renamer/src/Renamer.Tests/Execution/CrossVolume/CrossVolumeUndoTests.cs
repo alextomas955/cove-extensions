@@ -1,4 +1,4 @@
-using Cove.Data;
+using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
@@ -314,7 +314,7 @@ public sealed class CrossVolumeUndoTests
     /// Path resolves to the OLD path. Returns the live port, the batch, and (videoId, fileId).
     /// </summary>
     private static async Task<(CoveRenamerDataPort Port, RevertBatch Batch, (int VideoId, int FileId) Ids)>
-        SeedReverseBatchAsync(CoveContext db, string oldRoot, string newRoot, string oldFull, string newFull)
+        SeedReverseBatchAsync(DbContext db, string oldRoot, string newRoot, string oldFull, string newFull)
     {
         string oldFolder = oldRoot.Replace('\\', '/').TrimEnd('/');
         string newFolder = newRoot.Replace('\\', '/').TrimEnd('/');
@@ -362,7 +362,7 @@ public sealed class CrossVolumeUndoTests
     }
 
     /// <summary>A port whose reverse save always throws, forcing the UndoReplayer rollback path.</summary>
-    private sealed class ThrowOnSaveDataPort(CoveContext db) : CoveRenamerDataPort(db)
+    private sealed class ThrowOnSaveDataPort(DbContext db) : CoveRenamerDataPort(db)
     {
         public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
             IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)

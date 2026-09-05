@@ -8,34 +8,38 @@ using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
-/// <summary>
-/// The only C# coverage of Renamer's REAL minimal-API transport boundary: MapEndpoints is mounted in an
-/// in-process WebApplication/TestServer and driven over HTTP. Pins the route table the MF-30/MF-31
-/// executor/planner extraction must preserve (every mounted route resolves — never 404/405) and that a
-/// representative response round-trips its DTO. Thin (route-exists + shape only) — the handler-level
-/// permission/logic tests already exist. Cove-present tier (a CovePrincipal + a real CoveContext), so it
-/// is Compile-Removed on the bare CI leg alongside the other endpoint tests.
-/// <para>
-/// This retires the standing "WebApplicationFactory can't mount extension routes" claim in Renamer.Api.cs:
-/// a minimal WebApplication driving the extension's own MapEndpoints does mount and serve them.
-/// </para>
-/// </summary>
+// Drives Renamer's real minimal-API transport boundary over HTTP: MapEndpoints is mounted in an
+// in-process WebApplication/TestServer. Pins that every route the host mounts answers, and that a
+// representative response round-trips its DTO.
 public sealed class TransportSmokeTests
 {
     private const string Base = TransportHost.BaseRoute;
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
+    // Pattern is what the registration reads and RequestPath is what the theory sends, so a
+    // parameterised route can be compared against the mounted table and still be requested.
+    private static readonly (string Method, string Pattern, string RequestPath)[] PinnedRoutes =
+    [
+        ("GET", Base + "/last-batch", Base + "/last-batch"),
+        ("GET", Base + "/last-scan", Base + "/last-scan"),
+        ("GET", Base + "/library-paths", Base + "/library-paths"),
+        ("GET", Base + "/orphaned-rules", Base + "/orphaned-rules"),
+        ("GET", Base + "/job-status/{jobId}", Base + "/job-status/job-1"),
+        ("POST", Base + "/preview", Base + "/preview"),
+        ("POST", Base + "/renamer", Base + "/renamer"),
+        ("POST", Base + "/preview-sample", Base + "/preview-sample"),
+        ("POST", Base + "/undo", Base + "/undo"),
+        ("POST", Base + "/scan-library", Base + "/scan-library"),
+        ("POST", Base + "/scan-rows", Base + "/scan-rows"),
+        ("POST", Base + "/renamer-library", Base + "/renamer-library"),
+    ];
+
     public static TheoryData<string, string> Routes()
     {
         var data = new TheoryData<string, string>();
-        foreach (var g in new[] { "/last-batch", "/last-scan" })
+        foreach (var (method, _, requestPath) in PinnedRoutes)
         {
-            data.Add("GET", g);
-        }
-
-        foreach (var p in new[] { "/preview", "/renamer", "/preview-sample", "/undo", "/scan-library", "/renamer-library" })
-        {
-            data.Add("POST", p);
+            data.Add(method, requestPath);
         }
 
         return data;
@@ -47,7 +51,7 @@ public sealed class TransportSmokeTests
     {
         await using var host = await TransportHost.BootAsync(FakePrincipalAccessor.None());
 
-        using var req = new HttpRequestMessage(new HttpMethod(method), Base + path);
+        using var req = new HttpRequestMessage(new HttpMethod(method), path);
         if (method == "POST")
         {
             req.Content = JsonContent.Create(new { entityType = "video", entityIds = Array.Empty<int>() });
@@ -57,6 +61,24 @@ public sealed class TransportSmokeTests
 
         Assert.NotEqual(HttpStatusCode.NotFound, resp.StatusCode);
         Assert.NotEqual(HttpStatusCode.MethodNotAllowed, resp.StatusCode);
+    }
+
+    // The list above is hand-transcribed: a route added to MapEndpoints does not join it on its own.
+    [Fact]
+    public async Task EveryMountedRoute_IsDrivenByTheRouteTheory()
+    {
+        await using var host = await TransportHost.BootAsync(FakePrincipalAccessor.None());
+
+        var mounted = host.MountedRoutes
+            .Select(route => $"{route.Method} {route.Pattern}")
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var pinned = PinnedRoutes
+            .Select(route => $"{route.Method} {route.Pattern}")
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(pinned, mounted);
     }
 
     [Fact]

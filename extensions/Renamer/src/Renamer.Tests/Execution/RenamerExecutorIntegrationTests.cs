@@ -1,4 +1,5 @@
 using Cove.Core.Events;
+using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -523,7 +524,7 @@ public sealed class RenamerExecutorIntegrationTests
     /// re-occupied between the move and the rollback) and then throws, so the subsequent rollback's
     /// copy-back finds its target taken and records a warning instead of restoring.
     /// </summary>
-    private sealed class ReoccupyOldSlotThenThrowDataPort(Cove.Data.CoveContext db, string oldSlot)
+    private sealed class ReoccupyOldSlotThenThrowDataPort(DbContext db, string oldSlot)
         : CoveRenamerDataPort(db)
     {
         public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
@@ -536,7 +537,7 @@ public sealed class RenamerExecutorIntegrationTests
 
     /// <summary>Test-only port: the save throws a cancellation (a host shutdown mid-save), forcing the
     /// executor's post-move OCE path — rollback, then propagate — rather than the data-failure path.</summary>
-    private sealed class CancelOnSaveDataPort(Cove.Data.CoveContext db) : CoveRenamerDataPort(db)
+    private sealed class CancelOnSaveDataPort(DbContext db) : CoveRenamerDataPort(db)
     {
         public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
             IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)

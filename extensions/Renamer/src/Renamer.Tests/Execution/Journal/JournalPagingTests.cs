@@ -1,5 +1,6 @@
 using Cove.Core.Entities;
 using Cove.Data;
+using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -277,7 +278,7 @@ public sealed class JournalPagingTests
     /// several pages. The guard is the point of the whole helper: a cursor that failed to advance would
     /// otherwise loop here without ever reaching an assertion.
     /// </remarks>
-    private static async Task<PagedRun> RunPagedUndoAsync(CoveContext db, CoveRevertJournal journal)
+    private static async Task<PagedRun> RunPagedUndoAsync(DbContext db, CoveRevertJournal journal)
     {
         var replayer = new UndoReplayer(new CoveRenamerDataPort(db), new CapturingEventBus(), new DiskMover());
 
@@ -325,7 +326,7 @@ public sealed class JournalPagingTests
     /// <summary>One seeded video and the paths its forward rename moved between.</summary>
     private sealed record Seeded(int VideoId, int FileId, string OldFull, string NewFull);
 
-    private static async Task<CoveRevertJournal> SeedRowsAsync(CoveContext db, int rows)
+    private static async Task<CoveRevertJournal> SeedRowsAsync(DbContext db, int rows)
     {
         var journal = new CoveRevertJournal(db);
         await journal.BeginBatchAsync(RunId, RenamerFileKind.Video, Opened);
@@ -344,7 +345,7 @@ public sealed class JournalPagingTests
     /// so the batch holds one row per file and the paging is over rows rather than over batches.
     /// </summary>
     private static async Task<(CoveRevertJournal journal, IReadOnlyList<Seeded> seeded)> RenameManyAsync(
-        CoveContext db, TempDir dir, int count)
+        DbContext db, TempDir dir, int count)
     {
         string folderPath = dir.Root.Replace('\\', '/');
         var folder = new Folder { Path = folderPath, ModTime = DateTime.UtcNow };

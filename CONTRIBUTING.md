@@ -32,9 +32,9 @@ npm run format:cs
 Run it through the script rather than calling `dotnet format` directly. Two reasons, both of which
 have bitten here: with a `../cove` sibling checked out, `dotnet format` follows the ProjectReference
 graph into Cove's own source and reports hundreds of issues that are not yours — the script excludes
-it, and that exclude is a harmless no-op in CI, which has no sibling. And a folder path passed to
-`--include`/`--exclude` **must end in a separator**: `--include ./src` matches nothing and exits 0,
-while `--include ./src/` works. A scoping typo there does not fail — it silently passes.
+it, and that exclude does the same work in CI, which checks Cove out beside this repo. And a folder
+path passed to `--include`/`--exclude` **must end in a separator**: `--include ./src` matches nothing
+and exits 0, while `--include ./src/` works. A scoping typo there does not fail; it silently passes.
 
 Each extension has its own build/test/verify commands — see that extension's own README
 ([`extensions/Renamer/README.md`](extensions/Renamer/README.md)) and

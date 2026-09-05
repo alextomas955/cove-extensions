@@ -159,11 +159,18 @@ comment.
 
 ## Testing and tooling
 
-Mirror the source folders so a test is easy to find from its subject. What a test depends on is
-carried by where it sits and by the build: the folder places it, and the `Compile Remove` entries in
-the test project decide which files the cove-absent leg builds at all.
+Mirror the source folders so a test is easy to find from its subject. An extension has one backend
+test project, and it references Cove's own source unconditionally, so every test in it compiles and
+runs together. There is no mode that silently drops a test from the set.
 
-The lightweight "bare" CI leg is a compile-and-pure-logic smoke test; the containerized end-to-end job
-is the real safety gate. Copy-paste, dead-export, dependency-drift, and import-direction checks run as
+What the tests need from Cove is the configured context, not the type. `CoveContextFactory`
+constructs a real `CoveContext` and hands it back as `DbContext`, which is the type the host supplies
+at runtime and the only one the extension's own code names. Two things a hand-rolled context over
+`Cove.Core` entities would not carry are what these tests are for: Cove's EF model, including the
+`(ParentFolderId, Basename)` unique index, and Cove's `SaveChangesAsync` overrides, which derive every
+touched file's `Path`. Take the context as `DbContext` in a new test, and name `CoveContext` only
+where you construct one.
+
+The containerized end-to-end job is the real safety gate. Copy-paste, dead-export, dependency-drift, and import-direction checks run as
 merge gates in the lint workflow. Only a check a CI workflow runs is a gate — an entry in the local
 hook runner is advice a contributor can skip, so wire a check you need enforced into a workflow.

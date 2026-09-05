@@ -31,6 +31,7 @@ import {
   splitImageReference,
   splitReleaseChannels,
   STDOUT_CONTRACT,
+  highestDeclaredFloor,
 } from "./fetch-cove-assemblies.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
@@ -627,4 +628,34 @@ test("--out is refused when it is the repository or an ancestor of it", async ()
       `--out '${target}' reaches a recursive delete of the repository`,
     );
   }
+});
+
+test("highestDeclaredFloor picks the highest declared floor by semver, not by string order", () => {
+  const declared = [
+    { entry: { name: "a" }, floor: "1.9.9" },
+    { entry: { name: "b" }, floor: "1.10.0" },
+    { entry: { name: "c" }, floor: "1.2.3" },
+  ];
+  assert.equal(highestDeclaredFloor(declared).floor, "1.10.0");
+});
+
+test("highestDeclaredFloor ranks a release above a prerelease of the same version", () => {
+  const declared = [
+    { entry: { name: "a" }, floor: "2.0.0-rc.1" },
+    { entry: { name: "b" }, floor: "2.0.0" },
+  ];
+  assert.equal(highestDeclaredFloor(declared).floor, "2.0.0");
+});
+
+test("highestDeclaredFloor throws on an empty list rather than resolving a ref nothing declared", () => {
+  assert.throws(() => highestDeclaredFloor([]), /No extension floor was declared/);
+});
+
+test("highestDeclaredFloor throws on a lone unparseable floor, which a reduce alone would return unchecked", () => {
+  // A one-entry list never invokes a reduce callback, so validating inside one would pass this
+  // through and the caller would check out `vnot-a-version`.
+  assert.throws(
+    () => highestDeclaredFloor([{ entry: { name: "solo" }, floor: "not-a-version" }]),
+    /solo declares a floor that is not a semver/,
+  );
 });

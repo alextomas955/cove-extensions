@@ -1,4 +1,5 @@
 using Cove.Data;
+using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 
 namespace Renamer.Tests.Execution.Collisions;
@@ -13,7 +14,7 @@ namespace Renamer.Tests.Execution.Collisions;
 /// </summary>
 internal sealed class CollisionBlindDataPort : CoveRenamerDataPort
 {
-    public CollisionBlindDataPort(CoveContext db) : base(db) { }
+    public CollisionBlindDataPort(DbContext db) : base(db) { }
 
     public override Task<bool> CollisionExistsAsync(int folderId, string basename, int selfFileId, CancellationToken ct = default)
         => Task.FromResult(false);

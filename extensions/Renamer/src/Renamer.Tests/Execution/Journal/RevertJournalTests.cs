@@ -190,7 +190,7 @@ public sealed class RevertJournalTests
     }
 
     private static async Task<CoveRevertJournal> SeedBatchAsync(
-        CoveContext db, string runId, int rows, DateTime? openedAt = null)
+        DbContext db, string runId, int rows, DateTime? openedAt = null)
     {
         var journal = new CoveRevertJournal(db);
         await journal.BeginBatchAsync(runId, RenamerFileKind.Video, openedAt ?? Opened);

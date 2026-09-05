@@ -9,18 +9,11 @@ namespace Renamer.Tests.Contracts;
 /// doubles and no running service.
 /// </summary>
 /// <remarks>
-/// PLACEMENT IS LOAD-BEARING, and this file is deliberately NOT under <c>Execution/</c>. The cove-absent
-/// continuous-integration leg removes cove-dependent sources from those folders FILE BY FILE, so whether
-/// a pure suite placed beside the code it covers keeps running there depends on a <c>Compile Remove</c>
-/// entry nobody adds deliberately for a test that needs none. <c>Contracts/</c> is covered by no such
-/// entry at all, which is the guarantee. Do not "tidy" this file next to <c>UndoRunAccumulator.cs</c>.
-/// <para>
 /// Every fixture below is a hand-built page result, and every classification is a hand-written table
 /// entry. Nothing here is produced by folding one accumulator into another or read back out of the
 /// classifier, which would only prove each agrees with itself; the expected totals and classifications
 /// are written out as literals so a fold that lost a page, or a reason that silently changed meaning,
 /// fails here instead of agreeing with its own arithmetic.
-/// </para>
 /// </remarks>
 public sealed class UndoRunAccumulatorTests
 {
