@@ -15,6 +15,11 @@ import { test as base, expect } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
 
+// The first browser navigation against a fresh container pays the app's cold start, which the page
+// objects budget for and the default assertion timeout does not: that default is sized for a warm
+// app. Bounded by what the test has left, for the reason the page objects document.
+const COLD_START_BUDGET_MS = 120_000;
+
 const EXTENSION_ID = "com.alextomas955.renamer";
 
 const test = base.extend({
@@ -76,9 +81,9 @@ test(
     // pays the app's cold start, and a page that has not rendered satisfies the absence check below
     // just as well as a rendered panel with no Renamer in it. Anchoring on the panel makes that check
     // mean what it says, and makes a cold start fail here rather than several assertions later.
-    await expect(
-      page.getByRole("heading", { name: "Installed Extensions", level: 2 }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Installed Extensions", level: 2 })).toBeVisible(
+      { timeout: COLD_START_BUDGET_MS },
+    );
     await expect(page.getByRole("button", { name: "Renamer", exact: true })).not.toBeVisible();
 
     const enable = await api.post(`/api/extensions/${EXTENSION_ID}/enable`);

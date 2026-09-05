@@ -48,6 +48,17 @@ export function isolatedHarnessFixture(extension) {
 export const test = base.extend({
   extension: [undefined, { option: true }],
 
+  // Auto so it applies to every test, and dependency-free so the runner sets it up before the
+  // fixtures that boot containers. What it records is the start of the budget a page object has to
+  // finish inside.
+  testClock: [
+    async ({}, use) => {
+      testStartedAt.set(test.info(), Date.now());
+      await use();
+    },
+    { auto: true },
+  ],
+
   harness: [
     async ({}, use) => {
       const harness = await startHarness();
@@ -139,6 +150,37 @@ export const test = base.extend({
     );
   },
 });
+
+const testStartedAt = new WeakMap();
+
+// Left for a page object to build and throw its own error once its wait gives up. Without it the
+// wait can end exactly as the test's budget does, and the runner reports its generic timeout in
+// place of the message that names the cause.
+const DIAGNOSTIC_RESERVE_MS = 15_000;
+
+/**
+ * `budgetMs`, reduced to what the test has left.
+ *
+ * A page object's budget has to cover a cold container, and a test that has already spent most of
+ * its own budget cannot give it that. A fixed budget larger than the remainder does not extend the
+ * test; it just guarantees the runner stops the test first, and a generic timeout names none of the
+ * causes the page object would have.
+ *
+ * Falls back to `budgetMs` when there is no clock to read (a page object used outside these
+ * fixtures) or the runner has timeouts disabled.
+ */
+export function remainingVisitBudgetMs(budgetMs) {
+  let info;
+  try {
+    info = test.info();
+  } catch {
+    return budgetMs;
+  }
+  const startedAt = testStartedAt.get(info);
+  if (startedAt === undefined || !info.timeout) return budgetMs;
+  const left = info.timeout - (Date.now() - startedAt) - DIAGNOSTIC_RESERVE_MS;
+  return Math.max(0, Math.min(budgetMs, left));
+}
 
 // Long enough to cross a loaded runner, short enough that a dead host does not add a further wait to
 // a spec that has already failed.

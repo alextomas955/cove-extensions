@@ -1,4 +1,4 @@
-import { describeRenderedPage } from "@cove-extensions/e2e";
+import { describeRenderedPage, remainingVisitBudgetMs } from "@cove-extensions/e2e";
 
 // Page Object for a video's detail page (/video/{id}) — specifically its "Edit" tab, which is how
 // a real user changes an item's metadata (title, date, etc.) through the UI.
@@ -51,7 +51,10 @@ export class VideoDetailPage {
    * the route-discard signal the settings panel watches for cannot arise here.
    */
   async waitForTabs() {
-    const deadline = Date.now() + PAGE_VISIT_BUDGET_MS;
+    // Bounded by what the test has left, so this file's error is the one reported rather than the
+    // runner's generic timeout.
+    const budgetMs = remainingVisitBudgetMs(PAGE_VISIT_BUDGET_MS);
+    const deadline = Date.now() + budgetMs;
     let chunkFailures = 0;
     let recoveries = 0;
     for (;;) {
@@ -78,7 +81,7 @@ export class VideoDetailPage {
       if (outcome === "expired" || recoveries > MAX_RECOVERIES) {
         throw new Error(
           `The video detail page never showed its Edit tab at ${this.itemUrl}, giving up after ` +
-            `${recoveries} recovered navigation(s) and a ${PAGE_VISIT_BUDGET_MS}ms budget for the visit. ` +
+            `${recoveries} recovered navigation(s) and a ${budgetMs}ms budget for the visit. ` +
             `The page is now at ${this.page.url()}. It failed to fetch its own route chunk ` +
             `${chunkFailures} time(s) on the way. ` +
             `The page's own headings read: ${await describeRenderedPage(this.page)}.`,
