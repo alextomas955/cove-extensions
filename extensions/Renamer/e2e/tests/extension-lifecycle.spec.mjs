@@ -11,7 +11,7 @@
 // elsewhere in this suite. Playwright also forbids re-registering an existing fixture at a
 // different scope via .extend(), so this can't just be a rescoped `harness`.
 // `@smoke` - part of the selection core-paths.spec.mjs explains.
-import { test as base, expect } from "@cove-extensions/e2e";
+import { test as base, expect, remainingVisitBudgetMs } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
 
@@ -82,7 +82,7 @@ test(
     // just as well as a rendered panel with no Renamer in it. Anchoring on the panel makes that check
     // mean what it says, and makes a cold start fail here rather than several assertions later.
     await expect(page.getByRole("heading", { name: "Installed Extensions", level: 2 })).toBeVisible(
-      { timeout: COLD_START_BUDGET_MS },
+      { timeout: remainingVisitBudgetMs(COLD_START_BUDGET_MS) },
     );
     await expect(page.getByRole("button", { name: "Renamer", exact: true })).not.toBeVisible();
 

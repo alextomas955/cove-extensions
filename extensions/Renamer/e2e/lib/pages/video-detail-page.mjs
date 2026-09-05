@@ -45,7 +45,7 @@ export class VideoDetailPage {
    *
    * A chunk failure is a SIGNAL rather than a timeout, and a fresh navigation recovers it, so the wait
    * ends the moment one appears. Everything else — an app still starting, a route still resolving —
-   * is answered by the tab appearing, so the budget is the whole instrument for those.
+   * is answered by the tab appearing, so the budget is what bounds the wait for those.
    *
    * `/video/{id}` is one of the host's OWN routes, so the host has nothing to resolve it away to and
    * the route-discard signal the settings panel watches for cannot arise here.

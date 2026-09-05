@@ -179,7 +179,9 @@ export function remainingVisitBudgetMs(budgetMs) {
   const startedAt = testStartedAt.get(info);
   if (startedAt === undefined || !info.timeout) return budgetMs;
   const left = info.timeout - (Date.now() - startedAt) - DIAGNOSTIC_RESERVE_MS;
-  return Math.max(0, Math.min(budgetMs, left));
+  // Never zero: Playwright reads a non-positive timeout as "no timeout", so an exhausted budget
+  // handed over as 0 would wait forever, which is the opposite of what it means.
+  return Math.max(1, Math.min(budgetMs, left));
 }
 
 // Long enough to cross a loaded runner, short enough that a dead host does not add a further wait to
