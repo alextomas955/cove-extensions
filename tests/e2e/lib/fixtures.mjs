@@ -22,7 +22,7 @@ export { createApiClient };
  */
 export function isolatedHarnessFixture(extension) {
   return [
-    async ({}, use) => {
+    async ({}, use, testInfo) => {
       // The container pair exists from startHarness() onward, so every later step belongs inside the
       // try: a bootstrap or install failure would unwind past stop() and strand a Cove instance, a
       // Postgres instance and their compose network until Ryuk reaps them. Enough of those in one run
@@ -34,6 +34,10 @@ export function isolatedHarnessFixture(extension) {
         await isolatedHarness.installExtension(extension);
         await use(isolatedHarness);
       } finally {
+        // The `page` fixture probes the WORKER harness, which is a different container on a
+        // different port from this one. A test driving this harness therefore fails with no word
+        // about the host it actually used, so the probe is repeated here against that host.
+        await noteHostIfUnreachable(isolatedHarness.baseUrl, testInfo, "isolated host");
         await isolatedHarness.stop();
       }
     },
@@ -43,6 +47,17 @@ export function isolatedHarnessFixture(extension) {
 
 export const test = base.extend({
   extension: [undefined, { option: true }],
+
+  // Auto so it applies to every test, and dependency-free so the runner sets it up before the
+  // fixtures that boot containers. What it records is the start of the budget a page object has to
+  // finish inside.
+  testClock: [
+    async ({}, use) => {
+      testStartedAt.set(test.info(), Date.now());
+      await use();
+    },
+    { auto: true },
+  ],
 
   harness: [
     async ({}, use) => {
@@ -75,6 +90,32 @@ export const test = base.extend({
     await page.addInitScript(() => {
       sessionStorage.setItem("cove-setup-dismissed", "true");
     });
+    // A page that renders nothing looks identical from a locator: no heading, no input, no request.
+    // The browser knows why and nothing was asking it, so every such failure has read "(no headings
+    // rendered)" and stopped there. These three say whether a script threw, a bundle 404'd, or the
+    // app simply had not painted yet, which are three different defects.
+    // Counted by text rather than collected, because the noisiest problems repeat. A host whose
+    // SignalR hub is not answering yet emits the same negotiation failure a dozen times while it
+    // retries, and a list would spend its whole cap on those and drop the one distinct error that
+    // says what actually broke.
+    const browserProblems = new Map();
+    const noteProblem = (text) => {
+      const seen = browserProblems.get(text);
+      if (seen === undefined && browserProblems.size >= BROWSER_PROBLEM_CAP) return;
+      browserProblems.set(text, (seen ?? 0) + 1);
+    };
+    page.on("pageerror", (error) => noteProblem(`uncaught ${error.message}`));
+    page.on("console", (message) => {
+      if (message.type() === "error") noteProblem(`console.error ${message.text()}`);
+    });
+    page.on("requestfailed", (request) => {
+      const failure = request.failure()?.errorText ?? "unknown";
+      // A navigation cancels the requests the previous document had in flight, and the page object
+      // re-navigates on purpose, so this one is routine rather than a finding.
+      if (failure === "net::ERR_ABORTED") return;
+      noteProblem(`${request.method()} ${request.url()} failed: ${failure}`);
+    });
+
     await page.goto(baseUrl);
     await use(page);
 
@@ -83,10 +124,14 @@ export const test = base.extend({
     // defect and sends the reader to the extension, which is the wrong place. Ask the host whether it
     // is still there and say so, once, on the failure that noticed.
     if (testInfo.status !== testInfo.expectedStatus) {
-      const note = await describeHostIfUnreachable(baseUrl);
-      if (note) {
-        testInfo.annotations.push({ type: "infrastructure", description: note });
-        console.error(`[infrastructure] ${testInfo.title}: ${note}`);
+      await noteHostIfUnreachable(baseUrl, testInfo, "host");
+      if (browserProblems.size > 0) {
+        const rendered = [...browserProblems].map(([text, count]) =>
+          count > 1 ? `${text} (x${count})` : text,
+        );
+        const note = `the browser reported ${browserProblems.size} distinct problem(s) on this page: ${rendered.join(" | ")}`;
+        testInfo.annotations.push({ type: "browser", description: note });
+        console.error(`[browser] ${testInfo.title}: ${note}`);
       }
     }
   },
@@ -106,9 +151,55 @@ export const test = base.extend({
   },
 });
 
+const testStartedAt = new WeakMap();
+
+// Left for a page object to build and throw its own error once its wait gives up. Without it the
+// wait can end exactly as the test's budget does, and the runner reports its generic timeout in
+// place of the message that names the cause.
+const DIAGNOSTIC_RESERVE_MS = 15_000;
+
+/**
+ * `budgetMs`, reduced to what the test has left.
+ *
+ * A page object's budget has to cover a cold container, and a test that has already spent most of
+ * its own budget cannot give it that. A fixed budget larger than the remainder does not extend the
+ * test; it just guarantees the runner stops the test first, and a generic timeout names none of the
+ * causes the page object would have.
+ *
+ * Falls back to `budgetMs` when there is no clock to read (a page object used outside these
+ * fixtures) or the runner has timeouts disabled.
+ */
+export function remainingVisitBudgetMs(budgetMs) {
+  let info;
+  try {
+    info = test.info();
+  } catch {
+    return budgetMs;
+  }
+  const startedAt = testStartedAt.get(info);
+  if (startedAt === undefined || !info.timeout) return budgetMs;
+  const left = info.timeout - (Date.now() - startedAt) - DIAGNOSTIC_RESERVE_MS;
+  // Never zero: Playwright reads a non-positive timeout as "no timeout", so an exhausted budget
+  // handed over as 0 would wait forever, which is the opposite of what it means.
+  return Math.max(1, Math.min(budgetMs, left));
+}
+
 // Long enough to cross a loaded runner, short enough that a dead host does not add a further wait to
 // a spec that has already failed.
 const HOST_LIVENESS_TIMEOUT_MS = 5_000;
+
+// A page that fails in a loop can emit thousands of console errors, and a failure message nobody can
+// read is not a diagnosis. The cap counts DISTINCT problems, so a repeat never costs a slot.
+const BROWSER_PROBLEM_CAP = 20;
+
+/** Records the host's liveness on a failing test, and says nothing on a passing one. */
+async function noteHostIfUnreachable(baseUrl, testInfo, label) {
+  if (testInfo.status === testInfo.expectedStatus) return;
+  const note = await describeHostIfUnreachable(baseUrl);
+  if (!note) return;
+  testInfo.annotations.push({ type: "infrastructure", description: `${label}: ${note}` });
+  console.error(`[infrastructure] ${testInfo.title}: ${label}: ${note}`);
+}
 
 /**
  * Returns a sentence naming the host as unreachable, or null when it answers.
@@ -126,6 +217,23 @@ async function describeHostIfUnreachable(baseUrl) {
     return `the Cove host answered ${response.status} at ${baseUrl}/health, so this failure is the host's, not the extension's`;
   } catch (error) {
     return `the Cove host did not answer at ${baseUrl}/health (${error instanceof Error ? error.message : String(error)}) — it stopped during the run, so this failure is infrastructure rather than a defect in the page under test`;
+  }
+}
+
+/**
+ * The headings a page is currently showing, for a page object's own failure message.
+ *
+ * A wait that ends with nothing found cannot say whether the page showed the wrong thing or nothing
+ * at all, and those are different defects. Never throws: it runs only on a path that is already
+ * failing, and an error here would replace a real diagnosis with this helper's own stack.
+ */
+export async function describeRenderedPage(page, { limit = 6 } = {}) {
+  try {
+    const headings = await page.locator("h1, h2").allInnerTexts();
+    const readable = headings.map((text) => text.trim()).filter(Boolean);
+    return readable.length ? readable.slice(0, limit).join(" | ") : "(no headings rendered)";
+  } catch (error) {
+    return `(unreadable: ${error.message})`;
   }
 }
 
