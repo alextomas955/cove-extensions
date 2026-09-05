@@ -20,7 +20,7 @@
       package is marked developmentDependency and carries no dependencies and no runtime assets, so it
       reaches no publish output and needs no catalog.json declaration.
     -->
-    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.32.0.713" />
+    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.33.0.1635" />
 
     <PackageVersion Include="xunit.v3" Version="4.0.0" />
     <!-- Bundled inside xunit.v3, but not inside the split packages the test-support library takes, so
