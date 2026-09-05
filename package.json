@@ -32,7 +32,7 @@
     "prettier": "3.9.6",
     "syncpack": "15.3.3",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.67.0"
+    "typescript-eslint": "8.69.0"
   },
   "workspaces": [
     "tests/e2e",
