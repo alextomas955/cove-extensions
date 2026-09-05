@@ -173,17 +173,15 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
      * one, must re-read it. The port-binding state is refreshed in place, so the getter above is
      * correct as soon as this resolves.
      *
-     * Returning does NOT mean an extension finished initializing; host reachability is the weaker
-     * condition this waits on. A caller depending on initialize-time work must wait for that work's
-     * own observable outcome.
+     * Returning means the host answers `/health` with 2xx, so it is serving and its database is
+     * connectable. It does NOT mean an extension finished initializing: a caller depending on
+     * initialize-time work must wait for that work's own observable outcome.
      */
     async restart() {
       await coveContainer.restart();
-      await waitForHostReachable(handle.baseUrl, { timeoutMs });
+      await waitForHostReady(handle.baseUrl, { timeoutMs });
       // An access token does not survive the restart, and without re-minting it every later call
-      // against an auth-enabled instance fails as an authentication error. `login` retries a
-      // transient, which is needed here: reachability is weaker than readiness, so this can land
-      // while the host still answers its maintenance status.
+      // against an auth-enabled instance fails as an authentication error.
       if (handle.token) {
         await handle.login();
       }
@@ -500,25 +498,38 @@ function readToken(response, source) {
 // the only open question here is whether the host can reach it at all, and not assuming which
 // statuses /health may return keeps this independent of whether the instance enforces
 // authentication.
-async function waitForHostReachable(baseUrl, { timeoutMs, intervalMs = 500 }) {
+/**
+ * Waits until `/health` answers 2xx, which is the host's own readiness signal: it returns 503 while
+ * the database is not connectable and 200 once it is.
+ *
+ * Measured across a restart, the host answers 503 for roughly a second between accepting connections
+ * and being able to serve. Treating any response as ready hands that second to the caller, and a
+ * caller that then drives a browser gets a page whose data requests all fail.
+ */
+async function waitForHostReady(baseUrl, { timeoutMs, intervalMs = 500 }) {
   const { settled, note } = await attemptUntil(
     async (signal, note) => {
       const res = await fetch(`${baseUrl}/health`, { signal }).catch((err) => {
         note(err?.message ?? String(err));
         return null;
       });
-      return res ? { value: res } : null;
+      if (!res) return null;
+      if (!res.ok) {
+        note(`HTTP ${res.status}`);
+        return null;
+      }
+      return { value: res };
     },
     {
       timeoutMs,
       intervalMs,
       attemptTimeoutMs: Math.min(intervalMs * 4, 5_000),
-      label: "waitForHostReachable",
+      label: "waitForHostReady",
     },
   );
   if (!settled) {
     throw new Error(
-      `waitForHostReachable: ${baseUrl}/health did not answer from the host within ${timeoutMs}ms (last error: ${note})`,
+      `waitForHostReady: ${baseUrl}/health did not answer 2xx within ${timeoutMs}ms (last attempt: ${note})`,
     );
   }
 }
