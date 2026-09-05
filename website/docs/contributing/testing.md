@@ -66,7 +66,7 @@ dotnet test --project extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj
 **This tier needs a Cove source checkout.** The tests stand up a real `CoveContext`, which lives in
 `Cove.Data`, and `Cove.Data` is on no package feed. Without a checkout the build stops before any test
 runs, with one error naming the project and how to point it at one. It does not fall back to a smaller
-run. The extension itself builds and publishes with no checkout — that is what the release path does —
+run. The extension itself builds and publishes with no checkout, which is what the release path does,
 but its tests do not. [Configuration reference](./configuration#cove-source-selection) has the
 precedence that decides where Cove is found.
 
@@ -79,13 +79,12 @@ Two things about this tier are worth knowing before you read its result:
   holds test code shared across extensions, including the base class that emits an extension's wire
   document, but it carries no runner and runs nothing of its own. Its tests execute inside each
   extension's test project, through a derived class there.
-- The wire-document drift check lives in this tier and runs in both Cove source modes. It emits the
-  committed OpenAPI document from the extension's own endpoint registrations and fails when the two
-  differ. [Development](./development#regenerate-the-wire-types-after-a-handler-change) has the
+- The wire-document drift check lives in this tier. It emits the committed OpenAPI document from the
+  extension's own endpoint registrations and fails when the two differ. [Development](./development#regenerate-the-wire-types-after-a-handler-change) has the
   rewrite-and-regenerate loop for an intended change.
 
-`extensions/Renamer/src/Renamer.Tests/README.md` describes both of Renamer's test projects: their
-folder conventions, which one a new test belongs in, and the platform gates some of their tests carry.
+`extensions/Renamer/src/Renamer.Tests/README.md` describes that project: its folder conventions and
+the platform gates some of its tests carry.
 
 ## Run an extension's UI tests
 

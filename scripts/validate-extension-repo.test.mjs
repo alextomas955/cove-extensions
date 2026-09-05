@@ -467,7 +467,7 @@ test("a manifestOnly entry that declares a uiPath fails, naming both fields", ()
 // A C#-bearing entry, complete enough that only the membership check can speak: the project files
 // exist, so the existence checks are silent, and the manifest is valid for a non-manifestOnly entry.
 // `absentOnDisk` names declared paths the fixture deliberately does not plant, which is what
-// separates the declared-but-missing check from the solution-membership one — both report on the
+// separates the declared-but-missing check from the solution-membership one: both report on the
 // same field, and a case that plants nothing cannot say which of the two spoke.
 function csharpFixture({
   solution,

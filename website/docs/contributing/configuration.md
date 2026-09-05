@@ -142,8 +142,9 @@ meets:
 located. Two things are worth knowing before you read a green result as a clean tree. The pre-commit
 hook runs per file, so it reports on the files you touched and not on their neighbours. And the CI
 legs do not all build the same way: the analyzer gate (`csharp-format` in `lint.yml`) builds the whole
-solution in `source` mode against a checked-out Cove, so it sees what a local source build sees, while
-the packaging and Windows legs build in `none` mode over the projects that do not need a checkout.
+solution in `source` mode against a checked-out Cove, so it sees what a local source build sees. The
+Windows leg checks Cove out and builds in `source` mode too. The packaging leg builds in `none` mode,
+which is what proves the shipped assembly needs no checkout.
 
 ## Package versions
 

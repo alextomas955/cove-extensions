@@ -27,7 +27,7 @@ Some tests assert platform path semantics and gate with `Assert.SkipUnless`, so 
 skip with a stated reason rather than failing. Two distinct gates are in play, and it is worth knowing
 which one you hit:
 
-- an `OperatingSystem.IsWindows()` gate for Windows-only semantics — case-insensitive paths, drive and
+- an `OperatingSystem.IsWindows()` gate for Windows-only semantics: case-insensitive paths, drive and
   UNC root classification, mandatory locking, backslash folder paths;
 - a `SecondVolume.IsAvailable` gate for the cross-volume tests, which need a real second mount and skip
   with the reason that helper reports.

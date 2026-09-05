@@ -34,7 +34,7 @@
       (constraint/transaction fidelity) and EF-InMemory (fast Path-recompute). These EF providers +
       Cove.Data/Cove.Core are referenced ONLY here; the deployed Renamer.dll publishes Renamer.csproj
       alone, so host assemblies are never bundled. No version-parity constraint with Cove.Data's own
-      EF Core version — EF Core patch releases are binary-compatible within a major.minor line.
+      EF Core version. EF Core patch releases are binary-compatible within a major.minor line.
     -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
@@ -89,7 +89,7 @@
     <!--
       HOST-DEPENDENT shared test fakes: FakePrincipalAccessor (Cove.Core auth) + CoveContextFactory
       (Cove.Data). They live in a source-only sibling dir with NO csproj and are pulled in as ordinary
-      per-project Compile items — NOT a ProjectReference (IDEs don't fully respect reference conditions;
+      per-project Compile items, NOT a ProjectReference (IDEs don't fully respect reference conditions;
       msbuild#5410). Promoting that directory to a real csproj would give it its own dependency on a
       Cove checkout, one level further down.
     -->

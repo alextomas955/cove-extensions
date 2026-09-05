@@ -37,7 +37,7 @@ Build the whole monorepo (including this extension) from the repo root:
 dotnet build CoveExtensions.slnx
 ```
 
-Run the tests that need no Cove checkout, from the repo root:
+Run the backend test suite, from the repo root:
 
 ```sh
 dotnet test --project extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj
