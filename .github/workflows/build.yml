@@ -376,6 +376,33 @@ jobs:
           E2E_PATH: ${{ matrix.extension.e2ePath }}
           E2E_PROJECT: ${{ matrix.extension.e2eProject }}
 
+      # Every harness in this suite is its own compose stack, so a run attaches and detaches
+      # containers from bridge networks once per test. Each attachment creates a veth on the host,
+      # the kernel runs IPv6 address configuration on it, and Chromium's network-change notifier
+      # reads that as the network changing and ABORTS whatever requests are in flight. The browser
+      # here runs on the host and loads the app over a published port, so the requests it aborts are
+      # the app's own script and stylesheet chunks: the page then renders nothing, on the right URL,
+      # with no script error and no failed navigation to point at.
+      #
+      # That is chromium bug 974711 and docker/for-linux#914. Both report the same finding, that it
+      # happens once per attach or detach and only where IPv6 is enabled on the host, and neither has
+      # a Chromium flag to turn the notifier off.
+      #
+      # `default` is the template the kernel applies to interfaces created AFTER it is set, so this
+      # reaches each new veth and leaves the runner's existing interfaces alone. It is set here rather
+      # than worked around in the page objects because the page objects cannot fix it: they would each
+      # have to treat an aborted asset as recoverable, at every site that navigates, forever.
+      #
+      # The values are printed because a runner that has IPv6 off already, or a kernel that refuses
+      # the write, would otherwise look identical to one where this worked.
+      - name: Keep new container interfaces from disturbing the browser's network
+        if: steps.check.outputs.has_suite == 'true' && !matrix.extension.manifestOnly
+        shell: bash
+        run: |
+          echo "before: $(sysctl -n net.ipv6.conf.default.disable_ipv6 2>&1)"
+          sudo sysctl -w net.ipv6.conf.default.disable_ipv6=1
+          echo "after:  $(sysctl -n net.ipv6.conf.default.disable_ipv6 2>&1)"
+
       - name: Setup .NET
         if: steps.check.outputs.has_suite == 'true' && !matrix.extension.manifestOnly
         uses: actions/setup-dotnet@v6

@@ -1,10 +1,19 @@
+import { describeRenderedPage, remainingVisitBudgetMs } from "@cove-extensions/e2e";
+
 // Page Object for a video's detail page (/video/{id}) — specifically its "Edit" tab, which is how
 // a real user changes an item's metadata (title, date, etc.) through the UI.
 
-// The budget for ONE navigation's wait, not for the whole visit. The harness gates on the host
-// answering /health, which is an API fact: the first BROWSER navigation against a fresh container is
-// the one that pays for the app's cold start, and on an isolated harness that is this page.
-const PAGE_READY_TIMEOUT_MS = 45_000;
+// The budget for the WHOLE visit, however many navigations it takes, matching the settings page
+// object. One clock rather than a fresh one per navigation, because what has to hold is that this
+// file's own error arrives before the per-test timeout: a wait that outlives the test reports
+// Playwright's generic timeout instead, which names none of the causes below.
+//
+// The harness gates on the host answering /health, which is an API fact. The first BROWSER
+// navigation against a fresh container still pays the app's cold start, and on an isolated harness
+// that is this page, so the budget has to cover a cold container under a loaded runner. A
+// per-navigation budget sized for a warm app spends the whole of it on that one cold start and then
+// reports the page as unreachable.
+const PAGE_VISIT_BUDGET_MS = 120_000;
 
 // How many times the host may answer with a recoverable signal before the page is called unreachable.
 // The budget bounds waiting for something that will never arrive; a signal is proof the wait was not
@@ -36,10 +45,16 @@ export class VideoDetailPage {
    *
    * A chunk failure is a SIGNAL rather than a timeout, and a fresh navigation recovers it, so the wait
    * ends the moment one appears. Everything else — an app still starting, a route still resolving —
-   * is answered by the tab appearing.
+   * is answered by the tab appearing, so the budget is what bounds the wait for those.
+   *
+   * `/video/{id}` is one of the host's OWN routes, so the host has nothing to resolve it away to and
+   * the route-discard signal the settings panel watches for cannot arise here.
    */
   async waitForTabs() {
-    let deadline = Date.now() + PAGE_READY_TIMEOUT_MS;
+    // Bounded by what the test has left, so this file's error is the one reported rather than the
+    // runner's generic timeout.
+    const budgetMs = remainingVisitBudgetMs(PAGE_VISIT_BUDGET_MS);
+    const deadline = Date.now() + budgetMs;
     let chunkFailures = 0;
     let recoveries = 0;
     for (;;) {
@@ -66,12 +81,12 @@ export class VideoDetailPage {
       if (outcome === "expired" || recoveries > MAX_RECOVERIES) {
         throw new Error(
           `The video detail page never showed its Edit tab at ${this.itemUrl}, giving up after ` +
-            `${recoveries} recovered navigation(s) and a ${PAGE_READY_TIMEOUT_MS}ms wait on the last. ` +
+            `${recoveries} recovered navigation(s) and a ${budgetMs}ms budget for the visit. ` +
             `The page is now at ${this.page.url()}. It failed to fetch its own route chunk ` +
-            `${chunkFailures} time(s) on the way.`,
+            `${chunkFailures} time(s) on the way. ` +
+            `The page's own headings read: ${await describeRenderedPage(this.page)}.`,
         );
       }
-      deadline = Date.now() + PAGE_READY_TIMEOUT_MS;
       await this.page.goto(this.itemUrl);
     }
   }
