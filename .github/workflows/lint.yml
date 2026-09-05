@@ -20,8 +20,8 @@ permissions:
 jobs:
   # ---- C# style + analyzer gate, run once against the shared .slnx, which is this gate's whole
   # subject list. dotnet format does not reach a referenced project, so narrowing the subject to one
-  # project silently drops the shared/ projects and the second test tier out of format coverage.
-  # Adding an extension's projects to the solution stays
+  # project silently drops the shared/ projects out of format coverage. Adding an extension's
+  # projects to the solution stays
   # manual because a .slnx is an explicit project list by design; an omission fails rather than passes,
   # because validate-extension-repo.mjs asserts every catalog-implied project is declared there.
   #
@@ -29,9 +29,9 @@ jobs:
   # Cove out and runs in source mode. The analyzer step gains independently: a `none` build sees a
   # strict subset of the findings a source build sees.
   #
-  # The two repositories are checked out as SIBLINGS under the workspace rather than nesting Cove
-  # inside this one. Cove carries no Directory.Packages.props, so a nested clone inherits this repo's
-  # central package management and every version-carrying PackageReference in Cove fails NU1008. ----
+  # Cove is checked out as a sibling under the workspace, not nested inside this repo. Cove carries no
+  # Directory.Packages.props, so a nested clone inherits this repo's central package management and
+  # every version-carrying PackageReference in Cove fails NU1008. ----
   csharp-format:
     runs-on: ubuntu-latest
     # Clones and builds Cove's own source, so the budget covers a cold clone and a full Release build,
@@ -77,18 +77,14 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      # Formatting/style check — reads root .editorconfig. Runs the same script the pre-commit hook
-      # and the repo-root npm scripts run; that script supplies the solution name itself. The exclude
-      # keeps the sibling checkout out of the subject set: dotnet format walks the ProjectReference
-      # graph into Cove's own source otherwise. dotnet format takes no -p:, so
-      # COVE_SOURCE_MODE is the only spelling of the mode available to it.
-      #
-      # --fail-on-partial is passed here and nowhere else: the checkout this job's own preamble makes
-      # is what the analyzer half needs, so a run that reports references did not load is a run whose
-      # subject set is smaller than this job was set up to check.
+      # Formatting/style check — reads root .editorconfig. Same invocation as `npm run
+      # format:cs:check`, so a contributor's local run and this job cannot disagree. The exclude keeps
+      # the sibling checkout out of the subject set: dotnet format walks the ProjectReference graph
+      # into Cove's own source otherwise. dotnet format takes no -p:, so COVE_SOURCE_MODE is the only
+      # spelling of the mode available to it.
       - name: dotnet format (verify)
         working-directory: extensions
-        run: node scripts/check-csharp-format.mjs --verify-no-changes --severity warn --exclude ../cove/ --fail-on-partial
+        run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --exclude ../cove/
         env:
           COVE_SOURCE_MODE: source
           COVE_REPO: ${{ github.workspace }}/cove
@@ -105,13 +101,12 @@ jobs:
   # a test project also builds the extension and the shared projects it reaches. A solution member no
   # test project reaches is therefore not built here.
   #
-  # It checks Cove out and runs in source mode, because the suite needs a real CoveContext. That is what
-  # puts the path and filesystem tests — the ones a rename extension most needs a second operating
-  # system for — on Windows at all.
+  # It checks Cove out and runs in source mode, because the suite needs a real CoveContext. That is
+  # what puts the path and filesystem cases on Windows at all.
   #
-  # The two repositories are checked out as SIBLINGS under the workspace rather than nesting Cove
-  # inside this one. Cove carries no Directory.Packages.props, so a nested clone inherits this repo's
-  # central package management and every version-carrying PackageReference in Cove fails NU1008.
+  # Cove is checked out as a sibling under the workspace, not nested inside this repo. Cove carries no
+  # Directory.Packages.props, so a nested clone inherits this repo's central package management and
+  # every version-carrying PackageReference in Cove fails NU1008.
   #
   # No E2E here, and this will not change: GitHub-hosted windows-latest runners fix Docker to Windows
   # containers with no supported switch to Linux ones, so Testcontainers cannot start the Cove app and

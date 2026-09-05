@@ -320,10 +320,8 @@ exclusions, and encoding. Coverage import is not among them.
 ## Local hooks
 
 `lefthook.yml` at the repo root declares the pre-commit checks: Prettier and ESLint on staged files,
-the Tailwind class check for each UI bundle, the host-import check, and `check-csharp-format` on
-staged C# files. That last one wraps the formatter: it passes the tool's output and exit status
-through unchanged, and adds one line naming any project whose references did not load. The
-formatting and lint entries fix rather than verify and restage what they changed, because the check
+the Tailwind class check for each UI bundle, the host-import check, and `dotnet format` on staged C#
+files. The formatting and lint entries fix rather than verify and restage what they changed, because the check
 costs the same either way. It is deliberately lightweight - no full build and no test run
 on commit.
 

@@ -245,9 +245,8 @@ when the change touches one of the paths that file lists, and it never publishes
 ## The pre-commit hook
 
 `lefthook.yml` at the repo root declares what runs when you commit: Prettier and ESLint on staged
-files, the class check for each UI bundle, the host-import check, and `check-csharp-format` on staged
-C# files, which runs `dotnet format` and passes its output and exit status through unchanged. The
-formatting and lint entries fix and restage rather than report, because the check costs the
+files, the class check for each UI bundle, the host-import check, and `dotnet format` on staged
+C# files. The formatting and lint entries fix and restage rather than report, because the check costs the
 same either way. It is deliberately light - no build and no test run on commit.
 
 The runner is installed by the root `prepare` script. The binary it installs comes from the lefthook
@@ -309,13 +308,11 @@ Each of these is stated symptom first, because the symptom is what you arrive wi
   ProjectReference graph into the sibling Cove checkout. Use `npm run format:cs`, which excludes it.
 - **A `dotnet format` scoping flag reports nothing and exits 0.** A folder passed to `--include` or
   `--exclude` has to end in a path separator; without one it matches nothing and passes.
-- **The C# format pass reports no analyzer finding for a test project.** Without a Cove source
-  checkout that project's references do not load, so only whitespace is checked there.
-  The pass says so: it prints a line starting `check-csharp-format: PARTIAL` and naming every
-  project this happened to. Point `COVE_REPO` at a checkout, or add a `../cove` sibling, to get the
-  analyzer coverage back. Locally this reports and does not gate, because working without a checkout
-  is supported. The CI format leg checks Cove out and adds `--fail-on-partial`, so a run there that
-  printed this line fails instead of merging green.
+- **`dotnet format` reports no analyzer finding for the test project, and exits 0.** Without a Cove
+  source checkout that project's references do not load, so only whitespace is checked there and the
+  run still passes. It says `Required references did not load for Renamer.Tests` and continues. Point
+  `COVE_REPO` at a checkout, or add a `../cove` sibling. The CI format leg checks Cove out, so this
+  cannot happen there.
 - **A commit completes and nothing was checked.** The hook runner is missing. Confirm with
   `npx lefthook version`, and treat CI as the gate either way.
 - **The docs site build fails on a link that looks correct.** A markdown relative link to a repo file
