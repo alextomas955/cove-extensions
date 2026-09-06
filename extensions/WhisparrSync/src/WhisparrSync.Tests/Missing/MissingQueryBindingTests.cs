@@ -206,7 +206,8 @@ public sealed class MissingQueryBindingTests
             "0e2e0e2e0e2e0e2e",
             WhisparrGeneration.V3,
             new ResolvedProvider("https://stashdb.org/graphql", "a-key", 240),
-            null);
+            StatusReading: null,
+            ExclusionReading: null);
 
         return await PlannerOver(catalogue).PlanAsync(request, context, TestCt);
     }
@@ -216,7 +217,8 @@ public sealed class MissingQueryBindingTests
             new MissingIdentityResolver(new StubIdentities(), catalogue),
             catalogue,
             new StubOwned(),
-            new SceneStatusPort());
+            new SceneStatusPort(),
+            new SceneExclusionPort());
 
     private sealed class StubIdentities : IEntityIdentityPort
     {

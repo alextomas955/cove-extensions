@@ -210,6 +210,7 @@ const ITEM_BEHIND_CAPABILITY: Record<WhisparrCapability, SecondaryAction | null>
   searchMonitored: "searchAllMonitored",
   // A read, so this menu offers nothing for it.
   readSceneStatus: null,
+  readSceneExclusions: null,
 };
 
 /**

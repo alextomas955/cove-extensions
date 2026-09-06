@@ -38,6 +38,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
                 WhisparrCapability.ReadSceneStatus,
+                WhisparrCapability.ReadSceneExclusions,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
     }
@@ -152,6 +153,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
                 WhisparrCapability.ReadSceneStatus,
+                WhisparrCapability.ReadSceneExclusions,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
         Assert.Equal(
@@ -329,7 +331,7 @@ public sealed class GenerationCapabilitiesTests
         => Assert.Equal(
             "[\"outOfBandCallbackSecret\",\"monitorStudio\",\"monitorPerformer\","
                 + "\"registerMissingScenes\",\"reflectOwnedFiles\",\"searchMonitored\","
-                + "\"readSceneStatus\"]",
+                + "\"readSceneStatus\",\"readSceneExclusions\"]",
             JsonSerializer.Serialize(
                 GenerationCapabilities.For(WhisparrGeneration.V3).Held, HostJsonOptions));
 

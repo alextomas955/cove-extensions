@@ -20,6 +20,7 @@ internal static class MissingServiceRegistration
 
         services.AddScoped<IOwnedScenePort, OwnedScenePort>();
         services.AddScoped<ISceneStatusPort, SceneStatusPort>();
+        services.AddScoped<ISceneExclusionPort, SceneExclusionPort>();
         services.AddScoped<MissingIdentityResolver>();
         services.AddScoped<MissingPagePlanner>();
         return services;

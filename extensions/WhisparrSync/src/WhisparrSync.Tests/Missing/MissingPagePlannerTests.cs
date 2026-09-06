@@ -162,7 +162,8 @@ public sealed class MissingPagePlannerTests
             "0e2e0e2e0e2e0e2e",
             WhisparrGeneration.V3,
             withProvider ? new ResolvedProvider(StashDb, "a-key", 240) : null,
-            withStatusRole ? new StubStatusReading() : null);
+            withStatusRole ? new StubStatusReading() : null,
+            ExclusionReading: null);
 
     private static List<ProviderScene> ScenesNamed(params string[] ids)
         => [.. ids.Select(id => new ProviderScene(id, id, null, null, null, null, [], []))];
@@ -175,7 +176,8 @@ public sealed class MissingPagePlannerTests
             new MissingIdentityResolver(new StubIdentities(identity), catalogue),
             catalogue,
             owned ?? new StubOwned(),
-            new SceneStatusPort());
+            new SceneStatusPort(),
+            new SceneExclusionPort());
 
     private sealed class StubIdentities(string? foreignId) : IEntityIdentityPort
     {
