@@ -1,5 +1,9 @@
+using System.Net;
 using System.Reflection;
+using System.Text.Json.Nodes;
+using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
+using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Invariants;
@@ -19,7 +23,7 @@ namespace WhisparrSync.Tests.Invariants;
 public sealed class AbsentCapabilityTests
 {
     /// <summary>
-    /// Every route the outbound client declares, transcribed by hand from its own constants.
+    /// Every route the outbound client composes itself, transcribed by hand from its own constants.
     /// </summary>
     /// <remarks>
     /// The set is the claim. The command route <c>api/v3/command</c> is declared here, because every
@@ -29,27 +33,53 @@ public sealed class AbsentCapabilityTests
     /// <see cref="SafetyInvariantTests.ExactlyOneSeamMemberGrabsAndOnlyTheGrabbingRoleDeclaresIt"/>
     /// asserts. That no body off a monitoring path names one of those commands is
     /// <see cref="SafetyInvariantTests.NoBodyOffAMonitoringPathCanNameAGrabbingCommand"/>.
+    /// <para>
+    /// The newer generation's routes are composed by the generated client and are not literals on
+    /// this type, so they are transcribed in <see cref="GeneratedRoutes"/> and asserted against the
+    /// operations this product calls rather than against a constant.
+    /// </para>
     /// </remarks>
     private static readonly string[] DeclaredRoutes =
     [
-        "api/v3/system/status",
-        "api/v3/notification",
-        "api/v3/notification/schema",
-        "api/v3/rootfolder",
         "api/v3/history",
-        "api/v3/qualityprofile",
+        "api/v3/notification",
         "api/v3/studio",
-        "api/v3/studio/editor",
-        "api/v3/performer",
-        "api/v3/performer/editor",
         "api/v3/series",
         "api/v3/series/lookup",
         "api/v3/series/editor",
         "api/v3/seasonpass",
         "api/v3/command",
-        "api/v3/movie",
-        "api/v3/manualimport",
-        "api/v3/config/mediamanagement",
+    ];
+
+    /// <summary>
+    /// Every route the generated client composes on this product's behalf, and the operation that
+    /// composes it, transcribed by hand.
+    /// </summary>
+    /// <remarks>
+    /// Transcribed rather than gathered, for the reason <see cref="DeclaredRoutes"/> is: the generated
+    /// client declares an operation for every route Whisparr serves, so a set gathered from it would
+    /// name hundreds this product never calls and would agree with itself whichever ones it did.
+    /// <see cref="TheGeneratedClientDeclaresEveryOperationThisProductNames"/> is what refuses a name
+    /// the generated client does not declare.
+    /// </remarks>
+    private static readonly (string Api, string Operation, string Route)[] GeneratedRoutes =
+    [
+        ("ISystemApi", "GetSystemStatusAsync", "api/v3/system/status"),
+        ("INotificationApi", "ListNotificationAsync", "api/v3/notification"),
+        ("INotificationApi", "ListNotificationSchemaAsync", "api/v3/notification/schema"),
+        ("IRootFolderApi", "ListRootFolderAsync", "api/v3/rootfolder"),
+        ("IQualityProfileApi", "ListQualityProfileAsync", "api/v3/qualityprofile"),
+        ("IHistoryApi", "GetHistoryAsync", "api/v3/history"),
+        ("IStudioApi", "GetStudioByStudioForeignIdAsync", "api/v3/studio"),
+        ("IStudioApi", "CreateStudioAsync", "api/v3/studio"),
+        ("IStudioEditorApi", "PutStudioEditorAsync", "api/v3/studio/editor"),
+        ("IPerformerApi", "GetPerformerByPerformerForeignIdAsync", "api/v3/performer"),
+        ("IPerformerApi", "CreatePerformerAsync", "api/v3/performer"),
+        ("IPerformerEditorApi", "PutPerformerEditorAsync", "api/v3/performer/editor"),
+        ("IMovieApi", "CreateMovieAsync", "api/v3/movie"),
+        ("IManualImportApi", "ListManualImportAsync", "api/v3/manualimport"),
+        ("IMediaManagementConfigApi", "GetMediaManagementConfigAsync", "api/v3/config/mediamanagement"),
+        ("CommandApi", "SendCommandAsync", "api/v3/command"),
     ];
 
     /// <summary>
@@ -63,7 +93,7 @@ public sealed class AbsentCapabilityTests
     /// The behavioural half — that every composed add body carries both of its generation's
     /// acquisition-suppressing flags, present and false, over every generation, kind and scope the
     /// registered capabilities allow — is
-    /// <see cref="SafetyInvariantTests.EveryAddThisProductCanComposeSuppressesAcquisitionInBothSpellings"/>.
+    /// <see cref="SafetyInvariantTests.EveryAddThisProductCanComposeSuppressesAcquisitionWhereItsResourceDeclaresIt"/>.
     /// This test is the type-level half: it says which members can add, not what they send.
     /// </para>
     /// </remarks>
@@ -111,6 +141,111 @@ public sealed class AbsentCapabilityTests
             Enum.GetValues<WhisparrVerbClass>());
 
         Assert.Equal(DeclaredRoutes.Order().ToList(), RoutesDeclaredByTheClient().Order().ToList());
+    }
+
+    /// <summary>
+    /// The generated client declares every operation this product names, so an upgrade that renames
+    /// or drops one fails here.
+    /// </summary>
+    /// <remarks>
+    /// Reflected over the generated assembly rather than compiled against, because the claim is about
+    /// the transcribed set: a name in <see cref="GeneratedRoutes"/> that the generated client does not
+    /// declare would otherwise be a route nobody can reach and a line nobody removed.
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
+    public void TheGeneratedClientDeclaresEveryOperationThisProductNames()
+    {
+        var generated = typeof(Whisparr3.Net.Whisparr3Options).Assembly;
+
+        Assert.All(
+            GeneratedRoutes,
+            named =>
+            {
+                var api = generated.GetType("Whisparr3.Net.Api." + named.Api);
+                Assert.NotNull(api);
+                Assert.Contains(
+                    api.GetMethods(),
+                    method => string.Equals(method.Name, named.Operation, StringComparison.Ordinal));
+            });
+    }
+
+    /// <summary>
+    /// Every route the generated client puts on the wire for this product is one that was transcribed.
+    /// </summary>
+    /// <remarks>
+    /// Driven rather than read off a constant. The generated client composes the route, so the only
+    /// honest source for what it composes is a request it made: a transcribed route compared against
+    /// another transcription would agree with itself whatever the client sent.
+    /// <para>
+    /// Every seam member is driven, so a member reaching a route nobody wrote down fails here. The
+    /// grabbing member is driven too, because the claim is about which routes exist and not about
+    /// which of them acquires.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
+    public async Task EveryRouteTheGeneratedClientSendsOnWasTranscribed()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "{}");
+        var client = TestWhisparrClient.Over(handler);
+
+        await DriveEveryGeneratedRouteAsync(client);
+
+        Assert.NotEmpty(handler.Requests);
+        Assert.All(
+            handler.Requests,
+            request => Assert.True(
+                WasTranscribed(request.Path),
+                $"{request.Path} is a route no line of GeneratedRoutes names."));
+    }
+
+    // A route naming one entity carries its identifier as a further segment, so the transcribed route
+    // is a whole-segment prefix of what was sent rather than the whole of it.
+    private static bool WasTranscribed(string path)
+    {
+        var sent = path.TrimStart('/');
+        return GeneratedRoutes.Any(route =>
+            string.Equals(sent, route.Route, StringComparison.Ordinal)
+            || sent.StartsWith(route.Route + "/", StringComparison.Ordinal));
+    }
+
+    // One call per generated operation this product names, driven through the seam rather than
+    // through the generated client, so a member rewired to another operation is what fails.
+    private static async Task DriveEveryGeneratedRouteAsync(WhisparrClient client)
+    {
+        var address = new Uri("http://whisparr:6969");
+        const string key = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
+        var defaults = new AddDefaults(4, "/config/library");
+        var ct = TestContext.Current.CancellationToken;
+
+        await client.ReadStatusAsync(address, key, ct);
+        await client.ReadNotificationSchemaAsync(address, key, ct);
+        await client.ListNotificationsAsync(address, key, ct);
+        await client.ReadRootFoldersAsync(address, key, ct);
+        await client.ReadQualityProfilesAsync(address, key, ct);
+        await client.ReadHistoryAsync(address, key, WhisparrGeneration.V3, 1, 10, ct);
+
+        await client.ReadStudioAsync(address, key, WhisparrGeneration.V3, "studio-1", ct);
+        await client.AddMonitoredStudioAsync(
+            address, key, WhisparrGeneration.V3, "studio-1", MonitorScope.AllScenes, defaults, ct);
+        await client.SetStudioMonitoredAsync(
+            address, key, WhisparrGeneration.V3, 4, monitored: true, ct);
+
+        await client.ReadPerformerAsync(address, key, "performer-1", ct);
+        await client.AddMonitoredPerformerAsync(address, key, "performer-1", defaults, ct);
+        await client.SetPerformerMonitoredAsync(address, key, 11, monitored: true, ct);
+
+        await client.AddSceneAsync(address, key, "scene-1", defaults, ct);
+        await client.RefreshCatalogueAsync(address, key, WhisparrEntityKind.Studio, 4, ct);
+
+        await client.ReadHardlinkSettingAsync(address, key, ct);
+        await client.ListImportableFilesAsync(address, key, "/config/library", ct);
+        await client.AttachOwnedFilesAsync(
+            address, key, new JsonArray(new JsonObject { ["path"] = "/config/library/a.mp4" }), ct);
+
+        await client.SearchMonitoredAsync(
+            address, key, WhisparrGeneration.V3, WhisparrEntityKind.Studio, 4, ct);
     }
 
     /// <summary>

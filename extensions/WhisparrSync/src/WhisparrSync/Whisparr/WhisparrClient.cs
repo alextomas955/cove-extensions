@@ -3,6 +3,9 @@ using System.Net.Mime;
 using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
+using Whisparr3.Net.Api;
+using Whisparr3.Net.Client;
+using Whisparr3.Net.Model;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 
@@ -199,10 +202,15 @@ public interface IWhisparrClient
 /// <inheritdoc cref="IWhisparrClient"/>
 /// <remarks>
 /// The acting roles are implemented here rather than on a type of their own, because this is the one
-/// type holding an HTTP client and a second holder would be a second outbound surface for every
-/// invariant that reflects over this one to cover.
+/// type holding an outbound surface and a second holder would be a second one for every invariant
+/// that reflects over this one to cover.
+/// <para>
+/// The newer generation's requests are composed by the generated Whisparr 3 client, reached through
+/// <see cref="Whisparr3Gateway"/>. The older generation has no such client, so its routes are the
+/// ones still declared here and still sent through the held <see cref="HttpClient"/>.
+/// </para>
 /// </remarks>
-internal sealed class WhisparrClient(HttpClient http, ILogger log)
+internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, ILogger log)
     : IWhisparrClient,
         IWhisparrStudioActing,
         IWhisparrPerformerActing,
@@ -215,28 +223,19 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
 
     // Relative, so they compose onto a base address carrying a URL base (a reverse-proxy subpath).
     // Both generations serve the v3 route family; the version in the path is not the generation.
-    private const string StatusPath = "api/v3/system/status";
     private const string NotificationPath = "api/v3/notification";
-    private const string NotificationSchemaPath = "api/v3/notification/schema";
-    private const string RootFolderPath = "api/v3/rootfolder";
-    private const string HistoryPath = "api/v3/history";
-    private const string QualityProfilePath = "api/v3/qualityprofile";
 
-    // Every route this product can issue is declared on this type, whichever role issues it. The
-    // route invariant reads this type's own literals, so a constant declared anywhere else is
-    // invisible to it and the transcribed set it is compared against would still agree.
+    // Every route this product composes itself is declared on this type, whichever role issues it.
+    // The route invariant reads this type's own literals, so a constant declared anywhere else is
+    // invisible to it and the transcribed set it is compared against would still agree. The routes
+    // the generated client composes are not literals here, and the invariant names them separately.
+    internal const string HistoryPath = "api/v3/history";
     internal const string StudioPath = "api/v3/studio";
-    internal const string StudioEditorPath = "api/v3/studio/editor";
-    internal const string PerformerPath = "api/v3/performer";
-    internal const string PerformerEditorPath = "api/v3/performer/editor";
     internal const string SeriesPath = "api/v3/series";
     internal const string SeriesLookupPath = "api/v3/series/lookup";
     internal const string SeriesEditorPath = "api/v3/series/editor";
     internal const string SeasonPassPath = "api/v3/seasonpass";
     internal const string CommandPath = "api/v3/command";
-    internal const string MoviePath = "api/v3/movie";
-    internal const string ManualImportPath = "api/v3/manualimport";
-    internal const string MediaManagementConfigPath = "api/v3/config/mediamanagement";
 
     // The one status this product composes rather than receives, and the only one anywhere in it.
     // The older generation answers "do you hold this entity" through no single route, so that reading
@@ -245,14 +244,17 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
     // sent it.
     private const int AssembledNotHeld = 404;
 
+    // The member naming the verb on a composed command body.
+    private const string CommandNameProperty = "name";
+
     // The order belongs to the verb rather than to a call: newest-first is the only order a walk that
     // stops at a stored position can read, and a call site free to spell it could ask for another.
-    private const string NewestFirstQuery = "sortKey=date&sortDirection=descending";
+    private const string NewestFirstSortKey = "date";
+    private const string NewestFirstQuery = "sortKey=" + NewestFirstSortKey + "&sortDirection=descending";
 
     // Each lineage names its own metadata entity on this one route, and that entity is where the
     // identifier the two ingest channels agree on lives. Asked for on the same request rather than
     // through a second one, so what a page costs does not grow with what it holds.
-    private const string V3EntityQuery = "includeMovie=true";
     private const string V2EntityQuery = "includeEpisode=true";
 
     // The field the older generation's own lookup answers an entity's numeric id in. It is misnamed
@@ -297,24 +299,30 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
                 nameof(baseAddress));
         }
 
-        return await ReadAsync(baseAddress, apiKey, StatusPath, ct).ConfigureAwait(false);
+        return await GeneratedReadAsync(
+            baseAddress, apiKey, api => api.Api<ISystemApi>().GetSystemStatusAsync(ct))
+            .ConfigureAwait(false);
     }
 
     public Task<WhisparrResponse> ReadNotificationSchemaAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
-        => ReadAsync(baseAddress, apiKey, NotificationSchemaPath, ct);
+        => GeneratedReadAsync(
+            baseAddress, apiKey, api => api.Api<INotificationApi>().ListNotificationSchemaAsync(ct));
 
     public Task<WhisparrResponse> ListNotificationsAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
-        => ReadAsync(baseAddress, apiKey, NotificationPath, ct);
+        => GeneratedReadAsync(
+            baseAddress, apiKey, api => api.Api<INotificationApi>().ListNotificationAsync(ct));
 
     public Task<WhisparrResponse> ReadRootFoldersAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
-        => ReadAsync(baseAddress, apiKey, RootFolderPath, ct);
+        => GeneratedReadAsync(
+            baseAddress, apiKey, api => api.Api<IRootFolderApi>().ListRootFolderAsync(ct));
 
     public Task<WhisparrResponse> ReadQualityProfilesAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
-        => ReadAsync(baseAddress, apiKey, QualityProfilePath, ct);
+        => GeneratedReadAsync(
+            baseAddress, apiKey, api => api.Api<IQualityProfileApi>().ListQualityProfileAsync(ct));
 
     public Task<WhisparrResponse> ReadHistoryAsync(
         Uri baseAddress,
@@ -327,13 +335,30 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         ArgumentOutOfRangeException.ThrowIfLessThan(page, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
 
-        return ReadAsync(
-            baseAddress,
-            apiKey,
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"{HistoryPath}?page={page}&pageSize={pageSize}&{NewestFirstQuery}&{EntityQueryFor(generation)}"),
-            ct);
+        return generation switch
+        {
+            WhisparrGeneration.V3 => GeneratedReadAsync(
+                baseAddress,
+                apiKey,
+                api => api.Api<IHistoryApi>().GetHistoryAsync(
+                    page: page,
+                    pageSize: pageSize,
+                    sortKey: NewestFirstSortKey,
+                    sortDirection: SortDirection.Descending,
+                    includeMovie: true,
+                    cancellationToken: ct)),
+
+            // The older generation names its own metadata entity on this route, and the generated
+            // client speaks only the newer one.
+            WhisparrGeneration.V2 => ReadAsync(
+                baseAddress,
+                apiKey,
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{HistoryPath}?page={page}&pageSize={pageSize}&{NewestFirstQuery}&{V2EntityQuery}"),
+                ct),
+            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
+        };
     }
 
     public Task<WhisparrResponse> CreateNotificationAsync(
@@ -358,7 +383,10 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         CancellationToken ct)
         => generation switch
         {
-            WhisparrGeneration.V3 => ReadEntityAsync(baseAddress, apiKey, StudioPath, foreignId, ct),
+            WhisparrGeneration.V3 => GeneratedReadAsync(
+                baseAddress,
+                apiKey,
+                api => api.Api<IStudioApi>().GetStudioByStudioForeignIdAsync(Named(foreignId), ct)),
             WhisparrGeneration.V2 => ReadHeldSeriesAsync(baseAddress, apiKey, foreignId, ct),
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
@@ -373,13 +401,11 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         CancellationToken ct)
         => generation switch
         {
-            WhisparrGeneration.V3 => ActAsync(
+            WhisparrGeneration.V3 => GeneratedActAsync(
                 baseAddress,
                 apiKey,
-                HttpMethod.Post,
-                StudioPath,
-                V3BodyProjector.AddStudio(foreignId, scope, defaults, DateTimeOffset.UtcNow),
-                ct),
+                api => api.Api<IStudioApi>().CreateStudioAsync(
+                    V3BodyProjector.AddStudio(foreignId, scope, defaults, DateTimeOffset.UtcNow), ct)),
             WhisparrGeneration.V2 => AddMonitoredSeriesAsync(
                 baseAddress, apiKey, foreignId, scope, defaults, ct),
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
@@ -394,13 +420,11 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         CancellationToken ct)
         => generation switch
         {
-            WhisparrGeneration.V3 => ActAsync(
+            WhisparrGeneration.V3 => GeneratedActAsync(
                 baseAddress,
                 apiKey,
-                HttpMethod.Put,
-                StudioEditorPath,
-                V3BodyProjector.SetStudioMonitored(entityId, monitored),
-                ct),
+                api => api.Api<IStudioEditorApi>().PutStudioEditorAsync(
+                    V3BodyProjector.SetStudioMonitored(entityId, monitored), ct)),
             WhisparrGeneration.V2 => ActAsync(
                 baseAddress,
                 apiKey,
@@ -442,6 +466,10 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         // Read then replaced, because the editor resource declares no add-time date gate: a scope
         // sent there is accepted and applies nothing. The read is idempotent and the replace is sent
         // once.
+        //
+        // Composed here rather than by the generated client, which carries a fixed member set: the
+        // replacement is the answer itself with two members changed, and a member the generated
+        // resource does not declare would be dropped on the way back out.
         var path = string.Create(CultureInfo.InvariantCulture, $"{StudioPath}/{entityId}");
         var held = await ReadAsync(baseAddress, apiKey, path, ct).ConfigureAwait(false);
         if (MonitoringProjector.AsObject(held.Body) is not { } studio)
@@ -465,7 +493,6 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
     /// <para>
     /// The query value is the numeric id the lookup answered and is not escaped: an int has no
     /// representation carrying a separator, so escaping it would imply it could name another route.
-    /// <see cref="ReadEntityAsync"/> escapes its own identifier because that one is a string.
     /// </para>
     /// </remarks>
     private async Task<WhisparrResponse> ReadHeldSeriesAsync(
@@ -570,7 +597,11 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
 
     public Task<WhisparrResponse> ReadPerformerAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
-        => ReadEntityAsync(baseAddress, apiKey, PerformerPath, foreignId, ct);
+        => GeneratedReadAsync(
+            baseAddress,
+            apiKey,
+            api => api.Api<IPerformerApi>()
+                .GetPerformerByPerformerForeignIdAsync(Named(foreignId), ct));
 
     public Task<WhisparrResponse> AddMonitoredPerformerAsync(
         Uri baseAddress,
@@ -578,23 +609,19 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         string foreignId,
         AddDefaults defaults,
         CancellationToken ct)
-        => ActAsync(
+        => GeneratedActAsync(
             baseAddress,
             apiKey,
-            HttpMethod.Post,
-            PerformerPath,
-            V3BodyProjector.AddPerformer(foreignId, defaults),
-            ct);
+            api => api.Api<IPerformerApi>().CreatePerformerAsync(
+                V3BodyProjector.AddPerformer(foreignId, defaults), ct));
 
     public Task<WhisparrResponse> SetPerformerMonitoredAsync(
         Uri baseAddress, string apiKey, int entityId, bool monitored, CancellationToken ct)
-        => ActAsync(
+        => GeneratedActAsync(
             baseAddress,
             apiKey,
-            HttpMethod.Put,
-            PerformerEditorPath,
-            V3BodyProjector.SetPerformerMonitored(entityId, monitored),
-            ct);
+            api => api.Api<IPerformerEditorApi>().PutPerformerEditorAsync(
+                V3BodyProjector.SetPerformerMonitored(entityId, monitored), ct));
 
     public Task<WhisparrResponse> AddSceneAsync(
         Uri baseAddress,
@@ -602,13 +629,11 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         string foreignId,
         AddDefaults defaults,
         CancellationToken ct)
-        => ActAsync(
+        => GeneratedActAsync(
             baseAddress,
             apiKey,
-            HttpMethod.Post,
-            MoviePath,
-            V3BodyProjector.AddScene(foreignId, defaults),
-            ct);
+            api => api.Api<IMovieApi>().CreateMovieAsync(
+                V3BodyProjector.AddScene(foreignId, defaults), ct));
 
     public Task<WhisparrResponse> RefreshCatalogueAsync(
         Uri baseAddress,
@@ -616,39 +641,35 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         WhisparrEntityKind kind,
         int entityId,
         CancellationToken ct)
-        => ActAsync(
-            baseAddress,
-            apiKey,
-            HttpMethod.Post,
-            CommandPath,
-            V3BodyProjector.RefreshCatalogue(kind, entityId),
-            ct);
+    {
+        var command = V3BodyProjector.RefreshCatalogue(kind, entityId);
+        return GeneratedCommandAsync(baseAddress, apiKey, command, ct);
+    }
 
     public Task<WhisparrResponse> ReadHardlinkSettingAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
-        => ReadAsync(baseAddress, apiKey, MediaManagementConfigPath, ct);
+        => GeneratedReadAsync(
+            baseAddress,
+            apiKey,
+            api => api.Api<IMediaManagementConfigApi>().GetMediaManagementConfigAsync(ct));
 
-    // The folder travels as a query value and is escaped as one, so a directory name carrying a
-    // separator names no other route. The instance is asked to include what it already holds, so a
-    // file the library holds and the instance has not attached is still answered for.
+    // The instance is asked to include what it already holds, so a file the library holds and the
+    // instance has not attached is still answered for.
     public Task<WhisparrResponse> ListImportableFilesAsync(
         Uri baseAddress, string apiKey, string folder, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folder);
 
-        return ReadAsync(
+        return GeneratedReadAsync(
             baseAddress,
             apiKey,
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"{ManualImportPath}?folder={Uri.EscapeDataString(folder)}&filterExistingFiles=false"),
-            ct);
+            api => api.Api<IManualImportApi>().ListManualImportAsync(
+                folder: folder, filterExistingFiles: false, cancellationToken: ct));
     }
 
     public Task<WhisparrResponse> AttachOwnedFilesAsync(
         Uri baseAddress, string apiKey, JsonNode files, CancellationToken ct)
-        => ActAsync(
-            baseAddress, apiKey, HttpMethod.Post, CommandPath, ReflectOwnedPlanner.Command(files), ct);
+        => GeneratedCommandAsync(baseAddress, apiKey, ReflectOwnedPlanner.Command(files), ct);
 
     // The one member of this whole seam that can make an instance acquire anything, and the only one
     // whose invocation is recorded on its own. Its verb class has no retry entry, so an attempt whose
@@ -661,41 +682,30 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         int entityId,
         CancellationToken ct)
     {
-        var body = generation switch
+        WhisparrSyncLog.SearchIssued(log, kind);
+
+        return generation switch
         {
-            WhisparrGeneration.V3 => V3BodyProjector.SearchMonitored(kind, entityId),
-            WhisparrGeneration.V2 => V2BodyProjector.SearchMonitored(entityId),
+            WhisparrGeneration.V3 => GeneratedCommandAsync(
+                baseAddress, apiKey, V3BodyProjector.SearchMonitored(kind, entityId), ct),
+            WhisparrGeneration.V2 => GrabAsync(
+                baseAddress,
+                apiKey,
+                HttpMethod.Post,
+                CommandPath,
+                V2BodyProjector.SearchMonitored(entityId),
+                ct),
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
-
-        WhisparrSyncLog.SearchIssued(log, kind);
-        return GrabAsync(baseAddress, apiKey, HttpMethod.Post, CommandPath, body, ct);
     }
 
-    // Escaped as one path segment. The identifier comes from a stored identity row rather than from a
-    // caller, and escaping it keeps that true of the composed route as well: a value carrying a
-    // separator would otherwise name a different route.
-    private Task<WhisparrResponse> ReadEntityAsync(
-        Uri baseAddress, string apiKey, string entityPath, string foreignId, CancellationToken ct)
+    // The identifier comes from a stored identity row rather than from a caller. The generated client
+    // escapes it as one path segment, so a value carrying a separator names no other route.
+    private static string Named(string foreignId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
-
-        return ReadAsync(
-            baseAddress,
-            apiKey,
-            string.Create(
-                CultureInfo.InvariantCulture, $"{entityPath}/{Uri.EscapeDataString(foreignId)}"),
-            ct);
+        return foreignId;
     }
-
-    /// <summary>Which entity <paramref name="generation"/> is asked to embed on a history record.</summary>
-    private static string EntityQueryFor(WhisparrGeneration generation)
-        => generation switch
-        {
-            WhisparrGeneration.V3 => V3EntityQuery,
-            WhisparrGeneration.V2 => V2EntityQuery,
-            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
-        };
 
     /// <summary>Whether <paramref name="address"/> is one a socket may be opened to.</summary>
     /// <remarks>
@@ -739,6 +749,90 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
             AllowAutoRedirect = true,
             MaxAutomaticRedirections = MaxRedirects,
         };
+
+    // The read class through the generated client. Re-issued on the same failure and for the same
+    // reason the hand-composed read is: a re-read creates nothing.
+    private async Task<WhisparrResponse> GeneratedReadAsync<TResponse>(
+        Uri baseAddress,
+        string apiKey,
+        Func<Whisparr3Apis, Task<TResponse>> call)
+        where TResponse : IApiResponse
+    {
+        var target = TargetFor(baseAddress, apiKey);
+        var attempts = WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read);
+        for (var attempt = 1; attempt < attempts; attempt++)
+        {
+            try
+            {
+                return await GeneratedSendAsync(target, call).ConfigureAwait(false);
+            }
+            catch (Exception failure) when (failure is HttpRequestException or IOException)
+            {
+                // No whole answer arrived, which is the one failure a read may be re-issued after.
+            }
+        }
+
+        return await GeneratedSendAsync(target, call).ConfigureAwait(false);
+    }
+
+    // Sent once, for the reason the hand-composed acting send is: a request whose answer did not
+    // arrive is not the same as one that says nothing happened.
+    private Task<WhisparrResponse> GeneratedActAsync<TResponse>(
+        Uri baseAddress,
+        string apiKey,
+        Func<Whisparr3Apis, Task<TResponse>> call)
+        where TResponse : IApiResponse
+        => GeneratedSendAsync(TargetFor(baseAddress, apiKey), call);
+
+    // Every instance-side action this generation takes is issued through the one command route. The
+    // verb travels as the call's own argument, so the composed body carries it and the payload does
+    // not.
+    private Task<WhisparrResponse> GeneratedCommandAsync(
+        Uri baseAddress, string apiKey, JsonObject command, CancellationToken ct)
+    {
+        var name = (string?)command[CommandNameProperty]
+            ?? throw new ArgumentException("A command names no verb.", nameof(command));
+
+        var payload = (JsonObject)command.DeepClone();
+        payload.Remove(CommandNameProperty);
+
+        return GeneratedSendAsync(
+            TargetFor(baseAddress, apiKey),
+            api => api.Api<CommandApi>().SendCommandAsync(name, payload, ct));
+    }
+
+    private async Task<WhisparrResponse> GeneratedSendAsync<TResponse>(
+        Whisparr3Target target,
+        Func<Whisparr3Apis, Task<TResponse>> call)
+        where TResponse : IApiResponse
+    {
+        try
+        {
+            return Whisparr3Gateway.Answered(await call(gateway.For(target)).ConfigureAwait(false));
+        }
+        catch (AnswerTooLargeException beyond)
+        {
+            return BeyondReadBound(target.BaseAddress, beyond);
+        }
+    }
+
+    private static Whisparr3Target TargetFor(Uri baseAddress, string apiKey)
+    {
+        ArgumentNullException.ThrowIfNull(baseAddress);
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+        return new Whisparr3Target(baseAddress, apiKey);
+    }
+
+    // The status the instance answered with, carried on the failure, and an empty body: the body a
+    // short read produced would parse as a valid answer.
+    private WhisparrResponse BeyondReadBound(Uri baseAddress, AnswerTooLargeException beyond)
+    {
+        WhisparrSyncLog.ResponseBeyondReadBound(log, baseAddress.Host, MaxResponseBytes);
+        return new WhisparrResponse(beyond.StatusCode, null, string.Empty)
+        {
+            Refusal = MonitorRefusalKind.AnswerTooLargeToRead,
+        };
+    }
 
     // Re-issuing a read re-reads and can create nothing, so the read class is the only one that gets
     // more than one attempt. The last attempt is the plain send, so its failure propagates rather

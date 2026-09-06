@@ -42,6 +42,7 @@
         "WhisparrSync.deps.json",
         "WhisparrSync.runtimeconfig.json",
         "Cove.Extensions.Shared.dll",
+        "Whisparr3.Net.dll",
         "README.md",
         "LICENSE"
       ],

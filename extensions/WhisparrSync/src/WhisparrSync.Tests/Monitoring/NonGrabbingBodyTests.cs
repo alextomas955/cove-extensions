@@ -12,11 +12,16 @@ namespace WhisparrSync.Tests.Monitoring;
 /// <param name="Kind">Which kind of entity the add names.</param>
 /// <param name="Scope">The scope asked for, or null on a kind that expresses none.</param>
 /// <param name="Body">The body as composed.</param>
+/// <param name="SuppressionPaths">
+/// Every acquisition-suppressing member the resource this add names declares, transcribed from that
+/// resource's own schema. The three resources an add can name declare three different spellings.
+/// </param>
 internal sealed record ComposedAdd(
     WhisparrGeneration Generation,
     WhisparrEntityKind Kind,
     MonitorScope? Scope,
-    JsonObject Body);
+    JsonObject Body,
+    IReadOnlyList<string> SuppressionPaths);
 
 /// <summary>
 /// Every add body this product can compose, enumerated from the capability table each generation is
@@ -128,10 +133,10 @@ internal static class ComposedAdds
     public static IReadOnlyList<JsonObject> EveryNonGrabbingBody() =>
     [
         .. All().Select(added => added.Body),
-        V3BodyProjector.SetStudioMonitored(4, monitored: true),
-        V3BodyProjector.SetStudioMonitored(4, monitored: false),
-        V3BodyProjector.SetPerformerMonitored(11, monitored: true),
-        V3BodyProjector.SetPerformerMonitored(11, monitored: false),
+        ComposedBody.Of(V3BodyProjector.SetStudioMonitored(4, monitored: true)),
+        ComposedBody.Of(V3BodyProjector.SetStudioMonitored(4, monitored: false)),
+        ComposedBody.Of(V3BodyProjector.SetPerformerMonitored(11, monitored: true)),
+        ComposedBody.Of(V3BodyProjector.SetPerformerMonitored(11, monitored: false)),
         .. EveryScopeChange(),
         V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Studio, 4),
         V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Performer, 11),
@@ -149,26 +154,41 @@ internal static class ComposedAdds
         V3BodyProjector.WithScope(Held(), MonitorScope.AllScenes, Now),
     ];
 
+    /// <summary>The flag the studio and performer resources declare, and the only one they do.</summary>
+    /// <remarks>
+    /// Transcribed from build 3.4.0.1387's own resources. Neither declares an add-options member, so
+    /// a body carrying one is sending a member the instance discards.
+    /// </remarks>
+    public const string TopLevelSuppression = "searchOnAdd";
+
+    /// <summary>The flag the scene resource declares, and the only one it does.</summary>
+    /// <inheritdoc cref="TopLevelSuppression" path="/remarks"/>
+    public const string SceneSuppression = "addOptions.searchForMovie";
+
+    /// <summary>The two flags the older generation's own add resource declares.</summary>
+    /// <remarks>
+    /// Both, because that generation reads one for the back catalogue and one for the cutoff sweep,
+    /// and a body setting either alone leaves the other at the instance's own default.
+    /// </remarks>
+    public static readonly string[] V2Suppression =
+    [
+        "addOptions.searchForMissingEpisodes",
+        "addOptions.searchForCutoffUnmetEpisodes",
+    ];
+
     /// <summary>
-    /// Both spellings <paramref name="generation"/> reads an acquisition-suppressing flag in.
+    /// Every spelling either generation suppresses acquisition through, transcribed by hand.
     /// </summary>
     /// <remarks>
-    /// Transcribed per generation, and both are asserted every time: one resource family reads a
-    /// top-level flag while another reads an add-options member, so a rule stated for one leaves the
-    /// other unguarded.
+    /// The set is what lets an add be asserted against the spellings it does NOT declare: a body
+    /// carrying one of those is composed for a schema other than the one it is being sent to.
     /// </remarks>
-    public static IReadOnlyList<string> SuppressionPathsOn(WhisparrGeneration generation)
-        => generation switch
-        {
-            WhisparrGeneration.V3 => ["searchOnAdd", "addOptions.searchForMovie"],
-            WhisparrGeneration.V2 =>
-                ["addOptions.searchForMissingEpisodes", "addOptions.searchForCutoffUnmetEpisodes"],
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(generation),
-                generation,
-                "No suppression spellings are written down for this generation, so an add composed "
-                    + "for it cannot be asserted non-grabbing."),
-        };
+    public static readonly string[] EverySuppressionSpelling =
+    [
+        TopLevelSuppression,
+        SceneSuppression,
+        .. V2Suppression,
+    ];
 
     /// <summary>The member <paramref name="path"/> names, or null when the body carries none.</summary>
     /// <remarks>
@@ -202,14 +222,16 @@ internal static class ComposedAdds
                     generation,
                     WhisparrEntityKind.Studio,
                     MonitorScope.FutureScenes,
-                    V3BodyProjector.AddStudio(
+                    ComposedBody.Of(V3BodyProjector.AddStudio(
                         MonitorHost.StudioRemoteIdValue, MonitorScope.FutureScenes, Defaults, Now)),
+                    [TopLevelSuppression]),
                 new ComposedAdd(
                     generation,
                     WhisparrEntityKind.Studio,
                     MonitorScope.AllScenes,
-                    V3BodyProjector.AddStudio(
+                    ComposedBody.Of(V3BodyProjector.AddStudio(
                         MonitorHost.StudioRemoteIdValue, MonitorScope.AllScenes, Defaults, Now)),
+                    [TopLevelSuppression]),
             ],
 
             // One case and no scope: the field a future-only scope is expressed through is on the
@@ -220,7 +242,8 @@ internal static class ComposedAdds
                     generation,
                     WhisparrEntityKind.Performer,
                     null,
-                    V3BodyProjector.AddPerformer(MonitorHost.PerformerRemoteIdValue, Defaults)),
+                    ComposedBody.Of(V3BodyProjector.AddPerformer(MonitorHost.PerformerRemoteIdValue, Defaults)),
+                    [TopLevelSuppression]),
             ],
 
             // One catalogue item registered per scene, with the monitor type covering that scene
@@ -231,7 +254,8 @@ internal static class ComposedAdds
                     generation,
                     WhisparrEntityKind.Studio,
                     null,
-                    V3BodyProjector.AddScene(SceneForeignId, Defaults)),
+                    ComposedBody.Of(V3BodyProjector.AddScene(SceneForeignId, Defaults)),
+                    [SceneSuppression]),
             ],
 
             // Attaches files the library already holds and adds no catalogue item of any kind, so it
@@ -249,13 +273,15 @@ internal static class ComposedAdds
                     WhisparrEntityKind.Studio,
                     MonitorScope.FutureScenes,
                     V2BodyProjector.AddStudio(
-                        3372, "Vixen", "vixen", MonitorScope.FutureScenes, V2Defaults)),
+                        3372, "Vixen", "vixen", MonitorScope.FutureScenes, V2Defaults),
+                    V2Suppression),
                 new ComposedAdd(
                     generation,
                     WhisparrEntityKind.Studio,
                     MonitorScope.AllScenes,
                     V2BodyProjector.AddStudio(
-                        3372, "Vixen", "vixen", MonitorScope.AllScenes, V2Defaults)),
+                        3372, "Vixen", "vixen", MonitorScope.AllScenes, V2Defaults),
+                    V2Suppression),
             ],
 
             _ => throw new NotSupportedException(
@@ -368,45 +394,32 @@ public sealed class NonGrabbingBodyTests
     }
 
     /// <summary>
-    /// The older generation's suppression spellings are not the newer one's, and no body composed for
-    /// one generation carries the other's.
+    /// No add carries an acquisition-suppressing spelling its own resource does not declare.
     /// </summary>
     /// <remarks>
-    /// Both pairs live inside an add-options member on one generation while the other reads one of its
-    /// two at the top level, so a rule written in either generation's spellings leaves every body of
-    /// the other unguarded. This asserts each generation's enumerated bodies against its own pair AND
-    /// against the absence of the other's.
+    /// The three resources an add can name declare three different spellings, and the older
+    /// generation declares two more. A body carrying one its resource does not declare is composed
+    /// for a schema other than the one it is being sent to: the instance discards it, so this product
+    /// would be reading a suppression it never applied.
     /// </remarks>
     [Fact]
-    public void NoAddCarriesTheOtherGenerationsSuppressionSpellings()
+    public void NoAddCarriesASuppressionSpellingItsResourceDoesNotDeclare()
     {
-        Assert.All(
-            ComposedAdds.Generations,
-            generation =>
-            {
-                var mine = ComposedAdds.SuppressionPathsOn(generation);
-                var theirs = ComposedAdds.Generations
-                    .Where(other => other != generation)
-                    .SelectMany(ComposedAdds.SuppressionPathsOn)
-                    .Select(path => path.Split('.')[^1])
-                    .ToArray();
+        var composed = ComposedAdds.All();
 
-                Assert.NotEmpty(ComposedAdds.On(generation));
-                Assert.All(
-                    ComposedAdds.On(generation),
-                    added =>
-                    {
-                        Assert.All(mine, path => Assert.NotNull(ComposedAdds.At(added.Body, path)));
-                        Assert.All(
-                            theirs,
-                            spelling => Assert.DoesNotContain(
-                                spelling, added.Body.ToJsonString(), StringComparison.Ordinal));
-                    });
-            });
+        Assert.NotEmpty(composed);
+        Assert.All(
+            composed,
+            added => Assert.All(
+                ComposedAdds.EverySuppressionSpelling.Except(added.SuppressionPaths),
+                undeclared => Assert.DoesNotContain(
+                    undeclared.Split('.')[^1],
+                    added.Body.ToJsonString(),
+                    StringComparison.Ordinal)));
     }
 
     /// <summary>
-    /// Every enumerated add carries both of its generation's suppression spellings, each PRESENT as
+    /// Every enumerated add carries every suppression spelling its resource declares, each PRESENT as
     /// a member and each false.
     /// </summary>
     /// <remarks>
@@ -414,33 +427,34 @@ public sealed class NonGrabbingBodyTests
     /// measured against, and that is a property of those builds rather than of the contract.
     /// </remarks>
     [Fact]
-    public void EveryEnumeratedAddCarriesBothSuppressionSpellingsPresentAndFalse()
+    public void EveryEnumeratedAddCarriesItsResourcesSuppressionSpellingsPresentAndFalse()
         => Assert.All(
             ComposedAdds.All(),
             added =>
             {
-                var paths = ComposedAdds.SuppressionPathsOn(added.Generation);
-                Assert.Equal(2, paths.Count);
-                Assert.All(paths, path => Assert.NotNull(ComposedAdds.At(added.Body, path)));
+                Assert.NotEmpty(added.SuppressionPaths);
                 Assert.All(
-                    paths,
+                    added.SuppressionPaths,
+                    path => Assert.NotNull(ComposedAdds.At(added.Body, path)));
+                Assert.All(
+                    added.SuppressionPaths,
                     path => Assert.False(ComposedAdds.At(added.Body, path)!.GetValue<bool>()));
             });
 
     /// <summary>
-    /// No enumerated add carries one suppression spelling true and the other false.
+    /// No enumerated add carries one of its suppression spellings true and another false.
     /// </summary>
     /// <remarks>
-    /// Both spellings are read into one comparison rather than checked one at a time, because two
+    /// Every spelling is read into one comparison rather than checked one at a time, because two
     /// independent assertions are each satisfiable by a body the other one would refuse.
     /// </remarks>
     [Fact]
-    public void NoEnumeratedAddCarriesOneSpellingTrueAndTheOtherFalse()
+    public void NoEnumeratedAddCarriesOneSpellingTrueAndAnotherFalse()
         => Assert.All(
             ComposedAdds.All(),
             added => Assert.Equal(
-                new bool?[] { false, false },
-                ComposedAdds.SuppressionPathsOn(added.Generation)
+                added.SuppressionPaths.Select(_ => (bool?)false).ToArray(),
+                added.SuppressionPaths
                     .Select(path => ComposedAdds.At(added.Body, path)?.GetValue<bool>())
                     .ToArray()));
 
@@ -483,9 +497,7 @@ public sealed class NonGrabbingBodyTests
     public void NoNonGrabbingBodyCarriesASuppressionSpellingSetTrue()
     {
         var bodies = ComposedAdds.EveryNonGrabbingBody();
-        var paths = ComposedAdds.Generations
-            .SelectMany(ComposedAdds.SuppressionPathsOn)
-            .ToArray();
+        var paths = ComposedAdds.EverySuppressionSpelling;
 
         Assert.NotEmpty(bodies);
         Assert.NotEmpty(paths);
@@ -515,7 +527,9 @@ public sealed class NonGrabbingBodyTests
     [Fact]
     public void AScopeChangeOverwritesBothSuppressionSpellingsOnWhatTheInstanceHeld()
     {
-        var paths = ComposedAdds.SuppressionPathsOn(WhisparrGeneration.V3);
+        // The two the newer generation's resources declare between them, which is what a resource
+        // this product clones back out can be carrying.
+        string[] paths = [ComposedAdds.TopLevelSuppression, ComposedAdds.SceneSuppression];
         var scopeChanges = ComposedAdds.EveryScopeChange();
 
         // The resource composed over holds both spellings true, which is the case a body carrying

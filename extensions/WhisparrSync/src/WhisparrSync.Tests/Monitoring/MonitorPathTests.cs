@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.Invariants;
@@ -96,12 +95,12 @@ public sealed class MonitorPathTests
     /// product must never depend on.
     /// </remarks>
     [Fact]
-    public async Task TheAddTheInstanceReceivesCarriesBothSuppressionFlagsPresentAndFalse()
+    public async Task TheAddTheInstanceReceivesCarriesTheSuppressionFlagItsResourceDeclares()
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, MonitorHost.AddedStudio);
         using var http = new HttpClient(handler);
 
-        await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance)).AddMonitoredStudioAsync(
+        await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler)).AddMonitoredStudioAsync(
             new Uri(MonitorHost.StoredAddress),
             MonitorHost.StoredKey,
             WhisparrGeneration.V3,
@@ -118,9 +117,9 @@ public sealed class MonitorPathTests
         Assert.True(body.ContainsKey("searchOnAdd"));
         Assert.False(body["searchOnAdd"]!.GetValue<bool>());
 
-        var addOptions = Assert.IsType<JsonObject>(body["addOptions"]);
-        Assert.True(addOptions.ContainsKey("searchForMovie"));
-        Assert.False(addOptions["searchForMovie"]!.GetValue<bool>());
+        // The studio resource declares no add-options member, so one on the wire would be a member
+        // the instance discards and this product would be reading a suppression it never applied.
+        Assert.False(body.ContainsKey("addOptions"));
 
         // Both NOT NULL columns with no rule set in front of them: a missing one is answered with a
         // raw database message rather than a validation failure.
@@ -130,7 +129,6 @@ public sealed class MonitorPathTests
         Assert.True(body.ContainsKey("afterDate"));
         Assert.True(body["monitored"]!.GetValue<bool>());
         Assert.False(body["moviesMonitored"]!.GetValue<bool>());
-        Assert.False(addOptions["moviesMonitored"]!.GetValue<bool>());
         Assert.Equal(4, body["qualityProfileId"]!.GetValue<int>());
     }
 
@@ -230,7 +228,7 @@ public sealed class MonitorPathTests
             (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.Created, "{\"id\":1}"));
         using var http = new HttpClient(handler);
 
-        await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+        await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
             .AddMonitoredStudioAsync(
                 new Uri(MonitorHost.StoredAddress),
                 MonitorHost.StoredKey,
@@ -280,7 +278,7 @@ public sealed class MonitorPathTests
             (HttpStatusCode.OK, twoSites), (HttpStatusCode.Created, "{\"id\":1}"));
         using var http = new HttpClient(handler);
 
-        var answered = await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+        var answered = await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
             .AddMonitoredStudioAsync(
                 new Uri(MonitorHost.StoredAddress),
                 MonitorHost.StoredKey,
@@ -311,7 +309,7 @@ public sealed class MonitorPathTests
             (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.OK, listed));
         using var http = new HttpClient(handler);
 
-        var read = await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+        var read = await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
             .ReadStudioAsync(
                 new Uri(MonitorHost.StoredAddress),
                 MonitorHost.StoredKey,
@@ -406,7 +404,7 @@ public sealed class MonitorPathTests
                 (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.OK, past));
         using var http = new HttpClient(handler);
 
-        var read = await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+        var read = await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
             .ReadStudioAsync(
                 new Uri(MonitorHost.StoredAddress),
                 MonitorHost.StoredKey,
@@ -430,7 +428,7 @@ public sealed class MonitorPathTests
             (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.OK, "[]"));
         using var http = new HttpClient(handler);
 
-        var read = await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+        var read = await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
             .ReadStudioAsync(
                 new Uri(MonitorHost.StoredAddress),
                 MonitorHost.StoredKey,
@@ -486,7 +484,7 @@ public sealed class MonitorPathTests
             (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.OK, listing.ToJsonString()));
         using var http = new HttpClient(handler);
 
-        var read = await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+        var read = await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
             .ReadStudioAsync(
                 new Uri(MonitorHost.StoredAddress),
                 MonitorHost.StoredKey,
@@ -525,7 +523,7 @@ public sealed class MonitorPathTests
                 ProbeFixtures.Read("whisparr-v2-2.2.0.231-series-by-tvdbid-absent.json")));
         using var http = new HttpClient(handler);
 
-        var read = await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+        var read = await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
             .ReadStudioAsync(
                 new Uri(MonitorHost.StoredAddress),
                 MonitorHost.StoredKey,
@@ -553,7 +551,7 @@ public sealed class MonitorPathTests
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Accepted, "{}");
         using var http = new HttpClient(handler);
-        var client = new WhisparrClient(http, NullLogger.Instance);
+        var client = TestWhisparrClient.Over(http, handler);
         var address = new Uri(MonitorHost.StoredAddress);
 
         await ((IWhisparrStudioActing)client).SetStudioMonitoredAsync(
@@ -999,13 +997,13 @@ public sealed class MonitorPathTests
 
         Assert.Equal(
             "2026-09-02T00:00:00Z",
-            V3BodyProjector.AddStudio(MonitorHost.StudioRemoteIdValue, MonitorScope.FutureScenes, defaults, now)["afterDate"]
+            ComposedBody.Of(V3BodyProjector.AddStudio(MonitorHost.StudioRemoteIdValue, MonitorScope.FutureScenes, defaults, now))["afterDate"]
                 ?.GetValue<string>());
         Assert.False(
-            V3BodyProjector.AddStudio(MonitorHost.StudioRemoteIdValue, MonitorScope.AllScenes, defaults, now)
+            ComposedBody.Of(V3BodyProjector.AddStudio(MonitorHost.StudioRemoteIdValue, MonitorScope.AllScenes, defaults, now))
                 .ContainsKey("afterDate"));
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => V3BodyProjector.AddStudio(MonitorHost.StudioRemoteIdValue, (MonitorScope)(-1), defaults, now));
+            () => ComposedBody.Of(V3BodyProjector.AddStudio(MonitorHost.StudioRemoteIdValue, (MonitorScope)(-1), defaults, now)));
     }
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
