@@ -216,6 +216,10 @@ internal static class ComposedAdds
             // Carries a secret off the instance's own address and composes no add of any kind.
             (_, WhisparrCapability.OutOfBandCallbackSecret) => [],
 
+            // Reads what the instance holds for a scene through two gets and composes no body at
+            // all, so it contributes no add to enumerate.
+            (_, WhisparrCapability.ReadSceneStatus) => [],
+
             (WhisparrGeneration.V3, WhisparrCapability.MonitorStudio) =>
             [
                 new ComposedAdd(
@@ -368,6 +372,7 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.RegisterMissingScenes,
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
+                WhisparrCapability.ReadSceneStatus,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
 

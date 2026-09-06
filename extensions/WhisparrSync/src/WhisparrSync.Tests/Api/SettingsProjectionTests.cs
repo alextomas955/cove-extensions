@@ -217,6 +217,11 @@ public sealed partial class SettingsProjectionTests
                 // An answer larger than the client reads at once: the host, and the bound beside it as
                 // a number. The body the bound was passed reading is never given to the line.
                 "ResponseBeyondReadBound.host",
+                // The metadata provider, named as this product names it rather than from any answer.
+                // A catalogue body carries titles from someone's own library scope and never reaches
+                // a line here.
+                "ProviderAnswerBeyondReadBound.provider",
+                "ProviderRefusedTheQuery.provider",
             }.Order(),
             LogTemplates()
                 .SelectMany(template => template.GetParameters(), (template, parameter) => (template, parameter))
