@@ -13,14 +13,11 @@
 // bundle that failed to load makes nothing below meaningful. Last, because everything between the
 // two navigations exercises the bundle further.
 //
-// WHAT SKIPS, AND WHY. Two assertions are conditional and each names its reason in an annotation
-// rather than passing silently:
+// WHAT SKIPS, AND WHY. One assertion is conditional and names its reason in an annotation rather
+// than passing silently:
 //
-// - The TAB-RENDERS assertions need a host that wires extension tabs into an ENTITY page's tab list.
-//   That is on Cove's main branch and is in no released image this harness can resolve, so on a
-//   released floor the host draws its own tabs and no extension tab, however the manifest is written.
-// - The STATUS-PILL assertion additionally needs a real metadata credential, lifted read-only from
-//   this machine's own Cove install. A machine with none is the ordinary case off this desk.
+// - The STATUS-PILL assertion needs a real metadata credential, lifted read-only from this machine's
+//   own Cove install. A machine with none is the ordinary case off this desk.
 //
 // The bundle-load assertions never skip, because they are the ones this spec exists for.
 //
@@ -66,7 +63,9 @@ const BRAZZERS_EXXTRA = "39cee498-a9ac-4403-910a-1a0157ad22d8";
 // reporting the whole test as a timeout naming nothing.
 const BUNDLE_BUDGET_MS = 60_000;
 const BUNDLE_ATTEMPTS = 3;
-const TAB_BUDGET_MS = 60_000;
+// The tab is served in the manifest the host already loaded, and it is drawn with the tab strip this
+// budget starts counting from, so it arrives in well under this on a cold container.
+const TAB_BUDGET_MS = 30_000;
 const REGION_BUDGET_MS = 90_000;
 
 const test = base.extend({
@@ -161,7 +160,7 @@ async function configureStashDb(api) {
   return saved.status >= 300 ? `PUT /api/system/config answered ${String(saved.status)}` : null;
 }
 
-test("the bundle loads with the tab in it, and the tab renders wherever the host draws one", async ({
+test("the bundle loads with the tab in it, and the tab renders on every page it registers for", async ({
   page,
   baseUrl,
   missingHarness,
@@ -223,9 +222,8 @@ test("the bundle loads with the tab in it, and the tab renders wherever the host
       "the whole-bundle load",
     );
 
-    // Whether this host renders an extension tab on an ENTITY page at all. The host wires its own
-    // tab list per page, and a released image that wires it on the video page only draws none here
-    // however the manifest is written, so it is probed once and named rather than asserted blind.
+    // The host wires its own tab list per entity page and adds the extension tabs the manifest
+    // declares, so an absent tab here is this extension's registration rather than the host's reach.
     await visit(
       page,
       baseUrl,
@@ -233,53 +231,44 @@ test("the bundle loads with the tab in it, and the tab renders wherever the host
       hostDetailTabs(page),
       "the studio detail page",
     );
-    const tabRendered = await missingTab(page)
-      .waitFor({ state: "visible", timeout: TAB_BUDGET_MS })
-      .then(() => true)
-      .catch(() => false);
+    await expect(
+      missingTab(page),
+      `the studio detail page: the host drew its own detail tabs and no ${TAB_LABEL} tab, so this extension's tab registration did not reach the manifest the host served.`,
+    ).toBeVisible({ timeout: TAB_BUDGET_MS });
 
-    if (tabRendered) {
-      // Each page type is its own registration, and one component serves all three by reading its
-      // kind from the address.
-      for (const [path, where] of [
-        [`/performer/${String(performer.id)}`, "the performer detail page"],
-        [`/tag/${String(tag.json.id)}`, "the tag detail page"],
-      ]) {
-        await visit(page, baseUrl, path, hostDetailTabs(page), where);
-        await expect(
-          missingTab(page),
-          `${where}: the host drew a ${TAB_LABEL} tab on the studio page and none here, so this page type's registration does not resolve.`,
-        ).toBeVisible({ timeout: TAB_BUDGET_MS });
-      }
-
-      // Mounting the tab is what renders the transcribed host components, so a wrong PROP SHAPE
-      // shows up here as a region that draws nothing.
-      await visit(
-        page,
-        baseUrl,
-        `/studio/${String(studio.id)}`,
+    // Each page type is its own registration, and one component serves all three by reading its kind
+    // from the address.
+    for (const [path, where] of [
+      [`/performer/${String(performer.id)}`, "the performer detail page"],
+      [`/tag/${String(tag.json.id)}`, "the tag detail page"],
+    ]) {
+      await visit(page, baseUrl, path, hostDetailTabs(page), where);
+      await expect(
         missingTab(page),
-        "the studio detail page",
-      );
-      await missingTab(page).click();
-
-      // Either cards or a stated reason, and never a blank region: a tab that mounted and drew
-      // nothing is the failure a reader cannot tell from a catalogue that is genuinely empty.
-      await expect
-        .poll(async () => (await cards(page).count()) + (await statedReasons(page).count()), {
-          timeout: REGION_BUDGET_MS,
-          message:
-            "the tab mounted and rendered neither a card nor a sentence. A blank region is what a wrong host-component prop shape looks like: it type-checks, renders nothing and reports nothing.",
-        })
-        .toBeGreaterThan(0);
-    } else {
-      // Named rather than silent. The host's own detail-tab list is present and carries no extension
-      // tab, so this is the host image's reach rather than anything this bundle did.
-      test.info().annotations.push({
-        type: "skipped-assertion",
-        description: `the tab-renders assertions did not run: this host image draws its own detail tabs and no extension tab on an entity page. Extension tabs on the studio, performer and tag pages are on Cove's main branch and are absent from every released image this harness can resolve, so no released host can draw this tab yet.`,
-      });
+        `${where}: the host drew a ${TAB_LABEL} tab on the studio page and none here, so this page type's registration does not resolve.`,
+      ).toBeVisible({ timeout: TAB_BUDGET_MS });
     }
+
+    // Mounting the tab is what renders the transcribed host components, so a wrong PROP SHAPE shows
+    // up here as a region that draws nothing.
+    await visit(
+      page,
+      baseUrl,
+      `/studio/${String(studio.id)}`,
+      missingTab(page),
+      "the studio detail page",
+    );
+    await missingTab(page).click();
+
+    // Either cards or a stated reason, and never a blank region: a tab that mounted and drew nothing
+    // is the failure a reader cannot tell from a catalogue that is genuinely empty.
+    await expect
+      .poll(async () => (await cards(page).count()) + (await statedReasons(page).count()), {
+        timeout: REGION_BUDGET_MS,
+        message:
+          "the tab mounted and rendered neither a card nor a sentence. A blank region is what a wrong host-component prop shape looks like: it type-checks, renders nothing and reports nothing.",
+      })
+      .toBeGreaterThan(0);
 
     // The transcription proof, and it does NOT depend on the tab rendering. The bundle imports the
     // tab component, which imports the module re-exporting all seven host symbols, so every one of
@@ -293,7 +282,7 @@ test("the bundle loads with the tab in it, and the tab renders wherever the host
       `the browser reported a bundle-load failure, which is what a wrong host-symbol transcription produces: ${transcriptionFailures.join(" | ")}`,
     ).toEqual([]);
 
-    if (tabRendered && providerSkip === null) {
+    if (providerSkip === null) {
       const first = cards(page).first();
       await expect(
         first,
@@ -304,15 +293,11 @@ test("the bundle loads with the tab in it, and the tab renders wherever the host
         "the first card carries no status pill in this product's own vocabulary",
       ).toBeVisible();
     } else {
-      // Named rather than silent, and for whichever reason applies: a reader of this run should know
-      // which assertion did not run and why, instead of reading a green run as covering more than it
-      // did.
+      // Named rather than silent: a reader of this run should know which assertion did not run and
+      // why, instead of reading a green run as covering more than it did.
       test.info().annotations.push({
         type: "skipped-assertion",
-        description: `the status-pill assertion did not run: ${
-          providerSkip ??
-          "no extension tab renders on an entity page on this host image, so no card was drawn"
-        }`,
+        description: `the status-pill assertion did not run: ${providerSkip}`,
       });
     }
 
