@@ -44,6 +44,14 @@ public sealed partial class WhisparrSync
     private string AddAllMissingRoute => RouteBase + "/entity/{kind}/{coveId}/add-all-missing";
     private string SearchAllMonitoredRoute =>
         RouteBase + "/entity/{kind}/{coveId}/search-all-monitored";
+    private string MissingPageRoute => RouteBase + "/entity/{kind}/{coveId}/missing";
+    private string MissingCountRoute => RouteBase + "/entity/{kind}/{coveId}/missing/count";
+    private string MissingBulkMonitorRoute =>
+        RouteBase + "/entity/{kind}/{coveId}/missing/bulk-monitor";
+    private string MissingSceneMonitorRoute =>
+        RouteBase + "/entity/{kind}/{coveId}/missing/{providerSceneId}/monitor";
+    private string MissingSceneSearchRoute =>
+        RouteBase + "/entity/{kind}/{coveId}/missing/{providerSceneId}/search";
     private string BulkMonitorRoute => RouteBase + "/entities/bulk-monitor";
     private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
 
@@ -190,6 +198,50 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
+        // Entity-scoped reads: the reach of each is the one Cove entity the route segment names, so
+        // the read tier expresses it.
+        endpoints.MapGet(MissingPageRoute,
+            (string kind, int coveId, ICurrentPrincipalAccessor principal)
+                => ReadMissingPageAsync(kind, coveId, principal))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        endpoints.MapGet(MissingCountRoute,
+            (string kind, int coveId, ICurrentPrincipalAccessor principal)
+                => ReadMissingCountAsync(kind, coveId, principal))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        // The configure tier, matching the whole-entity registration route above: one gesture over a
+        // page's selection aims this extension's stored credential at a third party and creates items
+        // in the reader's own Whisparr, which is not something a caller who cannot configure the
+        // extension may do.
+        endpoints.MapPost(MissingBulkMonitorRoute,
+            (string kind, int coveId, MissingBulkRequest request,
+             ICurrentPrincipalAccessor principal)
+                => EnqueueMissingBulkMonitorAsync(kind, coveId, request, principal))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The configure tier for the same reason as the bulk route: one scene is not a lesser act
+        // than a selection of them. Which scene a request touches is a route segment, so a caller
+        // cannot name one in a body the route would otherwise have to refuse.
+        endpoints.MapPost(MissingSceneMonitorRoute,
+            (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal)
+                => MonitorMissingSceneAsync(kind, coveId, providerSceneId, principal))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The configure tier for two reasons rather than one: the route aims this extension's stored
+        // credential at a third party AND it spends the reader's indexer traffic and disk. It is the
+        // most consequential route this surface mounts, and it must not sit at a tier a caller who
+        // cannot configure the extension can reach.
+        endpoints.MapPost(MissingSceneSearchRoute,
+            (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal)
+                => SearchMissingSceneAsync(kind, coveId, providerSceneId, principal))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
         endpoints.MapGet(JobStatusRoute,
             (string jobId, ICurrentPrincipalAccessor principal, IJobService jobs)
                 => BulkJobStatusOf(jobId, principal, jobs))
@@ -236,6 +288,30 @@ public sealed partial class WhisparrSync
 
     /// <summary>The settings tab this extension mounts, and the tab its one section targets.</summary>
     private const string SettingsTabKey = "whisparr-sync";
+
+    /// <summary>The tab this extension mounts on the studio, performer and tag pages.</summary>
+    private const string MissingTabKey = "whisparr-missing";
+
+    /// <summary>The name the bundle registers this extension's catalogue tab under.</summary>
+    /// <remarks>
+    /// Byte-identical to the key in the bundle's own component map. The host resolves one to the
+    /// other by exact string and renders nothing, with no error, when they differ.
+    /// </remarks>
+    private const string MissingTabComponentName = "WhisparrMissingTab";
+
+    /// <summary>How the catalogue tab reads on every page it is mounted on.</summary>
+    private const string MissingTabLabel = "Missing";
+
+    /// <summary>Where the catalogue tab sits among a page's own tabs.</summary>
+    private const int MissingTabOrder = 150;
+
+    /// <summary>The count route the host fetches for a <paramref name="kind"/> page.</summary>
+    /// <remarks>
+    /// Composed from the same base the route is mapped under, so the endpoint the host calls and the
+    /// endpoint this extension mounts cannot drift apart.
+    /// </remarks>
+    private string MissingCountEndpointFor(string kind)
+        => RouteBase + "/entity/" + kind + "/{entityId}/missing/count";
 
     /// <summary>The name the bundle registers this extension's bulk action handler under.</summary>
     /// <remarks>
@@ -299,6 +375,35 @@ public sealed partial class WhisparrSync
                 componentName: "WhisparrSyncPage")
             .AddSlot("studio-detail-actions", componentName: "WhisparrStudioActions", order: 100)
             .AddSlot("performer-detail-actions", componentName: "WhisparrPerformerActions", order: 100)
+
+            // One component, registered once per page type. The host passes a tab component only the
+            // entity id and a navigate callback, so the component reads its own kind from its route.
+            //
+            // Each countEndpoint bakes its own kind: the host substitutes the literal {entityId} and
+            // nothing else, so the kind cannot travel as a second placeholder. It is fetched in an
+            // effect on page load, before the tab is opened, and a badge is drawn only for a numeric
+            // count.
+            .AddTab(
+                pageType: "studio",
+                key: MissingTabKey,
+                label: MissingTabLabel,
+                componentName: MissingTabComponentName,
+                order: MissingTabOrder,
+                countEndpoint: MissingCountEndpointFor("studio"))
+            .AddTab(
+                pageType: "performer",
+                key: MissingTabKey,
+                label: MissingTabLabel,
+                componentName: MissingTabComponentName,
+                order: MissingTabOrder,
+                countEndpoint: MissingCountEndpointFor("performer"))
+            .AddTab(
+                pageType: "tag",
+                key: MissingTabKey,
+                label: MissingTabLabel,
+                componentName: MissingTabComponentName,
+                order: MissingTabOrder,
+                countEndpoint: MissingCountEndpointFor("tag"))
             .AddAction(
                 id: "whisparr-monitor-selected-studios",
                 label: "Monitor in Whisparr",
