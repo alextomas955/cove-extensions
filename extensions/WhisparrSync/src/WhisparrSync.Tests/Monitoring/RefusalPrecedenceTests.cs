@@ -1,8 +1,6 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
-using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
@@ -215,9 +213,9 @@ public sealed class RefusalPrecedenceTests
     // reach it is to drive an answer past the bound through the client itself.
     private static async Task<MonitorRefusalKind> TheKindAnAnswerPastTheReadBoundProducesAsync()
     {
-        using var http = new HttpClient(BodyRecordingHandler.AnsweringPastTheReadBound());
+        var handler = BodyRecordingHandler.AnsweringPastTheReadBound();
 
-        var answered = await new WhisparrClient(http, NullLogger.Instance).ReadHistoryAsync(
+        var answered = await TestWhisparrClient.Over(handler).ReadHistoryAsync(
             new Uri("http://whisparr:6969"),
             "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e",
             WhisparrGeneration.V3,

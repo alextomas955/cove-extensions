@@ -16,6 +16,14 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <!--
+    The generated Whisparr 3 client. It composes every request this extension makes to a 3.x
+    instance. The 2.x generation has no such client and its routes stay hand-composed.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Whisparr3.Net" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Include="extension.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
   </ItemGroup>
