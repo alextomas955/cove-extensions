@@ -29,6 +29,7 @@ public sealed partial class SettingsProjectionTests
     private static readonly string[] ContainedFailureTemplates =
     [
         "BackstopRecordContained",
+        "CatalogueReadContained",
         "EnrichmentContained",
         "HostImportContained",
         "MonitoringRequestContained",
@@ -222,6 +223,9 @@ public sealed partial class SettingsProjectionTests
                 // a line here.
                 "ProviderAnswerBeyondReadBound.provider",
                 "ProviderRefusedTheQuery.provider",
+                // A catalogue read that reached nothing, given the failure's classification: a type
+                // name chosen by whoever wrote the throw, so no part of it comes from the provider.
+                "CatalogueReadContained.failure",
             }.Order(),
             LogTemplates()
                 .SelectMany(template => template.GetParameters(), (template, parameter) => (template, parameter))
