@@ -416,10 +416,10 @@ public sealed partial class Renamer
         // different limits and disagree.
         var summary = BatchPreview.Summarize(items, sizeByFileId, options.FullPathMax);
 
-        // The host's serializer is camelCase but emits NUMERIC enums (status:0), which the frontend's
-        // buildConfirmSummary reads as a non-renamer — so the renamer would silently never fire. The
-        // string spelling comes from CamelCaseStringEnumConverter declared ON RenamerStatus and
-        // ConfirmLevel, never from an options instance chosen here.
+        // The string spelling comes from CamelCaseStringEnumConverter declared ON RenamerStatus and
+        // ConfirmLevel, never from an options instance chosen here. The declaration is also what types
+        // these two as named string enums in the emitted wire document; without it the document types
+        // them as integers and the generated frontend type reads a number the host never sends.
         return TypedResults.Ok(
             new PreviewResponse(
                 [.. items.Select(i => PreviewItemView.From(

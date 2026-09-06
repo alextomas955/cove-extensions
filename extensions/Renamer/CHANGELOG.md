@@ -2,6 +2,15 @@
 
 User-facing changes, newest first.
 
+## 0.5.0 - Requires Cove 1.4.0
+
+**Needs Cove 1.4.0.** An older host does not load Renamer at all - no Rename tab under Settings →
+Extensions, no "Rename selected" on your lists - so stay on 0.4.0 until you have upgraded Cove.
+
+There is nothing else in this release. No behaviour changes, no new settings, and nothing you have
+configured moves. The floor rises because 1.4.0 is the host release Renamer is now built and tested
+against.
+
 ## 0.4.0 — Undo you can retry, and one that survives the next rename
 
 **Needs Cove 1.3.1.** An older host does not load Renamer at all — no Rename tab under Settings →
