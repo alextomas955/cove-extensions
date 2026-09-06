@@ -257,6 +257,22 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] the stored options blob could not be read, so a change was NOT written over it; the stored configuration stands and the change was lost")]
     internal static partial void OptionsMutationRefusedOverUnreadableBlob(ILogger logger);
 
+    // A catalogue answer past the read bound. The provider and the bound, and nothing else: a
+    // catalogue body carries titles and identifiers from someone's library scope, and a log sink is
+    // durable and readable.
+    [LoggerMessage(
+        EventId = 2121, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] an answer from {Provider} was larger than the {Bound} bytes this extension reads at once and was refused")]
+    internal static partial void ProviderAnswerBeyondReadBound(
+        ILogger logger, string provider, long bound);
+
+    // The provider answered a refusal inside a success status, which is how it reports an unusable
+    // credential. Without this line an expired key reads as a catalogue that is simply empty.
+    [LoggerMessage(
+        EventId = 2122, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] {Provider} refused the catalogue query; no catalogue was read")]
+    internal static partial void ProviderRefusedTheQuery(ILogger logger, string provider);
+
     /// <summary>
     /// What a contained failure is given to a log line as: its type, and its cause's type where it
     /// has one.
