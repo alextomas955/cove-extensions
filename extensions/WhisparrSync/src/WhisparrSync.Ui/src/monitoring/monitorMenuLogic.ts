@@ -159,14 +159,16 @@ const REFUSALS: Record<MonitorRefusalKind, MonitorRefusal> = {
 };
 
 /**
- * Which capability monitoring each kind of entity needs.
+ * Which capability monitoring each kind of entity needs, or null where nothing monitors one.
  *
  * Total by TYPE, so an entity kind added to the wire enum fails this build rather than rendering a
- * menu with no decision made about it.
+ * menu with no decision made about it. Null is a kind Whisparr monitors through no capability at
+ * all, which leaves this menu with nothing to offer for it.
  */
-const MONITOR_CAPABILITY: Record<WhisparrEntityKind, WhisparrCapability> = {
+const MONITOR_CAPABILITY: Record<WhisparrEntityKind, WhisparrCapability | null> = {
   studio: "monitorStudio",
   performer: "monitorPerformer",
+  tag: null,
 };
 
 /**
@@ -178,6 +180,7 @@ const MONITOR_CAPABILITY: Record<WhisparrEntityKind, WhisparrCapability> = {
 const OFFERS_A_SCOPE_PAIR: Record<WhisparrEntityKind, boolean> = {
   studio: true,
   performer: false,
+  tag: false,
 };
 
 /**
@@ -469,7 +472,8 @@ export function controlNotice({
 export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): MonitorMenu {
   const refusal = describeMonitorRefusal(view.refusal);
   const held = new Set(view.capabilities);
-  const cannotMonitorThisKind = !held.has(MONITOR_CAPABILITY[view.kind]);
+  const monitorCapability = MONITOR_CAPABILITY[view.kind];
+  const cannotMonitorThisKind = monitorCapability === null || !held.has(monitorCapability);
 
   // One sentence, and the server's kind chooses it: it has already decided which reason the user
   // reads. The held list answers only where the server named nothing.
