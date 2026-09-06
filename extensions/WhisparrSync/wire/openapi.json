@@ -614,6 +614,287 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingPageView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/count": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingCountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/bulk-monitor": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MissingBulkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingBulkEnqueued"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/{providerSceneId}/monitor": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "providerSceneId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingSceneActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/{providerSceneId}/search": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "providerSceneId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingSceneActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/job-status/{jobId}": {
       "get": {
         "tags": [
@@ -1243,6 +1524,335 @@
           "replace",
           "clear"
         ]
+      },
+      "MissingBulkEnqueued": {
+        "required": [
+          "jobId",
+          "refusal"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/MissingRefusalKind"
+          }
+        }
+      },
+      "MissingBulkRequest": {
+        "required": [
+          "providerSceneIds"
+        ],
+        "type": "object",
+        "properties": {
+          "providerSceneIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MissingCard": {
+        "required": [
+          "providerSceneId",
+          "title",
+          "releaseDate",
+          "coverUrl",
+          "studioName",
+          "description",
+          "performers",
+          "tags",
+          "performerCount",
+          "tagCount",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "providerSceneId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "releaseDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "studioName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "performers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingPerformerChip"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "performerCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tagCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MissingSceneState"
+          }
+        }
+      },
+      "MissingCountView": {
+        "required": [
+          "count",
+          "isLowerBound"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "isLowerBound": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MissingFacetMenu": {
+        "required": [
+          "key",
+          "label",
+          "values",
+          "isTypeAhead"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingFacetValue"
+            }
+          },
+          "isTypeAhead": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MissingFacetValue": {
+        "required": [
+          "value",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "MissingPageView": {
+        "required": [
+          "cards",
+          "catalogueSize",
+          "sizeIsLowerBound",
+          "page",
+          "perPage",
+          "lastPage",
+          "rangeFrom",
+          "rangeTo",
+          "refusal",
+          "facets",
+          "sorts",
+          "sortInForce",
+          "statusWasRead",
+          "statusIsPermanentlyAbsent",
+          "monitorAllIsOffered"
+        ],
+        "type": "object",
+        "properties": {
+          "cards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingCard"
+            }
+          },
+          "catalogueSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sizeIsLowerBound": {
+            "type": "boolean"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "perPage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastPage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rangeFrom": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rangeTo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/MissingRefusalKind"
+          },
+          "facets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingFacetMenu"
+            }
+          },
+          "sorts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingSortOption"
+            }
+          },
+          "sortInForce": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "statusWasRead": {
+            "type": "boolean"
+          },
+          "statusIsPermanentlyAbsent": {
+            "type": "boolean"
+          },
+          "monitorAllIsOffered": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MissingPerformerChip": {
+        "required": [
+          "providerPerformerId",
+          "name",
+          "imageUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "providerPerformerId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "MissingRefusalKind": {
+        "enum": [
+          "none",
+          "noInstanceConnected",
+          "noMetadataProviderConfigured",
+          "noProviderIdForEntity",
+          "providerUnreachable",
+          "whisparrStatusNotRead",
+          "whisparrKeepsNoSceneRecords"
+        ]
+      },
+      "MissingSceneActionRefusal": {
+        "enum": [
+          "none",
+          "didNotReachWhisparr",
+          "instanceRefused",
+          "instanceOffersNoQualityProfile",
+          "instanceOffersNoRootFolder",
+          "whisparrHasNoEntryForScene"
+        ]
+      },
+      "MissingSceneActionResult": {
+        "required": [
+          "state",
+          "refusal"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/MissingSceneState"
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/MissingSceneActionRefusal"
+          }
+        }
+      },
+      "MissingSceneState": {
+        "enum": [
+          "notAdded",
+          "monitored",
+          "unmonitored",
+          "statusUnknown"
+        ]
+      },
+      "MissingSortOption": {
+        "required": [
+          "value",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
       },
       "MonitorBulkRequest": {
         "required": [
