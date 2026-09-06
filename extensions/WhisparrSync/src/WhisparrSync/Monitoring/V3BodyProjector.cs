@@ -1,13 +1,17 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
+using Whisparr3.Net.Client;
+using Whisparr3.Net.Model;
 
 namespace WhisparrSync.Monitoring;
 
 /// <summary>The bodies the newer generation is sent, composed rather than assembled at a call site.</summary>
 /// <remarks>
-/// Pure. Every flag that suppresses acquisition is set here, from ONE local, so an edit cannot set
-/// one spelling and miss the other: this generation reads a top-level flag on some resources and an
-/// add-options member on others, and a rule stated for one leaves the other unguarded.
+/// Pure. Every flag that suppresses acquisition is set here, from ONE constant, so an edit cannot
+/// set one and miss another. Each resource an add can name declares exactly one such flag and they
+/// differ: the studio and performer resources declare a top-level one, the scene resource declares
+/// one inside its add-options member and no top-level one. A flag a resource does not declare is
+/// discarded by the instance, so sending it would report a suppression that was never applied.
 /// <para>
 /// The two library columns the add writes are NOT NULL with no rule set in front of them, so a
 /// missing value is answered with a raw database message rather than a validation failure. Both are
@@ -16,6 +20,9 @@ namespace WhisparrSync.Monitoring;
 /// </remarks>
 internal static class V3BodyProjector
 {
+    /// <summary>The value of every flag that stops an add acquiring anything.</summary>
+    internal const bool NoAcquisition = false;
+
     /// <summary>The spelling the instance was measured accepting an add-time date gate in.</summary>
     /// <remarks>
     /// It reads the same value back in a date-only spelling, so a later comparison of what was sent
@@ -28,10 +35,10 @@ internal static class V3BodyProjector
     /// One of the four this generation's contract declares. The other three widen what is monitored
     /// beyond the item being registered.
     /// </remarks>
-    internal const string SceneOnlyMonitorType = "sceneOnly";
+    internal const MonitorTypes SceneOnlyMonitorType = MonitorTypes.SceneOnly;
 
     /// <summary>The add method recording that a person asked for the item.</summary>
-    internal const string ManualAddMethod = "manual";
+    internal const AddMovieMethod ManualAddMethod = AddMovieMethod.Manual;
 
     /// <summary>This generation's search command for a studio. The one verb that downloads.</summary>
     internal const string StudiosSearchCommand = "StudiosSearch";
@@ -51,33 +58,42 @@ internal static class V3BodyProjector
     /// names no usable quality profile. An unrecognised scope must never resolve to the one that
     /// marks a whole back catalogue wanted.
     /// </exception>
-    internal static JsonObject AddStudio(
+    internal static StudioResource AddStudio(
         string foreignId, MonitorScope scope, AddDefaults defaults, DateTimeOffset now)
     {
-        var body = Add(foreignId, defaults);
+        Require(foreignId, defaults);
 
-        // A studio-only flag for movie-type items, needing a metadata link this product never adds.
-        // Scenes are governed by the monitored flag alone.
-        body["moviesMonitored"] = false;
-        ((JsonObject)body["addOptions"]!)["moviesMonitored"] = false;
+        return new StudioResource(
+            foreignId: foreignId,
+            rootFolderPath: defaults.RootFolderPath,
+            qualityProfileId: defaults.QualityProfileId,
+            tags: new List<int>(),
+            monitored: true,
+            searchOnAdd: NoAcquisition,
 
-        switch (scope)
-        {
-            case MonitorScope.FutureScenes:
-                body["afterDate"] = now.ToString(AfterDateFormat, CultureInfo.InvariantCulture);
-                break;
-
-            // The gate's absence IS the whole catalogue. Its own help text says an empty value is
-            // ignored, so there is no value that expresses this and omission is the expression.
-            case MonitorScope.AllScenes:
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(
-                    nameof(scope), scope, "This is not a monitor scope this product expresses.");
-        }
-
-        return body;
+            // A studio-only flag for movie-type items, needing a metadata link this product never
+            // adds. Scenes are governed by the monitored flag alone.
+            moviesMonitored: false,
+            afterDate: AfterDateFor(scope, now));
     }
+
+    /// <summary>The add-time date gate expressing <paramref name="scope"/>, or none.</summary>
+    /// <remarks>
+    /// The gate's absence IS the whole catalogue. Its own help text says an empty value is ignored,
+    /// so there is no value that expresses this and omission is the expression.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="scope"/> is not a scope this product expresses.
+    /// </exception>
+    private static Option<string?> AfterDateFor(MonitorScope scope, DateTimeOffset now)
+        => scope switch
+        {
+            MonitorScope.FutureScenes =>
+                new Option<string?>(now.ToString(AfterDateFormat, CultureInfo.InvariantCulture)),
+            MonitorScope.AllScenes => default,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(scope), scope, "This is not a monitor scope this product expresses."),
+        };
 
     /// <summary>Adds the performer <paramref name="foreignId"/> names, monitored.</summary>
     /// <remarks>
@@ -89,8 +105,18 @@ internal static class V3BodyProjector
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="defaults"/> names no usable quality profile.
     /// </exception>
-    internal static JsonObject AddPerformer(string foreignId, AddDefaults defaults)
-        => Add(foreignId, defaults);
+    internal static PerformerResource AddPerformer(string foreignId, AddDefaults defaults)
+    {
+        Require(foreignId, defaults);
+
+        return new PerformerResource(
+            foreignId: foreignId,
+            rootFolderPath: defaults.RootFolderPath,
+            qualityProfileId: defaults.QualityProfileId,
+            tags: new List<int>(),
+            monitored: true,
+            searchOnAdd: NoAcquisition);
+    }
 
     /// <summary>Adds the scene <paramref name="foreignId"/> names to the instance's catalogue.</summary>
     /// <remarks>
@@ -114,14 +140,21 @@ internal static class V3BodyProjector
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="defaults"/> names no usable quality profile.
     /// </exception>
-    internal static JsonObject AddScene(string foreignId, AddDefaults defaults)
+    internal static MovieResource AddScene(string foreignId, AddDefaults defaults)
     {
-        var body = Add(foreignId, defaults);
-        body["title"] = foreignId;
-        var addOptions = (JsonObject)body["addOptions"]!;
-        addOptions["monitor"] = SceneOnlyMonitorType;
-        addOptions["addMethod"] = ManualAddMethod;
-        return body;
+        Require(foreignId, defaults);
+
+        return new MovieResource(
+            foreignId: foreignId,
+            title: foreignId,
+            rootFolderPath: defaults.RootFolderPath,
+            qualityProfileId: defaults.QualityProfileId,
+            tags: new List<int>(),
+            monitored: true,
+            addOptions: new AddMovieOptions(
+                monitor: SceneOnlyMonitorType,
+                addMethod: ManualAddMethod,
+                searchForMovie: NoAcquisition));
     }
 
     /// <summary>The command asking the instance to re-read one entity's catalogue.</summary>
@@ -180,13 +213,19 @@ internal static class V3BodyProjector
     /// profile, the root folder, the tags and the date gate the instance holds are all left alone.
     /// Composing the flag an entity already carries yields the same body and is not an error.
     /// </remarks>
-    internal static JsonObject SetStudioMonitored(int entityId, bool monitored)
-        => SetMonitored("studioIds", entityId, monitored);
+    internal static StudioEditorResource SetStudioMonitored(int entityId, bool monitored)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
+        return new StudioEditorResource(studioIds: new List<int> { entityId }, monitored: monitored);
+    }
 
     /// <summary>Sets only the monitored flag on the performer <paramref name="entityId"/> names.</summary>
     /// <inheritdoc cref="SetStudioMonitored" path="/remarks"/>
-    internal static JsonObject SetPerformerMonitored(int entityId, bool monitored)
-        => SetMonitored("performerIds", entityId, monitored);
+    internal static PerformerEditorResource SetPerformerMonitored(int entityId, bool monitored)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
+        return new PerformerEditorResource(performerIds: new List<int> { entityId }, monitored: monitored);
+    }
 
     /// <summary><paramref name="held"/> with the add-time date gate set to <paramref name="scope"/>.</summary>
     /// <remarks>
@@ -238,47 +277,16 @@ internal static class V3BodyProjector
         return body;
     }
 
-    /// <summary>What every add carries, whichever kind it names.</summary>
-    /// <remarks>
-    /// Both acquisition-suppressing spellings are set from one local. This generation reads the
-    /// top-level flag on some resources and the add-options member on others, so a body carrying only
-    /// one leaves the other unguarded.
-    /// </remarks>
+    /// <summary>What every add requires of its caller, whichever kind it names.</summary>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="defaults"/> names no usable quality profile. This generation accepts a zero
     /// profile id, echoes it back, and the entity then monitors and can never acquire anything.
     /// </exception>
-    private static JsonObject Add(string foreignId, AddDefaults defaults)
+    private static void Require(string foreignId, AddDefaults defaults)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
         ArgumentNullException.ThrowIfNull(defaults);
         ArgumentException.ThrowIfNullOrWhiteSpace(defaults.RootFolderPath);
         ArgumentOutOfRangeException.ThrowIfLessThan(defaults.QualityProfileId, 1);
-
-        const bool search = false;
-        return new JsonObject
-        {
-            ["foreignId"] = foreignId,
-            ["rootFolderPath"] = defaults.RootFolderPath,
-            ["tags"] = new JsonArray(),
-            ["qualityProfileId"] = defaults.QualityProfileId,
-            ["monitored"] = true,
-            ["searchOnAdd"] = search,
-            ["addOptions"] = new JsonObject
-            {
-                ["monitored"] = true,
-                ["searchForMovie"] = search,
-            },
-        };
-    }
-
-    private static JsonObject SetMonitored(string idsProperty, int entityId, bool monitored)
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
-        return new JsonObject
-        {
-            [idsProperty] = new JsonArray(entityId),
-            ["monitored"] = monitored,
-        };
     }
 }

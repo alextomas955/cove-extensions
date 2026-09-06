@@ -34,6 +34,26 @@ must match byte for byte. On a mismatch the host renders the tab and heading and
 with no error. The test that checks it reads both files and compares them to each other, never to a
 literal.
 
+## Which half of the outbound seam a request belongs in
+
+The v3 generation's requests are composed by the `Whisparr3.Net` package, reached through
+`Whisparr3Gateway`. The v2 generation has no such package, so its routes stay hand-composed on
+`WhisparrClient` and go through the held `HttpClient`.
+
+- A new v3 request goes through the generated client. Add it hand-composed only when the generated
+  model cannot express the body, and say which member it cannot express.
+- Two v3 bodies are hand-composed for that reason. The notification create and update are built from
+  the schema the instance itself returned, whose flags differ per instance and per generation. The
+  studio scope change re-sends the resource it just read, so a fixed member set would drop what the
+  instance answered with.
+- The generated client fixes its address and key at registration. The gateway holds one registration
+  per address-and-key pair because both are settings a person edits.
+- The generated client applies no response bound, no redirect cap and no timeout of its own. All
+  three are attached through `Whisparr3Options.ConfigureHttpClient`.
+- Each add resource declares one acquisition-suppressing flag and they differ: studio and performer
+  declare `searchOnAdd`, the scene resource declares `addOptions.searchForMovie`. Sending the other
+  spelling is sending a member the instance discards.
+
 ## Capabilities per Whisparr generation
 
 A capability a generation cannot honor is a role interface its backend does not implement. A caller
