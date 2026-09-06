@@ -57,6 +57,9 @@ public enum WhisparrCapability
     /// here that acquires anything.
     /// </summary>
     SearchMonitored,
+
+    /// <summary>What the instance holds for one catalogue scene can be read.</summary>
+    ReadSceneStatus,
 }
 
 /// <summary>

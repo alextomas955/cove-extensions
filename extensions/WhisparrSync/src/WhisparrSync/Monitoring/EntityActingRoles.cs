@@ -192,3 +192,33 @@ public interface IWhisparrReflectOwnedActing
     Task<WhisparrResponse> AttachOwnedFilesAsync(
         Uri baseAddress, string apiKey, JsonNode files, CancellationToken ct);
 }
+
+/// <summary>Reads what an instance holds for one catalogue scene.</summary>
+/// <remarks>
+/// A read role, so nothing declared here changes an instance. Only the newer generation registers
+/// it: the older one answers a not-found on every per-scene route, so a caller obtains no role and
+/// states what happens instead.
+/// <para>
+/// Narrow in the same way the acting roles are: neither member takes a route, a verb or a query key,
+/// so the one query spelling that narrows cannot be replaced by a caller with one that does not.
+/// </para>
+/// </remarks>
+public interface IWhisparrSceneStatusReading
+{
+    /// <summary>Whether the instance holds the <paramref name="kind"/> entity at all.</summary>
+    /// <remarks>
+    /// Asked once per page. An instance holding no entry for the entity holds none for any scene
+    /// under it, so an absence here settles the whole page without a request per card.
+    /// </remarks>
+    Task<WhisparrResponse> ReadEntityPresenceAsync(
+        Uri baseAddress, string apiKey, WhisparrEntityKind kind, string foreignId, CancellationToken ct);
+
+    /// <summary>What the instance holds for the scene <paramref name="remoteId"/> names.</summary>
+    /// <remarks>
+    /// Answers zero rows or exactly one. The identifier travels as a single-valued query on the one
+    /// key that narrows; two other spellings this instance accepts are ignored and answer with the
+    /// whole catalogue.
+    /// </remarks>
+    Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
+        Uri baseAddress, string apiKey, string remoteId, CancellationToken ct);
+}

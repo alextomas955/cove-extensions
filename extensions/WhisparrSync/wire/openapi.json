@@ -2018,7 +2018,8 @@
           "monitorPerformer",
           "registerMissingScenes",
           "reflectOwnedFiles",
-          "searchMonitored"
+          "searchMonitored",
+          "readSceneStatus"
         ]
       },
       "WhisparrEntityKind": {
