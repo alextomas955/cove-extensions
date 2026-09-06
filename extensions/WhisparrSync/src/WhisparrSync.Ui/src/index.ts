@@ -14,13 +14,19 @@ import { defineExtension } from "@cove/extension-sdk";
 import { WhisparrSyncPage } from "./settings/WhisparrSyncPage";
 import { WhisparrPerformerActions, WhisparrStudioActions } from "./monitoring/EntityMonitorButton";
 import { monitorSelected } from "./monitoring/bulkMonitor";
+import { WhisparrMissingTab } from "./missing/MissingTab";
 
 interface WithActionHandlers {
   actionHandlers: Record<string, unknown>;
 }
 
 const mod = defineExtension({
-  components: { WhisparrSyncPage, WhisparrStudioActions, WhisparrPerformerActions },
+  components: {
+    WhisparrSyncPage,
+    WhisparrStudioActions,
+    WhisparrPerformerActions,
+    WhisparrMissingTab,
+  },
 });
 (mod as typeof mod & WithActionHandlers).actionHandlers = {
   whisparrMonitorSelected: monitorSelected,

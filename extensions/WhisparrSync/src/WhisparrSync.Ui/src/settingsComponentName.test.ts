@@ -29,8 +29,22 @@ const COMPONENT_MAP = /components:\s*\{([^}]*)\}/;
 /** Each key of that map, whether it is shorthand or `Key: Value`. */
 const COMPONENT_MAP_KEY = /([A-Za-z_$][\w$]*)\s*(?::\s*[A-Za-z_$][\w$]*)?\s*(?:,|$)/g;
 
-/** Every `componentName:` argument in the manifest override. */
-const MANIFEST_COMPONENT_NAME = /componentName:\s*"([^"]*)"/g;
+/**
+ * Every `componentName:` argument in the manifest override, whether it is written as a literal or
+ * as a constant the same file declares.
+ *
+ * Both forms, because a registration naming a constant is exactly as binding as one naming a
+ * literal: a pattern seeing only literals would report nothing about it and leave a component the
+ * host asks for and the bundle never registers.
+ */
+const MANIFEST_COMPONENT_NAME_LITERAL = /componentName:\s*"([^"]*)"/g;
+
+/** Each `componentName:` argument written as a constant this same file declares. */
+const MANIFEST_COMPONENT_NAME_CONSTANT = /componentName:\s*(\w+)/g;
+
+/** The value a `const string NAME = "…"` declaration in the manifest override carries. */
+const MANIFEST_STRING_CONSTANT = (name: string) =>
+  new RegExp(`const\\s+string\\s+${name}\\s*=\\s*"([^"]*)"`);
 
 /** The whole body of the bundle's `actionHandlers` map. */
 const ACTION_HANDLER_MAP = /actionHandlers\s*=\s*\{([^}]*)\}/;
@@ -62,8 +76,29 @@ function handlerKeys(): string[] {
   return [...body![1].matchAll(COMPONENT_MAP_KEY)].map((match) => match[1]);
 }
 
+/**
+ * Every component name the manifest advertises, with any constant resolved to its value.
+ *
+ * Distinct names. One component is advertised once per page type it is registered on, and this
+ * file's claim is about which NAMES the host can ask for rather than how many registrations name
+ * each one.
+ */
+function advertisedComponentNames(): string[] {
+  const source = readFileSync(manifestSource, "utf8");
+  const named = [
+    ...readAll(MANIFEST_COMPONENT_NAME_LITERAL, manifestSource),
+    ...[...source.matchAll(MANIFEST_COMPONENT_NAME_CONSTANT)].map((match) => {
+      const declared = MANIFEST_STRING_CONSTANT(match[1]).exec(source);
+      expect(declared, `${match[1]} is not declared in ${manifestSource}`).not.toBeNull();
+      return declared![1];
+    }),
+  ];
+
+  return [...new Set(named)];
+}
+
 test("every name the C# manifest advertises is a key this bundle registers", () => {
-  const advertised = readAll(MANIFEST_COMPONENT_NAME, manifestSource);
+  const advertised = advertisedComponentNames();
   const registered = bundleKeys();
 
   expect(registered.length).toBeGreaterThan(0);
