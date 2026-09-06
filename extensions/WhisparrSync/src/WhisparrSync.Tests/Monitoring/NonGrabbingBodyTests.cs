@@ -329,6 +329,36 @@ internal static class ComposedAdds
         ];
     }
 
+    /// <summary>The scene-segment placeholder every per-scene route names its scene in.</summary>
+    private const string SceneSegment = "{providerSceneId}";
+
+    /// <summary>
+    /// The verb of every per-scene route the shipped wire document declares a POST for.
+    /// </summary>
+    /// <remarks>
+    /// A second enumeration because these hang off a scene segment rather than off the entity, so
+    /// they never appear in the one-segment set above. Read out of the emitted document for the same
+    /// reason that one is: a per-scene route mounted later is covered without an edit.
+    /// </remarks>
+    public static IReadOnlyList<string> MountedSceneVerbs()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(WireDocument.Path()));
+
+        return
+        [
+            .. document.RootElement.GetProperty("paths").EnumerateObject()
+                .Where(path => path.Value.TryGetProperty("post", out _))
+                .Where(path => path.Name.Contains(SceneSegment, StringComparison.Ordinal))
+                .Select(path => path.Name[
+                    (path.Name.IndexOf(SceneSegment, StringComparison.Ordinal)
+                        + SceneSegment.Length + 1)..])
+                .Order(StringComparer.Ordinal)
+        ];
+    }
+
+    /// <summary>The per-scene verb that MAY reach a grabbing command, transcribed by name.</summary>
+    /// <inheritdoc cref="GrabbingEntityVerbs" path="/remarks"/>
+    public static readonly string[] GrabbingSceneVerbs = ["search"];
 }
 
 /// <summary>
@@ -715,5 +745,48 @@ public sealed class NonGrabbingBodyTests
         Assert.Null(
             unmanaged.Obtain<IWhisparrSearchGrabbing>()
                 .Match<IWhisparrSearchGrabbing?>(held => held, _ => null));
+    }
+
+    /// <summary>
+    /// Every mounted per-scene verb except the search reaches no grabbing-class verb at any position.
+    /// </summary>
+    /// <inheritdoc cref="EveryMountedEntityVerbButTheSearchReachesNoGrabbingVerb" path="/remarks"/>
+    [Fact]
+    public async Task EveryMountedSceneVerbButTheSearchReachesNoGrabbingVerb()
+    {
+        const string sceneId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
+
+        var mounted = ComposedAdds.MountedSceneVerbs();
+        var nonGrabbing = mounted
+            .Except(ComposedAdds.GrabbingSceneVerbs, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.NotEmpty(mounted);
+        Assert.Equal(
+            ComposedAdds.GrabbingSceneVerbs,
+            mounted.Except(nonGrabbing, StringComparer.Ordinal));
+        Assert.Single(mounted.Except(nonGrabbing, StringComparer.Ordinal));
+
+        List<string> recorded = [];
+        foreach (var verb in nonGrabbing)
+        {
+            await using var host = await MonitorHost.CreateAsync();
+            var studioId = await host.SeedStudioAsync(
+                MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+            var answered = await host.PostRawAsync(
+                "studio", studioId, $"missing/{sceneId}/{verb}", "{}");
+            Assert.True(answered.IsSuccessStatusCode, verb);
+
+            Assert.NotEmpty(host.Client.Verbs);
+            Assert.All(
+                host.Client.Verbs,
+                sent => Assert.NotEqual(
+                    WhisparrVerbClass.Grab, Invariants.OutboundSeam.VerbClassByMember[sent]));
+            recorded.AddRange(host.Client.Verbs);
+        }
+
+        Assert.Contains(
+            recorded, sent => Invariants.OutboundSeam.VerbClassByMember[sent] == WhisparrVerbClass.Act);
     }
 }

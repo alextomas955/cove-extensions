@@ -239,8 +239,11 @@ public sealed partial class WhisparrSync
         // than a selection of them. Which scene a request touches is a route segment, so a caller
         // cannot name one in a body the route would otherwise have to refuse.
         endpoints.MapPost(MissingSceneMonitorRoute,
-            (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal)
-                => MonitorMissingSceneAsync(kind, coveId, providerSceneId, principal))
+            (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             CancellationToken ct)
+                => MonitorMissingSceneAsync(
+                    kind, coveId, providerSceneId, principal, options, credentials, client, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
