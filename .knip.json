@@ -20,7 +20,8 @@
         "src/common/ui/copy.ts",
         "src/common/ui/AsyncRegion.tsx",
         "src/common/ui/StateChip.tsx",
-        "src/missing/hostComponents.ts"
+        "src/missing/hostComponents.ts",
+        "src/missing/missingClasses.ts"
       ],
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["@vitejs/plugin-react", "lucide-react", "@cove/runtime"]
