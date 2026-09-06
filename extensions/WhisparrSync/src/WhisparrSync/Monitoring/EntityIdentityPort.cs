@@ -79,6 +79,9 @@ internal sealed class EntityIdentityPort(DbContext db, OptionsStore options) : I
             WhisparrEntityKind.Performer => db.Set<PerformerRemoteId>()
                 .Where(row => row.PerformerId == coveId)
                 .Select(row => new CarriedIdentity(row.Endpoint, row.RemoteId)),
+            WhisparrEntityKind.Tag => db.Set<TagRemoteId>()
+                .Where(row => row.TagId == coveId)
+                .Select(row => new CarriedIdentity(row.Endpoint, row.RemoteId)),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(kind), kind, "This is not an entity kind this product expresses."),
         };
