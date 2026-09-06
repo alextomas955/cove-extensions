@@ -14,6 +14,7 @@ import {
   deriveCardRows,
   displayedState,
   overflowChipCount,
+  sceneActionIn,
   visiblePerformerChips,
 } from "./missingCardLogic";
 
@@ -137,6 +138,22 @@ describe("what is stated beneath the action row", () => {
       sentence: ACTION_DID_NOT_REACH_WHISPARR,
       kind: "error",
     });
+  });
+});
+
+describe("reading one press's answer", () => {
+  it("reads a whole answer", () => {
+    expect(sceneActionIn({ state: "monitored", refusal: "none" })).toEqual({
+      state: "monitored",
+      refusal: "none",
+    });
+  });
+
+  it("reads nothing from an answer that names neither member", () => {
+    expect(sceneActionIn({})).toBeNull();
+    expect(sceneActionIn(null)).toBeNull();
+    expect(sceneActionIn("monitored")).toBeNull();
+    expect(sceneActionIn({ state: "monitored" })).toBeNull();
   });
 });
 

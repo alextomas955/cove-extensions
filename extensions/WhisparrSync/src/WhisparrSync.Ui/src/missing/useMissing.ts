@@ -6,10 +6,12 @@
  */
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
+import { postAction } from "@cove-extensions/ui-shared/postAction";
 
-import type { MissingPageView } from "../wire/api";
+import type { MissingPageView, MissingSceneActionResult } from "../wire/api";
 import { api } from "../common/lib/extension";
 import type { MissingEntityKind } from "./entityKindLogic";
+import { sceneActionIn, type CardVerb } from "./missingCardLogic";
 import type { MissingView } from "./missingUrlLogic";
 import {
   createMissingStore,
@@ -24,6 +26,10 @@ export interface Missing {
   readonly state: MissingState;
   /** Reads the current view again, keeping whatever is on screen while it runs. */
   readonly refresh: () => void;
+  /** Marks one scene wanted in Whisparr. Acquires nothing. */
+  readonly monitorScene: (providerSceneId: string) => void;
+  /** Asks Whisparr to look for one scene. The one verb on this surface that downloads. */
+  readonly searchScene: (providerSceneId: string) => void;
 }
 
 /**
@@ -49,6 +55,19 @@ function routeFor(entity: MissingEntity, key: MissingViewKey): string {
   if (key.q !== "") query.set("q", key.q);
   if (key.filters !== "") query.set("filters", key.filters);
   return api(`entity/${entity.kind}/${String(entity.coveId)}/missing?${query.toString()}`);
+}
+
+/**
+ * One scene's own verb route.
+ *
+ * The scene rides in the path, so the two verbs are separate routes rather than one route taking a
+ * flag: which of them can make an instance download is then a fact about the address.
+ */
+function sceneRouteFor(entity: MissingEntity, providerSceneId: string, verb: CardVerb): string {
+  return api(
+    `entity/${entity.kind}/${String(entity.coveId)}/missing/` +
+      `${encodeURIComponent(providerSceneId)}/${verb}`,
+  );
 }
 
 export function useMissing(kind: MissingEntityKind, coveId: number, view: MissingView): Missing {
@@ -84,5 +103,41 @@ export function useMissing(kind: MissingEntityKind, coveId: number, view: Missin
     read({ kind, coveId }, { page, sort, q, filters });
   }, [read, kind, coveId, page, sort, q, filters]);
 
-  return { state, refresh };
+  const act = useCallback(
+    (verb: CardVerb, providerSceneId: string) => {
+      const entity: MissingEntity = { kind, coveId };
+      store.beginCardAction(entity, providerSceneId, verb);
+      postAction<MissingSceneActionResult>(sceneRouteFor(entity, providerSceneId, verb))
+        .then((answered) => {
+          // An answer nothing can be read from is the same position as no answer at all: the card
+          // must not paint a state on the strength of a body it could not understand.
+          const result = sceneActionIn(answered);
+          if (result === null) {
+            store.cardActionFailed(entity, providerSceneId);
+          } else {
+            store.cardActionSettled(entity, providerSceneId, result);
+          }
+        })
+        .catch(() => {
+          store.cardActionFailed(entity, providerSceneId);
+        });
+    },
+    [store, kind, coveId],
+  );
+
+  const monitorScene = useCallback(
+    (providerSceneId: string) => {
+      act("monitor", providerSceneId);
+    },
+    [act],
+  );
+
+  const searchScene = useCallback(
+    (providerSceneId: string) => {
+      act("search", providerSceneId);
+    },
+    [act],
+  );
+
+  return { state, refresh, monitorScene, searchScene };
 }

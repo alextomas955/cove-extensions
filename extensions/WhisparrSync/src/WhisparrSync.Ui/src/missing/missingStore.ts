@@ -8,10 +8,11 @@
  * Every settle names the entity AND the view it was started for. A page-three read settling after
  * the reader has moved to page four would otherwise paint the wrong page with no error anywhere.
  */
-import type { MissingPageView } from "../wire/api";
+import type { MissingPageView, MissingSceneActionResult } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import { INITIAL_ASYNC_READ } from "../common/ui/asyncRegionLogic";
 import type { MissingEntityKind } from "./entityKindLogic";
+import { CARD_ACTION_AT_REST, type CardActionState, type CardVerb } from "./missingCardLogic";
 
 /** Which entity a read was started for. */
 export interface MissingEntity {
@@ -32,6 +33,13 @@ export interface MissingState {
   readonly read: AsyncRead;
   /** Null before any read has answered. */
   readonly view: MissingPageView | null;
+  /**
+   * What each card's own verbs are doing, keyed as the provider issued the scene identifier.
+   *
+   * Keyed per scene, so two cards mid-flight do not overwrite each other. A scene with no entry
+   * here has had no press.
+   */
+  readonly cardActions: Readonly<Record<string, CardActionState>>;
 }
 
 /**
@@ -41,6 +49,7 @@ export interface MissingState {
 export const INITIAL_MISSING_STATE: MissingState = {
   read: INITIAL_ASYNC_READ,
   view: null,
+  cardActions: {},
 };
 
 export interface MissingStore {
@@ -51,6 +60,15 @@ export interface MissingStore {
   beginRead: (entity: MissingEntity, view: MissingViewKey) => void;
   loaded: (entity: MissingEntity, view: MissingViewKey, page: MissingPageView) => void;
   readFailed: (entity: MissingEntity, view: MissingViewKey) => void;
+  beginCardAction: (entity: MissingEntity, providerSceneId: string, verb: CardVerb) => void;
+  /** The instance answered. A refusal puts the card back as it was before the press. */
+  cardActionSettled: (
+    entity: MissingEntity,
+    providerSceneId: string,
+    answer: MissingSceneActionResult,
+  ) => void;
+  /** The press produced no answer at all, so nothing is claimed about the instance. */
+  cardActionFailed: (entity: MissingEntity, providerSceneId: string) => void;
 }
 
 /** Whether two entity references name the same entity. */
@@ -119,6 +137,7 @@ export function createMissingStore(): MissingStore {
         ...current,
         read: { reading: false, failed: false, hasContent: true },
         view: page,
+        cardActions: onlyOnScreen(current.cardActions, page),
       }));
     },
 
@@ -128,5 +147,70 @@ export function createMissingStore(): MissingStore {
         read: { reading: false, failed: true, hasContent: current.view !== null },
       }));
     },
+
+    beginCardAction(entity, providerSceneId, verb) {
+      settleCard(entity, providerSceneId, () => ({
+        inFlight: verb,
+
+        // The one state this tab's Monitor can establish. A press that does not take clears it,
+        // which is what puts the pill back where it was.
+        optimistic: verb === "monitor" ? "monitored" : null,
+        refusal: null,
+        failed: false,
+      }));
+    },
+
+    cardActionSettled(entity, providerSceneId, answer) {
+      settleCard(entity, providerSceneId, () => ({
+        inFlight: null,
+        optimistic: answer.refusal === "none" ? answer.state : null,
+        refusal: answer.refusal === "none" ? null : answer.refusal,
+        failed: false,
+      }));
+    },
+
+    cardActionFailed(entity, providerSceneId) {
+      settleCard(entity, providerSceneId, () => ({
+        inFlight: null,
+        optimistic: null,
+        refusal: null,
+        failed: true,
+      }));
+    },
   };
+
+  /** Applies `next` to one card, and only while that card is still on screen. */
+  function settleCard(
+    entity: MissingEntity,
+    providerSceneId: string,
+    next: (current: CardActionState) => CardActionState,
+  ) {
+    if (!sameEntity(onScreen, entity) || !carries(state.view, providerSceneId)) return;
+    emit({
+      ...state,
+      cardActions: {
+        ...state.cardActions,
+        [providerSceneId]: next(state.cardActions[providerSceneId] ?? CARD_ACTION_AT_REST),
+      },
+    });
+  }
+}
+
+/** Whether `page` carries the scene `providerSceneId` names. */
+function carries(page: MissingPageView | null, providerSceneId: string): boolean {
+  return page?.cards.some((card) => card.providerSceneId === providerSceneId) ?? false;
+}
+
+/** `actions` with every entry for a scene `page` no longer carries dropped. */
+function onlyOnScreen(
+  actions: Readonly<Record<string, CardActionState>>,
+  page: MissingPageView,
+): Readonly<Record<string, CardActionState>> {
+  const kept: Record<string, CardActionState> = {};
+  for (const card of page.cards) {
+    if (Object.hasOwn(actions, card.providerSceneId)) {
+      kept[card.providerSceneId] = actions[card.providerSceneId];
+    }
+  }
+  return kept;
 }
