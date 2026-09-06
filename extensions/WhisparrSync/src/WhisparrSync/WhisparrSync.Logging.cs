@@ -273,6 +273,14 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] {Provider} refused the catalogue query; no catalogue was read")]
     internal static partial void ProviderRefusedTheQuery(ILogger logger, string provider);
 
+    // A catalogue read that reached nothing. The failure's classification and nothing else: the
+    // classification is a type name chosen by whoever wrote the throw, so no part of it is supplied
+    // by a caller or by the provider.
+    [LoggerMessage(
+        EventId = 2123, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a catalogue read was contained ({Failure}); the page states it could not be read")]
+    internal static partial void CatalogueReadContained(ILogger logger, string failure);
+
     /// <summary>
     /// What a contained failure is given to a log line as: its type, and its cause's type where it
     /// has one.
