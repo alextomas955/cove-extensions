@@ -93,7 +93,7 @@ public sealed class WhisparrClientTransportTests
     public async Task TheClientItselfRefusesASchemeItCannotOpen()
     {
         using var http = NewHttpClient();
-        var client = new WhisparrClient(http, NullLogger.Instance);
+        var client = TestWhisparrClient.Over(http);
 
         await Assert.ThrowsAsync<ArgumentException>(
             () => client.ReadStatusAsync(
@@ -200,7 +200,7 @@ public sealed class WhisparrClientTransportTests
         var handler = BodyRecordingHandler.AnsweringPastTheReadBound();
         using var http = new HttpClient(handler);
 
-        var answered = await ReadThroughAsync(http);
+        var answered = await ReadThroughAsync(handler);
 
         Assert.Equal(
             MonitorRefusalKind.AnswerTooLargeToRead, MonitoringProjector.Classify(answered).Refusal);
@@ -222,7 +222,7 @@ public sealed class WhisparrClientTransportTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, sent);
         using var http = new HttpClient(handler);
 
-        var answered = await ReadThroughAsync(http);
+        var answered = await ReadThroughAsync(handler);
 
         Assert.Equal(sent, answered.Body);
         Assert.Equal(MonitorRefusalKind.None, answered.Refusal);
@@ -239,7 +239,7 @@ public sealed class WhisparrClientTransportTests
         var handler = BodyRecordingHandler.AnsweringPastTheReadBound();
         using var http = new HttpClient(handler);
 
-        await ReadThroughAsync(http);
+        await ReadThroughAsync(handler);
 
         Assert.Single(handler.Requests);
     }
@@ -333,7 +333,7 @@ public sealed class WhisparrClientTransportTests
         var handler = BodyRecordingHandler.AnsweringWithAByteOrderMarkAhead(sent);
         using var http = new HttpClient(handler);
 
-        var answered = await ReadThroughAsync(http);
+        var answered = await ReadThroughAsync(handler);
 
         Assert.Equal(sent, answered.Body);
         Assert.NotNull(JsonNode.Parse(answered.Body));
@@ -361,7 +361,7 @@ public sealed class WhisparrClientTransportTests
         var handler = StubHandler.Answering(Answer(200, "application/json", "{}"));
         using var http = new HttpClient(handler);
 
-        await new WhisparrClient(http, NullLogger.Instance).ReadHistoryAsync(
+        await TestWhisparrClient.Over(http, handler).ReadHistoryAsync(
             new Uri("http://whisparr:6969/whisparr"),
             SomeKey,
             generation,
@@ -383,7 +383,7 @@ public sealed class WhisparrClientTransportTests
         var handler = StubHandler.Failing(1, Answer(200, "application/json", "[]"));
         using var http = new HttpClient(handler);
 
-        var response = await new WhisparrClient(http, NullLogger.Instance).ReadHistoryAsync(
+        var response = await TestWhisparrClient.Over(http, handler).ReadHistoryAsync(
             new Uri("http://whisparr:6969"),
             SomeKey,
             WhisparrGeneration.V3,
@@ -407,7 +407,7 @@ public sealed class WhisparrClientTransportTests
         var handler = StubHandler.Answering(Answer(401, null, ""));
         using var http = new HttpClient(handler);
 
-        var response = await new WhisparrClient(http, NullLogger.Instance).ReadHistoryAsync(
+        var response = await TestWhisparrClient.Over(http, handler).ReadHistoryAsync(
             new Uri("http://whisparr:6969"),
             SomeKey,
             WhisparrGeneration.V3,
@@ -433,7 +433,7 @@ public sealed class WhisparrClientTransportTests
         var handler = StubHandler.Answering(Answer(200, "application/json; charset=utf-8", "{}"));
         using var http = new HttpClient(handler);
 
-        var response = await new WhisparrClient(http, NullLogger.Instance).ReadHistoryAsync(
+        var response = await TestWhisparrClient.Over(http, handler).ReadHistoryAsync(
             new Uri("http://whisparr:6969"),
             SomeKey,
             WhisparrGeneration.V3,
@@ -454,7 +454,7 @@ public sealed class WhisparrClientTransportTests
         using var http = new HttpClient(handler);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
-            () => new WhisparrClient(http, NullLogger.Instance).ReadHistoryAsync(
+            () => TestWhisparrClient.Over(http, handler).ReadHistoryAsync(
                 new Uri("http://whisparr:6969"),
                 SomeKey,
                 WhisparrGeneration.V3,
@@ -491,8 +491,8 @@ public sealed class WhisparrClientTransportTests
     }
 
     // Any read member reaches the same send, and this one is what the other transport cases drive.
-    private static Task<WhisparrResponse> ReadThroughAsync(HttpClient http)
-        => new WhisparrClient(http, NullLogger.Instance).ReadHistoryAsync(
+    private static Task<WhisparrResponse> ReadThroughAsync(HttpMessageHandler handler)
+        => TestWhisparrClient.Over(handler).ReadHistoryAsync(
             new Uri("http://whisparr:6969"),
             SomeKey,
             WhisparrGeneration.V3,
@@ -501,7 +501,7 @@ public sealed class WhisparrClientTransportTests
             TestContext.Current.CancellationToken);
 
     private static Task<WhisparrResponse> ReadThroughAsync(HttpClient http, int port)
-        => new WhisparrClient(http, NullLogger.Instance).ReadHistoryAsync(
+        => TestWhisparrClient.Over(http).ReadHistoryAsync(
             new Uri($"http://127.0.0.1:{port}"),
             SomeKey,
             WhisparrGeneration.V3,
@@ -526,7 +526,7 @@ public sealed class WhisparrClientTransportTests
     // The HttpClient outlives this call by design: it is handed to a client whose own lifetime is the
     // test's, and disposing it here would abort the request under test.
     private static ConnectionTester NewTester()
-        => new ConnectionTester(new WhisparrClient(NewHttpClient(), NullLogger.Instance), NullLogger<ConnectionTester>.Instance);
+        => new ConnectionTester(TestWhisparrClient.Over(NewHttpClient()), NullLogger<ConnectionTester>.Instance);
 
     private static HttpClient NewHttpClient()
     {

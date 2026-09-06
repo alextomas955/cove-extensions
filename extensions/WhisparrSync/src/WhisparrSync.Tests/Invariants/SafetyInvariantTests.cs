@@ -240,9 +240,9 @@ public sealed class SafetyInvariantTests
     }
 
     /// <summary>
-    /// Every add this product can compose carries both of its generation's acquisition-suppressing
-    /// spellings, each present as a member and each false, over every generation, entity kind and
-    /// scope the registered capabilities allow.
+    /// Every add this product can compose carries every acquisition-suppressing spelling its own
+    /// resource declares, each present as a member and each false, over every generation, entity kind
+    /// and scope the registered capabilities allow.
     /// </summary>
     /// <remarks>
     /// The case list is DERIVED from the per-generation capability table rather than transcribed.
@@ -261,7 +261,7 @@ public sealed class SafetyInvariantTests
     /// </remarks>
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryAddIsNonGrabbing)]
-    public void EveryAddThisProductCanComposeSuppressesAcquisitionInBothSpellings()
+    public void EveryAddThisProductCanComposeSuppressesAcquisitionWhereItsResourceDeclaresIt()
     {
         var composed = ComposedAdds.All();
 
@@ -270,11 +270,11 @@ public sealed class SafetyInvariantTests
             composed,
             added =>
             {
-                var paths = ComposedAdds.SuppressionPathsOn(added.Generation);
-                Assert.Equal(2, paths.Count);
+                Assert.NotEmpty(added.SuppressionPaths);
                 Assert.Equal(
-                    new bool?[] { false, false },
-                    paths.Select(path => ComposedAdds.At(added.Body, path)?.GetValue<bool>())
+                    added.SuppressionPaths.Select(_ => (bool?)false).ToArray(),
+                    added.SuppressionPaths
+                        .Select(path => ComposedAdds.At(added.Body, path)?.GetValue<bool>())
                         .ToArray());
             });
 

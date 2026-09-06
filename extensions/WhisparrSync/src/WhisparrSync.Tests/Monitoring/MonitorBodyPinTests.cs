@@ -104,8 +104,8 @@ public sealed class MonitorBodyPinTests
             refusal["description"]!.GetValue<string>(),
             StringComparison.Ordinal);
 
-        var composed = V3BodyProjector.AddStudio(
-            StudioForeignId, MonitorScope.AllScenes, Defaults, Now);
+        var composed = ComposedBody.Of(V3BodyProjector.AddStudio(
+            StudioForeignId, MonitorScope.AllScenes, Defaults, Now));
         Assert.True(composed.ContainsKey("rootFolderPath"), $"the add omits a column {V3Build} requires");
         Assert.True(composed.ContainsKey("tags"), $"the add omits a column {V3Build} requires");
     }
@@ -129,7 +129,7 @@ public sealed class MonitorBodyPinTests
         Assert.Equal("NotEmptyValidator", refusal["errorCode"]!.GetValue<string>());
         Assert.Equal("'Title' must not be empty.", refusal["errorMessage"]!.GetValue<string>());
 
-        var composed = V3BodyProjector.AddScene(RegisteredSceneForeignId, Defaults);
+        var composed = ComposedBody.Of(V3BodyProjector.AddScene(RegisteredSceneForeignId, Defaults));
         Assert.False(
             string.IsNullOrWhiteSpace(composed["title"]?.GetValue<string>()),
             $"the scene registration omits the member {V3Build} refuses an empty one on");
@@ -228,8 +228,9 @@ public sealed class MonitorBodyPinTests
     [Fact]
     public void TheDateGateIsHeldInADifferentSpellingFromTheOneItIsSentIn()
     {
-        var sent = V3BodyProjector
-            .AddStudio(StudioForeignId, MonitorScope.FutureScenes, Defaults, Now)["afterDate"]!
+        var sent = ComposedBody
+            .Of(V3BodyProjector.AddStudio(StudioForeignId, MonitorScope.FutureScenes, Defaults, Now))
+            ["afterDate"]!
             .GetValue<string>();
         var held = Object(V3StudioFixture)["afterDate"]!.GetValue<string>();
 
@@ -290,8 +291,8 @@ public sealed class MonitorBodyPinTests
         Assert.True(Object(V3StudioFixture)["monitored"]!.GetValue<bool>());
 
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => V3BodyProjector.AddStudio(
-                StudioForeignId, MonitorScope.AllScenes, new AddDefaults(0, "/config/library"), Now));
+            () => ComposedBody.Of(V3BodyProjector.AddStudio(
+                StudioForeignId, MonitorScope.AllScenes, new AddDefaults(0, "/config/library"), Now)));
         Assert.Throws<ArgumentOutOfRangeException>(
             () => V2BodyProjector.AddStudio(
                 SiteEntityId, "Vixen", "vixen", MonitorScope.AllScenes, new AddDefaults(0, "/config/library")));
@@ -326,7 +327,7 @@ public sealed class MonitorBodyPinTests
 
         Assert.Equal(
             ["monitored", "studioIds"],
-            V3BodyProjector.SetStudioMonitored(1, monitored: false)
+            ComposedBody.Of(V3BodyProjector.SetStudioMonitored(1, monitored: false))
                 .Select(member => member.Key)
                 .Order());
     }

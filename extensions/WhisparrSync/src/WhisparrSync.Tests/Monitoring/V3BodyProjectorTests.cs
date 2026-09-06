@@ -2,6 +2,8 @@ using System.Reflection;
 using System.Text.Json.Nodes;
 using WhisparrSync.Monitoring;
 
+using WhisparrSync.Tests.TestSupport;
+
 namespace WhisparrSync.Tests.Monitoring;
 
 /// <summary>
@@ -57,7 +59,7 @@ public sealed class V3BodyProjectorTests
     [Fact]
     public void TheStudioFlagFlipCarriesTheIdArrayAndTheFlagAndNothingElse()
     {
-        var body = V3BodyProjector.SetStudioMonitored(4, monitored: false);
+        var body = ComposedBody.Of(V3BodyProjector.SetStudioMonitored(4, monitored: false));
 
         Assert.Equal(
             ["monitored", "studioIds"],
@@ -70,7 +72,7 @@ public sealed class V3BodyProjectorTests
     [Fact]
     public void ThePerformerFlagFlipCarriesTheIdArrayAndTheFlagAndNothingElse()
     {
-        var body = V3BodyProjector.SetPerformerMonitored(11, monitored: false);
+        var body = ComposedBody.Of(V3BodyProjector.SetPerformerMonitored(11, monitored: false));
 
         Assert.Equal(
             ["monitored", "performerIds"],
@@ -94,10 +96,10 @@ public sealed class V3BodyProjectorTests
     {
         JsonObject[] flips =
         [
-            V3BodyProjector.SetStudioMonitored(4, monitored: true),
-            V3BodyProjector.SetStudioMonitored(4, monitored: false),
-            V3BodyProjector.SetPerformerMonitored(11, monitored: true),
-            V3BodyProjector.SetPerformerMonitored(11, monitored: false),
+            ComposedBody.Of(V3BodyProjector.SetStudioMonitored(4, monitored: true)),
+            ComposedBody.Of(V3BodyProjector.SetStudioMonitored(4, monitored: false)),
+            ComposedBody.Of(V3BodyProjector.SetPerformerMonitored(11, monitored: true)),
+            ComposedBody.Of(V3BodyProjector.SetPerformerMonitored(11, monitored: false)),
         ];
 
         Assert.All(
@@ -117,11 +119,11 @@ public sealed class V3BodyProjectorTests
     public void FlippingTheSameFlagTwiceComposesByteIdenticalBodies()
     {
         Assert.Equal(
-            V3BodyProjector.SetStudioMonitored(4, monitored: true).ToJsonString(),
-            V3BodyProjector.SetStudioMonitored(4, monitored: true).ToJsonString());
+            ComposedBody.Of(V3BodyProjector.SetStudioMonitored(4, monitored: true)).ToJsonString(),
+            ComposedBody.Of(V3BodyProjector.SetStudioMonitored(4, monitored: true)).ToJsonString());
         Assert.Equal(
-            V3BodyProjector.SetPerformerMonitored(11, monitored: true).ToJsonString(),
-            V3BodyProjector.SetPerformerMonitored(11, monitored: true).ToJsonString());
+            ComposedBody.Of(V3BodyProjector.SetPerformerMonitored(11, monitored: true)).ToJsonString(),
+            ComposedBody.Of(V3BodyProjector.SetPerformerMonitored(11, monitored: true)).ToJsonString());
     }
 
     /// <summary>
@@ -136,11 +138,12 @@ public sealed class V3BodyProjectorTests
     {
         Assert.Equal(
             "2026-09-02T00:00:00Z",
-            V3BodyProjector
-                .AddStudio(StudioForeignId, MonitorScope.FutureScenes, Defaults, Now)["afterDate"]
+            ComposedBody
+                .Of(V3BodyProjector.AddStudio(StudioForeignId, MonitorScope.FutureScenes, Defaults, Now))
+                ["afterDate"]
                 ?.GetValue<string>());
         Assert.False(
-            V3BodyProjector.AddStudio(StudioForeignId, MonitorScope.AllScenes, Defaults, Now)
+            ComposedBody.Of(V3BodyProjector.AddStudio(StudioForeignId, MonitorScope.AllScenes, Defaults, Now))
                 .ContainsKey("afterDate"));
     }
 
@@ -236,24 +239,30 @@ public sealed class V3BodyProjectorTests
     public void AnUnrecognisedScopeThrowsRatherThanResolvingToAScope()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => V3BodyProjector.AddStudio(StudioForeignId, (MonitorScope)(-1), Defaults, Now));
+            () => ComposedBody.Of(V3BodyProjector.AddStudio(StudioForeignId, (MonitorScope)(-1), Defaults, Now)));
         Assert.Throws<ArgumentOutOfRangeException>(
             () => V3BodyProjector.WithScope(Parse(HeldStudio), (MonitorScope)(-1), Now));
     }
 
     /// <summary>
-    /// Every add this product can compose carries both acquisition-suppressing spellings, each present
-    /// as a member and each false.
+    /// Every add this product can compose carries the acquisition-suppressing flag its own resource
+    /// declares, present as a member and false.
     /// </summary>
     /// <remarks>
     /// Presence is asserted apart from the value. An absent member and a false one read the same off a
     /// deserialized object, and the instance's default for the absent case is what this product must
     /// never depend on.
+    /// <para>
+    /// The studio and performer resources declare a top-level flag and no add-options member; the
+    /// scene resource declares the reverse. Transcribed from build 3.4.0.1387's own resources, so a
+    /// resource that gains the other spelling fails here rather than being sent one this product
+    /// composed for a different schema.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void EveryComposedAddCarriesBothSuppressionSpellingsPresentAndFalse()
+    public void EveryComposedAddCarriesTheSuppressionSpellingItsResourceDeclares()
     {
-        Assert.All(EveryAdd(), AssertSuppressedInBothSpellings);
+        Assert.All(EveryAdd(), AssertSuppressedWhereTheResourceDeclaresIt);
         Assert.NotEmpty(EveryAdd());
     }
 
@@ -289,9 +298,9 @@ public sealed class V3BodyProjectorTests
         var unusable = new AddDefaults(0, "/config/library");
 
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => V3BodyProjector.AddStudio(StudioForeignId, MonitorScope.AllScenes, unusable, Now));
+            () => ComposedBody.Of(V3BodyProjector.AddStudio(StudioForeignId, MonitorScope.AllScenes, unusable, Now)));
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => V3BodyProjector.AddPerformer(PerformerForeignId, unusable));
+            () => ComposedBody.Of(V3BodyProjector.AddPerformer(PerformerForeignId, unusable)));
     }
 
     /// <summary>
@@ -305,7 +314,7 @@ public sealed class V3BodyProjectorTests
     [Fact]
     public void ThePerformerAddExpressesNoScopeAtAll()
     {
-        var body = V3BodyProjector.AddPerformer(PerformerForeignId, Defaults);
+        var body = ComposedBody.Of(V3BodyProjector.AddPerformer(PerformerForeignId, Defaults));
 
         Assert.False(body.ContainsKey("afterDate"));
         Assert.Equal(PerformerForeignId, body["foreignId"]!.GetValue<string>());
@@ -320,22 +329,19 @@ public sealed class V3BodyProjectorTests
     /// <summary>Every add body this product can compose, over every kind and every scope.</summary>
     private static IReadOnlyList<JsonObject> EveryAdd() =>
     [
-        V3BodyProjector.AddStudio(StudioForeignId, MonitorScope.FutureScenes, Defaults, Now),
-        V3BodyProjector.AddStudio(StudioForeignId, MonitorScope.AllScenes, Defaults, Now),
-        V3BodyProjector.AddPerformer(PerformerForeignId, Defaults),
+        ComposedBody.Of(V3BodyProjector.AddStudio(StudioForeignId, MonitorScope.FutureScenes, Defaults, Now)),
+        ComposedBody.Of(V3BodyProjector.AddStudio(StudioForeignId, MonitorScope.AllScenes, Defaults, Now)),
+        ComposedBody.Of(V3BodyProjector.AddPerformer(PerformerForeignId, Defaults)),
     ];
 
-    private static void AssertSuppressedInBothSpellings(JsonObject body)
+    private static void AssertSuppressedWhereTheResourceDeclaresIt(JsonObject body)
     {
         Assert.True(body.ContainsKey("searchOnAdd"));
-        var addOptions = Assert.IsType<JsonObject>(body["addOptions"]);
-        Assert.True(addOptions.ContainsKey("searchForMovie"));
+        Assert.False(body["searchOnAdd"]!.GetValue<bool>());
 
-        // Read together rather than checked one at a time, so a body carrying one spelling true and
-        // the other false cannot satisfy two independent assertions.
-        Assert.Equal(
-            (false, false),
-            (body["searchOnAdd"]!.GetValue<bool>(), addOptions["searchForMovie"]!.GetValue<bool>()));
+        // The resources these adds name declare no add-options member, so one here would be a member
+        // the instance discards and this product would be reading a suppression it never applied.
+        Assert.False(body.ContainsKey("addOptions"));
     }
 
     private static JsonObject Parse(string body)

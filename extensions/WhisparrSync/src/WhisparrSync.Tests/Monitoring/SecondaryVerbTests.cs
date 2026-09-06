@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
-using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.Invariants;
@@ -49,13 +48,15 @@ public sealed class SecondaryVerbTests
     [Fact]
     public void TheSceneAddSuppressesAcquisitionAndNamesTheSceneOnlyMonitorTypeAndTheManualAddMethod()
     {
-        var body = V3BodyProjector.AddScene(SceneForeignId, Defaults);
+        var body = ComposedBody.Of(V3BodyProjector.AddScene(SceneForeignId, Defaults));
         var addOptions = Assert.IsType<JsonObject>(body["addOptions"]);
 
         Assert.True(addOptions.ContainsKey("searchForMovie"));
         Assert.False(addOptions["searchForMovie"]!.GetValue<bool>());
-        Assert.True(body.ContainsKey("searchOnAdd"));
-        Assert.False(body["searchOnAdd"]!.GetValue<bool>());
+
+        // The scene resource declares its acquisition flag inside the add-options member and declares
+        // no top-level one, so a top-level flag here would be a member the instance discards.
+        Assert.False(body.ContainsKey("searchOnAdd"));
 
         Assert.Equal("sceneOnly", addOptions["monitor"]!.GetValue<string>());
         Assert.Equal("manual", addOptions["addMethod"]!.GetValue<string>());
@@ -65,7 +66,7 @@ public sealed class SecondaryVerbTests
     [Fact]
     public void EveryComposedSceneAddCarriesTheRootTheTagsAndAUsableProfile()
     {
-        var body = V3BodyProjector.AddScene(SceneForeignId, Defaults);
+        var body = ComposedBody.Of(V3BodyProjector.AddScene(SceneForeignId, Defaults));
 
         Assert.Equal(SceneForeignId, body["foreignId"]!.GetValue<string>());
         Assert.Equal("/config/library", body["rootFolderPath"]!.GetValue<string>());
@@ -76,7 +77,7 @@ public sealed class SecondaryVerbTests
         // The one guard on this generation: it accepts a zero profile, echoes it back, and the scene
         // then monitors and can never acquire anything.
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => V3BodyProjector.AddScene(SceneForeignId, new AddDefaults(0, "/config/library")));
+            () => ComposedBody.Of(V3BodyProjector.AddScene(SceneForeignId, new AddDefaults(0, "/config/library"))));
     }
 
     /// <summary>
@@ -95,7 +96,7 @@ public sealed class SecondaryVerbTests
             JsonNode.Parse(
                 $$"""{"id":4,"foreignId":"{{SceneForeignId}}","qualityProfileId":{{ParentStudioProfileId}}}"""));
 
-        var body = V3BodyProjector.AddScene(SceneForeignId, Defaults);
+        var body = ComposedBody.Of(V3BodyProjector.AddScene(SceneForeignId, Defaults));
 
         Assert.Equal(
             int.Parse(ParentStudioProfileId, System.Globalization.CultureInfo.InvariantCulture),
@@ -242,7 +243,7 @@ public sealed class SecondaryVerbTests
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, """{"id":11}""");
         using var http = new HttpClient(handler);
-        var client = new WhisparrClient(http, NullLogger.Instance);
+        var client = TestWhisparrClient.Over(http, handler);
 
         await ((IWhisparrMissingSceneActing)client).AddSceneAsync(
             Address, Key, SceneForeignId, Defaults, TestCt);
@@ -294,7 +295,7 @@ public sealed class SecondaryVerbTests
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
         using var http = new HttpClient(handler);
-        var client = new WhisparrClient(http, NullLogger.Instance);
+        var client = TestWhisparrClient.Over(http, handler);
 
         await ((IWhisparrReflectOwnedActing)client).ReadHardlinkSettingAsync(Address, Key, TestCt);
         await ((IWhisparrReflectOwnedActing)client).ListImportableFilesAsync(
@@ -305,9 +306,13 @@ public sealed class SecondaryVerbTests
         Assert.Equal("/api/v3/config/mediamanagement", handler.Requests[0].Path);
         Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
 
+        // The separator, the space and the ampersand are all escaped, so a directory name carrying
+        // one names no other route and starts no second query value. The instance was measured
+        // resolving this spelling and the percent-encoded-space spelling to the same folder, so the
+        // pin is on escaping having happened rather than on which of the two forms it produced.
         Assert.Equal("/api/v3/manualimport", handler.Requests[1].Path);
         Assert.Contains(
-            "folder=%2Fconfig%2Flibrary%2FVixen%20%26%20Co", handler.Targets[1], StringComparison.Ordinal);
+            "folder=%2fconfig%2flibrary%2fVixen+%26+Co", handler.Targets[1], StringComparison.Ordinal);
 
         Assert.Equal("/api/v3/command", handler.Requests[2].Path);
         Assert.Equal(HttpMethod.Post, handler.Requests[2].Method);
@@ -367,7 +372,7 @@ public sealed class SecondaryVerbTests
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, EmptyEntity);
         using var http = new HttpClient(handler);
-        var client = new WhisparrClient(http, NullLogger.Instance);
+        var client = TestWhisparrClient.Over(http, handler);
 
         await ((IWhisparrSearchGrabbing)client).SearchMonitoredAsync(
             Address, Key, WhisparrGeneration.V3, WhisparrEntityKind.Studio, 4, TestCt);

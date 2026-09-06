@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
@@ -162,7 +161,7 @@ internal sealed class MonitorHost : IAsyncDisposable
             host.Bytes = bytes;
             host._http = new HttpClient(bytes);
             builder.Services.AddSingleton<IWhisparrClient>(
-                new WhisparrClient(host._http, NullLogger.Instance));
+                TestWhisparrClient.Over(host._http, bytes));
         }
 
         builder.Services.AddSingleton<IJobService>(host.Jobs);

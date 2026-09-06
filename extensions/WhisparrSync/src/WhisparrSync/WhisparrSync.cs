@@ -75,12 +75,18 @@ public sealed partial class WhisparrSync : FullExtensionBase
         ArgumentNullException.ThrowIfNull(services);
         base.ConfigureServices(services, context);
 
+        // One registration of the generated client per address-and-key pair, held for the life of the
+        // extension: the pairs come from settings a person edits, and a registration per request
+        // would be a handler pool per request.
+        services.AddSingleton<Whisparr3Gateway>();
+
         services.AddHttpClient<IWhisparrClient, WhisparrClient>(WhisparrClient.Configure)
             .ConfigurePrimaryHttpMessageHandler(WhisparrClient.CreateHandler)
 
             // Built here rather than from the container, so the client writes to this extension's own
             // logger for the same reason every other service constructed above does.
-            .AddTypedClient<IWhisparrClient>((client, _) => new WhisparrClient(client, _log));
+            .AddTypedClient<IWhisparrClient>((client, services) => new WhisparrClient(
+                client, services.GetRequiredService<Whisparr3Gateway>(), _log));
 
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IWhisparrConnectionTester, ConnectionTester>();
