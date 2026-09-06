@@ -66,6 +66,27 @@ public interface ISearchesTitles;
 /// <summary>An entity can be looked up by its exact name.</summary>
 public interface ILooksUpByName;
 
+/// <summary>The capability set each provider holds.</summary>
+/// <remarks>
+/// A role is registered here only where the provider has been measured to honour it. A capability
+/// absent from a set is one the surface offers no control for at all.
+/// </remarks>
+internal static class ProviderCapabilities
+{
+    /// <summary>What StashDB holds, acting through <paramref name="source"/>.</summary>
+    internal static ProviderCapabilitySet ForStashDb(object source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return new ProviderCapabilitySet(
+            "StashDB",
+            [ProviderCapability.SortByDate],
+            new Dictionary<ProviderCapability, object>
+            {
+                [ProviderCapability.SortByDate] = source,
+            });
+    }
+}
+
 /// <summary>A capability the provider does not hold.</summary>
 /// <param name="Capability">The capability that was asked for.</param>
 /// <param name="Provider">The provider it was refused on.</param>
