@@ -16,6 +16,7 @@ import type {
   MissingCard,
   MissingPerformerChip,
   MissingSceneActionRefusal,
+  MissingSceneActionResult,
   MissingSceneState,
 } from "../wire/api";
 
@@ -124,6 +125,22 @@ export function displayedState(
   action: CardActionState,
 ): MissingSceneState {
   return action.optimistic ?? answered;
+}
+
+/**
+ * The result <code>answered</code> carries, or null where it carries none.
+ *
+ * The post helper resolves a bodyless success as an empty object, so a caller cannot assume the
+ * shape. An answer that names neither member is one nothing can be read from, which is the same
+ * position as no answer at all.
+ */
+export function sceneActionIn(answered: unknown): MissingSceneActionResult | null {
+  if (answered === null || typeof answered !== "object") {
+    return null;
+  }
+
+  const { state, refusal } = answered as Partial<MissingSceneActionResult>;
+  return state === undefined || refusal === undefined ? null : { state, refusal };
 }
 
 /** The performers a card draws as chips. */
