@@ -4,7 +4,6 @@ using System.Text;
 using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
-using Cove.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
@@ -61,7 +60,7 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     private WebApplication _app = null!;
     private HttpClient? _http;
-    private CoveContext _db = null!;
+    private DbContext _db = null!;
     private SqliteConnection _connection = null!;
     private int _seeded;
 

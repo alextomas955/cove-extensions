@@ -1,6 +1,5 @@
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
-using Cove.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -261,7 +260,7 @@ public sealed class UpgradePathTests
     /// <summary>A real relational library, so the host's own save is the one under test.</summary>
     private sealed class LibraryFixture : IAsyncDisposable
     {
-        private CoveContext _db = null!;
+        private DbContext _db = null!;
         private SqliteConnection _connection = null!;
 
         public CoveLibraryPort Port { get; private set; } = null!;

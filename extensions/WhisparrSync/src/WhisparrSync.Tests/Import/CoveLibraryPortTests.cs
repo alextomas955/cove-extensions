@@ -1,7 +1,6 @@
 using Cove.Core.DTOs;
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
-using Cove.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -423,7 +422,7 @@ public sealed class CoveLibraryPortTests
     /// <summary>One real relational library, with the port wired over its context.</summary>
     private sealed class LibraryFixture : IAsyncDisposable
     {
-        private CoveContext _db = null!;
+        private DbContext _db = null!;
         private SqliteConnection _connection = null!;
         private CoveConfiguration _config = null!;
         private IScanService? _scan;
