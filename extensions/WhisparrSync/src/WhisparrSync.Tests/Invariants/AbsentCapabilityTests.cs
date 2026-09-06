@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
+using WhisparrSync.Providers;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
@@ -44,6 +45,8 @@ public sealed class AbsentCapabilityTests
         "api/v3/history",
         "api/v3/notification",
         "api/v3/studio",
+        "api/v3/movie",
+        "api/v3/performer",
         "api/v3/series",
         "api/v3/series/lookup",
         "api/v3/series/editor",
@@ -252,9 +255,14 @@ public sealed class AbsentCapabilityTests
     /// Nothing outside the one seam can reach an instance at all.
     /// </summary>
     /// <remarks>
-    /// Asserts absence. The seam's configuring half is the callback registration and nothing else, and
-    /// it is the only type in this extension holding a client to make a request with, so there is no
-    /// second call site at which a mutation could be expressed and no mutation to tag an origin onto.
+    /// Asserts absence. The seam's configuring half is the callback registration and nothing else.
+    /// <para>
+    /// Two types hold a client to make a request with: the instance client, and the metadata
+    /// catalogue. The catalogue reads a third party rather than an instance, and it composes one verb
+    /// on one route, so it declares no member through which a mutation could be expressed. That is
+    /// asserted here rather than assumed, because a second holder of a client is otherwise a second
+    /// call site nothing constrains.
+    /// </para>
     /// </remarks>
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryMutationIsOriginTagged)]
@@ -267,7 +275,13 @@ public sealed class AbsentCapabilityTests
             ],
             OutboundSeam.MembersOf(WhisparrVerbClass.Configure));
 
-        Assert.Equal([nameof(WhisparrClient)], TypesHoldingAnHttpClient().Order().ToList());
+        Assert.Equal(
+            [nameof(StashDbCatalogue), nameof(WhisparrClient)],
+            TypesHoldingAnHttpClient().Order().ToList());
+
+        // The catalogue's own surface: every request it composes is the one read verb, so no member
+        // takes a verb and none takes a route or a query key from a caller.
+        Assert.Empty(MembersTakingAVerbOrARouteOn(typeof(StashDbCatalogue)));
     }
 
     /// <summary>The relative routes the outbound client declares, read off its own constants.</summary>
@@ -278,6 +292,27 @@ public sealed class AbsentCapabilityTests
             .Select(field => (string?)field.GetRawConstantValue())
             .OfType<string>()
             .Where(value => value.StartsWith("api/", StringComparison.Ordinal));
+
+    /// <summary>
+    /// Every reachable member of <paramref name="type"/> letting a caller choose the verb or route.
+    /// </summary>
+    /// <remarks>
+    /// Reachable members only: a private helper taking one of the type's own constants is not a call
+    /// site a caller reaches, and including one would make this fire on correct code.
+    /// <para>
+    /// A parameter named <c>query</c> is not evidence here. This product's provider request is a
+    /// GraphQL document, and <c>query</c> is that document's own field name rather than a URL query.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<string> MembersTakingAVerbOrARouteOn(Type type)
+        => type
+            .GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public
+                | BindingFlags.NonPublic)
+            .Where(method => !method.IsPrivate)
+            .Where(method => method.GetParameters().Any(parameter =>
+                parameter.ParameterType == typeof(HttpMethod)
+                || parameter.Name is "path" or "route" or "verb"))
+            .Select(method => method.Name);
 
     /// <summary>Every type in this extension that holds something it could make a request with.</summary>
     private static IEnumerable<string> TypesHoldingAnHttpClient()
