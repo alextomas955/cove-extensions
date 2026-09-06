@@ -11,8 +11,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
+using WhisparrSync.Providers;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
@@ -179,6 +181,18 @@ internal sealed class MonitorHost : IAsyncDisposable
         builder.Services.AddSingleton(host.SceneIdentities);
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton<ICredentialPort>(credentials);
+
+        // The catalogue routes take these, and minimal-API binding resolves a handler's services
+        // before the handler runs, so a route-input case never reaches its own guard without them.
+        // Built over no host configuration, which is the stated refusal rather than a throw.
+        builder.Services.AddSingleton(new ProviderEndpointPort(null));
+        var catalogue = new InertProviderCatalogue();
+        builder.Services.AddSingleton(
+            new MissingPagePlanner(
+                new MissingIdentityResolver(host.Identities, catalogue),
+                catalogue,
+                new OwnedScenePort(host._db),
+                new SceneStatusPort()));
 
         host._app = builder.Build();
         var extension = WhisparrSyncFixture.Create();
@@ -505,4 +519,27 @@ internal sealed class MonitorHost : IAsyncDisposable
     }
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
+}
+
+/// <summary>A catalogue that reaches no provider, for a case whose subject is a route's own guard.</summary>
+internal sealed class InertProviderCatalogue : IProviderCatalogue
+{
+    public IReadOnlyList<ProviderSortOption> Sorts { get; } = [];
+
+    public ProviderCapabilitySet Capabilities { get; } = ProviderCapabilities.ForStashDb(new object());
+
+    public Task<ProviderCataloguePage> ReadPageAsync(
+        ProviderCatalogueRequest request, CancellationToken ct)
+        => Task.FromResult(new ProviderCataloguePage([], 0, SizeIsLowerBound: false, 1, 1, 0));
+
+    public Task<int?> ReadCatalogueSizeAsync(ProviderCatalogueRequest request, CancellationToken ct)
+        => Task.FromResult<int?>(null);
+
+    public Task<ProviderIdentityLookup> LookUpByNameAsync(
+        WhisparrEntityKind kind, string name, IReadOnlyList<string> aliases, CancellationToken ct)
+        => Task.FromResult(ProviderIdentityLookup.Unmatched);
+
+    public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
+        WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
+        => Task.FromResult<IReadOnlyList<ProviderFacetMenu>>([]);
 }

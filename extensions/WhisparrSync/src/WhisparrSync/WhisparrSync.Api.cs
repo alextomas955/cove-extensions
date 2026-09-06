@@ -17,8 +17,10 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Jobs;
+using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
+using WhisparrSync.Providers;
 using WhisparrSync.Whisparr;
 // The SDK declares a job-progress interface of its own, and the one the host's job service hands a
 // work delegate is the core's. An unqualified reference compiles and means the other one.
@@ -201,14 +203,24 @@ public sealed partial class WhisparrSync
         // Entity-scoped reads: the reach of each is the one Cove entity the route segment names, so
         // the read tier expresses it.
         endpoints.MapGet(MissingPageRoute,
-            (string kind, int coveId, ICurrentPrincipalAccessor principal)
-                => ReadMissingPageAsync(kind, coveId, principal))
+            (string kind, int coveId, int? page, int? perPage, string? sort, string? q,
+             string? filters, bool? menusHeld, ICurrentPrincipalAccessor principal,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             ProviderEndpointPort endpoints, MissingPagePlanner planner, CancellationToken ct)
+                => ReadMissingPageAsync(
+                    kind, coveId, page, perPage, sort, q, filters, menusHeld, principal, options,
+                    credentials, client, endpoints, planner, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
         endpoints.MapGet(MissingCountRoute,
-            (string kind, int coveId, ICurrentPrincipalAccessor principal)
-                => ReadMissingCountAsync(kind, coveId, principal))
+            (string kind, int coveId, string? q, string? filters,
+             ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
+             IWhisparrClient client, ProviderEndpointPort endpoints, MissingPagePlanner planner,
+             CancellationToken ct)
+                => ReadMissingCountAsync(
+                    kind, coveId, q, filters, principal, options, credentials, client, endpoints,
+                    planner, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
