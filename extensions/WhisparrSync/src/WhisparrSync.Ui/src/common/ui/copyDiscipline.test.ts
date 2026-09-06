@@ -52,8 +52,20 @@ const FORBIDDEN_IN_A_CAPABILITY_GAP = [
   "preferences",
 ];
 
-/** Sentences declared here for a surface that arrives in a later plan, and rendered by nothing yet. */
-const DECLARED_FOR_LATER = ["SEARCH_WITH_NO_ENTRY"];
+/**
+ * The catalogue tab's own sentences: why the whole grid cannot answer, what an empty grid means,
+ * what the count beside it counts, and the one card-level answer that is not a failure.
+ */
+const RENDERED_BY_THE_MISSING_TAB = [
+  "NO_METADATA_PROVIDER_CONFIGURED",
+  "NO_PROVIDER_ID_FOR_ENTITY",
+  "NO_TITLES_MATCH",
+  "NO_SCENES_MATCH_THESE_FILTERS",
+  "WHISPARR_STATUS_NOT_READ",
+  "WHISPARR_KEEPS_NO_SCENE_RECORDS",
+  "COUNT_IS_THE_CATALOGUE_SIZE",
+  "SEARCH_WITH_NO_ENTRY",
+];
 
 /** Sentences the connect surface reads through its own kind table. */
 const RENDERED_BY_THE_CONNECT_SURFACE = ["CONNECT_NOT_CONFIGURED", "CONNECT_KEY_REJECTED"];
@@ -256,7 +268,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
     const accountedByName = [
       ...CARRIED_BY_THE_MONITOR_MENU_ITEMS,
       ...RENDERED_BY_THE_BULK_OVERLAY,
-      ...DECLARED_FOR_LATER,
+      ...RENDERED_BY_THE_MISSING_TAB,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_ENTITY_CONTROL,
       ...RENDERED_BY_THE_IMPORT_BANNER,
@@ -279,7 +291,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
     for (const name of [
       ...CARRIED_BY_THE_MONITOR_MENU_ITEMS,
       ...RENDERED_BY_THE_BULK_OVERLAY,
-      ...DECLARED_FOR_LATER,
+      ...RENDERED_BY_THE_MISSING_TAB,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_ENTITY_CONTROL,
       ...RENDERED_BY_THE_IMPORT_BANNER,
@@ -291,6 +303,27 @@ describe("no sentence is orphaned and no kind is silent", () => {
     ]) {
       expect(declared, name).toContain(name);
     }
+  });
+});
+
+describe("the count line says whether its total is a count or a floor", () => {
+  it("marks a total the provider will not serve past, and leaves a real one unmarked", () => {
+    expect(copy.countLine(1, 40, 10000, true).endsWith("+")).toBe(true);
+    expect(copy.countLine(1, 40, 272, false).endsWith("+")).toBe(false);
+  });
+
+  it("names the range and the total", () => {
+    expect(copy.countLine(41, 80, 272, false)).toBe("41–80 of 272");
+  });
+});
+
+describe("the selection count reads at zero, one and many", () => {
+  it("names the number and nothing that has to agree with it", () => {
+    // No noun after the number, which is the host selection bar's own wording, so there is no plural
+    // form to disagree with the count.
+    expect(copy.selectionCount(0)).toBe("0 selected");
+    expect(copy.selectionCount(1)).toBe("1 selected");
+    expect(copy.selectionCount(2)).toBe("2 selected");
   });
 });
 
