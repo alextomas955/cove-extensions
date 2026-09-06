@@ -7,10 +7,11 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Import;
+using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
+using WhisparrSync.Providers;
 using WhisparrSync.Whisparr;
-
 using CoveConfiguration = Cove.Core.Interfaces.CoveConfiguration;
 
 namespace WhisparrSync;
@@ -155,6 +156,9 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services.GetRequiredService<FollowUpScanCoalescer>(),
             services.GetRequiredService<TimeProvider>(),
             _log));
+
+        services.AddMissingProviders();
+        services.AddMissingDerivation();
     }
 
     public override Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)
