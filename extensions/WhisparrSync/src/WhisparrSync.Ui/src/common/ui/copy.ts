@@ -211,6 +211,9 @@ export const BULK_CANCEL = "Cancel";
 export const BULK_CLOSE = "Close";
 
 /** The three secondary actions, named as the product names them everywhere it offers them. */
+/** Re-checks the catalogue against the provider and the connected instance. */
+export const ACTION_REFRESH = "Refresh";
+
 export const ACTION_ADD_ALL_MISSING = "Add all missing";
 export const ACTION_REFLECT_OWNED = "Reflect owned";
 export const ACTION_SEARCH_ALL_MONITORED = "Search all monitored";
@@ -324,6 +327,17 @@ export const PROVIDER_UNREACHABLE =
 
 /** A missing-check that succeeded and found nothing missing. Only for a check that did succeed. */
 export const NOTHING_MISSING = "You own every scene {provider} lists for {entity}.";
+
+/**
+ * A parent studio read without its sub-studios, which the provider attributes every scene to.
+ *
+ * Held apart from owning everything, which it is not: the catalogue read was empty because the
+ * scenes sit one level down, and NOTHING_MISSING would be vacuously true of the query and false to
+ * a reader. The control named here is Cove's own, quoted as the page labels it so it points at
+ * something findable.
+ */
+export const NO_SCENES_WITHOUT_SUB_STUDIOS =
+  "{provider} lists this studio's scenes under its sub-studios. Turn on “Include sub-studio content” above to see them.";
 
 /**
  * Cove names no metadata source, so there is nothing to read a catalogue from.
