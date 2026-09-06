@@ -55,6 +55,7 @@ public sealed class WhisparrCapabilitySet
         [typeof(IWhisparrReflectOwnedActing)] = WhisparrCapability.ReflectOwnedFiles,
         [typeof(IWhisparrSearchGrabbing)] = WhisparrCapability.SearchMonitored,
         [typeof(IWhisparrSceneStatusReading)] = WhisparrCapability.ReadSceneStatus,
+        [typeof(IWhisparrSceneExclusionReading)] = WhisparrCapability.ReadSceneExclusions,
     };
 
     private readonly Dictionary<WhisparrCapability, object> _roles;
@@ -134,6 +135,7 @@ public static class GenerationCapabilities
         WhisparrCapability.ReflectOwnedFiles,
         WhisparrCapability.SearchMonitored,
         WhisparrCapability.ReadSceneStatus,
+        WhisparrCapability.ReadSceneExclusions,
     ];
 
     /// <inheritdoc cref="V3Capabilities"/>
@@ -143,7 +145,9 @@ public static class GenerationCapabilities
     /// instead. No missing-scene entry either: no route on this generation adds a catalogue item at
     /// all, and its catalogue arrives only by re-reading its own metadata source. No scene-status
     /// entry: this generation answers a not-found on every per-scene route, so no retry can establish
-    /// a status and a card states that rather than offering a gesture that cannot change it.
+    /// a status and a card states that rather than offering a gesture that cannot change it. No
+    /// scene-exclusion entry for the same reason: a generation keeping no scene records keeps no
+    /// scene exclusions, and this generation answers a not-found on the exclusion route too.
     /// </remarks>
     private static readonly WhisparrCapability[] V2Capabilities =
     [
@@ -208,6 +212,7 @@ public static class GenerationCapabilities
                     registered[WhisparrCapability.ReflectOwnedFiles] = roles.ReflectOwnedActing;
                     registered[WhisparrCapability.SearchMonitored] = roles.SearchGrabbing;
                     registered[WhisparrCapability.ReadSceneStatus] = roles.SceneStatusReading;
+                    registered[WhisparrCapability.ReadSceneExclusions] = roles.SceneExclusionReading;
                 }
 
                 break;
@@ -252,13 +257,15 @@ public static class GenerationCapabilities
 /// an instance download, obtained by name and by nothing else.
 /// </param>
 /// <param name="SceneStatusReading">Reads what an instance holds for one catalogue scene.</param>
+/// <param name="SceneExclusionReading">Reads which of a set of scenes the instance's user excluded.</param>
 internal sealed record WhisparrRoleSet(
     IWhisparrStudioActing StudioActing,
     IWhisparrPerformerActing PerformerActing,
     IWhisparrMissingSceneActing MissingSceneActing,
     IWhisparrReflectOwnedActing ReflectOwnedActing,
     IWhisparrSearchGrabbing SearchGrabbing,
-    IWhisparrSceneStatusReading SceneStatusReading)
+    IWhisparrSceneStatusReading SceneStatusReading,
+    IWhisparrSceneExclusionReading SceneExclusionReading)
 {
     /// <summary>The roles <paramref name="client"/> implements.</summary>
     /// <exception cref="InvalidOperationException">
@@ -276,13 +283,15 @@ internal sealed record WhisparrRoleSet(
             and IWhisparrReflectOwnedActing reflectOwnedActing
             and IWhisparrSearchGrabbing searchGrabbing
             and IWhisparrSceneStatusReading sceneStatusReading
+            and IWhisparrSceneExclusionReading sceneExclusionReading
             ? new WhisparrRoleSet(
                 studioActing,
                 performerActing,
                 missingSceneActing,
                 reflectOwnedActing,
                 searchGrabbing,
-                sceneStatusReading)
+                sceneStatusReading,
+                sceneExclusionReading)
             : throw new InvalidOperationException(
                 $"{client.GetType()} holds this product's HTTP client but implements only part of "
                     + $"{nameof(WhisparrRoleSet)}.");

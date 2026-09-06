@@ -87,7 +87,8 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         IWhisparrMissingSceneActing,
         IWhisparrReflectOwnedActing,
         IWhisparrSearchGrabbing,
-        IWhisparrSceneStatusReading
+        IWhisparrSceneStatusReading,
+        IWhisparrSceneExclusionReading
 {
     private const string JsonContentType = "application/json; charset=utf-8";
 
@@ -96,6 +97,12 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
 
     /// <summary>Every scene status read this client was asked for, in order.</summary>
     public List<SceneStatusCall> SceneStatuses { get; } = [];
+
+    /// <summary>The identifiers each exclusion read was asked about, in order.</summary>
+    public List<IReadOnlyCollection<string>> ExclusionReads { get; } = [];
+
+    /// <summary>Which identifiers an exclusion read answers as excluded.</summary>
+    public HashSet<string> Excluded { get; } = new(StringComparer.Ordinal);
 
     /// <summary>Every notification request this client was asked for, in order.</summary>
     public List<NotificationCall> Notifications { get; } = [];
@@ -375,6 +382,18 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     {
         SceneStatuses.Add(new SceneStatusCall(null, null, remoteId));
         return Task.FromResult(answer);
+    }
+
+    public Task<IReadOnlySet<string>> ReduceExclusionsAsync(
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyCollection<string> providerSceneIds,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(providerSceneIds);
+        ExclusionReads.Add([.. providerSceneIds]);
+        return Task.FromResult<IReadOnlySet<string>>(
+            providerSceneIds.Where(Excluded.Contains).ToHashSet(StringComparer.Ordinal));
     }
 
     private WhisparrResponse Answer(string verb)

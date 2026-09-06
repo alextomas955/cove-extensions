@@ -52,6 +52,7 @@ public sealed class AbsentCapabilityTests
         "api/v3/series/editor",
         "api/v3/seasonpass",
         "api/v3/command",
+        "api/v3/exclusions",
     ];
 
     /// <summary>

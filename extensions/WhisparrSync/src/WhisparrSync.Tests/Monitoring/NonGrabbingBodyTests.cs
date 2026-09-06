@@ -220,6 +220,9 @@ internal static class ComposedAdds
             // all, so it contributes no add to enumerate.
             (_, WhisparrCapability.ReadSceneStatus) => [],
 
+            // Reads the instance's exclusion list through one get and composes no body at all.
+            (_, WhisparrCapability.ReadSceneExclusions) => [],
+
             (WhisparrGeneration.V3, WhisparrCapability.MonitorStudio) =>
             [
                 new ComposedAdd(
@@ -403,6 +406,7 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
                 WhisparrCapability.ReadSceneStatus,
+                WhisparrCapability.ReadSceneExclusions,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
 
