@@ -150,7 +150,9 @@ ships.
 
 Go through `npm test` rather than calling Playwright directly. A `pretest` hook publishes every
 extension that declares a suite, and that hook is what produces the output the harness installs; a
-direct `npx playwright test` skips it and installs whatever happens to be on disk already.
+direct `npx playwright test` skips it and stages whatever happens to be on disk already. Staging
+refuses an assembly older than the extension's own project sources and names the publish command in
+the failure, so a stale backend stops the run rather than being installed.
 
 ## Run one test or one subset
 
