@@ -325,6 +325,73 @@ export const PROVIDER_UNREACHABLE =
 /** A missing-check that succeeded and found nothing missing. Only for a check that did succeed. */
 export const NOTHING_MISSING = "You own every scene {provider} lists for {entity}.";
 
+/**
+ * Cove names no metadata source, so there is nothing to read a catalogue from.
+ *
+ * About Cove's own configuration rather than a capability an instance lacks, which is why it names
+ * a setting and where to find it. `{provider}` and `{entity}` are filled by the surface.
+ */
+export const NO_METADATA_PROVIDER_CONFIGURED =
+  "Set up a {provider} metadata source in Cove (Settings → Scraping → Metadata servers) to discover {entity}'s catalogue.";
+
+/** The entity carries no identifier the provider issued, and its name matched nothing exactly. */
+export const NO_PROVIDER_ID_FOR_ENTITY =
+  "No {provider} id for {entity}, so there is no catalogue to check.";
+
+/** A title search over the whole catalogue that matched nothing. Renders with a way to clear it. */
+export const NO_TITLES_MATCH = "No titles match that search.";
+
+/**
+ * A filtered catalogue that matched nothing.
+ *
+ * Held apart from owning everything, which is a different fact and the one a reader would act on. A
+ * link made against another provider carries filter values this one never issued, so it matches
+ * nothing for a reason that is not ownership.
+ */
+export const NO_SCENES_MATCH_THESE_FILTERS =
+  "No scenes match these filters. Clear them to see the whole catalogue.";
+
+/**
+ * The catalogue was read and Whisparr was not.
+ *
+ * The second sentence is the point: the grid below is complete and only the status column is
+ * missing, so a reader does not take the page for a short one. Renders with a way to try again.
+ */
+export const WHISPARR_STATUS_NOT_READ =
+  "Cove could not reach Whisparr, so it could not read a status for these. The catalogue below is still complete.";
+
+/**
+ * The connected Whisparr holds no per-scene records at all.
+ *
+ * Renders without a retry, because nothing clears it. Names no setting and no version: neither
+ * changes the answer.
+ */
+export const WHISPARR_KEEPS_NO_SCENE_RECORDS =
+  "The connected Whisparr keeps no per-scene records, so Cove cannot read a status for these. The catalogue below is still complete.";
+
+/**
+ * What the figure beside a catalogue counts.
+ *
+ * The tab badge takes a number and has no room for this, so the count line carries it.
+ */
+export const COUNT_IS_THE_CATALOGUE_SIZE =
+  "This counts every scene {provider} lists for {entity}, not the number you are missing.";
+
+/**
+ * The range a page covers, out of the whole catalogue.
+ *
+ * `atCeiling` renders the total as a floor rather than a count: one provider reports a total it
+ * will not serve past, and the badge beside this line takes a number and cannot say so.
+ */
+export function countLine(from: number, to: number, total: number, atCeiling: boolean): string {
+  return `${String(from)}–${String(to)} of ${String(total)}${atCeiling ? "+" : ""}`;
+}
+
+/** How many scenes are ticked. */
+export function selectionCount(n: number): string {
+  return n === 1 ? "1 selected" : `${String(n)} selected`;
+}
+
 /** Imports Cove recorded but can no longer read. Self-clears on a success. */
 export const IMPORTS_UNREADABLE = "Sync problem - Cove can't find imported files";
 

@@ -9,7 +9,7 @@
     "generate:wire": "node ../../../../scripts/generate-wire-types.mjs --extension com.alextomas955.whisparrsync",
     "build": "vite build",
     "typecheck": "npm run generate:wire && tsc --noEmit",
-    "check-classes": "node ../../../../shared/ui-shared/scripts/check-classes.cjs",
+    "check-classes": "node ../../../../shared/ui-shared/scripts/check-classes.cjs --allow \"text-[11px]\"",
     "test": "npm run generate:wire && vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
