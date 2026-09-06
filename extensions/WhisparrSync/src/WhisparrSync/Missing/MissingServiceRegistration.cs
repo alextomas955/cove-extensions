@@ -11,12 +11,17 @@ internal static class MissingServiceRegistration
 {
     /// <summary>Registers the catalogue derivation services.</summary>
     /// <remarks>
-    /// Nothing is registered while the slice declares contracts and no implementation of them. A
-    /// registration ahead of an implementation would resolve to a type that does not exist.
+    /// Each is scoped, because each takes either the per-request database context or the provider
+    /// resolved from the host's own per-request configuration.
     /// </remarks>
     internal static IServiceCollection AddMissingDerivation(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        services.AddScoped<IOwnedScenePort, OwnedScenePort>();
+        services.AddScoped<ISceneStatusPort, SceneStatusPort>();
+        services.AddScoped<MissingIdentityResolver>();
+        services.AddScoped<MissingPagePlanner>();
         return services;
     }
 }

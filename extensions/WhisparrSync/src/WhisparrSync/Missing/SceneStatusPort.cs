@@ -16,6 +16,7 @@ public interface ISceneStatusPort
     /// by what the instance holds.
     /// </remarks>
     Task<IReadOnlyDictionary<string, MissingSceneState>> ReadStatesAsync(
+        IWhisparrSceneStatusReading reading,
         Uri baseAddress,
         string apiKey,
         WhisparrEntityKind kind,
@@ -33,10 +34,16 @@ public interface ISceneStatusPort
 /// The instance's own catalogue route reports what the instance holds and enumerates nothing, so a
 /// whole-catalogue read is both larger and unable to answer for a scene the instance does not hold.
 /// </para>
+/// <para>
+/// The reading role arrives per call rather than per construction. Which generation is connected is
+/// a stored setting, so a role held from construction would be one obtained before the connection it
+/// describes was known.
+/// </para>
 /// </remarks>
-internal sealed class SceneStatusPort(IWhisparrSceneStatusReading reading) : ISceneStatusPort
+internal sealed class SceneStatusPort : ISceneStatusPort
 {
     public async Task<IReadOnlyDictionary<string, MissingSceneState>> ReadStatesAsync(
+        IWhisparrSceneStatusReading reading,
         Uri baseAddress,
         string apiKey,
         WhisparrEntityKind kind,
@@ -44,6 +51,7 @@ internal sealed class SceneStatusPort(IWhisparrSceneStatusReading reading) : ISc
         IReadOnlyList<string> providerSceneIds,
         CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(reading);
         ArgumentNullException.ThrowIfNull(providerSceneIds);
 
         var presence = await reading

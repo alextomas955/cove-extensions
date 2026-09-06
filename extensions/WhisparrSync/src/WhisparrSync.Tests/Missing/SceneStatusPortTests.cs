@@ -48,7 +48,8 @@ public sealed class SceneStatusPortTests
         var reading = new RecordingSceneStatusReading(presence: 404);
         var ids = PageOfForty();
 
-        var states = await new SceneStatusPort(reading).ReadStatesAsync(
+        var states = await new SceneStatusPort().ReadStatesAsync(
+            reading,
             SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, ids, TestCt);
 
         Assert.Equal(40, states.Count);
@@ -64,7 +65,8 @@ public sealed class SceneStatusPortTests
         var reading = new RecordingSceneStatusReading(presence: 200, sceneAnswer: RecordedRow());
         var ids = PageOfForty();
 
-        await new SceneStatusPort(reading).ReadStatesAsync(
+        await new SceneStatusPort().ReadStatesAsync(
+            reading,
             SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, ids, TestCt);
 
         Assert.Equal(1, reading.PresenceCalls);
@@ -102,7 +104,8 @@ public sealed class SceneStatusPortTests
         var rewritten = RowWithMonitored(row, monitored);
         var reading = new RecordingSceneStatusReading(presence: 200, sceneAnswer: rewritten);
 
-        var states = await new SceneStatusPort(reading).ReadStatesAsync(
+        var states = await new SceneStatusPort().ReadStatesAsync(
+            reading,
             SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, ["a-scene"], TestCt);
 
         Assert.Equal(expected, states["a-scene"]);
@@ -120,7 +123,8 @@ public sealed class SceneStatusPortTests
             .GetRawText();
         var reading = new RecordingSceneStatusReading(presence: 200, sceneAnswer: absent);
 
-        var states = await new SceneStatusPort(reading).ReadStatesAsync(
+        var states = await new SceneStatusPort().ReadStatesAsync(
+            reading,
             SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, ["a-scene"], TestCt);
 
         Assert.Equal(MissingSceneState.NotAdded, states["a-scene"]);
@@ -135,7 +139,8 @@ public sealed class SceneStatusPortTests
     {
         var reading = new RecordingSceneStatusReading(presence: 500);
 
-        var states = await new SceneStatusPort(reading).ReadStatesAsync(
+        var states = await new SceneStatusPort().ReadStatesAsync(
+            reading,
             SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, PageOfForty(), TestCt);
 
         Assert.All(states.Values, state => Assert.Equal(MissingSceneState.StatusUnknown, state));
