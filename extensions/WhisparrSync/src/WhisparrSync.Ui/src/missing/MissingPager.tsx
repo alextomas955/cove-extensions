@@ -2,11 +2,12 @@
  * The page control beneath the grid, drawn by the host's own pagination component.
  *
  * The host computes its page count as `ceil(totalCount / perPage)` and repairs an out-of-range page
- * through `onFilterChange`, so it is fed the count of the set it can actually reach rather than the
- * provider's own catalogue size. A provider that reports a total past the last page it will serve
- * would otherwise offer pages that silently repeat the last one.
+ * through `onFilterChange`, so it is fed the size of the set the provider will actually serve. A
+ * provider that reports a total past its last servable page would otherwise offer pages that
+ * silently repeat the last one.
  */
 import { DetailListPagination } from "./hostComponents";
+import { clampToReachable, pagerTotalFor } from "./missingPageLogic";
 
 /** What the tab calls its own pager, for a reader navigating by landmark. */
 const PAGER_LABEL = "Missing scenes pages";
@@ -22,13 +23,15 @@ export function MissingPager({
   lastPage: number;
   onPage: (page: number) => void;
 }) {
+  const bounds = { lastPage, perPage };
+
   return (
     <DetailListPagination
-      filter={{ page, perPage }}
+      filter={{ page: clampToReachable(page, bounds), perPage }}
       onFilterChange={(filter) => {
-        onPage(filter.page ?? 1);
+        onPage(clampToReachable(filter.page ?? 1, bounds));
       }}
-      totalCount={lastPage * perPage}
+      totalCount={pagerTotalFor(bounds)}
       ariaLabel={PAGER_LABEL}
     />
   );

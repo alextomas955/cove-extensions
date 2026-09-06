@@ -8,6 +8,7 @@ import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { deriveAsyncRegionState, type AsyncRead } from "../common/ui/asyncRegionLogic";
 import type { MissingPageView } from "../wire/api";
 import { MissingCard } from "./MissingCard";
+import { MissingCountLine } from "./MissingCountLine";
 import { MissingGridStates } from "./MissingGridStates";
 import { GRID_CLASS, GRID_TEMPLATE_COLUMNS } from "./missingClasses";
 import {
@@ -99,11 +100,20 @@ export function MissingGrid({
         )}
         outageNotice={kind === "readIsStale" ? stated : null}
         content={
-          <div className={GRID_CLASS} style={{ gridTemplateColumns: GRID_TEMPLATE_COLUMNS }}>
-            {cards.map((card) => (
-              <MissingCard key={card.providerSceneId} card={card} />
-            ))}
-          </div>
+          <>
+            {view === null || surroundings === null ? null : (
+              <MissingCountLine
+                view={view}
+                provider={surroundings.provider}
+                entityName={surroundings.entityName}
+              />
+            )}
+            <div className={GRID_CLASS} style={{ gridTemplateColumns: GRID_TEMPLATE_COLUMNS }}>
+              {cards.map((card) => (
+                <MissingCard key={card.providerSceneId} card={card} />
+              ))}
+            </div>
+          </>
         }
         empty={replacesTheGrid ? stated : empty}
         failed={replacesTheGrid ? stated : failed}
