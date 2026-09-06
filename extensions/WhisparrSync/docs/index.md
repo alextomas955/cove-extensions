@@ -71,7 +71,7 @@ machine.
 
 ## Which Cove you need
 
-Whisparr Sync needs **Cove 1.3.1** or newer. Cove refuses to install an extension that asks for a
+Whisparr Sync needs **Cove 1.4.0** or newer. Cove refuses to install an extension that asks for a
 newer host than the one you are running, and the extension listing hides a version your Cove is
 below, so on an older Cove this extension is not offered to you in the first place.
 
