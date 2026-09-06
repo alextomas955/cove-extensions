@@ -72,8 +72,9 @@ npm test -- --project=renamer
 ```
 
 Go through `npm test` rather than calling Playwright directly: the publish hook above is a `pretest`
-script, so a direct `npx playwright test` skips it and installs whatever publish output happens to
-be on disk.
+script, so a direct `npx playwright test` skips it and stages whatever publish output happens to be
+on disk. Staging refuses an assembly older than the extension's own project sources and names the
+publish command in the failure, so a stale backend stops the run instead of being installed.
 
 Each extension's own directory (e.g. `extensions/Renamer/e2e/`) has a minimal `package.json` that
 declares `@cove-extensions/e2e` as a dependency and whose `test` script shells out to this pattern,
