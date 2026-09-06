@@ -196,6 +196,51 @@ public sealed class EntityIdentityPortTests
         Assert.Equal(MonitorHost.StudioRemoteIdValue, add.ForeignId);
     }
 
+    /// <summary>A tag with no identity row carries nothing to name it by.</summary>
+    /// <remarks>
+    /// The three tag cases read the port rather than a route: this product mounts no action route on
+    /// a tag, so a route-driven case would assert whichever refusal the missing route answers instead
+    /// of the resolution itself.
+    /// </remarks>
+    [Fact]
+    public async Task ATagWithNoIdentityRowIsUnmatched()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var tagId = await host.SeedTagAsync(endpoint: null, remoteId: null);
+
+        var resolved = await host.Identities.ResolveAsync(
+            WhisparrEntityKind.Tag, tagId, WhisparrGeneration.V3, TestContext.Current.CancellationToken);
+
+        Assert.Equal(IdentityResolution.Unmatched, resolved);
+    }
+
+    /// <summary>A tag carrying one identity resolves to it.</summary>
+    [Fact]
+    public async Task ATagCarryingOneIdentityResolvesToIt()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var tagId = await host.SeedTagAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+        var resolved = await host.Identities.ResolveAsync(
+            WhisparrEntityKind.Tag, tagId, WhisparrGeneration.V3, TestContext.Current.CancellationToken);
+
+        Assert.Equal(IdentityResolution.At(MonitorHost.StudioRemoteIdValue), resolved);
+    }
+
+    /// <summary>Two disagreeing identities on one tag is a refusal, not a first-row pick.</summary>
+    [Fact]
+    public async Task ATagCarryingTwoDisagreeingIdentitiesIsAmbiguous()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var tagId = await host.SeedTagAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+        await host.AddTagIdentityAsync(tagId, SameSourceOtherSpelling, SecondIdentifier);
+
+        var resolved = await host.Identities.ResolveAsync(
+            WhisparrEntityKind.Tag, tagId, WhisparrGeneration.V3, TestContext.Current.CancellationToken);
+
+        Assert.Equal(IdentityResolution.Ambiguous, resolved);
+    }
+
     /// <summary>
     /// The identity read projects only the two columns the endpoint rule compares.
     /// </summary>

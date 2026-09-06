@@ -30,6 +30,7 @@ public enum WhisparrEntityKind
 {
     Studio,
     Performer,
+    Tag,
 }
 
 /// <summary>The instance-side values an add cannot be composed without.</summary>

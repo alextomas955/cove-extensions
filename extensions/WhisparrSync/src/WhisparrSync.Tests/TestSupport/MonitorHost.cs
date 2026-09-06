@@ -66,6 +66,13 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     public RecordingWhisparrClient Client { get; private set; } = null!;
 
+    /// <summary>The identity source over this host's own library, as the routes resolve it.</summary>
+    /// <remarks>
+    /// Exposed for the kinds this product resolves an identity for but mounts no action route on, so
+    /// a case can read the resolution itself rather than a refusal a route happens to answer.
+    /// </remarks>
+    public IEntityIdentityPort Identities { get; private set; } = null!;
+
     /// <summary>The folder source over this host's own library, as the routes resolve it.</summary>
     public IEntityFolderPort Folders { get; private set; } = null!;
 
@@ -164,7 +171,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         }
 
         builder.Services.AddSingleton<IJobService>(host.Jobs);
-        builder.Services.AddSingleton<IEntityIdentityPort>(new EntityIdentityPort(host._db, options));
+        host.Identities = new EntityIdentityPort(host._db, options);
+        builder.Services.AddSingleton(host.Identities);
         host.Folders = new EntityFolderPort(host._db);
         builder.Services.AddSingleton(host.Folders);
         host.SceneIdentities = new EntitySceneIdentityPort(host._db, options);
@@ -254,6 +262,34 @@ internal sealed class MonitorHost : IAsyncDisposable
         }
 
         return performer.Id;
+    }
+
+    /// <summary>Seeds one tag, with an identity row when an endpoint is named.</summary>
+    public async Task<int> SeedTagAsync(string? endpoint, string? remoteId)
+    {
+        var name = "Tag " + (++_seeded).ToString(CultureInfo.InvariantCulture);
+        var tag = new Tag { Name = name, NamespaceKey = name.ToLowerInvariant() };
+        _db.Add(tag);
+        await _db.SaveChangesAsync(TestCt);
+
+        if (endpoint is not null && remoteId is not null)
+        {
+            await AddTagIdentityAsync(tag.Id, endpoint, remoteId);
+        }
+
+        return tag.Id;
+    }
+
+    /// <summary>Adds one more identity row to a tag already seeded.</summary>
+    public async Task AddTagIdentityAsync(int tagId, string endpoint, string remoteId)
+    {
+        _db.Add(new TagRemoteId
+        {
+            TagId = tagId,
+            Endpoint = endpoint,
+            RemoteId = remoteId,
+        });
+        await _db.SaveChangesAsync(TestCt);
     }
 
     /// <summary>Seeds one video file the studio <paramref name="studioId"/> names holds.</summary>
