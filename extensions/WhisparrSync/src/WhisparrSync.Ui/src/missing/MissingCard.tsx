@@ -10,13 +10,20 @@
  * and nothing is stored. Every provider-supplied string renders as an escaped text node.
  */
 import { Check, ImageOff, User } from "lucide-react";
+import { StatusText } from "@cove-extensions/ui-shared";
 
+import { OptionallyDisabled } from "../common/ui/DisabledControl";
 import { StateChip } from "../common/ui/StateChip";
+import { WAITING_FOR_WHISPARR } from "../common/ui/copy";
 import type { MissingCard as MissingCardView, MissingPerformerChip } from "../wire/api";
 import {
+  CARD_ACTION_AT_REST,
+  cardFailureLine,
   deriveCardRows,
+  displayedState,
   overflowChipCount,
   visiblePerformerChips,
+  type CardActionState,
   type CardRows,
 } from "./missingCardLogic";
 // A type-only import, so it is erased at build and adds no runtime import of the host barrel. The
@@ -40,6 +47,10 @@ import {
  */
 const MONITORED_LABEL = "Wanted";
 
+/** The card's two verbs. The second one is the only action on this surface that downloads. */
+const MONITOR_LABEL = "Monitor";
+const SEARCH_LABEL = "Search";
+
 /** What the selection control is called, in each of the two states it can be pressed from. */
 const SELECT_LABEL = "Select scene";
 const DESELECT_LABEL = "Deselect scene";
@@ -57,6 +68,9 @@ export function MissingCard({
   selected = false,
   selecting = false,
   onToggleSelect,
+  action = CARD_ACTION_AT_REST,
+  onMonitor,
+  onSearch,
 }: {
   card: MissingCardView;
   selected?: boolean;
@@ -64,8 +78,16 @@ export function MissingCard({
   selecting?: boolean;
   /** Absent where the surface offers no selection, which draws no control rather than an inert one. */
   onToggleSelect?: (options?: MultiSelectToggleOptions) => void;
+  /** What this card's own verbs are doing, and what the last press produced. */
+  action?: CardActionState;
+  /** Marks this scene wanted. Absent where the surface offers no verbs. */
+  onMonitor?: (providerSceneId: string) => void;
+  /** Asks Whisparr to look for this scene. Absent where the surface offers no verbs. */
+  onSearch?: (providerSceneId: string) => void;
 }) {
   const rows = deriveCardRows(card);
+  const pillState = displayedState(card.state, action);
+  const failure = cardFailureLine(action);
 
   return (
     <article className={selected ? CARD_SELECTED_CLASS : CARD_CLASS}>
@@ -86,10 +108,35 @@ export function MissingCard({
         <CardBodyRows rows={rows} />
         <div className="mt-1">
           <StateChip
-            state={card.state}
-            label={card.state === "monitored" ? MONITORED_LABEL : undefined}
+            state={pillState}
+            label={pillState === "monitored" ? MONITORED_LABEL : undefined}
           />
         </div>
+        {onMonitor === undefined || onSearch === undefined ? null : (
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <OptionallyDisabled
+              name={MONITOR_LABEL}
+              variant="primary"
+              reason={action.inFlight === "monitor" ? WAITING_FOR_WHISPARR : null}
+              onClick={() => {
+                onMonitor(card.providerSceneId);
+              }}
+            />
+            <OptionallyDisabled
+              name={SEARCH_LABEL}
+              variant="ghost"
+              reason={action.inFlight === "search" ? WAITING_FOR_WHISPARR : null}
+              onClick={() => {
+                onSearch(card.providerSceneId);
+              }}
+            />
+          </div>
+        )}
+        {failure === null ? null : (
+          <p className="mt-1">
+            <StatusText kind={failure.kind}>{failure.sentence}</StatusText>
+          </p>
+        )}
       </div>
     </article>
   );
