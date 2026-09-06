@@ -78,4 +78,112 @@ declare module "@cove/runtime/components" {
     isPending?: boolean;
     errorMessage?: string | null;
   }) => never;
+
+  // The host's own list-query shape. `sorts` is left off: it carries a further host type nothing
+  // here declares, and no consumer in this repo reads or passes it.
+  export interface FindFilter {
+    q?: string;
+    page?: number;
+    perPage?: number;
+    sort?: string;
+    direction?: "asc" | "desc";
+    seed?: number;
+  }
+
+  // Repairs an out-of-range page through `onFilterChange` once a non-empty count is known, so
+  // `totalCount` must bound a set the caller can actually reach.
+  export const DetailListPagination: (props: {
+    filter: FindFilter;
+    onFilterChange: (filter: FindFilter) => void;
+    totalCount: number;
+    allowInfinitePageSize?: boolean;
+    infinitePageSizeOnly?: boolean;
+    showPagingControls?: boolean;
+    className?: string;
+    ariaLabel?: string;
+  }) => never;
+
+  // `id` is a number, which is the host's own performer key rather than an identifier a metadata
+  // provider issues.
+  export const PerformerTile: (props: {
+    performer: {
+      id: number;
+      name: string;
+      imagePath?: string | null;
+      favorite?: boolean;
+    };
+    onClick: (options?: MultiSelectToggleOptions) => void;
+    selected?: boolean;
+    onSelect?: (options?: MultiSelectToggleOptions) => void;
+    selecting?: boolean;
+  }) => never;
+
+  export const TagBadge: (props: {
+    name: string;
+    color?: string | null;
+    groupColor?: string | null;
+    onClick?: () => void;
+  }) => never;
+
+  export interface MultiSelectToggleOptions<TId extends string | number = number> {
+    range?: boolean;
+    orderedIds?: readonly TId[];
+  }
+
+  export type MultiSelectToggleHandler<TId extends string | number = number> = (
+    id: TId,
+    options?: MultiSelectToggleOptions<TId>,
+  ) => void;
+
+  export type BoundMultiSelectToggleHandler<TId extends string | number = number> = (
+    options?: MultiSelectToggleOptions<TId>,
+  ) => void;
+
+  export function toggleOptionsFromEvent<TId extends string | number = never>(event: {
+    shiftKey: boolean;
+  }): MultiSelectToggleOptions<TId>;
+  export function toggleOptionsFromEvent<TId extends string | number>(
+    event: { shiftKey: boolean },
+    orderedIds: readonly TId[],
+  ): MultiSelectToggleOptions<TId>;
+
+  export function withOrderedToggle<TId extends string | number>(
+    onToggle: MultiSelectToggleHandler<TId>,
+    orderedIds: readonly TId[],
+  ): MultiSelectToggleHandler<TId>;
+
+  // `preserveOnItemsChange` defaults to false, so a selection is dropped when the items change and a
+  // tick always means a row currently on screen.
+  export function useMultiSelect<T extends { id: string | number }>(
+    items: T[],
+    options?: {
+      preserveOnItemsChange?: boolean;
+      resetKey?: string;
+      isSelectable?: (item: T) => boolean;
+      isSelectableId?: (id: T["id"]) => boolean;
+    },
+  ): {
+    selectedIds: Set<T["id"]>;
+    toggle: MultiSelectToggleHandler<T["id"]>;
+    selectAll: () => void;
+    selectIds: (ids: Array<T["id"]>) => void;
+    selectNone: () => void;
+    invertSelection: () => void;
+  };
+
+  export type KeyboardShortcutSurface =
+    "global" | "page" | "list" | "detail" | "player" | "viewer" | "overlay" | "local";
+
+  // A binding registered under the id the host's own list page uses resolves through the active
+  // preset, so a user's rebinding applies to it too.
+  export function useKeySequence(
+    bindings: Array<{
+      id?: string;
+      keys: string;
+      action: () => void;
+      global?: boolean;
+      surface?: KeyboardShortcutSurface;
+    }>,
+    enabled?: boolean,
+  ): void;
 }
