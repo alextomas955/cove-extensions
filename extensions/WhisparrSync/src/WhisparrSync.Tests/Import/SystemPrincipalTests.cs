@@ -132,7 +132,7 @@ public sealed class SystemPrincipalTests
         return new CoveContext(options, principals);
     }
 
-    private static async Task SeedAsync(CoveContext db)
+    private static async Task SeedAsync(DbContext db)
     {
         var folder = new Folder { Path = "/data" };
         var video = new Video { Title = "seeded" };
