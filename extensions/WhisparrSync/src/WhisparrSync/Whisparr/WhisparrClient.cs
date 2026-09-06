@@ -216,7 +216,8 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         IWhisparrPerformerActing,
         IWhisparrMissingSceneActing,
         IWhisparrReflectOwnedActing,
-        IWhisparrSearchGrabbing
+        IWhisparrSearchGrabbing,
+        IWhisparrSceneStatusReading
 {
     /// <summary>The header both generations authenticate an API request with.</summary>
     internal const string ApiKeyHeader = "X-Api-Key";
@@ -231,6 +232,8 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
     // the generated client composes are not literals here, and the invariant names them separately.
     internal const string HistoryPath = "api/v3/history";
     internal const string StudioPath = "api/v3/studio";
+    internal const string MoviePath = "api/v3/movie";
+    internal const string PerformerPath = "api/v3/performer";
     internal const string SeriesPath = "api/v3/series";
     internal const string SeriesLookupPath = "api/v3/series/lookup";
     internal const string SeriesEditorPath = "api/v3/series/editor";
@@ -260,6 +263,9 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
     // The field the older generation's own lookup answers an entity's numeric id in. It is misnamed
     // after an unrelated television database and names no such thing here.
     private const string SeriesByEntityIdQuery = "tvdbId";
+
+    // The one query key on the newer generation that narrows a catalogue read to one scene.
+    private const string SceneByRemoteIdQuery = "stashId";
 
     /// <summary>How long one attempt may take before it is reported as unreachable.</summary>
     internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
@@ -645,6 +651,51 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         var command = V3BodyProjector.RefreshCatalogue(kind, entityId);
         return GeneratedCommandAsync(baseAddress, apiKey, command, ct);
     }
+
+    // The instance route family for a scene status. Composed here from the entity kind rather than
+    // taken as a segment, so no caller can aim the stored credential at a route of its own naming.
+    public Task<WhisparrResponse> ReadEntityPresenceAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrEntityKind kind,
+        string foreignId,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
+
+        return ReadAsync(
+            baseAddress,
+            apiKey,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{EntityPathFor(kind)}/{Uri.EscapeDataString(foreignId)}"),
+            ct);
+    }
+
+    // One key, single-valued. Repeating it answers only the first value's row, comma-joining answers
+    // nothing, and the two plural spellings this instance accepts are ignored and answer with the
+    // whole catalogue. A page built on either would look right on a small instance.
+    public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
+        Uri baseAddress, string apiKey, string remoteId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(remoteId);
+
+        return ReadAsync(
+            baseAddress,
+            apiKey,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{MoviePath}?{SceneByRemoteIdQuery}={Uri.EscapeDataString(remoteId)}"),
+            ct);
+    }
+
+    private static string EntityPathFor(WhisparrEntityKind kind)
+        => kind switch
+        {
+            WhisparrEntityKind.Studio => StudioPath,
+            WhisparrEntityKind.Performer => PerformerPath,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+        };
 
     public Task<WhisparrResponse> ReadHardlinkSettingAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)

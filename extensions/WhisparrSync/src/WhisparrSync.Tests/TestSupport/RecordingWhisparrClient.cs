@@ -86,12 +86,16 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         IWhisparrPerformerActing,
         IWhisparrMissingSceneActing,
         IWhisparrReflectOwnedActing,
-        IWhisparrSearchGrabbing
+        IWhisparrSearchGrabbing,
+        IWhisparrSceneStatusReading
 {
     private const string JsonContentType = "application/json; charset=utf-8";
 
     /// <summary>Every status read this client was asked for, in order.</summary>
     public List<(Uri BaseAddress, string ApiKey)> Calls { get; } = [];
+
+    /// <summary>Every scene status read this client was asked for, in order.</summary>
+    public List<SceneStatusCall> SceneStatuses { get; } = [];
 
     /// <summary>Every notification request this client was asked for, in order.</summary>
     public List<NotificationCall> Notifications { get; } = [];
@@ -355,6 +359,24 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         return Task.FromResult(Answer(call.Verb));
     }
 
+    public Task<WhisparrResponse> ReadEntityPresenceAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrEntityKind kind,
+        string foreignId,
+        CancellationToken ct)
+    {
+        SceneStatuses.Add(new SceneStatusCall(kind, foreignId, null));
+        return Task.FromResult(answer);
+    }
+
+    public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
+        Uri baseAddress, string apiKey, string remoteId, CancellationToken ct)
+    {
+        SceneStatuses.Add(new SceneStatusCall(null, null, remoteId));
+        return Task.FromResult(answer);
+    }
+
     private WhisparrResponse Answer(string verb)
     {
         if (!NotificationAnswers.TryGetValue(verb, out var queued) || queued.Count == 0)
@@ -365,3 +387,10 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         return queued.Count == 1 ? queued.Peek() : queued.Dequeue();
     }
 }
+
+/// <summary>One scene status read a recording client was asked for.</summary>
+/// <param name="Kind">The entity kind an entity probe named, or null for a per-scene read.</param>
+/// <param name="ForeignId">The entity an entity probe named, or null for a per-scene read.</param>
+/// <param name="RemoteId">The scene a per-scene read named, or null for an entity probe.</param>
+internal sealed record SceneStatusCall(
+    WhisparrEntityKind? Kind, string? ForeignId, string? RemoteId);
