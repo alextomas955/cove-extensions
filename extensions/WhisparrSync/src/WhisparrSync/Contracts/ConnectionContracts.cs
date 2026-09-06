@@ -60,6 +60,12 @@ public enum WhisparrCapability
 
     /// <summary>What the instance holds for one catalogue scene can be read.</summary>
     ReadSceneStatus,
+
+    /// <summary>
+    /// Which scenes the instance's user has excluded can be read. A generation keeping no scene
+    /// records keeps no scene exclusions either.
+    /// </summary>
+    ReadSceneExclusions,
 }
 
 /// <summary>

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.Mime;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Whisparr3.Net.Api;
@@ -217,7 +218,8 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         IWhisparrMissingSceneActing,
         IWhisparrReflectOwnedActing,
         IWhisparrSearchGrabbing,
-        IWhisparrSceneStatusReading
+        IWhisparrSceneStatusReading,
+        IWhisparrSceneExclusionReading
 {
     /// <summary>The header both generations authenticate an API request with.</summary>
     internal const string ApiKeyHeader = "X-Api-Key";
@@ -239,6 +241,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
     internal const string SeriesEditorPath = "api/v3/series/editor";
     internal const string SeasonPassPath = "api/v3/seasonpass";
     internal const string CommandPath = "api/v3/command";
+    internal const string ExclusionsPath = "api/v3/exclusions";
 
     // The one status this product composes rather than receives, and the only one anywhere in it.
     // The older generation answers "do you hold this entity" through no single route, so that reading
@@ -288,6 +291,12 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
     private const long ReadCeilingBytes = MaxResponseBytes + 1;
 
     private const int ReadChunkBytes = 64 * 1024;
+
+    private static readonly JsonSerializerOptions ExclusionRowShape = new(JsonSerializerDefaults.Web);
+
+    // The one member of an exclusion row this product reads. Declared with no other member so a row
+    // costs one small object that is dropped again before the next is read.
+    private sealed record ExclusionRow(string? ForeignId);
 
     public async Task<WhisparrResponse> ReadStatusAsync(
         Uri baseAddress,
@@ -687,6 +696,95 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
                 CultureInfo.InvariantCulture,
                 $"{MoviePath}?{SceneByRemoteIdQuery}={Uri.EscapeDataString(remoteId)}"),
             ct);
+    }
+
+    // No parameter narrows this route, so none is composed. A filter key, a bare foreign id and a
+    // foreign id as a further segment were each measured against the instance: the first two are
+    // ignored and answer the whole list under a success, and the third is a not-found. An ignored
+    // parameter answering a success is indistinguishable from one that narrowed.
+    //
+    // The answer is therefore read as it arrives and each row is reduced to one question, so what
+    // this holds is the caller's own set and never the instance's. There is no row cap: a cap would
+    // stop part way and report the rest as not excluded, with nothing saying so.
+    //
+    // Sent once. Nothing is retained between rows, so a failure part way through has already
+    // discarded what it read, and a re-issue would transfer the whole list a second time to answer
+    // the same question.
+    public async Task<IReadOnlySet<string>> ReduceExclusionsAsync(
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyCollection<string> providerSceneIds,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(providerSceneIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+
+        // Keyed without regard to case, because an identifier is a hexadecimal uuid and the two
+        // sides spell one in whichever case each stored it. The caller's own spelling is what is
+        // answered, so nothing downstream has to match a spelling this read chose.
+        var asked = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in providerSceneIds)
+        {
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                asked[id] = id;
+            }
+        }
+
+        var excluded = new HashSet<string>(StringComparer.Ordinal);
+        if (asked.Count == 0)
+        {
+            return excluded;
+        }
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, RequestUri(baseAddress, ExclusionsPath));
+        request.Headers.Add(ApiKeyHeader, apiKey);
+
+        using var attempt = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        attempt.CancelAfter(http.Timeout);
+
+        try
+        {
+            using var response = await http
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, attempt.Token)
+                .ConfigureAwait(false);
+
+            if (!IsSuccess((int)response.StatusCode))
+            {
+                return excluded;
+            }
+
+            var stream = await response.Content.ReadAsStreamAsync(attempt.Token).ConfigureAwait(false);
+            await using (stream.ConfigureAwait(false))
+            {
+                var rows = JsonSerializer.DeserializeAsyncEnumerable<ExclusionRow>(
+                    stream, ExclusionRowShape, attempt.Token);
+
+                await foreach (var row in rows.ConfigureAwait(false))
+                {
+                    if (row?.ForeignId is { Length: > 0 } named
+                        && asked.TryGetValue(named, out var asAsked))
+                    {
+                        excluded.Add(asAsked);
+                    }
+                }
+            }
+
+            return excluded;
+        }
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or JsonException)
+        {
+            // An answer that did not arrive, or one this could not read, excludes nothing. Reporting
+            // a scene as excluded on the strength of a failed read would remove it from the surface
+            // with nothing saying why.
+            return excluded;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return excluded;
+        }
     }
 
     private static string EntityPathFor(WhisparrEntityKind kind)

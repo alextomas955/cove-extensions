@@ -192,7 +192,8 @@ internal sealed class MonitorHost : IAsyncDisposable
                 new MissingIdentityResolver(host.Identities, catalogue),
                 catalogue,
                 new OwnedScenePort(host._db),
-                new SceneStatusPort()));
+                new SceneStatusPort(),
+                new SceneExclusionPort()));
 
         host._app = builder.Build();
         var extension = WhisparrSyncFixture.Create();

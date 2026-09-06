@@ -38,12 +38,17 @@ internal sealed record MissingPageRequest(
 /// <param name="StatusReading">
 /// The role that reads a scene's status, or null where the connected generation holds none.
 /// </param>
+/// <param name="ExclusionReading">
+/// The role that reads which scenes the user excluded, or null where the connected generation holds
+/// none. A generation keeping no scene records keeps no exclusions, so nothing is subtracted.
+/// </param>
 internal sealed record MissingPageContext(
     Uri? BaseAddress,
     string ApiKey,
     WhisparrGeneration Generation,
     ResolvedProvider? Provider,
-    IWhisparrSceneStatusReading? StatusReading);
+    IWhisparrSceneStatusReading? StatusReading,
+    IWhisparrSceneExclusionReading? ExclusionReading);
 
 /// <summary>
 /// Derives one page of what a provider lists and the library does not hold.
@@ -65,7 +70,8 @@ internal sealed class MissingPagePlanner(
     MissingIdentityResolver identities,
     IProviderCatalogue catalogue,
     IOwnedScenePort owned,
-    ISceneStatusPort statuses)
+    ISceneStatusPort statuses,
+    ISceneExclusionPort exclusions)
 {
     /// <summary>The page <paramref name="request"/> names.</summary>
     internal async Task<MissingPageView> PlanAsync(
@@ -112,7 +118,14 @@ internal sealed class MissingPagePlanner(
             .ReadOwnedAsync(provider.IdentityEndpoint, pageIds, ct)
             .ConfigureAwait(false);
 
-        var remaining = page.Scenes.Where(scene => !held.Contains(scene.ProviderSceneId)).ToArray();
+        var kept = page.Scenes.Where(scene => !held.Contains(scene.ProviderSceneId)).ToArray();
+
+        // An excluded scene has left the missing set, so it is removed before any status is read and
+        // no card is ever composed for it. The page is not topped back up to replace it.
+        var excluded = await ReadExcludedAsync(context, kept, ct).ConfigureAwait(false);
+        var remaining = excluded.Count == 0
+            ? kept
+            : [.. kept.Where(scene => !excluded.Contains(scene.ProviderSceneId))];
 
         var (states, statusWasRead, statusPermanentlyAbsent) = await ReadStatesAsync(
             request, context, providerEntityId, remaining, ct).ConfigureAwait(false);
@@ -226,6 +239,28 @@ internal sealed class MissingPagePlanner(
         var read = states.Values.Any(state => state != MissingSceneState.StatusUnknown)
             || remaining.Length == 0;
         return (states, read, false);
+    }
+
+    // A generation holding no exclusion role keeps no scene exclusions, so there is nothing to
+    // subtract and no request is issued to find that out.
+    private async Task<IReadOnlySet<string>> ReadExcludedAsync(
+        MissingPageContext context, ProviderScene[] kept, CancellationToken ct)
+    {
+        if (context.ExclusionReading is not { } reading
+            || context.BaseAddress is not { } baseAddress
+            || kept.Length == 0)
+        {
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
+
+        return await exclusions
+            .ReadExcludedAsync(
+                reading,
+                baseAddress,
+                context.ApiKey,
+                [.. kept.Select(scene => scene.ProviderSceneId)],
+                ct)
+            .ConfigureAwait(false);
     }
 
     private static MissingRefusalKind StatusRefusal(bool permanentlyAbsent)
