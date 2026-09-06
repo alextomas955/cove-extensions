@@ -2077,7 +2077,8 @@
           "registerMissingScenes",
           "reflectOwnedFiles",
           "searchMonitored",
-          "readSceneStatus"
+          "readSceneStatus",
+          "readSceneExclusions"
         ]
       },
       "WhisparrEntityKind": {
