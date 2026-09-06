@@ -77,10 +77,18 @@ public sealed class RouteInputGuardTests
         Assert.Equal(
             [
                 "add-all-missing",
+                "bulk-monitor",
+                "count",
+                "missing",
+
+                // Twice: the entity's own monitor route and the catalogue's per-scene one, which are
+                // different routes ending in the same segment.
+                "monitor",
                 "monitor",
                 "monitoring",
                 "reflect-owned",
                 "scope",
+                "search",
                 "search-all-monitored",
                 "unmonitor",
             ],
