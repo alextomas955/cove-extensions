@@ -9,6 +9,11 @@ Whisparr reach your library, and a Whisparr button sits on studio and performer 
 lists' selection bars. This is the version in which Whisparr Sync starts changing both your library
 and what your Whisparr instance monitors.
 
+**Needs Cove 1.4.0.** The floor moves up from 1.3.1, so upgrade Cove before installing this
+release. Cove refuses to install an extension that asks for a newer host than the one you are
+running, and the extension listing hides a version your Cove is below, so on an older Cove this
+release is not offered to you at all.
+
 - **Connect Cove to your Whisparr instance.** Enter its address and API key and press **Test
   connection**. The answer names the version that instance reported and which generation it is, and a
   failure says which of the five things went wrong - nothing answered, the key was refused, something
