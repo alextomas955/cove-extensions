@@ -170,8 +170,10 @@ public sealed partial class WhisparrSync
     /// The connection and provider a catalogue read runs against, or null where either is absent.
     /// </summary>
     /// <remarks>
-    /// The status role is obtained from the connected generation's capability set. A generation
-    /// holding none hands back null, which the derivation states as a status no retry can establish.
+    /// The status and exclusion roles are obtained from the connected generation's capability set. A
+    /// generation holding no status role hands back null, which the derivation states as a status no
+    /// retry can establish; one holding no exclusion role subtracts nothing, because it keeps no
+    /// scene records and so keeps no exclusions.
     /// </remarks>
     private static async Task<MissingPageContext?> ResolveMissingContextAsync(
         OptionsStore options,
@@ -194,16 +196,21 @@ public sealed partial class WhisparrSync
             return null;
         }
 
-        var reading = GenerationCapabilities.For(generation, WhisparrRoleSet.From(client))
+        var capabilities = GenerationCapabilities.For(generation, WhisparrRoleSet.From(client));
+        var reading = capabilities
             .Obtain<IWhisparrSceneStatusReading>()
             .Match<IWhisparrSceneStatusReading?>(held => held, _ => null);
+        var exclusions = capabilities
+            .Obtain<IWhisparrSceneExclusionReading>()
+            .Match<IWhisparrSceneExclusionReading?>(held => held, _ => null);
 
         return new MissingPageContext(
             baseAddress,
             apiKey,
             generation,
             endpoints.Resolve(generation, stored.MetadataProviderEndpoints),
-            reading);
+            reading,
+            exclusions);
     }
 
     /// <summary>A page carrying no scenes, and the reason it carries none.</summary>

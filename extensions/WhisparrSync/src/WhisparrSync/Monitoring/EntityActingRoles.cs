@@ -222,3 +222,32 @@ public interface IWhisparrSceneStatusReading
     Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
         Uri baseAddress, string apiKey, string remoteId, CancellationToken ct);
 }
+
+/// <summary>Reads which of a set of scenes an instance's user has excluded.</summary>
+/// <remarks>
+/// A read role, so nothing declared here changes an instance. Only the newer generation registers
+/// it: the older one keeps no scene records at all and so keeps no scene exclusions, and a caller
+/// obtains no role rather than a member answering an empty set that would read as nothing excluded.
+/// <para>
+/// The answer is the subset of the identifiers that were asked about, so what it carries is bounded
+/// by the caller's own set whatever the instance holds. The member takes no route, no verb and no
+/// query key.
+/// </para>
+/// </remarks>
+public interface IWhisparrSceneExclusionReading
+{
+    /// <summary>Which of <paramref name="providerSceneIds"/> the instance's user has excluded.</summary>
+    /// <remarks>
+    /// One request per call. The instance narrows this list by no parameter, so the whole answer is
+    /// read as it arrives and each row is reduced to this question and dropped.
+    /// <para>
+    /// An answer that did not arrive, or one that could not be read, excludes nothing. There is no
+    /// spelling in which this can report a scene as excluded that the instance did not name.
+    /// </para>
+    /// </remarks>
+    Task<IReadOnlySet<string>> ReduceExclusionsAsync(
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyCollection<string> providerSceneIds,
+        CancellationToken ct);
+}
