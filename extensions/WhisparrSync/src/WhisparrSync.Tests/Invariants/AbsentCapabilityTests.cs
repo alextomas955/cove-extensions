@@ -277,12 +277,14 @@ public sealed class AbsentCapabilityTests
             OutboundSeam.MembersOf(WhisparrVerbClass.Configure));
 
         Assert.Equal(
-            [nameof(StashDbCatalogue), nameof(WhisparrClient)],
+            [nameof(StashDbCatalogue), nameof(ThePornDbCatalogue), nameof(WhisparrClient)],
             TypesHoldingAnHttpClient().Order().ToList());
 
-        // The catalogue's own surface: every request it composes is the one read verb, so no member
-        // takes a verb and none takes a route or a query key from a caller.
+        // Each catalogue's own surface: every request it composes is the one read verb, so no member
+        // takes a verb and none takes a route or a query key from a caller. Both are asserted, since
+        // the point of the list above is that a second holder of a client is a second call site.
         Assert.Empty(MembersTakingAVerbOrARouteOn(typeof(StashDbCatalogue)));
+        Assert.Empty(MembersTakingAVerbOrARouteOn(typeof(ThePornDbCatalogue)));
     }
 
     /// <summary>The relative routes the outbound client declares, read off its own constants.</summary>
