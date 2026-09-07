@@ -85,8 +85,9 @@ catalogue, and:
 
 - Every pill reads **Status unknown**, and a line above the grid says why. No retry changes it.
 - A scene you excluded in Whisparr is still listed, because v2 keeps no scene exclusions to read.
-- **Monitor** and **Search** are still drawn on each card and neither can take. A press reports that
-  Whisparr would not do it and changes nothing.
+- **Monitor** and **Search** are still drawn on each card and neither can take. A press changes
+  nothing and says the action is currently available on Whisparr v3 (Eros). Your instance is never
+  asked, so it did not decline.
 - A selection's **Monitor** is refused before the run starts, and the bar says the connected
   Whisparr keeps no per-scene records.
 

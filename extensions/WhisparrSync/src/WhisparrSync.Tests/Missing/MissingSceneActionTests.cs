@@ -410,18 +410,28 @@ public sealed class MissingSceneActionTests
     }
 
     /// <summary>
-    /// A generation registering no per-scene search has nothing to hand over, so nothing is sent.
+    /// A generation registering no role for the verb has nothing to hand over, so nothing is sent
+    /// and the answer names the absent role. Reported as the instance declining, it would blame an
+    /// instance that was never asked.
     /// </summary>
-    [Fact]
-    public async Task AGenerationHoldingNoPerSceneSearchSendsNothing()
+    [Theory]
+    [InlineData("monitor")]
+    [InlineData("search")]
+    public async Task AGenerationHoldingNoRoleForTheVerbNamesTheAbsentRole(string verb)
     {
         await using var host = await MonitorHost.CreateAsync(generation: WhisparrGeneration.V2);
         var studioId = await StudioIn(host);
 
         var result = await ReadResultAsync(
-            await host.PostRawAsync("studio", studioId, SearchVerb(SceneId), "{}"));
+            await host.PostRawAsync(
+                "studio",
+                studioId,
+                verb == "monitor" ? MonitorVerb(SceneId) : SearchVerb(SceneId),
+                "{}"));
 
-        Assert.Equal(MissingSceneActionRefusal.InstanceRefused, result.Refusal);
+        Assert.Equal(
+            MissingSceneActionRefusal.CapabilityAbsentOnThisGeneration, result.Refusal);
+        Assert.NotEqual(MissingSceneActionRefusal.InstanceRefused, result.Refusal);
         Assert.Empty(host.Client.Acting);
     }
 
