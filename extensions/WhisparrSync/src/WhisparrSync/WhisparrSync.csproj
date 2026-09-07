@@ -17,10 +17,11 @@
   </ItemGroup>
 
   <!--
-    The generated Whisparr 3 client. It composes every request this extension makes to a 3.x
-    instance. The 2.x generation has no such client and its routes stay hand-composed.
+    A generated Whisparr client per generation. Whisparr2.Net composes the requests this extension
+    makes to a 2.x instance and Whisparr3.Net composes the requests it makes to a 3.x instance.
   -->
   <ItemGroup>
+    <PackageReference Include="Whisparr2.Net" />
     <PackageReference Include="Whisparr3.Net" />
   </ItemGroup>
 
