@@ -176,6 +176,59 @@ public sealed class MissingAbstentionTests
         Assert.Equal(MissingRefusalKind.ProviderUnreachable, replaced.Refusal);
     }
 
+    /// <summary>
+    /// A source that refused the name lookup is not an entity the source has no id for.
+    /// </summary>
+    /// <remarks>
+    /// The name lookup runs before any page is read, so it is the first place a refused credential
+    /// can be turned into a settled fact about the library. The two refusals are asserted apart
+    /// because only one of them offers a Refresh.
+    /// </remarks>
+    [Fact]
+    public async Task ASourceThatRefusedTheNameLookupIsNeverReadAsAnEntityItHasNoIdFor()
+    {
+        var catalogue = RefusingCatalogue();
+
+        var view = await new MissingPagePlanner(
+            new MissingIdentityResolver(
+                new StubEntityIdentities(null),
+                catalogue,
+                new StubEntityNames(new EntityName("Brazzers", []))),
+            catalogue,
+            new StubOwnedScenes(),
+            new SceneStatusPort(),
+            new SceneExclusionPort())
+            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+
+        Assert.Equal(MissingRefusalKind.ProviderUnreachable, view.Refusal);
+        Assert.NotEqual(MissingRefusalKind.NoProviderIdForEntity, view.Refusal);
+        Assert.Empty(view.Cards);
+    }
+
+    /// <summary>
+    /// A source that answered and names no such entity is still the entity refusal, so the two are
+    /// told apart by what happened rather than by both landing on the same value.
+    /// </summary>
+    [Fact]
+    public async Task ASourceThatNamesNoSuchEntityIsStillTheEntityRefusal()
+    {
+        var catalogue = new StubProviderCatalogue(ScenesNamed("one"));
+
+        var view = await new MissingPagePlanner(
+            new MissingIdentityResolver(
+                new StubEntityIdentities(null),
+                catalogue,
+                new StubEntityNames(new EntityName("Brazzers", []))),
+            catalogue,
+            new StubOwnedScenes(),
+            new SceneStatusPort(),
+            new SceneExclusionPort())
+            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+
+        Assert.Equal(MissingRefusalKind.NoProviderIdForEntity, view.Refusal);
+        Assert.Empty(view.Cards);
+    }
+
     /// <summary>Nothing under the derivation writes a per-scene value anywhere.</summary>
     /// <remarks>
     /// Permanent hiding is the instance's own exclusion and nothing else, so this product stores no
