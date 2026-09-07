@@ -6,23 +6,17 @@
  *
  * No stylesheet and no background of its own: an extension CSS bundle is page-global and would leak
  * onto every host page, so every visual here is a host-emitted utility class.
+ *
+ * Every sentence below is stated by the surface that derives it. This file composes none of its own.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import {
-  NOTHING_MISSING,
-  NO_METADATA_PROVIDER_CONFIGURED,
-  NO_PROVIDER_ID_FOR_ENTITY,
-  NO_SCENES_MATCH_THESE_FILTERS,
-  NO_SCENES_WITHOUT_SUB_STUDIOS,
-  PROVIDER_UNREACHABLE,
-  WHISPARR_KEEPS_NO_SCENE_RECORDS,
-  WHISPARR_STATUS_NOT_READ,
-} from "../common/ui/copy";
-import type { MissingRefusalKind } from "../wire/api";
+import { NO_PROVIDER_ID_FOR_ENTITY } from "../common/ui/copy";
 import { readEntityKind, type MissingEntityKind } from "./entityKindLogic";
+import { useMultiSelect } from "./hostComponents";
 import { MissingGrid } from "./MissingGrid";
 import { MissingPager } from "./MissingPager";
+import { MissingSelectionBar } from "./MissingSelectionBar";
 import { MissingToolbar } from "./MissingToolbar";
 import { useMissing } from "./useMissing";
 import { useMissingUrlState } from "./useMissingUrlState";
@@ -35,19 +29,6 @@ const HOST_LOCATION_CHANGE = "cove-locationchange";
 
 /** The provider this build reads a catalogue from, named where a sentence asks for it. */
 const PROVIDER_NAME = "StashDB";
-
-/** The sentence stated above the grid for each refusal the server can answer. */
-const GRID_REFUSAL: Partial<Record<MissingRefusalKind, string>> = {
-  noMetadataProviderConfigured: NO_METADATA_PROVIDER_CONFIGURED,
-  noProviderIdForEntity: NO_PROVIDER_ID_FOR_ENTITY,
-  providerUnreachable: PROVIDER_UNREACHABLE,
-  whisparrStatusNotRead: WHISPARR_STATUS_NOT_READ,
-  whisparrKeepsNoSceneRecords: WHISPARR_KEEPS_NO_SCENE_RECORDS,
-};
-
-function fill(sentence: string, entity: string): string {
-  return sentence.replace("{provider}", PROVIDER_NAME).replace("{entity}", entity);
-}
 
 /**
  * Whether the host's own sub-studio toggle is on, tracked live.
@@ -106,27 +87,71 @@ function MissingTabFor({
       ? { ...view.filters, [INCLUDE_SUB_STUDIOS_KEY]: String(includeSubStudios) }
       : view.filters;
 
-  const { state, refresh } = useMissing(kind, coveId, { ...view, filters });
+  const { state, refresh, monitorScene, searchScene, monitorSelection, monitorAll } = useMissing(
+    kind,
+    coveId,
+    { ...view, filters },
+  );
   const entityName = `this ${kind}`;
   const page = state.view;
 
-  const refusal = page === null || page.refusal === "none" ? null : GRID_REFUSAL[page.refusal];
+  const loadedPageIds = useMemo(
+    () => (page?.cards ?? []).map((card) => card.providerSceneId),
+    [page],
+  );
+  const items = useMemo(() => loadedPageIds.map((id) => ({ id })), [loadedPageIds]);
+
+  // At the hook's own preserve-on-items-change default of false, so the selection clears when the
+  // page under it changes and a tick always means a scene currently on screen.
+  const { selectedIds, toggle, selectIds } = useMultiSelect(items);
+
+  const onSelect = useCallback(
+    (ids: readonly string[]) => {
+      selectIds([...ids]);
+    },
+    [selectIds],
+  );
 
   return (
     <div className="mx-auto max-w-7xl px-4">
-      <MissingToolbar onRefresh={refresh} />
-      {refusal === undefined || refusal === null ? null : (
-        <p className="mb-3 text-sm text-muted">{fill(refusal, entityName)}</p>
-      )}
+      <MissingToolbar
+        onRefresh={refresh}
+        catalogue={page === null ? undefined : { kind, view: page, onMonitorAll: monitorAll }}
+      />
+      <MissingSelectionBar
+        loadedPageIds={loadedPageIds}
+        selected={selectedIds}
+        outcome={state.bulk}
+        onSelect={onSelect}
+        onMonitorSelection={() => {
+          monitorSelection([...selectedIds]);
+        }}
+      />
       <MissingGrid
         read={state.read}
         view={page}
-        empty={
-          <p className="text-sm text-muted">
-            {fill(emptyReason(view.q, view.filters, kind, includeSubStudios), entityName)}
-          </p>
-        }
-        failed={<p className="text-sm text-muted">{fill(PROVIDER_UNREACHABLE, entityName)}</p>}
+        surroundings={{
+          provider: PROVIDER_NAME,
+          entityName,
+          filtersActive: Object.keys(view.filters).length > 0,
+          searchActive: view.q !== "",
+          subStudioContentIsExcluded: kind === "studio" && !includeSubStudios,
+          onRefresh: refresh,
+          onClearFilters: () => {
+            setView({ ...view, filters: {} });
+          },
+          onClearSearch: () => {
+            setView({ ...view, q: "" });
+          },
+        }}
+        cards={{
+          selected: selectedIds,
+          selecting: selectedIds.size > 0,
+          onToggleSelect: toggle,
+          actions: state.cardActions,
+          onMonitor: monitorScene,
+          onSearch: searchScene,
+        }}
       />
       {page === null ? null : (
         <div className="mt-4">
@@ -142,27 +167,4 @@ function MissingTabFor({
       )}
     </div>
   );
-}
-
-/**
- * Why the grid is empty.
- *
- * A parent studio read without its sub-studios is held apart from owning everything: the provider
- * attributes those scenes one level down, so the catalogue really is empty while thousands of scenes
- * exist, and stating that the reader owns them all would be vacuously true of the query and false to
- * a reader.
- */
-function emptyReason(
-  q: string,
-  filters: Readonly<Record<string, string>>,
-  kind: MissingEntityKind,
-  includeSubStudios: boolean,
-): string {
-  if (q !== "" || Object.keys(filters).length > 0) {
-    return NO_SCENES_MATCH_THESE_FILTERS;
-  }
-  if (kind === "studio" && !includeSubStudios) {
-    return NO_SCENES_WITHOUT_SUB_STUDIOS;
-  }
-  return NOTHING_MISSING;
 }
