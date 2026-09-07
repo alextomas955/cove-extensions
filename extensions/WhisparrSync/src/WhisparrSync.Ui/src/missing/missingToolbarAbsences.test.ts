@@ -1,18 +1,19 @@
 /**
- * Three requirements this toolbar discharges by shipping nothing.
+ * What the toolbar draws for one page, and what it does not.
  *
- * An absence that is not asserted is unfalsifiable, so each one gets a test that the nothing is
- * really there. Every assertion runs over the control and row lists the toolbar derives, so adding
- * the missing control or caveat anywhere in that derivation turns one of these red. These tests run
- * in a node environment and render no view, which is why the composition below reproduces what the
- * toolbar draws from the same exported functions the view calls.
+ * Two requirements here are discharged by shipping nothing, and an absence that is not asserted is
+ * unfalsifiable. The third is the bound a partial menu states, which is asserted against the counts
+ * the page carries rather than against a constant. Every assertion runs over the control and row
+ * lists the toolbar derives, so a change anywhere in that derivation turns one of these red. These
+ * tests run in a node environment and render no view, which is why the composition below reproduces
+ * what the toolbar draws from the same exported functions the view calls.
  */
 import { describe, expect, it } from "vitest";
 
 import * as copy from "../common/ui/copy";
 import type { MissingFacetMenu, MissingPageView, MissingSortOption } from "../wire/api";
 import type { MissingEntityKind } from "./entityKindLogic";
-import { facetMenuRows } from "./missingFacetLogic";
+import { facetMenuRows, menuIsBounded } from "./missingFacetLogic";
 import * as facetLogic from "./missingFacetLogic";
 import {
   MONITOR_ALL,
@@ -43,6 +44,17 @@ const STUDIO: MissingFacetMenu = {
   label: "Studio",
   reportedValueCount: 1,
   values: [{ value: "s-1", label: "Brazzers Exxtra" }],
+};
+
+/** A menu the source reports far more values for than it served. */
+const PERFORMER: MissingFacetMenu = {
+  key: "performer",
+  label: "Performer",
+  reportedValueCount: 400,
+  values: [
+    { value: "p-1", label: "Ada Byron" },
+    { value: "p-2", label: "Grace Hopper" },
+  ],
 };
 
 function pageWith(facets: MissingFacetMenu[]): MissingPageView {
@@ -82,6 +94,9 @@ function drawnStrings(kind: MissingEntityKind, view: MissingPageView): string[] 
   if (controls.includes("facets")) {
     for (const menu of view.facets) {
       drawn.push(menu.label);
+      if (menuIsBounded(menu)) {
+        drawn.push(copy.facetMenuBound(menu.values.length, menu.reportedValueCount));
+      }
       for (const row of facetMenuRows(menu, null)) drawn.push(row.label);
     }
   }
@@ -90,7 +105,7 @@ function drawnStrings(kind: MissingEntityKind, view: MissingPageView): string[] 
   return drawn;
 }
 
-describe("no sentence names which menus are incomplete", () => {
+describe("a menu says how much of the source's list it carries", () => {
   it("declares three strings across both logic modules, and each is a control's name", () => {
     const declared = [...Object.entries(toolbarLogic), ...Object.entries(facetLogic)]
       .filter(([, value]) => typeof value === "string")
@@ -99,18 +114,26 @@ describe("no sentence names which menus are incomplete", () => {
     expect(declared.sort()).toEqual([MONITOR_ALL, SEARCH_PLACEHOLDER, SORT_MENU_LABEL].sort());
   });
 
-  it("draws no sentence anywhere in the toolbar", () => {
-    for (const drawn of drawnStrings("studio", pageWith([YEAR, STUDIO]))) {
-      expect(/[.!?]\s*$/.test(drawn), `"${drawn}" reads as a sentence`).toBe(false);
-    }
+  it("states both counts beside a menu carrying fewer values than the source reported", () => {
+    const drawn = drawnStrings("studio", pageWith([PERFORMER]));
+
+    expect(drawn).toContain(
+      copy.facetMenuBound(PERFORMER.values.length, PERFORMER.reportedValueCount),
+    );
   });
 
-  it("draws exactly one of the declared sentences, and it is the name of a control", () => {
+  it("states nothing beside a menu carrying every value the source reported", () => {
+    const drawn = drawnStrings("studio", pageWith([YEAR, STUDIO]));
+
+    expect(drawn.filter((entry) => entry.includes("This menu carries"))).toEqual([]);
+  });
+
+  it("draws no other sentence, so the bound is the only one on the toolbar", () => {
     const sentences = new Set(
       Object.values(copy).filter((value): value is string => typeof value === "string"),
     );
-    const drawnSentences = drawnStrings("studio", pageWith([YEAR, STUDIO])).filter((drawn) =>
-      sentences.has(drawn),
+    const drawnSentences = drawnStrings("studio", pageWith([YEAR, STUDIO, PERFORMER])).filter(
+      (drawn) => sentences.has(drawn),
     );
 
     expect(drawnSentences).toEqual([copy.ACTION_REFRESH]);
