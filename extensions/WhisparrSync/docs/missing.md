@@ -142,9 +142,10 @@ Above the grid:
 - **Search titles** narrows the whole catalogue, not the page you are on. Typing settles before the
   list is re-read.
 - **Sort** offers the orderings the source itself declares.
-- One menu per facet the source filled. A long menu carries a field at its head and lists nothing
-  until you type; it narrows the values the source already sent rather than asking the source again
-  as you type.
+- One menu per facet the source filled. A menu lists the values the source served, and you can
+  narrow by any of them. The source decides how many values it serves, so a menu can carry fewer
+  than the source lists. Where it does, the menu says how many of how many it carries and that the
+  rest cannot be picked there.
 - **Year**, where the source filters by one. It lists every year between the oldest and the newest
   scene the source holds for that entity, so a year with nothing in it is not offered.
 - **Refresh** reads the page again.
