@@ -56,6 +56,7 @@ public sealed class WhisparrCapabilitySet
         [typeof(IWhisparrSearchGrabbing)] = WhisparrCapability.SearchMonitored,
         [typeof(IWhisparrSceneStatusReading)] = WhisparrCapability.ReadSceneStatus,
         [typeof(IWhisparrSceneExclusionReading)] = WhisparrCapability.ReadSceneExclusions,
+        [typeof(IWhisparrSceneSearchGrabbing)] = WhisparrCapability.SearchScene,
     };
 
     private readonly Dictionary<WhisparrCapability, object> _roles;
@@ -136,6 +137,7 @@ public static class GenerationCapabilities
         WhisparrCapability.SearchMonitored,
         WhisparrCapability.ReadSceneStatus,
         WhisparrCapability.ReadSceneExclusions,
+        WhisparrCapability.SearchScene,
     ];
 
     /// <inheritdoc cref="V3Capabilities"/>
@@ -147,7 +149,9 @@ public static class GenerationCapabilities
     /// entry: this generation answers a not-found on every per-scene route, so no retry can establish
     /// a status and a card states that rather than offering a gesture that cannot change it. No
     /// scene-exclusion entry for the same reason: a generation keeping no scene records keeps no
-    /// scene exclusions, and this generation answers a not-found on the exclusion route too.
+    /// scene exclusions, and this generation answers a not-found on the exclusion route too. No
+    /// per-scene search entry either, for the same reason: a generation holding no scene has none to
+    /// be searched for, and the entity search it does hold covers everything the entity monitors.
     /// </remarks>
     private static readonly WhisparrCapability[] V2Capabilities =
     [
@@ -213,6 +217,7 @@ public static class GenerationCapabilities
                     registered[WhisparrCapability.SearchMonitored] = roles.SearchGrabbing;
                     registered[WhisparrCapability.ReadSceneStatus] = roles.SceneStatusReading;
                     registered[WhisparrCapability.ReadSceneExclusions] = roles.SceneExclusionReading;
+                    registered[WhisparrCapability.SearchScene] = roles.SceneSearchGrabbing;
                 }
 
                 break;
@@ -258,6 +263,10 @@ public static class GenerationCapabilities
 /// </param>
 /// <param name="SceneStatusReading">Reads what an instance holds for one catalogue scene.</param>
 /// <param name="SceneExclusionReading">Reads which of a set of scenes the instance's user excluded.</param>
+/// <param name="SceneSearchGrabbing">
+/// Asks an instance to look for one scene it holds. The second role here that can make an instance
+/// download, obtained by name and by nothing else.
+/// </param>
 internal sealed record WhisparrRoleSet(
     IWhisparrStudioActing StudioActing,
     IWhisparrPerformerActing PerformerActing,
@@ -265,7 +274,8 @@ internal sealed record WhisparrRoleSet(
     IWhisparrReflectOwnedActing ReflectOwnedActing,
     IWhisparrSearchGrabbing SearchGrabbing,
     IWhisparrSceneStatusReading SceneStatusReading,
-    IWhisparrSceneExclusionReading SceneExclusionReading)
+    IWhisparrSceneExclusionReading SceneExclusionReading,
+    IWhisparrSceneSearchGrabbing SceneSearchGrabbing)
 {
     /// <summary>The roles <paramref name="client"/> implements.</summary>
     /// <exception cref="InvalidOperationException">
@@ -284,6 +294,7 @@ internal sealed record WhisparrRoleSet(
             and IWhisparrSearchGrabbing searchGrabbing
             and IWhisparrSceneStatusReading sceneStatusReading
             and IWhisparrSceneExclusionReading sceneExclusionReading
+            and IWhisparrSceneSearchGrabbing sceneSearchGrabbing
             ? new WhisparrRoleSet(
                 studioActing,
                 performerActing,
@@ -291,7 +302,8 @@ internal sealed record WhisparrRoleSet(
                 reflectOwnedActing,
                 searchGrabbing,
                 sceneStatusReading,
-                sceneExclusionReading)
+                sceneExclusionReading,
+                sceneSearchGrabbing)
             : throw new InvalidOperationException(
                 $"{client.GetType()} holds this product's HTTP client but implements only part of "
                     + $"{nameof(WhisparrRoleSet)}.");

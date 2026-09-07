@@ -252,8 +252,11 @@ public sealed partial class WhisparrSync
         // most consequential route this surface mounts, and it must not sit at a tier a caller who
         // cannot configure the extension can reach.
         endpoints.MapPost(MissingSceneSearchRoute,
-            (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal)
-                => SearchMissingSceneAsync(kind, coveId, providerSceneId, principal))
+            (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             CancellationToken ct)
+                => SearchMissingSceneAsync(
+                    kind, coveId, providerSceneId, principal, options, credentials, client, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
