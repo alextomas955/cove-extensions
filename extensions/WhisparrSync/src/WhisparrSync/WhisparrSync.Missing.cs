@@ -54,7 +54,7 @@ public sealed partial class WhisparrSync
         }
 
         var context = await ResolveMissingContextAsync(
-                entityKind, options, credentials, client, endpoints, ct)
+                options, credentials, client, endpoints, ct)
             .ConfigureAwait(false);
         if (context is null)
         {
@@ -118,7 +118,7 @@ public sealed partial class WhisparrSync
         }
 
         var context = await ResolveMissingContextAsync(
-                entityKind, options, credentials, client, endpoints, ct)
+                options, credentials, client, endpoints, ct)
             .ConfigureAwait(false);
         if (context is null)
         {
@@ -147,7 +147,7 @@ public sealed partial class WhisparrSync
     }
 
     /// <summary>No measurement at all, which draws no badge rather than a zero.</summary>
-    private static MissingCountView NoCount => new(null, false);
+    private static MissingCountView NoCount => new(null);
 
     /// <summary>How many scenes one page of the catalogue carries.</summary>
     private const int MissingPerPage = 40;
@@ -162,7 +162,6 @@ public sealed partial class WhisparrSync
     /// scene records and so keeps no exclusions.
     /// </remarks>
     private static async Task<MissingPageContext?> ResolveMissingContextAsync(
-        WhisparrEntityKind kind,
         OptionsStore options,
         ICredentialPort credentials,
         IWhisparrClient client,
@@ -197,28 +196,8 @@ public sealed partial class WhisparrSync
             generation,
             endpoints.Resolve(generation, stored.MetadataProviderEndpoints),
             reading,
-            exclusions,
-            MonitorAllIsExpressible(kind, capabilities));
+            exclusions);
     }
-
-    /// <summary>
-    /// Whether the whole-entity action has an implementation to reach on <paramref name="kind"/>.
-    /// </summary>
-    /// <remarks>
-    /// The two roles the registration route itself needs. A tag is not an entity an instance
-    /// monitors, so no arm acts on one and the answer is false whatever the generation holds.
-    /// </remarks>
-    private static bool MonitorAllIsExpressible(
-        WhisparrEntityKind kind, WhisparrCapabilitySet capabilities)
-        => capabilities.Obtain<IWhisparrMissingSceneActing>().Match(_ => true, _ => false)
-            && kind switch
-            {
-                WhisparrEntityKind.Studio
-                    => capabilities.Obtain<IWhisparrStudioActing>().Match(_ => true, _ => false),
-                WhisparrEntityKind.Performer
-                    => capabilities.Obtain<IWhisparrPerformerActing>().Match(_ => true, _ => false),
-                _ => false,
-            };
 
     /// <summary>A page carrying no scenes, and the reason it carries none.</summary>
     private static MissingPageView RefusedPage(
@@ -238,7 +217,6 @@ public sealed partial class WhisparrSync
             SortInForce: null,
             StatusWasRead: false,
             StatusIsPermanentlyAbsent: false,
-            MonitorAllIsOffered: false,
             planner.ProviderName);
 
     private static string? Blank(string? value)

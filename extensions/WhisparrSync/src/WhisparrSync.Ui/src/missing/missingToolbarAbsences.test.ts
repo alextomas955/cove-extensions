@@ -12,15 +12,13 @@ import { describe, expect, it } from "vitest";
 
 import * as copy from "../common/ui/copy";
 import type { MissingFacetMenu, MissingPageView, MissingSortOption } from "../wire/api";
-import type { MissingEntityKind } from "./entityKindLogic";
 import { facetMenuRows, menuIsBounded } from "./missingFacetLogic";
 import * as facetLogic from "./missingFacetLogic";
 import {
-  MONITOR_ALL,
+  MISSING_TOOLBAR_CONTROLS,
   SEARCH_PLACEHOLDER,
   SORT_MENU_LABEL,
   sortOptionsFor,
-  toolbarControlsFor,
 } from "./missingToolbarLogic";
 import * as toolbarLogic from "./missingToolbarLogic";
 
@@ -73,7 +71,6 @@ function pageWith(facets: MissingFacetMenu[]): MissingPageView {
     sortInForce: null,
     statusWasRead: true,
     statusIsPermanentlyAbsent: false,
-    monitorAllIsOffered: true,
     providerName: "a source",
   };
 }
@@ -81,10 +78,10 @@ function pageWith(facets: MissingFacetMenu[]): MissingPageView {
 /**
  * Every string the toolbar draws for one page, composed from the same functions the view calls: the
  * search placeholder, the ordering trigger and its rows, one trigger and its rows per facet menu,
- * Refresh, and the whole-view action where the entity expresses one.
+ * and Refresh.
  */
-function drawnStrings(kind: MissingEntityKind, view: MissingPageView): string[] {
-  const controls = toolbarControlsFor(kind, view.monitorAllIsOffered);
+function drawnStrings(view: MissingPageView): string[] {
+  const controls = MISSING_TOOLBAR_CONTROLS;
   const drawn: string[] = [SEARCH_PLACEHOLDER, copy.ACTION_REFRESH];
 
   if (controls.includes("sort")) {
@@ -100,22 +97,20 @@ function drawnStrings(kind: MissingEntityKind, view: MissingPageView): string[] 
       for (const row of facetMenuRows(menu, null)) drawn.push(row.label);
     }
   }
-  if (controls.includes("monitorAll")) drawn.push(MONITOR_ALL);
-
   return drawn;
 }
 
 describe("a menu says how much of the source's list it carries", () => {
-  it("declares three strings across both logic modules, and each is a control's name", () => {
+  it("declares two strings across both logic modules, and each is a control's name", () => {
     const declared = [...Object.entries(toolbarLogic), ...Object.entries(facetLogic)]
       .filter(([, value]) => typeof value === "string")
       .map(([, value]) => value as string);
 
-    expect(declared.sort()).toEqual([MONITOR_ALL, SEARCH_PLACEHOLDER, SORT_MENU_LABEL].sort());
+    expect(declared.sort()).toEqual([SEARCH_PLACEHOLDER, SORT_MENU_LABEL].sort());
   });
 
   it("states both counts beside a menu carrying fewer values than the source reported", () => {
-    const drawn = drawnStrings("studio", pageWith([PERFORMER]));
+    const drawn = drawnStrings(pageWith([PERFORMER]));
 
     expect(drawn).toContain(
       copy.facetMenuBound(PERFORMER.values.length, PERFORMER.reportedValueCount),
@@ -123,7 +118,7 @@ describe("a menu says how much of the source's list it carries", () => {
   });
 
   it("states nothing beside a menu carrying every value the source reported", () => {
-    const drawn = drawnStrings("studio", pageWith([YEAR, STUDIO]));
+    const drawn = drawnStrings(pageWith([YEAR, STUDIO]));
 
     expect(drawn.filter((entry) => entry.includes("This menu carries"))).toEqual([]);
   });
@@ -132,8 +127,8 @@ describe("a menu says how much of the source's list it carries", () => {
     const sentences = new Set(
       Object.values(copy).filter((value): value is string => typeof value === "string"),
     );
-    const drawnSentences = drawnStrings("studio", pageWith([YEAR, STUDIO, PERFORMER])).filter(
-      (drawn) => sentences.has(drawn),
+    const drawnSentences = drawnStrings(pageWith([YEAR, STUDIO, PERFORMER])).filter((drawn) =>
+      sentences.has(drawn),
     );
 
     expect(drawnSentences).toEqual([copy.ACTION_REFRESH]);
@@ -142,7 +137,7 @@ describe("a menu says how much of the source's list it carries", () => {
 
 describe("nothing warns about an approximate year, because nothing approximates", () => {
   it("draws a year menu with its own values and no caveat beside it", () => {
-    const drawn = drawnStrings("studio", pageWith([YEAR]));
+    const drawn = drawnStrings(pageWith([YEAR]));
     const fromTheYearMenu = [YEAR.label, ...YEAR.values.map((value) => value.label)];
 
     expect(drawn.filter((entry) => /year|20\d\d/i.test(entry)).sort()).toEqual(
@@ -151,22 +146,8 @@ describe("nothing warns about an approximate year, because nothing approximates"
   });
 
   it("draws no year control at all where the provider offered no year menu", () => {
-    const drawn = drawnStrings("studio", pageWith([STUDIO]));
+    const drawn = drawnStrings(pageWith([STUDIO]));
 
     expect(drawn.filter((entry) => /year|20\d\d/i.test(entry))).toEqual([]);
-  });
-});
-
-describe("the whole-view action is absent on a tag, not dimmed there", () => {
-  it("derives no whole-view control for a tag", () => {
-    expect(toolbarControlsFor("tag", true)).not.toContain("monitorAll");
-  });
-
-  it("draws the action's name nowhere on a tag", () => {
-    expect(drawnStrings("tag", pageWith([STUDIO]))).not.toContain(MONITOR_ALL);
-  });
-
-  it("draws it on a studio, so the absence above is this entity kind and not a broken derivation", () => {
-    expect(drawnStrings("studio", pageWith([STUDIO]))).toContain(MONITOR_ALL);
   });
 });
