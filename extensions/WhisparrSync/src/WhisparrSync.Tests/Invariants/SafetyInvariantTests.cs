@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json.Nodes;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Builder;
@@ -8,8 +9,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
+using WhisparrSync.Providers;
 using WhisparrSync.Tests.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -38,6 +41,8 @@ internal static class SafetyInvariant
 
     public const string EveryMutationIsOriginTagged = "every mutation is origin-tagged and idempotent";
 
+    public const string NothingGrowsWithTheLibrary = "nothing stored or returned grows with the library";
+
     /// <summary>Every invariant this product declares.</summary>
     public static string[] All =>
     [
@@ -47,6 +52,7 @@ internal static class SafetyInvariant
         EveryAddIsNonGrabbing,
         OnlyAnExplicitSearchGrabs,
         EveryMutationIsOriginTagged,
+        NothingGrowsWithTheLibrary,
     ];
 }
 
@@ -640,6 +646,214 @@ public sealed class SafetyInvariantTests
                 _followUp,
                 new FixedClock(Now),
                 NullLogger.Instance);
+    }
+
+    /// <summary>
+    /// Nothing under the catalogue derivation can reach the host's stored-value surface at all.
+    /// </summary>
+    /// <remarks>
+    /// The host serialises every stored value on one bulk route, so one oversized value breaks the
+    /// whole settings page and survives a reinstall. A type that cannot obtain the store cannot write
+    /// a page, a catalogue or a library into it, which is a stronger claim than one about the sizes
+    /// it happens to write today.
+    /// <para>
+    /// The settings blob is written by the options slice, which is not in this set and is bounded by
+    /// its own record rather than by anything the library holds.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
+    public void NoTypeUnderTheDerivationCanReachTheStoredValueSurface()
+    {
+        string[] slices =
+        [
+            "WhisparrSync.Missing",
+            "WhisparrSync.Providers",
+            "WhisparrSync.Jobs",
+        ];
+
+        var holders = typeof(MissingPagePlanner).Assembly
+            .GetTypes()
+            .Where(type => slices.Contains(type.Namespace, StringComparer.Ordinal))
+            .Where(type => CanReach(type, typeof(IExtensionStore)))
+            .Select(type => type.FullName!)
+            .Order()
+            .ToList();
+
+        Assert.Empty(holders);
+    }
+
+    /// <summary>
+    /// Every collection a catalogue route answers with is one that was written down.
+    /// </summary>
+    /// <remarks>
+    /// Transcribed, so a collection member added without a decision about what bounds it fails here.
+    /// What each is bounded by is asserted by driving the derivation below: a declared type says
+    /// nothing about the count an implementation puts in it.
+    /// <para>
+    /// The facet menus are the one member not bounded by the page. They are bounded by the provider's
+    /// own declared menu size, and are read once for the tab rather than per card.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
+    public void EveryCollectionACatalogueRouteAnswersWithWasWrittenDown()
+        => Assert.Equal(
+            ["Cards", "Facets", "Sorts"],
+            typeof(MissingPageView)
+                .GetProperties()
+                .Where(property => property.PropertyType != typeof(string)
+                    && typeof(System.Collections.IEnumerable).IsAssignableFrom(property.PropertyType))
+                .Select(property => property.Name)
+                .Order()
+                .ToList());
+
+    /// <summary>
+    /// A page carries at most the number of cards it asked for, and fewer once rows were removed.
+    /// </summary>
+    /// <remarks>
+    /// The page is never topped back up. Fetching more to fill a gap is unbounded where a reader owns
+    /// most of an entity, which is the shape this asserts the derivation does not have.
+    /// </remarks>
+    [Theory]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
+    [InlineData(0, 0, 40)]
+    [InlineData(10, 0, 30)]
+    [InlineData(0, 7, 33)]
+    [InlineData(10, 7, 23)]
+    public async Task APageCarriesAtMostThePerPageItAskedForAndFewerOnceRowsWereRemoved(
+        int owned, int excluded, int expected)
+    {
+        var scenes = PageOfScenes(40);
+        var exclusionReading = new RecordingExclusionReading(
+            [.. scenes.Skip(owned).Take(excluded).Select(scene => scene.ProviderSceneId)]);
+
+        var view = await DeriveAsync(
+            scenes,
+            [.. scenes.Take(owned).Select(scene => scene.ProviderSceneId)],
+            exclusionReading,
+            new StubSceneStatusReading(presence: 404));
+
+        Assert.Equal(expected, view.Cards.Count);
+        Assert.True(view.Cards.Count <= view.PerPage);
+    }
+
+    /// <summary>
+    /// The exclusion list is read once for the whole derivation, and never once per card.
+    /// </summary>
+    /// <remarks>
+    /// The instance narrows that route by no parameter, so a read per card would transfer the whole
+    /// list forty times to answer forty questions one read already answered.
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
+    public async Task TheExclusionListIsReadOncePerDerivationAndNeverOncePerCard()
+    {
+        var scenes = PageOfScenes(40);
+        var exclusionReading = new RecordingExclusionReading([]);
+
+        await DeriveAsync(
+            scenes, [], exclusionReading, new StubSceneStatusReading(presence: 404));
+
+        Assert.Equal(1, exclusionReading.Calls);
+        var asked = Assert.Single(exclusionReading.AskedAbout);
+        Assert.Equal(40, asked.Count);
+    }
+
+    /// <summary>
+    /// A page's status costs one entity probe plus at most one read per card, and never a read whose
+    /// answer grows with what the instance holds.
+    /// </summary>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
+    public async Task AStatusCostsAtMostOneReadPerCardAndNeverOnePerLibraryRow()
+    {
+        var scenes = PageOfScenes(40);
+        var statusReading = new StubSceneStatusReading();
+
+        var view = await DeriveAsync(
+            scenes, [], new RecordingExclusionReading([]), statusReading);
+
+        Assert.Equal(1, statusReading.PresenceReads);
+        Assert.True(
+            statusReading.SceneReads <= view.Cards.Count,
+            $"{statusReading.SceneReads} per-scene reads were spent on {view.Cards.Count} cards.");
+    }
+
+    /// <summary>Whether <paramref name="type"/> can obtain <paramref name="reached"/> at all.</summary>
+    /// <remarks>
+    /// Fields and constructor parameters alike, so a type taking one and not storing it still counts:
+    /// it can still hand it on.
+    /// </remarks>
+    private static bool CanReach(Type type, Type reached)
+        => type.GetFields(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public
+                | BindingFlags.NonPublic)
+            .Any(field => reached.IsAssignableFrom(field.FieldType))
+        || type.GetConstructors()
+            .SelectMany(constructor => constructor.GetParameters())
+            .Any(parameter => reached.IsAssignableFrom(parameter.ParameterType));
+
+    private static List<ProviderScene> PageOfScenes(int count)
+        => [.. Enumerable.Range(0, count)
+            .Select(index => new ProviderScene(
+                $"scene-{index}", $"Scene {index}", null, null, null, null, [], []))];
+
+    // The whole derivation, driven through its real ports rather than a stub of itself, so the counts
+    // a case asserts are the counts the derivation actually spent.
+    private static Task<MissingPageView> DeriveAsync(
+        List<ProviderScene> scenes,
+        string[] owned,
+        RecordingExclusionReading exclusionReading,
+        StubSceneStatusReading statusReading)
+    {
+        var catalogue = new StubProviderCatalogue(scenes);
+        var planner = new MissingPagePlanner(
+            new MissingIdentityResolver(
+                new StubEntityIdentities("an-entity"), catalogue, new StubEntityNames()),
+            catalogue,
+            new StubOwnedScenes(owned),
+            new SceneStatusPort(),
+            new SceneExclusionPort());
+
+        return planner.PlanAsync(
+            new MissingPageRequest(
+                WhisparrEntityKind.Studio,
+                7,
+                Page: 1,
+                PerPage: 40,
+                Sort: null,
+                TitleSearch: null,
+                Filters: new Dictionary<string, string>(),
+                MenusAlreadyHeld: true),
+            new MissingPageContext(
+                new Uri("http://whisparr.invalid:6969"),
+                "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e",
+                WhisparrGeneration.V3,
+                new ResolvedProvider("https://stashdb.org/graphql", "a-key", 240),
+                statusReading,
+                exclusionReading),
+            NullLogger.Instance,
+            TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>An exclusion role counting how often it was asked and about how many scenes.</summary>
+    private sealed class RecordingExclusionReading(string[] excluded) : IWhisparrSceneExclusionReading
+    {
+        public int Calls { get; private set; }
+
+        public List<IReadOnlyList<string>> AskedAbout { get; } = [];
+
+        public Task<IReadOnlySet<string>> ReduceExclusionsAsync(
+            Uri baseAddress,
+            string apiKey,
+            IReadOnlyCollection<string> providerSceneIds,
+            CancellationToken ct)
+        {
+            Calls++;
+            AskedAbout.Add([.. providerSceneIds]);
+            return Task.FromResult<IReadOnlySet<string>>(
+                providerSceneIds.Where(excluded.Contains).ToHashSet(StringComparer.Ordinal));
+        }
     }
 
     /// <summary>The filesystem seam, faked, recording every operation it was asked for.</summary>
