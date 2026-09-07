@@ -27,6 +27,9 @@ the count shows a plus, such as `10,000+`, and the pages stop there. The real fi
   reports in Cove's job area with a count of how many were registered, how many Whisparr already
   held and how many it refused. Nothing is downloaded. A selection covers the page you are looking
   at, and changing page clears the ticks.
+- **Mark a whole entity's catalogue wanted** with **Monitor all** in the toolbar, on a studio or a
+  performer page. It covers every scene the source lists and your Whisparr does not hold, not the
+  page you are on, and no filter narrows it. It runs as one background job and downloads nothing.
 - **Ask Whisparr to search for one scene**, from its card. **This is the only action on the tab that
   downloads**, it is named on its own button, and it acts on that one scene rather than on
   everything the entity monitors.

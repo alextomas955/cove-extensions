@@ -39,13 +39,19 @@ internal sealed record MissingPageRequest(
 /// The role that reads which scenes the user excluded, or null where the connected generation holds
 /// none. A generation keeping no scene records keeps no exclusions, so nothing is subtracted.
 /// </param>
+/// <param name="MonitorAllIsExpressible">
+/// The connected generation registers both a scene add and an arm acting on the entity kind, so the
+/// whole-entity action has an implementation to reach. False where either is absent, and a control
+/// the surface never draws.
+/// </param>
 internal sealed record MissingPageContext(
     Uri? BaseAddress,
     string ApiKey,
     WhisparrGeneration Generation,
     ResolvedProvider? Provider,
     IWhisparrSceneStatusReading? StatusReading,
-    IWhisparrSceneExclusionReading? ExclusionReading);
+    IWhisparrSceneExclusionReading? ExclusionReading,
+    bool MonitorAllIsExpressible);
 
 /// <summary>
 /// Derives one page of what a provider lists and the library does not hold.
@@ -149,7 +155,7 @@ internal sealed class MissingPagePlanner(
             request.Sort,
             statusWasRead,
             statusPermanentlyAbsent,
-            MonitorAllIsOffered: false,
+            context.MonitorAllIsExpressible,
             ProviderName);
     }
 
