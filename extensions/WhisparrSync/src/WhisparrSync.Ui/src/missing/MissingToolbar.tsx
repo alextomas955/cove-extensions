@@ -1,6 +1,5 @@
 /**
- * The controls above the grid: search, ordering, the facet menus, Refresh and the whole-view
- * action.
+ * The controls above the grid: search, ordering, the facet menus and Refresh.
  *
  * Every control writes through the tab's own URL hook, so a change reaches the tab shell that
  * refetches and the address a reader copies says what they were looking at. This file parses no
@@ -19,12 +18,11 @@ import type { MissingEntityKind } from "./entityKindLogic";
 import { facetMenuRows, menuIsBounded, toggleFacetValue } from "./missingFacetLogic";
 import { MissingFacetMenu, type MissingMenuRow } from "./MissingFacetMenu";
 import {
-  MONITOR_ALL,
+  MISSING_TOOLBAR_CONTROLS,
   SEARCH_PLACEHOLDER,
   SORT_MENU_LABEL,
   searchSettleDelayMs,
   sortOptionsFor,
-  toolbarControlsFor,
 } from "./missingToolbarLogic";
 import { useMissingUrlState } from "./useMissingUrlState";
 
@@ -36,7 +34,6 @@ const CONTROL_CLASS =
 export interface MissingToolbarCatalogue {
   readonly kind: MissingEntityKind;
   readonly view: MissingPageView;
-  readonly onMonitorAll: () => void;
 }
 
 export function MissingToolbar({
@@ -74,9 +71,7 @@ export function MissingToolbar({
   }, []);
 
   const controls =
-    catalogue === undefined
-      ? (["search", "refresh"] as const)
-      : toolbarControlsFor(catalogue.kind, catalogue.view.monitorAllIsOffered);
+    catalogue === undefined ? (["search", "refresh"] as const) : MISSING_TOOLBAR_CONTROLS;
 
   const sortRows =
     catalogue === undefined
@@ -132,12 +127,6 @@ export function MissingToolbar({
       <button type="button" onClick={onRefresh} className={CONTROL_CLASS}>
         {ACTION_REFRESH}
       </button>
-
-      {controls.includes("monitorAll") && catalogue !== undefined ? (
-        <button type="button" onClick={catalogue.onMonitorAll} className={CONTROL_CLASS}>
-          {MONITOR_ALL}
-        </button>
-      ) : null}
     </div>
   );
 }

@@ -1688,8 +1688,7 @@
       },
       "MissingCountView": {
         "required": [
-          "count",
-          "isLowerBound"
+          "count"
         ],
         "type": "object",
         "properties": {
@@ -1699,9 +1698,6 @@
               "integer"
             ],
             "format": "int32"
-          },
-          "isLowerBound": {
-            "type": "boolean"
           }
         }
       },
@@ -1763,7 +1759,6 @@
           "sortInForce",
           "statusWasRead",
           "statusIsPermanentlyAbsent",
-          "monitorAllIsOffered",
           "providerName"
         ],
         "type": "object",
@@ -1826,9 +1821,6 @@
             "type": "boolean"
           },
           "statusIsPermanentlyAbsent": {
-            "type": "boolean"
-          },
-          "monitorAllIsOffered": {
             "type": "boolean"
           },
           "providerName": {

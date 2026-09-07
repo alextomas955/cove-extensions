@@ -3,10 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { MissingSortOption } from "../wire/api";
 import { MISSING_URL_KEYS, writeMissingView } from "./missingUrlLogic";
 import {
+  MISSING_TOOLBAR_CONTROLS,
   searchSettleDelayMs,
   sortOptionsFor,
-  toolbarControlsFor,
-  type MissingToolbarControl,
 } from "./missingToolbarLogic";
 
 /**
@@ -53,24 +52,9 @@ describe("the ordering menu is the provider's own", () => {
   });
 });
 
-describe("a control the entity cannot express is absent", () => {
-  it("offers a tag one control fewer than a studio", () => {
-    expect(toolbarControlsFor("tag", true)).toHaveLength(
-      toolbarControlsFor("studio", true).length - 1,
-    );
-  });
-
-  it("names no whole-view action on a tag", () => {
-    expect(toolbarControlsFor("tag", true)).not.toContain("monitorAll");
-  });
-
-  it("names no whole-view action on a page that does not offer one", () => {
-    expect(toolbarControlsFor("studio", false)).not.toContain("monitorAll");
-  });
-
-  it("answers a plain name for every control, so no control can carry a disabled flag", () => {
-    const controls: readonly MissingToolbarControl[] = toolbarControlsFor("studio", true);
-    for (const control of controls) {
+describe("no control carries a disabled flag", () => {
+  it("names each control plainly, so a name is the only thing a control can be", () => {
+    for (const control of MISSING_TOOLBAR_CONTROLS) {
       expect(typeof control).toBe("string");
     }
   });

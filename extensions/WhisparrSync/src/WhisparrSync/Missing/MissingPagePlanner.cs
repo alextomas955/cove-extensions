@@ -39,19 +39,13 @@ internal sealed record MissingPageRequest(
 /// The role that reads which scenes the user excluded, or null where the connected generation holds
 /// none. A generation keeping no scene records keeps no exclusions, so nothing is subtracted.
 /// </param>
-/// <param name="MonitorAllIsExpressible">
-/// The connected generation registers both a scene add and an arm acting on the entity kind, so the
-/// whole-entity action has an implementation to reach. False where either is absent, and a control
-/// the surface never draws.
-/// </param>
 internal sealed record MissingPageContext(
     Uri? BaseAddress,
     string ApiKey,
     WhisparrGeneration Generation,
     ResolvedProvider? Provider,
     IWhisparrSceneStatusReading? StatusReading,
-    IWhisparrSceneExclusionReading? ExclusionReading,
-    bool MonitorAllIsExpressible);
+    IWhisparrSceneExclusionReading? ExclusionReading);
 
 /// <summary>
 /// Derives one page of what a provider lists and the library does not hold.
@@ -162,7 +156,6 @@ internal sealed class MissingPagePlanner(
             request.Sort,
             statusWasRead,
             statusPermanentlyAbsent,
-            context.MonitorAllIsExpressible,
             ProviderName);
     }
 
@@ -183,7 +176,7 @@ internal sealed class MissingPagePlanner(
 
         if (context.Provider is null)
         {
-            return new MissingCountView(null, false);
+            return new MissingCountView(null);
         }
 
         var providerEntityId = await identities
@@ -192,7 +185,7 @@ internal sealed class MissingPagePlanner(
 
         if (providerEntityId is null)
         {
-            return new MissingCountView(null, false);
+            return new MissingCountView(null);
         }
 
         var size = await catalogue
@@ -208,7 +201,7 @@ internal sealed class MissingPagePlanner(
                 ct)
             .ConfigureAwait(false);
 
-        return new MissingCountView(size, false);
+        return new MissingCountView(size);
     }
 
     private async Task<(IReadOnlyDictionary<string, MissingSceneState> States, bool WasRead, bool PermanentlyAbsent)>
@@ -335,6 +328,5 @@ internal sealed class MissingPagePlanner(
             request.Sort,
             StatusWasRead: false,
             StatusIsPermanentlyAbsent: false,
-            MonitorAllIsOffered: false,
             ProviderName);
 }
