@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { NO_PROVIDER_ID_FOR_ENTITY } from "../common/ui/copy";
+import { NO_PROVIDER_ID_FOR_ENTITY, THE_METADATA_SOURCE } from "../common/ui/copy";
 import { readEntityKind, type MissingEntityKind } from "./entityKindLogic";
 import { useMultiSelect } from "./hostComponents";
 import { MissingGrid } from "./MissingGrid";
@@ -26,9 +26,6 @@ const INCLUDE_SUB_STUDIOS_KEY = "includeSubStudios";
 
 /** The host event fired when its own router changes the address. */
 const HOST_LOCATION_CHANGE = "cove-locationchange";
-
-/** The provider this build reads a catalogue from, named where a sentence asks for it. */
-const PROVIDER_NAME = "StashDB";
 
 /**
  * Whether the host's own sub-studio toggle is on, tracked live.
@@ -138,7 +135,7 @@ function MissingTabFor({
         read={state.read}
         view={page}
         surroundings={{
-          provider: PROVIDER_NAME,
+          provider: page?.providerName ?? THE_METADATA_SOURCE,
           entityName,
           filtersActive: Object.keys(view.filters).length > 0,
           searchActive: view.q !== "",

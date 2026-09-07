@@ -58,7 +58,8 @@ public sealed partial class WhisparrSync
         if (context is null)
         {
             return TypedResults.Ok(
-                RefusedPage(readPage, readPerPage, MissingRefusalKind.NoInstanceConnected));
+                RefusedPage(
+                    readPage, readPerPage, MissingRefusalKind.NoInstanceConnected, planner));
         }
 
         var request = new MissingPageRequest(
@@ -79,7 +80,8 @@ public sealed partial class WhisparrSync
         {
             WhisparrSyncLog.CatalogueReadContained(log, WhisparrSyncLog.Classify(failure));
             return TypedResults.Ok(
-                RefusedPage(readPage, readPerPage, MissingRefusalKind.ProviderUnreachable));
+                RefusedPage(
+                    readPage, readPerPage, MissingRefusalKind.ProviderUnreachable, planner));
         }
     }
 
@@ -196,7 +198,8 @@ public sealed partial class WhisparrSync
     }
 
     /// <summary>A page carrying no scenes, and the reason it carries none.</summary>
-    private static MissingPageView RefusedPage(int page, int perPage, MissingRefusalKind refusal)
+    private static MissingPageView RefusedPage(
+        int page, int perPage, MissingRefusalKind refusal, MissingPagePlanner planner)
         => new(
             Cards: [],
             CatalogueSize: 0,
@@ -212,7 +215,8 @@ public sealed partial class WhisparrSync
             SortInForce: null,
             StatusWasRead: false,
             StatusIsPermanentlyAbsent: false,
-            MonitorAllIsOffered: false);
+            MonitorAllIsOffered: false,
+            planner.ProviderName);
 
     private static string? Blank(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value;
