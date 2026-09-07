@@ -118,3 +118,54 @@ describe("createMissingStore", () => {
     expect(seen).toBe(1);
   });
 });
+
+describe("what the selection's own verb leaves behind", () => {
+  it("holds an outcome and no collection of identifiers", () => {
+    const store = createMissingStore();
+    store.mounted(STUDIO);
+
+    store.beginBulk(STUDIO);
+    store.bulkSettled(STUDIO, { kind: "started" });
+
+    const { bulk } = store.getSnapshot();
+    expect(bulk).toEqual({ kind: "started" });
+    for (const value of Object.values(bulk)) {
+      expect(Array.isArray(value), "the bulk field carries a collection").toBe(false);
+    }
+  });
+
+  it("states the refusal a press was answered with", () => {
+    const store = createMissingStore();
+    store.mounted(STUDIO);
+
+    store.bulkSettled(STUDIO, { kind: "refused", refusal: "noInstanceConnected" });
+
+    expect(store.getSnapshot().bulk).toEqual({
+      kind: "refused",
+      refusal: "noInstanceConnected",
+    });
+  });
+
+  it("drops what the last press produced when the page under it changes", () => {
+    const store = createMissingStore();
+    store.mounted(STUDIO);
+    store.beginRead(STUDIO, pageOf(1));
+    store.loaded(STUDIO, pageOf(1), answerFor(1));
+    store.bulkSettled(STUDIO, { kind: "refused", refusal: "notStarted" });
+
+    store.beginRead(STUDIO, pageOf(2));
+    store.loaded(STUDIO, pageOf(2), answerFor(2));
+
+    expect(store.getSnapshot().bulk).toEqual({ kind: "atRest" });
+  });
+
+  it("ignores an answer for an entity the reader has already left", () => {
+    const store = createMissingStore();
+    store.mounted(STUDIO);
+    store.mounted(OTHER_STUDIO);
+
+    store.bulkSettled(STUDIO, { kind: "started" });
+
+    expect(store.getSnapshot().bulk).toEqual({ kind: "atRest" });
+  });
+});
