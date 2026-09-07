@@ -535,7 +535,9 @@ public sealed class MonitorBodyPinTests
 
         Assert.Equal(
             ["monitored", "seriesIds"],
-            V2BodyProjector.SetMonitored(1, monitored: false).Select(member => member.Key).Order());
+            ComposedV2Body.Of(V2BodyProjector.SetMonitored(1, monitored: false))
+                .Select(member => member.Key)
+                .Order());
     }
 
     /// <summary>

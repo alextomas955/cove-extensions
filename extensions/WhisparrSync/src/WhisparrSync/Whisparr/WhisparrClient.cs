@@ -444,13 +444,11 @@ internal sealed class WhisparrClient(
                 apiKey,
                 api => api.Api<V3Api.IStudioEditorApi>().PutStudioEditorAsync(
                     V3BodyProjector.SetStudioMonitored(entityId, monitored), ct)),
-            WhisparrGeneration.V2 => ActAsync(
+            WhisparrGeneration.V2 => GeneratedV2ActAsync(
                 baseAddress,
                 apiKey,
-                HttpMethod.Put,
-                SeriesEditorPath,
-                V2BodyProjector.SetMonitored(entityId, monitored),
-                ct),
+                api => api.Api<V2Api.ISeriesEditorApi>().PutSeriesEditorAsync(
+                    V2BodyProjector.SetMonitored(entityId, monitored), ct)),
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
 
@@ -1005,6 +1003,15 @@ internal sealed class WhisparrClient(
 
         return await GeneratedV2SendAsync(target, call).ConfigureAwait(false);
     }
+
+    // Sent once, for the reason the newer generation's acting send is: a request whose answer did not
+    // arrive is not the same as one that says nothing happened.
+    private Task<WhisparrResponse> GeneratedV2ActAsync<TResponse>(
+        Uri baseAddress,
+        string apiKey,
+        Func<Whisparr2Apis, Task<TResponse>> call)
+        where TResponse : V2Client.IApiResponse
+        => GeneratedV2SendAsync(V2TargetFor(baseAddress, apiKey), call);
 
     private async Task<WhisparrResponse> GeneratedV2SendAsync<TResponse>(
         Whisparr2Target target,
