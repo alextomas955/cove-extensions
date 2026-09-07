@@ -24,6 +24,7 @@ namespace WhisparrSync.Tests.Providers;
 public sealed class StashDbCatalogueTests
 {
     private const string FixtureName = "stashdb-2026-09-scene-page.json";
+    private const string FacetFixtureName = "stashdb-2026-09-facet-menus.json";
     private const string ConfiguredSpelling = "https://stashdb.org/graphql";
     private const string SomeKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
@@ -198,6 +199,134 @@ public sealed class StashDbCatalogueTests
         Assert.Equal("pool", scope["title"]!.GetValue<string>());
     }
 
+    /// <summary>
+    /// A facet selection reaches the provider's own query, so the value narrows the whole catalogue
+    /// rather than the page that happened to load.
+    /// </summary>
+    [Fact]
+    public void AFacetSelectionIsComposedIntoTheProvidersOwnQuery()
+    {
+        var chosen = StashDbCatalogue.ScopeFor(
+            StudioPage(
+                new Dictionary<string, string>
+                {
+                    [StashDbCatalogue.PerformerFacetKey] = "a-performer",
+                }));
+
+        Assert.Equal(
+            "a-performer",
+            chosen[StashDbCatalogue.PerformerFacetKey]!["value"]![0]!.GetValue<string>());
+        Assert.Null(StashDbCatalogue.ScopeFor(StudioPage())[StashDbCatalogue.PerformerFacetKey]);
+    }
+
+    /// <summary>
+    /// A chosen sub-studio replaces the studio scope. Added beside it the selection would widen what
+    /// is read rather than narrowing it.
+    /// </summary>
+    [Fact]
+    public void AChosenSubStudioReplacesTheStudioScope()
+    {
+        var chosen = StashDbCatalogue.ScopeFor(
+            StudioPage(
+                new Dictionary<string, string>
+                {
+                    [StashDbCatalogue.IncludeSubStudiosKey] = "true",
+                    [StashDbCatalogue.SubStudioFacetKey] = "a-child",
+                }));
+
+        Assert.Null(chosen["parentStudio"]);
+        Assert.Equal(
+            "a-child", chosen[StashDbCatalogue.SubStudioFacetKey]!["value"]![0]!.GetValue<string>());
+    }
+
+    /// <summary>
+    /// The ordering is one opaque value the provider issued, and both halves of it reach the
+    /// provider's own two fields.
+    /// </summary>
+    [Fact]
+    public void AChosenOrderingReachesBothOfTheProvidersFields()
+    {
+        var scope = StashDbCatalogue.ScopeFor(StudioPage(sort: "TITLE:ASC"));
+
+        Assert.Equal("TITLE", scope["sort"]!.GetValue<string>());
+        Assert.Equal("ASC", scope["direction"]!.GetValue<string>());
+    }
+
+    /// <summary>An ordering this type did not issue is not taken apart into halves it may not carry.</summary>
+    [Fact]
+    public void AnOrderingTheProviderDidNotIssueFallsBackToTheDefault()
+    {
+        var scope = StashDbCatalogue.ScopeFor(StudioPage(sort: "not-an-ordering"));
+
+        Assert.Equal("DATE", scope["sort"]!.GetValue<string>());
+        Assert.Equal("DESC", scope["direction"]!.GetValue<string>());
+    }
+
+    /// <summary>
+    /// Each menu costs one request and carries at most one page of values. Read whole, a network's
+    /// performer list runs to thousands.
+    /// </summary>
+    [Fact]
+    public async Task EachFacetMenuIsOneRequestAndAtMostOnePageOfValues()
+    {
+        var (catalogue, handler) = CatalogueOverEach(
+            Facet("studioPerformers"), Facet("subStudios"), Facet("tags"));
+
+        var menus = await catalogue.ListFacetMenusAsync(
+            WhisparrEntityKind.Studio, "a-studio", TestCt);
+
+        // A network has no performers of its own, so that menu is absent rather than empty.
+        Assert.Equal(3, handler.Requests.Count);
+        Assert.Equal(2, menus.Count);
+        Assert.All(
+            menus, menu => Assert.True(menu.Values.Count <= StashDbCatalogue.FacetPageSize));
+        Assert.All(menus, menu => Assert.True(menu.IsTypeAhead));
+    }
+
+    /// <summary>
+    /// A menu the provider says is longer than the page it served is offered as a type-ahead, and
+    /// one it does not is offered as the fixed list it is.
+    /// </summary>
+    [Fact]
+    public async Task AMenuShorterThanItsPageIsNotATypeAhead()
+    {
+        var (catalogue, _) = CatalogueOverEach(Facet("shortPerformerMenu"), "{}", "{}");
+
+        var menus = await catalogue.ListFacetMenusAsync(
+            WhisparrEntityKind.Studio, "a-studio", TestCt);
+
+        var menu = Assert.Single(menus);
+        Assert.False(menu.IsTypeAhead);
+        Assert.NotEmpty(menu.Values);
+    }
+
+    /// <summary>
+    /// A tag page is offered no menu. A tag's own performers and studios are not listable, and a tag
+    /// menu there would narrow a tag to itself.
+    /// </summary>
+    [Fact]
+    public async Task ATagPageIsOfferedNoMenu()
+    {
+        var (catalogue, handler) = CatalogueOver(Facet("tags"));
+
+        Assert.Empty(await catalogue.ListFacetMenusAsync(WhisparrEntityKind.Tag, "a-tag", TestCt));
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public void TheFacetFixtureStatesItsOwnProvenance()
+    {
+        var fixture = JsonDocument.Parse(ProbeFixtures.Read(FacetFixtureName)).RootElement;
+
+        Assert.Equal("2026-09-06", fixture.GetProperty("recordedOn").GetString());
+        Assert.Equal(ConfiguredSpelling, fixture.GetProperty("recordedAgainst").GetString());
+    }
+
+    private static string Facet(string label)
+        => JsonNode.Parse(ProbeFixtures.Read(FacetFixtureName))!["cases"]![label]!["response"]!
+            .DeepClone()
+            .ToJsonString();
+
     private static JsonElement[] RecordedScenes()
         => [.. JsonDocument.Parse(ProbeFixtures.Read(FixtureName))
             .RootElement.GetProperty("response")
@@ -214,20 +343,31 @@ public sealed class StashDbCatalogueTests
     }
 
     private static ProviderCatalogueRequest StudioPage(
-        IReadOnlyDictionary<string, string>? filters = null, string? titleSearch = null)
+        IReadOnlyDictionary<string, string>? filters = null,
+        string? titleSearch = null,
+        string? sort = null)
         => new(
             WhisparrEntityKind.Studio,
             "a-studio",
             1,
             40,
-            null,
+            sort,
             titleSearch,
             filters ?? new Dictionary<string, string>());
 
+    private static (StashDbCatalogue Catalogue, BodyRecordingHandler Handler) CatalogueOverEach(
+        params string[] answers)
+        => CatalogueOver(
+            BodyRecordingHandler.AnsweringInTurn(
+                [.. answers.Select(answer => (HttpStatusCode.OK, answer))]));
+
     private static (StashDbCatalogue Catalogue, BodyRecordingHandler Handler) CatalogueOver(
         string answer)
+        => CatalogueOver(BodyRecordingHandler.Answering(HttpStatusCode.OK, answer));
+
+    private static (StashDbCatalogue Catalogue, BodyRecordingHandler Handler) CatalogueOver(
+        BodyRecordingHandler handler)
     {
-        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, answer);
         var http = new HttpClient(handler) { BaseAddress = new Uri(ConfiguredSpelling) };
 
         var config = new CoveConfiguration();
