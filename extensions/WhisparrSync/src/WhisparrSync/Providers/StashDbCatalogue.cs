@@ -516,7 +516,8 @@ internal sealed class StashDbCatalogue
 
     // Null where no catalogue arrived: no whole answer, a status that is not a success, or a body
     // carrying the provider's own errors. The provider answers an authentication failure with 200,
-    // so the body is what decides.
+    // so the body is what decides. An answer the provider stated ends the attempts, because
+    // re-sending collects the same refusal and writes the same line again.
     private async Task<JsonElement?> AskAsync(
         string query, JsonObject variables, CancellationToken ct)
     {
@@ -531,23 +532,29 @@ internal sealed class StashDbCatalogue
         var body = new JsonObject { ["query"] = query, ["variables"] = variables };
 
         var attempts = WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read);
-        for (var attempt = 1; attempt < attempts; attempt++)
+        for (var attempt = 1; attempt <= attempts; attempt++)
         {
-            if (await TrySendAsync(resolved, body, ct).ConfigureAwait(false) is { } retried)
+            var sent = await TrySendAsync(resolved, body, ct).ConfigureAwait(false);
+            if (sent.Body is { } carried)
             {
-                return retried;
+                return carried;
+            }
+
+            if (sent.WasDefinite)
+            {
+                return null;
             }
         }
 
-        return await TrySendAsync(resolved, body, ct).ConfigureAwait(false);
+        return null;
     }
 
-    private async Task<JsonElement?> TrySendAsync(
+    private async Task<ProviderSend> TrySendAsync(
         ResolvedProvider resolved, JsonObject body, CancellationToken ct)
     {
         if (!await _pacer.WaitForTurnAsync(resolved.MaxRequestsPerMinute, ct).ConfigureAwait(false))
         {
-            return null;
+            return ProviderSend.Nothing;
         }
 
         // The address is the configured endpoint read per request, so a source the host is
@@ -576,22 +583,22 @@ internal sealed class StashDbCatalogue
             {
                 WhisparrSyncLog.ProviderAnswerBeyondReadBound(
                     _log, ProviderName, WhisparrClient.MaxResponseBytes);
-                return null;
+                return ProviderSend.Nothing;
             }
 
-            return response.IsSuccessStatusCode ? Parse(answered) : null;
+            return response.IsSuccessStatusCode ? Parse(answered) : ProviderSend.Refused;
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
         {
-            return null;
+            return ProviderSend.Nothing;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return null;
+            return ProviderSend.Nothing;
         }
     }
 
-    private JsonElement? Parse(string answered)
+    private ProviderSend Parse(string answered)
     {
         JsonDocument parsed;
         try
@@ -600,7 +607,7 @@ internal sealed class StashDbCatalogue
         }
         catch (JsonException)
         {
-            return null;
+            return ProviderSend.Nothing;
         }
 
         using (parsed)
@@ -610,13 +617,13 @@ internal sealed class StashDbCatalogue
                 && errors.GetArrayLength() > 0)
             {
                 WhisparrSyncLog.ProviderRefusedTheQuery(_log, ProviderName);
-                return null;
+                return ProviderSend.Refused;
             }
 
             return parsed.RootElement.TryGetProperty("data", out var data)
                 && data.ValueKind == JsonValueKind.Object
-                    ? data.Clone()
-                    : null;
+                    ? ProviderSend.Carrying(data.Clone())
+                    : ProviderSend.Nothing;
         }
     }
 }
