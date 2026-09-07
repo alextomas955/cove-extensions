@@ -334,15 +334,19 @@ public sealed class StashDbCatalogueTests
         Assert.Equal(2, menus.Count);
         Assert.All(
             menus, menu => Assert.True(menu.Values.Count <= StashDbCatalogue.FacetPageSize));
-        Assert.All(menus, menu => Assert.True(menu.IsTypeAhead));
+        Assert.All(menus, menu => Assert.True(menu.ReportedValueCount > menu.Values.Count));
+
+        // The counts the recorded responses themselves report, against 25 values each.
+        Assert.Equal([48, 2941], menus.Select(menu => menu.ReportedValueCount));
+        Assert.All(menus, menu => Assert.Equal(StashDbCatalogue.FacetPageSize, menu.Values.Count));
     }
 
     /// <summary>
-    /// A menu the provider says is longer than the page it served is offered as a type-ahead, and
-    /// one it does not is offered as the fixed list it is.
+    /// A menu the provider reports no more values of than it served reports its own value count, so
+    /// nothing states a bound over a whole menu.
     /// </summary>
     [Fact]
-    public async Task AMenuShorterThanItsPageIsNotATypeAhead()
+    public async Task AMenuTheProviderReportsNoMoreOfCarriesItsOwnValueCount()
     {
         var (catalogue, _) = CatalogueOverEach(Facet("shortPerformerMenu"), "{}", "{}");
 
@@ -350,8 +354,8 @@ public sealed class StashDbCatalogueTests
             WhisparrEntityKind.Studio, "a-studio", TestCt);
 
         var menu = Assert.Single(menus);
-        Assert.False(menu.IsTypeAhead);
         Assert.NotEmpty(menu.Values);
+        Assert.Equal(menu.Values.Count, menu.ReportedValueCount);
     }
 
     /// <summary>

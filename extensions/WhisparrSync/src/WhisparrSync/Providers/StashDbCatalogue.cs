@@ -509,9 +509,15 @@ internal sealed class StashDbCatalogue
             }
         }
 
-        return values.Count == 0
-            ? null
-            : new ProviderFacetMenu(key, label, values, Count(result) > values.Count);
+        if (values.Count == 0)
+        {
+            return null;
+        }
+
+        // An absent count member reads as zero, which is no measurement of the menu's length.
+        var reported = Count(result);
+        return new ProviderFacetMenu(
+            key, label, values, reported == 0 ? values.Count : reported);
     }
 
     // Null where no catalogue arrived: no whole answer, a status that is not a success, or a body
