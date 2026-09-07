@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using Microsoft.Extensions.DependencyInjection;
 using Whisparr3.Net;
@@ -20,24 +19,22 @@ namespace WhisparrSync.Whisparr;
 /// <see cref="WhisparrClient"/>.
 /// </para>
 /// </remarks>
-internal sealed class Whisparr3Gateway(
-    Func<HttpMessageHandler>? primaryHandler = null,
-    Action<HttpClient>? configure = null) : IDisposable
+internal sealed class Whisparr3Gateway : IDisposable
 {
-    /// <summary>How many address-and-key pairs are kept before the least recent is discarded.</summary>
-    /// <remarks>
-    /// A person testing a connection supplies a pair per attempt, so the set is not bounded by how
-    /// many instances exist. The least recently reached entry is the one discarded, so a discarded
-    /// registration is idle rather than one a request is running against.
-    /// </remarks>
-    internal const int MaxRegistrations = 8;
+    private readonly GeneratedClientRegistry<Whisparr3Target> _registry;
 
-    private readonly ConcurrentDictionary<Whisparr3Target, Registration> _registrations = new();
-    private long _reachCount;
-    private bool _disposed;
+    public Whisparr3Gateway(
+        Func<HttpMessageHandler>? primaryHandler = null,
+        Action<HttpClient>? configure = null)
+    {
+        var handler = primaryHandler ?? WhisparrClient.CreateHandler;
+        var settings = configure ?? WhisparrClient.Configure;
+        _registry = new GeneratedClientRegistry<Whisparr3Target>(
+            target => Register(target, handler, settings));
+    }
 
     /// <summary>The typed APIs for the instance <paramref name="target"/> names.</summary>
-    public Whisparr3Apis For(Whisparr3Target target) => new(Reach(target).Provider);
+    public Whisparr3Apis For(Whisparr3Target target) => new(_registry.Reach(target));
 
     /// <summary>What one generated call answered, in the spelling every seam member returns.</summary>
     /// <remarks>
@@ -55,37 +52,14 @@ internal sealed class Whisparr3Gateway(
             answered.RawContent ?? string.Empty);
     }
 
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        foreach (var registration in _registrations.Values)
-        {
-            registration.Provider.Dispose();
-        }
-
-        _registrations.Clear();
-    }
+    public void Dispose() => _registry.Dispose();
 
     private static string? ContentTypeOf(HttpContentHeaders? headers)
         => headers?.ContentType?.ToString();
 
-    private Registration Reach(Whisparr3Target target)
+    private static ServiceProvider Register(
+        Whisparr3Target target, Func<HttpMessageHandler> handler, Action<HttpClient> settings)
     {
-        var registration = _registrations.GetOrAdd(target, Register);
-        registration.ReachedAt = Interlocked.Increment(ref _reachCount);
-        DiscardBeyondCap();
-        return registration;
-    }
-
-    private Registration Register(Whisparr3Target target)
-    {
-        var handler = primaryHandler ?? WhisparrClient.CreateHandler;
-        var settings = configure ?? WhisparrClient.Configure;
         var services = new ServiceCollection();
         services.AddWhisparr3(new Whisparr3Options
         {
@@ -98,31 +72,7 @@ internal sealed class Whisparr3Gateway(
                 .ConfigureHttpClient(settings),
         });
 
-        return new Registration(services.BuildServiceProvider());
-    }
-
-    // The least recently reached entry, which a running request is not holding: reaching one is what
-    // marks it, and every call marks its own before this runs.
-    private void DiscardBeyondCap()
-    {
-        while (_registrations.Count > MaxRegistrations)
-        {
-            var oldest = _registrations
-                .OrderBy(entry => entry.Value.ReachedAt)
-                .First();
-
-            if (_registrations.TryRemove(oldest.Key, out var discarded))
-            {
-                discarded.Provider.Dispose();
-            }
-        }
-    }
-
-    private sealed class Registration(ServiceProvider provider)
-    {
-        public ServiceProvider Provider { get; } = provider;
-
-        public long ReachedAt { get; set; }
+        return services.BuildServiceProvider();
     }
 }
 
