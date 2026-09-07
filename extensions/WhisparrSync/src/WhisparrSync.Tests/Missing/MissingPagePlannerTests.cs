@@ -116,7 +116,7 @@ public sealed class MissingPagePlannerTests
     {
         var catalogue = new RecordingCatalogue(ScenesNamed("a"))
         {
-            Menus = [new ProviderFacetMenu("year", "Year", [new ProviderFacetValue("2024", "2024")], false)],
+            Menus = [new ProviderFacetMenu("year", "Year", [new ProviderFacetValue("2024", "2024")], 1)],
         };
         var planner = PlannerOver(catalogue);
 

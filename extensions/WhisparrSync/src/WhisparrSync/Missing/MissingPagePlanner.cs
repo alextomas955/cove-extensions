@@ -315,7 +315,7 @@ internal sealed class MissingPagePlanner(
             menu.Key,
             menu.Label,
             [.. menu.Values.Select(value => new MissingFacetValue(value.Value, value.Label))],
-            menu.IsTypeAhead);
+            menu.ReportedValueCount);
 
     // A refused page states its reason and carries no scenes. The range is empty rather than a
     // provider range, because no provider was asked.

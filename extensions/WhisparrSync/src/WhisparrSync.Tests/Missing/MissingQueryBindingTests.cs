@@ -107,7 +107,7 @@ public sealed class MissingQueryBindingTests
             Menus =
             [
                 new ProviderFacetMenu(
-                    "performer", "Performer", [new ProviderFacetValue("mia", "Mia")], false),
+                    "performer", "Performer", [new ProviderFacetValue("mia", "Mia")], 1),
             ],
         };
 
