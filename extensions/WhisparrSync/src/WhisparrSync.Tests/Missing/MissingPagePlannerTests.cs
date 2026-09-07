@@ -1,7 +1,9 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Providers;
+using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Missing;
@@ -25,7 +27,7 @@ public sealed class MissingPagePlannerTests
         var catalogue = new RecordingCatalogue(ScenesNamed("a", "b", "c"));
         var planner = PlannerOver(catalogue);
 
-        await planner.PlanAsync(Request(), Context(), TestCt);
+        await planner.PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
 
         Assert.Equal(1, catalogue.PageReads);
     }
@@ -43,7 +45,7 @@ public sealed class MissingPagePlannerTests
         var owned = new StubOwned("scene-0", "scene-1", "scene-2", "scene-3", "scene-4");
         var planner = PlannerOver(catalogue, owned);
 
-        var view = await planner.PlanAsync(Request(), Context(), TestCt);
+        var view = await planner.PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
 
         Assert.Equal(35, view.Cards.Count);
         Assert.Equal(1, view.RangeFrom);
@@ -59,7 +61,7 @@ public sealed class MissingPagePlannerTests
         var catalogue = new RecordingCatalogue(ScenesNamed("a"));
         var planner = PlannerOver(catalogue, identity: null);
 
-        var view = await planner.PlanAsync(Request(), Context(), TestCt);
+        var view = await planner.PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
 
         Assert.Equal(MissingRefusalKind.NoProviderIdForEntity, view.Refusal);
         Assert.Empty(view.Cards);
@@ -88,7 +90,7 @@ public sealed class MissingPagePlannerTests
         var catalogue = new RecordingCatalogue(ScenesNamed("a"));
         var planner = PlannerOver(catalogue);
 
-        var view = await planner.PlanAsync(Request(), Context(withProvider: false), TestCt);
+        var view = await planner.PlanAsync(Request(), Context(withProvider: false), NullLogger.Instance, TestCt);
 
         Assert.Equal(MissingRefusalKind.NoMetadataProviderConfigured, view.Refusal);
         Assert.Equal(0, catalogue.PageReads);
@@ -104,7 +106,7 @@ public sealed class MissingPagePlannerTests
         var catalogue = new RecordingCatalogue(ScenesNamed("a"));
         var planner = PlannerOver(catalogue);
 
-        await planner.PlanAsync(Request() with { MenusAlreadyHeld = true }, Context(), TestCt);
+        await planner.PlanAsync(Request() with { MenusAlreadyHeld = true }, Context(), NullLogger.Instance, TestCt);
 
         Assert.Equal(0, catalogue.MenuReads);
     }
@@ -118,7 +120,7 @@ public sealed class MissingPagePlannerTests
         };
         var planner = PlannerOver(catalogue);
 
-        var view = await planner.PlanAsync(Request(), Context(), TestCt);
+        var view = await planner.PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
 
         Assert.Equal("year", Assert.Single(view.Facets).Key);
         Assert.Equal("DATE", Assert.Single(view.Sorts).Value);
@@ -133,7 +135,7 @@ public sealed class MissingPagePlannerTests
     {
         var planner = PlannerOver(new RecordingCatalogue(ScenesNamed("a")));
 
-        var view = await planner.PlanAsync(Request(), Context(withStatusRole: false), TestCt);
+        var view = await planner.PlanAsync(Request(), Context(withStatusRole: false), NullLogger.Instance, TestCt);
 
         Assert.True(view.StatusIsPermanentlyAbsent);
         Assert.False(view.StatusWasRead);
@@ -144,8 +146,6 @@ public sealed class MissingPagePlannerTests
         => new(
             WhisparrEntityKind.Studio,
             7,
-            EntityName: null,
-            Aliases: [],
             Page: 1,
             PerPage: 40,
             Sort: null,
@@ -173,7 +173,7 @@ public sealed class MissingPagePlannerTests
         StubOwned? owned = null,
         string? identity = "a-studio")
         => new(
-            new MissingIdentityResolver(new StubIdentities(identity), catalogue),
+            new MissingIdentityResolver(new StubIdentities(identity), catalogue, new StubEntityNames()),
             catalogue,
             owned ?? new StubOwned(),
             new SceneStatusPort(),

@@ -53,15 +53,6 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        // Only the studio catalogue is derivable so far. The other kinds answer the same stated
-        // refusal a studio with no provider identifier answers, which is narrower coverage rather
-        // than a wrong answer.
-        if (entityKind != WhisparrEntityKind.Studio)
-        {
-            return TypedResults.Ok(
-                RefusedPage(readPage, readPerPage, MissingRefusalKind.NoProviderIdForEntity));
-        }
-
         var context = await ResolveMissingContextAsync(options, credentials, client, endpoints, ct)
             .ConfigureAwait(false);
         if (context is null)
@@ -73,8 +64,6 @@ public sealed partial class WhisparrSync
         var request = new MissingPageRequest(
             entityKind,
             coveId,
-            EntityName: null,
-            Aliases: [],
             readPage,
             readPerPage,
             Blank(sort),
@@ -84,7 +73,7 @@ public sealed partial class WhisparrSync
 
         try
         {
-            return TypedResults.Ok(await planner.PlanAsync(request, context, ct).ConfigureAwait(false));
+            return TypedResults.Ok(await planner.PlanAsync(request, context, log, ct).ConfigureAwait(false));
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
         {
@@ -125,11 +114,6 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (entityKind != WhisparrEntityKind.Studio)
-        {
-            return TypedResults.Ok(NoCount);
-        }
-
         var context = await ResolveMissingContextAsync(options, credentials, client, endpoints, ct)
             .ConfigureAwait(false);
         if (context is null)
@@ -140,8 +124,6 @@ public sealed partial class WhisparrSync
         var request = new MissingPageRequest(
             entityKind,
             coveId,
-            EntityName: null,
-            Aliases: [],
             Page: 1,
             MissingPerPage,
             Sort: null,

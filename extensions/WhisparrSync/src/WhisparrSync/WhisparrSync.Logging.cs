@@ -281,6 +281,14 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] a catalogue read was contained ({Failure}); the page states it could not be read")]
     internal static partial void CatalogueReadContained(ILogger logger, string failure);
 
+    // A status read that reached no instance. The catalogue below it was read, so the page still
+    // renders and states that every card's status is unknown. The classification is a type name
+    // chosen by whoever wrote the throw, so no part of it is supplied by a caller or by an instance.
+    [LoggerMessage(
+        EventId = 2124, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a scene status read was contained ({Failure}); the page states no status was read")]
+    internal static partial void SceneStatusReadContained(ILogger logger, string failure);
+
     /// <summary>
     /// What a contained failure is given to a log line as: its type, and its cause's type where it
     /// has one.
