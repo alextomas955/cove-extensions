@@ -117,8 +117,8 @@ internal sealed class MissingPagePlanner(
 
         var answer = await catalogue.ReadPageAsync(catalogueRequest, ct).ConfigureAwait(false);
 
-        // A read that answered nothing says nothing about the catalogue, so the grid is replaced
-        // rather than rendered empty, and no instance is asked about scenes that were never read.
+        // A read that answered nothing says nothing about the catalogue, so no instance is asked
+        // about scenes that were never read.
         if (answer.Page is not { } page)
         {
             return Refused(request, MissingRefusalKind.ProviderUnreachable);
