@@ -6,7 +6,7 @@
  * hook's decision, and a stand-in for it would assert the stand-in.
  *
  * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is flushed by waiting rather than by wrapping.
+ * too), which has no `act`, so a render is awaited on the condition it produces.
  */
 import { afterEach, expect, test } from "vitest";
 import { createElement, type ReactNode } from "react";
@@ -20,8 +20,14 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
+/** Polls `until` until it holds, so a render is waited for rather than a number of milliseconds. */
+async function settled(until: () => boolean, budgetMs = 2000): Promise<boolean> {
+  const deadline = Date.now() + budgetMs;
+  while (!until() && Date.now() < deadline) {
+    await sleep(5);
+  }
+  return until();
+}
 
 const ROWS: readonly MissingMenuRow[] = [
   { value: "p-1", label: "Ada Byron", selected: false },
@@ -50,7 +56,8 @@ async function mount(node: (trigger: { current: HTMLElement | null }) => ReactNo
   container.append(host);
   const root = createRoot(host);
   root.render(node({ current: trigger }));
-  await sleep(COMMIT_MS);
+  const drawn = await settled(() => document.body.querySelector('[role="menu"]') !== null);
+  expect(drawn, "the panel never rendered").toBe(true);
 
   teardowns.push(() => {
     root.unmount();
