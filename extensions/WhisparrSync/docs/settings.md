@@ -1,7 +1,7 @@
 ---
 id: settings
 title: Settings reference
-sidebar_position: 3
+sidebar_position: 4
 ---
 
 Every Whisparr Sync setting, grouped by the section it appears in on the **Whisparr Sync** settings
