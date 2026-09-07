@@ -269,6 +269,98 @@ public sealed class ProviderNameLookupTests
         Assert.Equal("dcf62cfa-c156-481d-b176-1f061e61546b", found.ProviderEntityId);
     }
 
+    /// <summary>
+    /// A credential the source refuses is not an entity the source has no name for.
+    /// </summary>
+    /// <remarks>
+    /// Read as an absence it becomes a settled fact about the library with no way to retry, and the
+    /// reader is sent to check link chips a working key would have matched. The alias is supplied so
+    /// the single request is the second half of the claim: a walk that carried on would send again
+    /// into the same refusal and could answer the absence at the end of it.
+    /// </remarks>
+    [Fact]
+    public async Task ARefusedCredentialIsNotAnUnnamedEntityOnStashDb()
+    {
+        var (catalogue, handler) = StashDbAnswering((HttpStatusCode.Unauthorized, "{}"));
+
+        var found = await catalogue.LookUpByNameAsync(
+            WhisparrEntityKind.Studio, "Brazzers", ["Brazzers Exxtra"], TestCt);
+
+        Assert.False(found.WasReached);
+        Assert.Null(found.ProviderEntityId);
+        Assert.NotEqual(ProviderIdentityLookup.Unmatched, found);
+        Assert.Single(handler.Requests);
+    }
+
+    /// <summary>
+    /// The source states an expired key as an <c>errors</c> member inside a success status, and that
+    /// is not an unnamed entity either.
+    /// </summary>
+    [Fact]
+    public async Task ARefusalInsideASuccessStatusIsNotAnUnnamedEntityOnStashDb()
+    {
+        var (catalogue, handler) = StashDbAnswering(
+            (HttpStatusCode.OK, """{"errors":[{"message":"not authorized"}]}"""));
+
+        var found = await catalogue.LookUpByNameAsync(
+            WhisparrEntityKind.Performer, "Mia Malkova", ["Mia"], TestCt);
+
+        Assert.False(found.WasReached);
+        Assert.Null(found.ProviderEntityId);
+        Assert.NotEqual(ProviderIdentityLookup.Unmatched, found);
+        Assert.Single(handler.Requests);
+    }
+
+    /// <summary>A credential this source refuses is not an entity it has no name for either.</summary>
+    [Fact]
+    public async Task ARefusedCredentialIsNotAnUnnamedEntityOnThePornDb()
+    {
+        var (catalogue, handler) = ThePornDbAnswering((HttpStatusCode.Unauthorized, "{}"));
+
+        var found = await catalogue.LookUpByNameAsync(
+            WhisparrEntityKind.Studio, "Brazzers", ["Brazzers Exxtra"], TestCt);
+
+        Assert.False(found.WasReached);
+        Assert.Null(found.ProviderEntityId);
+        Assert.NotEqual(ProviderIdentityLookup.Unmatched, found);
+        Assert.Single(handler.Targets);
+    }
+
+    /// <summary>
+    /// This source states its own refusal as a <c>message</c> member, and that is not an unnamed
+    /// entity either.
+    /// </summary>
+    [Fact]
+    public async Task ARefusalStatedInTheBodyIsNotAnUnnamedEntityOnThePornDb()
+    {
+        var (catalogue, handler) = ThePornDbAnswering(
+            (HttpStatusCode.OK, """{"message":"Unauthenticated."}"""));
+
+        var found = await catalogue.LookUpByNameAsync(
+            WhisparrEntityKind.Tag, "Anal", ["Anal Sex"], TestCt);
+
+        Assert.False(found.WasReached);
+        Assert.Null(found.ProviderEntityId);
+        Assert.NotEqual(ProviderIdentityLookup.Unmatched, found);
+        Assert.Single(handler.Targets);
+    }
+
+    /// <summary>An entity the source really has no name for is still an absence, on both sources.</summary>
+    [Fact]
+    public async Task AnEntityNeitherSourceNamesIsReachedAndUnmatched()
+    {
+        var stashDb = StashDbOver(StashDb("findStudioAbsent"));
+        var (thePornDb, _) = ThePornDbOver(ThePornDb("sitesAbsent"));
+
+        var onStashDb = await stashDb.LookUpByNameAsync(
+            WhisparrEntityKind.Studio, "ZZZ No Such Studio Here 12345", [], TestCt);
+        var onThePornDb = await thePornDb.LookUpByNameAsync(
+            WhisparrEntityKind.Studio, "ZZZ No Such Site Here 12345", [], TestCt);
+
+        Assert.True(onStashDb.WasReached);
+        Assert.True(onThePornDb.WasReached);
+    }
+
     private static JsonObject StashDbAnswer(string label)
         => JsonNode.Parse(ProbeFixtures.Read(StashDbFixture))!["cases"]![label]!["response"]!["data"]!
             .DeepClone()
@@ -307,9 +399,12 @@ public sealed class ProviderNameLookupTests
 
     private static (StashDbCatalogue Catalogue, BodyRecordingHandler Handler) StashDbRecording(
         params string[] answers)
+        => StashDbAnswering([.. answers.Select(answer => (HttpStatusCode.OK, answer))]);
+
+    private static (StashDbCatalogue Catalogue, BodyRecordingHandler Handler) StashDbAnswering(
+        params (HttpStatusCode Status, string Answer)[] answers)
     {
-        var handler = BodyRecordingHandler.AnsweringInTurn(
-            [.. answers.Select(answer => (HttpStatusCode.OK, answer))]);
+        var handler = BodyRecordingHandler.AnsweringInTurn(answers);
 
         var catalogue = new StashDbCatalogue(
             new HttpClient(handler) { BaseAddress = new Uri(StashDbSpelling) },
@@ -323,9 +418,12 @@ public sealed class ProviderNameLookupTests
 
     private static (ThePornDbCatalogue Catalogue, BodyRecordingHandler Handler) ThePornDbOver(
         params string[] answers)
+        => ThePornDbAnswering([.. answers.Select(answer => (HttpStatusCode.OK, answer))]);
+
+    private static (ThePornDbCatalogue Catalogue, BodyRecordingHandler Handler) ThePornDbAnswering(
+        params (HttpStatusCode Status, string Answer)[] answers)
     {
-        var handler = BodyRecordingHandler.AnsweringInTurn(
-            [.. answers.Select(answer => (HttpStatusCode.OK, answer))]);
+        var handler = BodyRecordingHandler.AnsweringInTurn(answers);
 
         var catalogue = new ThePornDbCatalogue(
             new HttpClient(handler),
