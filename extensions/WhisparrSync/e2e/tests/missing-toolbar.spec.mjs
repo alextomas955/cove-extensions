@@ -57,6 +57,18 @@ const LIST_URL_MANAGED_KEYS = [
 /** What the reader types, long enough that one keystroke per history entry would be obvious. */
 const TYPED_SEARCH = "sunrise";
 
+/**
+ * The source the answered page below names itself as, which is not the one a v3 connection reads.
+ *
+ * Chosen for that reason: a name the toolbar took from anywhere but the answered page would read as
+ * the other one.
+ */
+const ANSWERED_SOURCE = "ThePornDB";
+const OTHER_SOURCE = "StashDB";
+
+/** The count line, transcribed by hand from the shipped sentence with its two slots filled. */
+const COUNT_LINE = `This counts every scene ${ANSWERED_SOURCE} lists for this studio, not the number you are missing.`;
+
 const BUNDLE_BUDGET_MS = 60_000;
 const BUNDLE_ATTEMPTS = 3;
 const TAB_BUDGET_MS = 30_000;
@@ -309,4 +321,106 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
     page.getByRole("button", { name: MONITOR_ALL_LABEL }),
     "a tag page drew a whole-view action, which Whisparr cannot express for a tag",
   ).toHaveCount(0);
+});
+
+/**
+ * One page in the shape the extension's own route answers.
+ *
+ * It carries a card, because a page carrying none is an empty answer and the grid states that in
+ * place of the count line this reads.
+ */
+function answeredPage(monitorAllIsOffered) {
+  return {
+    cards: [
+      {
+        providerSceneId: randomUUID(),
+        title: "A scene the library does not hold",
+        releaseDate: "2019-04-02",
+        coverUrl: null,
+        studioName: null,
+        description: null,
+        performers: [],
+        tags: [],
+        performerCount: 0,
+        tagCount: 0,
+        state: "notAdded",
+      },
+    ],
+    catalogueSize: 272,
+    sizeIsLowerBound: false,
+    page: 1,
+    perPage: 40,
+    lastPage: 7,
+    rangeFrom: 1,
+    rangeTo: 40,
+    refusal: "none",
+    facets: [],
+    sorts: [],
+    sortInForce: null,
+    statusWasRead: true,
+    statusIsPermanentlyAbsent: false,
+    monitorAllIsOffered,
+    providerName: ANSWERED_SOURCE,
+  };
+}
+
+test("an answered page decides the source a sentence names and whether the whole-view action is drawn", async ({
+  page,
+  baseUrl,
+  toolbarHarness,
+}) => {
+  // A container pair, an extension install and a browser. Well above the shared per-test budget.
+  test.setTimeout(600_000);
+
+  const coveApi = createApiClient(
+    () => toolbarHarness.baseUrl,
+    () => toolbarHarness.token,
+  );
+  const studio = await seedCoveStudio(coveApi, {
+    name: `Studio ${randomUUID().slice(0, 8)}`,
+    remoteIds: [],
+  });
+
+  // The page read is answered here, because the toolbar draws neither control until one has
+  // answered and this harness connects no instance and holds no provider credential.
+  let offered = true;
+  let pageReadWasIntercepted = false;
+  await page.route(/\/missing\?/, async (route) => {
+    pageReadWasIntercepted = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(answeredPage(offered)),
+    });
+  });
+
+  const studioPath = `/studio/${String(studio.id)}`;
+  await openTheTab(page, baseUrl, studioPath, "the studio detail page");
+  await expect(page.getByText(COUNT_LINE)).toBeVisible({ timeout: SETTLE_BUDGET_MS });
+  expect(
+    pageReadWasIntercepted,
+    "the answered page never arrived, so both assertions below would have run against a refusal",
+  ).toBe(true);
+
+  // 1. The sentence names the source the page carried, and names the other one nowhere.
+  await expect(
+    page.getByText(OTHER_SOURCE),
+    `a sentence named ${OTHER_SOURCE} on a page answered by ${ANSWERED_SOURCE}`,
+  ).toHaveCount(0);
+
+  // 2. A page that offers the whole-view action draws it.
+  await expect(
+    page.getByRole("button", { name: MONITOR_ALL_LABEL }),
+    "the answered page offered the whole-view action and the toolbar drew none",
+  ).toHaveCount(1);
+
+  // 3. A page that does not offer it draws no control at all, dimmed or otherwise.
+  offered = false;
+  await refreshControl(page).click();
+  await expect(
+    page.getByRole("button", { name: MONITOR_ALL_LABEL }),
+    "the answered page offered no whole-view action and the toolbar drew one",
+  ).toHaveCount(0, { timeout: SETTLE_BUDGET_MS });
+
+  await page.unroute(/\/missing\?/);
 });

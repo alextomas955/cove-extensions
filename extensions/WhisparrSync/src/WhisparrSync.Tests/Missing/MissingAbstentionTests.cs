@@ -45,7 +45,8 @@ public sealed class MissingAbstentionTests
                     WhisparrGeneration.V2,
                     new ResolvedProvider(StashDb, "a-key", 240),
                     StatusReading: null,
-                    ExclusionReading: null),
+                    ExclusionReading: null,
+            MonitorAllIsExpressible: true),
                 NullLogger.Instance,
                 TestCt);
 
@@ -115,7 +116,8 @@ public sealed class MissingAbstentionTests
                     WhisparrGeneration.V2,
                     new ResolvedProvider(StashDb, "a-key", 240),
                     StatusReading: null,
-                    ExclusionReading: null),
+                    ExclusionReading: null,
+            MonitorAllIsExpressible: true),
                 NullLogger.Instance,
                 TestCt);
 
@@ -216,7 +218,8 @@ public sealed class MissingAbstentionTests
             WhisparrGeneration.V3,
             new ResolvedProvider(StashDb, "a-key", 240),
             reading ?? new StubSceneStatusReading(presence: 404),
-            ExclusionReading: null);
+            ExclusionReading: null,
+            MonitorAllIsExpressible: true);
 
     private static MissingPagePlanner PlannerOver(
         List<ProviderScene> scenes, bool unreachableProvider = false)
