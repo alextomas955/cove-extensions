@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Providers;
@@ -7,8 +8,6 @@ namespace WhisparrSync.Missing;
 /// <summary>What one page of a catalogue is asked for, as the surface asked for it.</summary>
 /// <param name="Kind">Which kind of entity the catalogue is for.</param>
 /// <param name="CoveId">The entity in the library's own namespace.</param>
-/// <param name="EntityName">The entity's name, offered to a provider that matches on one.</param>
-/// <param name="Aliases">The entity's aliases, offered to a provider that matches on them.</param>
 /// <param name="Page">Which page to read, counted from one.</param>
 /// <param name="PerPage">How many scenes a page is read in.</param>
 /// <param name="Sort">One opaque provider-issued ordering, or null for the provider's own.</param>
@@ -21,8 +20,6 @@ namespace WhisparrSync.Missing;
 internal sealed record MissingPageRequest(
     WhisparrEntityKind Kind,
     int CoveId,
-    string? EntityName,
-    IReadOnlyList<string> Aliases,
     int Page,
     int PerPage,
     string? Sort,
@@ -74,8 +71,12 @@ internal sealed class MissingPagePlanner(
     ISceneExclusionPort exclusions)
 {
     /// <summary>The page <paramref name="request"/> names.</summary>
+    /// <remarks>
+    /// <paramref name="log"/> is passed rather than held, because the one line this writes is the
+    /// containment of a read that failed and the caller already owns the containment of its own.
+    /// </remarks>
     internal async Task<MissingPageView> PlanAsync(
-        MissingPageRequest request, MissingPageContext context, CancellationToken ct)
+        MissingPageRequest request, MissingPageContext context, ILogger log, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
@@ -86,13 +87,7 @@ internal sealed class MissingPagePlanner(
         }
 
         var providerEntityId = await identities
-            .ResolveAsync(
-                request.Kind,
-                request.CoveId,
-                context.Generation,
-                request.EntityName,
-                request.Aliases,
-                ct)
+            .ResolveAsync(request.Kind, request.CoveId, context.Generation, ct)
             .ConfigureAwait(false);
 
         if (providerEntityId is null)
@@ -128,7 +123,7 @@ internal sealed class MissingPagePlanner(
             : [.. kept.Where(scene => !excluded.Contains(scene.ProviderSceneId))];
 
         var (states, statusWasRead, statusPermanentlyAbsent) = await ReadStatesAsync(
-            request, context, providerEntityId, remaining, ct).ConfigureAwait(false);
+            request, context, providerEntityId, remaining, log, ct).ConfigureAwait(false);
 
         var menus = request.MenusAlreadyHeld
             ? []
@@ -175,13 +170,7 @@ internal sealed class MissingPagePlanner(
         }
 
         var providerEntityId = await identities
-            .ResolveAsync(
-                request.Kind,
-                request.CoveId,
-                context.Generation,
-                request.EntityName,
-                request.Aliases,
-                ct)
+            .ResolveAsync(request.Kind, request.CoveId, context.Generation, ct)
             .ConfigureAwait(false);
 
         if (providerEntityId is null)
@@ -211,6 +200,7 @@ internal sealed class MissingPagePlanner(
             MissingPageContext context,
             string providerEntityId,
             ProviderScene[] remaining,
+            ILogger log,
             CancellationToken ct)
     {
         // A generation holding no scene-status role keeps no per-scene record at all, so no retry
@@ -225,16 +215,27 @@ internal sealed class MissingPagePlanner(
             return (Unknown(remaining), false, false);
         }
 
-        var states = await statuses
-            .ReadStatesAsync(
-                context.StatusReading,
-                baseAddress,
-                context.ApiKey,
-                request.Kind,
-                providerEntityId,
-                [.. remaining.Select(scene => scene.ProviderSceneId)],
-                ct)
-            .ConfigureAwait(false);
+        IReadOnlyDictionary<string, MissingSceneState> states;
+        try
+        {
+            states = await statuses
+                .ReadStatesAsync(
+                    context.StatusReading,
+                    baseAddress,
+                    context.ApiKey,
+                    request.Kind,
+                    providerEntityId,
+                    [.. remaining.Select(scene => scene.ProviderSceneId)],
+                    ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception failure) when (failure is HttpRequestException or IOException)
+        {
+            // An instance that was not reached says nothing about the catalogue, which was read. The
+            // page renders in full and states that no status was read, which a retry may change.
+            WhisparrSyncLog.SceneStatusReadContained(log, WhisparrSyncLog.Classify(failure));
+            return (Unknown(remaining), false, false);
+        }
 
         var read = states.Values.Any(state => state != MissingSceneState.StatusUnknown)
             || remaining.Length == 0;

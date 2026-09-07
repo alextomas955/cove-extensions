@@ -29,7 +29,8 @@ public interface ISceneStatusPort
 /// <remarks>
 /// One entity probe decides the page before any per-scene read is issued. An instance holding no
 /// entry for the entity holds none for a scene under it, so an absence settles forty cards with one
-/// request.
+/// request. A kind the instance publishes no entity for has no probe to short-circuit with, and the
+/// per-scene reads are issued directly at the same at-most-one-per-card cost.
 /// <para>
 /// The instance's own catalogue route reports what the instance holds and enumerates nothing, so a
 /// whole-catalogue read is both larger and unable to answer for a scene the instance does not hold.
@@ -54,14 +55,20 @@ internal sealed class SceneStatusPort : ISceneStatusPort
         ArgumentNullException.ThrowIfNull(reading);
         ArgumentNullException.ThrowIfNull(providerSceneIds);
 
-        var presence = await reading
-            .ReadEntityPresenceAsync(baseAddress, apiKey, kind, entityForeignId, ct)
-            .ConfigureAwait(false);
-
-        if (StateForWholePage(presence) is { } settled)
+        // The instance publishes no tag entity, so on a tag page there is nothing to probe and the
+        // per-scene reads are issued directly. Widening the probe into a catalogue read to have
+        // something to ask would cost an answer that grows with what the instance holds.
+        if (HasAnEntityToProbe(kind))
         {
-            return providerSceneIds.ToDictionary(
-                id => id, _ => settled, StringComparer.Ordinal);
+            var presence = await reading
+                .ReadEntityPresenceAsync(baseAddress, apiKey, kind, entityForeignId, ct)
+                .ConfigureAwait(false);
+
+            if (StateForWholePage(presence) is { } settled)
+            {
+                return providerSceneIds.ToDictionary(
+                    id => id, _ => settled, StringComparer.Ordinal);
+            }
         }
 
         var states = new Dictionary<string, MissingSceneState>(StringComparer.Ordinal);
@@ -80,6 +87,10 @@ internal sealed class SceneStatusPort : ISceneStatusPort
 
         return states;
     }
+
+    /// <summary>Whether the instance addresses <paramref name="kind"/> as an entity of its own.</summary>
+    private static bool HasAnEntityToProbe(WhisparrEntityKind kind)
+        => kind is WhisparrEntityKind.Studio or WhisparrEntityKind.Performer;
 
     /// <summary>The state every card on the page takes, or null where each must be read.</summary>
     /// <remarks>
