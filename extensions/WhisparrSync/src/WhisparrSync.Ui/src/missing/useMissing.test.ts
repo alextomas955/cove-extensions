@@ -7,7 +7,7 @@
  * both pass a value-level check on the composer alone.
  *
  * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is flushed by waiting rather than by wrapping. The host's
+ * too), which has no `act`, so a render is awaited on the condition it produces. The host's
  * authenticated fetch and its POST helper stand in, because each resolves only inside a consuming
  * bundle.
  */
@@ -53,8 +53,14 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
+/** Polls `until` until it holds, so a render is waited for rather than a number of milliseconds. */
+async function settled(until: () => boolean, budgetMs = 2000): Promise<boolean> {
+  const deadline = Date.now() + budgetMs;
+  while (!until() && Date.now() < deadline) {
+    await sleep(5);
+  }
+  return until();
+}
 
 const teardowns: (() => void)[] = [];
 afterEach(() => {
@@ -74,13 +80,13 @@ async function mount(coveId: number) {
   document.body.append(container);
   const root = createRoot(container);
   root.render(createElement(Probe));
-  await sleep(COMMIT_MS);
+  const mounted = await settled(() => latest !== null);
   teardowns.push(() => {
     root.unmount();
     container.remove();
   });
 
-  expect(latest).not.toBeNull();
+  expect(mounted, "the hook never committed").toBe(true);
   return latest as unknown as ReturnType<typeof useMissing>;
 }
 
@@ -90,7 +96,7 @@ test("the selection asks for the bulk route and carries exactly the ticked scene
   const missing = await mount(42);
 
   missing.monitorSelection([FIRST_SCENE, SECOND_SCENE]);
-  await sleep(COMMIT_MS);
+  expect(await settled(() => posted().length === 1)).toBe(true);
 
   expect(posted()).toHaveLength(1);
   expect(posted()[0].path.endsWith("/entity/studio/42/missing/bulk-monitor")).toBe(true);
@@ -110,7 +116,7 @@ test("nothing the tab sends reaches the whole-entity route", async () => {
   missing.monitorScene(FIRST_SCENE);
   missing.searchScene(FIRST_SCENE);
   missing.refresh();
-  await sleep(COMMIT_MS);
+  expect(await settled(() => posted().length === 3)).toBe(true);
 
   expect(sent.length).toBeGreaterThan(0);
   expect(sent.filter((call) => call.path.endsWith("add-all-missing"))).toEqual([]);
