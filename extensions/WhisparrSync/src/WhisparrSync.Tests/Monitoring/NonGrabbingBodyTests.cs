@@ -280,15 +280,15 @@ internal static class ComposedAdds
                     generation,
                     WhisparrEntityKind.Studio,
                     MonitorScope.FutureScenes,
-                    V2BodyProjector.AddStudio(
-                        3372, "Vixen", "vixen", MonitorScope.FutureScenes, V2Defaults),
+                    ComposedV2Body.Of(V2BodyProjector.AddStudio(
+                        3372, "Vixen", "vixen", MonitorScope.FutureScenes, V2Defaults)),
                     V2Suppression),
                 new ComposedAdd(
                     generation,
                     WhisparrEntityKind.Studio,
                     MonitorScope.AllScenes,
-                    V2BodyProjector.AddStudio(
-                        3372, "Vixen", "vixen", MonitorScope.AllScenes, V2Defaults),
+                    ComposedV2Body.Of(V2BodyProjector.AddStudio(
+                        3372, "Vixen", "vixen", MonitorScope.AllScenes, V2Defaults)),
                     V2Suppression),
             ],
 

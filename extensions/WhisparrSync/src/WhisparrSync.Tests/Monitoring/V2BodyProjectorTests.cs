@@ -57,7 +57,8 @@ public sealed class V2BodyProjectorTests
     [InlineData(MonitorScope.AllScenes, "all")]
     public void TheAddCarriesTheScopeKeyThisGenerationSpellsItWith(MonitorScope scope, string key)
     {
-        var body = V2BodyProjector.AddStudio(3372, "Vixen", "vixen", scope, Defaults);
+        var body = ComposedV2Body.Of(
+            V2BodyProjector.AddStudio(3372, "Vixen", "vixen", scope, Defaults));
 
         Assert.Equal(key, ((JsonObject)body["addOptions"]!)["monitor"]!.GetValue<string>());
     }
@@ -73,7 +74,8 @@ public sealed class V2BodyProjectorTests
     public void NoMonitorKeyBeyondTheTwoThisProductExpressesIsEverComposed()
     {
         var composed = Enum.GetValues<MonitorScope>()
-            .Select(scope => V2BodyProjector.AddStudio(3372, "Vixen", "vixen", scope, Defaults))
+            .Select(scope => ComposedV2Body.Of(
+                V2BodyProjector.AddStudio(3372, "Vixen", "vixen", scope, Defaults)))
             .Select(body => ((JsonObject)body["addOptions"]!)["monitor"]!.GetValue<string>())
             .Order()
             .ToArray();
@@ -93,8 +95,8 @@ public sealed class V2BodyProjectorTests
     [InlineData(MonitorScope.AllScenes)]
     public void EveryAddCarriesBothOfThisGenerationsSuppressionSpellingsPresentAndFalse(MonitorScope scope)
     {
-        var options = (JsonObject)V2BodyProjector
-            .AddStudio(3372, "Vixen", "vixen", scope, Defaults)["addOptions"]!;
+        var options = (JsonObject)ComposedV2Body
+            .Of(V2BodyProjector.AddStudio(3372, "Vixen", "vixen", scope, Defaults))["addOptions"]!;
 
         Assert.True(options.ContainsKey("searchForMissingEpisodes"));
         Assert.True(options.ContainsKey("searchForCutoffUnmetEpisodes"));
@@ -111,8 +113,8 @@ public sealed class V2BodyProjectorTests
     [Fact]
     public void NoAddCarriesTheOtherGenerationsSuppressionSpellings()
     {
-        var body = V2BodyProjector
-            .AddStudio(3372, "Vixen", "vixen", MonitorScope.FutureScenes, Defaults)
+        var body = ComposedV2Body
+            .Of(V2BodyProjector.AddStudio(3372, "Vixen", "vixen", MonitorScope.FutureScenes, Defaults))
             .ToJsonString();
 
         Assert.DoesNotContain("searchOnAdd", body, StringComparison.Ordinal);
@@ -123,7 +125,8 @@ public sealed class V2BodyProjectorTests
     [Fact]
     public void TheAddCarriesEveryFieldThisGenerationsOwnFormSends()
     {
-        var body = V2BodyProjector.AddStudio(3372, "Vixen", "vixen", MonitorScope.AllScenes, Defaults);
+        var body = ComposedV2Body.Of(
+            V2BodyProjector.AddStudio(3372, "Vixen", "vixen", MonitorScope.AllScenes, Defaults));
 
         Assert.Equal(
             [
@@ -161,7 +164,8 @@ public sealed class V2BodyProjectorTests
         Assert.All(
             Enum.GetValues<MonitorScope>(),
             scope => Assert.True(
-                V2BodyProjector.AddStudio(3372, "Vixen", "vixen", scope, Defaults)["qualityProfileId"]!
+                ComposedV2Body.Of(V2BodyProjector.AddStudio(
+                    3372, "Vixen", "vixen", scope, Defaults))["qualityProfileId"]!
                     .GetValue<int>() > 0));
     }
 
