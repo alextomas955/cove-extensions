@@ -62,6 +62,7 @@ function pageWith(facets: MissingFacetMenu[]): MissingPageView {
     statusWasRead: true,
     statusIsPermanentlyAbsent: false,
     monitorAllIsOffered: true,
+    providerName: "a source",
   };
 }
 

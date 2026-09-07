@@ -67,6 +67,7 @@ const RENDERED_BY_THE_MISSING_TAB = [
   "WHISPARR_KEEPS_NO_SCENE_RECORDS",
   "COUNT_IS_THE_CATALOGUE_SIZE",
   "SEARCH_WITH_NO_ENTRY",
+  "THE_METADATA_SOURCE",
 ];
 
 /** Sentences the connect surface reads through its own kind table. */
@@ -218,6 +219,27 @@ describe("the version-gap sentence is single-sourced", () => {
       .filter((entry) => entry.count > 0);
 
     expect(declarations).toEqual([{ file: path.join("common", "ui", "copy.ts"), count: 1 }]);
+  });
+});
+
+describe("neither metadata source is named in the bundle", () => {
+  /**
+   * Which source answers follows the connected generation, so a name written here is a name that is
+   * wrong on the other generation. The answered page carries it.
+   */
+  const SOURCE_NAMES = ["StashDB", "ThePornDB"];
+
+  it("writes neither name into shipped source", () => {
+    const named = sourceFiles(SRC)
+      .filter((file) => !/\.test\.tsx?$/.test(file))
+      .flatMap((file) => {
+        const text = readFileSync(file, "utf8");
+        return SOURCE_NAMES.filter((name) => text.includes(name)).map(
+          (name) => `${path.relative(SRC, file)} names ${name}`,
+        );
+      });
+
+    expect(named).toEqual([]);
   });
 });
 
