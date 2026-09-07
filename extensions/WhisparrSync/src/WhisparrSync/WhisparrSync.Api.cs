@@ -230,8 +230,11 @@ public sealed partial class WhisparrSync
         // extension may do.
         endpoints.MapPost(MissingBulkMonitorRoute,
             (string kind, int coveId, MissingBulkRequest request,
-             ICurrentPrincipalAccessor principal)
-                => EnqueueMissingBulkMonitorAsync(kind, coveId, request, principal))
+             ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             CancellationToken ct)
+                => EnqueueMissingBulkMonitorAsync(
+                    kind, coveId, request, principal, jobs, scopes, options, credentials, client, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
