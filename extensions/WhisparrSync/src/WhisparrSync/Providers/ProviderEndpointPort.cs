@@ -15,6 +15,24 @@ namespace WhisparrSync.Providers;
 public sealed record ResolvedProvider(
     string IdentityEndpoint, string ApiKey, int MaxRequestsPerMinute);
 
+/// <summary>Where a provider serves its own API, which is not where its identity is spelled.</summary>
+/// <remarks>
+/// ThePornDB's catalogue is REST at this address while Cove stamps a remote-id row under
+/// <see cref="IdentityEndpoint.ThePornDb"/>. An ownership match keys on that stored spelling by
+/// exact string, so this address may never stand in for it: it matches no stored row, and every
+/// scene the library holds would read as missing.
+/// <para>
+/// <see cref="EndpointMatchGuard.SameSource"/> does not catch the substitution. It compares
+/// registrable domains, and both addresses share one, so the two spellings read as the same source
+/// there while the stored rows carry only one of them.
+/// </para>
+/// </remarks>
+internal static class ProviderApiBase
+{
+    /// <summary>Where ThePornDB serves the REST API this product reads a catalogue from.</summary>
+    internal const string ThePornDb = "https://api.theporndb.net";
+}
+
 /// <summary>Which metadata server the connected generation reads from, or that there is none.</summary>
 /// <remarks>
 /// The configuration is optional: a host that registers none must still load the extension, so an
