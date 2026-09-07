@@ -201,13 +201,16 @@ internal sealed class ThePornDbCatalogue
         var resolved = await ResolveProviderAsync(ct).ConfigureAwait(false);
         if (resolved is null)
         {
-            return ProviderIdentityLookup.Unmatched;
+            return ProviderIdentityLookup.NotReached;
         }
 
         foreach (var candidate in Candidates(name, aliases))
         {
             var found = await SearchExactAsync(resolved, kind, candidate, ct).ConfigureAwait(false);
-            if (found.IsAmbiguous || found.ProviderEntityId is not null)
+
+            // A candidate that did not reach the provider ends the walk. Asking under the next
+            // alias would send again into the same failure and could answer an absence for it.
+            if (!found.WasReached || found.IsAmbiguous || found.ProviderEntityId is not null)
             {
                 return found;
             }
@@ -552,8 +555,12 @@ internal sealed class ThePornDbCatalogue
                     ct)
                 .ConfigureAwait(false);
 
-            if (answered is null
-                || !answered.Value.TryGetProperty("data", out var rows)
+            if (answered is null)
+            {
+                return ProviderIdentityLookup.NotReached;
+            }
+
+            if (!answered.Value.TryGetProperty("data", out var rows)
                 || rows.ValueKind != JsonValueKind.Array)
             {
                 return ProviderIdentityLookup.Unmatched;

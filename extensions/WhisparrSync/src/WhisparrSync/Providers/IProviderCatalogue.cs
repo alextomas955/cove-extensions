@@ -117,23 +117,41 @@ public sealed record ProviderSortOption(string Value, string Label);
 
 /// <summary>What a provider is known to call one entity, or why it has no name for it.</summary>
 /// <remarks>
-/// A three-way answer rather than a nullable identifier. Two exact matches leaves the choice to
-/// match order, so ambiguity is answered as itself and counts as no identifier; a near match is a
-/// wrong answer under a name a reader would read as right.
+/// A lookup that never reached the provider names no entity and states no absence, and the two are
+/// held apart here so an implementation cannot answer one for the other. Two exact matches leaves
+/// the choice to match order, so ambiguity is answered as itself and counts as no identifier; a
+/// near match is a wrong answer under a name a reader would read as right.
 /// </remarks>
-/// <param name="ProviderEntityId">The identifier the provider issued, or null.</param>
-/// <param name="IsAmbiguous">Several entities matched exactly.</param>
-public sealed record ProviderIdentityLookup(string? ProviderEntityId, bool IsAmbiguous)
+public sealed record ProviderIdentityLookup
 {
+    private ProviderIdentityLookup(string? providerEntityId, bool isAmbiguous, bool wasReached)
+    {
+        ProviderEntityId = providerEntityId;
+        IsAmbiguous = isAmbiguous;
+        WasReached = wasReached;
+    }
+
+    /// <summary>The identifier the provider issued, or null.</summary>
+    public string? ProviderEntityId { get; }
+
+    /// <summary>Several entities matched exactly.</summary>
+    public bool IsAmbiguous { get; }
+
+    /// <summary>The provider answered, whatever it answered.</summary>
+    public bool WasReached { get; }
+
+    /// <summary>The provider was not reached, or refused.</summary>
+    public static ProviderIdentityLookup NotReached { get; } = new(null, false, false);
+
     /// <summary>The provider names no entity matching exactly.</summary>
-    public static ProviderIdentityLookup Unmatched { get; } = new(null, false);
+    public static ProviderIdentityLookup Unmatched { get; } = new(null, false, true);
 
     /// <summary>The provider names several entities matching exactly.</summary>
-    public static ProviderIdentityLookup Ambiguous { get; } = new(null, true);
+    public static ProviderIdentityLookup Ambiguous { get; } = new(null, true, true);
 
     /// <summary>The provider names exactly one entity, as <paramref name="providerEntityId"/>.</summary>
     public static ProviderIdentityLookup Matched(string providerEntityId)
-        => new(providerEntityId, false);
+        => new(providerEntityId, false, true);
 }
 
 /// <summary>The metadata provider Cove is configured with, as this product reads it.</summary>
@@ -181,7 +199,9 @@ public interface IProviderCatalogue
     /// </summary>
     /// <remarks>
     /// Matched exactly, never near. <paramref name="aliases"/> are offered to a provider that
-    /// matches on them and ignored by one that does not.
+    /// matches on them and ignored by one that does not. A lookup that did not reach the provider
+    /// carries no name and states no absence, so a refusal is not answered as an entity the
+    /// provider has no name for.
     /// </remarks>
     Task<ProviderIdentityLookup> LookUpByNameAsync(
         WhisparrEntityKind kind, string name, IReadOnlyList<string> aliases, CancellationToken ct);

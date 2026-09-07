@@ -89,13 +89,19 @@ internal sealed class MissingPagePlanner(
             return Refused(request, MissingRefusalKind.NoMetadataProviderConfigured);
         }
 
-        var providerEntityId = await identities
+        var identity = await identities
             .ResolveAsync(request.Kind, request.CoveId, context.Generation, ct)
             .ConfigureAwait(false);
 
-        if (providerEntityId is null)
+        // A lookup that did not reach the source states nothing about which entity it holds, so it
+        // is the same refusal a read that answered nothing states, and a Refresh is offered for it.
+        if (identity.ProviderEntityId is not { Length: > 0 } providerEntityId)
         {
-            return Refused(request, MissingRefusalKind.NoProviderIdForEntity);
+            return Refused(
+                request,
+                identity.WasReached
+                    ? MissingRefusalKind.NoProviderIdForEntity
+                    : MissingRefusalKind.ProviderUnreachable);
         }
 
         // Every value the surface sent travels unchanged. The ordering and each filter value are
@@ -179,11 +185,11 @@ internal sealed class MissingPagePlanner(
             return new MissingCountView(null);
         }
 
-        var providerEntityId = await identities
+        var identity = await identities
             .ResolveAsync(request.Kind, request.CoveId, context.Generation, ct)
             .ConfigureAwait(false);
 
-        if (providerEntityId is null)
+        if (identity.ProviderEntityId is not { Length: > 0 } providerEntityId)
         {
             return new MissingCountView(null);
         }
