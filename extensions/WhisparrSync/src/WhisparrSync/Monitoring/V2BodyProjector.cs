@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Whisparr2.Net.Model;
 using WhisparrSync.Contracts;
 
 namespace WhisparrSync.Monitoring;
@@ -136,18 +137,14 @@ internal static class V2BodyProjector
 
     /// <summary>Sets only the monitored flag on the entity <paramref name="entityId"/> names.</summary>
     /// <remarks>
-    /// Every other field of the editor resource is nullable and an omitted one is not applied, so the
-    /// profile, the path, the tags, the new-item rule and every per-year flag the instance holds are
-    /// all left alone.
+    /// Every member of the editor resource this leaves unset is omitted from the wire document, and an
+    /// omitted one is not applied, so the profile, the path, the tags, the new-item rule and every
+    /// per-year flag the instance holds are all left alone.
     /// </remarks>
-    internal static JsonObject SetMonitored(int entityId, bool monitored)
+    internal static SeriesEditorResource SetMonitored(int entityId, bool monitored)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
-        return new JsonObject
-        {
-            ["seriesIds"] = new JsonArray(entityId),
-            ["monitored"] = monitored,
-        };
+        return new SeriesEditorResource(seriesIds: new List<int> { entityId }, monitored: monitored);
     }
 
     /// <summary>Re-applies <paramref name="scope"/> over what the instance already holds.</summary>
