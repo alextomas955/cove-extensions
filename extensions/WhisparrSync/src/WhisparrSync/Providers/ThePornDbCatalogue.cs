@@ -64,6 +64,16 @@ internal sealed class ThePornDbCatalogue
     /// <summary>The ordering the provider is read under when the surface names none.</summary>
     internal const string NewestFirst = "recently_released";
 
+    /// <summary>The provider's own name for the reverse of <see cref="NewestFirst"/>.</summary>
+    internal const string OldestFirst = "former_released";
+
+    /// <summary>The earliest year the year menu offers.</summary>
+    /// <remarks>
+    /// A date before this is not a release date this provider carries, so a row spelling one is
+    /// read as no year at all and fills the menu with nothing.
+    /// </remarks>
+    internal const int EarliestReleaseYear = 1970;
+
     private const string ScenesRoute = "scenes";
     private const string SitesRoute = "sites";
     private const string TagsRoute = "tags";
@@ -98,7 +108,7 @@ internal sealed class ThePornDbCatalogue
     public IReadOnlyList<ProviderSortOption> Sorts { get; } =
     [
         new(NewestFirst, "Newest first"),
-        new("former_released", "Oldest first"),
+        new(OldestFirst, "Oldest first"),
         new("duration_desc", "Longest first"),
         new("duration_asc", "Shortest first"),
     ];
@@ -207,9 +217,9 @@ internal sealed class ThePornDbCatalogue
 
     /// <inheritdoc/>
     /// <remarks>
-    /// One menu, filled by asking the provider once. Neither the performer route nor the site route
-    /// exposes a filter that would scope its values to an entity, so neither menu is listable and
-    /// both are absent.
+    /// Two menus, each filled by asking the provider. Neither the performer route nor the site route
+    /// exposes a filter that would scope its values to an entity, so neither of those menus is
+    /// listable and both are absent.
     /// </remarks>
     public async Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
         WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
@@ -227,6 +237,25 @@ internal sealed class ThePornDbCatalogue
             return [];
         }
 
+        var menus = new List<ProviderFacetMenu>();
+
+        if (await TagMenuAsync(resolved, ct).ConfigureAwait(false) is { } tags)
+        {
+            menus.Add(tags);
+        }
+
+        if (await YearMenuAsync(resolved, kind, providerEntityId, ct).ConfigureAwait(false)
+            is { } years)
+        {
+            menus.Add(years);
+        }
+
+        return menus;
+    }
+
+    private async Task<ProviderFacetMenu?> TagMenuAsync(
+        ResolvedProvider resolved, CancellationToken ct)
+    {
         var answered = await AskAsync(
                 resolved,
                 TagsRoute,
@@ -238,7 +267,7 @@ internal sealed class ThePornDbCatalogue
             || !answered.Value.TryGetProperty("data", out var rows)
             || rows.ValueKind != JsonValueKind.Array)
         {
-            return [];
+            return null;
         }
 
         var values = new List<ProviderFacetValue>();
@@ -253,8 +282,83 @@ internal sealed class ThePornDbCatalogue
         }
 
         var offered = Number(Meta(answered.Value), "total") ?? values.Count;
-        return [new ProviderFacetMenu(TagFacetKey, "Tags", values, offered > values.Count)];
+        return new ProviderFacetMenu(TagFacetKey, "Tags", values, offered > values.Count);
     }
+
+    /// <summary>Every year the entity's own catalogue spans, newest first.</summary>
+    /// <remarks>
+    /// Read as the two edges of the catalogue under the provider's own date orderings, so the menu
+    /// covers the whole of it and offers no year it holds no scene in. Null where either edge could
+    /// not be read.
+    /// </remarks>
+    private async Task<ProviderFacetMenu?> YearMenuAsync(
+        ResolvedProvider resolved,
+        WhisparrEntityKind kind,
+        string providerEntityId,
+        CancellationToken ct)
+    {
+        var scoped = await ScopeEntryAsync(resolved, EdgeRequest(kind, providerEntityId), ct)
+            .ConfigureAwait(false);
+        if (scoped is null)
+        {
+            return null;
+        }
+
+        var newest = await EdgeYearAsync(resolved, scoped.Value, NewestFirst, ct)
+            .ConfigureAwait(false);
+        var oldest = await EdgeYearAsync(resolved, scoped.Value, OldestFirst, ct)
+            .ConfigureAwait(false);
+
+        if (newest is not { } last || oldest is not { } first || first > last)
+        {
+            return null;
+        }
+
+        var values = new List<ProviderFacetValue>();
+        for (var year = last; year >= first; year--)
+        {
+            var spelled = year.ToString(CultureInfo.InvariantCulture);
+            values.Add(new ProviderFacetValue(spelled, spelled));
+        }
+
+        return new ProviderFacetMenu(YearKey, "Year", values, IsTypeAhead: false);
+    }
+
+    private async Task<int?> EdgeYearAsync(
+        ResolvedProvider resolved,
+        (string Key, string Value) scope,
+        string ordering,
+        CancellationToken ct)
+    {
+        var answered = await AskAsync(
+                resolved,
+                ScenesRoute,
+                Query(scope, ("page", "1"), ("per_page", "1"), ("orderBy", ordering)),
+                ct)
+            .ConfigureAwait(false);
+
+        return answered is not null
+            && answered.Value.TryGetProperty("data", out var rows)
+            && rows.ValueKind == JsonValueKind.Array
+            && rows.GetArrayLength() > 0
+                ? ReleaseYear(Text(rows[0], "date"))
+                : null;
+    }
+
+    // The provider spells a release date as an ISO day. A year outside what a catalogue can carry is
+    // read as no year, so one malformed row cannot stretch the menu over centuries.
+    private static int? ReleaseYear(string? date)
+        => date is { Length: >= 4 }
+            && int.TryParse(
+                date.AsSpan(0, 4), NumberStyles.None, CultureInfo.InvariantCulture, out var year)
+            && year >= EarliestReleaseYear
+            && year <= DateTime.UtcNow.Year
+                ? year
+                : null;
+
+    private static ProviderCatalogueRequest EdgeRequest(
+        WhisparrEntityKind kind, string providerEntityId)
+        => new(kind, providerEntityId, 1, 1, null, null, new Dictionary<string, string>());
 
     // A read that answered nothing. The surface states this as a refusal rather than as a catalogue
     // the provider lists nothing in.

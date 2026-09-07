@@ -282,15 +282,57 @@ public sealed class ThePornDbCatalogueTests
     [Fact]
     public async Task AStudioPageIsOfferedTheTagsMenu()
     {
-        var (catalogue, handler) = CatalogueOver(TagsMenuAnswer);
+        var (catalogue, handler) = CatalogueOver(TagsMenuAnswer, NoScenes, NoScenes);
 
-        var menus = await catalogue.ListFacetMenusAsync(
-            WhisparrEntityKind.Studio, StudioUuid, TestCt);
+        var menus = await catalogue.ListFacetMenusAsync(WhisparrEntityKind.Studio, "92", TestCt);
 
         var menu = Assert.Single(menus);
         Assert.Equal(ThePornDbCatalogue.TagFacetKey, menu.Key);
         Assert.Equal("70", Assert.Single(menu.Values).Value);
         Assert.StartsWith("/tags", handler.Targets[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The year menu carries every year between the two edges of the entity's own catalogue, newest
+    /// first, and each value is the year the provider's own parameter takes.
+    /// </summary>
+    [Fact]
+    public async Task AYearMenuCarriesEveryYearTheCatalogueSpans()
+    {
+        var (catalogue, handler) = CatalogueOver(
+            TagsMenuAnswer, SceneDated("2019-04-02"), SceneDated("2016-11-30"));
+
+        var menus = await catalogue.ListFacetMenusAsync(WhisparrEntityKind.Studio, "92", TestCt);
+
+        var years = Assert.Single(menus, menu => menu.Key == ThePornDbCatalogue.YearKey);
+        Assert.Equal("Year", years.Label);
+        Assert.False(years.IsTypeAhead);
+        Assert.Equal(
+            ["2019", "2018", "2017", "2016"], years.Values.Select(value => value.Value));
+        Assert.Equal(years.Values.Select(value => value.Value), years.Values.Select(value => value.Label));
+
+        // Both edges are read under the provider's own orderings, one row each.
+        Assert.Contains($"orderBy={ThePornDbCatalogue.NewestFirst}", handler.Targets[1], StringComparison.Ordinal);
+        Assert.Contains($"orderBy={ThePornDbCatalogue.OldestFirst}", handler.Targets[2], StringComparison.Ordinal);
+        Assert.All(
+            handler.Targets.Skip(1),
+            target => Assert.Contains("per_page=1", target, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// An edge that answers no year leaves the menu out. A year list is only meaningful over a
+    /// catalogue whose extent was read, and a half-read extent would offer years at a guess.
+    /// </summary>
+    [Theory]
+    [InlineData(NoScenes)]
+    [InlineData("""{"data":[{"id":"a","date":"0001-01-01"}],"meta":{"total":1}}""")]
+    public async Task AnUnreadableEdgeLeavesTheYearMenuOut(string edge)
+    {
+        var (catalogue, _) = CatalogueOver(TagsMenuAnswer, SceneDated("2019-04-02"), edge);
+
+        var menus = await catalogue.ListFacetMenusAsync(WhisparrEntityKind.Studio, "92", TestCt);
+
+        Assert.DoesNotContain(menus, menu => menu.Key == ThePornDbCatalogue.YearKey);
     }
 
     /// <summary>The year the surface chose reaches the provider, so it narrows the catalogue.</summary>
@@ -357,6 +399,15 @@ public sealed class ThePornDbCatalogueTests
 
     /// <summary>One page of the tags route, in the shape the provider serves it.</summary>
     private const string TagsMenuAnswer = """{"data":[{"id":70,"name":"Anal"}],"meta":{"total":1}}""";
+
+    /// <summary>A scenes page listing nothing.</summary>
+    private const string NoScenes = """{"data":[],"meta":{"total":0}}""";
+
+    /// <summary>One row of the scenes route, carrying the release date the edge read looks at.</summary>
+    private static string SceneDated(string date)
+        => $$$"""
+            {"data":[{"id":"a-scene","title":"A scene","date":"{{{date}}}"}],"meta":{"total":1}}
+            """;
 
     private static JsonObject Response(string fixture)
         => JsonNode.Parse(ProbeFixtures.Read(fixture))!["response"]!.DeepClone().AsObject();
