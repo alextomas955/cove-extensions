@@ -7,7 +7,9 @@
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { deriveAsyncRegionState, type AsyncRead } from "../common/ui/asyncRegionLogic";
 import type { MissingPageView } from "../wire/api";
+import type { MultiSelectToggleHandler } from "@cove/runtime/components";
 import { MissingCard } from "./MissingCard";
+import type { CardActionState } from "./missingCardLogic";
 import { MissingCountLine } from "./MissingCountLine";
 import { MissingGridStates } from "./MissingGridStates";
 import { GRID_CLASS, GRID_TEMPLATE_COLUMNS } from "./missingClasses";
@@ -34,6 +36,18 @@ export interface MissingGridSurroundings {
   readonly onClearSearch: (() => void) | null;
 }
 
+/** What each card is given, held at the tab beside the page the selection is a selection of. */
+export interface MissingGridCards {
+  readonly selected: ReadonlySet<string>;
+  /** A selection is in progress, so every card shows its control rather than only the hovered one. */
+  readonly selecting: boolean;
+  readonly onToggleSelect: MultiSelectToggleHandler<string>;
+  /** What each card's own verbs are doing, keyed as the provider issued the scene identifier. */
+  readonly actions: Readonly<Record<string, CardActionState>>;
+  readonly onMonitor: (providerSceneId: string) => void;
+  readonly onSearch: (providerSceneId: string) => void;
+}
+
 /** The reasons no retry and no change of view could answer. */
 const NEVER_ANSWERS: readonly MissingGridStateKind[] = [
   "noProviderIdForEntity",
@@ -44,28 +58,21 @@ const NEVER_ANSWERS: readonly MissingGridStateKind[] = [
 export function MissingGrid({
   read,
   view,
-  empty,
-  failed,
-  surroundings = null,
+  surroundings,
+  cards: wiring,
 }: {
   read: AsyncRead;
   view: MissingPageView | null;
-  /** What is stated when the read answered and the page carries no card. */
-  empty: React.ReactNode;
-  /** What is stated when the read did not answer. */
-  failed: React.ReactNode;
-  /**
-   * What the grid states its own reason from. Null leaves the reason to the caller's own `empty` and
-   * `failed`, and draws no count line, there being no provider or entity name to say what it counts.
-   */
-  surroundings?: MissingGridSurroundings | null;
+  /** What the grid states its own reason from, and what the count line says it counts. */
+  surroundings: MissingGridSurroundings;
+  cards: MissingGridCards;
 }) {
   const cards = view?.cards ?? [];
-  const kind = surroundings === null ? null : deriveGridState({ read, view, ...surroundings });
+  const kind = deriveGridState({ read, view, ...surroundings });
   const state = kind === null ? null : describeGridState(kind);
 
   const stated =
-    kind === null || surroundings === null ? null : (
+    kind === null ? null : (
       <MissingGridStates
         kind={kind}
         sentence={fillNames(emptyStateFor(kind), surroundings.provider, surroundings.entityName)}
@@ -101,7 +108,7 @@ export function MissingGrid({
         outageNotice={kind === "readIsStale" ? stated : null}
         content={
           <>
-            {view === null || surroundings === null ? null : (
+            {view === null ? null : (
               <MissingCountLine
                 view={view}
                 provider={surroundings.provider}
@@ -110,13 +117,24 @@ export function MissingGrid({
             )}
             <div className={GRID_CLASS} style={{ gridTemplateColumns: GRID_TEMPLATE_COLUMNS }}>
               {cards.map((card) => (
-                <MissingCard key={card.providerSceneId} card={card} />
+                <MissingCard
+                  key={card.providerSceneId}
+                  card={card}
+                  selected={wiring.selected.has(card.providerSceneId)}
+                  selecting={wiring.selecting}
+                  onToggleSelect={(options) => {
+                    wiring.onToggleSelect(card.providerSceneId, options);
+                  }}
+                  action={wiring.actions[card.providerSceneId]}
+                  onMonitor={wiring.onMonitor}
+                  onSearch={wiring.onSearch}
+                />
               ))}
             </div>
           </>
         }
-        empty={replacesTheGrid ? stated : empty}
-        failed={replacesTheGrid ? stated : failed}
+        empty={stated}
+        failed={stated}
       />
     </>
   );

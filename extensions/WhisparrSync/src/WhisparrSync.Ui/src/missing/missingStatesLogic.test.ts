@@ -135,6 +135,23 @@ describe("every situation the grid cannot show cards in says which one it is", (
     expect(refreshIsOffered("noInstanceConnected")).toBe(false);
   });
 
+  it("does not blame the sub-studios when nothing is connected", () => {
+    // A studio read without its sub-studios AND with no instance connected. Both situations are in
+    // force at once, and only one of them is the cause. The sub-studio sentence is named as the
+    // string that must not appear: a case asserting only the right sentence would have passed
+    // against a surface that reached both answers through different code.
+    const kind = deriveGridState(
+      situation({
+        view: pageOf([], "noInstanceConnected"),
+        subStudioContentIsExcluded: true,
+      }),
+    );
+    const stated = emptyStateFor(kind ?? "nothingMissing");
+
+    expect(stated).not.toBe(NO_SCENES_WITHOUT_SUB_STUDIOS);
+    expect(stated).toBe(NO_INSTANCE_CONNECTED);
+  });
+
   it("keeps the list and says it is stale when a refresh failed over it", () => {
     const kind = deriveGridState(
       situation({
