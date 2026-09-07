@@ -90,7 +90,6 @@ catalogue, and:
   asked, so it did not decline.
 - A selection's **Monitor** is refused before the run starts, and the bar says the connected
   Whisparr keeps no per-scene records.
-- **Monitor all** is absent from the toolbar, because this generation adds no catalogue item.
 
 Monitoring a whole studio or performer is not affected. That lives on the Whisparr button beside the
 entity's name. See [Monitor a studio or a performer](./monitoring.md).
@@ -122,18 +121,9 @@ There is no select-everything-that-matches gesture, and that is deliberate: a ca
 tens of thousands of scenes, and a gesture that reached all of them would be one press away from a
 run of that size.
 
-## Mark a whole entity's catalogue wanted
-
-**Monitor all** sits at the right of the toolbar on a studio and a performer page. It marks every
-scene the source lists for that entity and your Whisparr does not hold, in one background job.
-Nothing is downloaded, and no selection is needed first. The job reports in Cove's job area with the
-same three counts the selection's own **Monitor** reports.
-
-**It covers the whole catalogue, not the page you are on, and no filter narrows it.** A studio with
-four thousand scenes means a run of that size.
-
-The button is absent on a tag page, because Whisparr does not monitor a tag, and absent on a
-Whisparr v2 connection, because that generation adds no catalogue item at all.
+The scenes Cove already holds are a separate list, and registering those in Whisparr lives on the
+Whisparr button beside the entity's name. See
+[Add all missing](./monitoring.md#add-all-missing).
 
 ## Narrow the list
 
