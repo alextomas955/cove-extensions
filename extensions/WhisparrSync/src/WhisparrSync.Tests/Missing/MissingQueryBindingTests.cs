@@ -245,12 +245,13 @@ public sealed class MissingQueryBindingTests
         public ProviderCapabilitySet Capabilities { get; } =
             ProviderCapabilities.ForStashDb(new object());
 
-        public Task<ProviderCataloguePage> ReadPageAsync(
+        public Task<ProviderCatalogueAnswer> ReadPageAsync(
             ProviderCatalogueRequest request, CancellationToken ct)
         {
             Requests.Add(request);
             return Task.FromResult(
-                new ProviderCataloguePage([], 0, SizeIsLowerBound: false, 1, 1, 0));
+                ProviderCatalogueAnswer.Answered(
+                    new ProviderCataloguePage([], 0, SizeIsLowerBound: false, 1, 1, 0)));
         }
 
         public Task<int?> ReadCatalogueSizeAsync(

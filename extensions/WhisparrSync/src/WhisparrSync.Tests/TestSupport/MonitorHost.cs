@@ -530,9 +530,11 @@ internal sealed class InertProviderCatalogue : IProviderCatalogue
 
     public ProviderCapabilitySet Capabilities { get; } = ProviderCapabilities.ForStashDb(new object());
 
-    public Task<ProviderCataloguePage> ReadPageAsync(
+    public Task<ProviderCatalogueAnswer> ReadPageAsync(
         ProviderCatalogueRequest request, CancellationToken ct)
-        => Task.FromResult(new ProviderCataloguePage([], 0, SizeIsLowerBound: false, 1, 1, 0));
+        => Task.FromResult(
+            ProviderCatalogueAnswer.Answered(
+                new ProviderCataloguePage([], 0, SizeIsLowerBound: false, 1, 1, 0)));
 
     public Task<int?> ReadCatalogueSizeAsync(ProviderCatalogueRequest request, CancellationToken ct)
         => Task.FromResult<int?>(null);
