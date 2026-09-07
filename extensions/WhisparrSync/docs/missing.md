@@ -130,6 +130,8 @@ Above the grid:
 - One menu per facet the source filled. A long menu carries a field at its head and lists nothing
   until you type; it narrows the values the source already sent rather than asking the source again
   as you type.
+- **Year**, where the source filters by one. It lists every year between the oldest and the newest
+  scene the source holds for that entity, so a year with nothing in it is not offered.
 - **Refresh** reads the page again.
 
 Every one of these travels in the page address, so the link you copy shows the reader what you were
@@ -148,8 +150,8 @@ source your Whisparr generation reads from.
   a performer page each offer Tags.
 - **A tag page carries no facet menu on either source**, because the only menu left would narrow a
   tag to itself.
-- **No year filter is offered on either source.** ThePornDB can filter by an exact year and StashDB
-  cannot express one at all, and neither offers a list of years to pick from.
+- **A year filter is offered on ThePornDB and not on StashDB.** ThePornDB narrows to an exact year.
+  StashDB carries one date bound that cannot express a year, so no year menu is drawn there.
 
 ## When a studio page shows nothing
 

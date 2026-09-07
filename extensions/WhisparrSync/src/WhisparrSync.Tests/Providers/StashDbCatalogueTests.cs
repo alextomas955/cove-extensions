@@ -301,6 +301,27 @@ public sealed class StashDbCatalogueTests
     }
 
     /// <summary>
+    /// No menu offers a year. This provider's scene query carries one date criterion with no
+    /// inclusive bound, so a year is not expressible on it and no control for one is drawn.
+    /// </summary>
+    [Theory]
+    [InlineData(WhisparrEntityKind.Studio)]
+    [InlineData(WhisparrEntityKind.Performer)]
+    [InlineData(WhisparrEntityKind.Tag)]
+    public async Task NoMenuOffersAYear(WhisparrEntityKind kind)
+    {
+        var (catalogue, _) = CatalogueOverEach(
+            Facet("studioPerformers"), Facet("subStudios"), Facet("tags"));
+
+        var menus = await catalogue.ListFacetMenusAsync(kind, "an-entity", TestCt);
+
+        Assert.DoesNotContain(
+            menus,
+            menu => menu.Key.Contains("year", StringComparison.OrdinalIgnoreCase)
+                || menu.Label.Contains("year", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
     /// A tag page is offered no menu. A tag's own performers and studios are not listable, and a tag
     /// menu there would narrow a tag to itself.
     /// </summary>
