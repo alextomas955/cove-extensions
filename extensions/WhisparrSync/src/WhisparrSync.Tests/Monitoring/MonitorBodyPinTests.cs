@@ -576,7 +576,8 @@ public sealed class MonitorBodyPinTests
 
         // The composed body names the entity inside an array of objects, which is the shape that route
         // reads. A scalar there is accepted by nothing.
-        Assert.IsType<JsonArray>(V2BodyProjector.SetScope(1, MonitorScope.AllScenes)["series"]);
+        Assert.IsType<JsonArray>(
+            ComposedV2Body.Of(V2BodyProjector.SetScope(1, MonitorScope.AllScenes))["series"]);
     }
 
     /// <summary>

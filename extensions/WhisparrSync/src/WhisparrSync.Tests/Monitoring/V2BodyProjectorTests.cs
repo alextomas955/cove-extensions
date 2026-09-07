@@ -196,7 +196,7 @@ public sealed class V2BodyProjectorTests
     [InlineData(MonitorScope.AllScenes, "all")]
     public void TheScopeChangeNestsTheIdInsideAnArrayOfObjects(MonitorScope scope, string key)
     {
-        var body = V2BodyProjector.SetScope(1, scope);
+        var body = ComposedV2Body.Of(V2BodyProjector.SetScope(1, scope));
 
         Assert.Equal(["monitoringOptions", "series"], body.Select(member => member.Key).Order());
         var named = Assert.IsType<JsonArray>(body["series"]);
