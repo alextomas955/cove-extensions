@@ -226,6 +226,9 @@ public sealed partial class SettingsProjectionTests
                 // A catalogue read that reached nothing, given the failure's classification: a type
                 // name chosen by whoever wrote the throw, so no part of it comes from the provider.
                 "CatalogueReadContained.failure",
+                // A status read that reached no instance, given the same classification and for the
+                // same reason.
+                "SceneStatusReadContained.failure",
             }.Order(),
             LogTemplates()
                 .SelectMany(template => template.GetParameters(), (template, parameter) => (template, parameter))

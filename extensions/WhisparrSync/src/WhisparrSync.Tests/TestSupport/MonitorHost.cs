@@ -189,7 +189,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         var catalogue = new InertProviderCatalogue();
         builder.Services.AddSingleton(
             new MissingPagePlanner(
-                new MissingIdentityResolver(host.Identities, catalogue),
+                new MissingIdentityResolver(
+                    host.Identities, catalogue, new EntityNamePort(host._db)),
                 catalogue,
                 new OwnedScenePort(host._db),
                 new SceneStatusPort(),
