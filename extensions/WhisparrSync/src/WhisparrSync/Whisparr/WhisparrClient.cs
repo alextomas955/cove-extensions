@@ -465,13 +465,11 @@ internal sealed class WhisparrClient(
 
             // Re-applied over the existing catalogue in one request, so nothing is read first. The
             // route answers an empty body with a server failure, so the body is what makes it work.
-            WhisparrGeneration.V2 => ActAsync(
+            WhisparrGeneration.V2 => GeneratedV2ActAsync(
                 baseAddress,
                 apiKey,
-                HttpMethod.Post,
-                SeasonPassPath,
-                V2BodyProjector.SetScope(entityId, scope),
-                ct),
+                api => api.Api<V2Api.ISeasonPassApi>().CreateSeasonPassAsync(
+                    V2BodyProjector.SetScope(entityId, scope), ct)),
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
 

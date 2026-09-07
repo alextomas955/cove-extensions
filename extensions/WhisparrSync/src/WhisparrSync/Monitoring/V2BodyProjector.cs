@@ -27,9 +27,6 @@ internal static class V2BodyProjector
     /// <summary>What every add and every scope change spells the whole catalogue with.</summary>
     private const string WholeCatalogue = "all";
 
-    /// <summary>What every add and every scope change spells a future-only catalogue with.</summary>
-    private const string FutureCatalogueOnly = "future";
-
     /// <summary>This generation's search command. The one verb that downloads.</summary>
     internal const string SeriesSearchCommand = "SeriesSearch";
 
@@ -112,7 +109,7 @@ internal static class V2BodyProjector
         ArgumentException.ThrowIfNullOrWhiteSpace(defaults.RootFolderPath);
         ArgumentOutOfRangeException.ThrowIfLessThan(defaults.QualityProfileId, 1);
 
-        var monitor = CatalogueKeyFor(scope);
+        var monitor = MonitorTypesValueConverter.ToJsonValue(CatalogueTypeFor(scope));
         const bool search = false;
         return new JsonObject
         {
@@ -156,28 +153,26 @@ internal static class V2BodyProjector
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="scope"/> is not a scope this product expresses.
     /// </exception>
-    internal static JsonObject SetScope(int entityId, MonitorScope scope)
+    internal static SeasonPassResource SetScope(int entityId, MonitorScope scope)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
-        return new JsonObject
-        {
-            ["series"] = new JsonArray(new JsonObject { ["id"] = entityId }),
-            ["monitoringOptions"] = new JsonObject { ["monitor"] = CatalogueKeyFor(scope) },
-        };
+        return new SeasonPassResource(
+            series: new List<SeasonPassSeriesResource> { new(id: entityId) },
+            monitoringOptions: new MonitoringOptions(monitor: CatalogueTypeFor(scope)));
     }
 
-    /// <summary>How much of a catalogue <paramref name="scope"/> covers, in this generation's key.</summary>
+    /// <summary>How much of a catalogue <paramref name="scope"/> covers, as this generation types it.</summary>
     /// <remarks>
     /// Two keys and no others. This generation's own dropdown offers nine more — a missing-only, an
     /// existing-only, a recent-only, a first and a latest entry, a pilot entry, two specials entries
     /// and an off entry — four of which it renders to a user as raw localization keys. Mimicry stops
     /// where the interface being mimicked is defective, and none of the nine is composable here.
     /// </remarks>
-    private static string CatalogueKeyFor(MonitorScope scope)
+    private static MonitorTypes CatalogueTypeFor(MonitorScope scope)
         => scope switch
         {
-            MonitorScope.FutureScenes => FutureCatalogueOnly,
-            MonitorScope.AllScenes => WholeCatalogue,
+            MonitorScope.FutureScenes => MonitorTypes.Future,
+            MonitorScope.AllScenes => MonitorTypes.All,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(scope), scope, "This is not a monitor scope this product expresses."),
         };
