@@ -192,8 +192,6 @@ public sealed class MissingQueryBindingTests
         var request = new MissingPageRequest(
             WhisparrEntityKind.Studio,
             7,
-            EntityName: null,
-            Aliases: [],
             page,
             PerPage: 40,
             sort,
@@ -209,12 +207,12 @@ public sealed class MissingQueryBindingTests
             StatusReading: null,
             ExclusionReading: null);
 
-        return await PlannerOver(catalogue).PlanAsync(request, context, TestCt);
+        return await PlannerOver(catalogue).PlanAsync(request, context, NullLogger.Instance, TestCt);
     }
 
     private static MissingPagePlanner PlannerOver(RecordingCatalogue catalogue)
         => new(
-            new MissingIdentityResolver(new StubIdentities(), catalogue),
+            new MissingIdentityResolver(new StubIdentities(), catalogue, new StubEntityNames()),
             catalogue,
             new StubOwned(),
             new SceneStatusPort(),
