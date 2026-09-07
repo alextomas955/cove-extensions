@@ -33,8 +33,6 @@ export interface Missing {
   readonly searchScene: (providerSceneId: string) => void;
   /** Marks the ticked scenes wanted as one background run. Acquires nothing. */
   readonly monitorSelection: (providerSceneIds: readonly string[]) => void;
-  /** Marks everything this entity's whole catalogue is missing, as one background run. */
-  readonly monitorAll: () => void;
 }
 
 /**
@@ -78,11 +76,6 @@ function sceneRouteFor(entity: MissingEntity, providerSceneId: string, verb: Car
 /** The selection's own route, which names the entity and carries the ticked scenes in its body. */
 function bulkRouteFor(entity: MissingEntity): string {
   return api(`entity/${entity.kind}/${String(entity.coveId)}/missing/bulk-monitor`);
-}
-
-/** The whole-view action's route, which needs no selection built first. */
-function monitorAllRouteFor(entity: MissingEntity): string {
-  return api(`entity/${entity.kind}/${String(entity.coveId)}/add-all-missing`);
 }
 
 export function useMissing(kind: MissingEntityKind, coveId: number, view: MissingView): Missing {
@@ -175,9 +168,5 @@ export function useMissing(kind: MissingEntityKind, coveId: number, view: Missin
     [store, kind, coveId],
   );
 
-  const monitorAll = useCallback(() => {
-    void postAction(monitorAllRouteFor({ kind, coveId }));
-  }, [kind, coveId]);
-
-  return { state, refresh, monitorScene, searchScene, monitorSelection, monitorAll };
+  return { state, refresh, monitorScene, searchScene, monitorSelection };
 }

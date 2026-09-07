@@ -218,10 +218,6 @@ public sealed record MissingSortOption(string Value, string Label);
 /// <param name="StatusIsPermanentlyAbsent">
 /// No retry can establish a status, because the connected generation keeps no per-scene records.
 /// </param>
-/// <param name="MonitorAllIsOffered">
-/// Whether the whole-entity action has an implementation to reach: the connected generation
-/// registers a scene add, and an arm acts on this entity kind. False is an absent control.
-/// </param>
 /// <param name="ProviderName">
 /// The metadata source this page was read from, as a sentence names it. Carried on the page rather
 /// than held by the surface, because which source answers follows the connected generation.
@@ -241,7 +237,6 @@ public sealed record MissingPageView(
     string? SortInForce,
     bool StatusWasRead,
     bool StatusIsPermanentlyAbsent,
-    bool MonitorAllIsOffered,
     string ProviderName);
 
 /// <summary>How large one entity's catalogue is, as the tab badge reads it.</summary>
@@ -253,11 +248,7 @@ public sealed record MissingPageView(
 /// at all, the host treating a non-number as no measurement, and the reason is stated inside the tab
 /// where there is room for a sentence.
 /// </param>
-/// <param name="IsLowerBound">
-/// The figure is a floor rather than a count. The badge carries it plainly either way; only the
-/// count line renders the trailing plus.
-/// </param>
-public sealed record MissingCountView(int? Count, bool IsLowerBound);
+public sealed record MissingCountView(int? Count);
 
 /// <summary>What one card's verb produced.</summary>
 /// <param name="State">What the instance holds for the scene after the verb.</param>

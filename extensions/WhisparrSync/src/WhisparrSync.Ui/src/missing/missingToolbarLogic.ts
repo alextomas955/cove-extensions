@@ -1,13 +1,10 @@
 /**
- * What the catalogue toolbar offers, derived from the entity kind and the page the provider
- * answered.
+ * What the catalogue toolbar offers, and the ordering rows the answered page fills it with.
  *
- * Pure and relative-import-free. Every answer is a list of controls to render; a control the
- * provider or the entity kind cannot honour is absent from that list, and no member here carries a
- * disabled flag for one.
+ * Pure and relative-import-free. An ordering the provider does not offer is absent from the rows,
+ * and no member here carries a disabled flag for one.
  */
 import type { MissingSortOption } from "../wire/api";
-import type { MissingEntityKind } from "./entityKindLogic";
 
 /**
  * How long typing settles before the address is rewritten.
@@ -23,31 +20,16 @@ export const SEARCH_PLACEHOLDER = "Search titles";
 /** What the ordering menu is called, which is the only name its trigger carries. */
 export const SORT_MENU_LABEL = "Sort";
 
-/** The whole-view action's name. */
-export const MONITOR_ALL = "Monitor all";
-
 /** One control the toolbar draws. */
-export type MissingToolbarControl = "search" | "sort" | "facets" | "refresh" | "monitorAll";
+export type MissingToolbarControl = "search" | "sort" | "facets" | "refresh";
 
-/**
- * The controls to draw for this entity, in the order they are drawn.
- *
- * A control this entity cannot express is absent from the list. Whisparr expresses no whole-tag
- * action, so a tag page carries no `monitorAll` entry at all.
- *
- * @param kind the entity page the tab is mounted on
- * @param monitorAllIsOffered what the answered page says about the whole-entity action
- */
-export function toolbarControlsFor(
-  kind: MissingEntityKind,
-  monitorAllIsOffered: boolean,
-): readonly MissingToolbarControl[] {
-  const controls: MissingToolbarControl[] = ["search", "sort", "facets", "refresh"];
-  if (kind !== "tag" && monitorAllIsOffered) {
-    controls.push("monitorAll");
-  }
-  return controls;
-}
+/** The controls to draw once a page has answered, in the order they are drawn. */
+export const MISSING_TOOLBAR_CONTROLS: readonly MissingToolbarControl[] = [
+  "search",
+  "sort",
+  "facets",
+  "refresh",
+];
 
 /** One row of the ordering menu. */
 export interface MissingSortRow {
