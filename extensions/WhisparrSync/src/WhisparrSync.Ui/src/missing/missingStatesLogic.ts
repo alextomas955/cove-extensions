@@ -6,6 +6,7 @@
  * one place - they read alike and differ only in whether asking again could change the answer.
  */
 import {
+  EVERY_SCENE_ON_THIS_PAGE_IS_OWNED,
   NOTHING_MISSING,
   NO_INSTANCE_CONNECTED,
   NO_METADATA_PROVIDER_CONFIGURED,
@@ -24,6 +25,7 @@ import type { MissingPageView } from "../wire/api";
 /** Every reason the grid can state. */
 export type MissingGridStateKind =
   | "nothingMissing"
+  | "everySceneOnThisPageIsOwned"
   | "noScenesWithoutSubStudios"
   | "noScenesMatchTheseFilters"
   | "noTitlesMatch"
@@ -58,6 +60,14 @@ const NEITHER_ESCAPE = { clearFiltersIsOffered: false, clearSearchIsOffered: fal
 const STATES: Record<MissingGridStateKind, MissingGridState> = {
   nothingMissing: {
     sentence: NOTHING_MISSING,
+    refreshIsOffered: false,
+    replacesTheGrid: true,
+    ...NEITHER_ESCAPE,
+  },
+  // A page emptied by the owned subtraction, not a catalogue with nothing in it. The count beside
+  // the grid still states a size, so claiming the catalogue is empty would contradict it.
+  everySceneOnThisPageIsOwned: {
+    sentence: EVERY_SCENE_ON_THIS_PAGE_IS_OWNED,
     refreshIsOffered: false,
     replacesTheGrid: true,
     ...NEITHER_ESCAPE,
@@ -190,6 +200,12 @@ export function deriveGridState(situation: MissingGridSituation): MissingGridSta
 
   if (view.cards.length > 0) {
     return null;
+  }
+  // Owned scenes are removed after a page arrives and a page is never topped back up, so a page can
+  // empty while the catalogue still holds scenes. Every reason below claims the catalogue itself is
+  // empty, and none of them is true while the size says otherwise.
+  if (view.catalogueSize > 0) {
+    return "everySceneOnThisPageIsOwned";
   }
   if (situation.filtersActive) {
     return "noScenesMatchTheseFilters";
