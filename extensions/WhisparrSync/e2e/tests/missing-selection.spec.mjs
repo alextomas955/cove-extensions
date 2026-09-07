@@ -170,7 +170,6 @@ function recordedPage(count, { page: pageNumber = 1, lastPage = 1 } = {}) {
     sortInForce: null,
     statusWasRead: true,
     statusIsPermanentlyAbsent: false,
-    monitorAllIsOffered: true,
   };
 }
 
