@@ -598,8 +598,7 @@ internal sealed class ThePornDbCatalogue
 
     // Null where no catalogue arrived: no whole answer, a status that is not a success, or a body
     // carrying the provider's own refusal. The body decides, so a refusal is never read as a
-    // catalogue that is simply empty. An answer the provider stated ends the attempts, because
-    // re-sending collects the same refusal and writes the same line again.
+    // catalogue that is simply empty. An answer the provider stated ends the attempts.
     private async Task<JsonElement?> AskAsync(
         ResolvedProvider resolved, string collection, string query, CancellationToken ct)
     {

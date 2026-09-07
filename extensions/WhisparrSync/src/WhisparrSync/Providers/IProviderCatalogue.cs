@@ -72,10 +72,8 @@ public sealed record ProviderCataloguePage(
 
 /// <summary>What a provider answered when one page of its catalogue was asked for.</summary>
 /// <remarks>
-/// A page or a stated failure, rather than a page alone. No page means nothing arrived and nothing
-/// is claimed about the catalogue; a page listing no scenes means the provider answered and lists
-/// nothing. A catalogue that answered an empty page for a failure states the second where the first
-/// is true, and a reader is told they own everything.
+/// No page means nothing arrived and nothing is claimed about the catalogue. A page listing no
+/// scenes means the provider answered and lists nothing.
 /// </remarks>
 public sealed record ProviderCatalogueAnswer
 {

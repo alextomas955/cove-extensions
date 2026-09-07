@@ -531,8 +531,7 @@ internal sealed class StashDbCatalogue
 
     // Null where no catalogue arrived: no whole answer, a status that is not a success, or a body
     // carrying the provider's own errors. The provider answers an authentication failure with 200,
-    // so the body is what decides. An answer the provider stated ends the attempts, because
-    // re-sending collects the same refusal and writes the same line again.
+    // so the body is what decides. An answer the provider stated ends the attempts.
     private async Task<JsonElement?> AskAsync(
         string query, JsonObject variables, CancellationToken ct)
     {
