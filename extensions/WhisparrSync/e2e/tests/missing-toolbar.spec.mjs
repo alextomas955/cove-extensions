@@ -32,7 +32,6 @@ const TAB_LABEL = "Missing";
 /** The toolbar's own control names, transcribed from the shipped labels the same way. */
 const SEARCH_PLACEHOLDER = "Search titles";
 const REFRESH_LABEL = "Refresh";
-const MONITOR_ALL_LABEL = "Monitor all";
 
 /**
  * The keys Cove deletes from the address on every tab change, including the change into this tab.
@@ -199,8 +198,6 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
     name: `Studio ${randomUUID().slice(0, 8)}`,
     remoteIds: [],
   });
-  const tag = await coveApi.post("/api/tags", { name: `Tag ${randomUUID().slice(0, 8)}` });
-  expect(tag.status, `POST /api/tags answered ${String(tag.status)}`).toBeLessThan(300);
 
   const studioPath = `/studio/${String(studio.id)}`;
   await openTheTab(page, baseUrl, studioPath, "the studio detail page");
@@ -314,13 +311,6 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
       `${name} looks the same focused as it does unfocused, so a keyboard user cannot see where they are`,
     ).not.toBe(treatment.blurred);
   }
-
-  // 8. Whisparr expresses no whole-tag action, so a tag page carries no such control anywhere.
-  await openTheTab(page, baseUrl, `/tag/${String(tag.json.id)}`, "the tag detail page");
-  await expect(
-    page.getByRole("button", { name: MONITOR_ALL_LABEL }),
-    "a tag page drew a whole-view action, which Whisparr cannot express for a tag",
-  ).toHaveCount(0);
 });
 
 /**
@@ -329,7 +319,7 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
  * It carries a card, because a page carrying none is an empty answer and the grid states that in
  * place of the count line this reads.
  */
-function answeredPage(monitorAllIsOffered) {
+function answeredPage() {
   return {
     cards: [
       {
@@ -359,12 +349,11 @@ function answeredPage(monitorAllIsOffered) {
     sortInForce: null,
     statusWasRead: true,
     statusIsPermanentlyAbsent: false,
-    monitorAllIsOffered,
     providerName: ANSWERED_SOURCE,
   };
 }
 
-test("an answered page decides the source a sentence names and whether the whole-view action is drawn", async ({
+test("an answered page decides the source a sentence names", async ({
   page,
   baseUrl,
   toolbarHarness,
@@ -381,16 +370,15 @@ test("an answered page decides the source a sentence names and whether the whole
     remoteIds: [],
   });
 
-  // The page read is answered here, because the toolbar draws neither control until one has
-  // answered and this harness connects no instance and holds no provider credential.
-  let offered = true;
+  // The page read is answered here, because the count line is not drawn until one has answered and
+  // this harness connects no instance and holds no provider credential.
   let pageReadWasIntercepted = false;
   await page.route(/\/missing\?/, async (route) => {
     pageReadWasIntercepted = true;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(answeredPage(offered)),
+      body: JSON.stringify(answeredPage()),
     });
   });
 
@@ -399,28 +387,14 @@ test("an answered page decides the source a sentence names and whether the whole
   await expect(page.getByText(COUNT_LINE)).toBeVisible({ timeout: SETTLE_BUDGET_MS });
   expect(
     pageReadWasIntercepted,
-    "the answered page never arrived, so both assertions below would have run against a refusal",
+    "the answered page never arrived, so the assertion below would have run against a refusal",
   ).toBe(true);
 
-  // 1. The sentence names the source the page carried, and names the other one nowhere.
+  // The sentence names the source the page carried, and names the other one nowhere.
   await expect(
     page.getByText(OTHER_SOURCE),
     `a sentence named ${OTHER_SOURCE} on a page answered by ${ANSWERED_SOURCE}`,
   ).toHaveCount(0);
-
-  // 2. A page that offers the whole-view action draws it.
-  await expect(
-    page.getByRole("button", { name: MONITOR_ALL_LABEL }),
-    "the answered page offered the whole-view action and the toolbar drew none",
-  ).toHaveCount(1);
-
-  // 3. A page that does not offer it draws no control at all, dimmed or otherwise.
-  offered = false;
-  await refreshControl(page).click();
-  await expect(
-    page.getByRole("button", { name: MONITOR_ALL_LABEL }),
-    "the answered page offered no whole-view action and the toolbar drew one",
-  ).toHaveCount(0, { timeout: SETTLE_BUDGET_MS });
 
   await page.unroute(/\/missing\?/);
 });
