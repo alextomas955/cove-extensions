@@ -99,6 +99,13 @@ public enum MissingSceneActionRefusal
     /// <summary>The instance answered, and would not do it.</summary>
     InstanceRefused,
 
+    /// <summary>The connected generation registers no role for the verb, so nothing was sent.</summary>
+    /// <remarks>
+    /// An absence rather than a decision. The instance was never asked, so a value saying it
+    /// declined would name the wrong party and send a reader to their own instance.
+    /// </remarks>
+    CapabilityAbsentOnThisGeneration,
+
     /// <summary>The instance offers no quality profile, so no add can be composed.</summary>
     InstanceOffersNoQualityProfile,
 

@@ -58,13 +58,13 @@ public sealed partial class WhisparrSync
         }
 
         // A generation registering no scene add has no implementation to hand over, so there is
-        // nothing to compose and nothing was sent. The vocabulary carries no capability value, and
-        // this one is true of what happened rather than of why.
+        // nothing to compose and nothing was sent.
         if (target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
                 .Match<IWhisparrMissingSceneActing?>(held => held, _ => null)
             is not { } acting)
         {
-            return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.InstanceRefused));
+            return TypedResults.Ok(
+                NothingWasSent(MissingSceneActionRefusal.CapabilityAbsentOnThisGeneration));
         }
 
         var profiles = await ContainedAsync(
@@ -156,7 +156,8 @@ public sealed partial class WhisparrSync
             || target.Capabilities.Obtain<IWhisparrSceneSearchGrabbing>()
                 .Match<IWhisparrSceneSearchGrabbing?>(held => held, _ => null) is not { } searching)
         {
-            return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.InstanceRefused));
+            return TypedResults.Ok(
+                NothingWasSent(MissingSceneActionRefusal.CapabilityAbsentOnThisGeneration));
         }
 
         var answered = await ContainedAsync(
