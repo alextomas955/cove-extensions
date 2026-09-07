@@ -193,14 +193,22 @@ public sealed class WhisparrClientTransportTests
     /// <remarks>
     /// The empty body is the third assertion rather than an aside: the value the bound was passed
     /// reading is precisely the value that must not travel onward.
+    /// <para>
+    /// Per generation, because each composes its request through a generated client of its own and the
+    /// bound is attached to each registration separately. The handler supplies the oversize bytes and
+    /// the client supplies the bound.
+    /// </para>
     /// </remarks>
-    [Fact]
-    public async Task AnAnswerLargerThanThisClientWillReadIsRefusedAsThatRatherThanAsTheInstanceRefusing()
+    [Theory]
+    [InlineData(WhisparrGeneration.V3)]
+    [InlineData(WhisparrGeneration.V2)]
+    public async Task AnAnswerLargerThanThisClientWillReadIsRefusedAsThatRatherThanAsTheInstanceRefusing(
+        WhisparrGeneration generation)
     {
         var handler = BodyRecordingHandler.AnsweringPastTheReadBound();
         using var http = new HttpClient(handler);
 
-        var answered = await ReadThroughAsync(handler);
+        var answered = await ReadThroughAsync(handler, generation);
 
         Assert.Equal(
             MonitorRefusalKind.AnswerTooLargeToRead, MonitoringProjector.Classify(answered).Refusal);
@@ -233,13 +241,15 @@ public sealed class WhisparrClientTransportTests
     /// The read class carries more than one attempt, and an attempt is re-issued only where the send
     /// reached nothing. An answer past the bound is an answer, so it is returned on the first one.
     /// </remarks>
-    [Fact]
-    public async Task AnAnswerLargerThanTheBoundIsReadOnce()
+    [Theory]
+    [InlineData(WhisparrGeneration.V3)]
+    [InlineData(WhisparrGeneration.V2)]
+    public async Task AnAnswerLargerThanTheBoundIsReadOnce(WhisparrGeneration generation)
     {
         var handler = BodyRecordingHandler.AnsweringPastTheReadBound();
         using var http = new HttpClient(handler);
 
-        await ReadThroughAsync(handler);
+        await ReadThroughAsync(handler, generation);
 
         Assert.Single(handler.Requests);
     }
@@ -492,10 +502,14 @@ public sealed class WhisparrClientTransportTests
 
     // Any read member reaches the same send, and this one is what the other transport cases drive.
     private static Task<WhisparrResponse> ReadThroughAsync(HttpMessageHandler handler)
+        => ReadThroughAsync(handler, WhisparrGeneration.V3);
+
+    private static Task<WhisparrResponse> ReadThroughAsync(
+        HttpMessageHandler handler, WhisparrGeneration generation)
         => TestWhisparrClient.Over(handler).ReadHistoryAsync(
             new Uri("http://whisparr:6969"),
             SomeKey,
-            WhisparrGeneration.V3,
+            generation,
             1,
             10,
             TestContext.Current.CancellationToken);
