@@ -168,6 +168,29 @@ public sealed class MissingPagePlannerTests
     private static List<ProviderScene> ScenesNamed(params string[] ids)
         => [.. ids.Select(id => new ProviderScene(id, id, null, null, null, null, [], []))];
 
+    /// <summary>
+    /// The page names the source that answered it, and a page that answered nothing names the
+    /// source it would have read. A name held by the surface would say one provider on both
+    /// generations.
+    /// </summary>
+    [Fact]
+    public async Task EveryPageNamesTheSourceItWasReadFrom()
+    {
+        var catalogue = new RecordingCatalogue(ScenesNamed("a"))
+        {
+            Capabilities = ProviderCapabilities.ForThePornDb(new object()),
+        };
+
+        var answered = await PlannerOver(catalogue)
+            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+        var refused = await PlannerOver(catalogue, identity: null)
+            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+
+        Assert.Equal("ThePornDB", answered.ProviderName);
+        Assert.Equal(MissingRefusalKind.NoProviderIdForEntity, refused.Refusal);
+        Assert.Equal("ThePornDB", refused.ProviderName);
+    }
+
     private static MissingPagePlanner PlannerOver(
         RecordingCatalogue catalogue,
         StubOwned? owned = null,
@@ -228,7 +251,8 @@ public sealed class MissingPagePlannerTests
         public IReadOnlyList<ProviderSortOption> Sorts { get; } =
             [new ProviderSortOption("DATE", "Newest first")];
 
-        public ProviderCapabilitySet Capabilities { get; } = ProviderCapabilities.ForStashDb(new object());
+        public ProviderCapabilitySet Capabilities { get; init; } =
+            ProviderCapabilities.ForStashDb(new object());
 
         public Task<ProviderCataloguePage> ReadPageAsync(
             ProviderCatalogueRequest request, CancellationToken ct)
