@@ -46,6 +46,18 @@ internal static class V3BodyProjector
     /// <summary>This generation's search command for a performer. The one verb that downloads.</summary>
     internal const string PerformersSearchCommand = "PerformersSearch";
 
+    /// <summary>This generation's search command for one scene. The one verb that downloads.</summary>
+    /// <remarks>
+    /// The spelling the instance was measured accepting, together with the id-array member it honours.
+    /// A name this generation does not register is refused outright, and an id member it does not
+    /// declare is dropped and the command then runs over nothing.
+    /// </remarks>
+    internal const string ScenesSearchCommand = "MoviesSearch";
+
+    /// <summary>The id-array member the per-scene search names its scene in.</summary>
+    /// <inheritdoc cref="ScenesSearchCommand" path="/remarks"/>
+    internal const string SceneIdsProperty = "movieIds";
+
     /// <summary>This generation's catalogue-refresh command for a studio.</summary>
     internal const string RefreshStudiosCommand = "RefreshStudios";
 
@@ -193,6 +205,17 @@ internal static class V3BodyProjector
             _ => throw new ArgumentOutOfRangeException(
                 nameof(kind), kind, "This is not an entity kind this product expresses."),
         };
+
+    /// <summary>The command asking the instance to look for one scene it holds.</summary>
+    /// <remarks>
+    /// Composed only for a caller holding the per-scene grabbing role, and it is one of the two
+    /// bodies this product can compose that make an instance acquire anything.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="sceneId"/> is below one.
+    /// </exception>
+    internal static JsonObject SearchScene(int sceneId)
+        => Command(ScenesSearchCommand, SceneIdsProperty, sceneId);
 
     /// <summary>One command naming one entity, in this generation's id-array spelling.</summary>
     internal static JsonObject Command(string name, string idsProperty, int entityId)

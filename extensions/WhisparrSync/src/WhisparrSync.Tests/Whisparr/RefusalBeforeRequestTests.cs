@@ -106,6 +106,7 @@ public sealed class RefusalBeforeRequestTests
                 WhisparrCapability.SearchMonitored,
                 WhisparrCapability.ReadSceneStatus,
                 WhisparrCapability.ReadSceneExclusions,
+                WhisparrCapability.SearchScene,
             ],
             Enum.GetValues<WhisparrCapability>());
         Assert.Equal(
@@ -118,6 +119,7 @@ public sealed class RefusalBeforeRequestTests
                 WhisparrCapability.SearchMonitored,
                 WhisparrCapability.ReadSceneStatus,
                 WhisparrCapability.ReadSceneExclusions,
+                WhisparrCapability.SearchScene,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
         Assert.Equal(

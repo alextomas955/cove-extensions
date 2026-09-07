@@ -29,9 +29,9 @@ public sealed class AbsentCapabilityTests
     /// <remarks>
     /// The set is the claim. The command route <c>api/v3/command</c> is declared here, because every
     /// instance-side action an instance takes is issued through it, so its presence is not by itself
-    /// evidence of anything: the claim is that exactly one member of the whole seam can send a
-    /// grabbing command name and only the separately obtained role declares that member, which
-    /// <see cref="SafetyInvariantTests.ExactlyOneSeamMemberGrabsAndOnlyTheGrabbingRoleDeclaresIt"/>
+    /// evidence of anything: the claim is that two members of the whole seam can send a grabbing
+    /// command name and each is declared on a separately obtained role of its own, which
+    /// <see cref="SafetyInvariantTests.TwoSeamMembersGrabAndEachIsDeclaredOnAGrabbingRoleOfItsOwn"/>
     /// asserts. That no body off a monitoring path names one of those commands is
     /// <see cref="SafetyInvariantTests.NoBodyOffAMonitoringPathCanNameAGrabbingCommand"/>.
     /// <para>

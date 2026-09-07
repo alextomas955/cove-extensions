@@ -249,6 +249,14 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] a search was issued for a {Kind} the connected instance monitors")]
     internal static partial void SearchIssued(ILogger logger, WhisparrEntityKind kind);
 
+    // The per-scene half of the verb above, recorded for the same reason and given nothing at all:
+    // which scene a reader asked for is theirs, and the entity kind adds nothing a search of one
+    // scene is about.
+    [LoggerMessage(
+        EventId = 2125, Level = LogLevel.Information,
+        Message = "[WhisparrSync] a search was issued for one scene the connected instance holds")]
+    internal static partial void SceneSearchIssued(ILogger logger);
+
     // A write dropped because the blob it would have been built on could not be read, so the fold ran
     // on defaults. The stored configuration is what survives; the update the caller asked for is
     // lost, and the writers that reach this run with nobody watching.
