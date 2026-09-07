@@ -590,28 +590,35 @@ internal sealed class ThePornDbCatalogue
 
     // Null where no catalogue arrived: no whole answer, a status that is not a success, or a body
     // carrying the provider's own refusal. The body decides, so a refusal is never read as a
-    // catalogue that is simply empty.
+    // catalogue that is simply empty. An answer the provider stated ends the attempts, because
+    // re-sending collects the same refusal and writes the same line again.
     private async Task<JsonElement?> AskAsync(
         ResolvedProvider resolved, string collection, string query, CancellationToken ct)
     {
         var attempts = WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read);
-        for (var attempt = 1; attempt < attempts; attempt++)
+        for (var attempt = 1; attempt <= attempts; attempt++)
         {
-            if (await TryReadAsync(resolved, collection, query, ct).ConfigureAwait(false) is { } got)
+            var read = await TryReadAsync(resolved, collection, query, ct).ConfigureAwait(false);
+            if (read.Body is { } carried)
             {
-                return got;
+                return carried;
+            }
+
+            if (read.WasDefinite)
+            {
+                return null;
             }
         }
 
-        return await TryReadAsync(resolved, collection, query, ct).ConfigureAwait(false);
+        return null;
     }
 
-    private async Task<JsonElement?> TryReadAsync(
+    private async Task<ProviderSend> TryReadAsync(
         ResolvedProvider resolved, string collection, string query, CancellationToken ct)
     {
         if (!await _pacer.WaitForTurnAsync(resolved.MaxRequestsPerMinute, ct).ConfigureAwait(false))
         {
-            return null;
+            return ProviderSend.Nothing;
         }
 
         // The API address rather than the configured one: the configured spelling is where identity
@@ -638,23 +645,27 @@ internal sealed class ThePornDbCatalogue
             {
                 WhisparrSyncLog.ProviderAnswerBeyondReadBound(
                     _log, ProviderName, WhisparrClient.MaxResponseBytes);
-                return null;
+                return ProviderSend.Nothing;
             }
 
             return Parse(answered, response.IsSuccessStatusCode);
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
         {
-            return null;
+            return ProviderSend.Nothing;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return null;
+            return ProviderSend.Nothing;
         }
     }
 
-    private JsonElement? Parse(string answered, bool wasSuccess)
+    private ProviderSend Parse(string answered, bool wasSuccess)
     {
+        // A status outside the success range is the provider's own answer whatever the body says,
+        // so an unreadable body under one is still not worth another attempt.
+        var undecided = wasSuccess ? ProviderSend.Nothing : ProviderSend.Refused;
+
         JsonDocument parsed;
         try
         {
@@ -662,7 +673,7 @@ internal sealed class ThePornDbCatalogue
         }
         catch (JsonException)
         {
-            return null;
+            return undecided;
         }
 
         using (parsed)
@@ -670,16 +681,18 @@ internal sealed class ThePornDbCatalogue
             var root = parsed.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
             {
-                return null;
+                return undecided;
             }
 
             if (root.TryGetProperty("errors", out _) || root.TryGetProperty("message", out _))
             {
                 WhisparrSyncLog.ProviderRefusedTheQuery(_log, ProviderName);
-                return null;
+                return ProviderSend.Refused;
             }
 
-            return wasSuccess && root.TryGetProperty("data", out _) ? root.Clone() : null;
+            return wasSuccess && root.TryGetProperty("data", out _)
+                ? ProviderSend.Carrying(root.Clone())
+                : undecided;
         }
     }
 }

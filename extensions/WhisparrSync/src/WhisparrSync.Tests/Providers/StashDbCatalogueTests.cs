@@ -144,6 +144,60 @@ public sealed class StashDbCatalogueTests
         Assert.Null(await catalogue.ReadCatalogueSizeAsync(StudioPage(), TestCt));
     }
 
+    /// <summary>
+    /// A credential the provider refuses answers no page at all. Read as an empty page it is a
+    /// catalogue listing nothing, which the surface states as a reader owning everything.
+    /// </summary>
+    /// <remarks>
+    /// The single request is the second half of the claim: a refusal is the provider's own answer,
+    /// so a second attempt collects the same refusal and writes the same line again.
+    /// </remarks>
+    [Fact]
+    public async Task AReadPageOverARefusedCredentialAnswersNoPageAndIsSentOnce()
+    {
+        var (catalogue, handler) = CatalogueAnswering((HttpStatusCode.Unauthorized, "{}"));
+
+        var answer = await catalogue.ReadPageAsync(StudioPage(), TestCt);
+
+        Assert.Null(answer.Page);
+        Assert.Single(handler.Requests);
+    }
+
+    /// <summary>
+    /// The provider states an expired key as an <c>errors</c> member inside a success status, and
+    /// that is no page either.
+    /// </summary>
+    [Fact]
+    public async Task AReadPageOverARefusalInsideASuccessStatusAnswersNoPageAndIsSentOnce()
+    {
+        var (catalogue, handler) = CatalogueAnswering(
+            (HttpStatusCode.OK, """{"errors":[{"message":"not authorized"}]}"""));
+
+        var answer = await catalogue.ReadPageAsync(StudioPage(), TestCt);
+
+        Assert.Null(answer.Page);
+        Assert.Single(handler.Requests);
+    }
+
+    /// <summary>A connection that drops part way through the body answers no page.</summary>
+    [Fact]
+    public async Task AReadPageOverADroppedConnectionAnswersNoPage()
+    {
+        var (catalogue, _) = CatalogueOver(
+            BodyRecordingHandler.AnsweringWithABodyThatStopsPartWay());
+
+        Assert.Null((await catalogue.ReadPageAsync(StudioPage(), TestCt)).Page);
+    }
+
+    /// <summary>An answer past the read bound answers no page.</summary>
+    [Fact]
+    public async Task AReadPageOverAnAnswerPastTheReadBoundAnswersNoPage()
+    {
+        var (catalogue, _) = CatalogueOver(BodyRecordingHandler.AnsweringPastTheReadBound());
+
+        Assert.Null((await catalogue.ReadPageAsync(StudioPage(), TestCt)).Page);
+    }
+
     /// <summary>Null and zero are different answers, and only one of them claims anything.</summary>
     [Fact]
     public async Task AnUnreadCountIsNullAndAnEmptyCatalogueIsZero()
@@ -381,6 +435,10 @@ public sealed class StashDbCatalogueTests
         => CatalogueOver(
             BodyRecordingHandler.AnsweringInTurn(
                 [.. answers.Select(answer => (HttpStatusCode.OK, answer))]));
+
+    private static (StashDbCatalogue Catalogue, BodyRecordingHandler Handler) CatalogueAnswering(
+        params (HttpStatusCode Status, string Answer)[] answers)
+        => CatalogueOver(BodyRecordingHandler.AnsweringInTurn(answers));
 
     private static (StashDbCatalogue Catalogue, BodyRecordingHandler Handler) CatalogueOver(
         string answer)
