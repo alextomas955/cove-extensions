@@ -4,24 +4,16 @@
  * Presentational. The rows arrive already decided, so nothing here reads a provider or decides
  * which values exist.
  */
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 // From the subpath, so drawing a menu does not pull the whole primitives module into this slice.
 import { useOverlayKeys } from "@cove-extensions/ui-shared/overlay";
-import { TextInput } from "@cove-extensions/ui-shared";
 
 /** One row the panel draws. */
 export interface MissingMenuRow {
   readonly value: string;
   readonly label: string;
   readonly selected: boolean;
-}
-
-/** The field at the head of a menu the provider fills as the reader types. */
-export interface MissingMenuTypeAhead {
-  readonly text: string;
-  readonly placeholder: string;
-  readonly onText: (text: string) => void;
 }
 
 /** The host's own gap between a control and the panel it opens. */
@@ -80,7 +72,7 @@ export function MissingFacetMenu({
   label,
   rows,
   triggerRef,
-  typeAhead,
+  bound,
   onPick,
   onClose,
 }: {
@@ -89,15 +81,15 @@ export function MissingFacetMenu({
   rows: readonly MissingMenuRow[];
   /** The control that opened it. */
   triggerRef: RefObject<HTMLElement | null>;
-  /** The field at the panel's head, or null for a menu drawn from a fixed list. */
-  typeAhead?: MissingMenuTypeAhead | null;
+  /** What the menu carries of the source's list, or null where it carries all of it. */
+  bound?: string | null;
   onPick: (value: string) => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const fieldRef = useRef<HTMLInputElement>(null);
+  const boundId = useId();
   const placement = useAnchoredTo(triggerRef);
-  const hasField = typeAhead !== null && typeAhead !== undefined;
+  const stated = bound ?? null;
 
   useOverlayKeys(ref, {
     onClose,
@@ -108,13 +100,6 @@ export function MissingFacetMenu({
     restoreFocus: true,
   });
 
-  // A type-ahead menu opens with no rows, so the overlay's roving focus has nothing to land on and
-  // the field is where the reader has to start.
-  useEffect(() => {
-    if (!hasField) return;
-    fieldRef.current?.focus();
-  }, [hasField]);
-
   return createPortal(
     <div
       ref={ref}
@@ -124,19 +109,15 @@ export function MissingFacetMenu({
       <div
         role="menu"
         aria-label={label}
+        aria-describedby={stated === null ? undefined : boundId}
         // `min-h-0` is what lets the panel shrink below its own content, so every row is reachable
         // with a pointer at any trigger position.
         className="min-h-0 overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-surface py-1 text-left shadow-xl"
       >
-        {typeAhead === null || typeAhead === undefined ? null : (
-          // Outside every row and carrying no menu role, so the arrow keys pass over it.
-          <div className="px-2 py-1">
-            <TextInput
-              value={typeAhead.text}
-              onChange={typeAhead.onText}
-              placeholder={typeAhead.placeholder}
-              inputRef={fieldRef}
-            />
+        {stated === null ? null : (
+          // Carries no menu role, so the overlay's roving focus passes over it.
+          <div id={boundId} className="px-3 py-2 text-xs text-secondary">
+            {stated}
           </div>
         )}
         {rows.map((row) => (

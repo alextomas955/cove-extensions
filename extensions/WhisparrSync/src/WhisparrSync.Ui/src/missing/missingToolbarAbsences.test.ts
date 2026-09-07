@@ -31,7 +31,7 @@ const SORTS: MissingSortOption[] = [
 const YEAR: MissingFacetMenu = {
   key: "year",
   label: "Year",
-  isTypeAhead: false,
+  reportedValueCount: 2,
   values: [
     { value: "2024", label: "2024" },
     { value: "2023", label: "2023" },
@@ -41,7 +41,7 @@ const YEAR: MissingFacetMenu = {
 const STUDIO: MissingFacetMenu = {
   key: "studio",
   label: "Studio",
-  isTypeAhead: false,
+  reportedValueCount: 1,
   values: [{ value: "s-1", label: "Brazzers Exxtra" }],
 };
 
@@ -82,7 +82,7 @@ function drawnStrings(kind: MissingEntityKind, view: MissingPageView): string[] 
   if (controls.includes("facets")) {
     for (const menu of view.facets) {
       drawn.push(menu.label);
-      for (const row of facetMenuRows(menu, null, menu.label)) drawn.push(row.label);
+      for (const row of facetMenuRows(menu, null)) drawn.push(row.label);
     }
   }
   if (controls.includes("monitorAll")) drawn.push(MONITOR_ALL);
