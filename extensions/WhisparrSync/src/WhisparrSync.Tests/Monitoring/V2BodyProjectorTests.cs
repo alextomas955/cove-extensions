@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
+using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Monitoring;
 
@@ -175,7 +176,7 @@ public sealed class V2BodyProjectorTests
     [Fact]
     public void TheFlagFlipCarriesTheIdArrayAndTheFlagAndNothingElse()
     {
-        var body = V2BodyProjector.SetMonitored(1, monitored: false);
+        var body = ComposedV2Body.Of(V2BodyProjector.SetMonitored(1, monitored: false));
 
         Assert.Equal(["monitored", "seriesIds"], body.Select(member => member.Key).Order());
         Assert.Equal([1], Assert.IsType<JsonArray>(body["seriesIds"]).Select(id => id!.GetValue<int>()));
