@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  EVERY_SCENE_ON_THIS_PAGE_IS_OWNED,
   NOTHING_MISSING,
   NO_INSTANCE_CONNECTED,
   NO_METADATA_PROVIDER_CONFIGURED,
@@ -84,6 +85,26 @@ describe("every situation the grid cannot show cards in says which one it is", (
     expect(kind).toBe("noScenesWithoutSubStudios");
     expect(emptyStateFor("noScenesWithoutSubStudios")).toBe(NO_SCENES_WITHOUT_SUB_STUDIOS);
     expect(refreshIsOffered("noScenesWithoutSubStudios")).toBe(false);
+  });
+
+  it("says this page was owned, not that the catalogue is empty, when a size is still stated", () => {
+    // Owned scenes are removed after a page arrives and a page is never topped back up, so a page
+    // can empty while later pages still hold scenes. Every other empty reason claims the catalogue
+    // itself is empty, which contradicts the size rendered beside the grid.
+    const emptyPageOfALargeCatalogue = { ...pageOf([], "none"), catalogueSize: 665, lastPage: 17 };
+
+    for (const narrowing of [
+      { subStudioContentIsExcluded: true },
+      { subStudioContentIsExcluded: false },
+    ]) {
+      const kind = deriveGridState(situation({ view: emptyPageOfALargeCatalogue, ...narrowing }));
+
+      expect(kind).toBe("everySceneOnThisPageIsOwned");
+      const sentence = emptyStateFor("everySceneOnThisPageIsOwned");
+      expect(sentence).toBe(EVERY_SCENE_ON_THIS_PAGE_IS_OWNED);
+      expect(sentence).not.toBe(NO_SCENES_WITHOUT_SUB_STUDIOS);
+      expect(sentence).not.toBe(NOTHING_MISSING);
+    }
   });
 
   it("says the filters match nothing rather than that the reader owns everything", () => {
