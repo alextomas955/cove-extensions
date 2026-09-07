@@ -163,7 +163,8 @@ public sealed class MissingPagePlannerTests
             WhisparrGeneration.V3,
             withProvider ? new ResolvedProvider(StashDb, "a-key", 240) : null,
             withStatusRole ? new StubStatusReading() : null,
-            ExclusionReading: null);
+            ExclusionReading: null,
+            MonitorAllIsExpressible: true);
 
     private static List<ProviderScene> ScenesNamed(params string[] ids)
         => [.. ids.Select(id => new ProviderScene(id, id, null, null, null, null, [], []))];

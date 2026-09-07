@@ -146,6 +146,7 @@ function recordedPage(sceneList) {
     statusWasRead: true,
     statusIsPermanentlyAbsent: false,
     monitorAllIsOffered: true,
+    providerName: "StashDB",
   };
 }
 
