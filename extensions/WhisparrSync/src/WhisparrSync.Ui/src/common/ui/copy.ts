@@ -337,6 +337,16 @@ export const PROVIDER_UNREACHABLE =
 export const NOTHING_MISSING = "You own every scene {provider} lists for {entity}.";
 
 /**
+ * A page whose scenes were all owned, in a catalogue that still holds others.
+ *
+ * Owned scenes are removed after a page arrives and a page is never topped back up, so a page can
+ * empty completely while later pages still hold scenes. That is not an empty catalogue, and saying
+ * so would be false against the count beside it.
+ */
+export const EVERY_SCENE_ON_THIS_PAGE_IS_OWNED =
+  "You own every scene on this page. Later pages hold the ones you do not.";
+
+/**
  * A parent studio read without its sub-studios, which the provider attributes every scene to.
  *
  * Held apart from owning everything, which it is not: the catalogue read was empty because the
