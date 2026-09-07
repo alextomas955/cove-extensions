@@ -1,7 +1,10 @@
+using System.Net;
+using Cove.Core.Interfaces;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
+using WhisparrSync.Options;
 using WhisparrSync.Providers;
 using WhisparrSync.Tests.TestSupport;
 
@@ -138,15 +141,20 @@ public sealed class MissingAbstentionTests
     /// A provider that answered nothing is not turned into an empty catalogue by the derivation.
     /// </summary>
     /// <remarks>
-    /// It reaches the route's own containment, which replaces the grid and states
-    /// <see cref="MissingRefusalKind.ProviderUnreachable"/>. A derivation that swallowed it here
-    /// would answer a page listing nothing, which reads as a catalogue with nothing missing.
+    /// The grid is replaced and <see cref="MissingRefusalKind.ProviderUnreachable"/> is stated. A
+    /// derivation that read the failure as a page would answer a page listing nothing, which reads
+    /// as a catalogue with nothing missing.
     /// </remarks>
     [Fact]
     public async Task AProviderThatAnsweredNothingIsNeverReadAsAnEmptyCatalogue()
-        => await Assert.ThrowsAsync<HttpRequestException>(
-            async () => await PlannerOver(ScenesNamed("one"), unreachableProvider: true)
-                .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt));
+    {
+        var view = await PlannerOver(ScenesNamed("one"), unreachableProvider: true)
+            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+
+        Assert.Equal(MissingRefusalKind.ProviderUnreachable, view.Refusal);
+        Assert.Empty(view.Cards);
+        Assert.Equal(0, view.CatalogueSize);
+    }
 
     /// <summary>
     /// The status containment is narrower than the provider one: an instance failure keeps the
@@ -162,10 +170,12 @@ public sealed class MissingAbstentionTests
                 NullLogger.Instance,
                 TestCt);
 
+        var replaced = await PlannerOver(ScenesNamed("one"), unreachableProvider: true)
+            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+
         Assert.NotEmpty(kept.Cards);
-        await Assert.ThrowsAsync<HttpRequestException>(
-            async () => await PlannerOver(ScenesNamed("one"), unreachableProvider: true)
-                .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt));
+        Assert.Empty(replaced.Cards);
+        Assert.Equal(MissingRefusalKind.ProviderUnreachable, replaced.Refusal);
     }
 
     /// <summary>Nothing under the derivation writes a per-scene value anywhere.</summary>
@@ -225,7 +235,7 @@ public sealed class MissingAbstentionTests
         List<ProviderScene> scenes, bool unreachableProvider = false)
     {
         var catalogue = unreachableProvider
-            ? new UnreachableProviderCatalogue()
+            ? RefusingCatalogue()
             : (IProviderCatalogue)new StubProviderCatalogue(scenes);
 
         return new MissingPagePlanner(
@@ -240,28 +250,33 @@ public sealed class MissingAbstentionTests
     private static List<ProviderScene> ScenesNamed(params string[] ids)
         => [.. ids.Select(id => new ProviderScene(id, id, null, null, null, null, [], []))];
 
-    /// <summary>A provider whose every read reports that nothing arrived.</summary>
-    private sealed class UnreachableProviderCatalogue : IProviderCatalogue
+    /// <summary>The shipped StashDB catalogue over a transport that refuses the credential.</summary>
+    /// <remarks>
+    /// The shipped type rather than a stub of it. A stub that reports a failure the shipped
+    /// catalogue never reports would leave this whole file asserting the stub.
+    /// </remarks>
+    private static StashDbCatalogue RefusingCatalogue()
     {
-        public IReadOnlyList<ProviderSortOption> Sorts { get; } = [];
+        var config = new CoveConfiguration();
+        config.Scraping.MetadataServers.Add(
+            new MetadataServerInstance
+            {
+                Endpoint = StashDb,
+                ApiKey = SomeKey,
+                Name = "stashdb",
 
-        public ProviderCapabilitySet Capabilities { get; } =
-            ProviderCapabilities.ForStashDb(new object());
+                // Zero paces nothing, so this does not wait on a limiter to answer a refusal.
+                MaxRequestsPerMinute = 0,
+            });
 
-        public Task<ProviderCataloguePage> ReadPageAsync(
-            ProviderCatalogueRequest request, CancellationToken ct)
-            => throw new HttpRequestException("The provider was not reached.");
-
-        public Task<int?> ReadCatalogueSizeAsync(
-            ProviderCatalogueRequest request, CancellationToken ct)
-            => throw new HttpRequestException("The provider was not reached.");
-
-        public Task<ProviderIdentityLookup> LookUpByNameAsync(
-            WhisparrEntityKind kind, string name, IReadOnlyList<string> aliases, CancellationToken ct)
-            => throw new HttpRequestException("The provider was not reached.");
-
-        public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
-            WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
-            => throw new HttpRequestException("The provider was not reached.");
+        return new StashDbCatalogue(
+            new HttpClient(BodyRecordingHandler.Answering(HttpStatusCode.Unauthorized, "{}"))
+            {
+                BaseAddress = new Uri(StashDb),
+            },
+            new ProviderEndpointPort(config),
+            new OptionsStore(new FakeStore()),
+            new ProviderPacer(),
+            NullLogger.Instance);
     }
 }

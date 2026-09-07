@@ -125,7 +125,7 @@ public sealed class ThePornDbCatalogueTests
         var served = Response(CeilingFixture);
         var (catalogue, _) = CatalogueOver(served.ToJsonString());
 
-        var page = await catalogue.ReadPageAsync(TagPage(), TestCt);
+        var page = await PageFrom(catalogue, TagPage(), TestCt);
 
         Assert.True(page.SizeIsLowerBound);
         Assert.Equal(ThePornDbCatalogue.CatalogueCeiling, page.CatalogueSize);
@@ -141,7 +141,7 @@ public sealed class ThePornDbCatalogueTests
         var served = Response(PageFixture);
         var (catalogue, _) = CatalogueOver(served.ToJsonString());
 
-        var page = await catalogue.ReadPageAsync(StudioPage(providerEntityId: "92"), TestCt);
+        var page = await PageFrom(catalogue, StudioPage(providerEntityId: "92"), TestCt);
 
         Assert.False(page.SizeIsLowerBound);
         Assert.Equal(served["meta"]!["total"]!.GetValue<int>(), page.CatalogueSize);
@@ -166,7 +166,7 @@ public sealed class ThePornDbCatalogueTests
 
         var (catalogue, _) = CatalogueOver(served.ToJsonString());
 
-        var page = await catalogue.ReadPageAsync(TagPage(), TestCt);
+        var page = await PageFrom(catalogue, TagPage(), TestCt);
 
         Assert.Equal(39, page.Scenes.Count);
         Assert.Equal(served["meta"]!["last_page"]!.GetValue<int>(), page.LastPage);
@@ -179,7 +179,7 @@ public sealed class ThePornDbCatalogueTests
         var served = Response(PageFixture);
         var (catalogue, _) = CatalogueOver(served.ToJsonString());
 
-        var page = await catalogue.ReadPageAsync(StudioPage(providerEntityId: "92"), TestCt);
+        var page = await PageFrom(catalogue, StudioPage(providerEntityId: "92"), TestCt);
 
         var rows = served["data"]!.AsArray();
         Assert.Equal(rows.Count, page.Scenes.Count);
@@ -390,7 +390,7 @@ public sealed class ThePornDbCatalogueTests
             new ProviderPacer(),
             NullLogger.Instance);
 
-        var page = await catalogue.ReadPageAsync(StudioPage(), TestCt);
+        var page = await PageFrom(catalogue, StudioPage(), TestCt);
 
         Assert.NotEmpty(page.Scenes);
         Assert.True(page.CatalogueSize > page.Scenes.Count);
@@ -479,5 +479,16 @@ public sealed class ThePornDbCatalogueTests
             NullLogger.Instance);
 
         return (catalogue, handler);
+    }
+
+    // A page the provider really served. The answer carries none where nothing arrived, so a case
+    // about what a page projects states that a page arrived before reading one.
+    private static async Task<ProviderCataloguePage> PageFrom(
+        ThePornDbCatalogue catalogue, ProviderCatalogueRequest request, CancellationToken ct)
+    {
+        var answer = await catalogue.ReadPageAsync(request, ct);
+
+        Assert.NotNull(answer.Page);
+        return answer.Page;
     }
 }

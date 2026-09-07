@@ -98,7 +98,7 @@ internal sealed class ProviderCatalogueSelector : IProviderCatalogue
 
     private IProviderCatalogue Selected => _selected.GetAwaiter().GetResult();
 
-    public async Task<ProviderCataloguePage> ReadPageAsync(
+    public async Task<ProviderCatalogueAnswer> ReadPageAsync(
         ProviderCatalogueRequest request, CancellationToken ct)
     {
         var catalogue = await _selected.ConfigureAwait(false);

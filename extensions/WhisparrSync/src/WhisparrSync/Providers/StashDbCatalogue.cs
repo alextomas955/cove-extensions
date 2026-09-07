@@ -168,7 +168,7 @@ internal sealed class StashDbCatalogue
 
     public ProviderCapabilitySet Capabilities { get; }
 
-    public async Task<ProviderCataloguePage> ReadPageAsync(
+    public async Task<ProviderCatalogueAnswer> ReadPageAsync(
         ProviderCatalogueRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -176,7 +176,7 @@ internal sealed class StashDbCatalogue
         var answered = await AskAsync(PageQuery, Scope(request), ct).ConfigureAwait(false);
         if (answered is null || !answered.Value.TryGetProperty("queryScenes", out var result))
         {
-            return EmptyPage;
+            return ProviderCatalogueAnswer.NotReached;
         }
 
         var scenes = new List<ProviderScene>();
@@ -198,13 +198,14 @@ internal sealed class StashDbCatalogue
         var lastPage = size <= 0 ? 1 : (int)Math.Ceiling(size / (double)request.PerPage);
         var rangeFrom = ((request.Page - 1) * request.PerPage) + 1;
 
-        return new ProviderCataloguePage(
-            scenes,
-            size,
-            SizeIsLowerBound: false,
-            Math.Max(lastPage, 1),
-            rangeFrom,
-            Math.Min(rangeFrom + request.PerPage - 1, Math.Max(size, rangeFrom)));
+        return ProviderCatalogueAnswer.Answered(
+            new ProviderCataloguePage(
+                scenes,
+                size,
+                SizeIsLowerBound: false,
+                Math.Max(lastPage, 1),
+                rangeFrom,
+                Math.Min(rangeFrom + request.PerPage - 1, Math.Max(size, rangeFrom))));
     }
 
     public async Task<int?> ReadCatalogueSizeAsync(
@@ -422,11 +423,6 @@ internal sealed class StashDbCatalogue
             && value.ValueKind == JsonValueKind.String
                 ? value.GetString()
                 : null;
-
-    // A read that answered nothing. Zero scenes and a zero size, which the surface states as a
-    // refusal rather than as an empty catalogue.
-    private static ProviderCataloguePage EmptyPage { get; } =
-        new([], 0, SizeIsLowerBound: false, 1, 1, 0);
 
     private async Task<ProviderIdentityLookup> FoundByNameAsync(
         string query, string member, string name, CancellationToken ct)

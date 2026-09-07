@@ -29,14 +29,20 @@ internal sealed class StubProviderCatalogue(
 
     public ProviderCapabilitySet Capabilities { get; } = ProviderCapabilities.ForStashDb(new object());
 
-    public Task<ProviderCataloguePage> ReadPageAsync(
+    public Task<ProviderCatalogueAnswer> ReadPageAsync(
         ProviderCatalogueRequest request, CancellationToken ct)
     {
         PageReads++;
         var listed = scenes ?? [];
         return Task.FromResult(
-            new ProviderCataloguePage(
-                listed, listed.Count, SizeIsLowerBound: false, LastPage: 1, RangeFrom: 1, RangeTo: 40));
+            ProviderCatalogueAnswer.Answered(
+                new ProviderCataloguePage(
+                    listed,
+                    listed.Count,
+                    SizeIsLowerBound: false,
+                    LastPage: 1,
+                    RangeFrom: 1,
+                    RangeTo: 40)));
     }
 
     public Task<int?> ReadCatalogueSizeAsync(ProviderCatalogueRequest request, CancellationToken ct)

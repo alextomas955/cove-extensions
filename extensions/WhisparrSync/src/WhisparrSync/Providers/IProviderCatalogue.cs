@@ -70,6 +70,27 @@ public sealed record ProviderCataloguePage(
     int RangeFrom,
     int RangeTo);
 
+/// <summary>What a provider answered when one page of its catalogue was asked for.</summary>
+/// <remarks>
+/// A page or a stated failure, rather than a page alone. No page means nothing arrived and nothing
+/// is claimed about the catalogue; a page listing no scenes means the provider answered and lists
+/// nothing. A catalogue that answered an empty page for a failure states the second where the first
+/// is true, and a reader is told they own everything.
+/// </remarks>
+public sealed record ProviderCatalogueAnswer
+{
+    private ProviderCatalogueAnswer(ProviderCataloguePage? page) => Page = page;
+
+    /// <summary>The page the provider served, or null where it served none.</summary>
+    public ProviderCataloguePage? Page { get; }
+
+    /// <summary>The provider was not reached, or refused.</summary>
+    public static ProviderCatalogueAnswer NotReached { get; } = new((ProviderCataloguePage?)null);
+
+    /// <summary>The provider served <paramref name="page"/>.</summary>
+    public static ProviderCatalogueAnswer Answered(ProviderCataloguePage page) => new(page);
+}
+
 /// <summary>One value a provider's facet menu offers.</summary>
 /// <param name="Value">The opaque string the provider itself issued.</param>
 /// <param name="Label">How the value reads.</param>
@@ -135,8 +156,11 @@ public interface IProviderCatalogue
     ProviderCapabilitySet Capabilities { get; }
 
     /// <summary>One page of the catalogue <paramref name="request"/> names.</summary>
-    /// <exception cref="HttpRequestException">The request produced no response.</exception>
-    Task<ProviderCataloguePage> ReadPageAsync(
+    /// <remarks>
+    /// A read that answered nothing carries no page, so a failure is stated at this seam rather than
+    /// encoded as a catalogue listing nothing.
+    /// </remarks>
+    Task<ProviderCatalogueAnswer> ReadPageAsync(
         ProviderCatalogueRequest request, CancellationToken ct);
 
     /// <summary>
