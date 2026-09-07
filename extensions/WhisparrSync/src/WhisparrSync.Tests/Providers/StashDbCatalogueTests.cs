@@ -179,6 +179,43 @@ public sealed class StashDbCatalogueTests
         Assert.Single(handler.Requests);
     }
 
+    /// <summary>
+    /// A rate limit and a gateway failure are passing, so each takes the second attempt.
+    /// </summary>
+    /// <remarks>
+    /// The request count is the whole claim, and it is counted at the transport rather than
+    /// inferred from the answer, which is no page either way.
+    /// </remarks>
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.RequestTimeout)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task AReadPageOverAPassingFailureIsSentTwice(HttpStatusCode status)
+    {
+        var (catalogue, handler) = CatalogueAnswering((status, "{}"));
+
+        var answer = await catalogue.ReadPageAsync(StudioPage(), TestCt);
+
+        Assert.Null(answer.Page);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    /// <summary>A status the provider stated about the request itself is sent once.</summary>
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.NotFound)]
+    public async Task AReadPageOverAStatedStatusIsSentOnce(HttpStatusCode status)
+    {
+        var (catalogue, handler) = CatalogueAnswering((status, "{}"));
+
+        var answer = await catalogue.ReadPageAsync(StudioPage(), TestCt);
+
+        Assert.Null(answer.Page);
+        Assert.Single(handler.Requests);
+    }
+
     /// <summary>A connection that drops part way through the body answers no page.</summary>
     [Fact]
     public async Task AReadPageOverADroppedConnectionAnswersNoPage()
