@@ -103,7 +103,7 @@ function MissingTabFor({
 
   // At the hook's own preserve-on-items-change default of false, so the selection clears when the
   // page under it changes and a tick always means a scene currently on screen.
-  const { selectedIds, toggle, selectIds } = useMultiSelect(items);
+  const { selectedIds, toggle, selectIds, selectNone } = useMultiSelect(items);
 
   const onSelect = useCallback(
     (ids: readonly string[]) => {
@@ -111,6 +111,13 @@ function MissingTabFor({
     },
     [selectIds],
   );
+
+  // A started run reports in the job drawer and changes nothing on the page it was started from, so
+  // ticks left behind would invite a second run over the same scenes.
+  const runStarted = state.bulk.kind === "started";
+  useEffect(() => {
+    if (runStarted) selectNone();
+  }, [runStarted, selectNone]);
 
   return (
     <div className="mx-auto max-w-7xl px-4">
