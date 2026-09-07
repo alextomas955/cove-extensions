@@ -211,6 +211,31 @@ public sealed class MissingBulkRouteTests
                 WhisparrVerbClass.Grab, Invariants.OutboundSeam.VerbClassByMember[sent]));
     }
 
+    /// <summary>The run acts on the ticked scenes and on no other scene.</summary>
+    /// <remarks>
+    /// The assertion is the set of identifiers that reached the instance, read at the recording
+    /// client. A run's own counts agree with a run that offered a different two scenes, and the set
+    /// is what the tab promises a reader.
+    /// </remarks>
+    [Fact]
+    public async Task TheRunActsOnTheTickedScenesAndOnNoOther()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await StudioIn(host);
+
+        await ReadEnqueuedAsync(
+            await host.PostRawAsync("studio", studioId, BulkVerb, Ticking(FirstScene, SecondScene)));
+
+        await host.Jobs.RunLastAsync(new RecordingJobProgress(), TestCt);
+
+        var reached = host.Client.Acting
+            .Where(call => call.ForeignId is not null)
+            .Select(call => call.ForeignId)
+            .ToList();
+
+        Assert.Equal([FirstScene, SecondScene], reached);
+    }
+
     /// <summary>The run's one line reports counts and names no scene.</summary>
     [Fact]
     public async Task TheRunsOneLineReportsCountsAndNamesNoScene()
