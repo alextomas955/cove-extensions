@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -655,7 +656,7 @@ internal sealed class ThePornDbCatalogue
                 return ProviderSend.Nothing;
             }
 
-            return Parse(answered, response.IsSuccessStatusCode);
+            return Parse(answered, response.IsSuccessStatusCode, response.StatusCode);
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
         {
@@ -667,11 +668,11 @@ internal sealed class ThePornDbCatalogue
         }
     }
 
-    private ProviderSend Parse(string answered, bool wasSuccess)
+    private ProviderSend Parse(string answered, bool wasSuccess, HttpStatusCode status)
     {
-        // A status outside the success range is the provider's own answer whatever the body says,
-        // so an unreadable body under one is still not worth another attempt.
-        var undecided = wasSuccess ? ProviderSend.Nothing : ProviderSend.Refused;
+        // A status the provider stated is its own answer whatever the body says, so an unreadable
+        // body under one is still not worth another attempt.
+        var undecided = wasSuccess ? ProviderSend.Nothing : ProviderSend.From(status);
 
         JsonDocument parsed;
         try
