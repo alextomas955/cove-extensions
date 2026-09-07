@@ -144,10 +144,10 @@ source your Whisparr generation reads from.
 - **A sort one source does not declare.** Title A-Z is offered on StashDB and not on ThePornDB,
   which declares no title ordering.
 - **A facet menu one source cannot scope to the entity.** On StashDB a studio page offers
-  Performers, Sub-studios and Tags, and a performer page offers Tags. On ThePornDB one Tags menu is
-  offered.
-- **A tag page carries no facet menu on StashDB**, because the only menu left would narrow a tag to
-  itself.
+  Performers, Sub-studios and Tags, and a performer page offers Tags. On ThePornDB a studio page and
+  a performer page each offer Tags.
+- **A tag page carries no facet menu on either source**, because the only menu left would narrow a
+  tag to itself.
 - **No year filter is offered on either source.** ThePornDB can filter by an exact year and StashDB
   cannot express one at all, and neither offers a list of years to pick from.
 

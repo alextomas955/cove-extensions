@@ -214,6 +214,13 @@ internal sealed class ThePornDbCatalogue
     public async Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
         WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
     {
+        // A tag menu on a tag page narrows a tag to itself, and it is the only menu this provider
+        // fills, so a tag page is asked for nothing at all.
+        if (kind == WhisparrEntityKind.Tag)
+        {
+            return [];
+        }
+
         var resolved = await ResolveProviderAsync(ct).ConfigureAwait(false);
         if (resolved is null)
         {
