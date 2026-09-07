@@ -38,6 +38,14 @@ It also adds a Whisparr button to studio and performer pages, and one to those l
   is already wanted.
 - **Do the same for a whole selection**, as one background job that reports in Cove's job list.
 
+It also adds a **Missing** tab to studio, performer and tag pages:
+
+- **Browse what your metadata source lists and your library does not hold**, with a status pill on
+  each scene saying whether your Whisparr holds it and whether it is wanted.
+- **Search, sort, filter and page through that catalogue**, and share the link you end up with.
+- **Mark one scene or a page of scenes wanted**, downloading nothing.
+- **Ask Whisparr to search for one scene**, which is the only action on that tab that downloads.
+
 Read [Monitor a studio or a performer](./monitoring.md) before the first time you press it: the
 wider scope marks a whole back catalogue wanted, and on Whisparr v3 (Eros) that choice is not undone
 by narrowing the scope again.
@@ -47,7 +55,10 @@ For every setting on the tab, see the [Settings reference](./settings.md).
 ## Network access and credentials
 
 - **It calls outward to Whisparr, with the key you supply.** The instance it talks to is the one you
-  configure, and it authenticates with your Whisparr API key. It reaches no other host.
+  configure, and it authenticates with your Whisparr API key.
+- **It also reads catalogue listings from the metadata source Cove is configured with**, using the
+  key Cove already holds for that source. It asks you for no key of its own. Your browser loads each
+  cover image on the Missing tab straight from that source. Those two are the only hosts it reaches.
 - **Your Whisparr API key stays on the server.** Cove holds it in a table this extension owns and
   never sends it to your browser. Once stored, the settings page tells you a key is set and nothing
   more; to change it, type a new one, and to remove it, use **Clear stored key**.
@@ -79,6 +90,8 @@ below, so on an older Cove this extension is not offered to you in the first pla
 
 - [Monitor a studio or a performer](./monitoring.md) - the button, the two scopes and what each
   costs, and the same actions in bulk.
+- [Browse what you do not own](./missing.md) - the Missing tab, what its number counts, and why a
+  control you expected may be absent.
 - [Settings reference](./settings.md) - every setting on the tab, its default and its valid values.
 - [Changelog](./changelog.mdx) - user-facing changes, newest first.
 
