@@ -1,18 +1,17 @@
 /**
  * What the toolbar draws for one page, and what it does not.
  *
- * Two requirements here are discharged by shipping nothing, and an absence that is not asserted is
- * unfalsifiable. The third is the bound a partial menu states, which is asserted against the counts
- * the page carries rather than against a constant. Every assertion runs over the control and row
- * lists the toolbar derives, so a change anywhere in that derivation turns one of these red. These
- * tests run in a node environment and render no view, which is why the composition below reproduces
- * what the toolbar draws from the same exported functions the view calls.
+ * Both requirements here are discharged by shipping nothing, and an absence that is not asserted is
+ * unfalsifiable. These tests run in a node environment and render no view, which is why the
+ * composition below reproduces what the toolbar draws from the same exported functions the view
+ * calls. That makes it fit for counting which strings reach the toolbar and unfit for pinning any
+ * value the view computes, which `MissingToolbar.test.ts` renders the view to assert.
  */
 import { describe, expect, it } from "vitest";
 
 import * as copy from "../common/ui/copy";
 import type { MissingFacetMenu, MissingPageView, MissingSortOption } from "../wire/api";
-import { facetMenuRows, menuIsBounded } from "./missingFacetLogic";
+import { facetMenuRows } from "./missingFacetLogic";
 import * as facetLogic from "./missingFacetLogic";
 import {
   MISSING_TOOLBAR_CONTROLS,
@@ -91,16 +90,13 @@ function drawnStrings(view: MissingPageView): string[] {
   if (controls.includes("facets")) {
     for (const menu of view.facets) {
       drawn.push(menu.label);
-      if (menuIsBounded(menu)) {
-        drawn.push(copy.facetMenuBound(menu.values.length, menu.reportedValueCount));
-      }
       for (const row of facetMenuRows(menu, null)) drawn.push(row.label);
     }
   }
   return drawn;
 }
 
-describe("a menu says how much of the source's list it carries", () => {
+describe("the toolbar's own vocabulary is the two control names", () => {
   it("declares two strings across both logic modules, and each is a control's name", () => {
     const declared = [...Object.entries(toolbarLogic), ...Object.entries(facetLogic)]
       .filter(([, value]) => typeof value === "string")
@@ -109,21 +105,7 @@ describe("a menu says how much of the source's list it carries", () => {
     expect(declared.sort()).toEqual([SEARCH_PLACEHOLDER, SORT_MENU_LABEL].sort());
   });
 
-  it("states both counts beside a menu carrying fewer values than the source reported", () => {
-    const drawn = drawnStrings(pageWith([PERFORMER]));
-
-    expect(drawn).toContain(
-      copy.facetMenuBound(PERFORMER.values.length, PERFORMER.reportedValueCount),
-    );
-  });
-
-  it("states nothing beside a menu carrying every value the source reported", () => {
-    const drawn = drawnStrings(pageWith([YEAR, STUDIO]));
-
-    expect(drawn.filter((entry) => entry.includes("This menu carries"))).toEqual([]);
-  });
-
-  it("draws no other sentence, so the bound is the only one on the toolbar", () => {
+  it("draws no sentence but Refresh across the controls and their rows", () => {
     const sentences = new Set(
       Object.values(copy).filter((value): value is string => typeof value === "string"),
     );
