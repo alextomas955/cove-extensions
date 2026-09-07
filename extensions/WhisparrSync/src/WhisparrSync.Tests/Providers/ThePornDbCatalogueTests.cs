@@ -344,7 +344,24 @@ public sealed class ThePornDbCatalogueTests
         var menu = Assert.Single(menus);
         Assert.Equal(ThePornDbCatalogue.TagFacetKey, menu.Key);
         Assert.Equal("70", Assert.Single(menu.Values).Value);
+        Assert.Equal(menu.Values.Count, menu.ReportedValueCount);
         Assert.StartsWith("/tags", handler.Targets[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A tags menu the provider reports more values for than it served carries the reported total,
+    /// so a surface can say how much of the list it holds.
+    /// </summary>
+    [Fact]
+    public async Task ATagsMenuCarriesTheTotalTheProviderReported()
+    {
+        var (catalogue, _) = CatalogueOver(BoundedTagsMenuAnswer, NoScenes, NoScenes);
+
+        var menus = await catalogue.ListFacetMenusAsync(WhisparrEntityKind.Studio, "92", TestCt);
+
+        var menu = Assert.Single(menus, item => item.Key == ThePornDbCatalogue.TagFacetKey);
+        Assert.Equal(2, menu.Values.Count);
+        Assert.Equal(400, menu.ReportedValueCount);
     }
 
     /// <summary>
@@ -361,7 +378,7 @@ public sealed class ThePornDbCatalogueTests
 
         var years = Assert.Single(menus, menu => menu.Key == ThePornDbCatalogue.YearKey);
         Assert.Equal("Year", years.Label);
-        Assert.False(years.IsTypeAhead);
+        Assert.Equal(years.Values.Count, years.ReportedValueCount);
         Assert.Equal(
             ["2019", "2018", "2017", "2016"], years.Values.Select(value => value.Value));
         Assert.Equal(years.Values.Select(value => value.Value), years.Values.Select(value => value.Label));
@@ -454,6 +471,10 @@ public sealed class ThePornDbCatalogueTests
 
     /// <summary>One page of the tags route, in the shape the provider serves it.</summary>
     private const string TagsMenuAnswer = """{"data":[{"id":70,"name":"Anal"}],"meta":{"total":1}}""";
+
+    /// <summary>A tags page the provider reports far more values for than it served.</summary>
+    private const string BoundedTagsMenuAnswer =
+        """{"data":[{"id":70,"name":"Anal"},{"id":71,"name":"Solo"}],"meta":{"total":400}}""";
 
     /// <summary>A scenes page listing nothing.</summary>
     private const string NoScenes = """{"data":[],"meta":{"total":0}}""";
