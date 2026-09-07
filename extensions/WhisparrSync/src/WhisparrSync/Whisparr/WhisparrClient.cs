@@ -550,13 +550,12 @@ internal sealed class WhisparrClient(
             return resolved.Answer;
         }
 
-        return await ActAsync(
+        return await GeneratedV2ActAsync(
             baseAddress,
             apiKey,
-            HttpMethod.Post,
-            SeriesPath,
-            V2BodyProjector.AddStudio(site.EntityId, site.Title, site.TitleSlug, scope, defaults),
-            ct).ConfigureAwait(false);
+            api => api.Api<V2Api.ISeriesApi>().CreateSeriesAsync(
+                V2BodyProjector.AddStudio(site.EntityId, site.Title, site.TitleSlug, scope, defaults),
+                ct)).ConfigureAwait(false);
     }
 
     /// <summary>The entity an identifier names on the older generation, or the answer standing for it.</summary>

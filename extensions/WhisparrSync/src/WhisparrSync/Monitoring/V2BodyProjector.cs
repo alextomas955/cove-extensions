@@ -24,9 +24,6 @@ namespace WhisparrSync.Monitoring;
 /// </remarks>
 internal static class V2BodyProjector
 {
-    /// <summary>What every add and every scope change spells the whole catalogue with.</summary>
-    private const string WholeCatalogue = "all";
-
     /// <summary>This generation's search command. The one verb that downloads.</summary>
     internal const string SeriesSearchCommand = "SeriesSearch";
 
@@ -99,7 +96,7 @@ internal static class V2BodyProjector
     /// names no usable quality profile. This generation refuses a zero profile with a validation
     /// failure naming the property, and the newer one accepts it and then never acquires.
     /// </exception>
-    internal static JsonObject AddStudio(
+    internal static SeriesResource AddStudio(
         int entityId, string title, string titleSlug, MonitorScope scope, AddDefaults defaults)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
@@ -109,27 +106,22 @@ internal static class V2BodyProjector
         ArgumentException.ThrowIfNullOrWhiteSpace(defaults.RootFolderPath);
         ArgumentOutOfRangeException.ThrowIfLessThan(defaults.QualityProfileId, 1);
 
-        var monitor = MonitorTypesValueConverter.ToJsonValue(CatalogueTypeFor(scope));
         const bool search = false;
-        return new JsonObject
-        {
-            ["tvdbId"] = entityId,
-            ["title"] = title,
-            ["titleSlug"] = titleSlug,
-            ["qualityProfileId"] = defaults.QualityProfileId,
-            ["rootFolderPath"] = defaults.RootFolderPath,
-            ["monitored"] = true,
-            ["monitorNewItems"] = WholeCatalogue,
-            ["seriesType"] = "standard",
-            ["seasons"] = new JsonArray(),
-            ["tags"] = new JsonArray(),
-            ["addOptions"] = new JsonObject
-            {
-                ["monitor"] = monitor,
-                ["searchForMissingEpisodes"] = search,
-                ["searchForCutoffUnmetEpisodes"] = search,
-            },
-        };
+        return new SeriesResource(
+            tvdbId: entityId,
+            title: title,
+            titleSlug: titleSlug,
+            qualityProfileId: defaults.QualityProfileId,
+            rootFolderPath: defaults.RootFolderPath,
+            monitored: true,
+            monitorNewItems: NewItemMonitorTypes.All,
+            seriesType: SeriesTypes.Standard,
+            seasons: new List<SeasonResource>(),
+            tags: new List<int>(),
+            addOptions: new AddSeriesOptions(
+                monitor: CatalogueTypeFor(scope),
+                searchForMissingEpisodes: search,
+                searchForCutoffUnmetEpisodes: search));
     }
 
     /// <summary>Sets only the monitored flag on the entity <paramref name="entityId"/> names.</summary>

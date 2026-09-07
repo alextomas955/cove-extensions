@@ -491,8 +491,13 @@ public sealed class MonitorBodyPinTests
 
         Assert.Equal(
             SiteEntityId,
-            V2BodyProjector
-                .AddStudio(site.EntityId, site.Title, site.TitleSlug, MonitorScope.FutureScenes, new AddDefaults(1, "/config/library"))["tvdbId"]!
+            ComposedV2Body
+                .Of(V2BodyProjector.AddStudio(
+                    site.EntityId,
+                    site.Title,
+                    site.TitleSlug,
+                    MonitorScope.FutureScenes,
+                    new AddDefaults(1, "/config/library")))["tvdbId"]!
                 .GetValue<int>());
     }
 
@@ -669,8 +674,12 @@ public sealed class MonitorBodyPinTests
         Assert.Equal("Future Scenes", named["future"]);
 
         var composed = Enum.GetValues<MonitorScope>()
-            .Select(scope => (JsonObject)V2BodyProjector.AddStudio(
-                SiteEntityId, "Vixen", "vixen", scope, new AddDefaults(1, "/config/library"))["addOptions"]!)
+            .Select(scope => (JsonObject)ComposedV2Body.Of(V2BodyProjector.AddStudio(
+                SiteEntityId,
+                "Vixen",
+                "vixen",
+                scope,
+                new AddDefaults(1, "/config/library")))["addOptions"]!)
             .Select(options2 => options2["monitor"]!.GetValue<string>())
             .Order()
             .ToArray();
