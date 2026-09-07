@@ -121,10 +121,20 @@ const selectionBar = (page) =>
     .filter({ has: page.getByText(/^\d+ selected$/) })
     .last();
 
-/** What the bar reports as ticked, or null while it draws nothing. */
+/**
+ * What the bar reports as ticked, or null while it draws nothing.
+ *
+ * Read in one pass in the page rather than as a count followed by a text read: the bar unmounts the
+ * moment the selection empties, and the two-step read raises on the element it just found.
+ */
 async function selectedCount(page) {
-  const stated = page.getByText(/^\d+ selected$/).first();
-  return (await stated.count()) === 0 ? null : Number((await stated.innerText()).split(" ")[0]);
+  return page.evaluate(() => {
+    for (const element of document.querySelectorAll("span")) {
+      const stated = /^(\d+) selected$/.exec((element.textContent ?? "").trim());
+      if (stated) return Number(stated[1]);
+    }
+    return null;
+  });
 }
 
 /** One recorded page of `count` scenes, answered in place of the provider read. */
