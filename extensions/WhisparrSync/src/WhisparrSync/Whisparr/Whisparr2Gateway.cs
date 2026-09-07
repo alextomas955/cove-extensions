@@ -9,9 +9,9 @@ namespace WhisparrSync.Whisparr;
 /// The older generation's request surface, obtained from the generated Whisparr 2 client.
 /// </summary>
 /// <remarks>
-/// A twin of <see cref="Whisparr3Gateway"/> rather than one generation-aware type. The two packages
-/// declare unrelated <c>IApiResponse</c> interfaces with no common base and unrelated registration
-/// option types, so the method that reads an answer cannot be one method.
+/// The two generations' packages declare unrelated <c>IApiResponse</c> interfaces with no common base
+/// and unrelated registration option types, so one type cannot serve both and this is a twin of
+/// <see cref="Whisparr3Gateway"/>.
 /// <para>
 /// The transport settings this product requires are applied to every typed client the registration
 /// creates: the redirect cap, the per-attempt timeout and the bound on how much of one answer is
