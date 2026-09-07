@@ -265,6 +265,34 @@ public sealed class ThePornDbCatalogueTests
         Assert.Contains("tags%5B70%5D=70", handler.Targets[0], StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A tag page is offered no menu and costs no request. The only menu this provider fills is
+    /// tags, which on a tag page would narrow a tag to itself.
+    /// </summary>
+    [Fact]
+    public async Task ATagPageIsOfferedNoMenu()
+    {
+        var (catalogue, handler) = CatalogueOver(TagsMenuAnswer);
+
+        Assert.Empty(await catalogue.ListFacetMenusAsync(WhisparrEntityKind.Tag, "70", TestCt));
+        Assert.Empty(handler.Requests);
+    }
+
+    /// <summary>A studio page is offered the tags menu, filled by asking the provider.</summary>
+    [Fact]
+    public async Task AStudioPageIsOfferedTheTagsMenu()
+    {
+        var (catalogue, handler) = CatalogueOver(TagsMenuAnswer);
+
+        var menus = await catalogue.ListFacetMenusAsync(
+            WhisparrEntityKind.Studio, StudioUuid, TestCt);
+
+        var menu = Assert.Single(menus);
+        Assert.Equal(ThePornDbCatalogue.TagFacetKey, menu.Key);
+        Assert.Equal("70", Assert.Single(menu.Values).Value);
+        Assert.StartsWith("/tags", handler.Targets[0], StringComparison.Ordinal);
+    }
+
     /// <summary>The year the surface chose reaches the provider, so it narrows the catalogue.</summary>
     [Fact]
     public async Task TheYearReachesTheProvidersOwnParameter()
@@ -326,6 +354,9 @@ public sealed class ThePornDbCatalogueTests
         Assert.True(page.CatalogueSize > page.Scenes.Count);
         Assert.All(page.Scenes, scene => Assert.NotEmpty(scene.Title));
     }
+
+    /// <summary>One page of the tags route, in the shape the provider serves it.</summary>
+    private const string TagsMenuAnswer = """{"data":[{"id":70,"name":"Anal"}],"meta":{"total":1}}""";
 
     private static JsonObject Response(string fixture)
         => JsonNode.Parse(ProbeFixtures.Read(fixture))!["response"]!.DeepClone().AsObject();
