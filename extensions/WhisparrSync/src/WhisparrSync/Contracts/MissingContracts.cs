@@ -168,12 +168,15 @@ public sealed record MissingFacetValue(string Value, string Label);
 /// <param name="Key">The opaque key the provider itself issued.</param>
 /// <param name="Label">How the menu reads.</param>
 /// <param name="Values">The values offered, whole-catalogue rather than page-derived.</param>
-/// <param name="IsTypeAhead">
-/// The menu is longer than one page, so it is filled by asking the provider as the user types rather
-/// than from the values here.
+/// <param name="ReportedValueCount">
+/// How many values the provider reported for the menu. The menu carries at most one page of them, so
+/// a surface can say which of the two figures it is showing.
 /// </param>
 public sealed record MissingFacetMenu(
-    string Key, string Label, IReadOnlyList<MissingFacetValue> Values, bool IsTypeAhead);
+    string Key,
+    string Label,
+    IReadOnlyList<MissingFacetValue> Values,
+    int ReportedValueCount);
 
 /// <summary>One ordering the provider offers.</summary>
 /// <param name="Value">

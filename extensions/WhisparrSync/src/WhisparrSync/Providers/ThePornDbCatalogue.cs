@@ -283,7 +283,7 @@ internal sealed class ThePornDbCatalogue
         }
 
         var offered = Number(Meta(answered.Value), "total") ?? values.Count;
-        return new ProviderFacetMenu(TagFacetKey, "Tags", values, offered > values.Count);
+        return new ProviderFacetMenu(TagFacetKey, "Tags", values, offered);
     }
 
     /// <summary>Every year the entity's own catalogue spans, newest first.</summary>
@@ -322,7 +322,7 @@ internal sealed class ThePornDbCatalogue
             values.Add(new ProviderFacetValue(spelled, spelled));
         }
 
-        return new ProviderFacetMenu(YearKey, "Year", values, IsTypeAhead: false);
+        return new ProviderFacetMenu(YearKey, "Year", values, values.Count);
     }
 
     private async Task<int?> EdgeYearAsync(

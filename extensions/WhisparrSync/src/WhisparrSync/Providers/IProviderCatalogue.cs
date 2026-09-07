@@ -100,12 +100,15 @@ public sealed record ProviderFacetValue(string Value, string Label);
 /// <param name="Key">The opaque key the provider itself issued.</param>
 /// <param name="Label">How the menu reads.</param>
 /// <param name="Values">The values offered, covering the whole catalogue.</param>
-/// <param name="IsTypeAhead">
-/// The menu is longer than one page, so the surface asks the provider as the user types rather than
-/// rendering the values here as a fixed list.
+/// <param name="ReportedValueCount">
+/// How many values the provider says the menu holds, however many <paramref name="Values"/> carries.
+/// A count equal to the number of values carried is a whole menu.
 /// </param>
 public sealed record ProviderFacetMenu(
-    string Key, string Label, IReadOnlyList<ProviderFacetValue> Values, bool IsTypeAhead);
+    string Key,
+    string Label,
+    IReadOnlyList<ProviderFacetValue> Values,
+    int ReportedValueCount);
 
 /// <summary>One ordering a provider offers.</summary>
 /// <param name="Value">The opaque string the provider itself issued.</param>

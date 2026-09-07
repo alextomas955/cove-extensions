@@ -1710,7 +1710,7 @@
           "key",
           "label",
           "values",
-          "isTypeAhead"
+          "reportedValueCount"
         ],
         "type": "object",
         "properties": {
@@ -1726,8 +1726,9 @@
               "$ref": "#/components/schemas/MissingFacetValue"
             }
           },
-          "isTypeAhead": {
-            "type": "boolean"
+          "reportedValueCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
