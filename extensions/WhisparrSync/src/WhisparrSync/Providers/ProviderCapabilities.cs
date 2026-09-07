@@ -73,17 +73,47 @@ public interface ILooksUpByName;
 /// </remarks>
 internal static class ProviderCapabilities
 {
+    // Ordering by title is StashDB's alone: ThePornDB's ordering vocabulary declares no title value
+    // and refuses one it does not declare. Filtering to a year is ThePornDB's alone: StashDB carries
+    // one date criterion with no inclusive bound, so a year is not expressible on it at all.
+    private static readonly ProviderCapability[] StashDbHolds =
+    [
+        ProviderCapability.SortByTitle,
+        ProviderCapability.SortByDate,
+        ProviderCapability.SortByDuration,
+        ProviderCapability.ListPerformerFacet,
+        ProviderCapability.ListTagFacet,
+        ProviderCapability.ListSubStudioFacet,
+        ProviderCapability.SearchTitles,
+        ProviderCapability.LookUpByName,
+    ];
+
+    // Neither the performer route nor the site route exposes a filter that would scope its values to
+    // one entity, so neither of those menus is listable here.
+    private static readonly ProviderCapability[] ThePornDbHolds =
+    [
+        ProviderCapability.SortByDate,
+        ProviderCapability.SortByDuration,
+        ProviderCapability.FilterByYear,
+        ProviderCapability.ListTagFacet,
+        ProviderCapability.SearchTitles,
+        ProviderCapability.LookUpByName,
+    ];
+
     /// <summary>What StashDB holds, acting through <paramref name="source"/>.</summary>
     internal static ProviderCapabilitySet ForStashDb(object source)
+        => SetFor("StashDB", StashDbHolds, source);
+
+    /// <summary>What ThePornDB holds, acting through <paramref name="source"/>.</summary>
+    internal static ProviderCapabilitySet ForThePornDb(object source)
+        => SetFor("ThePornDB", ThePornDbHolds, source);
+
+    private static ProviderCapabilitySet SetFor(
+        string provider, IReadOnlyList<ProviderCapability> held, object source)
     {
         ArgumentNullException.ThrowIfNull(source);
         return new ProviderCapabilitySet(
-            "StashDB",
-            [ProviderCapability.SortByDate],
-            new Dictionary<ProviderCapability, object>
-            {
-                [ProviderCapability.SortByDate] = source,
-            });
+            provider, held, held.ToDictionary(capability => capability, _ => source));
     }
 }
 
