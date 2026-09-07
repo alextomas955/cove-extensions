@@ -87,10 +87,14 @@ internal sealed class MissingIdentityResolver(
     IEntityIdentityPort identities, IProviderCatalogue catalogue, IEntityNamePort names)
 {
     /// <summary>
-    /// What the provider calls the <paramref name="kind"/> entity <paramref name="coveId"/> names, or
-    /// null where it names none.
+    /// What the provider calls the <paramref name="kind"/> entity <paramref name="coveId"/> names,
+    /// or why it names none.
     /// </summary>
-    internal async Task<string?> ResolveAsync(
+    /// <remarks>
+    /// The library's own steps always reach an answer, so only the provider's lookup can report
+    /// that nothing was reached.
+    /// </remarks>
+    internal async Task<ProviderIdentityLookup> ResolveAsync(
         WhisparrEntityKind kind,
         int coveId,
         WhisparrGeneration generation,
@@ -102,24 +106,22 @@ internal sealed class MissingIdentityResolver(
 
         if (carried.Refusal == MonitorRefusalKind.SeveralIdentitiesInThisNamespace)
         {
-            return null;
+            return ProviderIdentityLookup.Ambiguous;
         }
 
         if (carried.ForeignId is { Length: > 0 } held)
         {
-            return held;
+            return ProviderIdentityLookup.Matched(held);
         }
 
         var named = await names.ReadNameAsync(kind, coveId, ct).ConfigureAwait(false);
         if (named is not { Name.Length: > 0 })
         {
-            return null;
+            return ProviderIdentityLookup.Unmatched;
         }
 
-        var looked = await catalogue
+        return await catalogue
             .LookUpByNameAsync(kind, named.Name, named.Aliases, ct)
             .ConfigureAwait(false);
-
-        return looked.IsAmbiguous ? null : looked.ProviderEntityId;
     }
 }

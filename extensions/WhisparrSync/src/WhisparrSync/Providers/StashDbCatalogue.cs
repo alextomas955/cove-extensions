@@ -243,7 +243,9 @@ internal sealed class StashDbCatalogue
                     .ConfigureAwait(false),
             };
 
-            if (found.IsAmbiguous || found.ProviderEntityId is not null)
+            // A candidate that did not reach the provider ends the walk. Asking under the next
+            // alias would send again into the same failure and could answer an absence for it.
+            if (!found.WasReached || found.IsAmbiguous || found.ProviderEntityId is not null)
             {
                 return found;
             }
@@ -429,9 +431,12 @@ internal sealed class StashDbCatalogue
     {
         var answered = await AskAsync(query, new JsonObject { ["name"] = name }, ct)
             .ConfigureAwait(false);
+        if (answered is null)
+        {
+            return ProviderIdentityLookup.NotReached;
+        }
 
-        return answered is not null
-            && answered.Value.TryGetProperty(member, out var found)
+        return answered.Value.TryGetProperty(member, out var found)
             && found.ValueKind == JsonValueKind.Object
             && Text(found, "id") is { Length: > 0 } id
                 ? ProviderIdentityLookup.Matched(id)
@@ -452,8 +457,12 @@ internal sealed class StashDbCatalogue
         };
 
         var answered = await AskAsync(PerformersQuery, variables, ct).ConfigureAwait(false);
-        if (answered is null
-            || !answered.Value.TryGetProperty("queryPerformers", out var result)
+        if (answered is null)
+        {
+            return ProviderIdentityLookup.NotReached;
+        }
+
+        if (!answered.Value.TryGetProperty("queryPerformers", out var result)
             || !result.TryGetProperty("performers", out var rows)
             || rows.ValueKind != JsonValueKind.Array)
         {
