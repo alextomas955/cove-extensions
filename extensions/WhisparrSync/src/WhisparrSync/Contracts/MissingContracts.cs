@@ -216,7 +216,8 @@ public sealed record MissingSortOption(string Value, string Label);
 /// No retry can establish a status, because the connected generation keeps no per-scene records.
 /// </param>
 /// <param name="MonitorAllIsOffered">
-/// Whether the whole-entity action is expressible for this entity kind at all.
+/// Whether the whole-entity action has an implementation to reach: the connected generation
+/// registers a scene add, and an arm acts on this entity kind. False is an absent control.
 /// </param>
 /// <param name="ProviderName">
 /// The metadata source this page was read from, as a sentence names it. Carried on the page rather

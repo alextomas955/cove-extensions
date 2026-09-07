@@ -148,7 +148,8 @@ public sealed class MissingKindCoverageTests
             WhisparrGeneration.V3,
             new ResolvedProvider(StashDb, "a-key", 240),
             reading ?? new StubSceneStatusReading(presence: 404),
-            ExclusionReading: null);
+            ExclusionReading: null,
+            MonitorAllIsExpressible: true);
 
     private static MissingPagePlanner PlannerOver(
         StubProviderCatalogue catalogue, string? identity, StubEntityNames names)

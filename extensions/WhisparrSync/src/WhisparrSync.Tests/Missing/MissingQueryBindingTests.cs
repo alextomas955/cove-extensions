@@ -205,7 +205,8 @@ public sealed class MissingQueryBindingTests
             WhisparrGeneration.V3,
             new ResolvedProvider("https://stashdb.org/graphql", "a-key", 240),
             StatusReading: null,
-            ExclusionReading: null);
+            ExclusionReading: null,
+            MonitorAllIsExpressible: true);
 
         return await PlannerOver(catalogue).PlanAsync(request, context, NullLogger.Instance, TestCt);
     }
