@@ -50,6 +50,7 @@ internal static class ComposedAdds
     [
         "StudiosSearch",
         "PerformersSearch",
+        "MoviesSearch",
         "SeriesSearch",
         "MissingMoviesSearch",
         "CutoffUnmetMoviesSearch",
@@ -84,7 +85,7 @@ internal static class ComposedAdds
     /// worse, assert that a grab body is non-grabbing.
     /// </remarks>
     public static readonly WhisparrCapability[] GrabbingCapabilities =
-        [WhisparrCapability.SearchMonitored];
+        [WhisparrCapability.SearchMonitored, WhisparrCapability.SearchScene];
 
     /// <summary>The instance-side values every enumerated add is composed with.</summary>
     private static readonly AddDefaults Defaults = new(4, "/config/library");
@@ -407,6 +408,7 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.SearchMonitored,
                 WhisparrCapability.ReadSceneStatus,
                 WhisparrCapability.ReadSceneExclusions,
+                WhisparrCapability.SearchScene,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
 
@@ -422,14 +424,21 @@ public sealed class NonGrabbingBodyTests
 
         Assert.Equal(6, ComposedAdds.All().Count);
 
-        // The filter is on the verb class rather than on the registration, so a grabbing capability
-        // both generations now hold contributes no case to a list of bodies asserted non-grabbing.
+        // The filter is on the verb class rather than on the registration, so a grabbing capability a
+        // generation holds contributes no case to a list of bodies asserted non-grabbing. Which
+        // generations hold each one is written out, because the two differ: the entity search is
+        // registered on both and the per-scene search on the newer alone.
         Assert.All(
-            ComposedAdds.GrabbingCapabilities,
-            grabbing => Assert.All(
-                ComposedAdds.Generations,
-                generation => Assert.Contains(
-                    grabbing, GenerationCapabilities.CapabilitiesOf(generation))));
+            ComposedAdds.Generations,
+            generation => Assert.Contains(
+                WhisparrCapability.SearchMonitored,
+                GenerationCapabilities.CapabilitiesOf(generation)));
+        Assert.Contains(
+            WhisparrCapability.SearchScene,
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
+        Assert.DoesNotContain(
+            WhisparrCapability.SearchScene,
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
     }
 
     /// <summary>

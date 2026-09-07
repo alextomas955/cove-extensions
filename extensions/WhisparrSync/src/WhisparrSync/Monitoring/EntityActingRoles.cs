@@ -15,9 +15,8 @@ namespace WhisparrSync.Monitoring;
 /// extension's credential at an arbitrary entity is impossible in the signature rather than a rule
 /// each call site has to keep.
 /// <para>
-/// Nothing declared here can make an instance download. The one verb that can is
-/// <see cref="IWhisparrSearchGrabbing.SearchMonitoredAsync"/>, on a role of its own that a caller has
-/// to obtain by name.
+/// Nothing declared here can make an instance download. The verbs that can are on the grabbing
+/// roles, each of which a caller has to obtain by name.
 /// </para>
 /// <para>
 /// Every member names the connected generation, because both generations honour this role and neither
@@ -96,8 +95,8 @@ public interface IWhisparrStudioActing
 /// could not keep. A performer monitor covers the whole catalogue, and that consequence is stated
 /// where it is chosen rather than implied by a member that cannot honour it.
 /// <para>
-/// Nothing declared here can make an instance download, and the one verb that can is on
-/// <see cref="IWhisparrSearchGrabbing"/>, a role a caller has to obtain by name.
+/// Nothing declared here can make an instance download. The verbs that can are on the grabbing
+/// roles, each of which a caller has to obtain by name.
 /// </para>
 /// </remarks>
 public interface IWhisparrPerformerActing
@@ -128,8 +127,8 @@ public interface IWhisparrPerformerActing
 /// catalogue rather than a release. One generation has no route that adds a scene at all, so it holds
 /// no registration for this role rather than a member that refuses once it is called.
 /// <para>
-/// Nothing declared here can make an instance download, and the one verb that can is on
-/// <see cref="IWhisparrSearchGrabbing"/>, a role a caller has to obtain by name.
+/// Nothing declared here can make an instance download. The verbs that can are on the grabbing
+/// roles, each of which a caller has to obtain by name.
 /// </para>
 /// </remarks>
 public interface IWhisparrMissingSceneActing
@@ -163,8 +162,8 @@ public interface IWhisparrMissingSceneActing
 /// would not duplicate the data, so a caller reads the setting first and skips with the reason stated
 /// rather than copying.
 /// <para>
-/// Nothing declared here can make an instance download, and the one verb that can is on
-/// <see cref="IWhisparrSearchGrabbing"/>, a role a caller has to obtain by name.
+/// Nothing declared here can make an instance download. The verbs that can are on the grabbing
+/// roles, each of which a caller has to obtain by name.
 /// </para>
 /// </remarks>
 public interface IWhisparrReflectOwnedActing

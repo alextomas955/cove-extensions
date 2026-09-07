@@ -88,6 +88,7 @@ internal static class OutboundSeam
             [nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)] = WhisparrVerbClass.Grab,
+            [nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync)] = WhisparrVerbClass.Grab,
         };
 
     /// <summary>Every interface an outbound request of this product can be expressed through.</summary>
@@ -105,6 +106,7 @@ internal static class OutboundSeam
         typeof(IWhisparrMissingSceneActing),
         typeof(IWhisparrReflectOwnedActing),
         typeof(IWhisparrSearchGrabbing),
+        typeof(IWhisparrSceneSearchGrabbing),
     ];
 
     /// <summary>The members doing <paramref name="verbClass"/>'s class of work, in name order.</summary>
@@ -200,7 +202,7 @@ public sealed class SafetyInvariantTests
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public void TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall()
     {
-        Assert.Equal(6, OutboundSeam.SeamInterfaces.Count);
+        Assert.Equal(7, OutboundSeam.SeamInterfaces.Count);
 
         Assert.Equal(
             OutboundSeam.VerbClassByMember.Keys.Order().ToList(),
@@ -321,32 +323,43 @@ public sealed class SafetyInvariantTests
     }
 
     /// <summary>
-    /// Exactly one member of the whole outbound seam can make an instance download, and only the
-    /// separately obtained role declares it.
+    /// Two members of the whole outbound seam can make an instance download, each declared on a role
+    /// of its own that a caller obtains by name.
     /// </summary>
     /// <remarks>
-    /// The type-level half of the guarantee: a call site that never obtains that role cannot express
-    /// the request, whatever it intended. What a composed body says is asserted above.
+    /// The type-level half of the guarantee: a call site that never obtains one of those roles cannot
+    /// express the request, whatever it intended. What a composed body says is asserted above.
     /// <para>
-    /// The guarantee is not that nothing can grab. Exactly one named gesture reaches exactly one
-    /// grabbing member, and nothing else does. This states the second half at the level of the type
-    /// set; the behavioural half, that every other mounted verb reaches none, is driven over the
-    /// mounted route set in the body group.
+    /// The guarantee is not that nothing can grab. Two named gestures reach one grabbing member
+    /// each - one over an entity's whole monitored catalogue, one over a single scene - and nothing
+    /// else does. The behavioural half, that every other mounted verb reaches none, is driven over
+    /// the mounted route set in the body group.
+    /// </para>
+    /// <para>
+    /// Each grabbing role declares exactly one member, so neither can grow a second verb without
+    /// this failing.
     /// </para>
     /// </remarks>
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
-    public void ExactlyOneSeamMemberGrabsAndOnlyTheGrabbingRoleDeclaresIt()
+    public void TwoSeamMembersGrabAndEachIsDeclaredOnAGrabbingRoleOfItsOwn()
     {
         Assert.Equal(
-            [nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)],
+            [
+                nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync),
+                nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync),
+            ],
             OutboundSeam.MembersOf(WhisparrVerbClass.Grab));
 
         Assert.Equal(
             [typeof(IWhisparrSearchGrabbing)],
             OutboundSeam.SeamsDeclaring(nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)));
+        Assert.Equal(
+            [typeof(IWhisparrSceneSearchGrabbing)],
+            OutboundSeam.SeamsDeclaring(nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync)));
 
         Assert.Single(typeof(IWhisparrSearchGrabbing).GetMethods());
+        Assert.Single(typeof(IWhisparrSceneSearchGrabbing).GetMethods());
     }
 
     /// <summary>

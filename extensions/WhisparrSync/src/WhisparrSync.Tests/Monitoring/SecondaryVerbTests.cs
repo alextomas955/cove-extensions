@@ -431,7 +431,7 @@ public sealed class SecondaryVerbTests
     /// <summary>The one class that downloads gets one attempt and is never re-issued.</summary>
     /// <remarks>
     /// Read back through the policy a request actually goes through rather than off the table it reads,
-    /// and asserted now that a live implementation stands behind the declaration.
+    /// and asserted now that a live implementation stands behind each declaration.
     /// </remarks>
     [Fact]
     public void TheGrabbingClassGetsOneAttemptOverALiveImplementation()
@@ -439,9 +439,13 @@ public sealed class SecondaryVerbTests
         Assert.Equal(
             WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Grab));
         Assert.Equal(
-            [nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)],
+            [
+                nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync),
+                nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync),
+            ],
             OutboundSeam.MembersOf(WhisparrVerbClass.Grab));
         Assert.Contains(typeof(IWhisparrSearchGrabbing), typeof(WhisparrClient).GetInterfaces());
+        Assert.Contains(typeof(IWhisparrSceneSearchGrabbing), typeof(WhisparrClient).GetInterfaces());
     }
 
     /// <summary>

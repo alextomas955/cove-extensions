@@ -27,6 +27,16 @@ public sealed class MissingSceneActionTests
     private static string MonitorVerb(string providerSceneId)
         => $"missing/{providerSceneId}/monitor";
 
+    private static string SearchVerb(string providerSceneId)
+        => $"missing/{providerSceneId}/search";
+
+    /// <summary>The instance's own identifier for the scene, as its row carries one.</summary>
+    private const int SceneOnTheInstance = 812;
+
+    /// <summary>One row, as the instance answers a per-scene read for a scene it holds.</summary>
+    private static string HeldSceneRow(bool monitored)
+        => $$"""[{"id":{{SceneOnTheInstance}},"monitored":{{(monitored ? "true" : "false")}}}]""";
+
     private static Task<int> StudioIn(MonitorHost host)
         => host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
@@ -228,6 +238,222 @@ public sealed class MissingSceneActionTests
         Assert.DoesNotContain(
             host.Client.Acting,
             call => call.Verb == nameof(IWhisparrMissingSceneActing.AddSceneAsync));
+    }
+
+    /// <summary>
+    /// The search sends one command, and it carries the name and the id member the instance honours.
+    /// </summary>
+    /// <remarks>
+    /// The command name is a measurement rather than a convention, taken against a running instance
+    /// of build 3.4.0.1387: <c>MoviesSearch</c> answers 201 and echoes its <c>movieIds</c> member,
+    /// while <c>SceneSearch</c>, <c>MovieSearch</c> and a name nothing registers each answer 400 with
+    /// "Unknown command type". A wrong id member is accepted and dropped, so the command then runs
+    /// over nothing and a body naming one would look like a working search.
+    /// <para>
+    /// Read off the bytes that left rather than off the arguments a seam was handed: what a call site
+    /// supplied is not what the client composes from it.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task TheSearchSendsOneCommandNamingTheSceneTheInstanceHolds()
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.OK, HeldSceneRow(monitored: true)),
+            (HttpStatusCode.Created, "{}"));
+        await using var host = await MonitorHost.CreateAsync(bytes: handler);
+        var studioId = await StudioIn(host);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, SearchVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.None, result.Refusal);
+
+        var command = Assert.Single(handler.Requests, sent => sent.Method == HttpMethod.Post);
+        var body = Assert.IsType<JsonObject>(JsonNode.Parse(command.Body));
+
+        Assert.Contains("/command", command.Path, StringComparison.Ordinal);
+        Assert.Contains(V3BodyProjector.ScenesSearchCommand, command.Body, StringComparison.Ordinal);
+        Assert.Equal(
+            [SceneOnTheInstance],
+            body[V3BodyProjector.SceneIdsProperty]!.AsArray().Select(id => id!.GetValue<int>()));
+        Assert.DoesNotContain(SceneId, command.Body, StringComparison.Ordinal);
+    }
+
+    /// <summary>The scene is read before any command is sent.</summary>
+    /// <remarks>
+    /// The command names the instance's own identifier and the browser holds only the provider's, so
+    /// a command sent first would name an identifier nothing had answered.
+    /// </remarks>
+    [Fact]
+    public async Task TheSceneIsReadBeforeTheCommandIsSent()
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.OK, HeldSceneRow(monitored: true)),
+            (HttpStatusCode.Created, "{}"));
+        await using var host = await MonitorHost.CreateAsync(bytes: handler);
+        var studioId = await StudioIn(host);
+
+        await ReadResultAsync(await host.PostRawAsync("studio", studioId, SearchVerb(SceneId), "{}"));
+
+        Assert.Equal([HttpMethod.Get, HttpMethod.Post], handler.Requests.Select(sent => sent.Method));
+    }
+
+    /// <summary>
+    /// A scene the instance holds no entry for is stated as an absence, and no command is sent.
+    /// </summary>
+    /// <remarks>
+    /// Both spellings the instance can state it in: an empty row set, and a not-found. Neither is a
+    /// failure, so the answer carries the state the instance really holds.
+    /// </remarks>
+    [Theory]
+    [InlineData(HttpStatusCode.OK, "[]")]
+    [InlineData(HttpStatusCode.NotFound, "")]
+    public async Task ASceneTheInstanceHoldsNoEntryForIsStatedAndReachesNoCommand(
+        HttpStatusCode status, string answer)
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn((status, answer));
+        await using var host = await MonitorHost.CreateAsync(bytes: handler);
+        var studioId = await StudioIn(host);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, SearchVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.WhisparrHasNoEntryForScene, result.Refusal);
+        Assert.Equal(MissingSceneState.NotAdded, result.State);
+        Assert.DoesNotContain(handler.Requests, sent => sent.Method == HttpMethod.Post);
+    }
+
+    /// <summary>The answer carries the state read off the scene's own row.</summary>
+    /// <remarks>
+    /// A search changes what the instance is looking for and not what it holds, so an unmonitored
+    /// scene reads back unmonitored.
+    /// </remarks>
+    [Theory]
+    [InlineData(true, MissingSceneState.Monitored)]
+    [InlineData(false, MissingSceneState.Unmonitored)]
+    public async Task TheAnswerCarriesTheStateReadOffTheSceneRow(
+        bool monitored, MissingSceneState expected)
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.OK, HeldSceneRow(monitored)),
+            (HttpStatusCode.Created, "{}"));
+        await using var host = await MonitorHost.CreateAsync(bytes: handler);
+        var studioId = await StudioIn(host);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, SearchVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.None, result.Refusal);
+        Assert.Equal(expected, result.State);
+    }
+
+    /// <summary>A row carrying no usable identifier is the instance declining, and nothing is sent.</summary>
+    [Fact]
+    public async Task ARowCarryingNoUsableIdentifierReachesNoCommand()
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.OK, """[{"monitored":true}]"""));
+        await using var host = await MonitorHost.CreateAsync(bytes: handler);
+        var studioId = await StudioIn(host);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, SearchVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.InstanceRefused, result.Refusal);
+        Assert.DoesNotContain(handler.Requests, sent => sent.Method == HttpMethod.Post);
+    }
+
+    /// <summary>A read that answered nothing readable reads as having reached the instance not at all.</summary>
+    [Fact]
+    public async Task ASearchOverAnUnreadableSceneReadReachesNoCommand()
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn((HttpStatusCode.InternalServerError, ""));
+        await using var host = await MonitorHost.CreateAsync(bytes: handler);
+        var studioId = await StudioIn(host);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, SearchVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.DidNotReachWhisparr, result.Refusal);
+        Assert.DoesNotContain(handler.Requests, sent => sent.Method == HttpMethod.Post);
+    }
+
+    /// <summary>A command the instance declined reads as the instance refusing it.</summary>
+    [Fact]
+    public async Task ACommandTheInstanceDeclinedReadsAsTheInstanceRefusingIt()
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.OK, HeldSceneRow(monitored: true)),
+            (HttpStatusCode.BadRequest, """{"message":"Unknown command type"}"""));
+        await using var host = await MonitorHost.CreateAsync(bytes: handler);
+        var studioId = await StudioIn(host);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, SearchVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.InstanceRefused, result.Refusal);
+        Assert.Equal(MissingSceneState.StatusUnknown, result.State);
+    }
+
+    /// <summary>A search with nothing connected reaches the instance not at all.</summary>
+    [Fact]
+    public async Task ASearchWithNothingConnectedReadsAsHavingReachedWhisparrNotAtAll()
+    {
+        await using var host = await MonitorHost.CreateAsync(apiKey: null);
+        var studioId = await StudioIn(host);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, SearchVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.DidNotReachWhisparr, result.Refusal);
+        Assert.Empty(host.Client.Acting);
+    }
+
+    /// <summary>
+    /// A generation registering no per-scene search has nothing to hand over, so nothing is sent.
+    /// </summary>
+    [Fact]
+    public async Task AGenerationHoldingNoPerSceneSearchSendsNothing()
+    {
+        await using var host = await MonitorHost.CreateAsync(generation: WhisparrGeneration.V2);
+        var studioId = await StudioIn(host);
+
+        var result = await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, SearchVerb(SceneId), "{}"));
+
+        Assert.Equal(MissingSceneActionRefusal.InstanceRefused, result.Refusal);
+        Assert.Empty(host.Client.Acting);
+    }
+
+    /// <summary>The search reaches a grabbing verb and the monitor verb reaches none.</summary>
+    /// <remarks>
+    /// Both verbs are driven on one host, so the classes are read off one ordered log rather than off
+    /// two that could never have held each other's calls.
+    /// </remarks>
+    [Fact]
+    public async Task TheSearchVerbIsClassedGrabbingAndTheMonitorVerbIsNot()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await StudioIn(host);
+        host.Client.Answering(
+            nameof(IWhisparrSceneStatusReading.ReadSceneByRemoteIdAsync),
+            MonitorHost.Json(200, HeldSceneRow(monitored: true)));
+
+        await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, MonitorVerb(SceneId), "{}"));
+        var monitorVerbs = host.Client.Verbs.ToList();
+
+        await ReadResultAsync(
+            await host.PostRawAsync("studio", studioId, SearchVerb(SceneId), "{}"));
+
+        Assert.NotEmpty(monitorVerbs);
+        Assert.All(
+            monitorVerbs,
+            sent => Assert.NotEqual(
+                WhisparrVerbClass.Grab, Invariants.OutboundSeam.VerbClassByMember[sent]));
+        Assert.Contains(
+            host.Client.Verbs.Skip(monitorVerbs.Count),
+            sent => Invariants.OutboundSeam.VerbClassByMember[sent] == WhisparrVerbClass.Grab);
     }
 
     /// <summary>A caller who cannot configure the extension reaches neither per-scene verb.</summary>

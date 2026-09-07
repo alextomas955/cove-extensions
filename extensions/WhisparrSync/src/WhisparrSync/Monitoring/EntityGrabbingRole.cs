@@ -3,15 +3,16 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 
+// The roles declared here are the only ones in this product that can make an instance download
+// anything, and they share this file for that reason: a call site that never obtains one of them by
+// name cannot express the request at all, which is a property of the type set rather than of a
+// check. Their verb class has no retry entry, so an attempt whose answer did not arrive is reported
+// rather than re-issued.
+
 /// <summary>Asks an instance to look for what it monitors and does not hold.</summary>
 /// <remarks>
-/// The only member in this product that can make an instance download anything, and it is alone in
-/// this file for that reason: a call site that never obtains this role by name cannot express the
-/// request at all, which is a property of the type set rather than of a check.
-/// <para>
-/// Its verb class has no retry entry, so an attempt whose answer did not arrive is reported rather
-/// than re-issued.
-/// </para>
+/// Registered on both generations, and separate from the per-scene role beside it because the reach
+/// of the two differs: this one names an entity and looks for everything that entity monitors.
 /// </remarks>
 public interface IWhisparrSearchGrabbing
 {
@@ -34,4 +35,26 @@ public interface IWhisparrSearchGrabbing
         WhisparrEntityKind kind,
         int entityId,
         CancellationToken ct);
+}
+
+/// <summary>Asks an instance to look for one catalogue scene it holds.</summary>
+/// <remarks>
+/// Only the newer generation registers it: the older one keeps no scene records at all, so a caller
+/// obtains no role and states what happens instead rather than reaching a member that would refuse
+/// once it was called.
+/// </remarks>
+public interface IWhisparrSceneSearchGrabbing
+{
+    /// <summary>Asks the instance to look for the scene <paramref name="sceneId"/> names.</summary>
+    /// <remarks>
+    /// Names one scene the instance already holds and nothing else. There is no member taking a
+    /// release, an indexer or a download client, so the choice of where to look is the instance's
+    /// own.
+    /// <para>
+    /// The identifier is the instance's, not the provider's. A caller reads it off the instance's own
+    /// row for the scene, so nothing here can be aimed by an identifier a browser supplied.
+    /// </para>
+    /// </remarks>
+    Task<WhisparrResponse> SearchSceneAsync(
+        Uri baseAddress, string apiKey, int sceneId, CancellationToken ct);
 }
