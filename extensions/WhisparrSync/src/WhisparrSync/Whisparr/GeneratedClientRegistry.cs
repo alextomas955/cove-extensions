@@ -5,9 +5,8 @@ namespace WhisparrSync.Whisparr;
 
 /// <summary>The generated-client registrations one generation's gateway holds.</summary>
 /// <remarks>
-/// One registry per gateway rather than one shared between them. Only one generation is ever reached
-/// for a given instance, so the live count is the same either way, and a shared cap would let one
-/// generation's traffic discard the other's.
+/// One registry belongs to one gateway. Only one generation is ever reached for a given instance, so
+/// a cap shared between the generations would let one generation's traffic discard the other's.
 /// </remarks>
 internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProvider> register)
     : IDisposable
