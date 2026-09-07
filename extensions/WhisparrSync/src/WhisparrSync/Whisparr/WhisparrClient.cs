@@ -4,11 +4,14 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
-using Whisparr3.Net.Api;
-using Whisparr3.Net.Client;
-using Whisparr3.Net.Model;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
+using V2Api = Whisparr2.Net.Api;
+using V2Client = Whisparr2.Net.Client;
+using V2Model = Whisparr2.Net.Model;
+using V3Api = Whisparr3.Net.Api;
+using V3Client = Whisparr3.Net.Client;
+using V3Model = Whisparr3.Net.Model;
 
 namespace WhisparrSync.Whisparr;
 
@@ -206,12 +209,13 @@ public interface IWhisparrClient
 /// type holding an outbound surface and a second holder would be a second one for every invariant
 /// that reflects over this one to cover.
 /// <para>
-/// The newer generation's requests are composed by the generated Whisparr 3 client, reached through
-/// <see cref="Whisparr3Gateway"/>. The older generation has no such client, so its routes are the
-/// ones still declared here and still sent through the held <see cref="HttpClient"/>.
+/// Each generation's requests are composed by its own generated client, the newer through
+/// <see cref="Whisparr3Gateway"/> and the older through <see cref="Whisparr2Gateway"/>. The routes
+/// still declared here are sent through the held <see cref="HttpClient"/>.
 /// </para>
 /// </remarks>
-internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, ILogger log)
+internal sealed class WhisparrClient(
+    HttpClient http, Whisparr3Gateway v3Gateway, Whisparr2Gateway v2Gateway, ILogger log)
     : IWhisparrClient,
         IWhisparrStudioActing,
         IWhisparrPerformerActing,
@@ -257,12 +261,6 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
     // The order belongs to the verb rather than to a call: newest-first is the only order a walk that
     // stops at a stored position can read, and a call site free to spell it could ask for another.
     private const string NewestFirstSortKey = "date";
-    private const string NewestFirstQuery = "sortKey=" + NewestFirstSortKey + "&sortDirection=descending";
-
-    // Each lineage names its own metadata entity on this one route, and that entity is where the
-    // identifier the two ingest channels agree on lives. Asked for on the same request rather than
-    // through a second one, so what a page costs does not grow with what it holds.
-    private const string V2EntityQuery = "includeEpisode=true";
 
     // The field the older generation's own lookup answers an entity's numeric id in. It is misnamed
     // after an unrelated television database and names no such thing here.
@@ -316,29 +314,29 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         }
 
         return await GeneratedReadAsync(
-            baseAddress, apiKey, api => api.Api<ISystemApi>().GetSystemStatusAsync(ct))
+            baseAddress, apiKey, api => api.Api<V3Api.ISystemApi>().GetSystemStatusAsync(ct))
             .ConfigureAwait(false);
     }
 
     public Task<WhisparrResponse> ReadNotificationSchemaAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
         => GeneratedReadAsync(
-            baseAddress, apiKey, api => api.Api<INotificationApi>().ListNotificationSchemaAsync(ct));
+            baseAddress, apiKey, api => api.Api<V3Api.INotificationApi>().ListNotificationSchemaAsync(ct));
 
     public Task<WhisparrResponse> ListNotificationsAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
         => GeneratedReadAsync(
-            baseAddress, apiKey, api => api.Api<INotificationApi>().ListNotificationAsync(ct));
+            baseAddress, apiKey, api => api.Api<V3Api.INotificationApi>().ListNotificationAsync(ct));
 
     public Task<WhisparrResponse> ReadRootFoldersAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
         => GeneratedReadAsync(
-            baseAddress, apiKey, api => api.Api<IRootFolderApi>().ListRootFolderAsync(ct));
+            baseAddress, apiKey, api => api.Api<V3Api.IRootFolderApi>().ListRootFolderAsync(ct));
 
     public Task<WhisparrResponse> ReadQualityProfilesAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
         => GeneratedReadAsync(
-            baseAddress, apiKey, api => api.Api<IQualityProfileApi>().ListQualityProfileAsync(ct));
+            baseAddress, apiKey, api => api.Api<V3Api.IQualityProfileApi>().ListQualityProfileAsync(ct));
 
     public Task<WhisparrResponse> ReadHistoryAsync(
         Uri baseAddress,
@@ -356,23 +354,28 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
             WhisparrGeneration.V3 => GeneratedReadAsync(
                 baseAddress,
                 apiKey,
-                api => api.Api<IHistoryApi>().GetHistoryAsync(
+                api => api.Api<V3Api.IHistoryApi>().GetHistoryAsync(
                     page: page,
                     pageSize: pageSize,
                     sortKey: NewestFirstSortKey,
-                    sortDirection: SortDirection.Descending,
+                    sortDirection: V3Model.SortDirection.Descending,
                     includeMovie: true,
                     cancellationToken: ct)),
 
-            // The older generation names its own metadata entity on this route, and the generated
-            // client speaks only the newer one.
-            WhisparrGeneration.V2 => ReadAsync(
+            // Each generation names its own metadata entity on this one route, and that entity is
+            // where the identifier the two ingest channels agree on lives. Asked for on the same
+            // request rather than through a second one, so what a page costs does not grow with what
+            // it holds.
+            WhisparrGeneration.V2 => GeneratedV2ReadAsync(
                 baseAddress,
                 apiKey,
-                string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{HistoryPath}?page={page}&pageSize={pageSize}&{NewestFirstQuery}&{V2EntityQuery}"),
-                ct),
+                api => api.Api<V2Api.IHistoryApi>().GetHistoryAsync(
+                    page: page,
+                    pageSize: pageSize,
+                    sortKey: NewestFirstSortKey,
+                    sortDirection: V2Model.SortDirection.Descending,
+                    includeEpisode: true,
+                    cancellationToken: ct)),
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
     }
@@ -402,7 +405,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
             WhisparrGeneration.V3 => GeneratedReadAsync(
                 baseAddress,
                 apiKey,
-                api => api.Api<IStudioApi>().GetStudioByStudioForeignIdAsync(Named(foreignId), ct)),
+                api => api.Api<V3Api.IStudioApi>().GetStudioByStudioForeignIdAsync(Named(foreignId), ct)),
             WhisparrGeneration.V2 => ReadHeldSeriesAsync(baseAddress, apiKey, foreignId, ct),
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
@@ -420,7 +423,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
             WhisparrGeneration.V3 => GeneratedActAsync(
                 baseAddress,
                 apiKey,
-                api => api.Api<IStudioApi>().CreateStudioAsync(
+                api => api.Api<V3Api.IStudioApi>().CreateStudioAsync(
                     V3BodyProjector.AddStudio(foreignId, scope, defaults, DateTimeOffset.UtcNow), ct)),
             WhisparrGeneration.V2 => AddMonitoredSeriesAsync(
                 baseAddress, apiKey, foreignId, scope, defaults, ct),
@@ -439,7 +442,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
             WhisparrGeneration.V3 => GeneratedActAsync(
                 baseAddress,
                 apiKey,
-                api => api.Api<IStudioEditorApi>().PutStudioEditorAsync(
+                api => api.Api<V3Api.IStudioEditorApi>().PutStudioEditorAsync(
                     V3BodyProjector.SetStudioMonitored(entityId, monitored), ct)),
             WhisparrGeneration.V2 => ActAsync(
                 baseAddress,
@@ -616,7 +619,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         => GeneratedReadAsync(
             baseAddress,
             apiKey,
-            api => api.Api<IPerformerApi>()
+            api => api.Api<V3Api.IPerformerApi>()
                 .GetPerformerByPerformerForeignIdAsync(Named(foreignId), ct));
 
     public Task<WhisparrResponse> AddMonitoredPerformerAsync(
@@ -628,7 +631,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         => GeneratedActAsync(
             baseAddress,
             apiKey,
-            api => api.Api<IPerformerApi>().CreatePerformerAsync(
+            api => api.Api<V3Api.IPerformerApi>().CreatePerformerAsync(
                 V3BodyProjector.AddPerformer(foreignId, defaults), ct));
 
     public Task<WhisparrResponse> SetPerformerMonitoredAsync(
@@ -636,7 +639,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         => GeneratedActAsync(
             baseAddress,
             apiKey,
-            api => api.Api<IPerformerEditorApi>().PutPerformerEditorAsync(
+            api => api.Api<V3Api.IPerformerEditorApi>().PutPerformerEditorAsync(
                 V3BodyProjector.SetPerformerMonitored(entityId, monitored), ct));
 
     public Task<WhisparrResponse> AddSceneAsync(
@@ -648,7 +651,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         => GeneratedActAsync(
             baseAddress,
             apiKey,
-            api => api.Api<IMovieApi>().CreateMovieAsync(
+            api => api.Api<V3Api.IMovieApi>().CreateMovieAsync(
                 V3BodyProjector.AddScene(foreignId, defaults), ct));
 
     public Task<WhisparrResponse> RefreshCatalogueAsync(
@@ -801,7 +804,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         => GeneratedReadAsync(
             baseAddress,
             apiKey,
-            api => api.Api<IMediaManagementConfigApi>().GetMediaManagementConfigAsync(ct));
+            api => api.Api<V3Api.IMediaManagementConfigApi>().GetMediaManagementConfigAsync(ct));
 
     // The instance is asked to include what it already holds, so a file the library holds and the
     // instance has not attached is still answered for.
@@ -813,7 +816,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         return GeneratedReadAsync(
             baseAddress,
             apiKey,
-            api => api.Api<IManualImportApi>().ListManualImportAsync(
+            api => api.Api<V3Api.IManualImportApi>().ListManualImportAsync(
                 folder: folder, filterExistingFiles: false, cancellationToken: ct));
     }
 
@@ -918,7 +921,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         Uri baseAddress,
         string apiKey,
         Func<Whisparr3Apis, Task<TResponse>> call)
-        where TResponse : IApiResponse
+        where TResponse : V3Client.IApiResponse
     {
         var target = TargetFor(baseAddress, apiKey);
         var attempts = WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read);
@@ -943,7 +946,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         Uri baseAddress,
         string apiKey,
         Func<Whisparr3Apis, Task<TResponse>> call)
-        where TResponse : IApiResponse
+        where TResponse : V3Client.IApiResponse
         => GeneratedSendAsync(TargetFor(baseAddress, apiKey), call);
 
     // Every instance-side action this generation takes is issued through the one command route. The
@@ -960,22 +963,69 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
 
         return GeneratedSendAsync(
             TargetFor(baseAddress, apiKey),
-            api => api.Api<CommandApi>().SendCommandAsync(name, payload, ct));
+            api => api.Api<V3Api.CommandApi>().SendCommandAsync(name, payload, ct));
     }
 
     private async Task<WhisparrResponse> GeneratedSendAsync<TResponse>(
         Whisparr3Target target,
         Func<Whisparr3Apis, Task<TResponse>> call)
-        where TResponse : IApiResponse
+        where TResponse : V3Client.IApiResponse
     {
         try
         {
-            return Whisparr3Gateway.Answered(await call(gateway.For(target)).ConfigureAwait(false));
+            return Whisparr3Gateway.Answered(await call(v3Gateway.For(target)).ConfigureAwait(false));
         }
         catch (AnswerTooLargeException beyond)
         {
             return BeyondReadBound(target.BaseAddress, beyond);
         }
+    }
+
+    // The read class through the older generation's generated client, re-issued on the same failure
+    // and for the same reason the newer generation's is.
+    private async Task<WhisparrResponse> GeneratedV2ReadAsync<TResponse>(
+        Uri baseAddress,
+        string apiKey,
+        Func<Whisparr2Apis, Task<TResponse>> call)
+        where TResponse : V2Client.IApiResponse
+    {
+        var target = V2TargetFor(baseAddress, apiKey);
+        var attempts = WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read);
+        for (var attempt = 1; attempt < attempts; attempt++)
+        {
+            try
+            {
+                return await GeneratedV2SendAsync(target, call).ConfigureAwait(false);
+            }
+            catch (Exception failure) when (failure is HttpRequestException or IOException)
+            {
+                // No whole answer arrived, which is the one failure a read may be re-issued after.
+            }
+        }
+
+        return await GeneratedV2SendAsync(target, call).ConfigureAwait(false);
+    }
+
+    private async Task<WhisparrResponse> GeneratedV2SendAsync<TResponse>(
+        Whisparr2Target target,
+        Func<Whisparr2Apis, Task<TResponse>> call)
+        where TResponse : V2Client.IApiResponse
+    {
+        try
+        {
+            return Whisparr2Gateway.Answered(await call(v2Gateway.For(target)).ConfigureAwait(false));
+        }
+        catch (AnswerTooLargeException beyond)
+        {
+            return BeyondReadBound(target.BaseAddress, beyond);
+        }
+    }
+
+    private static Whisparr2Target V2TargetFor(Uri baseAddress, string apiKey)
+    {
+        ArgumentNullException.ThrowIfNull(baseAddress);
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+        return new Whisparr2Target(baseAddress, apiKey);
     }
 
     private static Whisparr3Target TargetFor(Uri baseAddress, string apiKey)
