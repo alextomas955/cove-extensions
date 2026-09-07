@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ACTION_DID_NOT_REACH_WHISPARR,
+  CAP_UNAVAILABLE_ON_THIS_GENERATION,
   INSTANCE_OFFERS_NO_QUALITY_PROFILE,
   INSTANCE_OFFERS_NO_ROOT_FOLDER,
   INSTANCE_REFUSED,
@@ -100,6 +101,10 @@ describe("what is stated beneath the action row", () => {
     none: null,
     didNotReachWhisparr: { sentence: ACTION_DID_NOT_REACH_WHISPARR, kind: "error" },
     instanceRefused: { sentence: INSTANCE_REFUSED, kind: "error" },
+    capabilityAbsentOnThisGeneration: {
+      sentence: CAP_UNAVAILABLE_ON_THIS_GENERATION,
+      kind: "muted",
+    },
     instanceOffersNoQualityProfile: {
       sentence: INSTANCE_OFFERS_NO_QUALITY_PROFILE,
       kind: "error",
@@ -120,13 +125,23 @@ describe("what is stated beneath the action row", () => {
     }
   });
 
-  it("reads the no-entry answer as muted and every other outcome as an error", () => {
+  const REPORTS_AN_ABSENCE = ["whisparrHasNoEntryForScene", "capabilityAbsentOnThisGeneration"];
+
+  it("reads an absence as muted and every other outcome as an error", () => {
     for (const [refusal, expected] of Object.entries(EXPECTED)) {
       if (expected === null) continue;
-      expect(expected.kind, refusal).toBe(
-        refusal === "whisparrHasNoEntryForScene" ? "muted" : "error",
-      );
+      expect(expected.kind, refusal).toBe(REPORTS_AN_ABSENCE.includes(refusal) ? "muted" : "error");
     }
+  });
+
+  it("never reads a role the generation lacks as the instance declining", () => {
+    const absent = cardFailureLine({
+      ...CARD_ACTION_AT_REST,
+      refusal: "capabilityAbsentOnThisGeneration",
+    });
+
+    expect(absent?.sentence).toBe(CAP_UNAVAILABLE_ON_THIS_GENERATION);
+    expect(absent?.sentence).not.toBe(INSTANCE_REFUSED);
   });
 
   it("states nothing at rest", () => {
