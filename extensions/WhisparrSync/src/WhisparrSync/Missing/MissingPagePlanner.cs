@@ -70,6 +70,9 @@ internal sealed class MissingPagePlanner(
     ISceneStatusPort statuses,
     ISceneExclusionPort exclusions)
 {
+    /// <summary>The metadata source a page is read from, as a sentence names it.</summary>
+    internal string ProviderName => catalogue.Capabilities.Provider;
+
     /// <summary>The page <paramref name="request"/> names.</summary>
     /// <remarks>
     /// <paramref name="log"/> is passed rather than held, because the one line this writes is the
@@ -146,7 +149,8 @@ internal sealed class MissingPagePlanner(
             request.Sort,
             statusWasRead,
             statusPermanentlyAbsent,
-            MonitorAllIsOffered: false);
+            MonitorAllIsOffered: false,
+            ProviderName);
     }
 
     /// <summary>
@@ -302,7 +306,7 @@ internal sealed class MissingPagePlanner(
 
     // A refused page states its reason and carries no scenes. The range is empty rather than a
     // provider range, because no provider was asked.
-    private static MissingPageView Refused(MissingPageRequest request, MissingRefusalKind refusal)
+    private MissingPageView Refused(MissingPageRequest request, MissingRefusalKind refusal)
         => new(
             [],
             0,
@@ -318,5 +322,6 @@ internal sealed class MissingPagePlanner(
             request.Sort,
             StatusWasRead: false,
             StatusIsPermanentlyAbsent: false,
-            MonitorAllIsOffered: false);
+            MonitorAllIsOffered: false,
+            ProviderName);
 }

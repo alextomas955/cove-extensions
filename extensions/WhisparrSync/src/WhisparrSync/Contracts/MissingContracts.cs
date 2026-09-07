@@ -218,6 +218,10 @@ public sealed record MissingSortOption(string Value, string Label);
 /// <param name="MonitorAllIsOffered">
 /// Whether the whole-entity action is expressible for this entity kind at all.
 /// </param>
+/// <param name="ProviderName">
+/// The metadata source this page was read from, as a sentence names it. Carried on the page rather
+/// than held by the surface, because which source answers follows the connected generation.
+/// </param>
 public sealed record MissingPageView(
     IReadOnlyList<MissingCard> Cards,
     int CatalogueSize,
@@ -233,7 +237,8 @@ public sealed record MissingPageView(
     string? SortInForce,
     bool StatusWasRead,
     bool StatusIsPermanentlyAbsent,
-    bool MonitorAllIsOffered);
+    bool MonitorAllIsOffered,
+    string ProviderName);
 
 /// <summary>How large one entity's catalogue is, as the tab badge reads it.</summary>
 /// <remarks>
