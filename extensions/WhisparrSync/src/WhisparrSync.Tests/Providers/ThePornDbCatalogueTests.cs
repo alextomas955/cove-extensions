@@ -211,6 +211,61 @@ public sealed class ThePornDbCatalogueTests
     }
 
     /// <summary>
+    /// A credential the provider refuses answers no page at all. Read as an empty page it is a
+    /// catalogue listing nothing, which the surface states as a reader owning everything.
+    /// </summary>
+    /// <remarks>
+    /// The single request is the second half of the claim: a refusal is the provider's own answer,
+    /// so a second attempt collects the same refusal and writes the same line again. A tag carries
+    /// the numeric identifier the scene route takes, so the page costs one read and no scope read.
+    /// </remarks>
+    [Fact]
+    public async Task AReadPageOverARefusedCredentialAnswersNoPageAndIsSentOnce()
+    {
+        var (catalogue, handler) = CatalogueOver(HttpStatusCode.Unauthorized, "{}");
+
+        var answer = await catalogue.ReadPageAsync(TagPage(), TestCt);
+
+        Assert.Null(answer.Page);
+        Assert.Single(handler.Requests);
+    }
+
+    /// <summary>
+    /// The provider states a refusal as a <c>message</c> member, which it serves inside a success
+    /// status as well as outside one, and that is no page either.
+    /// </summary>
+    [Fact]
+    public async Task AReadPageOverARefusalInsideASuccessStatusAnswersNoPageAndIsSentOnce()
+    {
+        var (catalogue, handler) = CatalogueOver(
+            HttpStatusCode.OK, """{"message":"Unauthenticated."}""");
+
+        var answer = await catalogue.ReadPageAsync(TagPage(), TestCt);
+
+        Assert.Null(answer.Page);
+        Assert.Single(handler.Requests);
+    }
+
+    /// <summary>A connection that drops part way through the body answers no page.</summary>
+    [Fact]
+    public async Task AReadPageOverADroppedConnectionAnswersNoPage()
+    {
+        var (catalogue, _) = CatalogueOver(
+            BodyRecordingHandler.AnsweringWithABodyThatStopsPartWay());
+
+        Assert.Null((await catalogue.ReadPageAsync(TagPage(), TestCt)).Page);
+    }
+
+    /// <summary>An answer past the read bound answers no page.</summary>
+    [Fact]
+    public async Task AReadPageOverAnAnswerPastTheReadBoundAnswersNoPage()
+    {
+        var (catalogue, _) = CatalogueOver(BodyRecordingHandler.AnsweringPastTheReadBound());
+
+        Assert.Null((await catalogue.ReadPageAsync(TagPage(), TestCt)).Page);
+    }
+
+    /// <summary>
     /// The catalogue is read from the provider's API address while ownership is matched on the
     /// spelling the host is configured with. Keyed on the API address instead, an ownership match
     /// would find no stored row and every scene the library holds would read as missing.
