@@ -1,8 +1,8 @@
 /**
  * What one facet menu offers, and what picking a value in it produces.
  *
- * Pure and relative-import-free. Every row comes from the menu the provider filled, so a menu
- * covers the whole catalogue and never the values seen on a loaded page.
+ * Pure and relative-import-free. Every row comes from the menu the provider filled, so a menu is
+ * never derived from the values seen on a loaded page.
  */
 import type { MissingFacetMenu } from "../wire/api";
 
@@ -15,45 +15,33 @@ export interface MissingFacetRow {
 }
 
 /**
- * Whether the menu is filled as the reader types.
+ * Whether the menu carries fewer values than the provider reported.
  *
- * A big network names performers in the thousands, so the provider marks such a menu and it is
- * drawn with a field at its head.
+ * A provider reporting fewer than it served has measured nothing the reader needs, so that is not a
+ * bound.
  */
-export function isTypeAheadMenu(menu: MissingFacetMenu): boolean {
-  return menu.isTypeAhead;
+export function menuIsBounded(menu: MissingFacetMenu): boolean {
+  return menu.reportedValueCount > menu.values.length;
 }
 
 /**
  * The rows to draw for one menu.
  *
- * A type-ahead menu draws nothing until the reader has typed, because its values run past what a
- * panel can hold. A fixed menu draws every value the provider offered and synthesises none.
+ * Every value the provider delivered, and none synthesised. What the provider did not deliver is
+ * absent from the menu, which is what the bound sentence states.
  *
  * @param menu the menu the provider filled
  * @param selected the value in force for this menu, or null
- * @param typed what the reader has typed into a type-ahead menu's field
  */
 export function facetMenuRows(
   menu: MissingFacetMenu,
   selected: string | null,
-  typed: string,
 ): readonly MissingFacetRow[] {
-  const rows = menu.values.map((value) => ({
+  return menu.values.map((value) => ({
     value: value.value,
     label: value.label,
     selected: value.value === selected,
   }));
-
-  if (!isTypeAheadMenu(menu)) {
-    return rows;
-  }
-
-  const wanted = typed.trim().toLowerCase();
-  if (wanted === "") {
-    return [];
-  }
-  return rows.filter((row) => row.label.toLowerCase().includes(wanted));
 }
 
 /**
