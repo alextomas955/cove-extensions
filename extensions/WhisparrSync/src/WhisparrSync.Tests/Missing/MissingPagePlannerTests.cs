@@ -255,19 +255,20 @@ public sealed class MissingPagePlannerTests
         public ProviderCapabilitySet Capabilities { get; init; } =
             ProviderCapabilities.ForStashDb(new object());
 
-        public Task<ProviderCataloguePage> ReadPageAsync(
+        public Task<ProviderCatalogueAnswer> ReadPageAsync(
             ProviderCatalogueRequest request, CancellationToken ct)
         {
             PageReads++;
             Requests.Add(request);
             return Task.FromResult(
-                new ProviderCataloguePage(
-                    scenes,
-                    catalogueSize == 0 ? scenes.Count : catalogueSize,
-                    SizeIsLowerBound: false,
-                    LastPage: 1,
-                    rangeFrom,
-                    rangeTo));
+                ProviderCatalogueAnswer.Answered(
+                    new ProviderCataloguePage(
+                        scenes,
+                        catalogueSize == 0 ? scenes.Count : catalogueSize,
+                        SizeIsLowerBound: false,
+                        LastPage: 1,
+                        rangeFrom,
+                        rangeTo)));
         }
 
         public Task<int?> ReadCatalogueSizeAsync(
