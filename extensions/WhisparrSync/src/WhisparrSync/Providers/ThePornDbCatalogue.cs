@@ -115,7 +115,7 @@ internal sealed class ThePornDbCatalogue
 
     public ProviderCapabilitySet Capabilities { get; }
 
-    public async Task<ProviderCataloguePage> ReadPageAsync(
+    public async Task<ProviderCatalogueAnswer> ReadPageAsync(
         ProviderCatalogueRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -123,19 +123,19 @@ internal sealed class ThePornDbCatalogue
         var resolved = await ResolveProviderAsync(ct).ConfigureAwait(false);
         if (resolved is null)
         {
-            return EmptyPage;
+            return ProviderCatalogueAnswer.NotReached;
         }
 
         var scope = await ScopeForAsync(resolved, request, ct).ConfigureAwait(false);
         if (scope is null)
         {
-            return EmptyPage;
+            return ProviderCatalogueAnswer.NotReached;
         }
 
         var answered = await AskAsync(resolved, ScenesRoute, scope, ct).ConfigureAwait(false);
         if (answered is null)
         {
-            return EmptyPage;
+            return ProviderCatalogueAnswer.NotReached;
         }
 
         var scenes = new List<ProviderScene>();
@@ -156,13 +156,14 @@ internal sealed class ThePornDbCatalogue
 
         // The last page is the provider's own. Derived from the size it would offer pages past the
         // ceiling that silently re-serve the last one.
-        return new ProviderCataloguePage(
-            scenes,
-            size,
-            size >= CatalogueCeiling,
-            Math.Max(Number(meta, "last_page") ?? 1, 1),
-            Number(meta, "from") ?? 0,
-            Number(meta, "to") ?? 0);
+        return ProviderCatalogueAnswer.Answered(
+            new ProviderCataloguePage(
+                scenes,
+                size,
+                size >= CatalogueCeiling,
+                Math.Max(Number(meta, "last_page") ?? 1, 1),
+                Number(meta, "from") ?? 0,
+                Number(meta, "to") ?? 0));
     }
 
     public async Task<int?> ReadCatalogueSizeAsync(
@@ -359,11 +360,6 @@ internal sealed class ThePornDbCatalogue
     private static ProviderCatalogueRequest EdgeRequest(
         WhisparrEntityKind kind, string providerEntityId)
         => new(kind, providerEntityId, 1, 1, null, null, new Dictionary<string, string>());
-
-    // A read that answered nothing. The surface states this as a refusal rather than as a catalogue
-    // the provider lists nothing in.
-    private static ProviderCataloguePage EmptyPage { get; } =
-        new([], 0, SizeIsLowerBound: false, 1, 0, 0);
 
     private static IEnumerable<string> Candidates(string name, IReadOnlyList<string> aliases)
     {

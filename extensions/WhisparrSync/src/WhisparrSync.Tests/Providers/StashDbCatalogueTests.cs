@@ -75,7 +75,7 @@ public sealed class StashDbCatalogueTests
     {
         var (catalogue, _) = CatalogueOver(RecordedPage());
 
-        var page = await catalogue.ReadPageAsync(StudioPage(), TestCt);
+        var page = await PageFrom(catalogue, StudioPage(), TestCt);
 
         Assert.Equal(40, page.Scenes.Count);
         Assert.All(page.Scenes, scene => Assert.NotEmpty(scene.ProviderSceneId));
@@ -107,7 +107,7 @@ public sealed class StashDbCatalogueTests
     {
         var (catalogue, _) = CatalogueOver(RecordedPage());
 
-        var page = await catalogue.ReadPageAsync(StudioPage(), TestCt);
+        var page = await PageFrom(catalogue, StudioPage(), TestCt);
 
         var served = JsonDocument.Parse(ProbeFixtures.Read(FixtureName))
             .RootElement.GetProperty("response")
@@ -124,7 +124,7 @@ public sealed class StashDbCatalogueTests
         var (catalogue, _) = CatalogueOver(
             """{"data":{"queryScenes":{"count":3941,"scenes":[]}}}""");
 
-        var page = await catalogue.ReadPageAsync(StudioPage(), TestCt);
+        var page = await PageFrom(catalogue, StudioPage(), TestCt);
 
         Assert.Equal(3941, page.CatalogueSize);
         Assert.Empty(page.Scenes);
@@ -412,5 +412,16 @@ public sealed class StashDbCatalogueTests
             NullLogger.Instance);
 
         return (catalogue, handler);
+    }
+
+    // A page the provider really served. The answer carries none where nothing arrived, so a case
+    // about what a page projects states that a page arrived before reading one.
+    private static async Task<ProviderCataloguePage> PageFrom(
+        StashDbCatalogue catalogue, ProviderCatalogueRequest request, CancellationToken ct)
+    {
+        var answer = await catalogue.ReadPageAsync(request, ct);
+
+        Assert.NotNull(answer.Page);
+        return answer.Page;
     }
 }
