@@ -342,6 +342,18 @@ describe("the count line says whether its total is a count or a floor", () => {
   });
 });
 
+describe("the bound sentence names both counts at any size", () => {
+  it("names what the menu carries and what the source reported", () => {
+    expect(copy.facetMenuBound(25, 400)).toBe(
+      "This menu carries 25 of 400 values. The rest cannot be picked here.",
+    );
+  });
+
+  it("names both counts at one, so the wording assumes no plural", () => {
+    expect(copy.facetMenuBound(1, 2)).toContain("1 of 2");
+  });
+});
+
 describe("the selection count reads at zero, one and many", () => {
   it("names the number and nothing that has to agree with it", () => {
     // No noun after the number, which is the host selection bar's own wording, so there is no plural

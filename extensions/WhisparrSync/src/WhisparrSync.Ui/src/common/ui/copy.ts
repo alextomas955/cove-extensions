@@ -419,6 +419,16 @@ export function countLine(from: number, to: number, total: number, atCeiling: bo
   return `${String(from)}–${String(to)} of ${String(total)}${atCeiling ? "+" : ""}`;
 }
 
+/**
+ * What a menu carrying part of the source's list says at the control.
+ *
+ * The source decides how many values it serves for one read, so `reported` is the source's own
+ * figure and `shown` is what arrived.
+ */
+export function facetMenuBound(shown: number, reported: number): string {
+  return `This menu carries ${String(shown)} of ${String(reported)} values. The rest cannot be picked here.`;
+}
+
 /** How many scenes are ticked. */
 export function selectionCount(n: number): string {
   return n === 1 ? "1 selected" : `${String(n)} selected`;
