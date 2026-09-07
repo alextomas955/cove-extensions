@@ -1406,10 +1406,13 @@ export function Button({
   onClick: () => void;
   disabled?: boolean;
 }) {
+  // `focus:` and not `focus-visible:`: the host stylesheet declares no focus-visible ring utility,
+  // so that spelling contributes no declaration and paints nothing at all.
+  const focusRing = "focus:outline-none focus:ring-2 focus:ring-accent";
   const className =
     variant === "ghost"
-      ? "inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-secondary hover:border-accent/50 hover:bg-card-hover hover:text-foreground disabled:opacity-60"
-      : "inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60";
+      ? `inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-secondary hover:border-accent/50 hover:bg-card-hover hover:text-foreground disabled:opacity-60 ${focusRing}`
+      : `inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60 ${focusRing}`;
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={className}>
       {children}
