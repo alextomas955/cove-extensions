@@ -1869,6 +1869,7 @@
           "none",
           "didNotReachWhisparr",
           "instanceRefused",
+          "capabilityAbsentOnThisGeneration",
           "instanceOffersNoQualityProfile",
           "instanceOffersNoRootFolder",
           "whisparrHasNoEntryForScene"

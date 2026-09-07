@@ -7,6 +7,7 @@
  */
 import {
   ACTION_DID_NOT_REACH_WHISPARR,
+  CAP_UNAVAILABLE_ON_THIS_GENERATION,
   INSTANCE_OFFERS_NO_QUALITY_PROFILE,
   INSTANCE_OFFERS_NO_ROOT_FOLDER,
   INSTANCE_REFUSED,
@@ -86,13 +87,18 @@ export interface CardFailureLine {
  * The sentence each refusal reads as.
  *
  * Total by type, so a value added to the wire enum fails the typecheck here rather than falling
- * through to no line at all. The no-entry answer is muted because the instance reported an absence
- * rather than declining, which sends a reader somewhere different from every other value.
+ * through to no line at all. The two muted answers report an absence: the instance holds no entry
+ * for the scene, or the connected generation registers no role for the verb. Neither is the
+ * instance declining, and each sends a reader somewhere different from every other value.
  */
 const LINE_FOR: Record<MissingSceneActionRefusal, CardFailureLine | null> = {
   none: null,
   didNotReachWhisparr: { sentence: ACTION_DID_NOT_REACH_WHISPARR, kind: "error" },
   instanceRefused: { sentence: INSTANCE_REFUSED, kind: "error" },
+  capabilityAbsentOnThisGeneration: {
+    sentence: CAP_UNAVAILABLE_ON_THIS_GENERATION,
+    kind: "muted",
+  },
   instanceOffersNoQualityProfile: {
     sentence: INSTANCE_OFFERS_NO_QUALITY_PROFILE,
     kind: "error",
