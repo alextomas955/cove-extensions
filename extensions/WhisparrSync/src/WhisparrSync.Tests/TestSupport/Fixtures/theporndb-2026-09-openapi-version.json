@@ -1,0 +1,15 @@
+{
+  "recordedOn": "2026-09-06",
+  "recordedAgainst": "https://api.theporndb.net/openapi.json",
+  "documentVersion": "v3.24.745",
+  "note": "The version string the provider's own document carries. Read rather than transcribed: it moved from v3.24.738 to v3.24.744 to this value inside one phase, so a copy in prose goes stale between a plan and its execution.",
+  "info": {
+    "title": "ThePornDB",
+    "description": "API documentation for the ThePornDB API",
+    "contact": {
+      "name": "ThePornDB",
+      "url": "https://api.theporndb.net"
+    },
+    "version": "v3.24.745"
+  }
+}
