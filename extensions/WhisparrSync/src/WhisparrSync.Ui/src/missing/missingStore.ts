@@ -13,6 +13,7 @@ import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import { INITIAL_ASYNC_READ } from "../common/ui/asyncRegionLogic";
 import type { MissingEntityKind } from "./entityKindLogic";
 import { CARD_ACTION_AT_REST, type CardActionState, type CardVerb } from "./missingCardLogic";
+import { SELECTION_AT_REST, type SelectionOutcome } from "./missingSelectionLogic";
 
 /** Which entity a read was started for. */
 export interface MissingEntity {
@@ -40,6 +41,14 @@ export interface MissingState {
    * here has had no press.
    */
   readonly cardActions: Readonly<Record<string, CardActionState>>;
+  /**
+   * What the last press of the selection's own verb produced.
+   *
+   * One value rather than a map, because there is one selection per page. It carries an outcome and
+   * no scene identifiers: the run reports counts and names no scene, so a list here would be a
+   * second thing that grows with the page and answers nothing the outcome does not.
+   */
+  readonly bulk: SelectionOutcome;
 }
 
 /**
@@ -50,6 +59,7 @@ export const INITIAL_MISSING_STATE: MissingState = {
   read: INITIAL_ASYNC_READ,
   view: null,
   cardActions: {},
+  bulk: SELECTION_AT_REST,
 };
 
 export interface MissingStore {
@@ -69,6 +79,9 @@ export interface MissingStore {
   ) => void;
   /** The press produced no answer at all, so nothing is claimed about the instance. */
   cardActionFailed: (entity: MissingEntity, providerSceneId: string) => void;
+  beginBulk: (entity: MissingEntity) => void;
+  /** The route answered. A refusal keeps whatever is ticked, so the reader can press again. */
+  bulkSettled: (entity: MissingEntity, outcome: SelectionOutcome) => void;
 }
 
 /** Whether two entity references name the same entity. */
@@ -138,6 +151,10 @@ export function createMissingStore(): MissingStore {
         read: { reading: false, failed: false, hasContent: true },
         view: page,
         cardActions: onlyOnScreen(current.cardActions, page),
+
+        // Pruned beside the per-scene state, and for the same reason: a selection does not survive
+        // the page it was made on, so neither does what pressing its verb answered.
+        bulk: SELECTION_AT_REST,
       }));
     },
 
@@ -176,6 +193,16 @@ export function createMissingStore(): MissingStore {
         refusal: null,
         failed: true,
       }));
+    },
+
+    beginBulk(entity) {
+      if (!sameEntity(onScreen, entity)) return;
+      emit({ ...state, bulk: { kind: "inFlight" } });
+    },
+
+    bulkSettled(entity, outcome) {
+      if (!sameEntity(onScreen, entity)) return;
+      emit({ ...state, bulk: outcome });
     },
   };
 
