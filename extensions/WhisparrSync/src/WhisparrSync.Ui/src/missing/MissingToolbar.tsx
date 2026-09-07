@@ -12,11 +12,11 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { Chip, TextInput } from "@cove-extensions/ui-shared";
 
-import { ACTION_REFRESH } from "../common/ui/copy";
+import { ACTION_REFRESH, facetMenuBound } from "../common/ui/copy";
 import { OFF_SCREEN } from "../common/ui/offScreen";
 import type { MissingFacetMenu as FacetMenuView, MissingPageView } from "../wire/api";
 import type { MissingEntityKind } from "./entityKindLogic";
-import { facetMenuRows, isTypeAheadMenu, toggleFacetValue } from "./missingFacetLogic";
+import { facetMenuRows, menuIsBounded, toggleFacetValue } from "./missingFacetLogic";
 import { MissingFacetMenu, type MissingMenuRow } from "./MissingFacetMenu";
 import {
   MONITOR_ALL,
@@ -155,7 +155,7 @@ function MenuControl({
   rows,
   open,
   openTrigger,
-  typeAhead,
+  bound,
   onOpen,
   onClose,
   onPick,
@@ -166,7 +166,7 @@ function MenuControl({
   rows: readonly MissingMenuRow[];
   open: boolean;
   openTrigger: RefObject<HTMLElement | null>;
-  typeAhead?: { text: string; placeholder: string; onText: (text: string) => void } | null;
+  bound?: string | null;
   onOpen: (name: string, trigger: HTMLElement) => void;
   onClose: () => void;
   onPick: (value: string) => void;
@@ -190,7 +190,7 @@ function MenuControl({
           label={label}
           rows={rows}
           triggerRef={openTrigger}
-          typeAhead={typeAhead}
+          bound={bound}
           onPick={onPick}
           onClose={onClose}
         />
@@ -223,8 +223,7 @@ function FacetControl({
   onClose: () => void;
   onPick: (value: string) => void;
 }) {
-  const [typed, setTyped] = useState("");
-  const rows = facetMenuRows(menu, selected, typed);
+  const rows = facetMenuRows(menu, selected);
   const inForce =
     selected === null ? null : (menu.values.find((value) => value.value === selected) ?? null);
 
@@ -237,8 +236,8 @@ function FacetControl({
         rows={rows}
         open={open}
         openTrigger={openTrigger}
-        typeAhead={
-          isTypeAheadMenu(menu) ? { text: typed, placeholder: menu.label, onText: setTyped } : null
+        bound={
+          menuIsBounded(menu) ? facetMenuBound(menu.values.length, menu.reportedValueCount) : null
         }
         onOpen={onOpen}
         onClose={onClose}
