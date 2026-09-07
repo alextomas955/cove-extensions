@@ -844,7 +844,8 @@ public sealed class SafetyInvariantTests
                 WhisparrGeneration.V3,
                 new ResolvedProvider("https://stashdb.org/graphql", "a-key", 240),
                 statusReading,
-                exclusionReading),
+                exclusionReading,
+                MonitorAllIsExpressible: true),
             NullLogger.Instance,
             TestContext.Current.CancellationToken);
     }
