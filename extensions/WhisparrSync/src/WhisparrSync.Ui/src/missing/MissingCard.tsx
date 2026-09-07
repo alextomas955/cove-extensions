@@ -77,7 +77,7 @@ export function MissingCard({
   /** A selection is in progress, so every card shows its control rather than only the hovered one. */
   selecting?: boolean;
   /** Absent where the surface offers no selection, which draws no control rather than an inert one. */
-  onToggleSelect?: (options?: MultiSelectToggleOptions) => void;
+  onToggleSelect?: (options?: MultiSelectToggleOptions<string>) => void;
   /** What this card's own verbs are doing, and what the last press produced. */
   action?: CardActionState;
   /** Marks this scene wanted. Absent where the surface offers no verbs. */
@@ -220,7 +220,7 @@ function SelectionToggle({
 }: {
   selected: boolean;
   selecting: boolean;
-  onToggleSelect: (options?: MultiSelectToggleOptions) => void;
+  onToggleSelect: (options?: MultiSelectToggleOptions<string>) => void;
 }) {
   const revealed = selected || selecting ? "opacity-100" : "opacity-0 group-hover:opacity-100";
 
