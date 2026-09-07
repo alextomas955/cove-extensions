@@ -601,7 +601,9 @@ internal sealed class StashDbCatalogue
                 return ProviderSend.Nothing;
             }
 
-            return response.IsSuccessStatusCode ? Parse(answered) : ProviderSend.Refused;
+            return response.IsSuccessStatusCode
+                ? Parse(answered)
+                : ProviderSend.From(response.StatusCode);
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
         {

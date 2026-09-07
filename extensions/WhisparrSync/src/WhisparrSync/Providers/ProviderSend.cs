@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 
 namespace WhisparrSync.Providers;
@@ -20,4 +21,16 @@ internal readonly record struct ProviderSend(JsonElement? Body, bool WasDefinite
 
     /// <summary>The provider served <paramref name="body"/>.</summary>
     internal static ProviderSend Carrying(JsonElement body) => new(body, WasDefinite: true);
+
+    /// <summary>What a status outside the success range came back as.</summary>
+    /// <remarks>
+    /// A 4xx is the provider's own answer about the request. A 408, a 429 and every 5xx are the
+    /// shapes a proxy, a rate limiter and an overloaded host take, and the second attempt is what
+    /// those are for.
+    /// </remarks>
+    internal static ProviderSend From(HttpStatusCode status)
+        => (int)status is >= 400 and < 500
+            && status is not (HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests)
+                ? Refused
+                : Nothing;
 }
