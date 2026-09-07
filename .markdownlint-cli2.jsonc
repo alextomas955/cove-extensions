@@ -10,6 +10,9 @@
   // Lint only user-facing docs. .planning/** is internal research/spec; CLAUDE.md files are
   // AI-assistant instruction files (managed separately from product docs) — excluded from the
   // CI markdown-lint glob too.
+  // test-results/ holds Playwright's generated error-context.md artifacts. They are gitignored, but
+  // the linter still walks them, so any machine that has run the suite sees dozens of findings in
+  // files no one authored.
   "ignores": [
     "**/node_modules/**",
     "**/dist/**",
@@ -18,5 +21,6 @@
     "**/CLAUDE.md",
     "**/.claude/**",
     "**/e2e/fixtures/**",
+    "**/test-results/**",
   ],
 }

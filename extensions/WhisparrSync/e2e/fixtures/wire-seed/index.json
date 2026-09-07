@@ -1,0 +1,20 @@
+{
+  "/site/a0000000-0000-4000-8000-000000000001": "site-aurora.json",
+  "/site/a0000000-0000-4000-8000-000000000002": "site-borealis.json",
+  "/performer/c0000000-0000-4000-8000-000000000001": "performer-ava.json",
+  "/performer/c0000000-0000-4000-8000-000000000002": "performer-ivy.json",
+  "/performer/c0000000-0000-4000-8000-000000000003": "performer-mia.json",
+  "/scene/10000000-0000-4000-8000-000000000001": "scene-one.json",
+  "/scene/10000000-0000-4000-8000-000000000002": "scene-two.json",
+  "/scene/10000000-0000-4000-8000-000000000003": "scene-three.json",
+  "/scene/10000000-0000-4000-8000-0000000000b1": "scene-borealis.json",
+  "/movie/999001": "movie-differing-id.json",
+  "/movie/999002": "movie-duplicate-id.json",
+  "/scene/10000000-0000-4000-8000-000000000011": "scene-aurora-no-identity.json",
+  "/site/a0000000-0000-4000-8000-000000000003": "site-cirrus.json",
+  "/scene/10000000-0000-4000-8000-000000000021": "scene-cirrus.json",
+  "/site/a0000000-0000-4000-8000-000000000004": "site-echo.json",
+  "/scene/10000000-0000-4000-8000-000000000031": "scene-echo.json",
+  "/site/a0000000-0000-4000-8000-000000000005": "site-covers.json",
+  "/scene/10000000-0000-4000-8000-0000000000c1": "scene-cover.json"
+}

@@ -1,0 +1,242 @@
+{
+  "what": "what each Whisparr read path costs, per generation, in response bytes, retained bytes and outbound requests — with every figure naming the run, test class or artifact behind it",
+  "instanceVersion": "3.3.4.794",
+  "corpus": "generated per run (lib/wire-seed.mjs seedGeneratedScenes) — one studio, no credits, one cover per row",
+  "corpusSizes": [
+    12,
+    120
+  ],
+  "whatTheCorpusCanEstablish": "a corpus of tens or hundreds of rows establishes the SHAPE — a per-row constant agreeing across a tenfold change shows the figure carries no fixed term — and establishes nothing about absolute cost at a real library size",
+  "rows": [
+    {
+      "path": "videosToolbarSummary",
+      "generation": "v3",
+      "responseBytes": {
+        "perRow": 1528.22,
+        "atCorpusSize": 120,
+        "agreementAcrossSizes": 0.0038,
+        "source": "measured here, GET /api/v3/movie?excludeLocalCovers=true at both corpus sizes"
+      },
+      "retainedBytes": {
+        "perEntry": "≈650–790 B, against ≈3 230–3 390 B for the materialised wide rows",
+        "source": "WhisparrSync.Tests/SceneStatus/SummaryReadCostTests, at 10 000 and 100 000 elements"
+      },
+      "requestCount": {
+        "formula": "2 — one movie read plus one exclusion read, at any corpus size",
+        "measuredHere": 2,
+        "source": "asserted in WhisparrSync.Tests/SceneStatus/SummaryIndexEquivalenceTests; the count above is this run"
+      },
+      "qualification": "the read is still WHOLE-SET: the payload narrowed, the scope did not. Both columns grow with the Whisparr movie set — a constant factor of about five lower, not the absence of a ceiling"
+    },
+    {
+      "path": "videosToolbarSummary",
+      "generation": "v2",
+      "responseBytes": {
+        "perRow": null,
+        "source": null,
+        "why": "not measured — this run brings up one instance and it is the newer generation. The older generation has no movie entity to read, so there is no per-row movie figure to take"
+      },
+      "retainedBytes": {
+        "perEntry": null,
+        "source": null,
+        "why": "not measured — the set is synthesized from series and episode rows rather than bound from a movie array, so a per-movie-entry figure does not describe it"
+      },
+      "requestCount": {
+        "formula": "1 + 2N requests for N sites — the set is walked series -> episode -> episodefile",
+        "measuredHere": null,
+        "source": "WhisparrSync/Adapters/V2Adapter, stated in docs/ARCHITECTURE.md"
+      },
+      "qualification": "there is no narrow movie endpoint on this generation at all, and no reshaping on the extension side changes that — which is why the ceiling is stated per generation and not once"
+    },
+    {
+      "path": "perEntityCatalogue",
+      "generation": "v3",
+      "responseBytes": {
+        "perRow": 1578.32,
+        "atCorpusSize": 120,
+        "agreementAcrossSizes": 0.0042,
+        "source": "measured here, POST /api/v3/movie/bulk at both corpus sizes",
+        "siblingReadPerRow": {
+          "atSmallCorpus": 5.42,
+          "atLargeCorpus": 6.12,
+          "recordedNotAsserted": "the sibling read answers bare integer ids, so its per-row cost is the id's decimal width and grows logarithmically with the id space. Asserting agreement across a tenfold size change would be asserting the wrong thing; the row COUNT is asserted on it, which is what a truncated answer would fail"
+        }
+      },
+      "retainedBytes": {
+        "perEntry": null,
+        "source": null,
+        "why": "not measured — no in-process harness samples this path mid-read, and a figure with no measurement behind it is not written down"
+      },
+      "requestCount": {
+        "formula": "1 + ceil(k/1000) for k sibling ids",
+        "measuredHere": 2,
+        "source": "asserted exactly at and one past a chunk boundary in WhisparrSync.Tests/Api/BoundedReadLedgerTests"
+      },
+      "qualification": "bounded by the ENTITY rather than by the library, and the hydration loop is driven by the end of the id list rather than by a chunk count"
+    },
+    {
+      "path": "perEntityCatalogue",
+      "generation": "v2",
+      "responseBytes": {
+        "perRow": null,
+        "source": null,
+        "why": "the route does not exist on this generation"
+      },
+      "retainedBytes": {
+        "perEntry": null,
+        "source": null,
+        "why": "the route does not exist on this generation"
+      },
+      "requestCount": {
+        "formula": null,
+        "measuredHere": null,
+        "source": null,
+        "why": "the catalogue role is not implemented on this generation, so the path does not run at all"
+      },
+      "qualification": "capability is expressed by presence of the role interface; the older generation simply does not hold it"
+    },
+    {
+      "path": "singleScenePush",
+      "generation": "v3",
+      "responseBytes": {
+        "perRow": null,
+        "source": null,
+        "why": "not measured — the response is at most one row, so a per-row byte figure describes nothing that grows"
+      },
+      "retainedBytes": {
+        "perEntry": null,
+        "source": null,
+        "why": "not measured — the path binds at most one row, so there is no per-entry term to sample"
+      },
+      "requestCount": {
+        "formula": "0 whole-set movie reads and exactly 1 narrow read per scene",
+        "measuredHere": null,
+        "source": "WhisparrSync.Tests/Api/BoundedReadLedgerTests, asserted at 3 and at 30 scenes"
+      },
+      "qualification": "the positive narrow count is asserted beside the zero: a path that stopped asking Whisparr anything would satisfy the zero and answer every scene \"not added\""
+    },
+    {
+      "path": "bulkMarkWantedAdd",
+      "generation": "v3",
+      "responseBytes": {
+        "perRow": null,
+        "source": null,
+        "why": "the path issues writes; there is no row set to size"
+      },
+      "retainedBytes": {
+        "perEntry": null,
+        "source": null,
+        "why": "not measured — the loop holds one scene at a time, so there is no accumulating per-entry term"
+      },
+      "requestCount": {
+        "formula": "2 context reads PER SCENE plus 1 once, on top of the per-scene add itself",
+        "measuredHere": null,
+        "source": "WhisparrSync.Tests/Api/BoundedReadLedgerTests, measured at 3 scenes (7 reads) and 30 scenes (61), slope 2.00 per scene"
+      },
+      "qualification": "a fixed cost PER SCENE is O(library) in requests across a full sync. This milestone did not change it; memoising the root, tag and profile resolve across a batch is what would, and the sibling batch add already does exactly that (its count does not move with the scene count at all)"
+    },
+    {
+      "path": "librarySyncFanOut",
+      "generation": "both",
+      "responseBytes": {
+        "perRow": null,
+        "source": null,
+        "why": "a job fan-out issues no read of its own"
+      },
+      "retainedBytes": {
+        "perEntry": "≈556 B per parked fan-out unit",
+        "source": "WhisparrSync.Tests/Api/SyncFanOutCostTests, at 10 000 and 100 000 units"
+      },
+      "requestCount": {
+        "formula": "scene units capped at 64; entity units are one per studio and per performer",
+        "measuredHere": null,
+        "source": "WhisparrSync.Tests/Api/SyncFanOutCostTests — 66 units at both 1e6 and 1e7 scenes"
+      },
+      "qualification": "the SCENE fan-out no longer tracks the library; the ENTITY fan-out still does — on the order of 25 000 units at a million-scene library with ~5 000 studios and ~20 000 performers"
+    }
+  ],
+  "readings": [
+    {
+      "corpusSize": 12,
+      "paths": {
+        "videosToolbarSummary": [
+          {
+            "request": "GET /api/v3/movie?excludeLocalCovers=true",
+            "status": 200,
+            "rowShape": "object",
+            "rows": 12,
+            "bodyBytes": 18269,
+            "bytesPerRow": 1522.42
+          },
+          {
+            "request": "GET /api/v3/exclusions",
+            "status": 200,
+            "rowShape": "object",
+            "rows": 0,
+            "bodyBytes": 2,
+            "bytesPerRow": null
+          }
+        ],
+        "perEntityCatalogue": [
+          {
+            "request": "GET /api/v3/movie/listbystudioforeignid?studioForeignId=a0000000-0000-4000-8000-0000000000aa",
+            "status": 200,
+            "rowShape": "integerId",
+            "rows": 12,
+            "bodyBytes": 65,
+            "bytesPerRow": 5.42
+          },
+          {
+            "request": "POST /api/v3/movie/bulk",
+            "status": 200,
+            "rowShape": "object",
+            "rows": 12,
+            "bodyBytes": 18860,
+            "bytesPerRow": 1571.67
+          }
+        ]
+      }
+    },
+    {
+      "corpusSize": 120,
+      "paths": {
+        "videosToolbarSummary": [
+          {
+            "request": "GET /api/v3/movie?excludeLocalCovers=true",
+            "status": 200,
+            "rowShape": "object",
+            "rows": 120,
+            "bodyBytes": 183386,
+            "bytesPerRow": 1528.22
+          },
+          {
+            "request": "GET /api/v3/exclusions",
+            "status": 200,
+            "rowShape": "object",
+            "rows": 0,
+            "bodyBytes": 2,
+            "bytesPerRow": null
+          }
+        ],
+        "perEntityCatalogue": [
+          {
+            "request": "GET /api/v3/movie/listbystudioforeignid?studioForeignId=a0000000-0000-4000-8000-0000000000aa",
+            "status": 200,
+            "rowShape": "integerId",
+            "rows": 120,
+            "bodyBytes": 734,
+            "bytesPerRow": 6.12
+          },
+          {
+            "request": "POST /api/v3/movie/bulk",
+            "status": 200,
+            "rowShape": "object",
+            "rows": 120,
+            "bodyBytes": 189398,
+            "bytesPerRow": 1578.32
+          }
+        ]
+      }
+    }
+  ]
+}

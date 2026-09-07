@@ -114,4 +114,18 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The banned-symbol list is a compiler input, never executed: a project carrying no
+         BannedApiAnalyzers reference reads it as inert data and enforces nothing. It is anchored at
+         $(MSBuildThisFileDirectory) (the monorepo root), not a per-project relative literal, the same
+         anchoring the local Cove reference paths use. Only bans that hold for EVERY assembly here
+         belong in this file. The filesystem-mutation bans live in a project-local list beside
+         WhisparrSync: moving files is Renamer's entire purpose (~27 such calls), and a repo-wide
+         filesystem ban would fail that extension's build on its own reason for existing. A
+         project-local list is discovered by the file name BannedSymbols.<suffix>.txt, which is why
+         both reach the same compilation. -->
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+
 </Project>

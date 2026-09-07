@@ -1,0 +1,319 @@
+{
+  "what": "GET and POST /api/v3/movie/list answered verbatim and labelled, the excludeLocalCovers honour check decided three ways, what the instance's own document declares for all three paths, the four-part control on each verb, and bytes per row for every read that answered",
+  "instanceVersion": "3.3.4.794",
+  "seedSize": 9,
+  "corpus": "wholly synthetic (fixtures/wire-seed)",
+  "movieList": {
+    "get": {
+      "request": "GET /api/v3/movie/list",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyBytes": 47,
+      "elementCount": 9,
+      "label": "bareIds",
+      "evidence": "elements are number, not objects, so a row carries none of stashId/foreignId/itemType/monitored/hasFile",
+      "firstElement": 1,
+      "missingSummaryMembers": [
+        "stashId",
+        "foreignId",
+        "itemType",
+        "monitored",
+        "hasFile"
+      ]
+    },
+    "postEmptyBody": {
+      "request": "POST /api/v3/movie/list []",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyBytes": 2,
+      "elementCount": 0,
+      "label": "notServed",
+      "evidence": "answered an empty array, so it carries no element to classify",
+      "firstElement": null,
+      "missingSummaryMembers": [
+        "stashId",
+        "foreignId",
+        "itemType",
+        "monitored",
+        "hasFile"
+      ]
+    },
+    "postTwoForeignIds": {
+      "request": "POST /api/v3/movie/list [two seeded foreign ids]",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyBytes": 2923,
+      "elementCount": 2,
+      "label": "fullRows",
+      "evidence": "the first element carries 36 members; heavy members present [\"images\",\"alternateTitles\",\"ratings\",\"statistics\",\"searchCredits\"]; summary members missing []",
+      "firstElement": {
+        "title": "Aurora Scene One",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "aurora scene one",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "studioTitle": "Studio Aurora",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000001",
+        "path": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene One [10000000-0000-4000-8000-000000000001]",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene One [10000000-0000-4000-8000-000000000001]",
+        "runtime": 300,
+        "cleanTitle": "aurorasceneone",
+        "tmdbId": 0,
+        "foreignId": "10000000-0000-4000-8000-000000000001",
+        "stashId": "10000000-0000-4000-8000-000000000001",
+        "titleSlug": "10000000-0000-4000-8000-000000000001",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [
+          "c0000000-0000-4000-8000-000000000001"
+        ],
+        "performerNames": [
+          "Ava Bennett"
+        ],
+        "itemType": "scene",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 1
+      },
+      "missingSummaryMembers": []
+    }
+  },
+  "excludeLocalCovers": {
+    "label": "honoured",
+    "plainRead": {
+      "request": "/api/v3/movie",
+      "status": 200,
+      "rows": 9,
+      "bodyBytes": 12480,
+      "identities": [
+        "10000000-0000-4000-8000-000000000001",
+        "10000000-0000-4000-8000-000000000002",
+        "10000000-0000-4000-8000-000000000003",
+        "10000000-0000-4000-8000-000000000011",
+        "10000000-0000-4000-8000-000000000021",
+        "10000000-0000-4000-8000-000000000031",
+        "10000000-0000-4000-8000-0000000000c1",
+        "999001",
+        "999002"
+      ],
+      "images": {
+        "rowsCarryingTheMember": 9,
+        "entries": 1,
+        "entryMembers": [
+          "coverType",
+          "remoteUrl",
+          "url"
+        ]
+      }
+    },
+    "narrowedRead": {
+      "request": "/api/v3/movie?excludeLocalCovers=true",
+      "status": 200,
+      "rows": 9,
+      "bodyBytes": 12431,
+      "identities": [
+        "10000000-0000-4000-8000-000000000001",
+        "10000000-0000-4000-8000-000000000002",
+        "10000000-0000-4000-8000-000000000003",
+        "10000000-0000-4000-8000-000000000011",
+        "10000000-0000-4000-8000-000000000021",
+        "10000000-0000-4000-8000-000000000031",
+        "10000000-0000-4000-8000-0000000000c1",
+        "999001",
+        "999002"
+      ],
+      "images": {
+        "rowsCarryingTheMember": 9,
+        "entries": 1,
+        "entryMembers": [
+          "coverType",
+          "remoteUrl"
+        ]
+      }
+    },
+    "plainReadRepeatedAfter": {
+      "request": "/api/v3/movie",
+      "status": 200,
+      "rows": 9,
+      "bodyBytes": 12480,
+      "identities": [
+        "10000000-0000-4000-8000-000000000001",
+        "10000000-0000-4000-8000-000000000002",
+        "10000000-0000-4000-8000-000000000003",
+        "10000000-0000-4000-8000-000000000011",
+        "10000000-0000-4000-8000-000000000021",
+        "10000000-0000-4000-8000-000000000031",
+        "10000000-0000-4000-8000-0000000000c1",
+        "999001",
+        "999002"
+      ],
+      "images": {
+        "rowsCarryingTheMember": 9,
+        "entries": 1,
+        "entryMembers": [
+          "coverType",
+          "remoteUrl",
+          "url"
+        ]
+      }
+    },
+    "plainReadIsStableAcrossTwoReads": true,
+    "identitySetsAgree": true,
+    "byteDelta": -49
+  },
+  "declaredByTheInstance": {
+    "movieList": {
+      "path": "/api/v3/movie/list",
+      "declared": true,
+      "verbs": [
+        "get",
+        "post"
+      ]
+    },
+    "offPathRoutes": [
+      {
+        "path": "/api/v3/movie/paged",
+        "declared": true,
+        "verbs": [
+          "post"
+        ]
+      },
+      {
+        "path": "/api/v3/movie/stats",
+        "declared": true,
+        "verbs": [
+          "get"
+        ]
+      }
+    ],
+    "agreesWithTheLiveCalls": true
+  },
+  "filterControl": {
+    "getVerb": {
+      "passedParts": [
+        1,
+        4
+      ],
+      "failedParts": [
+        2,
+        3
+      ],
+      "parts": [
+        {
+          "part": 1,
+          "name": "the seeded set is the asserted size and holds at least 3 rows",
+          "passed": true,
+          "detail": "expected 9 (>= 3), instance reports 9"
+        },
+        {
+          "part": 2,
+          "name": "a present id returns exactly the rows that id selects, by identity",
+          "passed": false,
+          "detail": "asked for 10000000-0000-4000-8000-000000000001, wanted identities [\"1\"], got 9 row(s) with identities [\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\"]"
+        },
+        {
+          "part": 3,
+          "name": "a well-formed but absent id returns zero rows",
+          "passed": false,
+          "detail": "asked for 10000000-0000-4000-8000-0000000000ff, got 9 row(s)"
+        },
+        {
+          "part": 4,
+          "name": "an unrecognised parameter returns the whole set",
+          "passed": true,
+          "detail": "got 9 row(s), whole set is 9"
+        }
+      ]
+    },
+    "postVerb": {
+      "passedParts": [
+        1,
+        2,
+        3
+      ],
+      "failedParts": [
+        4
+      ],
+      "parts": [
+        {
+          "part": 1,
+          "name": "the seeded set is the asserted size and holds at least 3 rows",
+          "passed": true,
+          "detail": "expected 9 (>= 3), instance reports 9"
+        },
+        {
+          "part": 2,
+          "name": "a present id returns exactly the row asked for, by identity",
+          "passed": true,
+          "detail": "asked for 10000000-0000-4000-8000-000000000001, wanted identities [\"10000000-0000-4000-8000-000000000001\"], got 1 row(s) with identities [\"10000000-0000-4000-8000-000000000001\"]"
+        },
+        {
+          "part": 3,
+          "name": "a well-formed but absent id returns zero rows",
+          "passed": true,
+          "detail": "asked for 10000000-0000-4000-8000-0000000000ff, got 0 row(s)"
+        },
+        {
+          "part": 4,
+          "name": "an unrecognised parameter returns the whole set",
+          "passed": false,
+          "detail": "got 0 row(s), whole set is 9"
+        }
+      ]
+    }
+  },
+  "costPerRow": {
+    "plainMovieIndex": {
+      "rows": 9,
+      "bodyBytes": 12480,
+      "bytesPerRow": 1386.67
+    },
+    "movieIndexWithoutLocalCovers": {
+      "rows": 9,
+      "bodyBytes": 12431,
+      "bytesPerRow": 1381.22
+    },
+    "getMovieList": {
+      "rows": 9,
+      "bodyBytes": 47,
+      "bytesPerRow": 5.22
+    },
+    "postMovieListByForeignIds": {
+      "rows": 2,
+      "bodyBytes": 2923,
+      "bytesPerRow": 1461.5
+    },
+    "exclusionSet": {
+      "rows": 0,
+      "bodyBytes": 2
+    }
+  },
+  "whyTheOtherShapesDoNotServeTheSummary": {
+    "bareIds": "an id carries neither the monitored flag nor the file flag, so a summary built from ids would have to hydrate every one of them — the same rows in more requests",
+    "byForeignIdsBatch": "a by-foreign-ids POST needs the id list up front, and the summary has none: it counts Cove videos, so producing that list means one id per Cove video"
+  },
+  "decision": {
+    "summaryRead": "streamedMovieIndex",
+    "sendExcludeLocalCovers": true
+  }
+}

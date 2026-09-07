@@ -8,24 +8,15 @@
  * Focus treatment uses Cove's convention `focus:border-accent focus:outline-none` — NOT the
  * `focus-visible:ring-*` utilities, which the host stylesheet does not emit (so they would do nothing).
  *
- * Import audit (checked directly against `@cove/runtime/components`, not assumed): none of its
- * exports are a drop-in for these primitives. `SettingsPrimitives.tsx` — the host's own field/
- * control set these mirror — is never re-exported to extensions at all; only three host-internal
- * pages import it directly. The barrel offers entity-browsing (`ListPage`, `VideoCard`,
- * `DetailListToolbar`, `Pager`), dialog (`ConfirmDialog`, `EditModal`), and formatting
- * (`TagBadge`, `formatDuration`, `formatFileSize`, `formatDate`, `getResolutionLabel`,
- * `CustomFieldsDisplay`/`Editor`) utilities, none of which overlap a settings-field primitive's
- * shape. `TagBadge` is a tag/label pill with color and provenance — this codebase's status pills
- * (`WarningBadge.tsx`) key off a rename-status enum instead, a different concept, not a swap.
- * `formatDuration`/`formatFileSize`/`formatDate`/`getResolutionLabel` have no local counterpart
- * anywhere in this directory: nothing here renders a raw duration, file size, or date value, and
- * `CustomFieldsDisplay`/`Editor` render Cove's custom-fields feature, which this extension has no
- * UI for. The bare `react`/`react-dom`/`lucide-react`/`@tanstack/react-query` import specifiers
- * used throughout this codebase are not a migration gap either: the host's `legacySpecifiers`
- * alias table (`extension-runtime-contract.ts`) resolves each of them to the identical runtime-
- * injected module `@cove/runtime/react` etc. resolve to, so there is no behavior difference and no
- * reason to change the specifier string. See `Dialog.tsx`'s header for why `ConfirmDialog` isn't a
- * swap for `Dialog` either.
+ * Why these are local copies rather than host imports: `@cove/runtime/components` exports
+ * entity-browsing, dialog and formatting helpers, but never `SettingsPrimitives.tsx` — the host's
+ * own field/control set, which is what these mirror. Nothing in the barrel has a settings-field
+ * primitive's shape, so there is no export to take instead. See `Dialog.tsx`'s header for the same
+ * question about `ConfirmDialog`.
+ *
+ * The bare `react`/`react-dom`/`lucide-react`/`@tanstack/react-query` specifiers used here are not
+ * a migration gap: the host's `legacySpecifiers` alias table (`extension-runtime-contract.ts`)
+ * resolves each to the same runtime-injected module the `@cove/runtime/*` form resolves to.
  */
 import type { CSSProperties, ReactNode } from "react";
 import { useId, useRef, useState, useEffect } from "react";

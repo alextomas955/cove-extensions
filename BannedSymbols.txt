@@ -1,0 +1,14 @@
+P:System.DateTime.Now;Read the clock as DateTimeOffset.UtcNow — a local-time reading is not comparable across hosts and jumps at a DST boundary.
+M:System.Threading.Tasks.Task.Wait;Await the task. Blocking a thread on it deadlocks the host under its synchronization context.
+M:System.Threading.Tasks.Task.Wait(System.Int32);Await the task. Blocking a thread on it deadlocks the host under its synchronization context.
+M:System.Threading.Tasks.Task.Wait(System.Int32,System.Threading.CancellationToken);Await the task. Blocking a thread on it deadlocks the host under its synchronization context.
+M:System.Threading.Tasks.Task.Wait(System.Threading.CancellationToken);Await the task. Blocking a thread on it deadlocks the host under its synchronization context.
+M:System.Threading.Tasks.Task.Wait(System.TimeSpan);Await the task. Blocking a thread on it deadlocks the host under its synchronization context.
+M:System.Threading.Tasks.Task.Wait(System.TimeSpan,System.Threading.CancellationToken);Await the task. Blocking a thread on it deadlocks the host under its synchronization context.
+M:System.Runtime.CompilerServices.TaskAwaiter.GetResult;Await the task. Blocking a thread on it deadlocks the host under its synchronization context, and an awaiter reached in source is that same block with the Task.Wait name filed off.
+M:System.Runtime.CompilerServices.TaskAwaiter`1.GetResult;Await the task. Blocking a thread on it deadlocks the host under its synchronization context, and an awaiter reached in source is that same block with the Task.Wait name filed off.
+M:System.Runtime.CompilerServices.ValueTaskAwaiter.GetResult;Await the task. Blocking a thread on it deadlocks the host under its synchronization context, and an awaiter reached in source is that same block with the Task.Wait name filed off.
+M:System.Runtime.CompilerServices.ValueTaskAwaiter`1.GetResult;Await the task. Blocking a thread on it deadlocks the host under its synchronization context, and an awaiter reached in source is that same block with the Task.Wait name filed off.
+P:System.Threading.Tasks.Task`1.Result;Await the task. Blocking a thread on it deadlocks the host under its synchronization context.
+P:System.Threading.Tasks.ValueTask`1.Result;Await the value task. Reading Result before it completes is undefined, and a value task may be consumed only once.
+T:Microsoft.Data.Sqlite.SqliteConnection;Cove's database is written only through CoveContext and SaveChangesAsync — a direct connection is schema-fragile and corrupts the library.

@@ -1,0 +1,75 @@
+{
+  "data": {
+    "queryScenes": {
+      "count": 390,
+      "scenes": [
+        {
+          "id": "019f3391-e257-7dd7-8c79-e399f2ad6ca5",
+          "title": "Tushy Raw Scene 1",
+          "release_date": "2024-01-05",
+          "details": "A synthetic scene blurb used only to pin the overview mapping.",
+          "studio": {
+            "id": "be4be46f-692f-4509-ba23-90a96abf0b16",
+            "name": "Tushy Raw"
+          },
+          "images": [
+            { "url": "https://cdn.example.test/screenshot/1.jpg" }
+          ],
+          "performers": [
+            {
+              "performer": {
+                "id": "019f3392-0001-7dd7-8c79-e399f2ad6c01",
+                "name": "Performer One",
+                "images": [{ "url": "https://cdn.example.test/performer/1.jpg" }]
+              }
+            },
+            {
+              "performer": {
+                "id": "019f3392-0002-7dd7-8c79-e399f2ad6c02",
+                "name": "Performer Two",
+                "images": []
+              }
+            }
+          ],
+          "tags": [
+            { "id": "019f3393-0001-7dd7-8c79-e399f2ad6d01", "name": "Tag Alpha" },
+            { "id": "019f3393-0002-7dd7-8c79-e399f2ad6d02", "name": "Tag Beta" }
+          ]
+        },
+        {
+          "id": "019f3391-e257-7dd7-8c79-e399f2ad6ca6",
+          "title": "Tushy Raw Scene 2",
+          "release_date": "2024-02-09",
+          "studio": {
+            "id": "be4be46f-692f-4509-ba23-90a96abf0b16",
+            "name": "Tushy Raw"
+          },
+          "images": [
+            { "url": "https://cdn.example.test/screenshot/2.jpg" }
+          ],
+          "performers": [
+            {
+              "performer": {
+                "id": "019f3392-0003-7dd7-8c79-e399f2ad6c03",
+                "name": "Performer Three"
+              }
+            }
+          ],
+          "tags": []
+        },
+        {
+          "id": "019f3391-e257-7dd7-8c79-e399f2ad6ca7",
+          "title": "Tushy Raw Scene 3",
+          "release_date": "2024-03-14",
+          "studio": {
+            "id": "be4be46f-692f-4509-ba23-90a96abf0b16",
+            "name": "Tushy Raw"
+          },
+          "images": [],
+          "performers": [],
+          "tags": []
+        }
+      ]
+    }
+  }
+}

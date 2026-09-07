@@ -1,0 +1,19 @@
+M:System.IO.File.Move(System.String,System.String);Import is in place: Whisparr owns the bytes under its roots and a scene file never travels. Cove records the path where Whisparr left it.
+M:System.IO.File.Move(System.String,System.String,System.Boolean);Import is in place: Whisparr owns the bytes under its roots and a scene file never travels. Cove records the path where Whisparr left it.
+M:System.IO.File.Delete(System.String);Import is in place: a scene Cove should forget is dropped from the library, never from disk. Whisparr still tracks the file it grabbed.
+M:System.IO.File.Copy(System.String,System.String);Import is in place: a second copy under a Whisparr root reads back as another release on the next rescan.
+M:System.IO.File.Copy(System.String,System.String,System.Boolean);Import is in place: a second copy under a Whisparr root reads back as another release on the next rescan.
+M:System.IO.File.Replace(System.String,System.String,System.String);Import is in place: overwriting a file Whisparr owns destroys the bytes it tracks for that release.
+M:System.IO.File.Replace(System.String,System.String,System.String,System.Boolean);Import is in place: overwriting a file Whisparr owns destroys the bytes it tracks for that release.
+M:System.IO.Directory.Move(System.String,System.String);Import is in place: relocating a scene folder invalidates the path Whisparr recorded for the release.
+M:System.IO.Directory.Delete(System.String);Import is in place: removing a scene folder invalidates the path Whisparr recorded for the release.
+M:System.IO.Directory.Delete(System.String,System.Boolean);Import is in place: removing a scene folder invalidates the path Whisparr recorded for the release.
+M:System.IO.Directory.CreateDirectory(System.String);Import is in place: Whisparr lays out its own scene folders, and one created here is a layout the folder-overlap advisory cannot account for.
+M:System.IO.Directory.CreateDirectory(System.String,System.IO.UnixFileMode);Import is in place: Whisparr lays out its own scene folders, and one created here is a layout the folder-overlap advisory cannot account for.
+M:System.IO.FileInfo.MoveTo(System.String);Import is in place: the root guard constructs a FileInfo to resolve a symlink, and relocation through that handle is the same forbidden move.
+M:System.IO.FileInfo.MoveTo(System.String,System.Boolean);Import is in place: the root guard constructs a FileInfo to resolve a symlink, and relocation through that handle is the same forbidden move.
+M:System.IO.FileInfo.Delete;Import is in place: the root guard constructs a FileInfo to resolve a symlink, and removal through that handle is the same forbidden delete.
+M:System.IO.DirectoryInfo.MoveTo(System.String);Import is in place: the root guard constructs a DirectoryInfo to resolve a symlink, and relocation through that handle is the same forbidden move.
+M:System.IO.DirectoryInfo.Delete;Import is in place: the root guard constructs a DirectoryInfo to resolve a symlink, and removal through that handle is the same forbidden delete.
+M:System.IO.DirectoryInfo.Delete(System.Boolean);Import is in place: the root guard constructs a DirectoryInfo to resolve a symlink, and removal through that handle is the same forbidden delete.
+M:Cove.Extensions.Shared.ExtensionOptionsStore`1.SaveAsync(`0,System.Threading.CancellationToken);A blind write of the whole options record reverts every field a concurrent writer changed between the caller's load and the save. This assembly writes options only through the gated read-modify-write, ExtensionOptionsStore.UpdateAsync.

@@ -1,0 +1,236 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- An xUnit v3 test project is a self-hosting Microsoft Testing Platform executable. -->
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <!-- inherits net10.0 / nullable / implicitusings from Directory.Build.props -->
+    <!-- a test project is never a Cove plugin: neutralize the inherited dynamic-loading flag -->
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+    <!--
+      A test project is NOT a deployed plugin: it must RUN, so it needs its full runtime closure copied
+      local (and — on the cove-ABSENT CI path — the Cove.Plugins NuGet assembly FakeStore references).
+      On that path WhisparrSync.csproj's transitive Cove.Sdk PackageReference imports Cove.Sdk.targets,
+      whose CoveStripHostProvidedCopyLocal target would strip Cove.Plugins.dll from THIS project's output
+      too — making xUnit fail to reflect over the assembly at runtime. Empty the host-provided denylist
+      here so nothing is stripped. The value must be NON-EMPTY (Cove.Sdk.targets re-applies its full
+      default denylist when the property is empty); a sentinel matching no real assembly name disables the
+      strip without re-triggering the default.
+    -->
+    <CoveHostProvidedAssemblies>;__whisparrsync_tests_no_strip__;</CoveHostProvidedAssemblies>
+    <!--
+      CA1716: the linked shared fakes (Testing.Cove/*.cs, LinkBase="TestSupport\Shared") declare the
+      Cove.Extensions.Shared.Testing namespace, whose "Shared" segment is a VB reserved keyword. These are
+      C#-only test types never consumed from VB, so the rule does not apply — mirror the suppression on the
+      Cove.Extensions.Shared(.Testing) projects. Fires here because linked files compile INTO this assembly.
+    -->
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <!--
+      TEST-ONLY: TransportSmokeTests mounts the extension's MapEndpoints in an in-process
+      WebApplication/TestServer to cover the real minimal-API transport boundary. On nuget.org; the
+      smoke file itself is cove-present (Compile-Removed on the bare leg with the other endpoint tests).
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <!--
+      TEST-ONLY runtime closure: EndpointAuthTests instantiates the FullExtensionBase subclass, whose type
+      surface (IDataExtension.ConfigureModel(ModelBuilder)) references EF Core. Cove.Sdk marks EF Core as
+      host-provided (ExcludeAssets=runtime), so it is not copied to consumers — xUnit then fails to load the
+      type at reflection time ("Could not load file or assembly 'Microsoft.EntityFrameworkCore'"). Add the
+      base EF Core assembly here with runtime copy ENABLED. Binary-compatible within the host's 10.0.x line
+      (EF Core patch releases are ABI-stable). Never part of the deployed WhisparrSync.dll (IsPackable=false).
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <!--
+      TEST-ONLY: the CoveLibraryPort integration tier stands up a real CoveContext on SQLite-in-memory
+      (relational fidelity + EnsureCreatedAsync). First-party Microsoft package in the same 10.0.x line
+      as the base EF Core above; runtime-copy enabled (a test project must RUN). Never part of the
+      deployed WhisparrSync.dll (IsPackable=false). EF Core patch releases are binary-compatible.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <!--
+      No code here touches the native SQLite library — EF Core's SQLite provider pulls it in transitively.
+      The reference exists so the Directory.Packages.props version applies at all: central package
+      management leaves a transitive at whatever version resolution picks unless some project references
+      it directly, and every version below 2.1.12 carries a high-severity advisory.
+    -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The captured StashDB queryScenes + ThePornDB /scenes shapes are copied beside the test assembly so the
+         pinned-shape L0 tests (the codegen substitute) read them from the output dir. Content-safe: SFW
+         allowlisted ids, no key/token. -->
+    <None Include="TestSupport\fixtures\stashdb-queryScenes-studio.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="TestSupport\fixtures\tpdb-scenes-site.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="TestSupport\fixtures\tpdb-scenes-performer.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The live instance's own OpenAPI route keys, recorded by the e2e wire measurement and read here so the
+         capability decision's positive case and the answer read off the instance cannot drift apart. -->
+    <None Include="..\..\e2e\fixtures\wire\openapi-capability.json"
+          Link="fixtures\openapi-capability.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <!-- Shared host-free test fakes (FakeStore/ConcurrentFakeStore) live in the Testing project, and the
+         host-dependent fakes (FakePrincipalAccessor/CoveContextFactory) are linked in below — both in the
+         Cove.Extensions.Shared.Testing namespace. Import it globally so consumers resolve the types without
+         a per-file using. Always resolves: the namespace has at least the Testing-project types on both legs. -->
+    <Using Include="Cove.Extensions.Shared.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- reference the extension's CODE; tests run pure logic (no live Whisparr, no host). Always resolves. -->
+    <ProjectReference Include="..\WhisparrSync\WhisparrSync.csproj" />
+    <!-- host-FREE shared test fakes (FakeStore/ConcurrentFakeStore over Cove.Plugins only). UNCONDITIONAL:
+         it builds against nuget Cove.Plugins on the bare CI leg too. -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing\Cove.Extensions.Shared.Testing.csproj" />
+    <!--
+      TEST-ONLY: CovePrincipal / ICurrentPrincipalAccessor / Permissions live in Cove.Core. Cove.Core IS
+      published (it arrives transitively as Cove.Sdk -> Cove.Plugins -> Cove.Core), so these types resolve
+      even with no checkout on disk; the reference is here so a local build compiles against the same
+      source the running host was built from rather than a package that may lag it. Cove.Data is the one
+      that genuinely is not published — see its own reference below.
+      Consequence for the group at the bottom of this file: for a test whose only cove types come from
+      Cove.Core, Compile-Remove is a CONVENTION that keeps the checkout-free leg a pure smoke, not a
+      compile necessity — that leg builds with such a test left in. Only a Cove.Data dependency makes the
+      removal load-bearing. Do not justify an entry there by claiming the type is unavailable.
+    -->
+    <ProjectReference Include="$(CoveCoreProjectPath)" Condition="Exists('$(CoveCoreProjectPath)')" />
+    <!--
+      TEST-ONLY: CoveContext lives in Cove.Data (SOURCE-ONLY, NOT on nuget.org). The CoveLibraryPort
+      integration tier constructs it over SQLite-in-memory. Exists(...)-guarded like the Cove.Core ref
+      above: with the cove monorepo checked out beside this repo the ref resolves and the integration
+      tier compiles + runs locally; on a bare CI runner with no cove checkout it drops out and the
+      cove-referencing sources below are Compile-Removed, leaving the pure-unit tier.
+    -->
+    <ProjectReference Include="$(CoveDataProjectPath)" Condition="Exists('$(CoveDataProjectPath)')" />
+  </ItemGroup>
+
+  <!--
+    HOST-DEPENDENT shared test fakes: FakePrincipalAccessor (Cove.Core auth) + CoveContextFactory (Cove.Data).
+    They live in a source-only sibling dir with NO csproj and are pulled in as ordinary per-project Compile
+    items — NOT a conditional ProjectReference (IDEs don't fully respect reference conditions; msbuild#5410).
+    Guarded by the SAME Cove.Core Exists() key this project already uses for its cove ProjectReference, so
+    they are present ONLY when the cove source is on disk. On a bare CI runner the condition is false, the
+    files simply drop out, and their consumers are already Compile-Removed above — the pure-unit tier compiles.
+  -->
+  <ItemGroup Condition="Exists('$(CoveCoreProjectPath)')">
+    <Compile Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing.Cove\*.cs"
+             LinkBase="TestSupport\Shared" />
+  </ItemGroup>
+
+  <!--
+    COVE-ABSENT (CI) RUNTIME DEP: when cove is NOT on disk the cove ProjectReference above drops out, so
+    Cove.Plugins (which FakeStore.cs references via IExtensionStore) is no longer supplied transitively at
+    runtime. Cove.Plugins IS on nuget.org, so add it here with runtime copy ENABLED — guarded by the SAME
+    !Exists key so it is INACTIVE locally and ACTIVE on a bare CI runner.
+  -->
+  <ItemGroup Condition="!Exists('$(CoveCoreProjectPath)')">
+    <PackageReference Include="Cove.Plugins" />
+  </ItemGroup>
+
+  <!--
+    COVE-ABSENT (CI) UNIT-TIER COMPILE SET: every source file that references a Cove.Core auth type
+    (CovePrincipal / Permissions) or a real CoveContext (Cove.Data) is Compile-Removed on a bare runner,
+    leaving only the pure-unit tier (StatusProjectionTests over FakeHttpMessageHandler, FakeStore over
+    Cove.Plugins). INACTIVE locally (cove present → all files compile). The shared FakePrincipalAccessor
+    and CoveContextFactory are NOT listed here: they live in the source-only Testing.Cove dir and are
+    pulled in by the positive Exists()-guarded Compile Include below (present only when cove is), so no
+    Compile Remove for them is needed on this leg.
+  -->
+  <ItemGroup Condition="!Exists('$(CoveCoreProjectPath)')">
+    <!-- TransportSmokeTests boots the extension in a TestServer with a CovePrincipal + FakePrincipalAccessor (Cove.Core auth types) → drops out on a bare CI runner. -->
+    <Compile Remove="Api\TransportSmokeTests.cs" />
+    <!-- ExtensionRouteHost is that boot, shared with the route-tier guard; it seeds a FakePrincipalAccessor
+         with a CovePrincipal (Cove.Core auth types) → drops out on a bare CI runner with both consumers. -->
+    <Compile Remove="TestSupport\ExtensionRouteHost.cs" />
+    <!-- RouteAccessTierTests reads the registered route table through that boot → drops out with it. The
+         tier declarations it asserts are still compiled into the extension itself on this leg. -->
+    <Compile Remove="Api\RouteAccessTierTests.cs" />
+    <!-- EndpointTestSupport is the shared preamble for the endpoint-permission tests below; its only consumers
+         are the Compile-Removed auth-test files, so it drops out on a bare CI runner with them. -->
+    <Compile Remove="TestSupport\EndpointTestSupport.cs" />
+    <!-- EntityCatalogueCapabilityTests drives the discovery handler through EndpointTestSupport's extension
+         boot → drops out on a bare CI runner with it. -->
+    <Compile Remove="Adapters\EntityCatalogueCapabilityTests.cs" />
+    <!-- ListCacheKeyTests drives the entity-summary and scene-detail handlers through that same boot → drops
+         out on a bare CI runner with it. -->
+    <Compile Remove="Caching\ListCacheKeyTests.cs" />
+    <!-- EndpointAuthTests injects a FakePrincipalAccessor (Cove.Core auth types) → drops out on a bare CI runner. -->
+    <Compile Remove="Api\Auth\EndpointAuthTests.cs" />
+    <!-- WebhookEndpointTests injects a FakePrincipalAccessor (Cove.Core auth types) → drops out on a bare CI runner. -->
+    <Compile Remove="Api\WebhookEndpointTests.cs" />
+    <!-- ImportLogEndpointAuthTests injects a FakePrincipalAccessor + a fake IJobService (Cove.Core types) → drops out on a bare CI runner. -->
+    <Compile Remove="Api\Auth\ImportLogEndpointAuthTests.cs" />
+    <!-- WebhookHealthRecordTests drives the receiver through an IngestCoordinator over a fake IScanService (a Cove.Core.Interfaces type) → drops out on a bare CI runner. The pure classifier facts beside it in State are cove-free and stay compiled. -->
+    <Compile Remove="Api\Auth\WebhookHealthRecordTests.cs" />
+    <!-- The folder-overlap endpoint tier injects a FakePrincipalAccessor + drives the /folder-overlap endpoint (Cove.Core types) → drops out on a bare CI runner. The pure detector tier beside it is cove-free and stays compiled. -->
+    <Compile Remove="Safety\FolderOverlapEndpointTests.cs" />
+    <!-- The endpoint-permission + batch-endpoint tier all inject a FakePrincipalAccessor (Cove.Core auth types) → drops out on a bare CI runner. -->
+    <Compile Remove="Api\MonitorEndpointTests.cs" />
+    <!-- PushEndpointConfigGuardTests seeds a real CoveContext (Cove.Data) and injects a FakePrincipalAccessor (Cove.Core auth types) → drops out on a bare CI runner. -->
+    <Compile Remove="Api\PushEndpointConfigGuardTests.cs" />
+    <!-- PushReadCountTests seeds a real CoveContext (Cove.Data) so each handler reaches its movie read → drops out on a bare CI runner. The pure SyncLibraryReadCountTests beside it is cove-free and stays compiled. -->
+    <Compile Remove="Api\PushReadCountTests.cs" />
+    <!-- SyncLibraryEndpointTests injects a FakePrincipalAccessor + a fake IJobService (Cove.Core types) → drops out on a bare CI runner. The pure SyncLibraryJobTests is cove-free and stays compiled. -->
+    <Compile Remove="Api\SyncLibraryEndpointTests.cs" />
+    <!-- SyncFanOutCostTests drives the real RunBatchAsync through an IJobService/IJobProgress implementation
+         (Cove.Core.Interfaces types) → drops out on a bare CI runner, like the scheduler tier that fakes the
+         same seam. -->
+    <Compile Remove="Api\SyncFanOutCostTests.cs" />
+    <Compile Remove="Api\Auth\MonitorEndpointAuthTests.cs" />
+    <Compile Remove="Api\Auth\SceneEndpointAuthTests.cs" />
+    <Compile Remove="Api\Auth\SceneMutationEndpointAuthTests.cs" />
+    <Compile Remove="Api\Auth\SceneActionEndpointAuthTests.cs" />
+    <Compile Remove="Api\Auth\DiscoveryEndpointAuthTests.cs" />
+    <!-- DiscoveryActionEndpointTests rides EndpointTestSupport + a FakePrincipalAccessor (Cove.Core auth types) → drops out on a bare CI runner. -->
+    <Compile Remove="Discovery\DiscoveryActionEndpointTests.cs" />
+    <!-- ActivityReadOnlyTests injects a FakePrincipalAccessor (Cove.Core auth types) to prove the read-only + configure gate → drops out on a bare CI runner. -->
+    <Compile Remove="Activity\ActivityReadOnlyTests.cs" />
+    <Compile Remove="Api\Batch\EntitiesBatchEndpointTests.cs" />
+    <Compile Remove="Api\Batch\EntityStatusBatchEndpointTests.cs" />
+    <Compile Remove="Api\Batch\SceneStatusBatchEndpointTests.cs" />
+    <Compile Remove="Api\Auth\VideosBatchEndpointAuthTests.cs" />
+    <!-- BackgroundScopeSystemTests drives the RunAsSystem seam with a CovePrincipal-gated port (Cove.Core auth types) → drops out on a bare CI runner. -->
+    <Compile Remove="Batch\BackgroundScopeSystemTests.cs" />
+    <!-- The library-port integration tier stands up a real CoveContext (Cove.Data) via CoveContextFactory → drops out on a bare CI runner. -->
+    <Compile Remove="Library\CoveLibraryPortTests.cs" />
+    <Compile Remove="Library\EntityLibraryPortTests.cs" />
+    <Compile Remove="Library\SceneLibraryPortTests.cs" />
+    <Compile Remove="Library\StreamingLibraryPortTests.cs" />
+    <!-- SyncSliceCoverageTests seeds a real CoveContext (Cove.Data) and drives the slice dispatch through an
+         IJobUnit double (Cove.Core.Interfaces) → drops out on a bare CI runner. The pure SyncSlicePlanTests
+         beside it is cove-free and stays compiled. -->
+    <Compile Remove="Library\SyncSliceCoverageTests.cs" />
+    <!-- SceneEnricher stands up a real CoveContext (Cove.Data) via CoveContextFactory → drops out on a bare CI runner. -->
+    <Compile Remove="Ingest\SceneEnricherTests.cs" />
+    <!--
+      The ingest tier's fake IScanService (and the receiver/coordinator tests that drive it) reference
+      Cove.Core.Interfaces types (IScanService / ScanOperationOptions) that are unavailable on a bare
+      runner → Compile-Removed there, exactly like the Cove.Core auth-type files above. The store-only
+      ingest tests (EventLedger / ImportLog over FakeStore) need no Cove.Core type and still compile.
+    -->
+    <Compile Remove="TestSupport\FakeScanService.cs" />
+    <Compile Remove="Ingest\WebhookReceiverTests.cs" />
+    <Compile Remove="Ingest\IngestCoordinatorTests.cs" />
+    <!-- The root-port ingest tier drives the coordinator + FakeScanService (Cove.Core.Interfaces) → drops out on a bare CI runner. The cove-free source guard over the same seam stays compiled. -->
+    <Compile Remove="Ingest\WhisparrRootsPortIngestTests.cs" />
+    <!-- The reconcile tier drives IngestCoordinator + FakeScanService (Cove.Core.Interfaces) → drops out on a bare CI runner. -->
+    <Compile Remove="Matching\ReconcileTests.cs" />
+    <!-- The scheduler tier drives the host IJobService seam through a fake of it (Cove.Core.Interfaces) → drops
+         out on a bare CI runner, which stays a cove-free smoke. -->
+    <Compile Remove="Matching\ReconcileSchedulerTests.cs" />
+    <!-- NoMutationTests drives the coordinator/receiver + FakeScanService (Cove.Core.Interfaces) → drops out on a bare CI runner. -->
+    <Compile Remove="Safety\NoMutationTests.cs" />
+    <!-- WebhookRegisterHeaderTests drives the receiver + FakeScanService (Cove.Core.Interfaces) → drops out on a bare CI runner. -->
+    <Compile Remove="Ingest\WebhookRegisterHeaderTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Read by the test host at run time; see TestSupport/AssemblyParallelism.cs for why. -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

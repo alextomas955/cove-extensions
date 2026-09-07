@@ -1,0 +1,25 @@
+{
+  "incomplete": {
+    "configured": false,
+    "hasApiKey": false,
+    "detectedVersion": "",
+    "missingRequiredOptions": [
+      "baseUrl",
+      "apiKey"
+    ]
+  },
+  "keyOnly": {
+    "configured": false,
+    "hasApiKey": true,
+    "detectedVersion": "3.3.4.808",
+    "missingRequiredOptions": [
+      "baseUrl"
+    ]
+  },
+  "complete": {
+    "configured": true,
+    "hasApiKey": true,
+    "detectedVersion": "3.3.4.808",
+    "missingRequiredOptions": []
+  }
+}

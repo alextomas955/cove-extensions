@@ -1,0 +1,40 @@
+{
+  "name": "@cove-extensions/whisparrsync-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "WhisparrSync settings page \u2014 the Cove Whisparr Sync extension's connection/setup frontend (Vite library bundle \u2192 index.mjs).",
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "check-classes": "node ../../../../shared/ui-shared/scripts/check-classes.cjs --allow \"sm:min-w-[28px]\" --allow \"sm:min-h-[30px]\" --allow \"z-[200]\"",
+    "test": "node ../../../../shared/ui-shared/scripts/run-logic-gate.mjs --manifest scripts/gates.json --manifest ../../../../shared/ui-shared/scripts/gates.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify": "node ../../../../scripts/verify-all.mjs --extension WhisparrSync",
+    "check-host-imports": "node ../../../../scripts/check-host-imports.mjs",
+    "check-response-casing": "node ../../../../scripts/check-response-casing.mjs",
+    "check-refusal-handled": "node ../../../../scripts/check-refusal-handled.mjs",
+    "check-guarded-controls": "node ../../../../scripts/check-guarded-controls.mjs"
+  },
+  "dependencies": {
+    "@cove/extension-sdk": "file:vendor/cove-extension-sdk-0.1.0.tgz",
+    "@tanstack/react-virtual": "3.14.6"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.0",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.3",
+    "lucide-react": "1.25.0",
+    "prettier": "3.9.5",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "typescript": "6.0.3",
+    "vite": "8.1.5"
+  },
+  "volta": {
+    "node": "24.11.0"
+  }
+}

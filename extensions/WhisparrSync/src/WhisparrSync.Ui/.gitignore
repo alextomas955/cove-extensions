@@ -1,0 +1,3 @@
+node_modules/
+# Build output — rebuilt from source by CI (npm run build) and packaged into the release.
+dist/

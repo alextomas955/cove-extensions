@@ -1,0 +1,284 @@
+{
+  "gates": [
+    {
+      "name": "connection-result",
+      "modules": [
+        "src/settings/connectionResult.ts"
+      ],
+      "test": "scripts/connection-result.test.mjs",
+      "envVar": "CONNECTION_MODULE",
+      "tmpPrefix": "whisparr-connection-"
+    },
+    {
+      "name": "hasapikey-invariant",
+      "modules": [
+        "src/settings/options.ts",
+        "src/settings/connectionResult.ts"
+      ],
+      "test": "scripts/hasapikey-invariant.test.mjs",
+      "envVar": "OPTIONS_MODULE",
+      "entry": "options.js",
+      "tmpPrefix": "whisparr-hasapikey-"
+    },
+    {
+      "name": "importlog-logic",
+      "modules": [
+        "src/settings/importLogLogic.ts"
+      ],
+      "test": "scripts/import-log-logic.test.mjs",
+      "envVar": "IMPORT_LOG_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-importlog-"
+    },
+    {
+      "name": "monitor-logic",
+      "modules": [
+        "src/monitor/monitorLogic.ts",
+        "src/contracts.ts",
+        "src/common/lib/whisparrCopy.ts"
+      ],
+      "test": "scripts/monitor-logic.test.mjs",
+      "envVar": "MONITOR_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-monitor-"
+    },
+    {
+      "name": "scene-status-logic",
+      "modules": [
+        "src/scene/sceneStatusLogic.ts",
+        "src/contracts.ts"
+      ],
+      "test": "scripts/scene-status-logic.test.mjs",
+      "envVar": "SCENE_STATUS_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-scene-status-"
+    },
+    {
+      "name": "activity-logic",
+      "modules": [
+        "src/wanted/activityLogic.ts",
+        "src/contracts.ts"
+      ],
+      "test": "scripts/activity-logic.test.mjs",
+      "envVar": "ACTIVITY_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-activity-"
+    },
+    {
+      "name": "missing-logic",
+      "modules": [
+        "src/discovery/missingLogic.ts",
+        "src/contracts.ts"
+      ],
+      "test": "scripts/missing-logic.test.mjs",
+      "envVar": "MISSING_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-missing-"
+    },
+    {
+      "name": "scene-actions-logic",
+      "modules": [
+        "src/common/lib/sceneActionsLogic.ts",
+        "src/contracts.ts"
+      ],
+      "test": "scripts/scene-actions-logic.test.mjs",
+      "envVar": "SCENE_ACTIONS_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-scene-actions-"
+    },
+    {
+      "name": "action-failure-logic",
+      "modules": [
+        "src/common/lib/actionFailureLogic.ts"
+      ],
+      "test": "scripts/action-failure-logic.test.mjs",
+      "envVar": "ACTION_FAILURE_MODULE",
+      "tmpPrefix": "whisparr-action-failure-"
+    },
+    {
+      "name": "entities-batch-logic",
+      "modules": [
+        "src/entity/entitiesBatchLogic.ts",
+        "src/contracts.ts"
+      ],
+      "test": "scripts/entities-batch-logic.test.mjs",
+      "envVar": "ENTITIES_BATCH_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-entities-batch-"
+    },
+    {
+      "name": "sync-health-logic",
+      "modules": [
+        "src/settings/syncHealthLogic.ts"
+      ],
+      "test": "scripts/sync-health-logic.test.mjs",
+      "envVar": "SYNC_HEALTH_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-synchealth-"
+    },
+    {
+      "name": "folder-overlap-logic",
+      "modules": [
+        "src/settings/folderOverlapLogic.ts"
+      ],
+      "test": "scripts/folder-overlap-logic.test.mjs",
+      "envVar": "FOLDER_OVERLAP_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-folderoverlap-"
+    },
+    {
+      "name": "error-code-logic",
+      "modules": [
+        "src/common/lib/errorCodeLogic.ts"
+      ],
+      "test": "scripts/error-code-logic.test.mjs",
+      "envVar": "ERROR_CODE_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-errorcode-"
+    },
+    {
+      "name": "batch-coalescer-logic",
+      "modules": [
+        "src/common/lib/batchCoalescerLogic.ts"
+      ],
+      "test": "scripts/batch-coalescer-logic.test.mjs",
+      "envVar": "BATCH_COALESCER_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-coalescer-"
+    },
+    {
+      "name": "resource-entry-logic",
+      "modules": [
+        "src/common/lib/resourceEntryLogic.ts"
+      ],
+      "test": "scripts/resource-entry-logic.test.mjs",
+      "envVar": "RESOURCE_ENTRY_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-resource-"
+    },
+    {
+      "name": "identity-guard-logic",
+      "modules": [
+        "src/common/lib/identityGuardLogic.ts"
+      ],
+      "test": "scripts/identity-guard-logic.test.mjs",
+      "envVar": "IDENTITY_GUARD_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-identity-guard-"
+    },
+    {
+      "name": "file-settings-logic",
+      "modules": [
+        "src/settings/fileSettingsLogic.ts"
+      ],
+      "test": "scripts/file-settings-logic.test.mjs",
+      "envVar": "FILE_SETTINGS_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-filesettings-"
+    },
+    {
+      "name": "connection-availability-logic",
+      "modules": [
+        "src/settings/connectionAvailabilityLogic.ts"
+      ],
+      "test": "scripts/connection-availability-logic.test.mjs",
+      "envVar": "CONNECTION_AVAILABILITY_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-connavail-"
+    },
+    {
+      "name": "sync-library-logic",
+      "modules": [
+        "src/settings/syncLibraryLogic.ts",
+        "src/contracts.ts"
+      ],
+      "test": "scripts/sync-library-logic.test.mjs",
+      "envVar": "SYNC_LIBRARY_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-synclib-"
+    },
+    {
+      "name": "webhook-logic",
+      "modules": [
+        "src/settings/webhookLogic.ts"
+      ],
+      "test": "scripts/webhook-logic.test.mjs",
+      "envVar": "WEBHOOK_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-webhook-"
+    },
+    {
+      "name": "searchable-select-logic",
+      "modules": [
+        "src/common/lib/searchableSelectLogic.ts"
+      ],
+      "test": "scripts/searchable-select-logic.test.mjs",
+      "envVar": "SEARCHABLE_SELECT_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-searchable-select-"
+    },
+    {
+      "name": "config-guard-logic",
+      "modules": [
+        "src/common/lib/configGuardLogic.ts",
+        "src/common/lib/actionFailureLogic.ts"
+      ],
+      "test": "scripts/config-guard-logic.test.mjs",
+      "envVar": "CONFIG_GUARD_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-config-guard-"
+    },
+    {
+      "name": "refusal-affordance-logic",
+      "modules": [
+        "src/common/lib/refusalAffordanceLogic.ts"
+      ],
+      "test": "scripts/refusal-affordance-logic.test.mjs",
+      "envVar": "REFUSAL_AFFORDANCE_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-refusal-affordance-"
+    },
+    {
+      "name": "pipeline-health-logic",
+      "modules": [
+        "src/settings/pipelineHealthLogic.ts"
+      ],
+      "test": "scripts/pipeline-health-logic.test.mjs",
+      "envVar": "PIPELINE_HEALTH_LOGIC_MODULE",
+      "tmpPrefix": "whisparr-pipeline-health-"
+    },
+    {
+      "name": "version-status-lines",
+      "modules": [
+        "src/settings/VersionStatusLines.tsx",
+        "src/settings/importLogLogic.ts",
+        "@shared/index.ts",
+        "@shared/primitives.tsx",
+        "@shared/primitivesLogic.ts",
+        "@shared/entityPickerLogic.ts"
+      ],
+      "test": "scripts/version-status-lines.test.mjs",
+      "envVar": "VERSION_STATUS_LINES_MODULE",
+      "tmpPrefix": "whisparr-version-status-lines-",
+      "jsx": true,
+      "aliases": {
+        "@cove-extensions/ui-shared": "@shared/index.ts"
+      },
+      "linkNodeModules": true
+    },
+    {
+      "name": "missing-card-refusal",
+      "modules": [
+        "src/discovery/MissingSceneCard.tsx",
+        "src/discovery/MissingSelectionBar.tsx",
+        "src/discovery/missingLogic.ts",
+        "src/contracts.ts",
+        "src/common/lib/sceneStateVisual.ts",
+        "src/common/ui/SceneStateGlyph.tsx",
+        "src/common/lib/configGuardLogic.ts",
+        "src/common/lib/refusalAffordanceLogic.ts",
+        "src/common/lib/configHealthStore.ts",
+        "src/common/lib/coveApi.ts",
+        "src/common/lib/resourceEntryLogic.ts",
+        "src/common/lib/extension.ts",
+        "src/common/lib/cacheRegistry.ts",
+        "src/common/lib/useWhisparrMutation.ts",
+        "src/common/lib/actionFailureLogic.ts",
+        "@shared/index.ts",
+        "@shared/primitives.tsx",
+        "@shared/primitivesLogic.ts",
+        "@shared/entityPickerLogic.ts",
+        "@shared/hostRuntimeGateStub.ts"
+      ],
+      "test": "scripts/missing-card-refusal.test.mjs",
+      "envVar": "MISSING_CARD_REFUSAL_MODULE",
+      "tmpPrefix": "whisparr-missing-card-refusal-",
+      "jsx": true,
+      "aliases": {
+        "@cove-extensions/ui-shared": "@shared/index.ts",
+        "@cove/runtime/api": "@shared/hostRuntimeGateStub.ts"
+      },
+      "linkNodeModules": true
+    }
+  ]
+}

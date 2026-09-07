@@ -1,0 +1,132 @@
+{
+  "what": "one GET /api/v3/movie row captured verbatim, beside the metadata record the stub served for it",
+  "instanceVersion": "3.3.4.794",
+  "seedSize": 9,
+  "capturedRow": {
+    "title": "Aurora Scene One",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "sortTitle": "aurora scene one",
+    "alternateTitles": [],
+    "sizeOnDisk": "<normalized>",
+    "status": "released",
+    "overview": "",
+    "releaseDate": "2026-01-01T00:00:00Z",
+    "images": [],
+    "year": 2026,
+    "studioTitle": "Studio Aurora",
+    "studioForeignId": "a0000000-0000-4000-8000-000000000001",
+    "path": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene One [10000000-0000-4000-8000-000000000001]",
+    "qualityProfileId": 1,
+    "hasFile": false,
+    "movieFileId": 0,
+    "monitored": false,
+    "isAvailable": true,
+    "folderName": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene One [10000000-0000-4000-8000-000000000001]",
+    "runtime": 300,
+    "cleanTitle": "aurorasceneone",
+    "tmdbId": 0,
+    "foreignId": "10000000-0000-4000-8000-000000000001",
+    "stashId": "10000000-0000-4000-8000-000000000001",
+    "titleSlug": "10000000-0000-4000-8000-000000000001",
+    "rootFolderPath": "/data/media",
+    "genres": [],
+    "tags": [],
+    "added": "<normalized>",
+    "ratings": {},
+    "searchCredits": [],
+    "performerForeignIds": [
+      "c0000000-0000-4000-8000-000000000001"
+    ],
+    "performerNames": [
+      "Ava Bennett"
+    ],
+    "itemType": "scene",
+    "statistics": {
+      "movieFileCount": 0,
+      "sizeOnDisk": "<normalized>",
+      "releaseGroups": []
+    },
+    "id": 1
+  },
+  "servedMetadata": {
+    "Created": "2026-01-01T00:00:00Z",
+    "Updated": "2026-01-01T00:00:00Z",
+    "ExtractedAt": "2026-08-03T00:00:00Z",
+    "ItemType": 1,
+    "Year": 2026,
+    "AlternativeTitles": [],
+    "Title": "Aurora Scene One",
+    "Code": null,
+    "Slug": "aurora-scene-one",
+    "Overview": "",
+    "Directors": [],
+    "Credits": [
+      {
+        "Character": null,
+        "Job": null,
+        "Performer": {
+          "Created": null,
+          "Updated": null,
+          "ExtractedAt": "2026-08-03T00:00:00Z",
+          "Name": "Ava Bennett",
+          "Aliases": [],
+          "Slug": "ava-bennett",
+          "Images": [],
+          "Gender": 0,
+          "ForeignIds": {
+            "TmdbId": 0,
+            "StashId": "c0000000-0000-4000-8000-000000000001",
+            "TpdbId": null
+          }
+        }
+      }
+    ],
+    "ReleaseDate": "2026-01-01",
+    "ReleaseDateUtc": "2026-01-01T00:00:00Z",
+    "Images": [],
+    "Duration": 300,
+    "Deleted": false,
+    "Trailer": null,
+    "Genres": [],
+    "Ratings": {
+      "Tmdb": null,
+      "Imdb": null,
+      "Metacritic": null,
+      "RottenTomatoes": null,
+      "Stash": null
+    },
+    "Studio": {
+      "Created": "2020-01-01T00:00:00Z",
+      "Updated": "2020-01-01T00:00:00Z",
+      "ExtractedAt": "2026-08-03T00:00:00Z",
+      "Overview": "",
+      "Title": "Studio Aurora",
+      "Aliases": [],
+      "Slug": "studio-aurora",
+      "Images": [],
+      "Year": 0,
+      "Network": null,
+      "NetworkForeignIds": null,
+      "Status": 0,
+      "OriginalLanguage": null,
+      "Homepage": null,
+      "SubStudios": [],
+      "ForeignIds": {
+        "TmdbId": 0,
+        "StashId": "a0000000-0000-4000-8000-000000000001",
+        "TpdbId": null
+      }
+    },
+    "Tags": [],
+    "Collection": null,
+    "Homepage": null,
+    "ForeignIds": {
+      "TmdbId": 0,
+      "StashId": "10000000-0000-4000-8000-000000000001",
+      "TpdbId": null
+    }
+  }
+}

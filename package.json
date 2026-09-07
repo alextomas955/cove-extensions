@@ -14,7 +14,15 @@
     "lint:fix": "eslint . --fix",
     "prepare": "lefthook install",
     "syncpack": "syncpack lint",
-    "test": "node --test scripts/*.test.mjs"
+    "test": "node --test scripts/*.test.mjs",
+    "markdownlint": "markdownlint-cli2",
+    "wire-usage": "node scripts/check-wire-usage.mjs",
+    "verify:all": "node scripts/verify-all.mjs",
+    "verify:fast": "node scripts/verify-all.mjs --group fast",
+    "verify:ci": "node scripts/verify-all.mjs --group fast,slow",
+    "verify:e2e": "node scripts/verify-all.mjs --group container",
+    "verify:gate": "node scripts/verify-all.mjs",
+    "provision:ui": "node scripts/verify-all.mjs --provision uiNodeModules"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -28,6 +36,7 @@
     "jscpd": "5.1.1",
     "knip": "6.34.0",
     "lefthook": "2.1.12",
+    "markdownlint-cli2": "0.23.2",
     "openapi-typescript": "7.13.0",
     "prettier": "3.9.6",
     "syncpack": "15.3.3",

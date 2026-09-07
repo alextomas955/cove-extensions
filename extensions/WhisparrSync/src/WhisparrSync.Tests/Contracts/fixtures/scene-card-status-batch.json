@@ -1,0 +1,10 @@
+{
+  "101": {
+    "state": "monitored",
+    "hasFile": true
+  },
+  "102": {
+    "state": "notAdded",
+    "hasFile": false
+  }
+}

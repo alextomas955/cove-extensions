@@ -1,0 +1,677 @@
+{
+  "what": "what GET /api/v3/movie?stashId= returns for rows deliberately shaped to separate ForeignId from StashId",
+  "instanceVersion": "3.3.4.794",
+  "seedSize": 9,
+  "byTheDifferingRowsStashId": {
+    "request": "/api/v3/movie?stashId=20000000-0000-4000-8000-000000000001",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "body": []
+  },
+  "byTheDifferingRowsForeignId": {
+    "request": "/api/v3/movie?stashId=999001",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "body": [
+      {
+        "title": "Aurora Movie",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "aurora movie",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "studioTitle": "Studio Aurora",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000001",
+        "path": "/data/media/movies/Studio Aurora/Aurora Movie (2026)",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/movies/Studio Aurora/Aurora Movie (2026)",
+        "runtime": 300,
+        "cleanTitle": "auroramovie",
+        "tmdbId": 999001,
+        "foreignId": "999001",
+        "stashId": "20000000-0000-4000-8000-000000000001",
+        "titleSlug": "tmdb:999001",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [
+          "c0000000-0000-4000-8000-000000000001"
+        ],
+        "performerNames": [
+          "Ava Bennett"
+        ],
+        "itemType": "movie",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 4
+      }
+    ]
+  },
+  "byTheDuplicatedStashId": {
+    "request": "/api/v3/movie?stashId=10000000-0000-4000-8000-000000000001",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "body": [
+      {
+        "title": "Aurora Scene One",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "aurora scene one",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "studioTitle": "Studio Aurora",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000001",
+        "path": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene One [10000000-0000-4000-8000-000000000001]",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene One [10000000-0000-4000-8000-000000000001]",
+        "runtime": 300,
+        "cleanTitle": "aurorasceneone",
+        "tmdbId": 0,
+        "foreignId": "10000000-0000-4000-8000-000000000001",
+        "stashId": "10000000-0000-4000-8000-000000000001",
+        "titleSlug": "10000000-0000-4000-8000-000000000001",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [
+          "c0000000-0000-4000-8000-000000000001"
+        ],
+        "performerNames": [
+          "Ava Bennett"
+        ],
+        "itemType": "scene",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 1
+      }
+    ]
+  },
+  "byTheDuplicateRowsForeignId": {
+    "request": "/api/v3/movie?stashId=999002",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "body": [
+      {
+        "title": "Aurora Movie Duplicate",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "aurora movie duplicate",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "studioTitle": "Studio Aurora",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000001",
+        "path": "/data/media/movies/Studio Aurora/Aurora Movie Duplicate (2026)",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/movies/Studio Aurora/Aurora Movie Duplicate (2026)",
+        "runtime": 300,
+        "cleanTitle": "auroramovieduplicate",
+        "tmdbId": 999002,
+        "foreignId": "999002",
+        "stashId": "10000000-0000-4000-8000-000000000001",
+        "titleSlug": "tmdb:999002",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [
+          "c0000000-0000-4000-8000-000000000001"
+        ],
+        "performerNames": [
+          "Ava Bennett"
+        ],
+        "itemType": "movie",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 5
+      }
+    ]
+  },
+  "byAnEmptyValue": {
+    "request": "/api/v3/movie?stashId=",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "body": [
+      {
+        "title": "Aurora Scene One",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "aurora scene one",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "studioTitle": "Studio Aurora",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000001",
+        "path": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene One [10000000-0000-4000-8000-000000000001]",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene One [10000000-0000-4000-8000-000000000001]",
+        "runtime": 300,
+        "cleanTitle": "aurorasceneone",
+        "tmdbId": 0,
+        "foreignId": "10000000-0000-4000-8000-000000000001",
+        "stashId": "10000000-0000-4000-8000-000000000001",
+        "titleSlug": "10000000-0000-4000-8000-000000000001",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [
+          "c0000000-0000-4000-8000-000000000001"
+        ],
+        "performerNames": [
+          "Ava Bennett"
+        ],
+        "itemType": "scene",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 1
+      },
+      {
+        "title": "Aurora Scene Two",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "aurora scene two",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "studioTitle": "Studio Aurora",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000001",
+        "path": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene Two [10000000-0000-4000-8000-000000000002]",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene Two [10000000-0000-4000-8000-000000000002]",
+        "runtime": 300,
+        "cleanTitle": "aurorascenetwo",
+        "tmdbId": 0,
+        "foreignId": "10000000-0000-4000-8000-000000000002",
+        "stashId": "10000000-0000-4000-8000-000000000002",
+        "titleSlug": "10000000-0000-4000-8000-000000000002",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [
+          "c0000000-0000-4000-8000-000000000003"
+        ],
+        "performerNames": [
+          "Mia Nakamura",
+          "Mia Nakamura"
+        ],
+        "itemType": "scene",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 2
+      },
+      {
+        "title": "Aurora Scene Three",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "aurora scene three",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "studioTitle": "Studio Aurora",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000001",
+        "path": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene Three [10000000-0000-4000-8000-000000000003]",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene Three [10000000-0000-4000-8000-000000000003]",
+        "runtime": 300,
+        "cleanTitle": "aurorascenethree",
+        "tmdbId": 0,
+        "foreignId": "10000000-0000-4000-8000-000000000003",
+        "stashId": "10000000-0000-4000-8000-000000000003",
+        "titleSlug": "10000000-0000-4000-8000-000000000003",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [],
+        "performerNames": [],
+        "itemType": "scene",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 3
+      },
+      {
+        "title": "Aurora Movie",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "aurora movie",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "studioTitle": "Studio Aurora",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000001",
+        "path": "/data/media/movies/Studio Aurora/Aurora Movie (2026)",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/movies/Studio Aurora/Aurora Movie (2026)",
+        "runtime": 300,
+        "cleanTitle": "auroramovie",
+        "tmdbId": 999001,
+        "foreignId": "999001",
+        "stashId": "20000000-0000-4000-8000-000000000001",
+        "titleSlug": "tmdb:999001",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [
+          "c0000000-0000-4000-8000-000000000001"
+        ],
+        "performerNames": [
+          "Ava Bennett"
+        ],
+        "itemType": "movie",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 4
+      },
+      {
+        "title": "Aurora Movie Duplicate",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "aurora movie duplicate",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "studioTitle": "Studio Aurora",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000001",
+        "path": "/data/media/movies/Studio Aurora/Aurora Movie Duplicate (2026)",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/movies/Studio Aurora/Aurora Movie Duplicate (2026)",
+        "runtime": 300,
+        "cleanTitle": "auroramovieduplicate",
+        "tmdbId": 999002,
+        "foreignId": "999002",
+        "stashId": "10000000-0000-4000-8000-000000000001",
+        "titleSlug": "tmdb:999002",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [
+          "c0000000-0000-4000-8000-000000000001"
+        ],
+        "performerNames": [
+          "Ava Bennett"
+        ],
+        "itemType": "movie",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 5
+      },
+      {
+        "title": "Aurora Scene Untied",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "aurora scene untied",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "path": "/data/media/scenes/2026-01-01 - Aurora Scene Untied [10000000-0000-4000-8000-000000000011]",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/scenes/2026-01-01 - Aurora Scene Untied [10000000-0000-4000-8000-000000000011]",
+        "runtime": 300,
+        "cleanTitle": "aurorasceneuntied",
+        "tmdbId": 0,
+        "foreignId": "10000000-0000-4000-8000-000000000011",
+        "stashId": "10000000-0000-4000-8000-000000000011",
+        "titleSlug": "10000000-0000-4000-8000-000000000011",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [],
+        "performerNames": [],
+        "itemType": "scene",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 6
+      },
+      {
+        "title": "Cirrus Scene One",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "cirrus scene one",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "studioTitle": "Studio Cirrus",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000003",
+        "path": "/data/media/scenes/Studio Cirrus/2026-01-01 - Cirrus Scene One [10000000-0000-4000-8000-000000000021]",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/scenes/Studio Cirrus/2026-01-01 - Cirrus Scene One [10000000-0000-4000-8000-000000000021]",
+        "runtime": 300,
+        "cleanTitle": "cirrussceneone",
+        "tmdbId": 0,
+        "foreignId": "10000000-0000-4000-8000-000000000021",
+        "stashId": "10000000-0000-4000-8000-000000000021",
+        "titleSlug": "10000000-0000-4000-8000-000000000021",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [],
+        "performerNames": [],
+        "itemType": "scene",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 7
+      },
+      {
+        "title": "Echo Scene One",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "echo scene one",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "studioTitle": "",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000004",
+        "path": "/data/media/scenes/2026-01-01 - Echo Scene One [10000000-0000-4000-8000-000000000031]",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/scenes/2026-01-01 - Echo Scene One [10000000-0000-4000-8000-000000000031]",
+        "runtime": 300,
+        "cleanTitle": "echosceneone",
+        "tmdbId": 0,
+        "foreignId": "10000000-0000-4000-8000-000000000031",
+        "stashId": "10000000-0000-4000-8000-000000000031",
+        "titleSlug": "10000000-0000-4000-8000-000000000031",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [],
+        "performerNames": [],
+        "itemType": "scene",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 8
+      },
+      {
+        "title": "Cascade Cover Scene",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "cascade cover scene",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [
+          {
+            "coverType": "poster",
+            "url": "/MediaCover/movie/9/poster.jpg",
+            "remoteUrl": "https://images.example.invalid/covers/cascade-cover-scene-poster.jpg"
+          }
+        ],
+        "year": 2026,
+        "studioTitle": "Studio Cascade",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000005",
+        "path": "/data/media/scenes/Studio Cascade/2026-01-01 - Cascade Cover Scene [10000000-0000-4000-8000-0000000000c1]",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/scenes/Studio Cascade/2026-01-01 - Cascade Cover Scene [10000000-0000-4000-8000-0000000000c1]",
+        "runtime": 300,
+        "cleanTitle": "cascadecoverscene",
+        "tmdbId": 0,
+        "foreignId": "10000000-0000-4000-8000-0000000000c1",
+        "stashId": "10000000-0000-4000-8000-0000000000c1",
+        "titleSlug": "10000000-0000-4000-8000-0000000000c1",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [],
+        "performerNames": [],
+        "itemType": "scene",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 9
+      }
+    ]
+  },
+  "twiceCreditedPerformerCatalogue": {
+    "request": "/api/v3/movie/listbyperformerforeignid?performerForeignId=c0000000-0000-4000-8000-000000000003",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "body": [
+      2
+    ]
+  },
+  "twiceCreditedRow": {
+    "request": "/api/v3/movie?stashId=10000000-0000-4000-8000-000000000002",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "body": [
+      {
+        "title": "Aurora Scene Two",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "sortTitle": "aurora scene two",
+        "alternateTitles": [],
+        "sizeOnDisk": "<normalized>",
+        "status": "released",
+        "overview": "",
+        "releaseDate": "2026-01-01T00:00:00Z",
+        "images": [],
+        "year": 2026,
+        "studioTitle": "Studio Aurora",
+        "studioForeignId": "a0000000-0000-4000-8000-000000000001",
+        "path": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene Two [10000000-0000-4000-8000-000000000002]",
+        "qualityProfileId": 1,
+        "hasFile": false,
+        "movieFileId": 0,
+        "monitored": false,
+        "isAvailable": true,
+        "folderName": "/data/media/scenes/Studio Aurora/2026-01-01 - Aurora Scene Two [10000000-0000-4000-8000-000000000002]",
+        "runtime": 300,
+        "cleanTitle": "aurorascenetwo",
+        "tmdbId": 0,
+        "foreignId": "10000000-0000-4000-8000-000000000002",
+        "stashId": "10000000-0000-4000-8000-000000000002",
+        "titleSlug": "10000000-0000-4000-8000-000000000002",
+        "rootFolderPath": "/data/media",
+        "genres": [],
+        "tags": [],
+        "added": "<normalized>",
+        "ratings": {},
+        "searchCredits": [],
+        "performerForeignIds": [
+          "c0000000-0000-4000-8000-000000000003"
+        ],
+        "performerNames": [
+          "Mia Nakamura",
+          "Mia Nakamura"
+        ],
+        "itemType": "scene",
+        "statistics": {
+          "movieFileCount": 0,
+          "sizeOnDisk": "<normalized>",
+          "releaseGroups": []
+        },
+        "id": 2
+      }
+    ]
+  }
+}

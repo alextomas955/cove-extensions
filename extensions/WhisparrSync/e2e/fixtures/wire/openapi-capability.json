@@ -1,0 +1,22 @@
+{
+  "what": "the generated OpenAPI document the instance serves, reduced to the path-key evidence a narrow-catalogue capability is decided from",
+  "instanceVersion": "3.3.4.794",
+  "seedSize": 9,
+  "documentPath": "/docs/v3/openapi.json",
+  "status": 200,
+  "contentType": "application/json;charset=utf-8",
+  "readWithoutApiKey": true,
+  "totalPathCount": 190,
+  "routes": [
+    {
+      "needle": "listbystudioforeignid",
+      "declared": true,
+      "key": "/api/v3/movie/listbystudioforeignid"
+    },
+    {
+      "needle": "listbyperformerforeignid",
+      "declared": true,
+      "key": "/api/v3/movie/listbyperformerforeignid"
+    }
+  ]
+}

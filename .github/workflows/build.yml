@@ -10,8 +10,8 @@
 #
 # Required-check model: the `required-checks` aggregation job is the single status check to mark
 # required in branch protection; it transitively gates on `build` and `e2e`. No
-# job runs an extension's own node:test specs, because no catalog entry declares an `e2eNodeTestsPath`
-# to subscribe one; the field is still accepted, so a future subscriber restores the steps here.
+# job also runs an extension's own node:test specs when its catalog entry declares an
+# `e2eNodeTestsPath` (WhisparrSync does); an entry that declares none skips that tier.
 
 name: Build and Release Extensions
 
@@ -371,10 +371,24 @@ jobs:
             echo "has_suite=false" >> "$GITHUB_OUTPUT"
             echo "::notice::$EXTENSION_NAME has no e2ePath/e2eProject in catalog.json (or the directory is missing) — skipping E2E for this extension."
           fi
+          # Fail closed on the node:test tier: a catalog entry DECLARING an e2eNodeTestsPath makes the
+          # tier required, so a declared-but-missing directory (a typo or a moved/deleted path) is a hard
+          # error here — never a silent has_node_tests=false that would skip the required correctness run.
+          if [[ -n "$E2E_NODE_TESTS_PATH" ]]; then
+            if [[ -d "$E2E_NODE_TESTS_PATH" ]]; then
+              echo "has_node_tests=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::e2eNodeTestsPath '$E2E_NODE_TESTS_PATH' is declared in catalog.json but that directory does not exist — the required node:test correctness tier cannot run."
+              exit 1
+            fi
+          else
+            echo "has_node_tests=false" >> "$GITHUB_OUTPUT"
+          fi
         env:
           EXTENSION_NAME: ${{ matrix.extension.name }}
           E2E_PATH: ${{ matrix.extension.e2ePath }}
           E2E_PROJECT: ${{ matrix.extension.e2eProject }}
+          E2E_NODE_TESTS_PATH: ${{ matrix.extension.e2eNodeTestsPath }}
 
       # Every harness in this suite is its own compose stack, so a run attaches and detaches
       # containers from bridge networks once per test. Each attachment creates a veth on the host,
@@ -481,6 +495,37 @@ jobs:
       # cutting it to six tests would hide the breakage it exists to report. Nor can the selection
       # silently run nothing — Playwright exits non-zero when a --grep matches no test, so a tag deleted
       # out of the specs fails this leg by name rather than passing it over an empty set.
+      # A directory that exists but holds no *.test.mjs would let the required tier pass having run
+      # nothing; the declared-but-missing path is already a hard error in the check step above.
+      - name: Guard the node:test tier actually has specs
+        if: steps.check.outputs.has_node_tests == 'true'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          specs=("$E2E_NODE_TESTS_PATH"/*.test.mjs)
+          if [ ${#specs[@]} -eq 0 ]; then
+            echo "::error::has_node_tests=true but no *.test.mjs under $E2E_NODE_TESTS_PATH — the required node correctness tier would silently pass."
+            exit 1
+          fi
+          echo "node:test tier: found ${#specs[@]} spec file(s)."
+        env:
+          E2E_NODE_TESTS_PATH: ${{ matrix.extension.e2eNodeTestsPath }}
+
+      # The container-correctness tier: the extension's non-browser API/webhook/sync specs run against
+      # a real Whisparr container whose metadata source is a committed offline replay stub. It reads no
+      # repository secret — identities resolve through the stub and the Whisparr images are public — so
+      # it runs on fork pull requests, where secrets are never provided. The glob is required: `node
+      # --test <dir>` treats a bare directory as a module entry point on current Node and fails, so the
+      # run must enumerate the spec files. Files run serially (--test-concurrency=1): each spec boots its
+      # own Cove + Whisparr + stub stack, and running them in parallel starves the runner's Docker host.
+      - name: Run node:test correctness tier (offline, no secret)
+        id: node_tests
+        if: steps.check.outputs.has_node_tests == 'true'
+        shell: bash
+        run: node --test --test-concurrency=1 "$E2E_NODE_TESTS_PATH"/*.test.mjs
+        env:
+          E2E_NODE_TESTS_PATH: ${{ matrix.extension.e2eNodeTestsPath }}
+
       - name: Run E2E suite
         id: e2e
         if: steps.check.outputs.has_suite == 'true'

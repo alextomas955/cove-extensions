@@ -3,8 +3,33 @@ using System.Reflection;
 using System.Text.Json;
 using Cove.Plugins;
 using Microsoft.Extensions.Logging;
+using System.Runtime.CompilerServices;
 
 namespace Cove.Extensions.Shared;
+
+/// <summary>
+/// The per-store writer gate the options stores serialize their read-modify-writes on.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Non-generic on purpose. A static field on <c>ExtensionOptionsStore&lt;TOptions&gt;</c> exists once per
+/// CLOSED generic type, so two options models over one store would resolve two independent gates and
+/// serialize against neither.
+/// </para>
+/// <para>
+/// Keyed on the store INSTANCE rather than the store key: every extension persists its options under the
+/// same <c>"options"</c> key, so a key-string gate would serialize unrelated extensions against each other.
+/// A <see cref="ConditionalWeakTable{TKey,TValue}"/> keys on reference identity by construction and holds no
+/// strong reference to the host's store.
+/// </para>
+/// </remarks>
+internal static class OptionsStoreGates
+{
+    private static readonly ConditionalWeakTable<IExtensionStore, SemaphoreSlim> Gates = new();
+
+    internal static SemaphoreSlim For(IExtensionStore store)
+        => Gates.GetValue(store, static _ => new SemaphoreSlim(1, 1));
+}
 
 /// <summary>
 /// Thin async load/save layer for an extension's options model over Cove's
@@ -39,6 +64,8 @@ public class ExtensionOptionsStore<TOptions>(
     /// converter going through the typed load would rewrite defaults over the stored configuration.
     /// </remarks>
     public const string Key = "options";
+
+    private readonly SemaphoreSlim _gate = OptionsStoreGates.For(store);
 
     /// <summary>
     /// Loads the persisted options. Returns defaults when the key is absent (first run) or when the
@@ -97,6 +124,42 @@ public class ExtensionOptionsStore<TOptions>(
     /// the model later is covered without an edit here — a hand-written member list is a list that
     /// goes stale.
     /// </remarks>
+    /// <summary>
+    /// Loads the options, applies <paramref name="mutate"/>, and saves the result — the whole read-modify-write
+    /// under this store's writer gate, so no other writer can save between the load and the save. Returns the
+    /// saved value, or the loaded value when <paramref name="mutate"/> returns <c>null</c> (nothing is written).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <paramref name="mutate"/> is synchronous so no I/O can run while the gate is held: a caller that
+    /// awaited an outbound call inside it would hold every other options writer for that call's duration.
+    /// </para>
+    /// <para>
+    /// A semaphore serializes writers within ONE process. Cove hosts its extensions in a single process, so
+    /// that covers every writer this assembly has — but it claims nothing about a second process, and nothing
+    /// about a writer that reaches the same blob without coming through here.
+    /// </para>
+    /// </remarks>
+    public async Task<TOptions> UpdateAsync(Func<TOptions, TOptions?> mutate, CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            var current = await LoadAsync(ct);
+            if (mutate(current) is not { } next)
+            {
+                return current;
+            }
+
+            await SaveAsync(next, ct);
+            return next;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private static void RestoreDeclaredNonNull(object loaded, object defaults, NullabilityInfoContext nullability)
     {
         if (loaded.GetType() != defaults.GetType())

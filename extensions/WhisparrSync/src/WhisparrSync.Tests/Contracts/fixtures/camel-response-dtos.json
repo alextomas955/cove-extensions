@@ -1,0 +1,139 @@
+{
+  "videosBatchResult": {
+    "op": "search",
+    "total": 10,
+    "succeeded": 7,
+    "skipped": 2,
+    "failed": 1
+  },
+  "entitiesBatchResult": {
+    "op": "monitor",
+    "total": 5,
+    "succeeded": 4,
+    "failed": 0,
+    "skipped": 1
+  },
+  "entityLibrarySummary": {
+    "total": 147,
+    "monitored": 12
+  },
+  "qualityProfile": [
+    {
+      "id": 1,
+      "name": "Any"
+    },
+    {
+      "id": 7,
+      "name": null
+    }
+  ],
+  "syncPreview": {
+    "studios": {
+      "withId": 100,
+      "skipped": 47
+    },
+    "performers": {
+      "withId": 0,
+      "skipped": 0
+    },
+    "scenes": {
+      "withId": 0,
+      "skipped": 0
+    }
+  },
+  "syncHealth": {
+    "pathMismatch": 2,
+    "lastMismatchTicks": 638000000000000000,
+    "samplePaths": [
+      "/media/a.mp4"
+    ]
+  },
+  "pipelineHealth": [
+    {
+      "dependency": "acquisition",
+      "outcome": "unreachable",
+      "lastHealthyTicks": 638000000000000000,
+      "lastFailureTicks": 638000000000000001,
+      "consecutiveFailures": 3,
+      "lastError": "Network is unreachable (host.docker.internal:6999)"
+    },
+    {
+      "dependency": "metadata",
+      "outcome": "notConfigured",
+      "lastHealthyTicks": null,
+      "lastFailureTicks": null,
+      "consecutiveFailures": 0,
+      "lastError": ""
+    }
+  ],
+  "webhookUrl": {
+    "url": "http://cove:5000/api/extensions/x/webhook?token=abc",
+    "registered": true,
+    "connections": [
+      {
+        "version": "v3",
+        "baseUrl": "http://whisparr:6969",
+        "registered": true
+      },
+      {
+        "version": "v2",
+        "baseUrl": "http://whisparr-v2:6970",
+        "registered": false
+      }
+    ]
+  },
+  "folderOverlap": {
+    "checkedAnswer": {
+      "checked": true,
+      "reason": null,
+      "findings": [
+        {
+          "kind": "rootContainment",
+          "whisparrRoot": "/data/media",
+          "coveRoot": "/data/media/scenes"
+        },
+        {
+          "kind": "sceneFolderFormat",
+          "root": "/data/media/scenes",
+          "prefix": "scenes",
+          "suggestedRoot": "/data/media"
+        }
+      ],
+      "notApplicable": []
+    },
+    "checkedWithAnUnanswerableKind": {
+      "checked": true,
+      "reason": null,
+      "findings": [],
+      "notApplicable": [
+        "sceneFolderFormat"
+      ]
+    },
+    "notChecked": [
+      {
+        "checked": false,
+        "reason": "notConfigured",
+        "findings": [],
+        "notApplicable": []
+      },
+      {
+        "checked": false,
+        "reason": "readFailed",
+        "findings": [],
+        "notApplicable": []
+      },
+      {
+        "checked": false,
+        "reason": "coveRootsUnknown",
+        "findings": [],
+        "notApplicable": []
+      },
+      {
+        "checked": false,
+        "reason": "unsupportedVersion",
+        "findings": [],
+        "notApplicable": []
+      }
+    ]
+  }
+}

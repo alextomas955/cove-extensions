@@ -1,0 +1,29 @@
+{
+  "unit": "percent of lines, compared against the per-assembly rate in the emitted cobertura report",
+  "readings": [
+    "The floors bind on the pinned-NuGet leg only — the leg CI resolves. On the leg where the host is a project reference the same assembly measures tens of points higher, because the bare leg compiles away a large share of the suite, so one number cannot be honest on both: it is either trivially met or unreachable. The higher-coverage leg therefore carries no floor, and that asymmetry is accepted rather than overlooked.",
+    "Each floor sits at or below a measured rate so it ratchets rather than blocking on its first run. A rate below its floor means the number is wrong, not the floor.",
+    "Line rate only. Branch rates here are lower and noisier, and a second axis doubles the ways a floor fails falsely.",
+    "`measured` records the reading each floor was chosen from, so a later reader can see the headroom rather than re-deriving it. It is documentation, not an input: the gate compares against `floor` alone.",
+    "`measuredUnder` names the conditions each `measured` reading was taken under, because the same assembly measures differently by leg and by build configuration — a bare `dotnet test` defaults to Debug and the two differ per assembly and in opposite directions. A reading without its conditions cannot be compared to anything, and both values here were once wrong in exactly that way. The test count is included because it is the only reliable confirmation of which leg ran: the flag alone can be overridden by a stale property and the word 'Passed' says nothing about which files compiled.",
+    "The test count is only a reliable confirmation once it is STABLE. A `dotnet test` taken immediately after a build on the other leg can report a count that is neither leg's — Renamer read 101 once, against 708 local-Cove and 506 bare, and an identical re-run gave 708. The bare-leg restore contaminates the following build. So a single reading taken across a leg switch is not a reading: re-run after every switch, and take the number only once two consecutive runs agree.",
+    "Delete both TestResults directories before any `--collect` run. The gate reads the newest report it finds, so a stale one left from an earlier leg is read as this run's answer and the count in `measuredUnder` would then describe a different collection than the rate beside it.",
+    "The first-party library both suites share carries no floor: it appears in both reports with substantially different rates because each suite exercises a different slice, so a single floor for it would need merged coverage, which the collector does not produce."
+  ],
+  "lineRateFloors": [
+    {
+      "extension": "Renamer",
+      "assembly": "Renamer",
+      "floor": 48,
+      "measured": 50.81,
+      "measuredUnder": "-c Release -p:UseLocalCoveSource=false, macOS arm64, 506 tests, 13 skipped (Windows-only path-containment and volume-classification cases, which this leg compiles and a Windows runner executes). Re-taken 2026-08-03 from a collection with both TestResults directories deleted first; the rate did not move, which is what a leg that gained no Renamer test should report."
+    },
+    {
+      "extension": "WhisparrSync",
+      "assembly": "WhisparrSync",
+      "floor": 63,
+      "measured": 66.91,
+      "measuredUnder": "-c Release -p:UseLocalCoveSource=false, macOS arm64, 911 tests, 5 skipped (live-instance-gated v2 probes). Re-taken 2026-08-03 from a collection with both TestResults directories deleted first; the count rose from 873 and the rate from 66.42 as read-cost cases landed. The floor is deliberately left at 63 — raising it to meet a reading would spend the headroom the reading exists to make visible."
+    }
+  ]
+}

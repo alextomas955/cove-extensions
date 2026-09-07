@@ -44,5 +44,30 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.11" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
+  
+    <!--
+      xUnit v2 packages, declared for WhisparrSync.Tests. That project is a VSTest-hosted xUnit v2
+      suite (Skip.IfNot with a visible reason via Xunit.SkippableFact; Assert.Skip is v3-only), while
+      Renamer.Tests is a self-hosting xUnit v3 executable. Central package management declares both
+      generations; a declaration only takes effect in a project that references it, so neither suite
+      sees the other's packages.
+    -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="Xunit.SkippableFact" Version="1.5.61" />
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
+
+    <!--
+      Transitive of Microsoft.EntityFrameworkCore.Sqlite. GHSA-2m69-gcr7-jv3q covers every version at
+      or below 2.1.11 and publishes no patched version, so the audit can suggest no target and this
+      version comes from the package's own version list. Central package management does not pin
+      transitives on its own: the entry only takes effect in a project that also carries a matching
+      version-less PackageReference, and with none it is inert while looking applied.
+    -->
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.12" />
+
+    <!-- Compile-time enforcement of the repo-wide bans in BannedSymbols.txt. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
   </ItemGroup>
 </Project>

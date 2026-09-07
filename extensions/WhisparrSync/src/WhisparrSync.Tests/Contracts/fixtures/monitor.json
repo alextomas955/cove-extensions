@@ -1,0 +1,13 @@
+{
+  "monitorResult": {
+    "added": true,
+    "monitored": true
+  },
+  "entityStatus": {
+    "added": true,
+    "monitored": true,
+    "scenesPresent": 3,
+    "scenesTotal": 147,
+    "hasCounts": true
+  }
+}

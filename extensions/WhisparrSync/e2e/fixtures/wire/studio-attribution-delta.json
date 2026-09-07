@@ -1,0 +1,88 @@
+{
+  "what": "the shipped title predicate and the proposed identity predicate, computed over one whole-set read, per named seeded studio and in both directions",
+  "instanceVersion": "3.3.4.794",
+  "seedSize": 9,
+  "corpus": "wholly synthetic (fixtures/wire-seed) — establishes the delta CLASSES and their direction, never a real library's population rate",
+  "shippedPredicate": "the studio foreign id, case-insensitive",
+  "perStudio": {
+    "aurora": {
+      "remoteId": "a0000000-0000-4000-8000-000000000001",
+      "studioKnownToWhisparr": true,
+      "studioTitle": "Studio Aurora",
+      "studioForeignId": "a0000000-0000-4000-8000-000000000001",
+      "titlePredicateCount": 5,
+      "identityPredicateCount": 5,
+      "gainedByIdentity": [],
+      "lostByIdentity": []
+    },
+    "cirrus": {
+      "remoteId": "a0000000-0000-4000-8000-000000000003",
+      "studioKnownToWhisparr": true,
+      "studioTitle": "Studio Cirrus",
+      "studioForeignId": "a0000000-0000-4000-8000-000000000003",
+      "titlePredicateCount": 1,
+      "identityPredicateCount": 1,
+      "gainedByIdentity": [],
+      "lostByIdentity": []
+    },
+    "echo": {
+      "remoteId": "a0000000-0000-4000-8000-000000000004",
+      "studioKnownToWhisparr": true,
+      "studioTitle": "",
+      "studioForeignId": "a0000000-0000-4000-8000-000000000004",
+      "titlePredicateCount": 0,
+      "identityPredicateCount": 1,
+      "gainedByIdentity": [
+        {
+          "foreignId": "10000000-0000-4000-8000-000000000031",
+          "title": "Echo Scene One",
+          "studioTitle": "",
+          "studioForeignId": "a0000000-0000-4000-8000-000000000004"
+        }
+      ],
+      "lostByIdentity": []
+    },
+    "borealis": {
+      "remoteId": "a0000000-0000-4000-8000-000000000002",
+      "studioKnownToWhisparr": true,
+      "studioTitle": "Studio Borealis",
+      "studioForeignId": "a0000000-0000-4000-8000-000000000002",
+      "titlePredicateCount": 0,
+      "identityPredicateCount": 0,
+      "gainedByIdentity": [],
+      "lostByIdentity": []
+    }
+  },
+  "deltaClassRows": {
+    "studioTitleServedWithoutIdentity": {
+      "foreignId": "10000000-0000-4000-8000-000000000011",
+      "servedStudioTitle": "Studio Aurora",
+      "servedStudioForeignId": null,
+      "rowPresent": true,
+      "rowStudioTitle": null,
+      "rowStudioForeignId": null
+    },
+    "studioIdentityServedWithDivergentTitle": {
+      "foreignId": "10000000-0000-4000-8000-000000000021",
+      "servedStudioTitle": "Cirrus Productions",
+      "servedStudioForeignId": "a0000000-0000-4000-8000-000000000003",
+      "rowPresent": true,
+      "rowStudioTitle": "Studio Cirrus",
+      "rowStudioForeignId": "a0000000-0000-4000-8000-000000000003"
+    },
+    "studioServedWithNoTitle": {
+      "foreignId": "10000000-0000-4000-8000-000000000031",
+      "servedStudioTitle": "",
+      "servedStudioForeignId": "a0000000-0000-4000-8000-000000000004",
+      "rowPresent": true,
+      "rowStudioTitle": "",
+      "rowStudioForeignId": "a0000000-0000-4000-8000-000000000004"
+    }
+  },
+  "population": {
+    "totalRows": 9,
+    "rowsWithStudioTitle": 7,
+    "rowsWithStudioForeignId": 8,
+    "rowsWithTitleButNoForeignId": 0
+  }
+}

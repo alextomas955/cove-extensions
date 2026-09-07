@@ -42,6 +42,15 @@ website/build/
 /*.jpeg
 tests/e2e/docker/shared-media/
 
+# Test-run output and coverage reports. The floor gate reads the emitted report in place, so a run
+# leaves these behind; a second report under the same directory makes the reading ambiguous, so clear
+# the directory rather than committing either copy.
+TestResults/
+coverage/
+*.coverage
+*.coverage.xml
+*.cobertura.xml
+
 # Local scratch/audit directories — never part of a release.
 .bg-shell/
 .gsd/

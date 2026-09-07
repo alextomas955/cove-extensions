@@ -1,0 +1,56 @@
+{
+  "data": [
+    {
+      "id": "9b2d0000-0000-4000-8000-000000000001",
+      "title": "Performer Catalogue Scene 1",
+      "date": "2024-03-11",
+      "poster": "https://cdn.example.test/poster/p1.jpg",
+      "image": "https://cdn.example.test/landscape/p1.jpg",
+      "description": "A synthetic scene blurb used only to pin the overview mapping on the performer path.",
+      "site": { "id": 512, "name": "Example Studio" },
+      "performers": [
+        {
+          "id": "7bb135c5-0000-4000-8000-00000000aaaa",
+          "_id": 2361967,
+          "name": "Performer Alpha",
+          "face": "https://cdn.example.test/face/p1.jpg",
+          "image": "https://cdn.example.test/performer/p1.jpg",
+          "thumbnail": "https://cdn.example.test/thumb/p1.jpg",
+          "parent": { "id": "3de6cd92-0000-4000-8000-000000000001", "_id": 289008 }
+        },
+        {
+          "id": "7bb135c5-0000-4000-8000-00000000eeee",
+          "_id": 2361968,
+          "name": "Performer Beta",
+          "face": null,
+          "image": "https://cdn.example.test/performer/p2.jpg",
+          "thumbnail": "https://cdn.example.test/thumb/p2.jpg",
+          "parent": { "id": "260c30e8-0000-4000-8000-00000000ffff", "_id": 289011 }
+        }
+      ],
+      "tags": [{ "id": 195, "uuid": "cc4d0000-0000-4000-8000-000000000001", "name": "Tag Alpha" }]
+    },
+    {
+      "id": "9b2d0000-0000-4000-8000-000000000002",
+      "title": "Performer Catalogue Scene 2",
+      "date": "2023-09-02",
+      "poster": null,
+      "image": "https://cdn.example.test/landscape/p2.jpg",
+      "description": "A second synthetic blurb.",
+      "site": { "id": 512, "name": "Example Studio" },
+      "performers": [
+        {
+          "id": "7bb135c5-0000-4000-8000-00000000bbbb",
+          "_id": 2361969,
+          "name": "Performer Alpha",
+          "face": "https://cdn.example.test/face/p1.jpg",
+          "image": null,
+          "thumbnail": null,
+          "parent": { "id": "3de6cd92-0000-4000-8000-000000000001", "_id": 289008 }
+        }
+      ],
+      "tags": [{ "id": 10352, "uuid": "cc4d0000-0000-4000-8000-000000000002", "name": "Tag Beta" }]
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1 }
+}

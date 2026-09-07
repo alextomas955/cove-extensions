@@ -1,0 +1,191 @@
+{
+  "what": "listbystudioforeignid and listbyperformerforeignid, for an unknown entity and for a known entity holding zero movies",
+  "instanceVersion": "3.3.4.794",
+  "seedSize": 9,
+  "siblings": {
+    "studioUnknown": {
+      "request": "/api/v3/movie/listbystudioforeignid?studioForeignId=a0000000-0000-4000-8000-0000000000ff",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": []
+    },
+    "studioKnownWithNoMovies": {
+      "request": "/api/v3/movie/listbystudioforeignid?studioForeignId=a0000000-0000-4000-8000-000000000002",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": []
+    },
+    "performerUnknown": {
+      "request": "/api/v3/movie/listbyperformerforeignid?performerForeignId=c0000000-0000-4000-8000-0000000000ff",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": []
+    },
+    "performerKnownWithNoMovies": {
+      "request": "/api/v3/movie/listbyperformerforeignid?performerForeignId=c0000000-0000-4000-8000-000000000002",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": []
+    }
+  },
+  "discriminator": {
+    "studioUnknown": {
+      "request": "/api/v3/studio/a0000000-0000-4000-8000-0000000000ff",
+      "status": 404,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+        "title": "Not Found",
+        "status": 404,
+        "traceId": "<normalized>"
+      }
+    },
+    "studioKnownWithNoMovies": {
+      "request": "/api/v3/studio/a0000000-0000-4000-8000-000000000002",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "title": "Studio Borealis",
+        "sortTitle": "studio borealis",
+        "foreignId": "a0000000-0000-4000-8000-000000000002",
+        "tmdbId": 0,
+        "images": [],
+        "monitored": false,
+        "moviesMonitored": false,
+        "status": "active",
+        "rootFolderPath": "/data/media",
+        "qualityProfileId": 1,
+        "searchOnAdd": false,
+        "aliases": [],
+        "tags": [],
+        "hasMovies": false,
+        "hasScenes": false,
+        "totalMovieCount": 0,
+        "totalSceneCount": 0,
+        "movieCount": 0,
+        "sceneCount": 0,
+        "years": [],
+        "sizeOnDisk": "<normalized>",
+        "id": 5
+      }
+    },
+    "studioKnownWithMovies": {
+      "request": "/api/v3/studio/a0000000-0000-4000-8000-000000000001",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "title": "Studio Aurora",
+        "sortTitle": "studio aurora",
+        "foreignId": "a0000000-0000-4000-8000-000000000001",
+        "tmdbId": 0,
+        "images": [],
+        "monitored": false,
+        "moviesMonitored": false,
+        "status": "active",
+        "rootFolderPath": "/data/media",
+        "qualityProfileId": 1,
+        "searchOnAdd": false,
+        "aliases": [],
+        "tags": [],
+        "hasMovies": true,
+        "hasScenes": true,
+        "totalMovieCount": 2,
+        "totalSceneCount": 3,
+        "movieCount": 0,
+        "sceneCount": 0,
+        "years": [
+          2026
+        ],
+        "sizeOnDisk": "<normalized>",
+        "id": 1
+      }
+    },
+    "performerUnknown": {
+      "request": "/api/v3/performer/c0000000-0000-4000-8000-0000000000ff",
+      "status": 404,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+        "title": "Not Found",
+        "status": 404,
+        "traceId": "<normalized>"
+      }
+    },
+    "performerKnownWithNoMovies": {
+      "request": "/api/v3/performer/c0000000-0000-4000-8000-000000000002",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "fullName": "Ivy Calloway",
+        "name": "Ivy Calloway",
+        "aliases": [],
+        "gender": "female",
+        "country": "",
+        "breastType": "natural",
+        "status": "active",
+        "foreignId": "c0000000-0000-4000-8000-000000000002",
+        "tmdbId": 0,
+        "images": [],
+        "monitored": false,
+        "moviesMonitored": false,
+        "rootFolderPath": "/data/media",
+        "qualityProfileId": 1,
+        "searchOnAdd": false,
+        "tags": [],
+        "added": "<normalized>",
+        "hasMovies": false,
+        "hasScenes": false,
+        "movieCount": 0,
+        "totalMovieCount": 0,
+        "totalSceneCount": 0,
+        "sceneCount": 0,
+        "sizeOnDisk": "<normalized>",
+        "id": 3
+      }
+    },
+    "performerKnownWithMovies": {
+      "request": "/api/v3/performer/c0000000-0000-4000-8000-000000000001",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "fullName": "Ava Bennett",
+        "name": "Ava Bennett",
+        "aliases": [],
+        "gender": "female",
+        "country": "",
+        "breastType": "natural",
+        "status": "active",
+        "foreignId": "c0000000-0000-4000-8000-000000000001",
+        "tmdbId": 0,
+        "images": [],
+        "monitored": false,
+        "moviesMonitored": false,
+        "rootFolderPath": "/data/media",
+        "qualityProfileId": 1,
+        "searchOnAdd": false,
+        "tags": [],
+        "added": "<normalized>",
+        "hasMovies": false,
+        "hasScenes": false,
+        "movieCount": 0,
+        "totalMovieCount": 0,
+        "totalSceneCount": 0,
+        "sceneCount": 0,
+        "sizeOnDisk": "<normalized>",
+        "id": 1
+      }
+    }
+  },
+  "siblingWithMovies": {
+    "request": "/api/v3/movie/listbystudioforeignid?studioForeignId=a0000000-0000-4000-8000-000000000001",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "body": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  }
+}

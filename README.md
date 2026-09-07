@@ -24,6 +24,9 @@ This list grows as more entries are added to `extensions/catalog.json`.
 
 ## Building
 
+You need the .NET SDK pinned in [`global.json`](global.json) — `10.0.301`, rolling forward to the
+latest installed feature band. The UI bundles pin Node 24.11.0 via Volta.
+
 Build the shared solution from the repo root:
 
 ```sh
@@ -47,6 +50,19 @@ reference. Package versions are centralized via NuGet Central Package Management
 from `$(CoveMinVersion)` — the declared host floor that the extension-repo validator compares each
 extension's `minCoveVersion` against.
 
+First-party code both extensions share lives in [`shared/`](shared/): `Cove.Extensions.Shared` is a
+`ProjectReference` that ships bundled (it is not host-provided), and `cove-extensions-ui` is
+resolved into each UI bundle from raw TypeScript source through a Vite alias rather than a network
+install. `Cove.Extensions.Shared.Testing` is the test-only counterpart.
+
+### Gates
+
+Every merge gate is declared once in [`scripts/verify-all.mjs`](scripts/verify-all.mjs), and CI and
+a local terminal both select ids from that one registry rather than restating a command list.
+`npm run verify:fast` runs the quick set, `npm run verify:all` the full local set minus the
+containerized tier. See [`CONTRIBUTING.md`](CONTRIBUTING.md#running-the-gates) for the rest,
+including what a gate reports when it cannot run where you are.
+
 ## Adding an extension
 
 Every extension is a dynamically-loaded `Cove.Sdk` plugin: implement `IExtension` (via
@@ -61,8 +77,9 @@ Every extension is a dynamically-loaded `Cove.Sdk` plugin: implement `IExtension
   `extensions/<Name>/docs/`, `extensions/<Name>/CHANGELOG.md`.
 - Repo-wide process docs live on the docs site under Contributing:
   [Branching](https://alextomas955.github.io/cove-extensions/contributing/branching),
-  [Releasing](https://alextomas955.github.io/cove-extensions/contributing/releasing), and
-  [Authoring E2E tests](https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e).
+  [Releasing](https://alextomas955.github.io/cove-extensions/contributing/releasing),
+  [Authoring patterns](https://alextomas955.github.io/cove-extensions/contributing/authoring-patterns),
+  and [Authoring E2E tests](https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e).
 
 ## License
 

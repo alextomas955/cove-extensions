@@ -1,0 +1,119 @@
+{
+  "what": "the missing set for each seeded entity computed two ways over one instance — the whole-set diff shipped today and the per-entity narrow diff that replaces it",
+  "instanceVersion": "3.3.4.794",
+  "seedSize": 9,
+  "corpus": "wholly synthetic (fixtures/wire-seed); the Cove-owned id set per entity is stated in the spec, not read from a Cove instance",
+  "consequenceOfTheGainingDirection": "a row Whisparr holds under a DIFFERENT entity is not missing under the whole-set diff and IS missing under the narrow one, so the narrow diff re-registers it; Whisparr answers already-added and this extension counts that as a success, so the reader is never told",
+  "shapesThatProduceAGain": [
+    "a row Whisparr attributes to no studio at all (a scene whose metadata carried no studio identity)",
+    "a row Whisparr attributes to a different studio than Cove does",
+    "a performer credit Whisparr does not carry on the row that Cove does"
+  ],
+  "perEntity": {
+    "studio Aurora": {
+      "kind": "studio",
+      "foreignId": "a0000000-0000-4000-8000-000000000001",
+      "catalogueState": "known",
+      "ownedIds": [
+        "10000000-0000-4000-8000-000000000001",
+        "10000000-0000-4000-8000-000000000002",
+        "10000000-0000-4000-8000-000000000011",
+        "10000000-0000-4000-8000-0000000000ff"
+      ],
+      "catalogueIds": [
+        "10000000-0000-4000-8000-000000000001",
+        "10000000-0000-4000-8000-000000000002",
+        "10000000-0000-4000-8000-000000000003",
+        "999001",
+        "999002"
+      ],
+      "missingUnderWholeSetDiff": [
+        "10000000-0000-4000-8000-0000000000ff"
+      ],
+      "missingUnderNarrowDiff": [
+        "10000000-0000-4000-8000-000000000011",
+        "10000000-0000-4000-8000-0000000000ff"
+      ],
+      "gained": [
+        "10000000-0000-4000-8000-000000000011"
+      ],
+      "lost": []
+    },
+    "studio Borealis": {
+      "kind": "studio",
+      "foreignId": "a0000000-0000-4000-8000-000000000002",
+      "catalogueState": "known",
+      "ownedIds": [
+        "10000000-0000-4000-8000-0000000000b1"
+      ],
+      "catalogueIds": [],
+      "missingUnderWholeSetDiff": [
+        "10000000-0000-4000-8000-0000000000b1"
+      ],
+      "missingUnderNarrowDiff": [
+        "10000000-0000-4000-8000-0000000000b1"
+      ],
+      "gained": [],
+      "lost": []
+    },
+    "studio Echo": {
+      "kind": "studio",
+      "foreignId": "a0000000-0000-4000-8000-000000000004",
+      "catalogueState": "known",
+      "ownedIds": [
+        "10000000-0000-4000-8000-000000000031",
+        "10000000-0000-4000-8000-000000000001"
+      ],
+      "catalogueIds": [
+        "10000000-0000-4000-8000-000000000031"
+      ],
+      "missingUnderWholeSetDiff": [],
+      "missingUnderNarrowDiff": [
+        "10000000-0000-4000-8000-000000000001"
+      ],
+      "gained": [
+        "10000000-0000-4000-8000-000000000001"
+      ],
+      "lost": []
+    },
+    "performer Ava": {
+      "kind": "performer",
+      "foreignId": "c0000000-0000-4000-8000-000000000001",
+      "catalogueState": "known",
+      "ownedIds": [
+        "10000000-0000-4000-8000-000000000001",
+        "10000000-0000-4000-8000-000000000003"
+      ],
+      "catalogueIds": [
+        "10000000-0000-4000-8000-000000000001",
+        "999001",
+        "999002"
+      ],
+      "missingUnderWholeSetDiff": [],
+      "missingUnderNarrowDiff": [
+        "10000000-0000-4000-8000-000000000003"
+      ],
+      "gained": [
+        "10000000-0000-4000-8000-000000000003"
+      ],
+      "lost": []
+    },
+    "performer Ivy": {
+      "kind": "performer",
+      "foreignId": "c0000000-0000-4000-8000-000000000002",
+      "catalogueState": "known",
+      "ownedIds": [
+        "10000000-0000-4000-8000-000000000001"
+      ],
+      "catalogueIds": [],
+      "missingUnderWholeSetDiff": [],
+      "missingUnderNarrowDiff": [
+        "10000000-0000-4000-8000-000000000001"
+      ],
+      "gained": [
+        "10000000-0000-4000-8000-000000000001"
+      ],
+      "lost": []
+    }
+  }
+}

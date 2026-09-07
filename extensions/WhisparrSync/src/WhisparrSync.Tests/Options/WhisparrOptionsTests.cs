@@ -1,0 +1,241 @@
+using System.Text.Json;
+using WhisparrSync.Contracts;
+using WhisparrSync.Options;
+
+namespace WhisparrSync.Tests.Options;
+
+/// <summary>
+/// The executable contract for the version-aware identity configuration: the <see cref="WhisparrOptions.TpdbEndpoint"/>
+/// round-trip (default + preserve-on-blank, mirroring <c>StashDbEndpoint</c>) and the
+/// <see cref="WhisparrOptions.IdentityEndpoint"/> version selection (v3 → StashDB, v2 → ThePornDB) that keys
+/// which of the entity's remote ids the server resolves as the Whisparr target.
+/// </summary>
+[Trait("Tier", "L0")]
+public sealed class WhisparrOptionsTests
+{
+    [Fact]
+    public void TpdbEndpoint_DefaultsToThePornDbGraphql()
+        => Assert.Equal("https://theporndb.net/graphql", new WhisparrOptions().TpdbEndpoint);
+
+    [Fact]
+    public void WithSubmitted_BlankTpdbEndpoint_PreservesStored()
+    {
+        var stored = new WhisparrOptions { TpdbEndpoint = "https://custom.tpdb/graphql" };
+
+        var updated = stored.WithSubmitted(
+            baseUrl: null, apiKey: null, selectedVersion: null,
+            tpdbEndpoint: "   ");
+
+        Assert.Equal("https://custom.tpdb/graphql", updated.TpdbEndpoint);
+    }
+
+    [Fact]
+    public void WithSubmitted_NonBlankTpdbEndpoint_Replaces()
+    {
+        var stored = new WhisparrOptions { TpdbEndpoint = "https://custom.tpdb/graphql" };
+
+        var updated = stored.WithSubmitted(
+            baseUrl: null, apiKey: null, selectedVersion: null,
+            tpdbEndpoint: "https://theporndb.net/graphql");
+
+        Assert.Equal("https://theporndb.net/graphql", updated.TpdbEndpoint);
+    }
+
+    [Fact]
+    public void OptionsView_CarriesTpdbEndpoint()
+    {
+        var view = OptionsView.From(new WhisparrOptions { TpdbEndpoint = "https://theporndb.net/graphql" });
+        Assert.Equal("https://theporndb.net/graphql", view.TpdbEndpoint);
+    }
+
+    // WebhookHost is the persisted pre-registration webhook origin: empty on first run, set on a non-blank
+    // submit, and preserved on a blank submit so a partial save (or a UI that never held the host) never blanks
+    // a stored host — the fix for a refresh reverting the webhook URL to the browser-derived request host.
+
+    [Fact]
+    public void WebhookHost_DefaultsToEmpty()
+        => Assert.Equal("", new WhisparrOptions().WebhookHost);
+
+    [Fact]
+    public void WithSubmitted_WebhookHost_SetsThenPreservesOnBlank()
+    {
+        var updated = new WhisparrOptions().WithSubmitted(
+            baseUrl: null, apiKey: null, selectedVersion: null,
+            webhookHost: "http://host.docker.internal:5073");
+        Assert.Equal("http://host.docker.internal:5073", updated.WebhookHost);
+
+        var unchanged = updated.WithSubmitted(
+            baseUrl: null, apiKey: null, selectedVersion: null,
+            webhookHost: "   ");
+        Assert.Equal("http://host.docker.internal:5073", unchanged.WebhookHost); // blank submit preserves the stored host
+    }
+
+    [Fact]
+    public void OptionsView_CarriesWebhookHost_AndStillRedactsApiKey()
+    {
+        var view = OptionsView.From(new WhisparrOptions
+        {
+            WebhookHost = "http://host.docker.internal:5073",
+            ApiKey = "super-secret-value-123",
+        });
+
+        Assert.Equal("http://host.docker.internal:5073", view.WebhookHost);
+        Assert.True(view.HasApiKey);
+        Assert.Null(typeof(OptionsView).GetProperty("ApiKey")); // the raw key never appears on the projection
+
+        var json = JsonSerializer.Serialize(view);
+        Assert.DoesNotContain("super-secret-value-123", json, StringComparison.Ordinal);
+    }
+
+
+    // The single server-side rule the outward endpoints key on: the identity endpoint follows the CONNECTED
+    // version, so a v3 (Eros) instance resolves by the StashDB id and a v2 (Sonarr) instance by the TPDB id.
+
+    [Theory]
+    [InlineData("v3")]
+    [InlineData("V3")]
+    public void IdentityEndpoint_OnV3_IsStashDbEndpoint(string version)
+    {
+        var options = new WhisparrOptions
+        {
+            SelectedVersion = version,
+            StashDbEndpoint = "https://stashdb.org/graphql",
+            TpdbEndpoint = "https://theporndb.net/graphql",
+        };
+
+        Assert.Equal("https://stashdb.org/graphql", options.IdentityEndpoint);
+    }
+
+    [Theory]
+    [InlineData("v2")]
+    [InlineData("V2")]
+    public void IdentityEndpoint_OnV2_IsTpdbEndpoint(string version)
+    {
+        var options = new WhisparrOptions
+        {
+            SelectedVersion = version,
+            StashDbEndpoint = "https://stashdb.org/graphql",
+            TpdbEndpoint = "https://theporndb.net/graphql",
+        };
+
+        Assert.Equal("https://theporndb.net/graphql", options.IdentityEndpoint);
+    }
+
+    // DefaultMonitorScope persists as its STRING name (the property-level converter), so a reorder of the
+    // MonitorScope enum cannot silently repoint a stored blob to a different scope.
+
+    [Fact]
+    public void DefaultMonitorScope_SerializesAsStringName_AndRoundTrips()
+    {
+        var options = new WhisparrOptions { DefaultMonitorScope = MonitorScope.AllScenes };
+
+        var json = JsonSerializer.Serialize(options, WhisparrOptions.JsonOptions);
+        Assert.Contains("\"AllScenes\"", json);
+        Assert.DoesNotContain("\"DefaultMonitorScope\":1", json); // never the numeric ordinal
+
+        var roundTripped = JsonSerializer.Deserialize<WhisparrOptions>(json, WhisparrOptions.JsonOptions)!;
+        Assert.Equal(MonitorScope.AllScenes, roundTripped.DefaultMonitorScope);
+    }
+
+    // Per-version connection memory: switching v3↔v2 in Settings restores that version's URL and key,
+    // so a user can toggle between a v3 and a v2 instance without re-entering either.
+
+    [Fact]
+    public void WithSubmitted_SavesConnectionPerVersion_AndSwitchingBackRestoresThatVersionKey()
+    {
+        // Configure v3, then v2 with its own key, then switch BACK to v3 with a BLANK key (the toggle-then-save
+        // flow): the active key must restore to v3's saved key, never carry v2's.
+        var v3 = new WhisparrOptions().WithSubmitted(
+            baseUrl: "http://v3.local", apiKey: "V3-KEY", selectedVersion: "v3");
+        var v2 = v3.WithSubmitted(
+            baseUrl: "http://v2.local", apiKey: "V2-KEY", selectedVersion: "v2");
+
+        Assert.Equal("http://v2.local", v2.BaseUrl);
+        Assert.Equal("V2-KEY", v2.ApiKey);
+        // v3's WHOLE connection (url + key) survives the switch to v2 — this is what the UI reads
+        // back to repopulate the form on a toggle, so assert every field, not just the key.
+        var savedV3 = v2.SavedConnections["v3"];
+        Assert.Equal("http://v3.local", savedV3.BaseUrl);
+        Assert.Equal("V3-KEY", savedV3.ApiKey);
+
+        var backToV3 = v2.WithSubmitted(
+            baseUrl: "http://v3.local", apiKey: "", selectedVersion: "v3");
+
+        Assert.Equal("http://v3.local", backToV3.BaseUrl);
+        Assert.Equal("V3-KEY", backToV3.ApiKey);    // restored from the saved v3 connection, not blanked
+        Assert.Equal("V2-KEY", backToV3.SavedConnections["v2"].ApiKey); // v2 still remembered for the next toggle
+    }
+
+    [Fact]
+    public void WithSubmitted_BlankKeyOnNotYetConfiguredVersion_DoesNotInheritTheOtherVersionKey()
+    {
+        var v3 = new WhisparrOptions().WithSubmitted(
+            baseUrl: "http://v3.local", apiKey: "V3-KEY", selectedVersion: "v3");
+
+        // First-ever switch to v2 with a blank key: there is nothing saved for v2, so the key resolves to empty —
+        // NOT v3's key. This is the invariant that stops a toggle from leaking v3's key to the v2 host.
+        var v2 = v3.WithSubmitted(
+            baseUrl: "http://v2.local", apiKey: "", selectedVersion: "v2");
+
+        Assert.Equal("", v2.ApiKey);
+    }
+
+    [Fact]
+    public void OptionsView_ExposesSavedConnections_FoldingInTheActiveVersion()
+    {
+        var options = new WhisparrOptions
+        {
+            BaseUrl = "http://v3.local",
+            ApiKey = "V3-KEY",
+            SelectedVersion = "v3",
+            SavedConnections = new Dictionary<string, WhisparrConnection>
+            {
+                ["v2"] = new("http://v2.local", "V2-KEY"),
+            },
+        };
+
+        var view = OptionsView.From(options);
+
+        Assert.True(view.SavedConnections["v2"].HasApiKey);
+        Assert.Equal("http://v2.local", view.SavedConnections["v2"].BaseUrl);
+        // The active v3 connection is folded in even though it predates the SavedConnections map (migration).
+        Assert.True(view.SavedConnections["v3"].HasApiKey);
+        Assert.Equal("http://v3.local", view.SavedConnections["v3"].BaseUrl);
+    }
+
+    // PathTranslation is a non-secret list setting modeled on the endpoint strings: WithSubmitted sets it, and
+    // an absent (null) submission preserves the stored table so a partial save never wipes it. Default = empty.
+    [Fact]
+    public void WithSubmitted_PathTranslation_SetsThenPreservesOnNull()
+    {
+        Assert.Empty(new WhisparrOptions().PathTranslation); // default is identity (a shared mount)
+
+        var updated = new WhisparrOptions().WithSubmitted(
+            baseUrl: null, apiKey: null, selectedVersion: null,
+            pathTranslation: [new PathTranslationRule("/cove/library", "/data/media")]);
+        var rule = Assert.Single(updated.PathTranslation);
+        Assert.Equal("/cove/library", rule.CovePrefix);
+        Assert.Equal("/data/media", rule.WhisparrPrefix);
+
+        var unchanged = updated.WithSubmitted(
+            baseUrl: null, apiKey: null, selectedVersion: null,
+            pathTranslation: null);
+        Assert.Single(unchanged.PathTranslation); // null preserves the stored table
+    }
+
+    [Fact]
+    public void WithSubmitted_DefaultMonitorScope_SetsThenPreservesOnNull()
+    {
+        Assert.Equal(MonitorScope.NewReleases, new WhisparrOptions().DefaultMonitorScope); // the loop-safe default
+
+        var updated = new WhisparrOptions().WithSubmitted(
+            baseUrl: null, apiKey: null, selectedVersion: null,
+            defaultMonitorScope: MonitorScope.AllScenes);
+        Assert.Equal(MonitorScope.AllScenes, updated.DefaultMonitorScope);
+
+        var unchanged = updated.WithSubmitted(
+            baseUrl: null, apiKey: null, selectedVersion: null,
+            defaultMonitorScope: null);
+        Assert.Equal(MonitorScope.AllScenes, unchanged.DefaultMonitorScope); // null preserves the stored value
+    }
+}

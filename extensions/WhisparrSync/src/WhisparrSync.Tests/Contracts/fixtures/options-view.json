@@ -1,0 +1,20 @@
+{
+  "baseUrl": "http://whisparr:6969",
+  "selectedVersion": "v3",
+  "detectedVersion": "v3",
+  "detectedVersionTicks": 638000000000000000,
+  "hasApiKey": true,
+  "tagsOnAdd": [
+    "cove"
+  ],
+  "monitorNewByDefault": true,
+  "allowQualityUpgrades": true,
+  "tpdbEndpoint": "https://theporndb.net/graphql",
+  "webhookHost": "http://cove:5000",
+  "savedConnections": {
+    "v3": {
+      "baseUrl": "http://whisparr:6969",
+      "hasApiKey": true
+    }
+  }
+}

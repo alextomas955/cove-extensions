@@ -1,0 +1,71 @@
+{
+  "data": [
+    {
+      "id": "7a1c0000-0000-4000-8000-000000000001",
+      "title": "Tushy Raw Scene 1",
+      "date": "2024-01-05",
+      "poster": "https://cdn.example.test/poster/1.jpg",
+      "image": "https://cdn.example.test/landscape/1.jpg",
+      "description": "A synthetic scene blurb used only to pin the overview mapping.",
+      "site": {
+        "id": 247,
+        "name": "Tushy Raw"
+      },
+      "performers": [
+        {
+          "id": "7bb135c5-0000-4000-8000-00000000aaaa",
+          "_id": 2361967,
+          "name": "Performer One",
+          "face": "https://cdn.example.test/face/1.jpg",
+          "image": "https://cdn.example.test/image/1.jpg",
+          "thumbnail": "https://cdn.example.test/thumb/1.jpg",
+          "parent": { "id": "260c30e8-0000-4000-8000-00000000bbbb", "_id": 289008 }
+        },
+        {
+          "name": "Performer Two",
+          "image": "https://cdn.example.test/image/2.jpg",
+          "thumbnail": "https://cdn.example.test/thumb/2.jpg",
+          "parent": { "id": "260c30e8-0000-4000-8000-00000000cccc", "_id": 289009 }
+        },
+        {
+          "name": "Performer Three",
+          "thumbnail": "https://cdn.example.test/thumb/3.jpg",
+          "parent": { "id": "260c30e8-0000-4000-8000-00000000dddd", "_id": 289010 }
+        },
+        {
+          "name": "Performer Four"
+        }
+      ],
+      "tags": [
+        { "id": 195, "name": "Tag Alpha" },
+        { "id": 10352, "name": "Tag Beta" }
+      ]
+    },
+    {
+      "id": "7a1c0000-0000-4000-8000-000000000002",
+      "title": "Tushy Raw Scene 2",
+      "date": "2024-02-09",
+      "poster": "https://cdn.example.test/poster/2.jpg",
+      "site": {
+        "id": 247,
+        "name": "Tushy Raw"
+      },
+      "performers": [],
+      "tags": []
+    },
+    {
+      "id": "7a1c0000-0000-4000-8000-000000000003",
+      "title": "Tushy Raw Scene 3",
+      "date": "2024-03-14",
+      "poster": null,
+      "site": {
+        "id": 247,
+        "name": "Tushy Raw"
+      }
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1
+  }
+}

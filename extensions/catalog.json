@@ -11,6 +11,11 @@
       "manifestPath": "extensions/Renamer/src/Renamer/extension.json",
       "uiPath": "extensions/Renamer/src/Renamer.Ui",
       "registryManifestPath": "extensions/Renamer/registry/com.alextomas955.renamer.json",
+      "versionSourcePath": "extensions/Renamer/src/Renamer/Renamer.cs",
+      "requiredBundledDlls": [
+        "System.IO.Hashing",
+        "Cove.Extensions.Shared"
+      ],
       "artifacts": [
         "extension.json",
         "index.mjs",
@@ -24,6 +29,33 @@
       ],
       "e2ePath": "extensions/Renamer/e2e",
       "e2eProject": "renamer"
+    },
+    {
+      "name": "WhisparrSync",
+      "id": "com.alextomas955.whisparrsync",
+      "path": "extensions/WhisparrSync",
+      "tagPrefix": "whisparrsync/",
+      "projectPath": "extensions/WhisparrSync/src/WhisparrSync/WhisparrSync.csproj",
+      "testProjectPath": "extensions/WhisparrSync/src/WhisparrSync.Tests/WhisparrSync.Tests.csproj",
+      "manifestPath": "extensions/WhisparrSync/src/WhisparrSync/extension.json",
+      "uiPath": "extensions/WhisparrSync/src/WhisparrSync.Ui",
+      "versionSourcePath": "extensions/WhisparrSync/src/WhisparrSync/WhisparrSync.cs",
+      "requiredBundledDlls": [
+        "Cove.Extensions.Shared"
+      ],
+      "artifacts": [
+        "extension.json",
+        "index.mjs",
+        "WhisparrSync.dll",
+        "Cove.Extensions.Shared.dll",
+        "WhisparrSync.deps.json",
+        "WhisparrSync.runtimeconfig.json",
+        "README.md",
+        "LICENSE"
+      ],
+      "e2ePath": "extensions/WhisparrSync/e2e",
+      "e2eProject": "whisparrsync",
+      "e2eNodeTestsPath": "extensions/WhisparrSync/e2e/node-tests"
     }
   ]
 }

@@ -1,0 +1,236 @@
+{
+  "what": "the four-part control applied to the narrowed per-entity read and to the un-narrowed read it replaces, plus that read's request sequence, its empty-case discrimination, and its largest response",
+  "instanceVersion": "3.3.4.794",
+  "seedSize": 9,
+  "corpus": "wholly synthetic (fixtures/wire-seed)",
+  "chunkGrain": 1000,
+  "control": {
+    "unnarrowed": {
+      "passedParts": [
+        1,
+        4
+      ],
+      "failedParts": [
+        2,
+        3
+      ],
+      "parts": [
+        {
+          "part": 1,
+          "name": "the seeded set is the asserted size and holds at least 3 rows",
+          "passed": true,
+          "detail": "expected 9 (>= 3), instance reports 9"
+        },
+        {
+          "part": 2,
+          "name": "a present id returns exactly the rows that id selects, by identity",
+          "passed": false,
+          "detail": "asked for a0000000-0000-4000-8000-000000000001, wanted identities [\"10000000-0000-4000-8000-000000000001\",\"10000000-0000-4000-8000-000000000002\",\"10000000-0000-4000-8000-000000000003\",\"999001\",\"999002\"], got 9 row(s) with identities [\"10000000-0000-4000-8000-000000000001\",\"10000000-0000-4000-8000-000000000002\",\"10000000-0000-4000-8000-000000000003\",\"999001\",\"999002\",\"10000000-0000-4000-8000-000000000011\",\"10000000-0000-4000-8000-000000000021\",\"10000000-0000-4000-8000-000000000031\",\"10000000-0000-4000-8000-0000000000c1\"]"
+        },
+        {
+          "part": 3,
+          "name": "a well-formed but absent id returns zero rows",
+          "passed": false,
+          "detail": "asked for a0000000-0000-4000-8000-0000000000ff, got 9 row(s)"
+        },
+        {
+          "part": 4,
+          "name": "an unrecognised parameter returns the whole set",
+          "passed": true,
+          "detail": "got 9 row(s), whole set is 9"
+        }
+      ]
+    },
+    "narrowed": {
+      "passedParts": [
+        1,
+        2,
+        3
+      ],
+      "failedParts": [
+        4
+      ],
+      "parts": [
+        {
+          "part": 1,
+          "name": "the seeded set is the asserted size and holds at least 3 rows",
+          "passed": true,
+          "detail": "expected 9 (>= 3), instance reports 9"
+        },
+        {
+          "part": 2,
+          "name": "a present id returns exactly the rows that id selects, by identity",
+          "passed": true,
+          "detail": "asked for a0000000-0000-4000-8000-000000000001, wanted identities [\"10000000-0000-4000-8000-000000000001\",\"10000000-0000-4000-8000-000000000002\",\"10000000-0000-4000-8000-000000000003\",\"999001\",\"999002\"], got 5 row(s) with identities [\"10000000-0000-4000-8000-000000000001\",\"10000000-0000-4000-8000-000000000002\",\"10000000-0000-4000-8000-000000000003\",\"999001\",\"999002\"]"
+        },
+        {
+          "part": 3,
+          "name": "a well-formed but absent id returns zero rows",
+          "passed": true,
+          "detail": "asked for a0000000-0000-4000-8000-0000000000ff, got 0 row(s)"
+        },
+        {
+          "part": 4,
+          "name": "an unrecognised parameter returns the whole set",
+          "passed": false,
+          "detail": "got 1 row(s), whole set is 9"
+        }
+      ]
+    },
+    "unrecognisedParamOnTheSiblingRoute": {
+      "status": 200,
+      "rows": 1,
+      "wholeSet": 9,
+      "returned": [
+        {
+          "id": null,
+          "foreignId": null,
+          "title": null,
+          "studioForeignId": null,
+          "inTheMovieIndex": false
+        }
+      ]
+    }
+  },
+  "cost": [
+    {
+      "entity": "studio Aurora (holds rows)",
+      "k": 5,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v3/movie/listbystudioforeignid",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v3/movie/bulk",
+          "status": 200,
+          "ids": 5
+        }
+      ],
+      "requestCount": 2,
+      "formula": "1 + ceil(k/1000)",
+      "formulaValue": 2,
+      "state": "known",
+      "existenceStatus": null
+    },
+    {
+      "entity": "studio Borealis (known, holds nothing)",
+      "k": 0,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v3/movie/listbystudioforeignid",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v3/studio/{foreignId}",
+          "status": 200
+        }
+      ],
+      "requestCount": 2,
+      "formula": "1 + ceil(k/1000) + 1 existence read",
+      "formulaValue": 2,
+      "state": "known",
+      "existenceStatus": 200
+    },
+    {
+      "entity": "studio unknown to Whisparr",
+      "k": 0,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v3/movie/listbystudioforeignid",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v3/studio/{foreignId}",
+          "status": 404
+        }
+      ],
+      "requestCount": 2,
+      "formula": "1 + ceil(k/1000) + 1 existence read",
+      "formulaValue": 2,
+      "state": "entityUnknown",
+      "existenceStatus": 404
+    },
+    {
+      "entity": "performer Ivy (known, holds nothing)",
+      "k": 0,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v3/movie/listbyperformerforeignid",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v3/performer/{foreignId}",
+          "status": 200
+        }
+      ],
+      "requestCount": 2,
+      "formula": "1 + ceil(k/1000) + 1 existence read",
+      "formulaValue": 2,
+      "state": "known",
+      "existenceStatus": 200
+    },
+    {
+      "entity": "performer unknown to Whisparr",
+      "k": 0,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v3/movie/listbyperformerforeignid",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v3/performer/{foreignId}",
+          "status": 404
+        }
+      ],
+      "requestCount": 2,
+      "formula": "1 + ceil(k/1000) + 1 existence read",
+      "formulaValue": 2,
+      "state": "entityUnknown",
+      "existenceStatus": 404
+    }
+  ],
+  "emptyCaseDiscrimination": {
+    "studioKnownWithNoMovies": {
+      "existenceStatus": 200,
+      "state": "known"
+    },
+    "studioUnknown": {
+      "existenceStatus": 404,
+      "state": "entityUnknown"
+    },
+    "performerKnownWithNoMovies": {
+      "existenceStatus": 200,
+      "state": "known"
+    },
+    "performerUnknown": {
+      "existenceStatus": 404,
+      "state": "entityUnknown"
+    }
+  },
+  "twiceCreditedPerformer": {
+    "siblingIds": [
+      2
+    ],
+    "dedupedIds": [
+      2
+    ],
+    "siblingAnsweredADuplicate": false
+  },
+  "largestHydration": {
+    "entity": "studio Aurora",
+    "rows": 5,
+    "responseBytes": 6936,
+    "bytesPerRow": 1387
+  }
+}

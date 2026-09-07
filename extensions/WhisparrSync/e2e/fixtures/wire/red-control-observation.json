@@ -1,0 +1,44 @@
+{
+  "what": "the four-part filter control applied to the un-narrowed GET /api/v3/movie",
+  "instanceVersion": "3.3.4.794",
+  "seedSize": 9,
+  "presentId": "10000000-0000-4000-8000-000000000001",
+  "absentId": "10000000-0000-4000-8000-0000000000ff",
+  "report": {
+    "parts": [
+      {
+        "part": 1,
+        "name": "the seeded set is the asserted size and holds at least 3 rows",
+        "passed": true,
+        "detail": "expected 9 (>= 3), instance reports 9"
+      },
+      {
+        "part": 2,
+        "name": "a present id returns exactly the row asked for, by identity",
+        "passed": false,
+        "detail": "asked for 10000000-0000-4000-8000-000000000001, wanted identities [\"10000000-0000-4000-8000-000000000001\"], got 9 row(s) with identities [\"10000000-0000-4000-8000-000000000001\",\"10000000-0000-4000-8000-000000000002\",\"10000000-0000-4000-8000-000000000003\",\"999001\",\"999002\",\"10000000-0000-4000-8000-000000000011\",\"10000000-0000-4000-8000-000000000021\",\"10000000-0000-4000-8000-000000000031\",\"10000000-0000-4000-8000-0000000000c1\"]"
+      },
+      {
+        "part": 3,
+        "name": "a well-formed but absent id returns zero rows",
+        "passed": false,
+        "detail": "asked for 10000000-0000-4000-8000-0000000000ff, got 9 row(s)"
+      },
+      {
+        "part": 4,
+        "name": "an unrecognised parameter returns the whole set",
+        "passed": true,
+        "detail": "got 9 row(s), whole set is 9"
+      }
+    ],
+    "allPassed": false,
+    "passedParts": [
+      1,
+      4
+    ],
+    "failedParts": [
+      2,
+      3
+    ]
+  }
+}

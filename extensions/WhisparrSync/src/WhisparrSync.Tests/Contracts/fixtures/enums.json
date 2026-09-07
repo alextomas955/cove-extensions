@@ -1,0 +1,8 @@
+{
+  "sceneWhisparrState": {
+    "NotAdded": "\u0022notAdded\u0022",
+    "Excluded": "\u0022excluded\u0022",
+    "Unmonitored": "\u0022unmonitored\u0022",
+    "Monitored": "\u0022monitored\u0022"
+  }
+}
