@@ -2078,7 +2078,8 @@
           "reflectOwnedFiles",
           "searchMonitored",
           "readSceneStatus",
-          "readSceneExclusions"
+          "readSceneExclusions",
+          "searchScene"
         ]
       },
       "WhisparrEntityKind": {

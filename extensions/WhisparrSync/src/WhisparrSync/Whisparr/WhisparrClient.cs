@@ -218,6 +218,7 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
         IWhisparrMissingSceneActing,
         IWhisparrReflectOwnedActing,
         IWhisparrSearchGrabbing,
+        IWhisparrSceneSearchGrabbing,
         IWhisparrSceneStatusReading,
         IWhisparrSceneExclusionReading
 {
@@ -846,6 +847,18 @@ internal sealed class WhisparrClient(HttpClient http, Whisparr3Gateway gateway, 
                 ct),
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
+    }
+
+    // Recorded for the reason the entity search is, and given nothing at all: which scene, which
+    // instance and which key are either caller-supplied or credentials, and a log sink is durable and
+    // readable. Sent once, so an attempt whose answer did not arrive is reported rather than
+    // re-issued.
+    public Task<WhisparrResponse> SearchSceneAsync(
+        Uri baseAddress, string apiKey, int sceneId, CancellationToken ct)
+    {
+        WhisparrSyncLog.SceneSearchIssued(log);
+
+        return GeneratedCommandAsync(baseAddress, apiKey, V3BodyProjector.SearchScene(sceneId), ct);
     }
 
     // The identifier comes from a stored identity row rather than from a caller. The generated client
