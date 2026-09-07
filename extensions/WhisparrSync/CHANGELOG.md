@@ -2,6 +2,46 @@
 
 User-facing changes, newest first.
 
+## 1.2.0 - Browse what you do not own, from a studio, performer or tag page
+
+A **Missing** tab joins studio, performer and tag pages. It lists the scenes your metadata source
+knows about for that entity and your library does not hold, and tells you what your Whisparr holds
+for each one.
+
+**Read this before the number confuses you.** The figure beside the tab name, and the one beside
+the grid, is the size of the catalogue your metadata source lists for that entity. **It is not the
+number of scenes you are missing.** A studio with four thousand scenes reads four thousand whether
+you own all of them or none.
+
+**One source will not list past ten thousand scenes for one entity.** Where that limit is reached
+the count shows a plus, such as `10,000+`, and the pages stop there. The real figure is larger.
+
+- **Browse the catalogue on a studio, performer or tag page.** Each scene is a card with its cover,
+  title, date, studio, performers and description, and a pill saying whether Whisparr has no entry
+  for it, is wanting it, holds it unmonitored, or could not be read.
+- **Search, sort, filter and page through it.** Every one of those travels in the page address, so
+  the link you copy shows someone else exactly what you were looking at.
+- **Mark one scene wanted**, from its own card. Nothing is downloaded.
+- **Mark a page of scenes wanted at once.** Tick the cards you want, or use Cove's own select-all,
+  select-none and invert gestures, then press **Monitor**. It runs as one background job that
+  reports in Cove's job area with a count of how many were registered, how many Whisparr already
+  held and how many it refused. Nothing is downloaded. A selection covers the page you are looking
+  at, and changing page clears the ticks.
+- **Ask Whisparr to search for one scene**, from its card. **This is the only action on the tab that
+  downloads**, it is named on its own button, and it acts on that one scene rather than on
+  everything the entity monitors.
+- **A control the metadata source cannot honour is left out rather than shown greyed out**, so which
+  sorts and filters you are offered depends on which source your Whisparr generation reads from.
+- **A scene you excluded in Whisparr does not appear.** To hide one for good, exclude it in
+  Whisparr; nothing on this tab writes to that list.
+- **Whisparr v2 keeps no per-scene records**, so on a v2 connection the catalogue lists but every
+  pill reads Status unknown and the per-scene actions cannot take. A line above the grid says so.
+- **Cove now reaches a second host on your behalf.** Filling this tab reads catalogue listings from
+  the metadata source Cove is already configured with, using the key Cove holds for it, and your
+  browser loads each cover image straight from that source. Whisparr Sync asks you for no new key.
+- **Every button now shows a keyboard user where it is.** The focus ring was missing throughout and
+  is fixed, which also changes the appearance of the Renamer's buttons.
+
 ## 1.1.0 - Connect to Whisparr, take in what it imports, and monitor from an entity page
 
 The **Whisparr Sync** tab under Settings → Extensions is a working connection page, deliveries from
