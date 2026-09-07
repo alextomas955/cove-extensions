@@ -87,6 +87,7 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         IWhisparrMissingSceneActing,
         IWhisparrReflectOwnedActing,
         IWhisparrSearchGrabbing,
+        IWhisparrSceneSearchGrabbing,
         IWhisparrSceneStatusReading,
         IWhisparrSceneExclusionReading
 {
@@ -334,6 +335,11 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
                 EntityId = entityId,
             });
 
+    public Task<WhisparrResponse> SearchSceneAsync(
+        Uri baseAddress, string apiKey, int sceneId, CancellationToken ct)
+        => RecordActing(
+            new ActingCall(nameof(SearchSceneAsync), baseAddress, apiKey) { EntityId = sceneId });
+
     /// <summary>Queues <paramref name="answers"/> as what <paramref name="verb"/> answers with.</summary>
     public RecordingWhisparrClient Answering(string verb, params WhisparrResponse[] answers)
     {
@@ -374,14 +380,14 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         CancellationToken ct)
     {
         SceneStatuses.Add(new SceneStatusCall(kind, foreignId, null));
-        return Task.FromResult(answer);
+        return Task.FromResult(Answer(nameof(ReadEntityPresenceAsync)));
     }
 
     public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
         Uri baseAddress, string apiKey, string remoteId, CancellationToken ct)
     {
         SceneStatuses.Add(new SceneStatusCall(null, null, remoteId));
-        return Task.FromResult(answer);
+        return Task.FromResult(Answer(nameof(ReadSceneByRemoteIdAsync)));
     }
 
     public Task<IReadOnlySet<string>> ReduceExclusionsAsync(

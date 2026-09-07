@@ -66,6 +66,12 @@ public enum WhisparrCapability
     /// records keeps no scene exclusions either.
     /// </summary>
     ReadSceneExclusions,
+
+    /// <summary>
+    /// The instance can be asked to look for one catalogue scene it holds. The second capability
+    /// here that acquires anything, and the narrower of the two.
+    /// </summary>
+    SearchScene,
 }
 
 /// <summary>

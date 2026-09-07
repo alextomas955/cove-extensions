@@ -211,6 +211,8 @@ const ITEM_BEHIND_CAPABILITY: Record<WhisparrCapability, SecondaryAction | null>
   // A read, so this menu offers nothing for it.
   readSceneStatus: null,
   readSceneExclusions: null,
+  // Offered on a catalogue card rather than in this menu.
+  searchScene: null,
 };
 
 /**

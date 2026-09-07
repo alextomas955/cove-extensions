@@ -39,6 +39,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.SearchMonitored,
                 WhisparrCapability.ReadSceneStatus,
                 WhisparrCapability.ReadSceneExclusions,
+                WhisparrCapability.SearchScene,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
     }
@@ -154,6 +155,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.SearchMonitored,
                 WhisparrCapability.ReadSceneStatus,
                 WhisparrCapability.ReadSceneExclusions,
+                WhisparrCapability.SearchScene,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
         Assert.Equal(
@@ -172,9 +174,10 @@ public sealed class GenerationCapabilitiesTests
     /// from its table rather than present and refusing when it is called.
     /// </summary>
     /// <remarks>
-    /// Two absences, and each has its own reason: it addresses no performer at all, and no route on it
-    /// adds a catalogue item. Everything else it honours, so the list is the whole claim rather than a
-    /// sample of it.
+    /// Each absence has its own reason: it addresses no performer at all, no route on it adds a
+    /// catalogue item, and it keeps no scene records, so it has neither a scene to read nor one to
+    /// search for. Everything else it honours, so the list is the whole claim rather than a sample
+    /// of it.
     /// </remarks>
     [Fact]
     public void TheOlderGenerationHoldsExactlyTheCapabilitiesItCanHonour()
@@ -190,9 +193,53 @@ public sealed class GenerationCapabilitiesTests
             ],
             held);
         Assert.All(
-            new[] { WhisparrCapability.MonitorPerformer, WhisparrCapability.RegisterMissingScenes },
+            new[]
+            {
+                WhisparrCapability.MonitorPerformer,
+                WhisparrCapability.RegisterMissingScenes,
+                WhisparrCapability.ReadSceneStatus,
+                WhisparrCapability.ReadSceneExclusions,
+                WhisparrCapability.SearchScene,
+            },
             absent => Assert.DoesNotContain(absent, held));
     }
+
+    /// <summary>
+    /// The older generation obtains no per-scene search role, and the newer one does.
+    /// </summary>
+    /// <remarks>
+    /// Read through the capability table rather than through a check inside the role: a member that
+    /// refused once it was called would be a promise the type made and could not keep, and the
+    /// generation that keeps no scene records has no scene to search for.
+    /// <para>
+    /// Both are asserted over one client implementing every role, so the answers differ by generation
+    /// rather than by what each set happened to be built with.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void OnlyTheNewerGenerationObtainsThePerSceneSearchRole()
+    {
+        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"));
+
+        Assert.NotNull(SceneSearchRoleOn(WhisparrGeneration.V3, client));
+
+        var refusal = GenerationCapabilities
+            .For(WhisparrGeneration.V2, WhisparrRoleSet.From(client))
+            .Obtain<IWhisparrSceneSearchGrabbing>()
+            .Match<CapabilityRefusal?>(_ => null, refused => refused);
+
+        Assert.NotNull(refusal);
+        Assert.Equal(WhisparrCapability.SearchScene, refusal.Capability);
+        Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
+    }
+
+    /// <summary>The per-scene search role <paramref name="generation"/> holds, or null.</summary>
+    private static IWhisparrSceneSearchGrabbing? SceneSearchRoleOn(
+        WhisparrGeneration generation, RecordingWhisparrClient client)
+        => GenerationCapabilities
+            .For(generation, WhisparrRoleSet.From(client))
+            .Obtain<IWhisparrSceneSearchGrabbing>()
+            .Match<IWhisparrSceneSearchGrabbing?>(held => held, _ => null);
 
     /// <summary>
     /// The older generation refuses the missing-scene role by name, because no route on it adds a
@@ -331,7 +378,7 @@ public sealed class GenerationCapabilitiesTests
         => Assert.Equal(
             "[\"outOfBandCallbackSecret\",\"monitorStudio\",\"monitorPerformer\","
                 + "\"registerMissingScenes\",\"reflectOwnedFiles\",\"searchMonitored\","
-                + "\"readSceneStatus\",\"readSceneExclusions\"]",
+                + "\"readSceneStatus\",\"readSceneExclusions\",\"searchScene\"]",
             JsonSerializer.Serialize(
                 GenerationCapabilities.For(WhisparrGeneration.V3).Held, HostJsonOptions));
 
