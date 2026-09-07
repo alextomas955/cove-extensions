@@ -54,6 +54,7 @@ function pageOf(cards: MissingCard[], refusal: MissingRefusalKind): MissingPageV
     statusWasRead: refusal === "none",
     statusIsPermanentlyAbsent: refusal === "whisparrKeepsNoSceneRecords",
     monitorAllIsOffered: true,
+    providerName: "a source",
   };
 }
 

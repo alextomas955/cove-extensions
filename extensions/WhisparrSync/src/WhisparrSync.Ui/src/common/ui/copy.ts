@@ -317,6 +317,14 @@ export const SEARCH_WITH_NO_ENTRY =
   "Whisparr has no entry for this scene yet, so there is nothing to search for - mark it wanted first.";
 
 /**
+ * What a `{provider}` slot reads as before any page has answered.
+ *
+ * Which source is read follows the connected generation and is named by the page, so a read that
+ * produced no page has no name to fill the slot with.
+ */
+export const THE_METADATA_SOURCE = "your metadata source";
+
+/**
  * A missing-check whose provider did not answer.
  *
  * The second sentence is the point of the message. `{provider}` and `{entity}` are the specified

@@ -2,6 +2,7 @@ using System.Net;
 using System.Reflection;
 using Cove.Core.Interfaces;
 using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Contracts;
 using WhisparrSync.Options;
 using WhisparrSync.Providers;
 using WhisparrSync.Tests.TestSupport;
@@ -137,6 +138,26 @@ public sealed class ProviderCapabilityTests
 
             Assert.NotNull(obtain.Invoke(catalogue.Capabilities, null));
         }
+    }
+
+    /// <summary>
+    /// The name a sentence uses is the name of the source that answered. Held on the surface it
+    /// would say one provider whichever generation is connected.
+    /// </summary>
+    [Theory]
+    [InlineData(WhisparrGeneration.V3, "StashDB")]
+    [InlineData(WhisparrGeneration.V2, "ThePornDB")]
+    public async Task TheSelectedCatalogueNamesTheSourceItsGenerationReadsFrom(
+        WhisparrGeneration generation, string named)
+    {
+        var options = new OptionsStore(new FakeStore());
+        await options.SaveAsync(
+            new WhisparrSyncOptions { SelectedGeneration = generation },
+            TestContext.Current.CancellationToken);
+
+        var selected = new ProviderCatalogueSelector(options, StashDb(), ThePornDb());
+
+        Assert.Equal(named, selected.Capabilities.Provider);
     }
 
     private static CoveConfiguration Configured(string endpoint)
