@@ -8,10 +8,11 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 
-import type { MissingPageView, MissingSceneActionResult } from "../wire/api";
+import type { MissingBulkEnqueued, MissingPageView, MissingSceneActionResult } from "../wire/api";
 import { api } from "../common/lib/extension";
 import type { MissingEntityKind } from "./entityKindLogic";
 import { sceneActionIn, type CardVerb } from "./missingCardLogic";
+import { selectionOutcomeIn } from "./missingSelectionLogic";
 import type { MissingView } from "./missingUrlLogic";
 import {
   createMissingStore,
@@ -30,6 +31,10 @@ export interface Missing {
   readonly monitorScene: (providerSceneId: string) => void;
   /** Asks Whisparr to look for one scene. The one verb on this surface that downloads. */
   readonly searchScene: (providerSceneId: string) => void;
+  /** Marks the ticked scenes wanted as one background run. Acquires nothing. */
+  readonly monitorSelection: (providerSceneIds: readonly string[]) => void;
+  /** Marks everything this entity's whole catalogue is missing, as one background run. */
+  readonly monitorAll: () => void;
 }
 
 /**
@@ -68,6 +73,16 @@ function sceneRouteFor(entity: MissingEntity, providerSceneId: string, verb: Car
     `entity/${entity.kind}/${String(entity.coveId)}/missing/` +
       `${encodeURIComponent(providerSceneId)}/${verb}`,
   );
+}
+
+/** The selection's own route, which names the entity and carries the ticked scenes in its body. */
+function bulkRouteFor(entity: MissingEntity): string {
+  return api(`entity/${entity.kind}/${String(entity.coveId)}/missing/bulk-monitor`);
+}
+
+/** The whole-view action's route, which needs no selection built first. */
+function monitorAllRouteFor(entity: MissingEntity): string {
+  return api(`entity/${entity.kind}/${String(entity.coveId)}/add-all-missing`);
 }
 
 export function useMissing(kind: MissingEntityKind, coveId: number, view: MissingView): Missing {
@@ -139,5 +154,30 @@ export function useMissing(kind: MissingEntityKind, coveId: number, view: Missin
     [act],
   );
 
-  return { state, refresh, monitorScene, searchScene };
+  const monitorSelection = useCallback(
+    (providerSceneIds: readonly string[]) => {
+      const entity: MissingEntity = { kind, coveId };
+      store.beginBulk(entity);
+
+      // The ticked ids and nothing else. No catalogue read runs between the press and the enqueue:
+      // marking a scene wanted does not remove it from the missing set, so a fresh derivation would
+      // answer the same page at the cost of a second provider read.
+      postAction<MissingBulkEnqueued>(bulkRouteFor(entity), {
+        providerSceneIds: [...providerSceneIds],
+      })
+        .then((answered) => {
+          store.bulkSettled(entity, selectionOutcomeIn(answered));
+        })
+        .catch(() => {
+          store.bulkSettled(entity, { kind: "refused", refusal: "notStarted" });
+        });
+    },
+    [store, kind, coveId],
+  );
+
+  const monitorAll = useCallback(() => {
+    void postAction(monitorAllRouteFor({ kind, coveId }));
+  }, [kind, coveId]);
+
+  return { state, refresh, monitorScene, searchScene, monitorSelection, monitorAll };
 }
