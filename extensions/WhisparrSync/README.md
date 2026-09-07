@@ -9,10 +9,16 @@ instance; the import path behind that callback, which brings a delivered file in
 and a Whisparr control on studio and performer pages and in their selection bars that monitors and
 unmonitors an entity on the connected instance, registers the scenes Cove holds that the instance's
 catalogue does not, asks Whisparr to link the files Cove already holds for it into place, and asks
-Whisparr to search for what a monitored entity wants. So this extension changes your library,
-changes what a third party monitors, and has one action that spends the user's bandwidth and disk.
-That last one is a separately named row on a single entity, it is absent from the selection bar, and
-it is the only thing here that downloads.
+Whisparr to search for what a monitored entity wants; and a Missing tab on studio, performer and tag
+pages that lists what the configured metadata source knows about and the library does not hold, says
+whether Whisparr holds each scene, and marks one scene or a page of scenes wanted. So this extension
+changes your library, changes what a third party monitors, and has two actions that spend the user's
+bandwidth and disk. Both are separately named, both act on a single entity or a single scene, and
+neither is offered over a selection.
+
+It also calls a second third party: it reads catalogue listings from the metadata source Cove is
+configured with, using the key Cove already holds for it, and the browser fetches cover images
+straight from that source.
 
 ## Documentation
 
@@ -20,6 +26,7 @@ it is the only thing here that downloads.
 
 - **[Whisparr Sync docs](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync)** - overview and index
 - **[Monitor a studio or a performer](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/monitoring)** - the entity control, the two scopes and what each costs
+- **[Browse what you do not own](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/missing)** - the Missing tab and what its number counts
 - **[Settings reference](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/settings)** - every setting on the tab
 
 The rest of this file is for contributors working on the extension itself.
