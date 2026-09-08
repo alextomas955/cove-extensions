@@ -391,13 +391,19 @@ public sealed partial class WhisparrSync
     /// for a verb and a scope before anything is sent.
     /// </para>
     /// <para>
-    /// The manifest is built once and cannot vary by generation, so the buttons are always
-    /// registered: the button's PRESENCE is a manifest fact and a verb's AVAILABILITY is a runtime
-    /// one, enforced in the handler and again at the route.
+    /// The manifest is rebuilt on every aggregation and reads the generation the extension last
+    /// stored, so the videos-view registrations are absent on the older generation and no surface
+    /// renders empty there. The browser fetches the manifest, so a generation change takes effect on
+    /// the next page load.
+    /// </para>
+    /// <para>
+    /// The bulk actions stay registered on both generations: an action's PRESENCE is a manifest fact
+    /// and a verb's AVAILABILITY is a runtime one, enforced in the handler and again at the route.
     /// </para>
     /// </remarks>
     public override UIManifest GetUIManifest()
-        => ManifestBuilder()
+    {
+        var manifest = ManifestBuilder()
             .AddSettingsTab(
                 key: SettingsTabKey,
                 label: "Whisparr Sync",
@@ -416,12 +422,6 @@ public sealed partial class WhisparrSync
             // work whichever generation is connected.
             .AddSlot("studios-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
             .AddSlot("studio-card-footer", componentName: "WhisparrStudioCardBadge", order: 100)
-            .AddSlot("videos-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
-            .AddSlot("video-card-content", componentName: "WhisparrVideoCardBadge", order: 100)
-            .AddSlot(
-                "performers-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
-            .AddSlot(
-                "performer-card-footer", componentName: "WhisparrPerformerCardBadge", order: 100)
 
             // One component, registered once per page type. The host passes a tab component only the
             // entity id and a navigate callback, so the component reads its own kind from its route.
@@ -475,8 +475,35 @@ public sealed partial class WhisparrSync
                 order: 100,
                 requiredPermission: Permissions.ExtensionsConfigure,
                 suppressSuccessAlert: true)
-            .WithJsBundle("index.mjs")
-            .Build();
+            .WithJsBundle("index.mjs");
+
+        // The older generation publishes no per-scene identity and holds no performer entity, so
+        // these four surfaces have no meaning there and are hidden by omission. The host's
+        // full-width row slot below a list toolbar is occupied on neither generation.
+        if (!SelectedGenerationIsOlder)
+        {
+            manifest
+                .AddSlot("videos-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
+                .AddSlot("video-card-content", componentName: "WhisparrVideoCardBadge", order: 100)
+                .AddSlot(
+                    "performers-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
+                .AddSlot(
+                    "performer-card-footer", componentName: "WhisparrPerformerCardBadge", order: 100);
+        }
+
+        return manifest.Build();
+    }
+
+    /// <summary>Whether the stored generation is positively the older one.</summary>
+    /// <remarks>
+    /// False while no generation is established, so a store that has never been written to and one
+    /// that could not be read both keep every surface.
+    /// </remarks>
+    private bool SelectedGenerationIsOlder
+        => string.Equals(
+            _selectedGeneration,
+            nameof(WhisparrGeneration.V2),
+            StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// What this extension can see of the host's own configuration, of the host services it can
@@ -555,7 +582,7 @@ public sealed partial class WhisparrSync
     /// was entered against rather than beside an address nothing was entered for.
     /// </para>
     /// </remarks>
-    internal static async Task<Results<Ok<WhisparrSyncSettingsView>, ForbiddenCode>> SaveSettingsAsync(
+    internal async Task<Results<Ok<WhisparrSyncSettingsView>, ForbiddenCode>> SaveSettingsAsync(
         WhisparrSyncSettingsSaveRequest request,
         ICurrentPrincipalAccessor principal,
         OptionsStore options,
@@ -586,6 +613,10 @@ public sealed partial class WhisparrSync
         var persisted = await gate
             .MutateAsync(options, stored => SettingsProjector.Apply(stored, request), ct)
             .ConfigureAwait(false);
+
+        // After both writes: the manifest reads this, and a value refreshed between them would name
+        // a generation only one of the two stores had been given.
+        _selectedGeneration = persisted.SelectedGeneration.ToString();
 
         return TypedResults.Ok(
             await ProjectSettingsAsync(persisted, credentials, ct).ConfigureAwait(false));

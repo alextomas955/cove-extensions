@@ -36,6 +36,13 @@ public sealed partial class WhisparrSync
         EventId = 2002, Level = LogLevel.Information,
         Message = "[WhisparrSync] IMetadataServerService could not be obtained from this extension's container")]
     private partial void LogNoMetadataServerService();
+
+    // The generation the surfaces are registered by could not be read at load, so every surface is
+    // registered until a save establishes one. Without this line that state is invisible.
+    [LoggerMessage(
+        EventId = 2003, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] the stored generation could not be read at load; every UI surface is registered until a settings save establishes one")]
+    private partial void LogNoStoredGeneration();
 }
 
 /// <summary>

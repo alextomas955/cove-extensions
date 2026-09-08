@@ -34,6 +34,17 @@ public sealed partial class WhisparrSync : FullExtensionBase
     private ILogger _log = NullLogger.Instance;
 
     /// <summary>
+    /// The stored generation's enum name, or null while none is established.
+    /// </summary>
+    /// <remarks>
+    /// Volatile because <see cref="GetUIManifest"/> is called on host threads other than the one a
+    /// settings save answers on, and a name because <c>volatile</c> accepts a reference type and no
+    /// nullable enum. Null is a generation not established, which registers every surface: a load
+    /// that could not be made must not remove one.
+    /// </remarks>
+    private volatile string? _selectedGeneration;
+
+    /// <summary>
     /// Whether the host's own configuration object resolved out of this extension's service provider.
     /// </summary>
     private bool ConfigurationResolved => _coveConfig is not null;
@@ -167,7 +178,8 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddLibraryStatus();
     }
 
-    public override Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)
+    public override async Task InitializeAsync(
+        IServiceProvider services, CancellationToken ct = default)
     {
         // Logging first, so the configuration line below has somewhere to go. Optional (GetService,
         // not GetRequiredService): the host forwards ILogger into the extension scope, but its absence
@@ -194,7 +206,37 @@ public sealed partial class WhisparrSync : FullExtensionBase
             LogNoMetadataServerService();
         }
 
-        return base.InitializeAsync(services, ct);
+        _selectedGeneration = await LoadSelectedGenerationAsync(services, ct).ConfigureAwait(false);
+
+        await base.InitializeAsync(services, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The stored generation's enum name, or null where the store could not be read.
+    /// </summary>
+    /// <remarks>
+    /// Resolved inside a scope for the reason <see cref="CanObtain{T}"/> records. A store that
+    /// cannot be read is reported once and answers null, so the extension still loads.
+    /// </remarks>
+    private async Task<string?> LoadSelectedGenerationAsync(
+        IServiceProvider services, CancellationToken ct)
+    {
+        try
+        {
+            using var scope = services.GetRequiredService<IServiceScopeFactory>().CreateScope();
+            var stored = await scope.ServiceProvider
+                .GetRequiredService<OptionsStore>()
+                .LoadAsync(ct)
+                .ConfigureAwait(false);
+            return stored.SelectedGeneration.ToString();
+        }
+#pragma warning disable CA1031 // Load-time read: an unreadable store is the answer, not a fault.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            LogNoStoredGeneration();
+            return null;
+        }
     }
 
     /// <summary>

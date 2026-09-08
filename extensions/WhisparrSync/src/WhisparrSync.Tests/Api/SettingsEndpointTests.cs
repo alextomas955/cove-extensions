@@ -253,7 +253,7 @@ public sealed class SettingsEndpointTests
     private static async Task<WhisparrSyncSettingsView> SaveAsync(
         OptionsStore options, RecordingCredentialPort credentials, WhisparrSyncSettingsSaveRequest request)
         => ValueOf<WhisparrSyncSettingsView>(
-            await global::WhisparrSync.WhisparrSync.SaveSettingsAsync(
+            await WhisparrSyncFixture.Create().SaveSettingsAsync(
                 request,
                 Configure(),
                 options,
