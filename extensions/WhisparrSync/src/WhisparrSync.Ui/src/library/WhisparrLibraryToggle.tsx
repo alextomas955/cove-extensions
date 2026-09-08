@@ -14,10 +14,10 @@ import {
   HIDE_WHISPARR_STATUS,
   NO_PLACE_FOR_A_CARD_STATUS_HERE,
   SHOW_WHISPARR_STATUS,
-  WHISPARR_STATUS_COULD_NOT_BE_READ,
 } from "../common/ui/copy";
 import { WhisparrLogo } from "../common/ui/WhisparrLogo";
 import { cardStatusRefusal, registeredCardCount, subscribeCardStatus } from "./cardStatusStore";
+import { libraryRefusalSentence } from "./libraryRefusalLogic";
 import {
   TOGGLE_CLASS,
   TOGGLE_MARK_CLASS,
@@ -68,9 +68,7 @@ export function WhisparrLibraryToggle() {
   const reason =
     on && settled && registered === 0
       ? NO_PLACE_FOR_A_CARD_STATUS_HERE
-      : refusal === "none"
-        ? null
-        : WHISPARR_STATUS_COULD_NOT_BE_READ;
+      : libraryRefusalSentence(refusal);
   const spoken = reason === null ? name : `${name}. ${reason}`;
 
   return (
