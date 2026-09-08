@@ -1,17 +1,19 @@
 /**
- * The four properties the coalescer exists to hold, each driven with an injected scheduler and an
- * injected fetch so no environment is involved.
+ * The properties the coalescer exists to hold, each driven with an injected scheduler and an injected
+ * fetch so no environment is involved.
  *
- * The last one is the point of the module: an entry is dropped when its last holder releases, so
- * nothing is retained past the cards that asked for it. A library here reaches millions of entities,
- * and a cache that outlived the page would grow with how far someone scrolled.
+ * Two are the point of the module. An entry is dropped when its last holder releases, so nothing is
+ * retained past the cards that asked for it: a library here reaches millions of entities, and a cache
+ * that outlived the page would grow with how far someone scrolled. And a tick holding more keys than
+ * one fetch may carry is split rather than sent whole, because the number of cards that mount at once
+ * is the host page's own size.
  */
 import { expect, test } from "vitest";
 
 import { createBatchCoalescer } from "./batchCoalescerLogic";
 
-/** A page's worth of cards, which is the bound the route enforces on one body. */
-const ONE_PAGE = 40;
+/** The bound this test hands the coalescer, standing for the one the route enforces. */
+const PER_FETCH = 40;
 
 /** A scheduler under the test's own control, so a flush happens where the test says it does. */
 function manualScheduler(): { schedule: (flush: () => void) => void; run: () => Promise<void> } {
@@ -44,23 +46,23 @@ function answering(value: string) {
 test("a page of keys requested in one tick costs exactly one fetch", async () => {
   const scheduler = manualScheduler();
   const fetching = answering("held");
-  const coalescer = createBatchCoalescer(fetching.fetchBatch, scheduler.schedule);
+  const coalescer = createBatchCoalescer(fetching.fetchBatch, PER_FETCH, scheduler.schedule);
 
-  const keys = Array.from({ length: ONE_PAGE }, (_, index) => String(index + 1));
+  const keys = Array.from({ length: PER_FETCH }, (_, index) => String(index + 1));
   for (const key of keys) coalescer.request(key);
   await scheduler.run();
 
   // Counted on the injected function rather than read out of the module, so what is asserted is the
   // number of requests a page actually costs.
   expect(fetching.calls, "a page of cards did not fold into one request").toHaveLength(1);
-  expect(fetching.calls[0]).toHaveLength(ONE_PAGE);
+  expect(fetching.calls[0]).toHaveLength(PER_FETCH);
   expect(coalescer.get("1")).toBe("held");
 });
 
 test("a key already held is not asked about again", async () => {
   const scheduler = manualScheduler();
   const fetching = answering("held");
-  const coalescer = createBatchCoalescer(fetching.fetchBatch, scheduler.schedule);
+  const coalescer = createBatchCoalescer(fetching.fetchBatch, PER_FETCH, scheduler.schedule);
 
   coalescer.request("7");
   await scheduler.run();
@@ -74,6 +76,7 @@ test("a rejected fetch leaves every key in that batch with no answer, and throws
   const scheduler = manualScheduler();
   const coalescer = createBatchCoalescer<string>(
     () => Promise.reject(new Error("nothing answered")),
+    PER_FETCH,
     scheduler.schedule,
   );
 
@@ -100,7 +103,7 @@ test("a rejected fetch leaves every key in that batch with no answer, and throws
 test("the last release drops the entry, so nothing is held between pages", async () => {
   const scheduler = manualScheduler();
   const fetching = answering("held");
-  const coalescer = createBatchCoalescer(fetching.fetchBatch, scheduler.schedule);
+  const coalescer = createBatchCoalescer(fetching.fetchBatch, PER_FETCH, scheduler.schedule);
 
   const first = coalescer.request("9");
   const second = coalescer.request("9");
@@ -121,4 +124,51 @@ test("the last release drops the entry, so nothing is held between pages", async
     fetching.calls,
     "a key requested again after its entry was dropped was not re-read",
   ).toHaveLength(2);
+});
+
+test("a tick holding more keys than one fetch may carry answers every one of them", async () => {
+  const scheduler = manualScheduler();
+  const fetching = answering("held");
+  const coalescer = createBatchCoalescer(fetching.fetchBatch, PER_FETCH, scheduler.schedule);
+
+  // A host page size above the bound, which is a size the list pages offer and remember.
+  const keys = Array.from({ length: PER_FETCH * 2 + 1 }, (_, index) => String(index + 1));
+  for (const key of keys) coalescer.request(key);
+  await scheduler.run();
+
+  // Counted on the injected function, so what is asserted is what the server would have been sent.
+  expect(fetching.calls, "a page over the bound was not split").toHaveLength(3);
+  for (const sent of fetching.calls) {
+    expect(sent.length, "one fetch carried more than the bound allows").toBeLessThanOrEqual(
+      PER_FETCH,
+    );
+  }
+
+  // Every key, not a count: a bound applied by dropping keys would agree with a count of fetches.
+  expect([...fetching.calls.flat()].sort()).toEqual([...keys].sort());
+  const unanswered = keys.filter((key) => coalescer.get(key) !== "held");
+  expect(unanswered, "a card past the bound was left with no answer").toEqual([]);
+});
+
+test("a fetch that rejects leaves the keys after it still asked about", async () => {
+  const scheduler = manualScheduler();
+  const sent: string[][] = [];
+  const coalescer = createBatchCoalescer<string>(
+    (keys) => {
+      sent.push([...keys]);
+      return sent.length === 1
+        ? Promise.reject(new Error("nothing answered"))
+        : Promise.resolve(new Map(keys.map((key) => [key, "held"])));
+    },
+    PER_FETCH,
+    scheduler.schedule,
+  );
+
+  const keys = Array.from({ length: PER_FETCH + 1 }, (_, index) => String(index + 1));
+  for (const key of keys) coalescer.request(key);
+  await scheduler.run();
+
+  expect(sent, "one fetch rejecting took the rest of the page with it").toHaveLength(2);
+  expect(coalescer.get(String(PER_FETCH + 1))).toBe("held");
+  expect(coalescer.settled("1"), "a rejected fetch left its own keys unsettled").toBe(true);
 });
