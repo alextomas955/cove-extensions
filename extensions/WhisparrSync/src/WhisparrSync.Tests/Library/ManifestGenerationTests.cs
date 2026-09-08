@@ -207,7 +207,9 @@ public sealed class ManifestGenerationTests
             .SaveAsync(new WhisparrSyncOptions { SelectedGeneration = generation }, TestCt);
         await using var loaded = await LoadedOverAsync(store);
         return new RegisteredSurfaces(
-            SlotsOf(loaded.Extension), TabsOf(loaded.Extension), ActionsOf(loaded.Extension));
+            SlotsOf(loaded.Extension),
+            TabsOf(loaded.Extension),
+            ActionsOf(loaded.Extension));
     }
 
     /// <summary>Every slot the manifest registers for a stored <paramref name="generation"/>.</summary>
