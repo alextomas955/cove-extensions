@@ -83,7 +83,7 @@ public sealed class SceneStatusPortTests
         var handler = BodyRecordingHandler.Answering(
             System.Net.HttpStatusCode.OK, RecordedRow());
         using var http = new HttpClient(handler);
-        var client = TestWhisparrClient.Over(http);
+        var client = TestWhisparrClient.Over(http, handler);
 
         await client.ReadSceneByRemoteIdAsync(SomeInstance, SomeKey, "a-scene", TestCt);
 
