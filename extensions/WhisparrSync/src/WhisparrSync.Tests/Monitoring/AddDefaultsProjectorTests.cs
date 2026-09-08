@@ -44,6 +44,9 @@ public sealed class AddDefaultsProjectorTests
 
     private const string EmptyList = "[]";
 
+    /// <summary>A scene as the provider issues its identifier.</summary>
+    private const string SceneOnTheProvider = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
+
     /// <summary>An instance offering no profile at all composes nothing.</summary>
     [Fact]
     public void AnEmptyProfileListRefusesAndComposesNothing()
@@ -239,6 +242,68 @@ public sealed class AddDefaultsProjectorTests
         Assert.Equal(MonitorRefusalKind.NoRootFolder, view.Refusal);
         Assert.False(view.Monitored);
         Assert.Empty(Acts(host));
+    }
+
+    /// <summary>
+    /// The same two stops on one scene's own add, which is a route of its own.
+    /// </summary>
+    /// <remarks>
+    /// Both surfaces compose an add, and this one refuses in its own vocabulary. Covered per route
+    /// rather than once, because a stop the entity path takes says nothing about a route that
+    /// composes its add somewhere else.
+    /// </remarks>
+    [Theory]
+    [InlineData(
+        nameof(IWhisparrClient.ReadQualityProfilesAsync),
+        SceneRefusalKind.InstanceOffersNoQualityProfile)]
+    [InlineData(
+        nameof(IWhisparrClient.ReadRootFoldersAsync),
+        SceneRefusalKind.InstanceOffersNoRootFolder)]
+    public async Task ASceneAddTakesTheSameTwoStopsAndActsOnNothing(
+        string offeringNothing, SceneRefusalKind refusal)
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client
+            .Answering(
+                nameof(IWhisparrSceneStatusReading.ReadSceneByRemoteIdAsync),
+                MonitorHost.Json(200, "[]"))
+            .Answering(offeringNothing, MonitorHost.Json(200, EmptyList));
+        var studioId = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+        var coveId = await host.SeedStudioSceneAsync(
+            studioId, MonitorHost.StoredEndpoint, SceneOnTheProvider);
+
+        var result = await host.SceneActionAsync(coveId, "add");
+
+        Assert.Equal(refusal, result.Refusal);
+        Assert.Empty(Acts(host));
+    }
+
+    /// <summary>
+    /// A scene add has these two stops and no third.
+    /// </summary>
+    /// <remarks>
+    /// The projector declares one member and it answers one of two refusals, so a third stop would
+    /// have no member to be read off. Nothing reads the instance's indexer list, by decision.
+    /// </remarks>
+    [Fact]
+    public void TheProjectorAnswersTheseTwoRefusalsAndNoOther()
+    {
+        var refusals = new[] { EmptyList, MonitorHost.OneRootFolder }
+            .SelectMany(offered => new[]
+            {
+                AddDefaultsProjector.From(offered, EmptyList).Refusal,
+                AddDefaultsProjector.From(EmptyList, offered).Refusal,
+                AddDefaultsProjector.From(offered, MonitorHost.OneRootFolder).Refusal,
+            })
+            .Where(refusal => refusal != MonitorRefusalKind.None)
+            .Distinct()
+            .Order()
+            .ToList();
+
+        Assert.Equal(
+            [MonitorRefusalKind.NoQualityProfile, MonitorRefusalKind.NoRootFolder],
+            refusals);
     }
 
     /// <summary>

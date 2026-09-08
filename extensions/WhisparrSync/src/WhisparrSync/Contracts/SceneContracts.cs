@@ -77,6 +77,13 @@ public enum SceneRefusalKind
     /// created. Not a failure: the state the reader wanted is the state the instance is already in.
     /// </remarks>
     WhisparrAlreadyHoldsThisScene,
+
+    /// <summary>The instance holds the scene and is not looking for it, so nothing was sent.</summary>
+    /// <remarks>
+    /// Held apart from an absent entry: the two send a reader to different next steps, and a search
+    /// on a scene the instance is not monitoring would find nothing whatever the indexers hold.
+    /// </remarks>
+    WhisparrIsNotMonitoringThisScene,
 }
 
 /// <summary>What one of the scene tab's own verbs produced.</summary>
