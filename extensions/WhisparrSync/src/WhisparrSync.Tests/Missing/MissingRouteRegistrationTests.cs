@@ -23,7 +23,14 @@ namespace WhisparrSync.Tests.Missing;
 /// </remarks>
 public sealed class MissingRouteRegistrationTests
 {
-    /// <summary>The page types the host registers, which are its literals rather than this product's.</summary>
+    /// <summary>
+    /// The entity page types the catalogue tab is registered on, which are the host's own literals.
+    /// </summary>
+    /// <remarks>
+    /// Also what selects the catalogue tab out of the manifest. The video detail page carries a tab
+    /// of its own with no catalogue behind it, and it is covered where the manifest's two
+    /// generations are compared.
+    /// </remarks>
     private static readonly string[] PageTypes = ["studio", "performer", "tag"];
 
     [Fact]
@@ -140,9 +147,10 @@ public sealed class MissingRouteRegistrationTests
         var extension = WhisparrSyncFixture.Create();
         var manifest = extension.GetUIManifest();
 
-        // Every tab this extension mounts. It mounts no other, so filtering by key would read the
-        // registration under test through a literal this file would then own a copy of.
-        return [.. manifest.Tabs];
+        // Selected by the host page types above, which this file already owns as the host's own
+        // literals. Filtering by key would read the registration under test through a literal this
+        // file would then own a copy of.
+        return [.. manifest.Tabs.Where(tab => PageTypes.Contains(tab.PageType, StringComparer.Ordinal))];
     }
 
     private static IReadOnlyList<string> PermissionsOf(

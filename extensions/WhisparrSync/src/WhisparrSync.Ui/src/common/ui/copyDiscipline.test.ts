@@ -168,6 +168,12 @@ const RENDERED_BY_THE_BULK_OVERLAY = [
 ];
 
 /**
+ * The scene tab's own labels and sentences. Every reason it states for a refused answer is a
+ * sentence another surface already declares, so only its own fact labels are named here.
+ */
+const RENDERED_BY_THE_SCENE_TAB = ["SCENE_FACT_STATE"];
+
+/**
  * One sentence per reason a monitor control can be unavailable. The menu rules module maps the kind
  * the server answered onto exactly one of these, and a kind with none would be a dimmed control with
  * nothing to hear.
@@ -311,6 +317,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...CARRIED_BY_THE_MONITOR_MENU_ITEMS,
       ...RENDERED_BY_THE_BULK_OVERLAY,
       ...RENDERED_BY_THE_MISSING_TAB,
+      ...RENDERED_BY_THE_SCENE_TAB,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_ENTITY_CONTROL,
       ...RENDERED_BY_THE_LIBRARY_PILL,
@@ -335,6 +342,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...CARRIED_BY_THE_MONITOR_MENU_ITEMS,
       ...RENDERED_BY_THE_BULK_OVERLAY,
       ...RENDERED_BY_THE_MISSING_TAB,
+      ...RENDERED_BY_THE_SCENE_TAB,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_ENTITY_CONTROL,
       ...RENDERED_BY_THE_LIBRARY_PILL,

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Cove.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
@@ -7,13 +8,18 @@ using WhisparrSync.Tests.TestSupport;
 namespace WhisparrSync.Tests.Library;
 
 /// <summary>
-/// Which slots <see cref="global::WhisparrSync.WhisparrSync.GetUIManifest"/> registers for each
-/// stored generation.
+/// Which slots, tabs and selection actions
+/// <see cref="global::WhisparrSync.WhisparrSync.GetUIManifest"/> registers for each stored
+/// generation.
 /// </summary>
 /// <remarks>
 /// The browser fetches the manifest, and a slot nothing registers makes the host render no wrapper
 /// element at all, so an omission here is what removes a surface from the page. A component that
 /// returned nothing would leave the wrapper behind.
+/// <para>
+/// All three groups are projected, because a registration written outside the generation-conditional
+/// block reaches both manifests and a slot-only projection agrees with itself about that.
+/// </para>
 /// <para>
 /// The two sets are compared as sets. A count agrees with itself when one registration is swapped
 /// for another.
@@ -33,26 +39,51 @@ public sealed class ManifestGenerationTests
         "performer-card-footer",
     ];
 
+    /// <inheritdoc cref="VideosViewSlots"/>
+    /// <remarks>
+    /// The whole tuple, so a count route or a glyph added to the registration is reported here. The
+    /// video detail page keeps only the key, the label and the manual contexts of a contributed tab,
+    /// so either would be fetched and drawn by nothing.
+    /// </remarks>
+    private static readonly string[] VideosViewTabs =
+    [
+        "video|whisparr-scene|Whisparr|WhisparrSceneTab|150|no count route|no glyph",
+    ];
+
+    /// <inheritdoc cref="VideosViewSlots"/>
+    /// <remarks>Empty while the videos selection bar carries no action of this extension's.</remarks>
+    private static readonly string[] VideosViewActions = [];
+
+    /// <summary>Which prefix of a projected tab names the video detail page.</summary>
+    private const string VideoTabPrefix = "video|";
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     [Fact]
     public async Task TheNewerGenerationRegistersEveryLibrarySurface()
     {
-        var slots = await SlotsForAsync(WhisparrGeneration.V3);
+        var surfaces = await SurfacesForAsync(WhisparrGeneration.V3);
 
-        Assert.Contains("studios-list-toolbar-end", slots);
-        Assert.Contains("studio-card-footer", slots);
-        Assert.All(VideosViewSlots, slot => Assert.Contains(slot, slots));
+        Assert.Contains("studios-list-toolbar-end", surfaces.Slots);
+        Assert.Contains("studio-card-footer", surfaces.Slots);
+        Assert.All(VideosViewSlots, slot => Assert.Contains(slot, surfaces.Slots));
+
+        // Equality rather than containment, so a second video tab is reported as well as an absent
+        // one.
+        Assert.Equal(VideosViewTabs, VideoTabsIn(surfaces.Tabs));
+        Assert.Equal(VideosViewActions, VideoActionsIn(surfaces.Actions));
     }
 
     [Fact]
     public async Task TheOlderGenerationRegistersTheStudioSurfacesAndNoneOfTheVideosViewOnes()
     {
-        var slots = await SlotsForAsync(WhisparrGeneration.V2);
+        var surfaces = await SurfacesForAsync(WhisparrGeneration.V2);
 
-        Assert.Contains("studios-list-toolbar-end", slots);
-        Assert.Contains("studio-card-footer", slots);
-        Assert.All(VideosViewSlots, slot => Assert.DoesNotContain(slot, slots));
+        Assert.Contains("studios-list-toolbar-end", surfaces.Slots);
+        Assert.Contains("studio-card-footer", surfaces.Slots);
+        Assert.All(VideosViewSlots, slot => Assert.DoesNotContain(slot, surfaces.Slots));
+        Assert.Empty(VideoTabsIn(surfaces.Tabs));
+        Assert.Empty(VideoActionsIn(surfaces.Actions));
     }
 
     /// <summary>
@@ -62,11 +93,17 @@ public sealed class ManifestGenerationTests
     [Fact]
     public async Task TheTwoManifestsDifferInTheVideosViewSurfacesAndInNothingElse()
     {
-        var newer = await SlotsForAsync(WhisparrGeneration.V3);
-        var older = await SlotsForAsync(WhisparrGeneration.V2);
+        var newer = await SurfacesForAsync(WhisparrGeneration.V3);
+        var older = await SurfacesForAsync(WhisparrGeneration.V2);
 
-        Assert.Equal(VideosViewSlots.Order(), newer.Except(older).Order());
-        Assert.Empty(older.Except(newer));
+        Assert.Equal(VideosViewSlots.Order(), newer.Slots.Except(older.Slots).Order());
+        Assert.Empty(older.Slots.Except(newer.Slots));
+
+        Assert.Equal(VideosViewTabs.Order(), newer.Tabs.Except(older.Tabs).Order());
+        Assert.Empty(older.Tabs.Except(newer.Tabs));
+
+        Assert.Equal(VideosViewActions.Order(), newer.Actions.Except(older.Actions).Order());
+        Assert.Empty(older.Actions.Except(newer.Actions));
     }
 
     /// <summary>
@@ -162,14 +199,34 @@ public sealed class ManifestGenerationTests
         }
     }
 
-    /// <summary>Every slot the manifest registers for a stored <paramref name="generation"/>.</summary>
-    private static async Task<IReadOnlyList<string>> SlotsForAsync(WhisparrGeneration generation)
+    /// <summary>Every surface the manifest registers for a stored <paramref name="generation"/>.</summary>
+    private static async Task<RegisteredSurfaces> SurfacesForAsync(WhisparrGeneration generation)
     {
         var store = new FakeStore();
         await new OptionsStore(store)
             .SaveAsync(new WhisparrSyncOptions { SelectedGeneration = generation }, TestCt);
-        return await SlotsOfAsync(store);
+        await using var loaded = await LoadedOverAsync(store);
+        return new RegisteredSurfaces(
+            SlotsOf(loaded.Extension), TabsOf(loaded.Extension), ActionsOf(loaded.Extension));
     }
+
+    /// <summary>Every slot the manifest registers for a stored <paramref name="generation"/>.</summary>
+    private static async Task<IReadOnlyList<string>> SlotsForAsync(WhisparrGeneration generation)
+        => (await SurfacesForAsync(generation)).Slots;
+
+    /// <summary>The projected tabs of <paramref name="tabs"/> that name the video detail page.</summary>
+    private static IReadOnlyList<string> VideoTabsIn(IReadOnlyList<string> tabs)
+        => [.. tabs.Where(tab => tab.StartsWith(VideoTabPrefix, StringComparison.Ordinal))];
+
+    /// <summary>
+    /// The projected actions of <paramref name="actions"/> that a video selection offers.
+    /// </summary>
+    /// <remarks>
+    /// Matched on the entity type the host's selection bar passes, which is the SINGULAR spelling
+    /// for a video selection while a studio or performer selection arrives plural.
+    /// </remarks>
+    private static IReadOnlyList<string> VideoActionsIn(IReadOnlyList<string> actions)
+        => [.. actions.Where(action => action.Contains("|video|", StringComparison.Ordinal))];
 
     /// <summary>
     /// Every slot the manifest registers for an extension loaded against <paramref name="store"/>.
@@ -187,6 +244,34 @@ public sealed class ManifestGenerationTests
 
     private static IReadOnlyList<string> SlotsOf(global::WhisparrSync.WhisparrSync extension)
         => [.. extension.GetUIManifest().Slots.Select(slot => slot.Slot)];
+
+    /// <summary>Every tab the manifest registers, as one comparable string each.</summary>
+    /// <remarks>
+    /// The page type leads, because it is what a tab registered on one page type and not another is
+    /// told apart by, and the count route and the glyph are carried so their ABSENCE is asserted
+    /// rather than assumed.
+    /// </remarks>
+    private static IReadOnlyList<string> TabsOf(global::WhisparrSync.WhisparrSync extension)
+        => [.. extension.GetUIManifest().Tabs.Select(tab => string.Join(
+            '|',
+            tab.PageType,
+            tab.Key,
+            tab.Label,
+            tab.ComponentName,
+            tab.Order.ToString(CultureInfo.InvariantCulture),
+            tab.CountEndpoint ?? "no count route",
+            tab.Icon ?? "no glyph"))];
+
+    /// <summary>Every selection action the manifest registers, as one comparable string each.</summary>
+    private static IReadOnlyList<string> ActionsOf(global::WhisparrSync.WhisparrSync extension)
+        => [.. extension.GetUIManifest().Actions.Select(action => string.Join(
+            '|',
+            action.Id,
+            action.ActionType,
+            string.Join(',', action.EntityTypes),
+            action.HandlerName ?? "no handler",
+            action.ApiEndpoint ?? "no endpoint",
+            action.Order.ToString(CultureInfo.InvariantCulture)))];
 
     /// <summary>
     /// An extension initialized against <paramref name="store"/> through its own registration, and
@@ -208,6 +293,12 @@ public sealed class ManifestGenerationTests
         await extension.InitializeAsync(provider, TestCt);
         return new LoadedExtension(extension, provider);
     }
+
+    /// <summary>The three registration groups one manifest carries, each already projected.</summary>
+    private sealed record RegisteredSurfaces(
+        IReadOnlyList<string> Slots,
+        IReadOnlyList<string> Tabs,
+        IReadOnlyList<string> Actions);
 
     private sealed record LoadedExtension(
         global::WhisparrSync.WhisparrSync Extension, ServiceProvider Provider) : IAsyncDisposable

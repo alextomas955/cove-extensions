@@ -55,6 +55,7 @@ public sealed partial class WhisparrSync
         RouteBase + "/entity/{kind}/{coveId}/missing/{providerSceneId}/monitor";
     private string MissingSceneSearchRoute =>
         RouteBase + "/entity/{kind}/{coveId}/missing/{providerSceneId}/search";
+    private string SceneDetailRoute => RouteBase + "/scene/{coveId}";
     private string LibraryStatusRoute => RouteBase + "/library/{kind}/status";
     private string BulkMonitorRoute => RouteBase + "/entities/bulk-monitor";
     private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
@@ -227,6 +228,18 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
+        // The read tier, not the configure one: the route names one scene as a path segment and
+        // composes no write, so a caller who may see the library may read what Whisparr holds for a
+        // scene in it.
+        endpoints.MapGet(SceneDetailRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => SceneDetailAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
         endpoints.MapGet(MissingCountRoute,
             (string kind, int coveId, string? q, string? filters,
              ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
@@ -348,6 +361,18 @@ public sealed partial class WhisparrSync
     private string MissingCountEndpointFor(string kind)
         => RouteBase + "/entity/" + kind + "/{entityId}/missing/count";
 
+    /// <summary>The tab this extension mounts on the video detail page.</summary>
+    private const string SceneTabKey = "whisparr-scene";
+
+    /// <inheritdoc cref="MissingTabComponentName"/>
+    private const string SceneTabComponentName = "WhisparrSceneTab";
+
+    /// <summary>How the scene tab reads on the video detail page.</summary>
+    private const string SceneTabLabel = "Whisparr";
+
+    /// <summary>Where the scene tab sits among the video page's own tabs.</summary>
+    private const int SceneTabOrder = 150;
+
     /// <summary>The name the bundle registers this extension's bulk action handler under.</summary>
     /// <remarks>
     /// Byte-identical to the key in the bundle's own handler map. The host resolves one to the other
@@ -371,7 +396,8 @@ public sealed partial class WhisparrSync
 
     /// <summary>
     /// The surfaces the host mounts: one dedicated settings tab, one control in each of the studio
-    /// and performer pages' own action rows, and one bulk action per selection bar.
+    /// and performer pages' own action rows, one catalogue tab per entity page type, one scene tab
+    /// on the video detail page, and one bulk action per selection bar.
     /// </summary>
     /// <remarks>
     /// Page layout, so the host renders the panel full-width with no card chrome and this extension
@@ -478,8 +504,13 @@ public sealed partial class WhisparrSync
             .WithJsBundle("index.mjs");
 
         // The older generation publishes no per-scene identity and holds no performer entity, so
-        // these four surfaces have no meaning there and are hidden by omission. The host's
-        // full-width row slot below a list toolbar is occupied on neither generation.
+        // these surfaces have no meaning there and are hidden by omission. The host's full-width row
+        // slot below a list toolbar is occupied on neither generation.
+        //
+        // The scene tab carries neither a countEndpoint nor an icon: the video detail page maps a
+        // contributed tab into its own list keeping only the key, the label and the manual contexts,
+        // so either would be fetched and drawn by nothing. Nothing else is registered on that page,
+        // so opening a video costs no Whisparr request until the tab is pressed.
         if (!SelectedGenerationIsOlder)
         {
             manifest
@@ -488,7 +519,13 @@ public sealed partial class WhisparrSync
                 .AddSlot(
                     "performers-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
                 .AddSlot(
-                    "performer-card-footer", componentName: "WhisparrPerformerCardBadge", order: 100);
+                    "performer-card-footer", componentName: "WhisparrPerformerCardBadge", order: 100)
+                .AddTab(
+                    pageType: "video",
+                    key: SceneTabKey,
+                    label: SceneTabLabel,
+                    componentName: SceneTabComponentName,
+                    order: SceneTabOrder);
         }
 
         return manifest.Build();
