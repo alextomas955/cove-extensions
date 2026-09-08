@@ -15,6 +15,8 @@ import { WhisparrSyncPage } from "./settings/WhisparrSyncPage";
 import { WhisparrPerformerActions, WhisparrStudioActions } from "./monitoring/EntityMonitorButton";
 import { monitorSelected } from "./monitoring/bulkMonitor";
 import { WhisparrMissingTab } from "./missing/MissingTab";
+import { WhisparrLibraryToggle } from "./library/WhisparrLibraryToggle";
+import { WhisparrStudioCardBadge } from "./library/WhisparrEntityCardBadge";
 
 interface WithActionHandlers {
   actionHandlers: Record<string, unknown>;
@@ -26,6 +28,8 @@ const mod = defineExtension({
     WhisparrStudioActions,
     WhisparrPerformerActions,
     WhisparrMissingTab,
+    WhisparrLibraryToggle,
+    WhisparrStudioCardBadge,
   },
 });
 (mod as typeof mod & WithActionHandlers).actionHandlers = {

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Import;
+using WhisparrSync.Library;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
@@ -163,6 +164,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
 
         services.AddMissingProviders();
         services.AddMissingDerivation();
+        services.AddLibraryStatus();
     }
 
     public override Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)

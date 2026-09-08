@@ -64,6 +64,7 @@ function view(
 ): EntityMonitoringView {
   return {
     generation: "v3",
+    present: false,
     monitored: false,
     refusal: "none",
     capabilities: EVERY_CAPABILITY,

@@ -107,6 +107,18 @@ const RENDERED_BY_THE_ENTITY_CONTROL = [
 ];
 
 /**
+ * The library toolbar control's two names, and the one reason it states for the whole page.
+ *
+ * The reason rides the control rather than the cards: it is one fact about the connection, and a
+ * page of cards would state it once per card.
+ */
+const RENDERED_BY_THE_LIBRARY_PILL = [
+  "SHOW_WHISPARR_STATUS",
+  "HIDE_WHISPARR_STATUS",
+  "WHISPARR_STATUS_COULD_NOT_BE_READ",
+];
+
+/**
  * The scope names, the two consequence sentences that must be read before a scope is chosen, one per
  * secondary action, and the consequence of the one secondary action that hands files to Whisparr.
  * Each is placed on a menu item by `monitoring/monitorMenuLogic.ts`; the menu that draws those items
@@ -296,6 +308,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_BY_THE_MISSING_TAB,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_ENTITY_CONTROL,
+      ...RENDERED_BY_THE_LIBRARY_PILL,
       ...RENDERED_BY_THE_IMPORT_BANNER,
       ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
       ...RENDERED_AS_A_MONITOR_REFUSAL,
@@ -319,6 +332,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_BY_THE_MISSING_TAB,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_ENTITY_CONTROL,
+      ...RENDERED_BY_THE_LIBRARY_PILL,
       ...RENDERED_BY_THE_IMPORT_BANNER,
       ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
       ...RENDERED_AS_A_MONITOR_REFUSAL,

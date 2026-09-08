@@ -95,6 +95,7 @@ function viewOf(over: Partial<EntityMonitoringView> = {}): EntityMonitoringView 
   return {
     kind: "studio",
     generation: "v3",
+    present: false,
     monitored: false,
     refusal: "none",
     capabilities: EVERY_CAPABILITY,

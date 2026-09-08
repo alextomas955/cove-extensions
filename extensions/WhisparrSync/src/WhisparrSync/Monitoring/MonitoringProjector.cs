@@ -140,6 +140,33 @@ internal static class MonitoringProjector
                 : MonitorRefusalKind.None);
     }
 
+    /// <summary>What one classified entity answer says about presence and the monitored flag.</summary>
+    /// <param name="Present">
+    /// Whether the instance holds an entry for the entity, or null where the answer established
+    /// neither.
+    /// </param>
+    /// <param name="Monitored">The flag, or null where the answer established neither.</param>
+    internal readonly record struct EntityPresence(bool? Present, bool? Monitored);
+
+    /// <summary>
+    /// What <paramref name="reading"/> over <paramref name="body"/> says about presence and the flag.
+    /// </summary>
+    /// <remarks>
+    /// The one arm turning a classification into these two values. The single-entity read and the
+    /// card batch both go through it, so they cannot disagree about the same instance answer.
+    /// <para>
+    /// Not held answers a false flag rather than a null one: the instance was asked and holds no
+    /// entry, so nothing about the entity is monitored and that is established rather than unknown.
+    /// </para>
+    /// </remarks>
+    internal static EntityPresence PresenceOf(EntityReading reading, string? body)
+        => reading switch
+        {
+            EntityReading.Held => new EntityPresence(true, MonitoredIn(body)),
+            EntityReading.NotHeld => new EntityPresence(false, false),
+            _ => new EntityPresence(null, null),
+        };
+
     /// <summary>Whether the write <paramref name="answered"/> answered was accepted.</summary>
     /// <remarks>
     /// A refusal the answering seam read out of a parsed body wins, for the reason
