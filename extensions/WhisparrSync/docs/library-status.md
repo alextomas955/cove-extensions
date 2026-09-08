@@ -61,22 +61,34 @@ ThePornDB on Whisparr v2. A card with no such link, or with two links naming dif
 left blank. Nothing is sent for it, and no state is guessed: a badge reading **Not added** would
 claim your Whisparr has no entry, which is a different fact from Cove not knowing what to ask about.
 
-**Whisparr could not be reached.** No card claims anything, and the reason is on the button rather
-than on forty cards: _Cove could not reach Whisparr, so no card can show a status. That is not the
-same as Whisparr holding nothing._ The button still works, and pressing it again asks again.
+**The status could not be read.** No card claims anything, and the reason is on the button rather
+than on every card. Which reason it gives says what happened:
+
+| On the button                                                                                                   | What happened                                                                          |
+| --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| No Whisparr is connected, so no card can show a status. Nothing was asked of Whisparr.                          | No connection is configured. See the [Settings reference](./settings.md).              |
+| The connected Whisparr keeps no record of these, so no card can show a status. It was not asked.                | Your Whisparr's generation keeps no record of this kind of card.                       |
+| Cove could not reach Whisparr, so no card can show a status. That is not the same as Whisparr holding nothing.  | Cove asked your instance and no answer came back.                                      |
+| Cove could not complete the status read, so no card can show a status. Whisparr may not have been asked at all. | The request to Cove itself did not answer, so whether Whisparr was asked is not known. |
+
+The button still works in every case, and pressing it again asks again.
 
 ## What one press costs
 
-Whisparr Sync asks your Whisparr about each card separately, one request after another. A page holds
-at most 40 cards, so a full page of studio or performer cards is up to 40 requests to your instance,
-and it takes noticeably longer than a single card would.
+Whisparr Sync asks your Whisparr about each card separately, one request after another. A full page
+of studio or performer cards is one request to your instance per card, and it takes noticeably longer
+than a single card would.
+
+**One press asks about every card on the page, at any page size Cove offers**, including its largest.
+Whisparr Sync carries at most 40 cards in one request to itself and sends as many of those as the
+page needs, one after another, so no card is left without an answer and none is dropped.
 
 - **Studio and performer cards on Whisparr v3 (Eros):** one request per card.
 - **Studio cards on Whisparr v2:** two requests per card. The first asks the instance which of its
   series your stored identifier names, and the instance resolves that against its own metadata
   source. An instance that cannot reach that source establishes nothing, so the card stays blank.
-- **Scene cards:** one request for the page's exclusion list, then one per card your library holds a
-  scene identifier for.
+- **Scene cards:** one request for the exclusion list covering each group of up to 40 cards, then one
+  per card your library holds a scene identifier for.
 
 Scroll far enough that Cove draws cards it had not drawn yet and those cards are asked about too, as
 one further round of requests rather than one per card.
