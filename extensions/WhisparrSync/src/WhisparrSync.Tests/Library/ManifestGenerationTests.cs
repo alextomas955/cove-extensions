@@ -113,6 +113,44 @@ public sealed class ManifestGenerationTests
         Assert.All(VideosViewSlots, slot => Assert.DoesNotContain(slot, slots));
     }
 
+    /// <summary>
+    /// A stored blob the model cannot bind establishes no generation, rather than the default one.
+    /// </summary>
+    /// <remarks>
+    /// The load answers such a blob with manufactured defaults, and the default names the newer
+    /// generation. Publishing that would register every newer-generation surface on an instance the
+    /// blob names as the older one, with full confidence and on a value no user configured.
+    /// <para>
+    /// Observed through the callback the extension's own store factory hands in, which is the only
+    /// reader of the published value a test can stand beside.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ABlobTheModelCannotBindEstablishesNoGeneration()
+    {
+        var store = new FakeStore();
+        await store.SetAsync(OptionsStore.Key, """{"SelectedGeneration": "v2", "V3": 5}""", TestCt);
+
+        var published = new List<string?>();
+        await new OptionsStore(store, null, published.Add).LoadAsync(TestCt);
+
+        Assert.Equal([null], published);
+    }
+
+    /// <summary>A store nothing has written to establishes the default, which is the newer one.</summary>
+    /// <remarks>
+    /// Its defaults are the answer, so it is not the same case as a blob that failed to bind. This is
+    /// the input the never-stored manifest case runs on, named here so the two are not confused.
+    /// </remarks>
+    [Fact]
+    public async Task AStoreNothingHasWrittenToEstablishesTheNewerGeneration()
+    {
+        var published = new List<string?>();
+        await new OptionsStore(new FakeStore(), null, published.Add).LoadAsync(TestCt);
+
+        Assert.Equal([nameof(WhisparrGeneration.V3)], published);
+    }
+
     [Fact]
     public async Task NeitherGenerationOccupiesTheHostsFullWidthRowSlot()
     {
