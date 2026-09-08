@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
@@ -194,6 +195,91 @@ public sealed class SceneSearchReadBackTests
         Assert.Single(host.Client.SceneStatuses);
     }
 
+    /// <summary>The Missing tab's own search confirms the same way.</summary>
+    /// <remarks>
+    /// Held in this class rather than beside the card's other cases, so the two surfaces' evidence
+    /// for one verb is stated in one place and a divergence between them is visible.
+    /// </remarks>
+    [Fact]
+    public async Task TheMissingTabsSearchConfirmsFromTheSameReadBack()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await StudioIn(host);
+        SceneAnswering(host, HeldSceneRow(monitored: true));
+        Confirming(host, CommandOnTheInstance);
+
+        var result = await MissingSearchAsync(host, studioId);
+
+        Assert.Equal(MissingSceneActionRefusal.None, result.Refusal);
+        var asked = Assert.Single(
+            host.Client.Notifications,
+            call => call.Verb == nameof(IWhisparrClient.ReadCommandAsync));
+        Assert.Equal(CommandOnTheInstance, asked.Id);
+    }
+
+    [Fact]
+    public async Task TheMissingTabsSearchIsRefusedWhenThePostNamesNoReadableCommandId()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await StudioIn(host);
+        SceneAnswering(host, HeldSceneRow(monitored: true));
+        host.Client.Answering(
+            nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync),
+            MonitorHost.Json(201, CommandRowWithNoReadableId));
+
+        var result = await MissingSearchAsync(host, studioId);
+
+        Assert.Equal(MissingSceneActionRefusal.InstanceRefused, result.Refusal);
+        Assert.DoesNotContain(nameof(IWhisparrClient.ReadCommandAsync), host.Client.Verbs);
+    }
+
+    [Fact]
+    public async Task TheMissingTabsSearchIsDidNotReachWhenTheReadBackNeverArrives()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await StudioIn(host);
+        SceneAnswering(host, HeldSceneRow(monitored: true));
+        host.Client.Answering(
+            nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync),
+            MonitorHost.Json(201, CommandRow(CommandOnTheInstance)));
+        host.Client.Unreachable.Add(nameof(IWhisparrClient.ReadCommandAsync));
+
+        var result = await MissingSearchAsync(host, studioId);
+
+        Assert.Equal(MissingSceneActionRefusal.DidNotReachWhisparr, result.Refusal);
+    }
+
+    /// <summary>
+    /// Neither surface reports a search the instance does not hold as a success.
+    /// </summary>
+    /// <remarks>
+    /// Asserted per route rather than once. The two answer in different vocabularies, and a read-back
+    /// added to one and not the other is exactly the inconsistency this pairing exists to catch.
+    /// </remarks>
+    [Fact]
+    public async Task NeitherSurfaceReportsASearchWhisparrDoesNotHoldAsASuccess()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await StudioIn(host);
+        var coveId = await host.SeedStudioSceneAsync(
+            studioId, MonitorHost.StoredEndpoint, SceneId);
+        SceneAnswering(host, HeldSceneRow(monitored: true));
+        host.Client
+            .Answering(
+                nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync),
+                MonitorHost.Json(201, CommandRow(CommandOnTheInstance)))
+            .Answering(
+                nameof(IWhisparrClient.ReadCommandAsync),
+                MonitorHost.Json(404, ""));
+
+        var onTheSceneTab = await host.SceneActionAsync(coveId, Search);
+        var onTheMissingTab = await MissingSearchAsync(host, studioId);
+
+        Assert.Equal(SceneRefusalKind.InstanceRefused, onTheSceneTab.Refusal);
+        Assert.False(onTheSceneTab.SearchIsWithWhisparr);
+        Assert.Equal(MissingSceneActionRefusal.InstanceRefused, onTheMissingTab.Refusal);
+    }
+
     /// <summary>A post and a read-back that both name <paramref name="commandId"/>.</summary>
     private static void Confirming(MonitorHost host, int commandId)
         => host.Client
@@ -217,5 +303,15 @@ public sealed class SceneSearchReadBackTests
         SceneAnswering(host, row);
         var studioId = await StudioIn(host);
         return await host.SeedStudioSceneAsync(studioId, MonitorHost.StoredEndpoint, SceneId);
+    }
+
+    private static async Task<MissingSceneActionResult> MissingSearchAsync(
+        MonitorHost host, int studioId)
+    {
+        var answered = await host.PostRawAsync(
+            "studio", studioId, $"missing/{SceneId}/search", "{}");
+        answered.EnsureSuccessStatusCode();
+        return (await answered.Content.ReadFromJsonAsync<MissingSceneActionResult>(
+            TestContext.Current.CancellationToken))!;
     }
 }
