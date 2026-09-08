@@ -11,7 +11,9 @@ unmonitors an entity on the connected instance, registers the scenes Cove holds 
 catalogue does not, asks Whisparr to link the files Cove already holds for it into place, and asks
 Whisparr to search for what a monitored entity wants; and a Missing tab on studio, performer and tag
 pages that lists what the configured metadata source knows about and the library does not hold, says
-whether Whisparr holds each scene, and marks one scene or a page of scenes wanted. So this extension
+whether Whisparr holds each scene, and marks one scene or a page of scenes wanted; and a button in
+the videos, studios and performers list toolbars that puts a badge on every card on the page saying
+what the connected instance holds for it, reading only and asking the instance once per card. So this extension
 changes your library, changes what a third party monitors, and has two actions that spend the user's
 bandwidth and disk. Both are separately named, both act on a single entity or a single scene, and
 neither is offered over a selection.
@@ -27,6 +29,7 @@ straight from that source.
 - **[Whisparr Sync docs](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync)** - overview and index
 - **[Monitor a studio or a performer](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/monitoring)** - the entity control, the two scopes and what each costs
 - **[Browse what you do not own](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/missing)** - the Missing tab and what its number counts
+- **[Show Whisparr status on library cards](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/library-status)** - the toolbar button, the card badge and what one press costs
 - **[Settings reference](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/settings)** - every setting on the tab
 
 The rest of this file is for contributors working on the extension itself.
