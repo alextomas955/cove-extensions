@@ -1,0 +1,221 @@
+using WhisparrSync.Contracts;
+using WhisparrSync.Monitoring;
+using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
+
+namespace WhisparrSync.Tests.Scene;
+
+/// <summary>
+/// What a per-scene search claims, and what it has to read off the instance before it may claim it.
+/// </summary>
+/// <remarks>
+/// A success status is not the evidence. The command's own identifier is taken off the answer to the
+/// post and read back off the instance, and only that read licenses the sentence saying the instance
+/// holds the search. Nothing here claims a download.
+/// <para>
+/// The command bodies below carry the member set the pinned instance's own command resource
+/// declares, read from that server's source. Which status a just-posted command reports on a live
+/// build is not measured and is deliberately not read: confirmation is identifier equality alone.
+/// </para>
+/// </remarks>
+public sealed class SceneSearchReadBackTests
+{
+    /// <summary>A scene as the provider issues its identifier.</summary>
+    private const string SceneId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
+
+    /// <summary>The instance's own identifier for the scene, as its row carries one.</summary>
+    private const int SceneOnTheInstance = 812;
+
+    /// <summary>The command's own identifier, which the instance issues.</summary>
+    private const int CommandOnTheInstance = 9001;
+
+    private const string Search = "search";
+
+    /// <summary>One row, as the instance answers a per-scene read for a scene it holds.</summary>
+    private static string HeldSceneRow(bool monitored)
+        => $$"""[{"id":{{SceneOnTheInstance}},"monitored":{{(monitored ? "true" : "false")}}}]""";
+
+    /// <summary>A scene the instance holds no entry for.</summary>
+    private const string NoSceneRow = "[]";
+
+    /// <summary>The command as the instance reports it, under the identifier it issued.</summary>
+    private static string CommandRow(int commandId)
+        => $$"""
+        {"id":{{commandId}},"name":"MoviesSearch","commandName":"Movies Search","priority":"normal","status":"queued","result":"unknown","trigger":"manual","queued":"2026-01-01T00:00:00Z"}
+        """;
+
+    /// <summary>A success carrying no identifier a caller could ask about afterwards.</summary>
+    private const string CommandRowWithNoReadableId =
+        """{"name":"MoviesSearch","status":"queued"}""";
+
+    [Fact]
+    public async Task ASearchOnASceneTheInstanceDoesNotHoldSendsNothing()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var coveId = await SeedSceneAsync(host, NoSceneRow);
+
+        var result = await host.SceneActionAsync(coveId, Search);
+
+        Assert.Equal(SceneRefusalKind.WhisparrHasNoEntryForScene, result.Refusal);
+        Assert.False(result.SearchIsWithWhisparr);
+        Assert.Empty(host.Client.Acting);
+    }
+
+    [Fact]
+    public async Task ASearchOnASceneTheInstanceIsNotMonitoringSendsNothing()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var coveId = await SeedSceneAsync(host, HeldSceneRow(monitored: false));
+
+        var result = await host.SceneActionAsync(coveId, Search);
+
+        Assert.Equal(SceneRefusalKind.WhisparrIsNotMonitoringThisScene, result.Refusal);
+        Assert.False(result.SearchIsWithWhisparr);
+        Assert.Empty(host.Client.Acting);
+    }
+
+    [Fact]
+    public async Task ACommandThatReadsBackUnderThePostedIdIsWithWhisparrAndClaimsNoDownload()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var coveId = await SeedSceneAsync(host, HeldSceneRow(monitored: true));
+        Confirming(host, CommandOnTheInstance);
+
+        var result = await host.SceneActionAsync(coveId, Search);
+
+        Assert.Equal(SceneRefusalKind.None, result.Refusal);
+        Assert.True(result.SearchIsWithWhisparr);
+
+        // The whole answer, so a member claiming a file, a release or a queue would have to be
+        // added here as well as declared.
+        Assert.Equal(new SceneActionResult(SceneRefusalKind.None, true), result);
+    }
+
+    [Fact]
+    public async Task ThePostedCommandIsWhatIsAskedAboutAndTheSceneIsWhatIsSearchedFor()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var coveId = await SeedSceneAsync(host, HeldSceneRow(monitored: true));
+        Confirming(host, CommandOnTheInstance);
+
+        await host.SceneActionAsync(coveId, Search);
+
+        var searched = Assert.Single(host.Client.Acting);
+        Assert.Equal(nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync), searched.Verb);
+        Assert.Equal(SceneOnTheInstance, searched.EntityId);
+
+        var asked = Assert.Single(
+            host.Client.Notifications,
+            call => call.Verb == nameof(IWhisparrClient.ReadCommandAsync));
+        Assert.Equal(CommandOnTheInstance, asked.Id);
+    }
+
+    /// <summary>
+    /// A read-back naming another command confirms nothing.
+    /// </summary>
+    /// <remarks>
+    /// The instance answers with a whole command resource under a success, so this is the case a
+    /// status assertion cannot tell from the confirmed one.
+    /// </remarks>
+    [Fact]
+    public async Task AReadBackNamingAnotherCommandIsRefusedRatherThanConfirmed()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var coveId = await SeedSceneAsync(host, HeldSceneRow(monitored: true));
+        host.Client
+            .Answering(
+                nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync),
+                MonitorHost.Json(201, CommandRow(CommandOnTheInstance)))
+            .Answering(
+                nameof(IWhisparrClient.ReadCommandAsync),
+                MonitorHost.Json(200, CommandRow(CommandOnTheInstance + 1)));
+
+        var result = await host.SceneActionAsync(coveId, Search);
+
+        Assert.Equal(SceneRefusalKind.InstanceRefused, result.Refusal);
+        Assert.False(result.SearchIsWithWhisparr);
+    }
+
+    [Fact]
+    public async Task APostNamingNoReadableCommandIdIsRefusedAndNothingIsAskedAbout()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var coveId = await SeedSceneAsync(host, HeldSceneRow(monitored: true));
+        host.Client.Answering(
+            nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync),
+            MonitorHost.Json(201, CommandRowWithNoReadableId));
+
+        var result = await host.SceneActionAsync(coveId, Search);
+
+        Assert.Equal(SceneRefusalKind.InstanceRefused, result.Refusal);
+        Assert.False(result.SearchIsWithWhisparr);
+        Assert.DoesNotContain(nameof(IWhisparrClient.ReadCommandAsync), host.Client.Verbs);
+    }
+
+    [Fact]
+    public async Task AReadBackThatNeverArrivesIsDidNotReachRatherThanConfirmed()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var coveId = await SeedSceneAsync(host, HeldSceneRow(monitored: true));
+        host.Client.Answering(
+            nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync),
+            MonitorHost.Json(201, CommandRow(CommandOnTheInstance)));
+        host.Client.Unreachable.Add(nameof(IWhisparrClient.ReadCommandAsync));
+
+        var result = await host.SceneActionAsync(coveId, Search);
+
+        Assert.Equal(SceneRefusalKind.DidNotReachWhisparr, result.Refusal);
+        Assert.False(result.SearchIsWithWhisparr);
+    }
+
+    /// <summary>
+    /// One command read per search, counted off the answers consumed.
+    /// </summary>
+    /// <remarks>
+    /// Counted rather than read off the result, because a loop that settles after one iteration
+    /// produces the same result as a single read. No wait, no queue read and no poll to completion
+    /// is what this asserts.
+    /// </remarks>
+    [Fact]
+    public async Task OneCommandReadPerSearchAndNoSecond()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var coveId = await SeedSceneAsync(host, HeldSceneRow(monitored: true));
+        Confirming(host, CommandOnTheInstance);
+
+        await host.SceneActionAsync(coveId, Search);
+
+        Assert.Equal(
+            [
+                nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync),
+                nameof(IWhisparrClient.ReadCommandAsync),
+            ],
+            host.Client.Verbs);
+        Assert.Single(host.Client.SceneStatuses);
+    }
+
+    /// <summary>A post and a read-back that both name <paramref name="commandId"/>.</summary>
+    private static void Confirming(MonitorHost host, int commandId)
+        => host.Client
+            .Answering(
+                nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync),
+                MonitorHost.Json(201, CommandRow(commandId)))
+            .Answering(
+                nameof(IWhisparrClient.ReadCommandAsync),
+                MonitorHost.Json(200, CommandRow(commandId)));
+
+    private static void SceneAnswering(MonitorHost host, string row)
+        => host.Client.Answering(
+            nameof(IWhisparrSceneStatusReading.ReadSceneByRemoteIdAsync),
+            MonitorHost.Json(200, row));
+
+    private static Task<int> StudioIn(MonitorHost host)
+        => host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+
+    private static async Task<int> SeedSceneAsync(MonitorHost host, string row)
+    {
+        SceneAnswering(host, row);
+        var studioId = await StudioIn(host);
+        return await host.SeedStudioSceneAsync(studioId, MonitorHost.StoredEndpoint, SceneId);
+    }
+}

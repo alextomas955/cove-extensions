@@ -54,6 +54,7 @@ const SENTENCE_FOR_A_REFUSAL: Record<SceneRefusalKind, string | null> = {
   instanceOffersNoRootFolder: null,
   whisparrHasNoEntryForScene: null,
   whisparrAlreadyHoldsThisScene: null,
+  whisparrIsNotMonitoringThisScene: null,
 };
 
 /** How many of the tab's own surfaces one refused answer stops. */
