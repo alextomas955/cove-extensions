@@ -16,7 +16,11 @@ import { WhisparrPerformerActions, WhisparrStudioActions } from "./monitoring/En
 import { monitorSelected } from "./monitoring/bulkMonitor";
 import { WhisparrMissingTab } from "./missing/MissingTab";
 import { WhisparrLibraryToggle } from "./library/WhisparrLibraryToggle";
-import { WhisparrStudioCardBadge } from "./library/WhisparrEntityCardBadge";
+import {
+  WhisparrPerformerCardBadge,
+  WhisparrStudioCardBadge,
+} from "./library/WhisparrEntityCardBadge";
+import { WhisparrVideoCardBadge } from "./library/WhisparrVideoCardBadge";
 
 interface WithActionHandlers {
   actionHandlers: Record<string, unknown>;
@@ -30,6 +34,8 @@ const mod = defineExtension({
     WhisparrMissingTab,
     WhisparrLibraryToggle,
     WhisparrStudioCardBadge,
+    WhisparrPerformerCardBadge,
+    WhisparrVideoCardBadge,
   },
 });
 (mod as typeof mod & WithActionHandlers).actionHandlers = {
