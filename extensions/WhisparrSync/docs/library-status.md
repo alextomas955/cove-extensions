@@ -61,6 +61,12 @@ ThePornDB on Whisparr v2. A card with no such link, or with two links naming dif
 left blank. Nothing is sent for it, and no state is guessed: a badge reading **Not added** would
 claim your Whisparr has no entry, which is a different fact from Cove not knowing what to ask about.
 
+**Your Whisparr's own source does not name one entity for the link.** On Whisparr v2 the instance
+resolves your stored studio identifier against its own metadata source. Where that source names
+nothing, or names more than one series, nothing about the card is established and it is left blank.
+The button states no reason for it. Your instance answered every request it was given, and which of
+those two it was is a fact about that one card rather than about your connection.
+
 **The status could not be read.** No card claims anything, and the reason is on the button rather
 than on every card. Which reason it gives says what happened:
 
