@@ -33,6 +33,7 @@ internal static class BindingServices
         services.AddSingleton<IWhisparrClient>(_ => null!);
         services.AddSingleton<IEntityIdentityPort>(_ => null!);
         services.AddSingleton<ILibraryStatusPort>(_ => null!);
+        services.AddSingleton<ILibraryCardIdentityPort>(_ => null!);
         services.AddSingleton<ICredentialPort>(_ => null!);
         services.AddSingleton<ICallbackSecretPort>(_ => null!);
         services.AddSingleton<IWhisparrNotificationPort>(_ => null!);
