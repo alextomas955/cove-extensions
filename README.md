@@ -51,7 +51,7 @@ from `$(CoveMinVersion)` — the declared host floor that the extension-repo val
 extension's `minCoveVersion` against.
 
 First-party code both extensions share lives in [`shared/`](shared/): `Cove.Extensions.Shared` is a
-`ProjectReference` that ships bundled (it is not host-provided), and `cove-extensions-ui` is
+`ProjectReference` that ships bundled (it is not host-provided), and `ui-shared` is
 resolved into each UI bundle from raw TypeScript source through a Vite alias rather than a network
 install. `Cove.Extensions.Shared.Testing` is the test-only counterpart.
 

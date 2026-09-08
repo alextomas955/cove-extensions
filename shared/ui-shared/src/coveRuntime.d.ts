@@ -64,4 +64,47 @@ declare module "@cove/runtime/components" {
     entityType: EntityReferenceType;
     value: unknown;
   }) => never;
+  /** The paging shape Cove's list components read; only the fields this repo sets are declared. */
+  export interface CoveListFilter {
+    page?: number;
+    perPage?: number;
+  }
+
+  /**
+   * Cove's canonical list pagination — the first/prev/windowed-numbers/next/last control with the
+   * go-to-page jump past seven pages. Renders nothing for a single page, and clamps an out-of-range
+   * page through `onFilterChange` rather than rendering an empty view.
+   *
+   * The host's own props type is wider: 1.4 added `allowInfinitePageSize`, `infinitePageSizeOnly`
+   * and `showPagingControls`, all optional and none passed here, so they are left undeclared per the
+   * narrowing rule above.
+   */
+  export const DetailListPagination: (props: {
+    filter: CoveListFilter;
+    onFilterChange: (filter: CoveListFilter) => void;
+    totalCount: number;
+    className?: string;
+    ariaLabel?: string;
+  }) => never;
+
+  /**
+   * Cove's confirmation modal. `destructive` styles the confirm button as a destructive action;
+   * `isPending` disables both the confirm and the backdrop dismissal while an action is in flight.
+   *
+   * The host hands `onConfirm` a delete-options argument, which only its file-deletion checkboxes
+   * populate. Those checkboxes are opt-in through props this repo does not pass, so the argument is
+   * declared as optional and unknown: a zero-argument handler stays assignable, and no caller here
+   * can read a shape this file would be guessing at.
+   */
+  export const ConfirmDialog: (props: {
+    open: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    onConfirm: (options?: unknown) => void | Promise<void>;
+    onCancel: () => void;
+    destructive?: boolean;
+    isPending?: boolean;
+    errorMessage?: string | null;
+  }) => never;
 }

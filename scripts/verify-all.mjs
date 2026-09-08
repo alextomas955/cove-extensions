@@ -180,7 +180,7 @@ function catalogEntries() {
  *
  * @returns {string[]} repo-relative directories: the workspace root, the docs site, and each catalog
  *   entry's UI package.
- * @remarks `shared/cove-extensions-ui` is deliberately absent. It declares no dependency at all — the
+ * @remarks `shared/ui-shared` is deliberately absent. It declares no dependency at all — the
  *   extensions resolve it from source through a Vite alias — so an audit there reports a clean result
  *   having inspected nothing, which would read as coverage it does not have.
  */

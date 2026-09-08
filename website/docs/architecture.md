@@ -176,7 +176,7 @@ Four modules meet the bar today:
 | Module | Kind | How it is consumed |
 | --- | --- | --- |
 | `shared/Cove.Extensions.Shared` | C# library | A `ProjectReference` from each extension project. Options store, minimal-API permission helper, JSON factory, `RunAsSystem`, `SingleWriterBlobStore<T>`. |
-| `shared/cove-extensions-ui` | TypeScript/React | A Vite `resolve.alias` plus a tsconfig path into its raw `src/`. Field primitives, their pure logic, overlay and action helpers, and the shared Vite config factory. |
+| `shared/ui-shared` | TypeScript/React | A Vite `resolve.alias` plus a tsconfig path into its raw `src/`. Field primitives, their pure logic, overlay and action helpers, and the shared Vite config factory. |
 | `shared/Cove.Extensions.Shared.Testing` | C# test support | A `ProjectReference` from each `*.Tests` project. Fake stores and the `TierTraitGuard`. |
 | `shared/Cove.Extensions.Shared.Testing.Cove` | C# source only | Linked `Compile` items, guarded on the Cove checkout existing. Fakes that need host types. |
 
@@ -185,7 +185,7 @@ and is absent from the denylist — it copies local and ships bundled as `Cove.E
 inside each extension's package. Being first-party is exactly why it may ship: the host does not
 provide it, so there is no second copy to conflict with.
 
-`cove-extensions-ui` is resolved from raw TypeScript source rather than installed from a registry,
+`ui-shared` is resolved from raw TypeScript source rather than installed from a registry,
 so Vite transforms it through the same pipeline as the consuming bundle's own `src/`. Its `src/` is
 flat — `index.ts` beside `primitives.tsx`, `primitivesLogic.ts`, `actions.ts`, `postAction.ts`,
 `overlay.ts`, `entityPickerLogic.ts` — because at that size the filename suffix already carries the

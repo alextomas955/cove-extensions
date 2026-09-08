@@ -168,7 +168,7 @@ an existing stored value must keep loading.
   survives the strip). No direct Cove reference and no `System.IO.Hashing` here (unlike Renamer, this
   extension hashes nothing). Its in-handler permission gate is NOT used here — see the route-tier
   declaration above.
-- **`@cove-extensions/ui-shared`** (`shared/cove-extensions-ui/`) — shared field primitives + their pure
+- **`@cove-extensions/ui-shared`** (`shared/ui-shared/`) — shared field primitives + their pure
   logic, resolved from **raw TS source** through a Vite `resolve.alias` + tsconfig path (never a
   node_modules install), so Vite transforms it through the same pipeline as the bundle's own source.
 - **`@cove/runtime/components`** + **`@cove/runtime/api`** — the host's own React surface, served
@@ -176,7 +176,7 @@ an existing stored value must keep loading.
   canonical list paging control) and `ConfirmDialog` (the confirmation modal, replacing a
   `window.confirm`) come from the barrel; `extensionFetch` is the authenticated fetch that
   `common/lib/coveApi.ts` — the ONE transport this bundle uses — wraps. Types live in
-  `shared/cove-extensions-ui/types/coveRuntime.d.ts` so the UI typechecks with no `../cove` sibling.
+  `shared/ui-shared/src/coveRuntime.d.ts` so the UI typechecks with no `../cove` sibling.
 - **`@cove/extension-sdk`** — the Cove *frontend* host SDK, vendored as a committed `file:` tarball
   under `src/WhisparrSync.Ui/vendor/` (not published to npm; `npm ci` installs it offline). Still the
   home of `defineExtension`, `EntityTabProps` and `ApiError`; its cookie-only `request()` is not used —

@@ -127,7 +127,7 @@ test("the npm roots are the four graphs that have dependencies, and exclude the 
   assert.equal(roots.length, 4);
   assert.ok(roots.includes("."));
   assert.ok(roots.includes("website"));
-  assert.equal(roots.includes("shared/cove-extensions-ui"), false);
+  assert.equal(roots.includes("shared/ui-shared"), false);
   assert.deepEqual(roots, npmAuditRoots());
 });
 

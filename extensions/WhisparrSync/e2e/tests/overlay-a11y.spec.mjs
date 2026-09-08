@@ -1,4 +1,4 @@
-// Accessibility regression for the hand-rolled MENU-mode overlay (shared/cove-extensions-ui `useOverlayKeys`,
+// Accessibility regression for the hand-rolled MENU-mode overlay (shared/ui-shared `useOverlayKeys`,
 // `nav:"menu"`) AS WIRED into WhisparrSync's popovers — recreating the a11y proof that 53-03 ran but never
 // committed. It drives the real primitive through its consumers; it does NOT rebuild the trap.
 //
