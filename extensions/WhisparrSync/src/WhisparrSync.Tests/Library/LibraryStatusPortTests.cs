@@ -222,6 +222,81 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, true, true), readings[2]);
     }
 
+    /// <summary>
+    /// A read that outlived the client's own timeout is contained per card, the way a dropped
+    /// connection is.
+    /// </summary>
+    /// <remarks>
+    /// This is the common failure for a page of sequential reads: an instance that accepts the
+    /// connection and then hangs. It reaches the port as a cancellation nobody asked for, and
+    /// escaping it would answer the whole page with a failure the route declares no result for.
+    /// </remarks>
+    [Fact]
+    public async Task AReadThatOutlivedTheClientsTimeoutIsOneUnestablishedCardAndNoMore()
+    {
+        var reading = new RecordingEntityReading(
+            status: 200, body: Monitored, throwOnCall: 1, failure: () => new TaskCanceledException());
+
+        var rows = await ReadAsync(reading, Resolving, [1, 2]);
+
+        Assert.Equal(new LibraryCardReading(false, null, null), rows[0].Reading);
+        Assert.Equal(new LibraryCardReading(false, true, true), rows[1].Reading);
+    }
+
+    /// <summary>The same for a scene, which is the path a page of forty reads takes.</summary>
+    [Fact]
+    public async Task AReadThatOutlivedTheClientsTimeoutIsOneUnestablishedSceneAndNoMore()
+    {
+        var reading = new RecordingSceneReading(
+            status: 200,
+            body: HeldAndMonitored,
+            throwOnCall: 1,
+            failure: () => new TaskCanceledException());
+
+        var readings = await ReadScenesAsync(reading, Excluding(reading), SceneIdentities(1, 2));
+
+        Assert.Equal(new LibraryCardReading(false, null, null), readings[1]);
+        Assert.Equal(new LibraryCardReading(false, true, true), readings[2]);
+    }
+
+    /// <summary>
+    /// A shutdown is not a verdict about the instance, so it leaves the port rather than being
+    /// recorded as a card nothing could be established about.
+    /// </summary>
+    [Fact]
+    public async Task AShutdownLeavesThePortRatherThanReadingAsAnUnestablishedCard()
+    {
+        using var stopping = new CancellationTokenSource();
+        await stopping.CancelAsync();
+        var reading = new RecordingEntityReading(status: 200, body: Monitored);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await new LibraryStatusPort(Resolving).ReadEntityCardsAsync(
+                reading.AnswerAsync,
+                WhisparrEntityKind.Studio,
+                WhisparrGeneration.V3,
+                [1],
+                stopping.Token));
+    }
+
+    /// <summary>The same for a scene.</summary>
+    [Fact]
+    public async Task AShutdownLeavesTheScenePathRatherThanReadingAsAnUnestablishedScene()
+    {
+        using var stopping = new CancellationTokenSource();
+        await stopping.CancelAsync();
+        var reading = new RecordingSceneReading(status: 200, body: HeldAndMonitored);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await new LibraryStatusPort(Nothing).ReadSceneCardsAsync(
+                reading,
+                new Capability<IWhisparrSceneExclusionReading>(reading, null),
+                new Uri("http://whisparr.invalid"),
+                "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e",
+                SceneIdentities(1),
+                stopping.Token));
+    }
+
     private static string Monitored => """{"id":7,"monitored":true}""";
 
     /// <summary>The per-scene route answers a list, of one row where the instance holds the scene.</summary>
@@ -287,7 +362,8 @@ public sealed class LibraryStatusPortTests
     /// Both roles on one recorder, so the counts a case asserts come from the same object and cannot
     /// describe two seams that were never used together.
     /// </remarks>
-    private sealed class RecordingSceneReading(int status, string body, int? throwOnCall = null)
+    private sealed class RecordingSceneReading(
+        int status, string body, int? throwOnCall = null, Func<Exception>? failure = null)
         : IWhisparrSceneStatusReading, IWhisparrSceneExclusionReading
     {
         private IReadOnlySet<string> _excluded = new HashSet<string>(StringComparer.Ordinal);
@@ -315,7 +391,7 @@ public sealed class LibraryStatusPortTests
             SceneReads++;
 
             return SceneReads == throwOnCall
-                ? throw new HttpRequestException("nothing answered")
+                ? throw (failure?.Invoke() ?? new HttpRequestException("nothing answered"))
                 : Task.FromResult(new WhisparrResponse(status, "application/json", body));
         }
 
@@ -334,7 +410,8 @@ public sealed class LibraryStatusPortTests
     }
 
     /// <summary>One answer for every card, and a count of how many were asked for.</summary>
-    private sealed class RecordingEntityReading(int status, string body, int? throwOnCall = null)
+    private sealed class RecordingEntityReading(
+        int status, string body, int? throwOnCall = null, Func<Exception>? failure = null)
     {
         public int Calls { get; private set; }
 
@@ -345,7 +422,7 @@ public sealed class LibraryStatusPortTests
             Assert.Equal(ForeignId, foreignId);
 
             return Calls == throwOnCall
-                ? throw new HttpRequestException("nothing answered")
+                ? throw (failure?.Invoke() ?? new HttpRequestException("nothing answered"))
                 : Task.FromResult(new WhisparrResponse(status, "application/json", body));
         }
     }
