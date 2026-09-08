@@ -234,6 +234,63 @@ public sealed class SettingsEndpointTests
         Assert.Equal(CallbackSecretPosition.Address, view.LastEventSecretPosition);
     }
 
+    /// <summary>
+    /// A save changes what the next manifest read on the same instance registers.
+    /// </summary>
+    /// <remarks>
+    /// The refresh path: the field the manifest reads is filled at load, so without a write here a
+    /// generation switched through the page would keep the surfaces of the one before it until the
+    /// extension was loaded again.
+    /// </remarks>
+    [Fact]
+    public async Task ASaveChangesWhatTheNextManifestReadRegistersOnTheSameInstance()
+    {
+        var (_, options) = await SeededAsync();
+        using var gate = new OptionsWriteGate();
+        var credentials = new RecordingCredentialPort();
+        var extension = WhisparrSyncFixture.Create();
+
+        await SaveOnAsync(extension, options, gate, credentials, WhisparrGeneration.V3);
+        var newer = SlotsOf(extension);
+
+        await SaveOnAsync(extension, options, gate, credentials, WhisparrGeneration.V2);
+        var older = SlotsOf(extension);
+
+        Assert.Contains("video-card-content", newer);
+        Assert.DoesNotContain("video-card-content", older);
+        Assert.Contains("studio-card-footer", newer);
+        Assert.Contains("studio-card-footer", older);
+    }
+
+    /// <summary>Every slot the extension's manifest registers right now.</summary>
+    private static IReadOnlyList<string> SlotsOf(global::WhisparrSync.WhisparrSync extension)
+        => [.. extension.GetUIManifest().Slots.Select(slot => slot.Slot)];
+
+    /// <summary>Saves one generation through the handler the settings route calls.</summary>
+    private static async Task SaveOnAsync(
+        global::WhisparrSync.WhisparrSync extension,
+        OptionsStore options,
+        OptionsWriteGate gate,
+        RecordingCredentialPort credentials,
+        WhisparrGeneration generation)
+    {
+        var credential = new WhisparrSyncGenerationSaveRequest(
+            "http://whisparr:6969", KeyWriteSignal.Replace, StoredKey);
+        var saved = await extension.SaveSettingsAsync(
+            new WhisparrSyncSettingsSaveRequest(
+                generation,
+                generation == WhisparrGeneration.V3 ? credential : null,
+                generation == WhisparrGeneration.V2 ? credential : null),
+            Configure(),
+            options,
+            gate,
+            credentials,
+            new FixedClock(Now),
+            TestCt);
+
+        Assert.Equal(generation, ValueOf<WhisparrSyncSettingsView>(saved).SelectedGeneration);
+    }
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     private static FakePrincipalAccessor Configure()
