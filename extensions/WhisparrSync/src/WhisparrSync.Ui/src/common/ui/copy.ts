@@ -32,6 +32,15 @@ export const WHISPARR_STATUS_COULD_NOT_BE_READ =
   "Cove could not reach Whisparr, so no card can show a status. That is not the same as Whisparr holding nothing.";
 
 /**
+ * The badges are on where the display mode draws none, said on the control that turned them on.
+ *
+ * The host mounts a card slot in its grid display mode only, and the control sits in the toolbar of
+ * every mode. `Grid` is the host's own visible label for the mode that draws them.
+ */
+export const NO_PLACE_FOR_A_CARD_STATUS_HERE =
+  "This display mode has no place for a per-card status. Switch to the Grid display mode to see it.";
+
+/**
  * The entity control's own name while the entity is not monitored in Whisparr.
  *
  * The control carries the product's mark instead of a word, so its accessible name is the only name
