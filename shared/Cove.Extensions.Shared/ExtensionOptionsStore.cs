@@ -48,11 +48,42 @@ public class ExtensionOptionsStore<TOptions>(
     /// passed through the caller's normalizer.
     /// </summary>
     public async Task<TOptions> LoadAsync(CancellationToken ct = default)
+        => (await LoadReportedAsync(ct)).Options;
+
+    /// <summary>
+    /// Loads the persisted options and reports whether the stored blob is what produced them.
+    /// </summary>
+    /// <remarks>
+    /// <c>Bound</c> is false only where a blob is stored and the model could not bind it, so the
+    /// options are the defaults this load manufactured. A store nothing has written to is bound: its
+    /// defaults are the answer. Every load reaches here, so <see cref="OnLoaded"/> observes all of
+    /// them.
+    /// </remarks>
+    protected async Task<(TOptions Options, bool Bound)> LoadReportedAsync(
+        CancellationToken ct = default)
+    {
+        var read = await ReadAsync(ct);
+        OnLoaded(read.Options, read.Bound);
+        return read;
+    }
+
+    /// <summary>
+    /// Observes what a load answered. Does nothing unless a derived store overrides it.
+    /// </summary>
+    /// <remarks>
+    /// For a value a synchronous caller cannot load for itself. An override runs on the loading
+    /// thread and must not block or throw.
+    /// </remarks>
+    protected virtual void OnLoaded(TOptions options, bool bound)
+    {
+    }
+
+    private async Task<(TOptions Options, bool Bound)> ReadAsync(CancellationToken ct)
     {
         var json = await store.GetAsync(Key, ct);
         if (string.IsNullOrWhiteSpace(json))
         {
-            return defaultFactory();
+            return (defaultFactory(), true);
         }
 
         try
@@ -60,11 +91,11 @@ public class ExtensionOptionsStore<TOptions>(
             var loaded = JsonSerializer.Deserialize<TOptions>(json, jsonOptions);
             if (loaded is null)
             {
-                return defaultFactory();
+                return (defaultFactory(), false);
             }
 
             RestoreDeclaredNonNull(loaded, defaultFactory(), new NullabilityInfoContext());
-            return normalize is null ? loaded : normalize(loaded);
+            return (normalize is null ? loaded : normalize(loaded), true);
         }
         catch (JsonException ex)
         {
@@ -74,7 +105,7 @@ public class ExtensionOptionsStore<TOptions>(
             // panel, an API response and an end-to-end test that all agree on the wrong answer. The blob
             // itself is never logged — it is the user's configuration.
             ExtensionOptionsStoreLog.StoredOptionsDiscarded(logger, typeof(TOptions).Name, ex);
-            return defaultFactory();
+            return (defaultFactory(), false);
         }
     }
 
