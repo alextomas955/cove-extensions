@@ -201,3 +201,39 @@ test("a retry that failed states its own reason rather than the one before it", 
     "statusCouldNotBeRead",
   );
 });
+
+test("a page whose earlier request failed states that reason once a later one answers", async () => {
+  // A page over the route's bound, so the cards are asked about across two requests. The first one
+  // never answers and the second one does, which is the page that reads as answered while most of
+  // its cards drew nothing.
+  const coveIds = Array.from({ length: 41 }, (_, index) => index + 200);
+  let sent = 0;
+  requestJson.mockImplementation((_path, options) => {
+    sent += 1;
+    if (sent === 1) return Promise.reject(new Error("the route refused the body"));
+
+    const asked = (JSON.parse((options as { body: string }).body) as { coveIds: number[] }).coveIds;
+    return Promise.resolve({
+      rows: asked.map((coveId) => ({
+        coveId,
+        reading: { excluded: false, present: true, monitored: true },
+      })),
+      refusal: "none",
+    });
+  });
+
+  for (const coveId of coveIds) register(coveId);
+  await settle();
+
+  expect(requestJson).toHaveBeenCalledTimes(2);
+  for (const coveId of idsSent(1)) {
+    expect(
+      readCardStatus("studio", coveId),
+      "a card the answering request covered drew no badge",
+    ).not.toBeNull();
+  }
+  expect(
+    cardStatusRefusal(),
+    "the request that answered took away the reason the failed one established",
+  ).toBe("statusCouldNotBeRead");
+});
