@@ -56,6 +56,10 @@ export function WhisparrLibraryToggle() {
 
   const name = on ? HIDE_WHISPARR_STATUS : SHOW_WHISPARR_STATUS;
 
+  // A control that is off makes no claim about any card, so it states no reason. Every reason here
+  // is about cards drawn from a read this control triggered, and with it off there are no such
+  // cards on screen: one left on it survives a page turn, because nothing registers to clear it.
+  //
   // The control cannot ask whether the instance is reachable: the connection test is at a tier this
   // control's reader does not hold. The fact arrives only as a refusal from the batch the control
   // itself triggered, so there is no unreachable state before it is pressed.
@@ -65,10 +69,9 @@ export function WhisparrLibraryToggle() {
   //
   // With no visible label the accessible name is the only name it has, so the name leads and the
   // reason follows it, matching the order the entity control uses.
-  const reason =
-    on && settled && registered === 0
-      ? NO_PLACE_FOR_A_CARD_STATUS_HERE
-      : libraryRefusalSentence(refusal);
+  const pageReason =
+    settled && registered === 0 ? NO_PLACE_FOR_A_CARD_STATUS_HERE : libraryRefusalSentence(refusal);
+  const reason = on ? pageReason : null;
   const spoken = reason === null ? name : `${name}. ${reason}`;
 
   return (
