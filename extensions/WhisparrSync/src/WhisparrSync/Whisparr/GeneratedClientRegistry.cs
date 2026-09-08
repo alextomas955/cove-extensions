@@ -15,8 +15,8 @@ internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProv
     /// <summary>How many address-and-key pairs are kept before the least recent is discarded.</summary>
     /// <remarks>
     /// A person testing a connection supplies a pair per attempt, so the set is not bounded by how
-    /// many instances exist. The least recently reached entry is the one discarded, so a discarded
-    /// registration is idle rather than one a request is running against.
+    /// many instances exist. The least recently reached entry is the one discarded, and the entry the
+    /// running call reached is never a candidate.
     /// </remarks>
     internal const int MaxRegistrations = 8;
 
@@ -29,7 +29,7 @@ internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProv
     {
         var registration = _registrations.GetOrAdd(target, key => new Registration(register(key)));
         registration.ReachedAt = Interlocked.Increment(ref _reachCount);
-        DiscardBeyondCap();
+        DiscardBeyondCap(target);
         return registration.Provider;
     }
 
@@ -49,20 +49,24 @@ internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProv
         _registrations.Clear();
     }
 
-    // The least recently reached entry, which a running request is not holding: reaching one is what
-    // marks it, and every call marks its own before this runs.
-    private void DiscardBeyondCap()
+    // The reached entry is excluded: another thread reaching a further target can pass the cap while
+    // this call is between marking its own entry and handing that entry's provider back, and
+    // discarding it there would hand back a disposed provider. A concurrent discard can also empty
+    // the candidate set between the count and the pick.
+    private void DiscardBeyondCap(TTarget reached)
     {
         while (_registrations.Count > MaxRegistrations)
         {
             var oldest = _registrations
-                .OrderBy(entry => entry.Value.ReachedAt)
-                .First();
+                .Where(entry => !EqualityComparer<TTarget>.Default.Equals(entry.Key, reached))
+                .MinBy(entry => entry.Value.ReachedAt);
 
-            if (_registrations.TryRemove(oldest.Key, out var discarded))
+            if (oldest.Value is null || !_registrations.TryRemove(oldest.Key, out var discarded))
             {
-                discarded.Provider.Dispose();
+                return;
             }
+
+            discarded.Provider.Dispose();
         }
     }
 
