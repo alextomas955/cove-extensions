@@ -206,7 +206,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
             LogNoMetadataServerService();
         }
 
-        _selectedGeneration = await LoadSelectedGenerationAsync(services, ct).ConfigureAwait(false);
+        await ReadStoredGenerationAsync(services, ct).ConfigureAwait(false);
 
         await base.InitializeAsync(services, ct).ConfigureAwait(false);
     }
@@ -225,31 +225,30 @@ public sealed partial class WhisparrSync : FullExtensionBase
     internal OptionsStore NewOptionsStore()
         => new(Store, _log, generation => _selectedGeneration = generation);
 
-    /// <summary>
-    /// The stored generation's enum name, or null where the store could not be read.
-    /// </summary>
+    /// <summary>Reads the store once at load, so the manifest has a generation to register for.</summary>
     /// <remarks>
-    /// Resolved inside a scope for the reason <see cref="CanObtain{T}"/> records. A store that
-    /// cannot be read is reported once and answers null, so the extension still loads.
+    /// The load itself publishes what it established, so nothing is assigned here and there is one
+    /// writer rather than two agreeing by hand. A store that could not be read is reported once and
+    /// leaves the generation unestablished, so the extension still loads and keeps every surface.
+    /// <para>
+    /// Resolved inside a scope for the reason <see cref="CanObtain{T}"/> records.
+    /// </para>
     /// </remarks>
-    private async Task<string?> LoadSelectedGenerationAsync(
-        IServiceProvider services, CancellationToken ct)
+    private async Task ReadStoredGenerationAsync(IServiceProvider services, CancellationToken ct)
     {
         try
         {
             using var scope = services.GetRequiredService<IServiceScopeFactory>().CreateScope();
-            var stored = await scope.ServiceProvider
+            await scope.ServiceProvider
                 .GetRequiredService<OptionsStore>()
                 .LoadAsync(ct)
                 .ConfigureAwait(false);
-            return stored.SelectedGeneration.ToString();
         }
 #pragma warning disable CA1031 // Load-time read: an unreadable store is the answer, not a fault.
         catch (Exception ex) when (ex is not OperationCanceledException)
 #pragma warning restore CA1031
         {
             LogNoStoredGeneration();
-            return null;
         }
     }
 
