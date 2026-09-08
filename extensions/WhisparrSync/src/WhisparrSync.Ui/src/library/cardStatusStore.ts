@@ -11,8 +11,9 @@
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { api } from "../common/lib/extension";
-import type { LibraryCardReading, LibraryStatusRefusalKind, LibraryStatusView } from "../wire/api";
+import type { LibraryCardReading, LibraryStatusView } from "../wire/api";
 import { createBatchCoalescer, type BatchCoalescer } from "./batchCoalescerLogic";
+import type { LibraryPageRefusal } from "./libraryRefusalLogic";
 
 /**
  * The card kinds the status route answers for.
@@ -32,15 +33,6 @@ export type LibraryCardKind = "video" | "studio" | "performer";
  * constant the route enforces.
  */
 const IDS_PER_REQUEST = 40;
-
-/**
- * Why a page could not be answered for, including the one reason the browser establishes itself.
- *
- * `LibraryStatusRefusalKind` is the server's vocabulary for what the server established. A request
- * that produced no body established nothing there at all, so it carries a reason of its own rather
- * than borrowing one that names a conclusion nobody reached.
- */
-export type LibraryPageRefusal = LibraryStatusRefusalKind | "statusCouldNotBeRead";
 
 const coalescers = new Map<LibraryCardKind, BatchCoalescer<LibraryCardReading>>();
 const refusals = new Map<LibraryCardKind, LibraryPageRefusal>();
