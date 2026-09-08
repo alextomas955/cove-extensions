@@ -224,7 +224,7 @@ public sealed class EndpointPermissionTests
             new WhisparrSyncGenerationSaveRequest("http://whisparr-v3:6969", KeyWriteSignal.Replace, "a-key"),
             null);
 
-        var refused = await global::WhisparrSync.WhisparrSync.SaveSettingsAsync(
+        var refused = await WhisparrSyncFixture.Create().SaveSettingsAsync(
             save,
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
             options,
@@ -237,7 +237,7 @@ public sealed class EndpointPermissionTests
         Assert.Empty(credentials.Writes);
         Assert.Equal(0, store.SetCallCount);
 
-        var answered = await global::WhisparrSync.WhisparrSync.SaveSettingsAsync(
+        var answered = await WhisparrSyncFixture.Create().SaveSettingsAsync(
             save, Configure(), options, new OptionsWriteGate(), credentials, TimeProvider.System, TestCt);
 
         Assert.NotEqual(403, StatusOf(answered));
