@@ -172,3 +172,40 @@ test("a fetch that rejects leaves the keys after it still asked about", async ()
   expect(coalescer.get(String(PER_FETCH + 1))).toBe("held");
   expect(coalescer.settled("1"), "a rejected fetch left its own keys unsettled").toBe(true);
 });
+
+test("only a fetch beginning with no answer held is told it holds none", async () => {
+  const scheduler = manualScheduler();
+  const told: boolean[] = [];
+  const coalescer = createBatchCoalescer<string>(
+    (keys, noAnswersHeld) => {
+      told.push(noAnswersHeld);
+      return Promise.resolve(new Map(keys.map((key) => [key, "held"])));
+    },
+    PER_FETCH,
+    scheduler.schedule,
+  );
+
+  const keys = Array.from({ length: PER_FETCH + 1 }, (_, index) => String(index + 1));
+  const held = keys.map((key) => coalescer.request(key));
+  await scheduler.run();
+
+  const late = coalescer.request("999");
+  await scheduler.run();
+
+  expect(told, "a fetch that began with answers held was told it held none").toEqual([
+    true,
+    false,
+    false,
+  ]);
+
+  for (const release of [...held, late]) release();
+  coalescer.request("1000");
+  await scheduler.run();
+
+  expect(told, "a coalescer holding nothing at all was not told so").toEqual([
+    true,
+    false,
+    false,
+    true,
+  ]);
+});

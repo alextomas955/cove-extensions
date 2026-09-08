@@ -5,7 +5,7 @@
  * instance and they have to fold into one request. The key carries the kind as well as the Cove id,
  * so one entity's answer cannot paint onto another kind's card with the same number.
  *
- * The page-level reason is held per kind, for the whole of one flush rather than for one request,
+ * The page-level reason is held per kind for as long as an answered card of that kind is on screen,
  * and read by the toolbar control, which states it once for the page. A card that could not be
  * answered for draws nothing and says nothing.
  */
@@ -46,7 +46,8 @@ function emit(): void {
 function recordRefusal(kind: LibraryCardKind, refusal: LibraryPageRefusal): void {
   // A page over the route's bound is split across requests, and the page has a reason when any one
   // of those requests could not be answered. So a request that answered never overwrites the reason
-  // an earlier one established.
+  // an earlier one established. Two requests can fail for reasons of their own, and the page states
+  // the first: one sentence that stands still while the rest of the page answers.
   const held = refusals.get(kind);
   if (held !== undefined && held !== "none") return;
   refusals.set(kind, refusal);
@@ -55,16 +56,17 @@ function recordRefusal(kind: LibraryCardKind, refusal: LibraryPageRefusal): void
 /**
  * One request for the cards of `kind` handed over, up to the bound the route enforces.
  *
- * `startsFlush` is true for the first request of a page. The kind's reason is dropped there rather
- * than before every request, so the reason a failed request established outlives the requests that
- * follow it on the same page.
+ * `noAnswersHeld` is true when no card of this kind on screen has an answer yet, and the kind's
+ * reason is dropped there and nowhere else. While one answered card is still on screen the reason
+ * belongs to its page, so neither a later request of that page nor the first request of a card that
+ * mounted during it can displace it. A page whose cards have all left takes its reason with them.
  */
 async function readBatch(
   kind: LibraryCardKind,
   keys: string[],
-  startsFlush: boolean,
+  noAnswersHeld: boolean,
 ): Promise<Map<string, LibraryCardReading | null>> {
-  if (startsFlush) refusals.delete(kind);
+  if (noAnswersHeld) refusals.delete(kind);
 
   try {
     const view = await requestJson<LibraryStatusView>(api(`library/${kind}/status`), {
@@ -92,7 +94,7 @@ function coalescerFor(kind: LibraryCardKind): BatchCoalescer<LibraryCardReading>
   if (held !== undefined) return held;
 
   const made = createBatchCoalescer<LibraryCardReading>(
-    (keys, startsFlush) => readBatch(kind, keys, startsFlush),
+    (keys, noAnswersHeld) => readBatch(kind, keys, noAnswersHeld),
     IDS_PER_REQUEST,
   );
   made.subscribe(emit);

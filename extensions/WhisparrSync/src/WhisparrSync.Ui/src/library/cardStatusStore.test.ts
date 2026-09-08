@@ -164,6 +164,7 @@ test("a page holding more cards than one request may carry answers every one of 
   expect([...idsSent(0), ...idsSent(1)].sort()).toEqual([...coveIds].sort());
   const silent = coveIds.filter((coveId) => readCardStatus("studio", coveId) === null);
   expect(silent, "a card past the route's bound drew no badge").toEqual([]);
+  expect(cardStatusRefusal(), "a page whose every request answered stated a reason").toBe("none");
 });
 
 test("a request that never answered is stated on the page rather than left silent", async () => {
@@ -192,6 +193,10 @@ test("a retry that failed states its own reason rather than the one before it", 
   register(7);
   await settle();
   expect(cardStatusRefusal()).toBe("instanceUnreachable");
+
+  // The card that read leaves the screen, so the reason describes nothing still on it.
+  for (const release of releases) release();
+  releases = [];
 
   requestJson.mockRejectedValue(new Error("Cove answered nothing"));
   register(8);
@@ -236,4 +241,103 @@ test("a page whose earlier request failed states that reason once a later one an
     cardStatusRefusal(),
     "the request that answered took away the reason the failed one established",
   ).toBe("statusCouldNotBeRead");
+});
+
+test("a card that mounts while a page is still being read leaves the page's reason standing", async () => {
+  // A page over the route's bound whose first request never answers, and a card that mounts before
+  // the second request has answered. Cove mounts a card on a scroll, and the card is asked about on
+  // its own while the page it joined is still being read. The 40 cards of the failed request are
+  // still on screen drawing nothing, so the page still has its reason.
+  const coveIds = Array.from({ length: 41 }, (_, index) => index + 300);
+  let answerSecond = (): void => undefined;
+  const secondAnswers = new Promise<void>((resolve) => {
+    answerSecond = resolve;
+  });
+
+  let sent = 0;
+  requestJson.mockImplementation((_path, options) => {
+    sent += 1;
+    if (sent === 1) return Promise.reject(new Error("the route refused the body"));
+
+    const asked = (JSON.parse((options as { body: string }).body) as { coveIds: number[] }).coveIds;
+    const view: LibraryStatusView = {
+      rows: asked.map((coveId) => ({
+        coveId,
+        reading: { excluded: false, present: true, monitored: true },
+      })),
+      refusal: "none",
+    };
+    return sent === 2 ? secondAnswers.then(() => view) : Promise.resolve(view);
+  });
+
+  for (const coveId of coveIds) register(coveId);
+  await settle();
+  expect(cardStatusRefusal(), "the failed request established no reason to hold").toBe(
+    "statusCouldNotBeRead",
+  );
+
+  register(341);
+  await settle();
+  answerSecond();
+  await settle();
+
+  expect(requestJson, "the card that mounted was not asked about on its own").toHaveBeenCalledTimes(
+    3,
+  );
+  // The first 40 registered, written out rather than read back from the store, so a request that
+  // carried other cards fails here rather than agreeing with itself.
+  const failed = coveIds.slice(0, 40);
+  expect(idsSent(0)).toEqual(failed);
+  expect(
+    failed.filter((coveId) => readCardStatus("studio", coveId) !== null),
+    "a card the failed request covered drew a badge after all",
+  ).toEqual([]);
+  expect(
+    cardStatusRefusal(),
+    "the card that mounted mid-read took away the reason the page had established",
+  ).toBe("statusCouldNotBeRead");
+});
+
+test("a page whose cards all answered states no reason after a page that failed", async () => {
+  requestJson.mockRejectedValue(new Error("nothing answered"));
+  register(500);
+  await settle();
+  expect(cardStatusRefusal()).toBe("statusCouldNotBeRead");
+
+  // The reader turned the page, so every card the failed read covered left the screen.
+  for (const release of releases) release();
+  releases = [];
+
+  answering({
+    rows: [{ coveId: 501, reading: { excluded: false, present: true, monitored: true } }],
+    refusal: "none",
+  });
+  register(501);
+  await settle();
+
+  expect(readCardStatus("studio", 501)).not.toBeNull();
+  expect(cardStatusRefusal(), "the new page carried the previous page's reason").toBe("none");
+});
+
+test("a reason the instance established is not displaced by a request that never answered", async () => {
+  // One page, two requests, two reasons. The page states one sentence, and it is the first reason
+  // established: the reason changing under the reader as later requests answer would say the page
+  // had been read twice.
+  const coveIds = Array.from({ length: 41 }, (_, index) => index + 600);
+  let sent = 0;
+  requestJson.mockImplementation(() => {
+    sent += 1;
+    if (sent > 1) return Promise.reject(new Error("the route refused the body"));
+
+    const view: LibraryStatusView = { rows: [], refusal: "instanceUnreachable" };
+    return Promise.resolve(view);
+  });
+
+  for (const coveId of coveIds) register(coveId);
+  await settle();
+
+  expect(requestJson).toHaveBeenCalledTimes(2);
+  expect(cardStatusRefusal(), "the browser's own reason displaced the one the instance gave").toBe(
+    "instanceUnreachable",
+  );
 });
