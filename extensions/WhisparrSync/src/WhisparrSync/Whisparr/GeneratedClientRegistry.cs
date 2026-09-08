@@ -25,8 +25,15 @@ internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProv
     private bool _disposed;
 
     /// <summary>The provider for the instance <paramref name="target"/> names.</summary>
+    /// <remarks>
+    /// Throws once the registry is disposed. A gateway is a container singleton, so a request still
+    /// in flight when the container tears one down would otherwise register against a cleared cache
+    /// and leave the provider it built undisposed.
+    /// </remarks>
     public ServiceProvider Reach(TTarget target)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var registration = _registrations.GetOrAdd(target, key => new Registration(key, register));
         registration.ReachedAt = Interlocked.Increment(ref _reachCount);
         var provider = registration.Provider;
