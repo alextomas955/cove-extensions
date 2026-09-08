@@ -109,7 +109,7 @@ public sealed class WhisparrClientTransportTests
     /// </remarks>
     [Fact]
     public void TheSeamDeclaresTheMethodsItIsPinnedAt()
-        => Assert.Equal(8, typeof(IWhisparrClient).GetMethods().Length);
+        => Assert.Equal(9, typeof(IWhisparrClient).GetMethods().Length);
 
     /// <summary>
     /// No method on the seam takes a path or an HTTP verb.
