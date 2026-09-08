@@ -27,10 +27,11 @@ internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProv
     /// <summary>The provider for the instance <paramref name="target"/> names.</summary>
     public ServiceProvider Reach(TTarget target)
     {
-        var registration = _registrations.GetOrAdd(target, key => new Registration(register(key)));
+        var registration = _registrations.GetOrAdd(target, key => new Registration(key, register));
         registration.ReachedAt = Interlocked.Increment(ref _reachCount);
+        var provider = registration.Provider;
         DiscardBeyondCap(target);
-        return registration.Provider;
+        return provider;
     }
 
     public void Dispose()
@@ -43,7 +44,7 @@ internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProv
         _disposed = true;
         foreach (var registration in _registrations.Values)
         {
-            registration.Provider.Dispose();
+            registration.Discard();
         }
 
         _registrations.Clear();
@@ -66,14 +67,29 @@ internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProv
                 return;
             }
 
-            discarded.Provider.Dispose();
+            discarded.Discard();
         }
     }
 
-    private sealed class Registration(ServiceProvider provider)
+    // A concurrent first reach of one target runs the add factory twice and keeps one result, so what
+    // the factory builds holds a provider it has not created yet: the result the dictionary drops
+    // never creates one, and the client factory, its expiry timers and its handler pool are built
+    // only for the entry that was kept.
+    private sealed class Registration(TTarget target, Func<TTarget, ServiceProvider> register)
     {
-        public ServiceProvider Provider { get; } = provider;
+        private readonly Lazy<ServiceProvider> _provider = new(
+            () => register(target), LazyThreadSafetyMode.ExecutionAndPublication);
 
         public long ReachedAt { get; set; }
+
+        public ServiceProvider Provider => _provider.Value;
+
+        public void Discard()
+        {
+            if (_provider.IsValueCreated)
+            {
+                _provider.Value.Dispose();
+            }
+        }
     }
 }
