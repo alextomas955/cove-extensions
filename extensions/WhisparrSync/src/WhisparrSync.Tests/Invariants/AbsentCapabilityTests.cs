@@ -27,31 +27,24 @@ public sealed class AbsentCapabilityTests
     /// Every route the outbound client composes itself, transcribed by hand from its own constants.
     /// </summary>
     /// <remarks>
-    /// The set is the claim. The command route <c>api/v3/command</c> is declared here, because every
-    /// instance-side action an instance takes is issued through it, so its presence is not by itself
-    /// evidence of anything: the claim is that two members of the whole seam can send a grabbing
-    /// command name and each is declared on a separately obtained role of its own, which
-    /// <see cref="SafetyInvariantTests.TwoSeamMembersGrabAndEachIsDeclaredOnAGrabbingRoleOfItsOwn"/>
-    /// asserts. That no body off a monitoring path names one of those commands is
-    /// <see cref="SafetyInvariantTests.NoBodyOffAMonitoringPathCanNameAGrabbingCommand"/>.
+    /// The set is the claim: three requests stay hand-composed, and the reason each stays is stated
+    /// where it is sent. The notification route carries a body built from the schema the instance
+    /// answered with, the studio route carries the answer it just read with two members changed, and
+    /// the exclusions route is read row by row so what it holds does not grow with the library.
     /// <para>
-    /// The newer generation's routes are composed by the generated client and are not literals on
-    /// this type, so they are transcribed in <see cref="GeneratedRoutes"/> and asserted against the
-    /// operations this product calls rather than against a constant.
+    /// Every other route is composed by a generated client and is no literal on this type, so those
+    /// are transcribed in <see cref="GeneratedRoutes"/> and asserted against the operations this
+    /// product calls. That two members of the whole seam can send a grabbing command name and each is
+    /// declared on a separately obtained role of its own is
+    /// <see cref="SafetyInvariantTests.TwoSeamMembersGrabAndEachIsDeclaredOnAGrabbingRoleOfItsOwn"/>,
+    /// and that no body off a monitoring path names one of those commands is
+    /// <see cref="SafetyInvariantTests.NoBodyOffAMonitoringPathCanNameAGrabbingCommand"/>.
     /// </para>
     /// </remarks>
     private static readonly string[] DeclaredRoutes =
     [
-        "api/v3/history",
         "api/v3/notification",
         "api/v3/studio",
-        "api/v3/movie",
-        "api/v3/performer",
-        "api/v3/series",
-        "api/v3/series/lookup",
-        "api/v3/series/editor",
-        "api/v3/seasonpass",
-        "api/v3/command",
         "api/v3/exclusions",
     ];
 
@@ -81,6 +74,7 @@ public sealed class AbsentCapabilityTests
         ("IPerformerApi", "CreatePerformerAsync", "api/v3/performer"),
         ("IPerformerEditorApi", "PutPerformerEditorAsync", "api/v3/performer/editor"),
         ("IMovieApi", "CreateMovieAsync", "api/v3/movie"),
+        ("IMovieApi", "ListMovieAsync", "api/v3/movie"),
         ("IManualImportApi", "ListManualImportAsync", "api/v3/manualimport"),
         ("IMediaManagementConfigApi", "GetMediaManagementConfigAsync", "api/v3/config/mediamanagement"),
         ("CommandApi", "SendCommandAsync", "api/v3/command"),
