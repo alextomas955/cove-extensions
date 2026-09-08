@@ -11,6 +11,27 @@
  */
 
 /**
+ * The library toolbar control's own name while the card badges are hidden.
+ *
+ * The control carries the product's mark instead of a word, so its accessible name is the only name
+ * it has.
+ */
+export const SHOW_WHISPARR_STATUS = "Show Whisparr status";
+
+/** The same control's name once the badges are on. */
+export const HIDE_WHISPARR_STATUS = "Hide Whisparr status";
+
+/**
+ * Nothing could be reached, said once for the page on the control that asked.
+ *
+ * The second sentence is the point of the message. A page of cards that simply drew no badge would
+ * read as a library Whisparr holds nothing for, which is a different fact and the one a reader would
+ * act on.
+ */
+export const WHISPARR_STATUS_COULD_NOT_BE_READ =
+  "Cove could not reach Whisparr, so no card can show a status. That is not the same as Whisparr holding nothing.";
+
+/**
  * The entity control's own name while the entity is not monitored in Whisparr.
  *
  * The control carries the product's mark instead of a word, so its accessible name is the only name

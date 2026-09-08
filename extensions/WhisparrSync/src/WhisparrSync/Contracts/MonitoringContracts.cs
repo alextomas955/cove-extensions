@@ -248,6 +248,16 @@ public enum MonitorRefusalKind
 /// </remarks>
 /// <param name="Kind">Which kind of entity this is about.</param>
 /// <param name="Generation">The connected generation, or null when none is configured.</param>
+/// <param name="Present">
+/// Whether the connected instance holds an entry for this entity at all, or null where the answer
+/// this read carried established neither.
+/// <para>
+/// Null is DISTINCT from false, in the way <paramref name="Scope"/>'s null is distinct from a scope:
+/// false says the instance was asked and holds nothing, and null says nothing was established. A
+/// reader that collapsed the two would report an entity the instance has never heard of and one
+/// nothing could be read about as the same fact.
+/// </para>
+/// </param>
 /// <param name="Monitored">Whether the connected instance monitors this entity.</param>
 /// <param name="Refusal">Why the last thing asked for could not be done, or that it was done.</param>
 /// <param name="Capabilities">
@@ -265,6 +275,7 @@ public enum MonitorRefusalKind
 public sealed record EntityMonitoringView(
     WhisparrEntityKind Kind,
     WhisparrGeneration? Generation,
+    bool? Present,
     bool Monitored,
     MonitorRefusalKind Refusal,
     IReadOnlyList<WhisparrCapability> Capabilities,
@@ -272,7 +283,7 @@ public sealed record EntityMonitoringView(
 {
     /// <summary>A refusal taken before any instance was contacted, with nothing configured.</summary>
     public static EntityMonitoringView NotConfigured(WhisparrEntityKind kind)
-        => new(kind, null, false, MonitorRefusalKind.NotConfigured, [], null);
+        => new(kind, null, null, false, MonitorRefusalKind.NotConfigured, [], null);
 
     /// <summary>A refusal naming <paramref name="refusal"/>, with the entity left unmonitored.</summary>
     public static EntityMonitoringView Refused(
@@ -280,18 +291,23 @@ public sealed record EntityMonitoringView(
         WhisparrGeneration generation,
         IReadOnlyList<WhisparrCapability> capabilities,
         MonitorRefusalKind refusal)
-        => new(kind, generation, false, refusal, capabilities, null);
+        => new(kind, generation, null, false, refusal, capabilities, null);
 
     /// <summary>The entity's state as the instance reports it.</summary>
     /// <remarks>
     /// <paramref name="scope"/> has no default. A defaulted one would let a call site that never
     /// decided the question answer a scope the instance did not report.
+    /// <para>
+    /// <paramref name="present"/> has none either, and for the same reason: a call site defaulting
+    /// it would answer that the instance holds the entity on the strength of nothing.
+    /// </para>
     /// </remarks>
     public static EntityMonitoringView State(
         WhisparrEntityKind kind,
         WhisparrGeneration generation,
         IReadOnlyList<WhisparrCapability> capabilities,
+        bool? present,
         bool monitored,
         MonitorScope? scope)
-        => new(kind, generation, monitored, MonitorRefusalKind.None, capabilities, scope);
+        => new(kind, generation, present, monitored, MonitorRefusalKind.None, capabilities, scope);
 }

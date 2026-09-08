@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Library;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
@@ -175,6 +176,7 @@ internal sealed class MonitorHost : IAsyncDisposable
         builder.Services.AddSingleton<IJobService>(host.Jobs);
         host.Identities = new EntityIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.Identities);
+        builder.Services.AddSingleton<ILibraryStatusPort>(new LibraryStatusPort(host.Identities));
         host.Folders = new EntityFolderPort(host._db);
         builder.Services.AddSingleton(host.Folders);
         host.SceneIdentities = new EntitySceneIdentityPort(host._db, options);

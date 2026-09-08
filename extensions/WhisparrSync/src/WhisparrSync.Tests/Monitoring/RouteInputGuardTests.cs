@@ -90,6 +90,7 @@ public sealed class RouteInputGuardTests
                 "scope",
                 "search",
                 "search-all-monitored",
+                "status",
                 "unmonitor",
             ],
             templates);
