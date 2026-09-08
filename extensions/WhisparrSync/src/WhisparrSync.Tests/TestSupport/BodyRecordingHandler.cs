@@ -27,11 +27,16 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
 {
     private readonly Queue<(HttpStatusCode Status, string Answer)> _answers;
     private readonly BodyShape _shape;
+    private readonly Func<string, string>? _byPath;
 
     private BodyRecordingHandler(params (HttpStatusCode Status, string Answer)[] answers)
         : this(BodyShape.Whole, answers)
     {
     }
+
+    private BodyRecordingHandler(Func<string, string> byPath)
+        : this(BodyShape.Whole, (HttpStatusCode.OK, string.Empty))
+        => _byPath = byPath;
 
     private BodyRecordingHandler(
         BodyShape shape, params (HttpStatusCode Status, string Answer)[] answers)
@@ -52,6 +57,16 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
     public static BodyRecordingHandler AnsweringInTurn(
         params (HttpStatusCode Status, string Answer)[] answers)
         => new(answers);
+
+    /// <summary>
+    /// Answers a success with whatever <paramref name="answer"/> returns for the request's path.
+    /// </summary>
+    /// <remarks>
+    /// Keyed on the path, so a case driving many routes states only the answers a route needs to be
+    /// reachable. The turn-taking factory keys on order, and the order shifts whenever a call is added.
+    /// </remarks>
+    public static BodyRecordingHandler AnsweringByPath(Func<string, string> answer)
+        => new(answer);
 
     /// <summary>Answers with more of one answer than the client reads at once.</summary>
     /// <remarks>
@@ -93,8 +108,14 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
         var body = request.Content is null
             ? string.Empty
             : await request.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        Requests.Add((request.Method, request.RequestUri?.AbsolutePath ?? string.Empty, body));
+        var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+        Requests.Add((request.Method, path, body));
         Targets.Add(request.RequestUri?.PathAndQuery ?? string.Empty);
+
+        if (_byPath is not null)
+        {
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = Content(_byPath(path)) };
+        }
 
         var (status, answer) = _answers.Count > 1 ? _answers.Dequeue() : _answers.Peek();
         return new HttpResponseMessage(status) { Content = Content(answer) };

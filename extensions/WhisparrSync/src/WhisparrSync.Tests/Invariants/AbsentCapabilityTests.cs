@@ -1,4 +1,3 @@
-using System.Net;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
@@ -196,43 +195,70 @@ public sealed class AbsentCapabilityTests
         };
 
     /// <summary>
-    /// Every route the generated client puts on the wire for this product is one that was transcribed.
+    /// The routes the generated client puts on the wire for this product are exactly the transcribed
+    /// set.
     /// </summary>
     /// <remarks>
     /// Driven rather than read off a constant. The generated client composes the route, so the only
     /// honest source for what it composes is a request it made: a transcribed route compared against
     /// another transcription would agree with itself whatever the client sent.
     /// <para>
-    /// Every seam member is driven, so a member reaching a route nobody wrote down fails here. The
-    /// grabbing member is driven too, because the claim is about which routes exist and not about
-    /// which of them acquires.
+    /// An equality in both directions. A member reaching a route nobody wrote down fails here, and so
+    /// does a transcribed route no call drives. The grabbing member is driven too, because the claim is
+    /// about which routes exist and not about which of them acquires.
+    /// </para>
+    /// <para>
+    /// This says nothing about which generation issued a request. Both serve the same route strings,
+    /// and the recorded path carries no generation.
+    /// <see cref="TheGeneratedClientDeclaresEveryOperationThisProductNames"/> is what pins a row to the
+    /// generation that declares it.
+    /// </para>
+    /// <para>
+    /// Nothing hand-composed is driven. The notification create and update and the exclusions read
+    /// reach routes <see cref="GeneratedRoutes"/> does not name, and they belong to
+    /// <see cref="DeclaredRoutes"/>.
     /// </para>
     /// </remarks>
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
     public async Task EveryRouteTheGeneratedClientSendsOnWasTranscribed()
     {
-        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "{}");
+        var handler = BodyRecordingHandler.AnsweringByPath(AnswerFor);
         var client = TestWhisparrClient.Over(handler);
 
         await DriveEveryGeneratedRouteAsync(client);
 
         Assert.NotEmpty(handler.Requests);
-        Assert.All(
-            handler.Requests,
-            request => Assert.True(
-                WasTranscribed(request.Path),
-                $"{request.Path} is a route no line of GeneratedRoutes names."));
+        Assert.Equal(
+            GeneratedRoutes.Select(route => route.Route).Distinct().Order().ToList(),
+            handler.Requests
+                .Select(request => TranscribedRouteFor(request.Path))
+                .Distinct()
+                .Order()
+                .ToList());
     }
 
+    // The older generation reaches its entity through a lookup and then a listing, so the lookup has
+    // to resolve for the second request to happen at all. The answered entry carries the three members
+    // the resolution reads, with the values the committed lookup fixture holds.
+    private static string AnswerFor(string path)
+        => path.EndsWith("/series/lookup", StringComparison.Ordinal)
+            ? """[{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen"}]"""
+            : "{}";
+
     // A route naming one entity carries its identifier as a further segment, so the transcribed route
-    // is a whole-segment prefix of what was sent rather than the whole of it.
-    private static bool WasTranscribed(string path)
+    // is a whole-segment prefix of what was sent. The longest match wins: several transcribed routes
+    // are whole-segment prefixes of other transcribed routes, and a first match would fold them
+    // together. An unmatched path maps to itself, so the equality names it.
+    private static string TranscribedRouteFor(string path)
     {
         var sent = path.TrimStart('/');
-        return GeneratedRoutes.Any(route =>
-            string.Equals(sent, route.Route, StringComparison.Ordinal)
-            || sent.StartsWith(route.Route + "/", StringComparison.Ordinal));
+        return GeneratedRoutes
+            .Select(route => route.Route)
+            .Where(route => string.Equals(sent, route, StringComparison.Ordinal)
+                || sent.StartsWith(route + "/", StringComparison.Ordinal))
+            .OrderByDescending(route => route.Length)
+            .FirstOrDefault() ?? sent;
     }
 
     // One call per generated operation this product names, driven through the seam rather than
@@ -256,12 +282,16 @@ public sealed class AbsentCapabilityTests
             address, key, WhisparrGeneration.V3, "studio-1", MonitorScope.AllScenes, defaults, ct);
         await client.SetStudioMonitoredAsync(
             address, key, WhisparrGeneration.V3, 4, monitored: true, ct);
+        await client.ReadEntityPresenceAsync(address, key, WhisparrEntityKind.Studio, "studio-1", ct);
 
         await client.ReadPerformerAsync(address, key, "performer-1", ct);
         await client.AddMonitoredPerformerAsync(address, key, "performer-1", defaults, ct);
         await client.SetPerformerMonitoredAsync(address, key, 11, monitored: true, ct);
+        await client.ReadEntityPresenceAsync(
+            address, key, WhisparrEntityKind.Performer, "performer-1", ct);
 
         await client.AddSceneAsync(address, key, "scene-1", defaults, ct);
+        await client.ReadSceneByRemoteIdAsync(address, key, "scene-1", ct);
         await client.RefreshCatalogueAsync(address, key, WhisparrEntityKind.Studio, 4, ct);
 
         await client.ReadHardlinkSettingAsync(address, key, ct);
@@ -271,6 +301,19 @@ public sealed class AbsentCapabilityTests
 
         await client.SearchMonitoredAsync(
             address, key, WhisparrGeneration.V3, WhisparrEntityKind.Studio, 4, ct);
+
+        // The scope change is driven on the older generation only. The newer one reads and replaces
+        // the resource through the hand-composed date gate, whose route belongs to DeclaredRoutes.
+        await client.ReadHistoryAsync(address, key, WhisparrGeneration.V2, 1, 10, ct);
+        await client.ReadStudioAsync(address, key, WhisparrGeneration.V2, "studio-1", ct);
+        await client.AddMonitoredStudioAsync(
+            address, key, WhisparrGeneration.V2, "studio-1", MonitorScope.AllScenes, defaults, ct);
+        await client.SetStudioMonitoredAsync(
+            address, key, WhisparrGeneration.V2, 4, monitored: true, ct);
+        await client.SetStudioScopeAsync(
+            address, key, WhisparrGeneration.V2, 4, MonitorScope.AllScenes, ct);
+        await client.SearchMonitoredAsync(
+            address, key, WhisparrGeneration.V2, WhisparrEntityKind.Studio, 4, ct);
     }
 
     /// <summary>
