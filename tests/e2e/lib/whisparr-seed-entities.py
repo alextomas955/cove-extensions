@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes one studio or performer straight into a Whisparr instance's own database.
+"""Writes one studio, performer or scene straight into a Whisparr instance's own database.
 
 The datastore rather than the add route, and that is the whole reason this file exists: an add
 resolves its foreign id against the vendor's metadata service, so it is a call to a third party this
@@ -20,6 +20,23 @@ addressed by rather than assuming the sequence.
 import argparse
 import json
 import sqlite3
+
+# A scene is two rows: its catalogue entry, and the entry the instance monitors. The identifier the
+# per-scene route narrows on is StashId, which the caller supplies as the foreign id, so both columns
+# carry it and the route the extension reads by is the one this seeds for.
+SCENE_METADATA_TABLE = "MovieMetadata"
+SCENE_TABLE = "Movies"
+
+# Declared NOT NULL on MovieMetadata and carrying no default.
+SCENE_METADATA_REQUIRED = {
+    "MetadataSource": 0,
+    "Images": "[]",
+    "OriginalLanguage": 1,
+    "Status": 0,
+    "Runtime": 0,
+    "Recommendations": "[]",
+    "ItemType": 0,
+}
 
 # The two tables this harness seeds, and the columns each declares NOT NULL with no default. Read
 # off `sqlite_master` on the pinned v3 build rather than transcribed from a schema document: a
@@ -59,16 +76,60 @@ TABLES = {
 }
 
 
+def write_scene(connection, args) -> int:
+    """Writes one scene's catalogue entry and the entry the instance monitors."""
+    metadata = {
+        "ForeignId": args.foreign_id,
+        "StashId": args.foreign_id,
+        "Title": args.title,
+        "CleanTitle": "".join(args.title.lower().split()),
+        "SortTitle": args.title.lower(),
+        **SCENE_METADATA_REQUIRED,
+    }
+    names = ", ".join(f'"{column}"' for column in metadata)
+    placeholders = ", ".join("?" for _ in metadata)
+    metadata_id = connection.execute(
+        f'INSERT INTO "{SCENE_METADATA_TABLE}" ({names}) VALUES ({placeholders})',
+        tuple(metadata.values()),
+    ).lastrowid
+
+    # The path is the scene's own and is what the instance addresses the entry on disk by, so it
+    # carries the foreign id rather than the title: two scenes seeded under one title would otherwise
+    # be two entries under one path.
+    return connection.execute(
+        f'INSERT INTO "{SCENE_TABLE}" ("Path", "Monitored", "QualityProfileId", "MovieMetadataId",'
+        ' "Tags", "Added") VALUES (?, ?, ?, ?, ?, '
+        "datetime('now'))",
+        (
+            f"{args.root_folder_path.rstrip('/')}/{args.foreign_id}",
+            1 if args.monitored == "true" else 0,
+            args.quality_profile_id,
+            metadata_id,
+            "[]",
+        ),
+    ).lastrowid
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", required=True, help="the database to write, named by the caller")
-    parser.add_argument("--kind", required=True, choices=sorted(TABLES))
+    parser.add_argument("--kind", required=True, choices=sorted([*TABLES, "scene"]))
     parser.add_argument("--foreign-id", required=True, help="the id the instance is addressed by")
     parser.add_argument("--title", required=True)
     parser.add_argument("--quality-profile-id", required=True, type=int)
     parser.add_argument("--root-folder-path", required=True)
     parser.add_argument("--monitored", default="false", choices=["true", "false"])
     args = parser.parse_args()
+
+    if args.kind == "scene":
+        connection = sqlite3.connect(args.db)
+        try:
+            row = write_scene(connection, args)
+            connection.commit()
+            print(json.dumps({"kind": args.kind, "foreignId": args.foreign_id, "id": row}))
+        finally:
+            connection.close()
+        return
 
     shape = TABLES[args.kind]
     columns = {

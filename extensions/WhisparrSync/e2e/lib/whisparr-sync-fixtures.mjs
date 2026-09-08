@@ -88,6 +88,18 @@ export async function seedCovePerformer(api, { name, remoteIds = [] }) {
   return created(await api.post("/api/performers", { name, remoteIds }), "POST /api/performers");
 }
 
+/**
+ * Creates one Cove video, optionally carrying the identity rows the connected generation reads.
+ *
+ * No file: a video carries its identity rows whether or not the library holds a file for it, and the
+ * card a status is drawn on is the one the grid draws from the video.
+ *
+ * @see seedCoveStudio
+ */
+export async function seedCoveVideo(api, { title, remoteIds = [] }) {
+  return created(await api.post("/api/videos", { title, remoteIds }), "POST /api/videos");
+}
+
 function created(response, what) {
   if (response.status >= 300) {
     throw new Error(`${what} answered ${response.status}: ${response.text?.slice(0, 300)}`);
