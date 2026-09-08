@@ -171,7 +171,15 @@ const RENDERED_BY_THE_BULK_OVERLAY = [
  * The scene tab's own labels and sentences. Every reason it states for a refused answer is a
  * sentence another surface already declares, so only its own fact labels are named here.
  */
-const RENDERED_BY_THE_SCENE_TAB = ["SCENE_FACT_STATE"];
+const RENDERED_BY_THE_SCENE_TAB = [
+  "SCENE_FACT_STATE",
+  "SCENE_FACT_QUALITY",
+  "SCENE_FACT_PROFILE",
+  "SCENE_FACT_CUTOFF",
+  "SCENE_HAS_NO_FILE_YET",
+  "SCENE_IS_NOT_IN_WHISPARR",
+  "SCENE_CUTOFF_NOT_NAMED",
+];
 
 /**
  * One sentence per reason a monitor control can be unavailable. The menu rules module maps the kind

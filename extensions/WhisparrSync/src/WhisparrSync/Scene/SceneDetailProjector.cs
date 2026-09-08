@@ -11,8 +11,13 @@ namespace WhisparrSync.Scene;
 /// </remarks>
 internal static class SceneDetailProjector
 {
-    /// <summary>What <paramref name="scene"/> establishes about the scene it answered for.</summary>
-    internal static SceneDetailView Project(WhisparrResponse scene)
+    /// <summary>What the two answers establish about the scene they answered for.</summary>
+    /// <remarks>
+    /// A null <paramref name="profiles"/> is a read that produced no whole answer, and an answer
+    /// that cannot be read establishes as little, so both are reported as a profile read that did
+    /// not complete and neither removes a scene fact.
+    /// </remarks>
+    internal static SceneDetailView Project(WhisparrResponse scene, WhisparrResponse? profiles)
     {
         var row = SceneStatusPort.ReadRow(scene);
 
@@ -24,7 +29,7 @@ internal static class SceneDetailProjector
             QualityName: null,
             QualityProfileName: null,
             CutoffName: null,
-            ProfileReadDidNotComplete: false);
+            ProfileReadDidNotComplete: profiles is null);
     }
 
     /// <summary>Whether the instance holds an entry, or that nothing was established.</summary>

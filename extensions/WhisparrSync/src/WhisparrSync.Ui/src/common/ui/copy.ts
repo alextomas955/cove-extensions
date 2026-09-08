@@ -381,6 +381,33 @@ export const SEARCH_WITH_NO_ENTRY =
  */
 export const SCENE_FACT_STATE = "State";
 
+/** The label on the scene tab's quality row, which names the file the instance holds. */
+export const SCENE_FACT_QUALITY = "Quality";
+
+/** The label on the scene tab's profile row. */
+export const SCENE_FACT_PROFILE = "Quality profile";
+
+/** The label on the scene tab's cutoff row, which the profile above it resolves. */
+export const SCENE_FACT_CUTOFF = "Cutoff";
+
+/**
+ * The quality row's value for a scene the instance has acquired nothing for.
+ *
+ * A statement about the instance and not a failure, so it reads as a fact rather than as a row that
+ * could not be filled.
+ */
+export const SCENE_HAS_NO_FILE_YET = "No file yet.";
+
+/** The profile and cutoff rows' value for a scene the instance holds no entry for. */
+export const SCENE_IS_NOT_IN_WHISPARR = "Not in Whisparr yet.";
+
+/**
+ * The cutoff row's value where the profile itself resolves its own cutoff to nothing.
+ *
+ * Names the profile as where the answer is missing, because that is where a reader changes it.
+ */
+export const SCENE_CUTOFF_NOT_NAMED = "Whisparr names no cutoff on this profile.";
+
 /**
  * What a `{provider}` slot reads as before any page has answered.
  *
