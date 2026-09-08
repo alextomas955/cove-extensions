@@ -249,4 +249,44 @@ public interface IWhisparrSceneExclusionReading
         string apiKey,
         IReadOnlyCollection<string> providerSceneIds,
         CancellationToken ct);
+
+    /// <summary>
+    /// The identifier of the exclusion naming <paramref name="foreignId"/>, or that the list names
+    /// none.
+    /// </summary>
+    /// <remarks>
+    /// The removing route addresses an exclusion by the exclusion row's own identifier, and the
+    /// reduce above answers scene identifiers, so a caller that has to remove one reads it here.
+    /// <para>
+    /// One request, read as it arrives, and it stops at the first row naming the scene. Nothing is
+    /// retained between rows, so what this holds is one identifier whatever the instance's list
+    /// holds.
+    /// </para>
+    /// <para>
+    /// A read that did not complete is held apart from a list naming no exclusion. The two send a
+    /// caller to different answers: one claims nothing about the instance, and the other is the
+    /// instance stating an absence.
+    /// </para>
+    /// </remarks>
+    Task<SceneExclusionLookup> FindSceneExclusionAsync(
+        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct);
+}
+
+/// <summary>What one exclusion-list read established about one scene.</summary>
+/// <param name="ReadCompleted">
+/// A whole answer arrived and was read. False claims nothing about the instance at all.
+/// </param>
+/// <param name="ExclusionId">
+/// The exclusion row's own identifier, or null where the list named no exclusion for the scene.
+/// </param>
+public sealed record SceneExclusionLookup(bool ReadCompleted, int? ExclusionId)
+{
+    /// <summary>No whole answer arrived, so nothing about the instance was established.</summary>
+    public static SceneExclusionLookup DidNotComplete { get; } = new(false, null);
+
+    /// <summary>The list was read and names no exclusion for the scene.</summary>
+    public static SceneExclusionLookup NamesNoExclusion { get; } = new(true, null);
+
+    /// <summary>The list names the scene, under <paramref name="exclusionId"/>.</summary>
+    public static SceneExclusionLookup At(int exclusionId) => new(true, exclusionId);
 }
