@@ -129,6 +129,7 @@
     <Compile Remove="Jobs\BulkReadBackTests.cs" />
     <Compile Remove="Jobs\BulkReflectOwnedTests.cs" />
     <Compile Remove="Jobs\BulkVerbGuardTests.cs" />
+    <Compile Remove="Library\LibraryStatusRouteTests.cs" />
     <Compile Remove="Missing\MissingBulkRouteTests.cs" />
     <Compile Remove="Missing\MissingContainerResolutionTests.cs" />
     <Compile Remove="Missing\MissingSceneActionTests.cs" />
