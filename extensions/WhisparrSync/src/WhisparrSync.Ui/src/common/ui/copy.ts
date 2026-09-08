@@ -375,6 +375,13 @@ export const SEARCH_WITH_NO_ENTRY =
   "Whisparr has no entry for this scene yet, so there is nothing to search for - mark it wanted first.";
 
 /**
+ * The label on the scene tab's state row.
+ *
+ * The row is drawn for every scene, so the label names the fact and never its value.
+ */
+export const SCENE_FACT_STATE = "State";
+
+/**
  * What a `{provider}` slot reads as before any page has answered.
  *
  * Which source is read follows the connected generation and is named by the page, so a read that

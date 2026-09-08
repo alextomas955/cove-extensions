@@ -5,7 +5,7 @@
  *
  * Both names are read from the file that owns them, never written as literals here: a value copied
  * into this file would agree with whichever side it was copied from and stop reporting the other.
- * The three page TYPES are literals, because they belong to the host's checkout rather than to this
+ * The page TYPES are literals, because they belong to the host's checkout rather than to this
  * repository, so there is no owning file here to read them from.
  *
  * A source pin rather than a DOM test, and in its own file for that reason: the rendering tests run
@@ -15,8 +15,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test } from "vitest";
 
-/** The three host page types this tab is registered on, transcribed from the host that draws them. */
-const HOST_PAGE_TYPES = ["studio", "performer", "tag"];
+/**
+ * One entry per tab registration, naming the host page type it is made for, transcribed from the
+ * host that draws them. The catalogue tab takes three of them and the scene tab takes the fourth.
+ */
+const HOST_PAGE_TYPES_WITH_A_TAB = ["studio", "performer", "tag", "video"];
 
 const bundleEntry = path.resolve(import.meta.dirname, "..", "index.ts");
 const manifestSource = path.resolve(
@@ -68,15 +71,17 @@ function componentMapBody() {
   return body![1];
 }
 
-test("the manifest registers the tab on each of the three host page types and no others", () => {
+test("the manifest registers a tab on each host page type it names and no others", () => {
   const tabs = registeredTabs();
 
   // The count is asserted before the names, because a pattern that stopped matching would otherwise
   // leave the comparison below reading two empty sets and passing.
   expect(tabs, `${String(MANIFEST_TAB)} matched nothing in ${manifestSource}`).toHaveLength(
-    HOST_PAGE_TYPES.length,
+    HOST_PAGE_TYPES_WITH_A_TAB.length,
   );
-  expect(tabs.map(({ pageType }) => pageType).sort()).toEqual([...HOST_PAGE_TYPES].sort());
+  expect(tabs.map(({ pageType }) => pageType).sort()).toEqual(
+    [...HOST_PAGE_TYPES_WITH_A_TAB].sort(),
+  );
 });
 
 test("the component every tab names is a key this bundle registers", () => {

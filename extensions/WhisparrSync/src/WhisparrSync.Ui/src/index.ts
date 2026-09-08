@@ -21,6 +21,7 @@ import {
   WhisparrStudioCardBadge,
 } from "./library/WhisparrEntityCardBadge";
 import { WhisparrVideoCardBadge } from "./library/WhisparrVideoCardBadge";
+import { WhisparrSceneTab } from "./scene/WhisparrSceneTab";
 
 interface WithActionHandlers {
   actionHandlers: Record<string, unknown>;
@@ -36,6 +37,7 @@ const mod = defineExtension({
     WhisparrStudioCardBadge,
     WhisparrPerformerCardBadge,
     WhisparrVideoCardBadge,
+    WhisparrSceneTab,
   },
 });
 (mod as typeof mod & WithActionHandlers).actionHandlers = {
