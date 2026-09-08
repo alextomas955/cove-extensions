@@ -61,6 +61,7 @@ public sealed partial class WhisparrSync
     private string SceneUnmonitorRoute => RouteBase + "/scene/{coveId}/unmonitor";
     private string SceneExcludeRoute => RouteBase + "/scene/{coveId}/exclude";
     private string SceneRemoveExclusionRoute => RouteBase + "/scene/{coveId}/remove-exclusion";
+    private string SceneSearchRoute => RouteBase + "/scene/{coveId}/search";
     private string LibraryStatusRoute => RouteBase + "/library/{kind}/status";
     private string BulkMonitorRoute => RouteBase + "/entities/bulk-monitor";
     private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
@@ -291,6 +292,19 @@ public sealed partial class WhisparrSync
              ICredentialPort credentials, IWhisparrClient client,
              ILibraryCardIdentityPort sceneCards, CancellationToken ct)
                 => RemoveSceneExclusionAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The configure tier for two reasons rather than one: the route aims this extension's stored
+        // credential at a third party AND it spends the reader's indexer traffic and disk. It is the
+        // most consequential route this surface mounts, and it must not sit at a tier a caller who
+        // cannot configure the extension can reach.
+        endpoints.MapPost(SceneSearchRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => SearchSceneNowAsync(
                     coveId, principal, options, credentials, client, sceneCards, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);

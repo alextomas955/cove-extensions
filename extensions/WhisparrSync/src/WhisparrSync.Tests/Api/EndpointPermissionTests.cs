@@ -70,6 +70,7 @@ public sealed class EndpointPermissionTests
         "POST /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/exclude",
         "POST /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/monitor",
         "POST /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/remove-exclusion",
+        "POST /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/search",
         "POST /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/unmonitor",
         "PUT /api/extensions/com.alextomas955.whisparrsync/settings",
     ];
@@ -230,6 +231,7 @@ public sealed class EndpointPermissionTests
     [InlineData("unmonitor")]
     [InlineData("exclude")]
     [InlineData("remove-exclusion")]
+    [InlineData("search")]
     public async Task EachSceneWriteRefusesACallerWithoutTheConfigureTierAndReachesNothing(
         string verb)
     {
@@ -363,6 +365,8 @@ public sealed class EndpointPermissionTests
             "exclude" => await global::WhisparrSync.WhisparrSync.ExcludeSceneAsync(
                 1, principal, options, credentials, client, identities, NullLogger.Instance, TestCt),
             "remove-exclusion" => await global::WhisparrSync.WhisparrSync.RemoveSceneExclusionAsync(
+                1, principal, options, credentials, client, identities, NullLogger.Instance, TestCt),
+            "search" => await global::WhisparrSync.WhisparrSync.SearchSceneNowAsync(
                 1, principal, options, credentials, client, identities, NullLogger.Instance, TestCt),
             _ => throw new ArgumentOutOfRangeException(nameof(verb)),
         };
