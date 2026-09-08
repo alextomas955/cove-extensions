@@ -170,6 +170,10 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         return Task.FromResult(Answer(nameof(ReadHistoryAsync)));
     }
 
+    public Task<WhisparrResponse> ReadCommandAsync(
+        Uri baseAddress, string apiKey, int commandId, CancellationToken ct)
+        => Record(nameof(ReadCommandAsync), baseAddress, commandId, null);
+
     public Task<WhisparrResponse> CreateNotificationAsync(
         Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
         => Record(nameof(CreateNotificationAsync), baseAddress, null, body);

@@ -41,6 +41,7 @@ public sealed class WhisparrSyncOpenApiDocumentTests : ExtensionOpenApiDocumentT
         typeof(MonitorRefusalKind),
         typeof(ReflectOwnedSkipReason),
         typeof(WhisparrCapability),
+        typeof(SceneRefusalKind),
     ];
 
     protected override IApiExtension CreateExtension() => WhisparrSyncFixture.Create();

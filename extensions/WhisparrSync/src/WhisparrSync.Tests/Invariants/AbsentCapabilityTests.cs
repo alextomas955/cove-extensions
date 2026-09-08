@@ -85,6 +85,7 @@ public sealed class AbsentCapabilityTests
         (WhisparrGeneration.V3, "IManualImportApi", "ListManualImportAsync", "api/v3/manualimport"),
         (WhisparrGeneration.V3, "IMediaManagementConfigApi", "GetMediaManagementConfigAsync", "api/v3/config/mediamanagement"),
         (WhisparrGeneration.V3, "CommandApi", "SendCommandAsync", "api/v3/command"),
+        (WhisparrGeneration.V3, "ICommandApi", "GetCommandByIdAsync", "api/v3/command"),
         (WhisparrGeneration.V2, "IHistoryApi", "GetHistoryAsync", "api/v3/history"),
         (WhisparrGeneration.V2, "ISeriesLookupApi", "ListSeriesLookupAsync", "api/v3/series/lookup"),
         (WhisparrGeneration.V2, "ISeriesApi", "ListSeriesAsync", "api/v3/series"),
@@ -277,6 +278,7 @@ public sealed class AbsentCapabilityTests
         await client.ReadRootFoldersAsync(address, key, ct);
         await client.ReadQualityProfilesAsync(address, key, ct);
         await client.ReadHistoryAsync(address, key, WhisparrGeneration.V3, 1, 10, ct);
+        await client.ReadCommandAsync(address, key, 8123, ct);
 
         await client.ReadStudioAsync(address, key, WhisparrGeneration.V3, "studio-1", ct);
         await client.AddMonitoredStudioAsync(
