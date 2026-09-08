@@ -18,10 +18,34 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test } from "vitest";
 
-/** Each card slot, and the field it passes, transcribed by hand from the host page that draws it. */
-const SLOTS = [{ slot: "studio-card-footer", field: "studio", page: "StudiosPage.tsx" }];
+/**
+ * Each card slot, the field it passes, the host source that draws it and the badge that declares it.
+ *
+ * The host draws its card slots in two places: a list page for an entity card, and the shared card
+ * component for a scene card. Each entry carries its own path under the host's `ui/src` for that
+ * reason.
+ */
+const SLOTS = [
+  {
+    slot: "studio-card-footer",
+    field: "studio",
+    source: ["pages", "StudiosPage.tsx"],
+    badge: "WhisparrEntityCardBadge.tsx",
+  },
+  {
+    slot: "performer-card-footer",
+    field: "performer",
+    source: ["pages", "PerformersPage.tsx"],
+    badge: "WhisparrEntityCardBadge.tsx",
+  },
+  {
+    slot: "video-card-content",
+    field: "video",
+    source: ["components", "EntityCards.tsx"],
+    badge: "WhisparrVideoCardBadge.tsx",
+  },
+];
 
-const badge = path.join(import.meta.dirname, "WhisparrEntityCardBadge.tsx");
 const store = path.join(import.meta.dirname, "cardStatusStore.ts");
 
 const contracts = path.resolve(
@@ -38,7 +62,7 @@ const contracts = path.resolve(
 const CARD_KIND_ENUM = /public enum LibraryCardKind\s*\{([\s\S]*?)\n\}/;
 
 /** Where the Cove checkout is, by the same precedence the build resolves it with. */
-function hostPage(page: string): string | null {
+function hostSource(under: string[]): string | null {
   const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..", "..", "..", "..");
   const candidates = [
     process.env.COVE_REPO,
@@ -47,15 +71,15 @@ function hostPage(page: string): string | null {
   ].filter((root): root is string => typeof root === "string" && root.length > 0);
 
   for (const root of candidates) {
-    const full = path.join(root, "ui", "src", "pages", page);
+    const full = path.join(root, "ui", "src", ...under);
     if (existsSync(full)) return full;
   }
   return null;
 }
 
 test("each host card slot carries the field this pin names", () => {
-  for (const { slot, field, page } of SLOTS) {
-    const source = hostPage(page);
+  for (const { slot, field, source: under } of SLOTS) {
+    const source = hostSource(under);
     if (source === null) {
       // No Cove checkout on this leg, so there is nothing to compare the transcription against.
       expect(field).not.toBe("");
@@ -74,9 +98,9 @@ test("each host card slot carries the field this pin names", () => {
 });
 
 test("each badge declares its field at its narrowest and reads nothing else off it", () => {
-  const source = readFileSync(badge, "utf8");
+  for (const { field, badge } of SLOTS) {
+    const source = readFileSync(path.join(import.meta.dirname, badge), "utf8");
 
-  for (const { field } of SLOTS) {
     expect(
       new RegExp(
         `\\{\\s*${field}\\s*\\}:\\s*\\{\\s*${field}:\\s*\\{\\s*id:\\s*number\\s*\\}\\s*\\}`,

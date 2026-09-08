@@ -416,6 +416,12 @@ public sealed partial class WhisparrSync
             // work whichever generation is connected.
             .AddSlot("studios-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
             .AddSlot("studio-card-footer", componentName: "WhisparrStudioCardBadge", order: 100)
+            .AddSlot("videos-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
+            .AddSlot("video-card-content", componentName: "WhisparrVideoCardBadge", order: 100)
+            .AddSlot(
+                "performers-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
+            .AddSlot(
+                "performer-card-footer", componentName: "WhisparrPerformerCardBadge", order: 100)
 
             // One component, registered once per page type. The host passes a tab component only the
             // entity id and a navigate callback, so the component reads its own kind from its route.

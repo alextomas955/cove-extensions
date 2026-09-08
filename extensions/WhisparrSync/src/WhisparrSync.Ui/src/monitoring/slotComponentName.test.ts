@@ -36,11 +36,18 @@ const HOST_ENTITY_ACTION_SLOTS = [STUDIO_ACTION_SLOT, PERFORMER_ACTION_SLOT];
  * Every library slot this extension is expected to occupy: the control in a list toolbar, and the
  * status badge on a card of the same page.
  *
- * Held apart from the pair above because the two groups grow for different reasons. The toolbar slot
- * is the page-scoped one and never the generic `list-page-toolbar-end`, which would put the control
- * on audios, faces, galleries, groups, images, segments, tags and texts too.
+ * Held apart from the pair above because the two groups grow for different reasons. Each toolbar
+ * slot is page-scoped and never the generic `list-page-toolbar-end`, which would put the control on
+ * audios, faces, galleries, groups, images, segments, tags and texts too.
  */
-const HOST_LIBRARY_SLOTS = ["studios-list-toolbar-end", "studio-card-footer"];
+const HOST_LIBRARY_SLOTS = [
+  "studios-list-toolbar-end",
+  "studio-card-footer",
+  "videos-list-toolbar-end",
+  "video-card-content",
+  "performers-list-toolbar-end",
+  "performer-card-footer",
+];
 
 /** Every slot this extension registers, whatever it registers it for. */
 const HOST_SLOTS = [...HOST_ENTITY_ACTION_SLOTS, ...HOST_LIBRARY_SLOTS];
