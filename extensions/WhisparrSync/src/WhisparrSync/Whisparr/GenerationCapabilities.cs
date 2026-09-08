@@ -1,5 +1,6 @@
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
+using WhisparrSync.Scene;
 
 namespace WhisparrSync.Whisparr;
 
@@ -57,6 +58,7 @@ public sealed class WhisparrCapabilitySet
         [typeof(IWhisparrSceneStatusReading)] = WhisparrCapability.ReadSceneStatus,
         [typeof(IWhisparrSceneExclusionReading)] = WhisparrCapability.ReadSceneExclusions,
         [typeof(IWhisparrSceneSearchGrabbing)] = WhisparrCapability.SearchScene,
+        [typeof(IWhisparrSceneMonitorActing)] = WhisparrCapability.MonitorScene,
     };
 
     private readonly Dictionary<WhisparrCapability, object> _roles;
@@ -138,6 +140,7 @@ public static class GenerationCapabilities
         WhisparrCapability.ReadSceneStatus,
         WhisparrCapability.ReadSceneExclusions,
         WhisparrCapability.SearchScene,
+        WhisparrCapability.MonitorScene,
     ];
 
     /// <inheritdoc cref="V3Capabilities"/>
@@ -151,7 +154,8 @@ public static class GenerationCapabilities
     /// scene-exclusion entry for the same reason: a generation keeping no scene records keeps no
     /// scene exclusions, and this generation answers a not-found on the exclusion route too. No
     /// per-scene search entry either, for the same reason: a generation holding no scene has none to
-    /// be searched for, and the entity search it does hold covers everything the entity monitors.
+    /// be searched for, and the entity search it does hold covers everything the entity monitors. No
+    /// per-scene monitor entry either: a generation holding no scene holds no flag to set on one.
     /// </remarks>
     private static readonly WhisparrCapability[] V2Capabilities =
     [
@@ -218,6 +222,7 @@ public static class GenerationCapabilities
                     registered[WhisparrCapability.ReadSceneStatus] = roles.SceneStatusReading;
                     registered[WhisparrCapability.ReadSceneExclusions] = roles.SceneExclusionReading;
                     registered[WhisparrCapability.SearchScene] = roles.SceneSearchGrabbing;
+                    registered[WhisparrCapability.MonitorScene] = roles.SceneMonitorActing;
                 }
 
                 break;
@@ -267,6 +272,7 @@ public static class GenerationCapabilities
 /// Asks an instance to look for one scene it holds. The second role here that can make an instance
 /// download, obtained by name and by nothing else.
 /// </param>
+/// <param name="SceneMonitorActing">Monitors one scene the instance already holds.</param>
 internal sealed record WhisparrRoleSet(
     IWhisparrStudioActing StudioActing,
     IWhisparrPerformerActing PerformerActing,
@@ -275,7 +281,8 @@ internal sealed record WhisparrRoleSet(
     IWhisparrSearchGrabbing SearchGrabbing,
     IWhisparrSceneStatusReading SceneStatusReading,
     IWhisparrSceneExclusionReading SceneExclusionReading,
-    IWhisparrSceneSearchGrabbing SceneSearchGrabbing)
+    IWhisparrSceneSearchGrabbing SceneSearchGrabbing,
+    IWhisparrSceneMonitorActing SceneMonitorActing)
 {
     /// <summary>The roles <paramref name="client"/> implements.</summary>
     /// <exception cref="InvalidOperationException">
@@ -295,6 +302,7 @@ internal sealed record WhisparrRoleSet(
             and IWhisparrSceneStatusReading sceneStatusReading
             and IWhisparrSceneExclusionReading sceneExclusionReading
             and IWhisparrSceneSearchGrabbing sceneSearchGrabbing
+            and IWhisparrSceneMonitorActing sceneMonitorActing
             ? new WhisparrRoleSet(
                 studioActing,
                 performerActing,
@@ -303,7 +311,8 @@ internal sealed record WhisparrRoleSet(
                 searchGrabbing,
                 sceneStatusReading,
                 sceneExclusionReading,
-                sceneSearchGrabbing)
+                sceneSearchGrabbing,
+                sceneMonitorActing)
             : throw new InvalidOperationException(
                 $"{client.GetType()} holds this product's HTTP client but implements only part of "
                     + $"{nameof(WhisparrRoleSet)}.");

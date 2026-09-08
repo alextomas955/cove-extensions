@@ -138,6 +138,8 @@ internal static class ComposedAdds
         ComposedBody.Of(V3BodyProjector.SetStudioMonitored(4, monitored: false)),
         ComposedBody.Of(V3BodyProjector.SetPerformerMonitored(11, monitored: true)),
         ComposedBody.Of(V3BodyProjector.SetPerformerMonitored(11, monitored: false)),
+        ComposedBody.Of(V3BodyProjector.SceneMonitorPatch(monitored: true)),
+        ComposedBody.Of(V3BodyProjector.SceneMonitorPatch(monitored: false)),
         .. EveryScopeChange(),
         V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Studio, 4),
         V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Performer, 11),
@@ -223,6 +225,10 @@ internal static class ComposedAdds
 
             // Reads the instance's exclusion list through one get and composes no body at all.
             (_, WhisparrCapability.ReadSceneExclusions) => [],
+
+            // Sets one flag on a scene the instance already holds and registers nothing, so it adds
+            // no catalogue item to enumerate. Its own composed body is covered beside the flag flips.
+            (_, WhisparrCapability.MonitorScene) => [],
 
             (WhisparrGeneration.V3, WhisparrCapability.MonitorStudio) =>
             [
@@ -409,6 +415,7 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.ReadSceneStatus,
                 WhisparrCapability.ReadSceneExclusions,
                 WhisparrCapability.SearchScene,
+                WhisparrCapability.MonitorScene,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
 
@@ -595,6 +602,33 @@ public sealed class NonGrabbingBodyTests
                 Assert.All(
                     paths, path => Assert.False(ComposedAdds.At(body, path)!.GetValue<bool>()));
             });
+    }
+
+    /// <summary>
+    /// The scene monitor body carries the flag and no other member at all.
+    /// </summary>
+    /// <remarks>
+    /// The member set is asserted rather than a spelling's absence, so a field the instance holds for
+    /// that scene cannot ride out on this request whatever it is called. The scene itself is named by
+    /// the route's own segment.
+    /// <para>
+    /// Read off the composed body, so no search flag is absent by an omission default nobody
+    /// measured.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void TheSceneMonitorBodyCarriesTheFlagAndNoOtherMember()
+    {
+        foreach (var monitored in new[] { true, false })
+        {
+            var body = ComposedBody.Of(V3BodyProjector.SceneMonitorPatch(monitored));
+
+            Assert.Equal(["monitored"], body.Select(member => member.Key).ToList());
+            Assert.Equal(monitored, body["monitored"]!.GetValue<bool>());
+            Assert.All(
+                ComposedAdds.EverySuppressionSpelling,
+                path => Assert.Null(ComposedAdds.At(body, path)));
+        }
     }
 
     /// <summary>
