@@ -108,6 +108,15 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     /// <summary>Which identifiers an exclusion read answers as excluded.</summary>
     public HashSet<string> Excluded { get; } = new(StringComparer.Ordinal);
 
+    /// <summary>The scene each exclusion lookup named, in order.</summary>
+    public List<string> ExclusionLookups { get; } = [];
+
+    /// <summary>The exclusion row identifier each scene is answered under.</summary>
+    public Dictionary<string, int> ExclusionIdByScene { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Whether an exclusion lookup reports that it read a whole answer.</summary>
+    public bool ExclusionReadCompletes { get; set; } = true;
+
     /// <summary>Every notification request this client was asked for, in order.</summary>
     public List<NotificationCall> Notifications { get; } = [];
 
@@ -432,6 +441,23 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         ExclusionReads.Add([.. providerSceneIds]);
         return Task.FromResult<IReadOnlySet<string>>(
             providerSceneIds.Where(Excluded.Contains).ToHashSet(StringComparer.Ordinal));
+    }
+
+    public Task<SceneExclusionLookup> FindSceneExclusionAsync(
+        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+    {
+        ExclusionLookups.Add(foreignId);
+        Verbs.Add(nameof(FindSceneExclusionAsync));
+
+        if (!ExclusionReadCompletes)
+        {
+            return Task.FromResult(SceneExclusionLookup.DidNotComplete);
+        }
+
+        return Task.FromResult(
+            ExclusionIdByScene.TryGetValue(foreignId, out var exclusionId)
+                ? SceneExclusionLookup.At(exclusionId)
+                : SceneExclusionLookup.NamesNoExclusion);
     }
 
     private WhisparrResponse Answer(string verb)
