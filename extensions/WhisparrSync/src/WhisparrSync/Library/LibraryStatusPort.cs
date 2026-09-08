@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Whisparr;
@@ -27,6 +28,7 @@ public interface ILibraryStatusPort
         Func<string, CancellationToken, Task<WhisparrResponse>> reading,
         WhisparrEntityKind kind,
         WhisparrGeneration generation,
+        Uri baseAddress,
         IReadOnlyList<int> coveIds,
         CancellationToken ct);
 
@@ -49,6 +51,7 @@ public interface ILibraryStatusPort
         Capability<IWhisparrSceneExclusionReading> exclusions,
         Uri baseAddress,
         string apiKey,
+        WhisparrGeneration generation,
         IReadOnlyList<LibraryCardIdentity> identities,
         CancellationToken ct);
 }
@@ -59,20 +62,28 @@ public interface ILibraryStatusPort
 /// them together would put a page of parallel requests against a third party on every press of one
 /// control.
 /// <para>
-/// Nothing is enumerated. Each read names one entity the caller asked about, so a page of forty
-/// cards costs forty reads whatever the instance's own catalogue holds.
+/// Nothing is enumerated. Each read names one entity the caller asked about, so a page of cards
+/// costs one read per card whatever the instance's own catalogue holds.
+/// </para>
+/// <para>
+/// A contained failure writes one line naming its classification and the host. Without it a page of
+/// badges that quietly drew nothing leaves no trace at all, on the one surface where a press costs a
+/// read per card.
 /// </para>
 /// </remarks>
-internal sealed class LibraryStatusPort(IEntityIdentityPort identities) : ILibraryStatusPort
+internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger log)
+    : ILibraryStatusPort
 {
     public async Task<IReadOnlyList<LibraryStatusRow>> ReadEntityCardsAsync(
         Func<string, CancellationToken, Task<WhisparrResponse>> reading,
         WhisparrEntityKind kind,
         WhisparrGeneration generation,
+        Uri baseAddress,
         IReadOnlyList<int> coveIds,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(reading);
+        ArgumentNullException.ThrowIfNull(baseAddress);
         ArgumentNullException.ThrowIfNull(coveIds);
 
         var rows = new List<LibraryStatusRow>(coveIds.Count);
@@ -80,7 +91,8 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities) : ILibra
         {
             rows.Add(new LibraryStatusRow(
                 coveId,
-                await ReadOneAsync(reading, kind, generation, coveId, ct).ConfigureAwait(false)));
+                await ReadOneAsync(reading, kind, generation, baseAddress, coveId, ct)
+                    .ConfigureAwait(false)));
         }
 
         return rows;
@@ -91,11 +103,13 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities) : ILibra
         Capability<IWhisparrSceneExclusionReading> exclusions,
         Uri baseAddress,
         string apiKey,
+        WhisparrGeneration generation,
         IReadOnlyList<LibraryCardIdentity> identities,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(reading);
         ArgumentNullException.ThrowIfNull(exclusions);
+        ArgumentNullException.ThrowIfNull(baseAddress);
         ArgumentNullException.ThrowIfNull(identities);
 
         var excluded = await ExcludedAmongAsync(exclusions, baseAddress, apiKey, identities, ct)
@@ -124,6 +138,8 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities) : ILibra
                 // one answer must not take the rest of the page's answers with it. An instance that
                 // accepts the connection and then hangs outlives the client's own timeout, which is
                 // told from a shutdown by the token and by nothing in the failure itself.
+                WhisparrSyncLog.MonitoringRequestContained(
+                    log, generation, WhisparrSyncLog.Classify(failure), baseAddress.Host);
                 readings[identity.CoveId] = new LibraryCardReading(onList, null, null);
                 continue;
             }
@@ -212,6 +228,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities) : ILibra
         Func<string, CancellationToken, Task<WhisparrResponse>> reading,
         WhisparrEntityKind kind,
         WhisparrGeneration generation,
+        Uri baseAddress,
         int coveId,
         CancellationToken ct)
     {
@@ -238,6 +255,8 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities) : ILibra
             // rest of the page's answers with it. An instance that accepts the connection and then
             // hangs outlives the client's own timeout, which is told from a shutdown by the token and
             // by nothing in the failure itself.
+            WhisparrSyncLog.MonitoringRequestContained(
+                log, generation, WhisparrSyncLog.Classify(failure), baseAddress.Host);
             return Unestablished;
         }
 
