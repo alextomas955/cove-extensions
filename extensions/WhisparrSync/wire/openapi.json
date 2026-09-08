@@ -2333,7 +2333,8 @@
           "searchMonitored",
           "readSceneStatus",
           "readSceneExclusions",
-          "searchScene"
+          "searchScene",
+          "monitorScene"
         ]
       },
       "WhisparrEntityKind": {

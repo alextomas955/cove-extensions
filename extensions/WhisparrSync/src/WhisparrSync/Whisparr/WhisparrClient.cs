@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
+using WhisparrSync.Scene;
 using V2Api = Whisparr2.Net.Api;
 using V2Client = Whisparr2.Net.Client;
 using V2Model = Whisparr2.Net.Model;
@@ -237,7 +238,8 @@ internal sealed class WhisparrClient(
         IWhisparrSearchGrabbing,
         IWhisparrSceneSearchGrabbing,
         IWhisparrSceneStatusReading,
-        IWhisparrSceneExclusionReading
+        IWhisparrSceneExclusionReading,
+        IWhisparrSceneMonitorActing
 {
     /// <summary>The header both generations authenticate an API request with.</summary>
     internal const string ApiKeyHeader = "X-Api-Key";
@@ -460,6 +462,20 @@ internal sealed class WhisparrClient(
                     V2BodyProjector.SetMonitored(entityId, monitored), ct)),
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
+
+    // The field-scoped patch, whose body carries only what changes. A whole-resource replace would
+    // write back a resource read a moment earlier, dropping whatever the read did not answer with.
+    public Task<WhisparrResponse> SetSceneMonitoredAsync(
+        Uri baseAddress, string apiKey, int sceneId, bool monitored, CancellationToken ct)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(sceneId, 1);
+
+        return GeneratedActAsync(
+            baseAddress,
+            apiKey,
+            api => api.Api<V3Api.IMovieApi>().PatchMovieByIdAsync(
+                sceneId, V3BodyProjector.SceneMonitorPatch(monitored), ct));
+    }
 
     public Task<WhisparrResponse> SetStudioScopeAsync(
         Uri baseAddress,
