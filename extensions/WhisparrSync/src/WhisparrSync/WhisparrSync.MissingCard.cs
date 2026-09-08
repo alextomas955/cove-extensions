@@ -8,6 +8,7 @@ using WhisparrSync.Contracts;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
+using WhisparrSync.Scene;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync;
@@ -118,6 +119,11 @@ public sealed partial class WhisparrSync
     /// entry for the scene apart from one that declined: the first is a legitimate answer and the
     /// state it reports is the one the card goes back to.
     /// </para>
+    /// <para>
+    /// The command is read back off the instance by its own identifier before the verb reports
+    /// anything, so a success status alone never stands as the evidence. One read and no loop, and
+    /// nothing here says a release was taken.
+    /// </para>
     /// </remarks>
     internal static async Task<Results<Ok<MissingSceneActionResult>, BadRequest, ForbiddenCode>>
         SearchMissingSceneAsync(
@@ -199,10 +205,28 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.DidNotReachWhisparr));
         }
 
+        // A body naming no command that can be read is the instance declining, not an accepted
+        // search: nothing was named that could be asked about afterwards.
+        if (MonitoringProjector.Accepted(searched) is not MonitorRefusalKind.None
+            || CommandProjector.IdIn(searched) is not { } commandId)
+        {
+            return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.InstanceRefused));
+        }
+
+        var readBack = await ContainedAsync(
+            () => target.Reads.ReadCommandAsync(target.BaseAddress, target.ApiKey, commandId, ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+        if (readBack is null)
+        {
+            return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.DidNotReachWhisparr));
+        }
+
         // The state read off the scene's own row. A search changes what the instance is looking for
         // and not what it holds.
         return TypedResults.Ok(
-            MonitoringProjector.Accepted(searched) is MonitorRefusalKind.None
+            CommandProjector.Confirmed(readBack, commandId)
                 ? new MissingSceneActionResult(scene.State, MissingSceneActionRefusal.None)
                 : NothingWasSent(MissingSceneActionRefusal.InstanceRefused));
     }
