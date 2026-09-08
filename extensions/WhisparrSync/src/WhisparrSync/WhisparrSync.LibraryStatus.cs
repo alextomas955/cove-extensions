@@ -66,64 +66,66 @@ public sealed partial class WhisparrSync
                 new LibraryStatusView([], LibraryStatusRefusalKind.NoInstanceConnected));
         }
 
-        var rows = card == LibraryCardKind.Video
+        var answered = card == LibraryCardKind.Video
             ? await ReadSceneCardsAsync(cards, sceneCards, target, request.CoveIds, ct)
                 .ConfigureAwait(false)
             : await ReadEntityCardsAsync(cards, EntityKindOf(card), target, request.CoveIds, ct)
                 .ConfigureAwait(false);
 
         return TypedResults.Ok(
-            rows is null
+            answered.Rows is not { } rows
                 ? new LibraryStatusView([], LibraryStatusRefusalKind.WhisparrCannotAnswerForThisKind)
-                : new LibraryStatusView(rows, RefusalOver(rows)));
+                : new LibraryStatusView(rows, RefusalOver(rows, answered.AnyReadDropped)));
     }
 
     /// <summary>
-    /// One row per requested entity card, or null where the generation registers no role to ask.
+    /// One row per requested entity card, or null rows where the generation registers no role to ask.
     /// </summary>
     /// <remarks>
     /// Refused by the absence of a capability rather than by a probe: a generation registering no
-    /// role for this kind has nothing to ask, so nothing is sent.
+    /// role for this kind has nothing to ask, so nothing is sent and no read can have dropped.
     /// </remarks>
-    private static async Task<IReadOnlyList<LibraryStatusRow>?> ReadEntityCardsAsync(
-        ILibraryStatusPort cards,
-        WhisparrEntityKind entityKind,
-        MonitoringTarget target,
-        IReadOnlyList<int> coveIds,
-        CancellationToken ct)
+    private static async Task<(IReadOnlyList<LibraryStatusRow>? Rows, bool AnyReadDropped)>
+        ReadEntityCardsAsync(
+            ILibraryStatusPort cards,
+            WhisparrEntityKind entityKind,
+            MonitoringTarget target,
+            IReadOnlyList<int> coveIds,
+            CancellationToken ct)
         => ReadingEntity(entityKind, target) is { } reading
             ? await cards
                 .ReadEntityCardsAsync(
                     reading, entityKind, target.Generation, target.BaseAddress, coveIds, ct)
                 .ConfigureAwait(false)
-            : null;
+            : (null, false);
 
     /// <summary>
-    /// One row per requested scene card, or null where the generation reads no per-scene record.
+    /// One row per requested scene card, or null rows where the generation reads no per-scene record.
     /// </summary>
     /// <remarks>
     /// The identity is resolved before anything leaves, so a card the library names no single
     /// identifier for costs no request and carries no reading. The requested order is the answer's,
     /// and a card the identity read answered nothing for carries a null reading in its place.
     /// </remarks>
-    private static async Task<IReadOnlyList<LibraryStatusRow>?> ReadSceneCardsAsync(
-        ILibraryStatusPort cards,
-        ILibraryCardIdentityPort sceneCards,
-        MonitoringTarget target,
-        IReadOnlyList<int> coveIds,
-        CancellationToken ct)
+    private static async Task<(IReadOnlyList<LibraryStatusRow>? Rows, bool AnyReadDropped)>
+        ReadSceneCardsAsync(
+            ILibraryStatusPort cards,
+            ILibraryCardIdentityPort sceneCards,
+            MonitoringTarget target,
+            IReadOnlyList<int> coveIds,
+            CancellationToken ct)
     {
         if (target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
                 .Match<IWhisparrSceneStatusReading?>(reading => reading, _ => null)
             is not { } sceneStatus)
         {
-            return null;
+            return (null, false);
         }
 
         var identities = await sceneCards.ResolveAsync(coveIds, target.Generation, ct)
             .ConfigureAwait(false);
 
-        var readings = await cards.ReadSceneCardsAsync(
+        var answered = await cards.ReadSceneCardsAsync(
                 sceneStatus,
                 target.Capabilities.Obtain<IWhisparrSceneExclusionReading>(),
                 target.BaseAddress,
@@ -133,22 +135,37 @@ public sealed partial class WhisparrSync
                 ct)
             .ConfigureAwait(false);
 
-        return [.. coveIds.Select(coveId => new LibraryStatusRow(
-            coveId, readings.TryGetValue(coveId, out var reading) ? reading : null))];
+        return (
+            [.. coveIds.Select(coveId => new LibraryStatusRow(
+                coveId,
+                answered.Readings.TryGetValue(coveId, out var reading) ? reading : null))],
+            answered.AnyReadDropped);
     }
 
     /// <summary>What the page as a whole could not be answered for, or that it could.</summary>
     /// <remarks>
-    /// Unreachable is stated only where the instance was actually asked and answered nothing about
-    /// any card. A page whose cards all carry no usable identifier claims nothing about the
-    /// connection, because nothing left for it.
+    /// Both halves of the sentence have to hold before it is stated. A read has to have left for the
+    /// instance and not come back, which is what "could not reach Whisparr" says, and no card on the
+    /// page may have established anything, which is what "no card can show a status" says.
+    /// <para>
+    /// An instance that answered establishes no reason here whatever it answered. A stored identifier
+    /// its own metadata source resolves to nothing, or to several entities, or an answer this cannot
+    /// read, are each a fact about ONE card, and the card already carries it by drawing no badge.
+    /// Naming the connection for them sends a reader to audit an instance that answered every request
+    /// it was given, and one sentence for the page cannot truthfully describe one card out of forty.
+    /// </para>
+    /// <para>
+    /// A page whose cards all carry no usable identifier claims nothing either, because nothing left
+    /// for it.
+    /// </para>
     /// </remarks>
-    private static LibraryStatusRefusalKind RefusalOver(IReadOnlyList<LibraryStatusRow> rows)
+    private static LibraryStatusRefusalKind RefusalOver(
+        IReadOnlyList<LibraryStatusRow> rows, bool anyReadDropped)
     {
         var asked = rows.Count(row => row.Reading is not null);
         var unestablished = rows.Count(row => row.Reading is { Present: null });
 
-        return asked > 0 && asked == unestablished
+        return anyReadDropped && asked == unestablished
             ? LibraryStatusRefusalKind.InstanceUnreachable
             : LibraryStatusRefusalKind.None;
     }

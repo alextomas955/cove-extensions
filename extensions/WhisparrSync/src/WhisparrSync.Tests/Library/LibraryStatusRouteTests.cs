@@ -26,6 +26,11 @@ public sealed class LibraryStatusRouteTests
     /// <summary>The per-scene route answers a list, of one row where the instance holds the scene.</summary>
     private const string HeldAndMonitored = """[{"id":9,"monitored":true}]""";
 
+    /// <summary>The spelling this library holds the older generation's identity rows under.</summary>
+    private const string V2Endpoint = "theporndb.net/graphql";
+
+    private const string V2RemoteId = "5f7c1d90-2a3b-4c6d-8e91-0b2f4a6d8c13";
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     private static string Asking(params int[] coveIds) => JsonSerializer.Serialize(new { coveIds });
@@ -217,6 +222,57 @@ public sealed class LibraryStatusRouteTests
 
         Assert.Empty(view.Rows);
         Assert.Equal(LibraryStatusRefusalKind.WhisparrCannotAnswerForThisKind, view.Refusal);
+    }
+
+    /// <summary>
+    /// A stored identifier the instance resolves to no single entity leaves the page with no reason.
+    /// </summary>
+    /// <remarks>
+    /// Driven by the lookup answer through the shipped client over a byte-level stub, so each case
+    /// runs the real lookup and the real parse. All three answers arrive with a success status: the
+    /// instance was reached and answered every request, so a sentence naming the connection would
+    /// send a reader to audit an instance that did what it was asked.
+    /// <para>
+    /// Which of the three it was is a fact about ONE card, and the card carries it by establishing
+    /// neither member and drawing no badge. The page states nothing, because one sentence for the
+    /// page cannot describe one card out of forty.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("[]")]
+    [InlineData(
+        """[{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen"},{"tvdbId":3373,"title":"Vixen 2","titleSlug":"vixen-2"}]""")]
+    [InlineData("""{"message":"not a list"}""")]
+    public async Task AnIdentifierResolvingToNoSingleEntityStatesNoReasonForThePage(string lookup)
+    {
+        await using var host = await MonitorHost.CreateAsync(
+            generation: WhisparrGeneration.V2,
+            bytes: BodyRecordingHandler.Answering(HttpStatusCode.OK, lookup));
+        var studioId = await host.SeedStudioAsync(V2Endpoint, V2RemoteId);
+
+        var view = await ReadAsync(await host.PostLibraryStatusAsync("studio", Asking(studioId)));
+
+        Assert.Equal(new LibraryCardReading(false, null, null), Assert.Single(view.Rows).Reading);
+        Assert.Equal(LibraryStatusRefusalKind.None, view.Refusal);
+    }
+
+    /// <summary>A read that left and never came back is what the unreachable reason states.</summary>
+    /// <remarks>
+    /// The instance answers its headers and then stops sending, so the read is contained rather than
+    /// answered. Asserted beside the cases above: a rule that stopped stating the reason for a card
+    /// the instance answered would otherwise pass by never stating it at all.
+    /// </remarks>
+    [Fact]
+    public async Task AReadThatNeverCameBackIsStatedAsTheUnreachableReason()
+    {
+        await using var host = await MonitorHost.CreateAsync(
+            bytes: BodyRecordingHandler.AnsweringWithABodyThatStopsPartWay());
+        var studioId = await StudioIn(host);
+
+        var view = await ReadAsync(await host.PostLibraryStatusAsync("studio", Asking(studioId)));
+
+        Assert.Equal(new LibraryCardReading(false, null, null), Assert.Single(view.Rows).Reading);
+        Assert.Equal(LibraryStatusRefusalKind.InstanceUnreachable, view.Refusal);
     }
 
     /// <summary>The route sits at the read tier, which is the tier a library viewer already holds.</summary>
