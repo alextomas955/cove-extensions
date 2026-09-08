@@ -1,5 +1,10 @@
 // The scene tab on a video detail page, in a real containerized host.
 //
+// TWO CASES, AND THE SECOND IS ABOUT AN ABSENCE. On the newer generation the tab states what the
+// instance holds. On the older one the registration never reaches the manifest, so nothing
+// Whisparr-shaped reaches the page: not the control, and not a host wrapper left behind with
+// nothing in it. Those are different DOM states and only one of them is what is promised.
+//
 // WHY THIS SPEC EXISTS. Nothing below the browser can see the whole path this tab needs. Four
 // strings bind it across two repositories: the manifest's page type, its tab key, its component
 // name and the key the bundle registers a component under. The host resolves the last pair by exact
@@ -31,7 +36,9 @@ import {
   test as base,
   connectWhisparr,
   expect,
+  EXTENSION_ID,
   seedCoveVideo,
+  SETTLE_DWELL_MS,
   STASHDB_ENDPOINT,
   WHISPARR_ROOT,
   WHISPARR_SYNC_EXTENSION,
@@ -83,6 +90,30 @@ const whisparrTab = (page) => page.getByRole("tab", { name: TAB_LABEL, exact: tr
 
 /** The host's own detail-tab strip, which tells a page that has rendered from one still loading. */
 const hostDetailTabs = (page) => page.getByRole("tablist").first();
+
+/**
+ * The host's own placeholder for a contributed tab whose component it could not resolve.
+ *
+ * The empty-versus-absent distinction in its tab form. A registration the host kept and could not
+ * fill draws this; a registration that never reached the manifest draws nothing at all.
+ */
+const unresolvedExtensionComponent = (page) => page.getByText(/Extension component not found/i);
+
+/**
+ * Every video-page tab this extension registers in the manifest the browser is served.
+ *
+ * The DOM cannot report this on its own: which tab strip a detail page draws follows its viewport,
+ * so a registration is read from the manifest the page was built from.
+ */
+async function registeredVideoTabs(api) {
+  const manifest = await api.get("/api/extensions/manifest");
+  expect(manifest.status, `GET the extension manifest answered ${String(manifest.status)}`).toBe(
+    200,
+  );
+  return (manifest.json?.tabs ?? [])
+    .filter((entry) => entry.extensionId === EXTENSION_ID && entry.pageType === "video")
+    .map((entry) => entry.key);
+}
 
 /**
  * Opens `path`, re-navigating while nothing the caller named has rendered.
@@ -212,6 +243,64 @@ test.describe("scene tab", () => {
         loadFailures,
         `the browser reported a bundle-load failure: ${loadFailures.join(" | ")}`,
       ).toEqual([]);
+    } finally {
+      await whisparr.stop();
+    }
+  });
+
+  test("older generation draws no scene tab, and no wrapper for one either", async ({
+    page,
+    baseUrl,
+    sceneHarness,
+  }) => {
+    test.setTimeout(900_000);
+
+    const coveApi = createApiClient(
+      () => sceneHarness.baseUrl,
+      () => sceneHarness.token,
+    );
+
+    const whisparr = await startWhisparr({
+      network: sceneHarness.container.getNetworkNames()[0],
+      generations: ["v2"],
+    });
+
+    try {
+      await connectWhisparr(coveApi, whisparr, "v2");
+
+      // No entry on the instance and none needed. Nothing is asked of it on this generation, and a
+      // seeded entry would make an absent tab look like a tab with nothing to say.
+      const video = await seedCoveVideo(coveApi, {
+        title: `Older ${randomUUID().slice(0, 8)}`,
+        remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: randomUUID() }],
+      });
+
+      // The registration is what removes the surface, so the set the page was built from is read
+      // before the page is. The tab strip a page draws depends on its viewport, and the
+      // registration does not.
+      expect(
+        await registeredVideoTabs(coveApi),
+        "the older generation registers a video-page tab, so a surface it has no meaning on reached the manifest the host served",
+      ).toEqual([]);
+
+      await visit(
+        page,
+        baseUrl,
+        `/video/${String(video.id)}`,
+        hostDetailTabs(page),
+        "the video detail page on the older generation",
+      );
+      await page.waitForTimeout(SETTLE_DWELL_MS);
+
+      await expect(
+        whisparrTab(page),
+        `the older generation drew a ${TAB_LABEL} tab on the video detail page, so the registration is not conditional on the stored generation`,
+      ).toHaveCount(0);
+
+      await expect(
+        unresolvedExtensionComponent(page),
+        "the host drew its placeholder for a contributed tab it could not resolve, so a tab surface renders empty rather than being absent",
+      ).toHaveCount(0);
     } finally {
       await whisparr.stop();
     }
