@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Library;
 using WhisparrSync.Monitoring;
@@ -271,12 +273,14 @@ public sealed class LibraryStatusPortTests
         var reading = new RecordingEntityReading(status: 200, body: Monitored);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            async () => await new LibraryStatusPort(Resolving).ReadEntityCardsAsync(
-                reading.AnswerAsync,
-                WhisparrEntityKind.Studio,
-                WhisparrGeneration.V3,
-                [1],
-                stopping.Token));
+            async () => await new LibraryStatusPort(Resolving, NullLogger.Instance)
+                .ReadEntityCardsAsync(
+                    reading.AnswerAsync,
+                    WhisparrEntityKind.Studio,
+                    WhisparrGeneration.V3,
+                    Instance,
+                    [1],
+                    stopping.Token));
     }
 
     /// <summary>The same for a scene.</summary>
@@ -288,13 +292,15 @@ public sealed class LibraryStatusPortTests
         var reading = new RecordingSceneReading(status: 200, body: HeldAndMonitored);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            async () => await new LibraryStatusPort(Nothing).ReadSceneCardsAsync(
-                reading,
-                new Capability<IWhisparrSceneExclusionReading>(reading, null),
-                new Uri("http://whisparr.invalid"),
-                "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e",
-                SceneIdentities(1),
-                stopping.Token));
+            async () => await new LibraryStatusPort(Nothing, NullLogger.Instance)
+                .ReadSceneCardsAsync(
+                    reading,
+                    new Capability<IWhisparrSceneExclusionReading>(reading, null),
+                    Instance,
+                    ApiKey,
+                    WhisparrGeneration.V3,
+                    SceneIdentities(1),
+                    stopping.Token));
     }
 
     private static string Monitored => """{"id":7,"monitored":true}""";
@@ -319,14 +325,71 @@ public sealed class LibraryStatusPortTests
     /// <summary>No entity is named at all, which is a library holding no usable link.</summary>
     private static IEntityIdentityPort Nothing => new FakeIdentities(IdentityResolution.Unmatched);
 
+    /// <summary>
+    /// A card whose read was contained leaves one line naming the failure and the host.
+    /// </summary>
+    /// <remarks>
+    /// A page of badges that quietly drew nothing is otherwise the one surface where a press costs a
+    /// read per card and leaves no trace at all. One line per contained card, which is what the
+    /// per-entity path already writes and is bounded by the body the route accepts.
+    /// </remarks>
+    [Fact]
+    public async Task AContainedCardLeavesOneLineNamingTheFailureAndTheHost()
+    {
+        var recorded = new RecordingLogger();
+        var reading = new RecordingEntityReading(status: 200, body: Monitored, throwOnCall: 1);
+
+        await ReadAsync(reading, Resolving, [1, 2], recorded);
+
+        Assert.Single(recorded.ContainedLines);
+        Assert.Contains("HttpRequestException", recorded.ContainedLines[0], StringComparison.Ordinal);
+        Assert.Contains(Instance.Host, recorded.ContainedLines[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>Two contained cards leave two lines, and a card that answered leaves none.</summary>
+    [Fact]
+    public async Task ACardThatAnsweredLeavesNoLine()
+    {
+        var recorded = new RecordingLogger();
+        var reading = new RecordingEntityReading(status: 200, body: Monitored);
+
+        await ReadAsync(reading, Resolving, [1, 2], recorded);
+
+        Assert.Empty(recorded.ContainedLines);
+    }
+
+    /// <summary>The scene path writes the same line for the same reason.</summary>
+    [Fact]
+    public async Task AContainedSceneLeavesOneLineNamingTheFailureAndTheHost()
+    {
+        var recorded = new RecordingLogger();
+        var reading = new RecordingSceneReading(
+            status: 200, body: HeldAndMonitored, throwOnCall: 1);
+
+        await ReadScenesAsync(reading, Excluding(reading), SceneIdentities(1, 2), recorded);
+
+        Assert.Single(recorded.ContainedLines);
+        Assert.Contains(Instance.Host, recorded.ContainedLines[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>The instance every case reads from. Its host is what a contained line names.</summary>
+    private static Uri Instance => new("http://whisparr.invalid");
+
+    private static string ApiKey => "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
+
     private static async Task<IReadOnlyList<LibraryStatusRow>> ReadAsync(
-        RecordingEntityReading reading, IEntityIdentityPort identities, IReadOnlyList<int> coveIds)
-        => await new LibraryStatusPort(identities).ReadEntityCardsAsync(
-            reading.AnswerAsync,
-            WhisparrEntityKind.Studio,
-            WhisparrGeneration.V3,
-            coveIds,
-            TestCt);
+        RecordingEntityReading reading,
+        IEntityIdentityPort identities,
+        IReadOnlyList<int> coveIds,
+        ILogger? log = null)
+        => await new LibraryStatusPort(identities, log ?? NullLogger.Instance)
+            .ReadEntityCardsAsync(
+                reading.AnswerAsync,
+                WhisparrEntityKind.Studio,
+                WhisparrGeneration.V3,
+                Instance,
+                coveIds,
+                TestCt);
 
     /// <summary>The exclusion role, answering <paramref name="excluded"/> and counting its reads.</summary>
     private static Capability<IWhisparrSceneExclusionReading> Excluding(
@@ -339,12 +402,14 @@ public sealed class LibraryStatusPortTests
     private static async Task<IReadOnlyDictionary<int, LibraryCardReading>> ReadScenesAsync(
         RecordingSceneReading reading,
         Capability<IWhisparrSceneExclusionReading> exclusions,
-        IReadOnlyList<LibraryCardIdentity> identities)
-        => await new LibraryStatusPort(Nothing).ReadSceneCardsAsync(
+        IReadOnlyList<LibraryCardIdentity> identities,
+        ILogger? log = null)
+        => await new LibraryStatusPort(Nothing, log ?? NullLogger.Instance).ReadSceneCardsAsync(
             reading,
             exclusions,
-            new Uri("http://whisparr.invalid"),
-            "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e",
+            Instance,
+            ApiKey,
+            WhisparrGeneration.V3,
             identities,
             TestCt);
 
@@ -406,6 +471,36 @@ public sealed class LibraryStatusPortTests
 
             return Task.FromResult<IReadOnlySet<string>>(
                 new HashSet<string>(providerSceneIds.Where(_excluded.Contains), StringComparer.Ordinal));
+        }
+    }
+
+    /// <summary>Keeps the contained-request lines, by event id, as a sink would write them.</summary>
+    private sealed class RecordingLogger : ILogger
+    {
+        private const int ContainedRequestEventId = 2117;
+
+        private readonly List<string> _lines = [];
+
+        public List<string> ContainedLines => _lines;
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            ArgumentNullException.ThrowIfNull(formatter);
+
+            if (eventId.Id == ContainedRequestEventId)
+            {
+                _lines.Add(formatter(state, exception));
+            }
         }
     }
 

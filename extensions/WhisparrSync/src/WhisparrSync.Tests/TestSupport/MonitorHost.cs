@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Library;
@@ -180,7 +181,7 @@ internal sealed class MonitorHost : IAsyncDisposable
         builder.Services.AddSingleton<IJobService>(host.Jobs);
         host.Identities = new EntityIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.Identities);
-        builder.Services.AddSingleton<ILibraryStatusPort>(new LibraryStatusPort(host.Identities));
+        builder.Services.AddSingleton<ILibraryStatusPort>(new LibraryStatusPort(host.Identities, NullLogger.Instance));
         host.CardIdentities = new LibraryCardIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.CardIdentities);
         host.Folders = new EntityFolderPort(host._db);
