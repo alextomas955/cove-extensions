@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Options;
 
 namespace WhisparrSync.Library;
 
@@ -19,6 +21,9 @@ internal static class LibraryServiceRegistration
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<ILibraryStatusPort, LibraryStatusPort>();
+        services.AddScoped<ILibraryCardIdentityPort>(resolved => new LibraryCardIdentityPort(
+            resolved.GetRequiredService<DbContext>(),
+            resolved.GetRequiredService<OptionsStore>()));
         return services;
     }
 }
