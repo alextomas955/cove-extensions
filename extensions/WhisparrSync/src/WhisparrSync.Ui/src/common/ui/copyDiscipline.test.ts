@@ -107,15 +107,19 @@ const RENDERED_BY_THE_ENTITY_CONTROL = [
 ];
 
 /**
- * The library toolbar control's two names, and the two reasons it states for the whole page.
+ * The library toolbar control's two names, and every reason it states for the whole page.
  *
- * Each reason rides the control rather than the cards: one is a fact about the connection and the
- * other a fact about the display mode, and a page of cards would state either once per card.
+ * Each reason rides the control rather than the cards, because a page of cards would state it once
+ * per card. Four of them are read through the page's own reason table; the last is a fact about the
+ * display mode, which no read reports.
  */
 const RENDERED_BY_THE_LIBRARY_PILL = [
   "SHOW_WHISPARR_STATUS",
   "HIDE_WHISPARR_STATUS",
+  "NO_WHISPARR_CONNECTED",
+  "WHISPARR_KEEPS_NO_RECORD_OF_THESE",
   "WHISPARR_STATUS_COULD_NOT_BE_READ",
+  "THE_STATUS_READ_DID_NOT_COMPLETE",
   "NO_PLACE_FOR_A_CARD_STATUS_HERE",
 ];
 
