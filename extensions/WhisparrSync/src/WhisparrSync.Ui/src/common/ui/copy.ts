@@ -32,6 +32,34 @@ export const WHISPARR_STATUS_COULD_NOT_BE_READ =
   "Cove could not reach Whisparr, so no card can show a status. That is not the same as Whisparr holding nothing.";
 
 /**
+ * Nothing is connected, so nothing was asked, said once for the page on the control that asked.
+ *
+ * The second sentence keeps it apart from an instance that answered. A page of cards drawing no badge
+ * would otherwise read as a Whisparr that holds nothing for the library.
+ */
+export const NO_WHISPARR_CONNECTED =
+  "No Whisparr is connected, so no card can show a status. Nothing was asked of Whisparr.";
+
+/**
+ * The connected Whisparr keeps no record of the cards on this page, so it was not asked.
+ *
+ * Names no setting and no version, because neither changes the answer. The second sentence is the
+ * point: nothing failed and nothing is missing from Whisparr's own side.
+ */
+export const WHISPARR_KEEPS_NO_RECORD_OF_THESE =
+  "The connected Whisparr keeps no record of these, so no card can show a status. It was not asked.";
+
+/**
+ * The status request itself never answered, said once for the page on the control that made it.
+ *
+ * Distinct from an instance Cove reached and could not read: here Cove's own read did not complete,
+ * so whether Whisparr was asked at all is not established. Claiming either would be a fact nothing
+ * answered.
+ */
+export const THE_STATUS_READ_DID_NOT_COMPLETE =
+  "Cove could not complete the status read, so no card can show a status. Whisparr may not have been asked at all.";
+
+/**
  * The badges are on where the display mode draws none, said on the control that turned them on.
  *
  * The host mounts a card slot in its grid display mode only, and the control sits in the toolbar of
