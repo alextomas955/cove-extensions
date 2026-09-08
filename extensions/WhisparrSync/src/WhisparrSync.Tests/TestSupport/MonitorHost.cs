@@ -223,6 +223,31 @@ internal sealed class MonitorHost : IAsyncDisposable
     public string RouteFor(string kind, int coveId, string verb)
         => string.Create(CultureInfo.InvariantCulture, $"{RouteBase}/entity/{kind}/{coveId}/{verb}");
 
+    /// <summary>The route one scene's own <paramref name="verb"/> is mounted at.</summary>
+    public string SceneRouteFor(int coveId, string verb)
+        => string.Create(CultureInfo.InvariantCulture, $"{RouteBase}/scene/{coveId}/{verb}");
+
+    /// <summary>The raw answer to one scene's <paramref name="verb"/> route, which takes no body.</summary>
+    public Task<HttpResponseMessage> PostSceneAsync(int coveId, string verb)
+        => Http.PostAsync(SceneRouteFor(coveId, verb), content: null, TestCt);
+
+    /// <summary>One scene verb's answer, read as the contract it declares.</summary>
+    public async Task<SceneActionResult> SceneActionAsync(int coveId, string verb)
+    {
+        var answered = await PostSceneAsync(coveId, verb);
+        answered.EnsureSuccessStatusCode();
+        return (await answered.Content.ReadFromJsonAsync<SceneActionResult>(TestCt))!;
+    }
+
+    /// <summary>The scene tab's own read, as the contract it declares.</summary>
+    public async Task<SceneDetailView> SceneDetailAsync(int coveId)
+    {
+        var answered = await Http.GetAsync(
+            string.Create(CultureInfo.InvariantCulture, $"{RouteBase}/scene/{coveId}"), TestCt);
+        answered.EnsureSuccessStatusCode();
+        return (await answered.Content.ReadFromJsonAsync<SceneDetailView>(TestCt))!;
+    }
+
     /// <summary>Seeds one studio, with an identity row when an endpoint is named.</summary>
     /// <remarks>
     /// The name is made unique per call. The host's own name key is unique, so a second studio seeded
