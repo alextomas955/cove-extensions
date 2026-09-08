@@ -5,8 +5,9 @@
  * instance and they have to fold into one request. The key carries the kind as well as the Cove id,
  * so one entity's answer cannot paint onto another kind's card with the same number.
  *
- * The page-level reason is held per kind and read by the toolbar control, which states it once for
- * the page. A card that could not be answered for draws nothing and says nothing.
+ * The page-level reason is held per kind, for the whole of one flush rather than for one request,
+ * and read by the toolbar control, which states it once for the page. A card that could not be
+ * answered for draws nothing and says nothing.
  */
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
@@ -42,14 +43,28 @@ function emit(): void {
   for (const listener of listeners) listener();
 }
 
-/** One request for the cards of `kind` handed over, up to the bound the route enforces. */
+function recordRefusal(kind: LibraryCardKind, refusal: LibraryPageRefusal): void {
+  // A page over the route's bound is split across requests, and the page has a reason when any one
+  // of those requests could not be answered. So a request that answered never overwrites the reason
+  // an earlier one established.
+  const held = refusals.get(kind);
+  if (held !== undefined && held !== "none") return;
+  refusals.set(kind, refusal);
+}
+
+/**
+ * One request for the cards of `kind` handed over, up to the bound the route enforces.
+ *
+ * `startsFlush` is true for the first request of a page. The kind's reason is dropped there rather
+ * than before every request, so the reason a failed request established outlives the requests that
+ * follow it on the same page.
+ */
 async function readBatch(
   kind: LibraryCardKind,
   keys: string[],
+  startsFlush: boolean,
 ): Promise<Map<string, LibraryCardReading | null>> {
-  // Dropped before the request rather than after it, so a reason from the batch before this one is
-  // not still on the control while this one runs.
-  refusals.delete(kind);
+  if (startsFlush) refusals.delete(kind);
 
   try {
     const view = await requestJson<LibraryStatusView>(api(`library/${kind}/status`), {
@@ -57,7 +72,7 @@ async function readBatch(
       body: JSON.stringify({ coveIds: keys.map((key) => Number(key)) }),
     });
 
-    refusals.set(kind, view.refusal);
+    recordRefusal(kind, view.refusal);
     emit();
 
     return new Map(view.rows.map((row) => [String(row.coveId), row.reading]));
@@ -66,7 +81,7 @@ async function readBatch(
     // does not hold, a failure inside Cove, or a connection to Cove that dropped. Each of them draws
     // no badge on any card, so without a reason on the page the control was pressed and nothing
     // happened.
-    refusals.set(kind, "statusCouldNotBeRead");
+    recordRefusal(kind, "statusCouldNotBeRead");
     emit();
     throw failure;
   }
@@ -77,7 +92,7 @@ function coalescerFor(kind: LibraryCardKind): BatchCoalescer<LibraryCardReading>
   if (held !== undefined) return held;
 
   const made = createBatchCoalescer<LibraryCardReading>(
-    (keys) => readBatch(kind, keys),
+    (keys, startsFlush) => readBatch(kind, keys, startsFlush),
     IDS_PER_REQUEST,
   );
   made.subscribe(emit);

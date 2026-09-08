@@ -29,14 +29,16 @@ export interface BatchCoalescer<V> {
 }
 
 /**
- * @param fetchBatch resolves every key it is given to a value or `null`.
+ * @param fetchBatch resolves every key it is given to a value or `null`. Its second argument is
+ * true for the first fetch of a flush, so a caller holding a fact about the whole flush can tell a
+ * new one from the next fetch of the flush already running.
  * @param maxBatch the most keys one fetch may carry. How many cards mount at once is the host page's
  * own size and no caller here chooses it, so a tick holding more than this is split across fetches
  * rather than sent whole or cut short.
  * @param schedule defers the flush one tick; a test injects a manual scheduler in its place.
  */
 export function createBatchCoalescer<V>(
-  fetchBatch: (keys: string[]) => Promise<Map<string, V | null>>,
+  fetchBatch: (keys: string[], startsFlush: boolean) => Promise<Map<string, V | null>>,
   maxBatch: number,
   schedule: (flush: () => void) => void = (flush) => {
     queueMicrotask(flush);
@@ -65,7 +67,7 @@ export function createBatchCoalescer<V>(
 
       let answered: Map<string, V | null> | null = null;
       try {
-        answered = await fetchBatch(sending);
+        answered = await fetchBatch(sending, from === 0);
       } catch {
         answered = null;
       }
