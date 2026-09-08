@@ -35,8 +35,9 @@ These are the same words the Whisparr button and the Missing tab use. **Not adde
 **Unmonitored** are different answers: the first means your Whisparr has never heard of the entity,
 the second means it holds it and is leaving it alone.
 
-A studio or performer card never reads **Excluded**. Whisparr keeps no exclusion list for those, so
-there is nothing to read.
+A studio or performer card never reads **Excluded**. Whisparr Sync reads your Whisparr's exclusion
+list for scenes only, so a badge on either of those cards would be claiming something your instance
+was never asked.
 
 **A card shows the state alone. There is no count beside it**, such as how many of a studio's scenes
 you hold. See [What this does not show](#what-this-does-not-show).
