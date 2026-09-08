@@ -645,7 +645,7 @@ internal sealed class WhisparrClient(
         CancellationToken ct)
     {
         var command = V3BodyProjector.RefreshCatalogue(kind, entityId);
-        return GeneratedCommandAsync(baseAddress, apiKey, command, ct);
+        return GeneratedActCommandAsync(baseAddress, apiKey, command, ct);
     }
 
     // The instance route family for a scene status. Composed here from the entity kind rather than
@@ -805,7 +805,7 @@ internal sealed class WhisparrClient(
 
     public Task<WhisparrResponse> AttachOwnedFilesAsync(
         Uri baseAddress, string apiKey, JsonNode files, CancellationToken ct)
-        => GeneratedCommandAsync(baseAddress, apiKey, ReflectOwnedPlanner.Command(files), ct);
+        => GeneratedActCommandAsync(baseAddress, apiKey, ReflectOwnedPlanner.Command(files), ct);
 
     // The one member of this whole seam that can make an instance acquire anything, and the only one
     // whose invocation is recorded on its own. Its verb class has no retry entry, so an attempt whose
@@ -822,15 +822,10 @@ internal sealed class WhisparrClient(
 
         return generation switch
         {
-            WhisparrGeneration.V3 => GeneratedCommandAsync(
+            WhisparrGeneration.V3 => GeneratedGrabCommandAsync(
                 baseAddress, apiKey, V3BodyProjector.SearchMonitored(kind, entityId), ct),
-            WhisparrGeneration.V2 => GrabAsync(
-                baseAddress,
-                apiKey,
-                HttpMethod.Post,
-                CommandPath,
-                V2BodyProjector.SearchMonitored(entityId),
-                ct),
+            WhisparrGeneration.V2 => GeneratedV2GrabCommandAsync(
+                baseAddress, apiKey, V2BodyProjector.SearchMonitored(entityId), ct),
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
     }
@@ -844,7 +839,7 @@ internal sealed class WhisparrClient(
     {
         WhisparrSyncLog.SceneSearchIssued(log);
 
-        return GeneratedCommandAsync(baseAddress, apiKey, V3BodyProjector.SearchScene(sceneId), ct);
+        return GeneratedGrabCommandAsync(baseAddress, apiKey, V3BodyProjector.SearchScene(sceneId), ct);
     }
 
     // The identifier comes from a stored identity row rather than from a caller. The generated client
@@ -932,21 +927,39 @@ internal sealed class WhisparrClient(
         where TResponse : V3Client.IApiResponse
         => GeneratedSendAsync(TargetFor(baseAddress, apiKey), call);
 
-    // Every instance-side action this generation takes is issued through the one command route. The
-    // verb travels as the call's own argument, so the composed body carries it and the payload does
-    // not.
+    // Every instance-side action a generation takes is issued through the one command route, so the
+    // class of work is carried by the helper a call site names and not by the route.
+    private Task<WhisparrResponse> GeneratedActCommandAsync(
+        Uri baseAddress, string apiKey, JsonObject command, CancellationToken ct)
+        => GeneratedCommandAsync(baseAddress, apiKey, command, ct);
+
+    // Named apart from the acting command because the class of work is what the retry policy is
+    // keyed on: an attempt count added for the acting class must not silently cover the one class
+    // that downloads.
+    private Task<WhisparrResponse> GeneratedGrabCommandAsync(
+        Uri baseAddress, string apiKey, JsonObject command, CancellationToken ct)
+        => GeneratedCommandAsync(baseAddress, apiKey, command, ct);
+
     private Task<WhisparrResponse> GeneratedCommandAsync(
         Uri baseAddress, string apiKey, JsonObject command, CancellationToken ct)
+    {
+        var (name, payload) = VerbAndPayload(command);
+
+        return GeneratedSendAsync(
+            TargetFor(baseAddress, apiKey),
+            api => api.Api<V3Api.CommandApi>().SendCommandAsync(name, payload, ct));
+    }
+
+    // The verb travels as the call's own argument, so the composed body carries it and the payload
+    // does not.
+    private static (string Name, JsonObject Payload) VerbAndPayload(JsonObject command)
     {
         var name = (string?)command[CommandNameProperty]
             ?? throw new ArgumentException("A command names no verb.", nameof(command));
 
         var payload = (JsonObject)command.DeepClone();
         payload.Remove(CommandNameProperty);
-
-        return GeneratedSendAsync(
-            TargetFor(baseAddress, apiKey),
-            api => api.Api<V3Api.CommandApi>().SendCommandAsync(name, payload, ct));
+        return (name, payload);
     }
 
     private async Task<WhisparrResponse> GeneratedSendAsync<TResponse>(
@@ -997,6 +1010,19 @@ internal sealed class WhisparrClient(
         Func<Whisparr2Apis, Task<TResponse>> call)
         where TResponse : V2Client.IApiResponse
         => GeneratedV2SendAsync(V2TargetFor(baseAddress, apiKey), call);
+
+    // Sent once, and named for the grabbing class for the reason the newer generation's grabbing
+    // command is: an attempt count added for the acting class must not silently cover the one class
+    // that downloads.
+    private Task<WhisparrResponse> GeneratedV2GrabCommandAsync(
+        Uri baseAddress, string apiKey, JsonObject command, CancellationToken ct)
+    {
+        var (name, payload) = VerbAndPayload(command);
+
+        return GeneratedV2SendAsync(
+            V2TargetFor(baseAddress, apiKey),
+            api => api.Api<V2Api.CommandApi>().SendCommandAsync(name, payload, ct));
+    }
 
     private async Task<WhisparrResponse> GeneratedV2SendAsync<TResponse>(
         Whisparr2Target target,
@@ -1067,13 +1093,6 @@ internal sealed class WhisparrClient(
     // what the retry policy is keyed on: an attempt count added for one class must not silently
     // cover the other.
     private Task<WhisparrResponse> ActAsync(
-        Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode body, CancellationToken ct)
-        => SentOnceAsync(baseAddress, apiKey, method, path, body, ct);
-
-    // Sent once, and named apart from the acting send because the CLASS of work is what the retry
-    // policy is keyed on: an attempt count added for the acting class must not silently cover the one
-    // class that downloads.
-    private Task<WhisparrResponse> GrabAsync(
         Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode body, CancellationToken ct)
         => SentOnceAsync(baseAddress, apiKey, method, path, body, ct);
 
