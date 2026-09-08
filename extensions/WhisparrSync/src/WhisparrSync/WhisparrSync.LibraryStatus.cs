@@ -36,6 +36,7 @@ public sealed partial class WhisparrSync
             ICredentialPort credentials,
             IWhisparrClient client,
             ILibraryStatusPort cards,
+            ILibraryCardIdentityPort sceneCards,
             CancellationToken ct)
     {
         // Checked in the handler, because the route's own declaration enforces nothing on a minimal
@@ -47,7 +48,7 @@ public sealed partial class WhisparrSync
 
         // The cap is one rendered page, which is the same figure Cove's own list pages default their
         // perPage to. Referenced rather than restated, so the two cannot drift.
-        if (!TryReadCardKind(kind, out var entityKind)
+        if (!TryReadCardKind(kind, out var card)
             || request is not { CoveIds.Count: > 0 }
             || request.CoveIds.Count > MissingPerPage
             || request.CoveIds.Any(coveId => coveId < 1))
@@ -56,6 +57,7 @@ public sealed partial class WhisparrSync
         }
 
         ArgumentNullException.ThrowIfNull(cards);
+        ArgumentNullException.ThrowIfNull(sceneCards);
 
         if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
             is not { } target)
@@ -64,20 +66,73 @@ public sealed partial class WhisparrSync
                 new LibraryStatusView([], LibraryStatusRefusalKind.NoInstanceConnected));
         }
 
-        // Refused by the absence of a capability rather than by a probe: a generation registering no
-        // role for this kind has nothing to ask, so nothing is sent.
-        if (ReadingEntity(entityKind, target) is not { } reading)
+        var rows = card == LibraryCardKind.Video
+            ? await ReadSceneCardsAsync(cards, sceneCards, target, request.CoveIds, ct)
+                .ConfigureAwait(false)
+            : await ReadEntityCardsAsync(cards, EntityKindOf(card), target, request.CoveIds, ct)
+                .ConfigureAwait(false);
+
+        return TypedResults.Ok(
+            rows is null
+                ? new LibraryStatusView([], LibraryStatusRefusalKind.WhisparrCannotAnswerForThisKind)
+                : new LibraryStatusView(rows, RefusalOver(rows)));
+    }
+
+    /// <summary>
+    /// One row per requested entity card, or null where the generation registers no role to ask.
+    /// </summary>
+    /// <remarks>
+    /// Refused by the absence of a capability rather than by a probe: a generation registering no
+    /// role for this kind has nothing to ask, so nothing is sent.
+    /// </remarks>
+    private static async Task<IReadOnlyList<LibraryStatusRow>?> ReadEntityCardsAsync(
+        ILibraryStatusPort cards,
+        WhisparrEntityKind entityKind,
+        MonitoringTarget target,
+        IReadOnlyList<int> coveIds,
+        CancellationToken ct)
+        => ReadingEntity(entityKind, target) is { } reading
+            ? await cards
+                .ReadEntityCardsAsync(reading, entityKind, target.Generation, coveIds, ct)
+                .ConfigureAwait(false)
+            : null;
+
+    /// <summary>
+    /// One row per requested scene card, or null where the generation reads no per-scene record.
+    /// </summary>
+    /// <remarks>
+    /// The identity is resolved before anything leaves, so a card the library names no single
+    /// identifier for costs no request and carries no reading. The requested order is the answer's,
+    /// and a card the identity read answered nothing for carries a null reading in its place.
+    /// </remarks>
+    private static async Task<IReadOnlyList<LibraryStatusRow>?> ReadSceneCardsAsync(
+        ILibraryStatusPort cards,
+        ILibraryCardIdentityPort sceneCards,
+        MonitoringTarget target,
+        IReadOnlyList<int> coveIds,
+        CancellationToken ct)
+    {
+        if (target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
+                .Match<IWhisparrSceneStatusReading?>(reading => reading, _ => null)
+            is not { } sceneStatus)
         {
-            return TypedResults.Ok(
-                new LibraryStatusView(
-                    [], LibraryStatusRefusalKind.WhisparrCannotAnswerForThisKind));
+            return null;
         }
 
-        var rows = await cards
-            .ReadEntityCardsAsync(reading, entityKind, target.Generation, request.CoveIds, ct)
+        var identities = await sceneCards.ResolveAsync(coveIds, target.Generation, ct)
             .ConfigureAwait(false);
 
-        return TypedResults.Ok(new LibraryStatusView(rows, RefusalOver(rows)));
+        var readings = await cards.ReadSceneCardsAsync(
+                sceneStatus,
+                target.Capabilities.Obtain<IWhisparrSceneExclusionReading>(),
+                target.BaseAddress,
+                target.ApiKey,
+                identities,
+                ct)
+            .ConfigureAwait(false);
+
+        return [.. coveIds.Select(coveId => new LibraryStatusRow(
+            coveId, readings.TryGetValue(coveId, out var reading) ? reading : null))];
     }
 
     /// <summary>What the page as a whole could not be answered for, or that it could.</summary>
@@ -96,33 +151,25 @@ public sealed partial class WhisparrSync
             : LibraryStatusRefusalKind.None;
     }
 
-    /// <summary>
-    /// The entity kind the route segment names, or that it names none this route answers for.
-    /// </summary>
+    /// <summary>The card kind the route segment names, or that it names none.</summary>
     /// <remarks>
-    /// A video is a bad request here rather than a refusal: it is a card kind this product expresses
-    /// and no entity it monitors, so there is no instance answer to refuse on its behalf.
+    /// A parse that succeeds is not the same as a member: the enum's underlying type accepts an
+    /// integer inside no member, and every arm downstream would then take its default.
     /// </remarks>
-    private static bool TryReadCardKind(string kind, out WhisparrEntityKind entityKind)
-    {
-        entityKind = default;
+    private static bool TryReadCardKind(string kind, out LibraryCardKind card)
+        => Enum.TryParse(kind, ignoreCase: true, out card) && Enum.IsDefined(card);
 
-        if (!Enum.TryParse<LibraryCardKind>(kind, ignoreCase: true, out var card)
-            || !Enum.IsDefined(card))
+    /// <summary>The monitored-entity kind a card kind stands for.</summary>
+    /// <remarks>
+    /// A video reaches this for nothing: it is a card kind this product expresses and no entity it
+    /// monitors, so its own branch answers it and every arm here would throw.
+    /// </remarks>
+    private static WhisparrEntityKind EntityKindOf(LibraryCardKind card)
+        => card switch
         {
-            return false;
-        }
-
-        switch (card)
-        {
-            case LibraryCardKind.Studio:
-                entityKind = WhisparrEntityKind.Studio;
-                return true;
-            case LibraryCardKind.Performer:
-                entityKind = WhisparrEntityKind.Performer;
-                return true;
-            default:
-                return false;
-        }
-    }
+            LibraryCardKind.Studio => WhisparrEntityKind.Studio,
+            LibraryCardKind.Performer => WhisparrEntityKind.Performer,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(card), card, "This card kind names no entity this product monitors."),
+        };
 }

@@ -20,6 +20,12 @@ namespace WhisparrSync.Tests.Library;
 /// </remarks>
 public sealed class LibraryStatusRouteTests
 {
+    /// <summary>An identifier a scene is stored under in the newer generation's namespace.</summary>
+    private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
+
+    /// <summary>The per-scene route answers a list, of one row where the instance holds the scene.</summary>
+    private const string HeldAndMonitored = """[{"id":9,"monitored":true}]""";
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     private static string Asking(params int[] coveIds) => JsonSerializer.Serialize(new { coveIds });
@@ -61,13 +67,7 @@ public sealed class LibraryStatusRouteTests
     }
 
     /// <summary>A kind segment naming nothing this route answers for is a bad request.</summary>
-    /// <remarks>
-    /// A video is refused here rather than answered: it is a card kind this product expresses and no
-    /// entity it monitors, so nothing answers for one yet and a state drawn from a guess would be a
-    /// claim no instance made.
-    /// </remarks>
     [Theory]
-    [InlineData("video")]
     [InlineData("tag")]
     [InlineData("7")]
     [InlineData("studios")]
@@ -107,6 +107,78 @@ public sealed class LibraryStatusRouteTests
         var view = await ReadAsync(await host.PostLibraryStatusAsync("studio", Asking(unlinked)));
 
         Assert.Null(Assert.Single(view.Rows).Reading);
+    }
+
+    /// <summary>
+    /// The video kind answers one row per requested id, and speaks for only the ones the library
+    /// names a scene for.
+    /// </summary>
+    /// <remarks>
+    /// The exclusion read is asked once for the whole set and the status read once per identified
+    /// scene, so an unidentified card costs nothing and carries no reading.
+    /// </remarks>
+    [Fact]
+    public async Task TheVideoKindAnswersOneRowPerRequestedIdAndSpeaksOnlyForTheIdentifiedOnes()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(
+            nameof(IWhisparrSceneStatusReading.ReadSceneByRemoteIdAsync),
+            MonitorHost.Json(200, HeldAndMonitored));
+        var studioId = await host.SeedStudioAsync(null, null);
+        var identified = await host.SeedStudioSceneAsync(
+            studioId, MonitorHost.StoredEndpoint, FirstScene);
+        var unidentified = await host.SeedStudioSceneAsync(studioId, null, null);
+
+        var view = await ReadAsync(
+            await host.PostLibraryStatusAsync("video", Asking(unidentified, identified)));
+
+        Assert.Equal([unidentified, identified], view.Rows.Select(row => row.CoveId));
+        Assert.Null(view.Rows[0].Reading);
+        Assert.Equal(new LibraryCardReading(false, true, true), view.Rows[1].Reading);
+        Assert.Equal([FirstScene], Assert.Single(host.Client.ExclusionReads));
+        Assert.Equal([FirstScene], host.Client.SceneStatuses.Select(call => call.RemoteId));
+    }
+
+    /// <summary>A scene the instance's user has excluded reads as excluded and not as absent.</summary>
+    /// <remarks>
+    /// The instance is answering a not-found for the same scene, so this pins the order the two reads
+    /// are folded in.
+    /// </remarks>
+    [Fact]
+    public async Task AnExcludedSceneIsNotReportedAsAnAbsence()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client.Excluded.Add(FirstScene);
+        host.Client.Answering(
+            nameof(IWhisparrSceneStatusReading.ReadSceneByRemoteIdAsync), MonitorHost.Json(404, ""));
+        var videoId = await host.SeedStudioSceneAsync(
+            await host.SeedStudioAsync(null, null), MonitorHost.StoredEndpoint, FirstScene);
+
+        var view = await ReadAsync(await host.PostLibraryStatusAsync("video", Asking(videoId)));
+
+        Assert.Equal(
+            new LibraryCardReading(true, false, null), Assert.Single(view.Rows).Reading);
+    }
+
+    /// <summary>
+    /// A generation reading no per-scene record refuses from the absent registration rather than
+    /// throwing.
+    /// </summary>
+    [Fact]
+    public async Task AGenerationReadingNoSceneRecordRefusesRatherThanThrows()
+    {
+        Assert.DoesNotContain(
+            WhisparrCapability.ReadSceneStatus,
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
+
+        await using var host = await MonitorHost.CreateAsync(generation: WhisparrGeneration.V2);
+        var videoId = await host.SeedStudioSceneAsync(
+            await host.SeedStudioAsync(null, null), MonitorHost.StoredEndpoint, FirstScene);
+
+        var view = await ReadAsync(await host.PostLibraryStatusAsync("video", Asking(videoId)));
+
+        Assert.Empty(view.Rows);
+        Assert.Equal(LibraryStatusRefusalKind.WhisparrCannotAnswerForThisKind, view.Refusal);
     }
 
     /// <summary>Nothing configured is stated once for the page and carries no rows.</summary>
