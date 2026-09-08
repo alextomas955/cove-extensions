@@ -709,6 +709,58 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/library/{kind}/status": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryStatusView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/count": {
       "get": {
         "tags": [
@@ -1370,6 +1422,7 @@
         "required": [
           "kind",
           "generation",
+          "present",
           "monitored",
           "refusal",
           "capabilities",
@@ -1388,6 +1441,12 @@
               {
                 "$ref": "#/components/schemas/WhisparrGeneration"
               }
+            ]
+          },
+          "present": {
+            "type": [
+              "null",
+              "boolean"
             ]
           },
           "monitored": {
@@ -1582,6 +1641,95 @@
           "replace",
           "clear"
         ]
+      },
+      "LibraryCardReading": {
+        "required": [
+          "excluded",
+          "present",
+          "monitored"
+        ],
+        "type": "object",
+        "properties": {
+          "excluded": {
+            "type": "boolean"
+          },
+          "present": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "monitored": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "LibraryStatusRefusalKind": {
+        "enum": [
+          "none",
+          "noInstanceConnected",
+          "whisparrCannotAnswerForThisKind",
+          "instanceUnreachable"
+        ]
+      },
+      "LibraryStatusRequest": {
+        "required": [
+          "coveIds"
+        ],
+        "type": "object",
+        "properties": {
+          "coveIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "LibraryStatusRow": {
+        "required": [
+          "coveId",
+          "reading"
+        ],
+        "type": "object",
+        "properties": {
+          "coveId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reading": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LibraryCardReading"
+              }
+            ]
+          }
+        }
+      },
+      "LibraryStatusView": {
+        "required": [
+          "rows",
+          "refusal"
+        ],
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryStatusRow"
+            }
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/LibraryStatusRefusalKind"
+          }
+        }
       },
       "MissingBulkEnqueued": {
         "required": [
