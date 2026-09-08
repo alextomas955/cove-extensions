@@ -2,6 +2,30 @@
 
 User-facing changes, newest first.
 
+## 1.3.0 - See what Whisparr holds for every card in a list
+
+A button in the toolbar of Cove's videos, studios and performers lists puts a small badge on every
+card saying what your Whisparr holds for that scene, studio or performer.
+
+**A full page costs up to forty requests to your Whisparr**, one after another, so the badges take a
+moment to fill in. Nothing is asked until you press the button, and nothing is cached between pages.
+
+- **Turn the badges on from the list toolbar.** The button carries Whisparr's mark and names itself
+  on hover. It is off after every page load and nothing about it is stored in your browser.
+- **Each badge reads Monitored, Unmonitored, Not added or Excluded**, in the same words the Whisparr
+  button and the Missing tab use. **Not added** means your Whisparr has never heard of the entity;
+  **Unmonitored** means it holds it and is leaving it alone.
+- **Pressing it changes nothing.** Nothing is added to Whisparr, nothing is monitored, nothing is
+  downloaded and nothing in your library is touched.
+- **The badges appear in the Grid display mode only**, because that is the only mode where Cove
+  keeps a place on a card for them. Press the button in another mode and it says so on hover.
+- **A card Cove holds no Whisparr link for shows no badge**, rather than a state that would claim
+  your Whisparr has no entry for it.
+- **An unreachable Whisparr is reported once, on the button**, and no card claims anything.
+- **On a Whisparr v2 connection the button and the badges are absent from the videos and performers
+  lists.** That generation keeps no per-scene records and has no performer entity. The studios list
+  keeps both. Switching the connected generation takes effect on the next page load.
+
 ## 1.2.0 - Browse what you do not own, from a studio, performer or tag page
 
 A **Missing** tab joins studio, performer and tag pages. It lists the scenes your metadata source
