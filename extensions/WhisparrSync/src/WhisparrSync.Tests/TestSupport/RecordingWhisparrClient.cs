@@ -91,7 +91,8 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         IWhisparrSceneSearchGrabbing,
         IWhisparrSceneStatusReading,
         IWhisparrSceneExclusionReading,
-        IWhisparrSceneMonitorActing
+        IWhisparrSceneMonitorActing,
+        IWhisparrSceneExclusionActing
 {
     private const string JsonContentType = "application/json; charset=utf-8";
 
@@ -290,6 +291,22 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             {
                 EntityId = sceneId,
                 Monitored = monitored,
+            });
+
+    public Task<WhisparrResponse> AddSceneExclusionAsync(
+        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+        => RecordActing(
+            new ActingCall(nameof(AddSceneExclusionAsync), baseAddress, apiKey)
+            {
+                ForeignId = foreignId,
+            });
+
+    public Task<WhisparrResponse> RemoveSceneExclusionAsync(
+        Uri baseAddress, string apiKey, int exclusionId, CancellationToken ct)
+        => RecordActing(
+            new ActingCall(nameof(RemoveSceneExclusionAsync), baseAddress, apiKey)
+            {
+                EntityId = exclusionId,
             });
 
     public Task<WhisparrResponse> AddSceneAsync(

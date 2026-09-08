@@ -213,6 +213,9 @@ const ITEM_BEHIND_CAPABILITY: Record<WhisparrCapability, SecondaryAction | null>
   readSceneExclusions: null,
   // Offered on a catalogue card rather than in this menu.
   searchScene: null,
+  // Offered on one scene's own surface rather than in this menu.
+  monitorScene: null,
+  excludeScene: null,
 };
 
 /**
