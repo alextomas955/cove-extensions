@@ -40,6 +40,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.ReadSceneStatus,
                 WhisparrCapability.ReadSceneExclusions,
                 WhisparrCapability.SearchScene,
+                WhisparrCapability.MonitorScene,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
     }
@@ -156,6 +157,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.ReadSceneStatus,
                 WhisparrCapability.ReadSceneExclusions,
                 WhisparrCapability.SearchScene,
+                WhisparrCapability.MonitorScene,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
         Assert.Equal(
@@ -200,6 +202,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.ReadSceneStatus,
                 WhisparrCapability.ReadSceneExclusions,
                 WhisparrCapability.SearchScene,
+                WhisparrCapability.MonitorScene,
             },
             absent => Assert.DoesNotContain(absent, held));
     }
@@ -378,7 +381,8 @@ public sealed class GenerationCapabilitiesTests
         => Assert.Equal(
             "[\"outOfBandCallbackSecret\",\"monitorStudio\",\"monitorPerformer\","
                 + "\"registerMissingScenes\",\"reflectOwnedFiles\",\"searchMonitored\","
-                + "\"readSceneStatus\",\"readSceneExclusions\",\"searchScene\"]",
+                + "\"readSceneStatus\",\"readSceneExclusions\",\"searchScene\","
+                + "\"monitorScene\"]",
             JsonSerializer.Serialize(
                 GenerationCapabilities.For(WhisparrGeneration.V3).Held, HostJsonOptions));
 

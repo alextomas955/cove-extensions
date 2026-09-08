@@ -242,6 +242,15 @@ internal static class V3BodyProjector
         return new StudioEditorResource(studioIds: new List<int> { entityId }, monitored: monitored);
     }
 
+    /// <summary>Sets only the monitored flag on one scene.</summary>
+    /// <remarks>
+    /// The patch resource declares the flag and no other member at all, so the profile, the root
+    /// folder, the tags and the file the instance holds for that scene are left alone. The scene is
+    /// named by the route's own segment, which is why no identifier is composed here.
+    /// </remarks>
+    internal static MoviePatchResource SceneMonitorPatch(bool monitored)
+        => new(monitored: monitored);
+
     /// <summary>Sets only the monitored flag on the performer <paramref name="entityId"/> names.</summary>
     /// <inheritdoc cref="SetStudioMonitored" path="/remarks"/>
     internal static PerformerEditorResource SetPerformerMonitored(int entityId, bool monitored)

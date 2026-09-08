@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
+using WhisparrSync.Scene;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
@@ -89,7 +90,8 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         IWhisparrSearchGrabbing,
         IWhisparrSceneSearchGrabbing,
         IWhisparrSceneStatusReading,
-        IWhisparrSceneExclusionReading
+        IWhisparrSceneExclusionReading,
+        IWhisparrSceneMonitorActing
 {
     private const string JsonContentType = "application/json; charset=utf-8";
 
@@ -278,6 +280,15 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             {
                 Kind = WhisparrEntityKind.Performer,
                 EntityId = entityId,
+                Monitored = monitored,
+            });
+
+    public Task<WhisparrResponse> SetSceneMonitoredAsync(
+        Uri baseAddress, string apiKey, int sceneId, bool monitored, CancellationToken ct)
+        => RecordActing(
+            new ActingCall(nameof(SetSceneMonitoredAsync), baseAddress, apiKey)
+            {
+                EntityId = sceneId,
                 Monitored = monitored,
             });
 
