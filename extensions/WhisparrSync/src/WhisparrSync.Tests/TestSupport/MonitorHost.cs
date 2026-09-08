@@ -82,6 +82,9 @@ internal sealed class MonitorHost : IAsyncDisposable
     /// <summary>The scene-identity source over this host's own library, as the routes resolve it.</summary>
     public IEntitySceneIdentityPort SceneIdentities { get; private set; } = null!;
 
+    /// <summary>The scene-card identity source over this host's own library, as the route resolves it.</summary>
+    public ILibraryCardIdentityPort CardIdentities { get; private set; } = null!;
+
     /// <summary>The bytes that actually left, or null where this host stands the recorder instead.</summary>
     public BodyRecordingHandler? Bytes { get; private set; }
 
@@ -178,6 +181,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         host.Identities = new EntityIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.Identities);
         builder.Services.AddSingleton<ILibraryStatusPort>(new LibraryStatusPort(host.Identities));
+        host.CardIdentities = new LibraryCardIdentityPort(host._db, options);
+        builder.Services.AddSingleton(host.CardIdentities);
         host.Folders = new EntityFolderPort(host._db);
         builder.Services.AddSingleton(host.Folders);
         host.SceneIdentities = new EntitySceneIdentityPort(host._db, options);
