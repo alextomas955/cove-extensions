@@ -26,6 +26,7 @@ import {
   test as base,
   connectWhisparr,
   expect,
+  EXTENSION_ID,
   extensionRoute,
   seedCovePerformer,
   seedCoveStudio,
@@ -75,6 +76,15 @@ const STATE_WORDS = ["Monitored", "Unmonitored", "Not added", "Excluded", "Statu
 /** A real StashDB studio id. The library stores it, and the extension names the instance by it. */
 const BRAZZERS_EXXTRA = "39cee498-a9ac-4403-910a-1a0157ad22d8";
 
+/**
+ * The source the v2 generation identifies entities against, transcribed by hand the same way as its
+ * sibling.
+ *
+ * A studio the older generation can be asked about carries its id under this spelling, so a row
+ * written for the other generation is one it cannot be named by.
+ */
+const THEPORNDB_ENDPOINT = "https://theporndb.net/graphql";
+
 const BUNDLE_BUDGET_MS = 60_000;
 const BUNDLE_ATTEMPTS = 3;
 const GRID_BUDGET_MS = 60_000;
@@ -113,6 +123,15 @@ const test = base.extend({
  */
 const statusToggle = (page) =>
   page.getByRole("button", { name: new RegExp(`^(${SHOW_STATUS}|${HIDE_STATUS})`) });
+
+/**
+ * The host's own in-card extension box, which it renders only where something registers for that
+ * card's slot.
+ *
+ * This extension is the only one installed, so a count of zero over a page of cards is the
+ * registration being absent and not a component drawing nothing.
+ */
+const cardExtensionBoxes = (scope) => scope.locator(".card-extension");
 
 /** The badge's own strip, which is the element the host clips. */
 const badgeStrip = (scope) => scope.locator(".card-extension > div");
@@ -310,6 +329,60 @@ async function seedScene(coveApi, whisparr, { label, onInstance, monitored = fal
     remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId }],
   });
   return { ...video, title, remoteId };
+}
+
+/**
+ * Starts both generations, runs `body`, and stops them either way.
+ *
+ * Both in one run: what is measured is the difference between two connections, and a run that
+ * started one of them only would compare a generation with itself.
+ */
+async function usingBothGenerations(harness, api, body) {
+  const whisparr = await startWhisparr({
+    network: harness.container.getNetworkNames()[0],
+    generations: ["v3", "v2"],
+  });
+  try {
+    whisparr.v3.rootFolder = await registerRootFolder(
+      whisparr.v3.container,
+      whisparr.apiFor("v3"),
+      "v3",
+      WHISPARR_ROOT,
+    );
+    await connectWhisparr(api, whisparr, "v2");
+    await body(whisparr);
+  } finally {
+    await whisparr.stop();
+  }
+}
+
+/**
+ * Opens a list page in its default grid display mode with its cards on screen, expecting no control
+ * of this extension's.
+ *
+ * Held apart from `openList`, which waits for the control: a page the control is absent from is what
+ * this asks about, so waiting for it would time out before anything was read.
+ */
+async function openListWithoutTheControl(page, baseUrl, path, cards, where) {
+  await visit(page, baseUrl, path, cards.first(), where);
+  await page.waitForTimeout(SETTLE_DWELL_MS);
+}
+
+/**
+ * Every slot this extension registers in the manifest the browser is served.
+ *
+ * The DOM cannot report a slot the host renders no element for at all, which is the host's own
+ * full-width row below a list toolbar, so that one is read from the registration the page was built
+ * from.
+ */
+async function registeredSlots(api) {
+  const manifest = await api.get("/api/extensions/manifest");
+  expect(manifest.status, `GET the extension manifest answered ${String(manifest.status)}`).toBe(
+    200,
+  );
+  return (manifest.json?.slots ?? [])
+    .filter((entry) => entry.extensionId === EXTENSION_ID)
+    .map((entry) => entry.slot);
 }
 
 /** Puts one identifier on the instance's own exclusion list, through the route that keeps it. */
@@ -879,6 +952,119 @@ test.describe("library status", () => {
         strip.height,
         "the badge strip is taller than one chip and its padding, so it wrapped",
       ).toBeLessThanOrEqual(chip.height + 13);
+    });
+  });
+
+  test("the videos and performers surfaces are absent on the older generation, and return when it is switched away from", async ({
+    page,
+    baseUrl,
+    libraryHarness,
+  }) => {
+    test.setTimeout(900_000);
+
+    const coveApi = apiFor(libraryHarness);
+
+    await usingBothGenerations(libraryHarness, coveApi, async (whisparr) => {
+      const video = await seedScene(coveApi, whisparr, {
+        label: "Switched",
+        onInstance: true,
+        monitored: true,
+      });
+      const performerId = randomUUID();
+      await seedCovePerformer(coveApi, {
+        name: `Performer ${performerId.slice(0, 8)}`,
+        remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: performerId }],
+      });
+
+      // The registration is what removes the surface, so the set the page was built from is read
+      // before the page is. The host renders no element at all for its full-width row slot, so that
+      // one is only assertable here.
+      const older = await registeredSlots(coveApi);
+      expect(
+        older.sort(),
+        "the older generation registers a videos-view slot, so a surface it has no meaning for is on the page",
+      ).toEqual(
+        [
+          "performer-detail-actions",
+          "studio-card-footer",
+          "studio-detail-actions",
+          "studios-list-toolbar-end",
+        ].sort(),
+      );
+      expect(
+        older.filter((slot) => slot.endsWith("-list-row")),
+        "a full-width row below a list toolbar is registered, so the dropped count row is not absent",
+      ).toEqual([]);
+
+      for (const [path, cards, where] of [
+        ["/videos", videoCards(page), "the videos page"],
+        ["/performers", studioCards(page), "the performers page"],
+      ]) {
+        await openListWithoutTheControl(page, baseUrl, path, cards, where);
+
+        await expect(
+          statusToggle(page),
+          `${where}: the older generation drew a Whisparr status control`,
+        ).toHaveCount(0);
+        await expect(
+          cardExtensionBoxes(page),
+          `${where}: the older generation drew the host's in-card extension box, so a surface renders empty rather than being absent`,
+        ).toHaveCount(0);
+      }
+
+      // The studios page keeps both on this generation: a studio monitors as a series matched by
+      // ThePornDB there, so its id is written under that source.
+      const studio = await seedCoveStudio(coveApi, {
+        name: `Older ${randomUUID().slice(0, 8)}`,
+        remoteIds: [{ endpoint: THEPORNDB_ENDPOINT, remoteId: randomUUID() }],
+      });
+
+      await openStudios(page, baseUrl);
+      await statusToggle(page).click();
+
+      // The registration mounted, which is the same fact read as an absence above and the reason
+      // the two pages differ on one connection. The host draws this box for a registered card slot
+      // whatever the component inside it returns.
+      await expect(
+        cardExtensionBoxes(cardFor(page, studio.name)),
+        "the older generation drew no in-card extension box on a studio card, so the studio surfaces went with the videos ones",
+      ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
+
+      test.info().annotations.push({
+        type: "narrowed-assertion",
+        description:
+          "the studio card's own state chip is not asserted on this generation: its read resolves the stored identifier through the vendor's metadata service before it reaches the instance, which no container run can reach, so a read that established nothing draws nothing by design. What is asserted here is that the studio slots are registered and mounted on this generation, which is the half the generation gate decides.",
+      });
+
+      // Switched back and reloaded. The browser fetches the manifest and nothing pushes it, so this
+      // is the mechanism the whole gate depends on.
+      await connectWhisparr(coveApi, whisparr, "v3");
+
+      const newer = await registeredSlots(coveApi);
+      expect(
+        newer.filter((slot) => !older.includes(slot)).sort(),
+        "switching the connection back changed no registration, so the manifest is not re-read",
+      ).toEqual(
+        [
+          "performer-card-footer",
+          "performers-list-toolbar-end",
+          "video-card-content",
+          "videos-list-toolbar-end",
+        ].sort(),
+      );
+
+      await openList(page, baseUrl, "/videos", videoCards(page), "the videos page");
+      await statusToggle(page).click();
+
+      const videoChip = stateChips(videoCardFor(page, video.title));
+      await expect(
+        videoChip,
+        "the videos surfaces did not return after the connection was switched back and the page reloaded",
+      ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
+      await expect(
+        videoChip,
+        "the scene's chip reads something outside this product's own five-state vocabulary",
+      ).toHaveText(STATE_CHIP_TEXT);
     });
   });
 });
