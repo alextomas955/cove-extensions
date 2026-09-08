@@ -20,7 +20,7 @@
 export const TOGGLE_CLASS =
   "inline-flex items-center justify-center rounded-lg p-2 transition-colors";
 
-/** The control while the badges are on. This is the one place this phase spends the accent. */
+/** The control while the badges are on. This is the only element that carries the accent. */
 export const TOGGLE_ON_CLASS = "text-accent";
 
 /** The control while they are off. */
