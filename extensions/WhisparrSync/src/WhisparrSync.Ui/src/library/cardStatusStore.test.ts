@@ -165,3 +165,39 @@ test("a page holding more cards than one request may carry answers every one of 
   const silent = coveIds.filter((coveId) => readCardStatus("studio", coveId) === null);
   expect(silent, "a card past the route's bound drew no badge").toEqual([]);
 });
+
+test("a request that never answered is stated on the page rather than left silent", async () => {
+  requestJson.mockRejectedValue(new Error("the route refused the body"));
+
+  let told = 0;
+  const unsubscribe = subscribeCardStatus(() => {
+    told += 1;
+  });
+
+  register(6);
+  await settle();
+
+  expect(cardStatusRefusal(), "a failed request left the page with no reason at all").toBe(
+    "statusCouldNotBeRead",
+  );
+  expect(readCardStatus("studio", 6), "a failed request left a reading behind").toBeNull();
+  expect(cardStatusSettled("studio", 6)).toBe(true);
+  expect(told, "the failure arrived and nothing was told about it").toBeGreaterThan(0);
+
+  unsubscribe();
+});
+
+test("a retry that failed states its own reason rather than the one before it", async () => {
+  answering({ rows: [{ coveId: 7, reading: null }], refusal: "instanceUnreachable" });
+  register(7);
+  await settle();
+  expect(cardStatusRefusal()).toBe("instanceUnreachable");
+
+  requestJson.mockRejectedValue(new Error("Cove answered nothing"));
+  register(8);
+  await settle();
+
+  expect(cardStatusRefusal(), "the page kept stating the reason from the batch before it").toBe(
+    "statusCouldNotBeRead",
+  );
+});
