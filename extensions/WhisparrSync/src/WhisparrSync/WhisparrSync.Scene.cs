@@ -24,7 +24,7 @@ public sealed partial class WhisparrSync
     /// identifier for costs no request.
     /// </para>
     /// <para>
-    /// Nothing is cached. The read happens on every open, so what the tab states is what the
+    /// Nothing is cached. Both reads happen on every open, so what the tab states is what the
     /// instance holds at that moment.
     /// </para>
     /// </remarks>
@@ -87,7 +87,15 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(NothingWasSent(SceneRefusalKind.DidNotReachWhisparr));
         }
 
-        return TypedResults.Ok(SceneDetailProjector.Project(answered));
+        // A profile read that answers nothing is not a failed tab: the scene's own facts stand, and
+        // the two the profile carries are reported as unestablished.
+        var profiles = await ContainedAsync(
+            () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+
+        return TypedResults.Ok(SceneDetailProjector.Project(answered, profiles));
     }
 
     /// <summary>An answer claiming nothing about the instance, and the reason it claims nothing.</summary>
