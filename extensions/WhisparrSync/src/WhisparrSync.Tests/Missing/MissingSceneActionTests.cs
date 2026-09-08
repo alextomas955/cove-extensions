@@ -33,6 +33,14 @@ public sealed class MissingSceneActionTests
     /// <summary>The instance's own identifier for the scene, as its row carries one.</summary>
     private const int SceneOnTheInstance = 812;
 
+    /// <summary>The command as the instance reports it, under the identifier it issued.</summary>
+    /// <remarks>
+    /// Both the post and the read-back answer this resource, so the two agree on the identifier and
+    /// the verb reports the search as one the instance holds.
+    /// </remarks>
+    private const string PostedCommandRow =
+        """{"id":9001,"name":"MoviesSearch","status":"queued"}""";
+
     /// <summary>One row, as the instance answers a per-scene read for a scene it holds.</summary>
     private static string HeldSceneRow(bool monitored)
         => $$"""[{"id":{{SceneOnTheInstance}},"monitored":{{(monitored ? "true" : "false")}}}]""";
@@ -259,7 +267,8 @@ public sealed class MissingSceneActionTests
     {
         var handler = BodyRecordingHandler.AnsweringInTurn(
             (HttpStatusCode.OK, HeldSceneRow(monitored: true)),
-            (HttpStatusCode.Created, "{}"));
+            (HttpStatusCode.Created, PostedCommandRow),
+            (HttpStatusCode.OK, PostedCommandRow));
         await using var host = await MonitorHost.CreateAsync(bytes: handler);
         var studioId = await StudioIn(host);
 
@@ -279,23 +288,27 @@ public sealed class MissingSceneActionTests
         Assert.DoesNotContain(SceneId, command.Body, StringComparison.Ordinal);
     }
 
-    /// <summary>The scene is read before any command is sent.</summary>
+    /// <summary>The scene is read before the command, and the command is read after it.</summary>
     /// <remarks>
     /// The command names the instance's own identifier and the browser holds only the provider's, so
-    /// a command sent first would name an identifier nothing had answered.
+    /// a command sent first would name an identifier nothing had answered. The read that follows is
+    /// the command read back by the identifier the instance issued.
     /// </remarks>
     [Fact]
-    public async Task TheSceneIsReadBeforeTheCommandIsSent()
+    public async Task TheSceneIsReadBeforeTheCommandAndTheCommandIsReadAfterIt()
     {
         var handler = BodyRecordingHandler.AnsweringInTurn(
             (HttpStatusCode.OK, HeldSceneRow(monitored: true)),
-            (HttpStatusCode.Created, "{}"));
+            (HttpStatusCode.Created, PostedCommandRow),
+            (HttpStatusCode.OK, PostedCommandRow));
         await using var host = await MonitorHost.CreateAsync(bytes: handler);
         var studioId = await StudioIn(host);
 
         await ReadResultAsync(await host.PostRawAsync("studio", studioId, SearchVerb(SceneId), "{}"));
 
-        Assert.Equal([HttpMethod.Get, HttpMethod.Post], handler.Requests.Select(sent => sent.Method));
+        Assert.Equal(
+            [HttpMethod.Get, HttpMethod.Post, HttpMethod.Get],
+            handler.Requests.Select(sent => sent.Method));
     }
 
     /// <summary>
@@ -336,7 +349,8 @@ public sealed class MissingSceneActionTests
     {
         var handler = BodyRecordingHandler.AnsweringInTurn(
             (HttpStatusCode.OK, HeldSceneRow(monitored)),
-            (HttpStatusCode.Created, "{}"));
+            (HttpStatusCode.Created, PostedCommandRow),
+            (HttpStatusCode.OK, PostedCommandRow));
         await using var host = await MonitorHost.CreateAsync(bytes: handler);
         var studioId = await StudioIn(host);
 
