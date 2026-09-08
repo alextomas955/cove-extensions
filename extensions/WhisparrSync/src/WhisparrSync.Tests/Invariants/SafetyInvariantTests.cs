@@ -73,6 +73,7 @@ internal static class OutboundSeam
             [nameof(IWhisparrClient.ReadRootFoldersAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrClient.ReadQualityProfilesAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrClient.ReadHistoryAsync)] = WhisparrVerbClass.Read,
+            [nameof(IWhisparrClient.ReadCommandAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrClient.CreateNotificationAsync)] = WhisparrVerbClass.Configure,
             [nameof(IWhisparrClient.UpdateNotificationAsync)] = WhisparrVerbClass.Configure,
             [nameof(IWhisparrStudioActing.ReadStudioAsync)] = WhisparrVerbClass.Read,
