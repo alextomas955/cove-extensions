@@ -175,7 +175,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
 
         services.AddMissingProviders();
         services.AddMissingDerivation();
-        services.AddLibraryStatus();
+        services.AddLibraryStatus(_log);
     }
 
     public override async Task InitializeAsync(

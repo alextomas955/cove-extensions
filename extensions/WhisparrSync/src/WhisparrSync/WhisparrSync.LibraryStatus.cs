@@ -93,7 +93,8 @@ public sealed partial class WhisparrSync
         CancellationToken ct)
         => ReadingEntity(entityKind, target) is { } reading
             ? await cards
-                .ReadEntityCardsAsync(reading, entityKind, target.Generation, coveIds, ct)
+                .ReadEntityCardsAsync(
+                    reading, entityKind, target.Generation, target.BaseAddress, coveIds, ct)
                 .ConfigureAwait(false)
             : null;
 
@@ -127,6 +128,7 @@ public sealed partial class WhisparrSync
                 target.Capabilities.Obtain<IWhisparrSceneExclusionReading>(),
                 target.BaseAddress,
                 target.ApiKey,
+                target.Generation,
                 identities,
                 ct)
             .ConfigureAwait(false);
