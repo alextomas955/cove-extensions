@@ -262,10 +262,6 @@ internal sealed class WhisparrClient(
     // stops at a stored position can read, and a call site free to spell it could ask for another.
     private const string NewestFirstSortKey = "date";
 
-    // The field the older generation's own lookup answers an entity's numeric id in. It is misnamed
-    // after an unrelated television database and names no such thing here.
-    private const string SeriesByEntityIdQuery = "tvdbId";
-
     // The one query key on the newer generation that narrows a catalogue read to one scene.
     private const string SceneByRemoteIdQuery = "stashId";
 
@@ -505,10 +501,6 @@ internal sealed class WhisparrClient(
     /// added, and its own listing is what says whether it has been. The second read names the one
     /// entity the lookup resolved, so what it answers does not vary with how much the instance holds,
     /// and only the matched entry is carried onward.
-    /// <para>
-    /// The query value is the numeric id the lookup answered and is not escaped: an int has no
-    /// representation carrying a separator, so escaping it would imply it could name another route.
-    /// </para>
     /// </remarks>
     private async Task<WhisparrResponse> ReadHeldSeriesAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
@@ -519,13 +511,11 @@ internal sealed class WhisparrClient(
             return resolved.Answer;
         }
 
-        var listed = await ReadAsync(
+        var listed = await GeneratedV2ReadAsync(
             baseAddress,
             apiKey,
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"{SeriesPath}?{SeriesByEntityIdQuery}={site.EntityId}"),
-            ct).ConfigureAwait(false);
+            api => api.Api<V2Api.ISeriesApi>().ListSeriesAsync(
+                tvdbId: site.EntityId, cancellationToken: ct)).ConfigureAwait(false);
         if (Refused(listed))
         {
             return listed;
@@ -567,13 +557,11 @@ internal sealed class WhisparrClient(
     private async Task<(V2Site? Site, WhisparrResponse Answer)> ResolveSiteAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
     {
-        var lookup = await ReadAsync(
+        var lookup = await GeneratedV2ReadAsync(
             baseAddress,
             apiKey,
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"{SeriesLookupPath}?term={Uri.EscapeDataString(V2BodyProjector.LookupTerm(foreignId))}"),
-            ct).ConfigureAwait(false);
+            api => api.Api<V2Api.ISeriesLookupApi>().ListSeriesLookupAsync(
+                V2BodyProjector.LookupTerm(foreignId), ct)).ConfigureAwait(false);
 
         if (Refused(lookup))
         {
