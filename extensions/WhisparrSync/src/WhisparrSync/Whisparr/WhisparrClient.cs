@@ -634,7 +634,7 @@ internal sealed class WhisparrClient(
         CancellationToken ct)
     {
         var command = V3BodyProjector.RefreshCatalogue(kind, entityId);
-        return GeneratedActCommandAsync(baseAddress, apiKey, command, ct);
+        return GeneratedCommandAsync(baseAddress, apiKey, command, ct);
     }
 
     // The operation is chosen here from the entity kind, so no caller can aim the stored credential
@@ -783,7 +783,7 @@ internal sealed class WhisparrClient(
 
     public Task<WhisparrResponse> AttachOwnedFilesAsync(
         Uri baseAddress, string apiKey, JsonNode files, CancellationToken ct)
-        => GeneratedActCommandAsync(baseAddress, apiKey, ReflectOwnedPlanner.Command(files), ct);
+        => GeneratedCommandAsync(baseAddress, apiKey, ReflectOwnedPlanner.Command(files), ct);
 
     // The one member of this whole seam that can make an instance acquire anything, and the only one
     // whose invocation is recorded on its own. Its verb class has no retry entry, so an attempt whose
@@ -800,7 +800,7 @@ internal sealed class WhisparrClient(
 
         return generation switch
         {
-            WhisparrGeneration.V3 => GeneratedGrabCommandAsync(
+            WhisparrGeneration.V3 => GeneratedCommandAsync(
                 baseAddress, apiKey, V3BodyProjector.SearchMonitored(kind, entityId), ct),
             WhisparrGeneration.V2 => GeneratedV2GrabCommandAsync(
                 baseAddress, apiKey, V2BodyProjector.SearchMonitored(entityId), ct),
@@ -817,7 +817,7 @@ internal sealed class WhisparrClient(
     {
         WhisparrSyncLog.SceneSearchIssued(log);
 
-        return GeneratedGrabCommandAsync(baseAddress, apiKey, V3BodyProjector.SearchScene(sceneId), ct);
+        return GeneratedCommandAsync(baseAddress, apiKey, V3BodyProjector.SearchScene(sceneId), ct);
     }
 
     // The identifier comes from a stored identity row rather than from a caller. The generated client
@@ -905,19 +905,9 @@ internal sealed class WhisparrClient(
         where TResponse : V3Client.IApiResponse
         => GeneratedSendAsync(TargetFor(baseAddress, apiKey), call);
 
-    // Every instance-side action a generation takes is issued through the one command route, so the
-    // class of work is carried by the helper a call site names and not by the route.
-    private Task<WhisparrResponse> GeneratedActCommandAsync(
-        Uri baseAddress, string apiKey, JsonObject command, CancellationToken ct)
-        => GeneratedCommandAsync(baseAddress, apiKey, command, ct);
-
-    // Named apart from the acting command because the class of work is what the retry policy is
-    // keyed on: an attempt count added for the acting class must not silently cover the one class
-    // that downloads.
-    private Task<WhisparrResponse> GeneratedGrabCommandAsync(
-        Uri baseAddress, string apiKey, JsonObject command, CancellationToken ct)
-        => GeneratedCommandAsync(baseAddress, apiKey, command, ct);
-
+    // Every instance-side action this generation takes is issued through the one command route. Sent
+    // once. The acting class and the grabbing class both reach the route through this send, so an
+    // attempt count added here would cover the class that downloads.
     private Task<WhisparrResponse> GeneratedCommandAsync(
         Uri baseAddress, string apiKey, JsonObject command, CancellationToken ct)
     {
@@ -989,9 +979,8 @@ internal sealed class WhisparrClient(
         where TResponse : V2Client.IApiResponse
         => GeneratedV2SendAsync(V2TargetFor(baseAddress, apiKey), call);
 
-    // Sent once, and named for the grabbing class for the reason the newer generation's grabbing
-    // command is: an attempt count added for the acting class must not silently cover the one class
-    // that downloads.
+    // Sent once. The grabbing class is the only one that reaches this generation's command route, so
+    // an attempt count added here covers no other class.
     private Task<WhisparrResponse> GeneratedV2GrabCommandAsync(
         Uri baseAddress, string apiKey, JsonObject command, CancellationToken ct)
     {
