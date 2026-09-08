@@ -9,11 +9,15 @@
  * A card the extension cannot speak for draws nothing at all, and so does a card whose read has not
  * answered. Nothing here is a spinner and nothing here is a second row: the host clips this box, and
  * a wrapped label disappears below the clip with no error.
+ *
+ * The unknown state is the Missing tab's, and a badge here never draws it: a read that established
+ * nothing draws nothing, and the reason is stated once for the page on the toolbar control that
+ * asked for it.
  */
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { StateChip } from "../common/ui/StateChip";
-import { deriveState } from "../common/ui/stateVocabularyLogic";
+import { deriveState, type WhisparrEntityState } from "../common/ui/stateVocabularyLogic";
 import type { LibraryCardKind } from "./cardStatusStore";
 import { BADGE_STRIP_CLASS } from "./libraryClasses";
 import { useLibraryStatusOn } from "./libraryToggleStore";
@@ -27,10 +31,13 @@ function EntityCardBadge({ kind, coveId }: { kind: LibraryCardKind; coveId: numb
   const on = useLibraryStatusOn();
   const { reading, settled } = useCardStatus(kind, coveId, on);
 
+  const state: WhisparrEntityState | null = reading === null ? null : deriveState(reading);
+  const drawn = state === "statusUnknown" ? null : state;
+
   const region = deriveAsyncRegionState({
     reading: on && !settled,
     failed: false,
-    hasContent: reading !== null,
+    hasContent: drawn !== null,
   });
 
   return (
@@ -44,9 +51,9 @@ function EntityCardBadge({ kind, coveId }: { kind: LibraryCardKind; coveId: numb
       empty={null}
       failed={null}
       content={
-        reading === null ? null : (
+        drawn === null ? null : (
           <div className={BADGE_STRIP_CLASS}>
-            <StateChip state={deriveState(reading)} />
+            <StateChip state={drawn} />
           </div>
         )
       }
