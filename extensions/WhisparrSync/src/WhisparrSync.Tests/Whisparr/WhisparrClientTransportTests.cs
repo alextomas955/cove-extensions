@@ -386,6 +386,31 @@ public sealed class WhisparrClientTransportTests
         Assert.Equal(SomeKey, Assert.Single(request.Headers.GetValues(WhisparrClient.ApiKeyHeader)));
     }
 
+    /// <summary>Each entity kind is read on the route its own operation composes.</summary>
+    /// <remarks>
+    /// One case per kind. The presence read picks the operation from the kind, and both routes are
+    /// reached by other members as well, so a set of driven routes cannot tell the two apart. An
+    /// identifier sent to the other kind's route is answered with a not-found, which reads as an
+    /// instance that does not hold the entity.
+    /// </remarks>
+    [Theory]
+    [InlineData(WhisparrEntityKind.Studio, "/api/v3/studio/an-id")]
+    [InlineData(WhisparrEntityKind.Performer, "/api/v3/performer/an-id")]
+    public async Task EachEntityKindIsReadOnItsOwnRoute(WhisparrEntityKind kind, string expected)
+    {
+        var handler = StubHandler.Answering(Answer(200, "application/json", "{}"));
+        using var http = new HttpClient(handler);
+
+        await TestWhisparrClient.Over(http, handler).ReadEntityPresenceAsync(
+            new Uri("http://whisparr:6969"),
+            SomeKey,
+            kind,
+            "an-id",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, Assert.Single(handler.Requests).RequestUri?.AbsolutePath);
+    }
+
     /// <summary>A read whose first attempt reached nothing is issued a second time.</summary>
     [Fact]
     public async Task AReadThatReachedNothingIsIssuedASecondTime()
