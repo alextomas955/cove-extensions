@@ -58,26 +58,40 @@ public sealed class AbsentCapabilityTests
     /// name hundreds this product never calls and would agree with itself whichever ones it did.
     /// <see cref="TheGeneratedClientDeclaresEveryOperationThisProductNames"/> is what refuses a name
     /// the generated client does not declare.
+    /// <para>
+    /// Each row names its own generation, because the two generations serve the same route strings and
+    /// each declares its operations in an assembly of its own. The generation is what picks the
+    /// assembly a row is reflected against. The routes are read as a union, since a driven request
+    /// carries nothing saying which generation issued it.
+    /// </para>
     /// </remarks>
-    private static readonly (string Api, string Operation, string Route)[] GeneratedRoutes =
+    private static readonly (WhisparrGeneration Generation, string Api, string Operation, string Route)[]
+        GeneratedRoutes =
     [
-        ("ISystemApi", "GetSystemStatusAsync", "api/v3/system/status"),
-        ("INotificationApi", "ListNotificationAsync", "api/v3/notification"),
-        ("INotificationApi", "ListNotificationSchemaAsync", "api/v3/notification/schema"),
-        ("IRootFolderApi", "ListRootFolderAsync", "api/v3/rootfolder"),
-        ("IQualityProfileApi", "ListQualityProfileAsync", "api/v3/qualityprofile"),
-        ("IHistoryApi", "GetHistoryAsync", "api/v3/history"),
-        ("IStudioApi", "GetStudioByStudioForeignIdAsync", "api/v3/studio"),
-        ("IStudioApi", "CreateStudioAsync", "api/v3/studio"),
-        ("IStudioEditorApi", "PutStudioEditorAsync", "api/v3/studio/editor"),
-        ("IPerformerApi", "GetPerformerByPerformerForeignIdAsync", "api/v3/performer"),
-        ("IPerformerApi", "CreatePerformerAsync", "api/v3/performer"),
-        ("IPerformerEditorApi", "PutPerformerEditorAsync", "api/v3/performer/editor"),
-        ("IMovieApi", "CreateMovieAsync", "api/v3/movie"),
-        ("IMovieApi", "ListMovieAsync", "api/v3/movie"),
-        ("IManualImportApi", "ListManualImportAsync", "api/v3/manualimport"),
-        ("IMediaManagementConfigApi", "GetMediaManagementConfigAsync", "api/v3/config/mediamanagement"),
-        ("CommandApi", "SendCommandAsync", "api/v3/command"),
+        (WhisparrGeneration.V3, "ISystemApi", "GetSystemStatusAsync", "api/v3/system/status"),
+        (WhisparrGeneration.V3, "INotificationApi", "ListNotificationAsync", "api/v3/notification"),
+        (WhisparrGeneration.V3, "INotificationApi", "ListNotificationSchemaAsync", "api/v3/notification/schema"),
+        (WhisparrGeneration.V3, "IRootFolderApi", "ListRootFolderAsync", "api/v3/rootfolder"),
+        (WhisparrGeneration.V3, "IQualityProfileApi", "ListQualityProfileAsync", "api/v3/qualityprofile"),
+        (WhisparrGeneration.V3, "IHistoryApi", "GetHistoryAsync", "api/v3/history"),
+        (WhisparrGeneration.V3, "IStudioApi", "GetStudioByStudioForeignIdAsync", "api/v3/studio"),
+        (WhisparrGeneration.V3, "IStudioApi", "CreateStudioAsync", "api/v3/studio"),
+        (WhisparrGeneration.V3, "IStudioEditorApi", "PutStudioEditorAsync", "api/v3/studio/editor"),
+        (WhisparrGeneration.V3, "IPerformerApi", "GetPerformerByPerformerForeignIdAsync", "api/v3/performer"),
+        (WhisparrGeneration.V3, "IPerformerApi", "CreatePerformerAsync", "api/v3/performer"),
+        (WhisparrGeneration.V3, "IPerformerEditorApi", "PutPerformerEditorAsync", "api/v3/performer/editor"),
+        (WhisparrGeneration.V3, "IMovieApi", "CreateMovieAsync", "api/v3/movie"),
+        (WhisparrGeneration.V3, "IMovieApi", "ListMovieAsync", "api/v3/movie"),
+        (WhisparrGeneration.V3, "IManualImportApi", "ListManualImportAsync", "api/v3/manualimport"),
+        (WhisparrGeneration.V3, "IMediaManagementConfigApi", "GetMediaManagementConfigAsync", "api/v3/config/mediamanagement"),
+        (WhisparrGeneration.V3, "CommandApi", "SendCommandAsync", "api/v3/command"),
+        (WhisparrGeneration.V2, "IHistoryApi", "GetHistoryAsync", "api/v3/history"),
+        (WhisparrGeneration.V2, "ISeriesLookupApi", "ListSeriesLookupAsync", "api/v3/series/lookup"),
+        (WhisparrGeneration.V2, "ISeriesApi", "ListSeriesAsync", "api/v3/series"),
+        (WhisparrGeneration.V2, "ISeriesApi", "CreateSeriesAsync", "api/v3/series"),
+        (WhisparrGeneration.V2, "ISeriesEditorApi", "PutSeriesEditorAsync", "api/v3/series/editor"),
+        (WhisparrGeneration.V2, "ISeasonPassApi", "CreateSeasonPassAsync", "api/v3/seasonpass"),
+        (WhisparrGeneration.V2, "CommandApi", "SendCommandAsync", "api/v3/command"),
     ];
 
     /// <summary>
@@ -146,27 +160,40 @@ public sealed class AbsentCapabilityTests
     /// or drops one fails here.
     /// </summary>
     /// <remarks>
-    /// Reflected over the generated assembly rather than compiled against, because the claim is about
-    /// the transcribed set: a name in <see cref="GeneratedRoutes"/> that the generated client does not
-    /// declare would otherwise be a route nobody can reach and a line nobody removed.
+    /// Reflected over the generated assembly, because the claim is about the transcribed set: a name in
+    /// <see cref="GeneratedRoutes"/> that the generated client does not declare would otherwise be a
+    /// route nobody can reach and a line nobody removed.
+    /// <para>
+    /// Each row is asserted against the one assembly its own generation ships. An operation name only
+    /// one generation declares would otherwise satisfy a row naming the other, and the check would then
+    /// be about neither.
+    /// </para>
     /// </remarks>
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
     public void TheGeneratedClientDeclaresEveryOperationThisProductNames()
     {
-        var generated = typeof(Whisparr3.Net.Whisparr3Options).Assembly;
-
         Assert.All(
             GeneratedRoutes,
             named =>
             {
-                var api = generated.GetType("Whisparr3.Net.Api." + named.Api);
+                var (generated, prefix) = GeneratedSurfaceOf(named.Generation);
+                var api = generated.GetType(prefix + named.Api);
                 Assert.NotNull(api);
                 Assert.Contains(
                     api.GetMethods(),
                     method => string.Equals(method.Name, named.Operation, StringComparison.Ordinal));
             });
     }
+
+    /// <summary>The assembly and namespace prefix <paramref name="generation"/> declares under.</summary>
+    private static (Assembly Generated, string Prefix) GeneratedSurfaceOf(WhisparrGeneration generation)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => (typeof(Whisparr3.Net.Whisparr3Options).Assembly, "Whisparr3.Net.Api."),
+            WhisparrGeneration.V2 => (typeof(Whisparr2.Net.Whisparr2Options).Assembly, "Whisparr2.Net.Api."),
+            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
+        };
 
     /// <summary>
     /// Every route the generated client puts on the wire for this product is one that was transcribed.
