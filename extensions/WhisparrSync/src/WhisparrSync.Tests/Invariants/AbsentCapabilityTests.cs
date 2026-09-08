@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
@@ -322,11 +323,12 @@ public sealed class AbsentCapabilityTests
     /// <remarks>
     /// Asserts absence. The seam's configuring half is the callback registration and nothing else.
     /// <para>
-    /// Two types hold a client to make a request with: the instance client, and the metadata
-    /// catalogue. The catalogue reads a third party rather than an instance, and it composes one verb
-    /// on one route, so it declares no member through which a mutation could be expressed. That is
-    /// asserted here rather than assumed, because a second holder of a client is otherwise a second
-    /// call site nothing constrains.
+    /// The types that can reach an instance are named: the instance client, the two metadata
+    /// catalogues, and the types each generation's gateway reaches its generated client through. A
+    /// catalogue reads a third party rather than an instance, and it composes one verb on one route,
+    /// so it declares no member through which a mutation could be expressed. The registry's own entry
+    /// type is named too, since it holds the provider a call is made through. That is asserted here
+    /// rather than assumed, because a holder nobody wrote down is a call site nothing constrains.
     /// </para>
     /// </remarks>
     [Fact]
@@ -341,12 +343,22 @@ public sealed class AbsentCapabilityTests
             OutboundSeam.MembersOf(WhisparrVerbClass.Configure));
 
         Assert.Equal(
-            [nameof(StashDbCatalogue), nameof(ThePornDbCatalogue), nameof(WhisparrClient)],
+            [
+                typeof(GeneratedClientRegistry<Whisparr3Target>).Name,
+                "Registration",
+                nameof(StashDbCatalogue),
+                nameof(ThePornDbCatalogue),
+                nameof(Whisparr2Apis),
+                nameof(Whisparr2Gateway),
+                nameof(Whisparr3Apis),
+                nameof(Whisparr3Gateway),
+                nameof(WhisparrClient),
+            ],
             TypesHoldingAnHttpClient().Order().ToList());
 
         // Each catalogue's own surface: every request it composes is the one read verb, so no member
         // takes a verb and none takes a route or a query key from a caller. Both are asserted, since
-        // the point of the list above is that a second holder of a client is a second call site.
+        // the point of the list above is that a holder of a client is a call site of its own.
         Assert.Empty(MembersTakingAVerbOrARouteOn(typeof(StashDbCatalogue)));
         Assert.Empty(MembersTakingAVerbOrARouteOn(typeof(ThePornDbCatalogue)));
     }
@@ -382,12 +394,49 @@ public sealed class AbsentCapabilityTests
             .Select(method => method.Name);
 
     /// <summary>Every type in this extension that holds something it could make a request with.</summary>
+    /// <remarks>
+    /// Closed over what a type holds and not over one field type: a gateway holds a registration
+    /// cache, the cache holds a provider, and the provider hands out a client already bound to the
+    /// stored credential. A holder one further indirection away is named here for that reason, and a
+    /// field's generic arguments count as held.
+    /// </remarks>
     private static IEnumerable<string> TypesHoldingAnHttpClient()
-        => typeof(IWhisparrClient).Assembly
+    {
+        var declared = typeof(IWhisparrClient).Assembly
             .GetTypes()
-            .Where(type => type
-                .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                .Any(field => typeof(HttpClient).IsAssignableFrom(field.FieldType)
-                    || typeof(IHttpClientFactory).IsAssignableFrom(field.FieldType)))
-            .Select(type => type.Name);
+            .Where(IsWritten)
+            .ToList();
+        var reaching = new HashSet<Type>();
+        List<Type> added;
+
+        do
+        {
+            added = declared
+                .Where(type => !reaching.Contains(type))
+                .Where(type => FieldsOf(type).Any(field => Reaches(field.FieldType, reaching)))
+                .ToList();
+            reaching.UnionWith(added);
+        }
+        while (added.Count > 0);
+
+        return reaching.Select(type => type.Name);
+    }
+
+    // A closure, an iterator and an async state machine each hold whatever the member they were
+    // emitted for captured, so the set would otherwise name a type nobody wrote and no edit can add
+    // to. The nesting chain is walked because only the outermost emitted type carries the attribute.
+    private static bool IsWritten(Type type)
+        => !type.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false)
+            && (type.DeclaringType is null || IsWritten(type.DeclaringType));
+
+    private static FieldInfo[] FieldsOf(Type type)
+        => type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+
+    private static bool Reaches(Type held, IReadOnlySet<Type> reaching)
+        => typeof(HttpClient).IsAssignableFrom(held)
+            || typeof(IHttpClientFactory).IsAssignableFrom(held)
+            || typeof(IServiceProvider).IsAssignableFrom(held)
+            || reaching.Contains(
+                held.IsConstructedGenericType ? held.GetGenericTypeDefinition() : held)
+            || held.GenericTypeArguments.Any(argument => Reaches(argument, reaching));
 }
