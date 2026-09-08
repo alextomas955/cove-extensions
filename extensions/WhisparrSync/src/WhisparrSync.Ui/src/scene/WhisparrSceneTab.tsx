@@ -22,7 +22,13 @@ import {
   INSTANCE_REFUSED,
   NO_IDENTITY_IN_THIS_NAMESPACE,
   NO_INSTANCE_CONNECTED,
+  SCENE_CUTOFF_NOT_NAMED,
+  SCENE_FACT_CUTOFF,
+  SCENE_FACT_PROFILE,
+  SCENE_FACT_QUALITY,
   SCENE_FACT_STATE,
+  SCENE_HAS_NO_FILE_YET,
+  SCENE_IS_NOT_IN_WHISPARR,
   SEVERAL_IDENTITIES_IN_THIS_NAMESPACE,
   THE_STATUS_READ_DID_NOT_COMPLETE,
   WHISPARR_KEEPS_NO_RECORD_OF_THESE,
@@ -71,15 +77,62 @@ function SceneFacts({ view }: { view: SceneDetailView }) {
   }
 
   return (
+    <>
+      {view.profileReadDidNotComplete ? (
+        <StatusText kind="warning">{THE_STATUS_READ_DID_NOT_COMPLETE}</StatusText>
+      ) : null}
+      <dl className="space-y-2 rounded-lg border border-border bg-card px-3 py-2">
+        <div className="flex items-center gap-3">
+          <dt className="text-xs text-secondary">{SCENE_FACT_STATE}</dt>
+          <dd className="text-sm text-foreground">
+            <StateChip
+              state={deriveState({
+                excluded: view.excluded,
+                present: view.present,
+                monitored: view.monitored,
+              })}
+            />
+          </dd>
+        </div>
+        <FactRow
+          label={SCENE_FACT_QUALITY}
+          named={view.qualityName}
+          absent={SCENE_HAS_NO_FILE_YET}
+        />
+        <FactRow
+          label={SCENE_FACT_PROFILE}
+          named={view.qualityProfileName}
+          absent={SCENE_IS_NOT_IN_WHISPARR}
+        />
+        <FactRow
+          label={SCENE_FACT_CUTOFF}
+          named={view.cutoffName}
+          absent={view.present === false ? SCENE_IS_NOT_IN_WHISPARR : SCENE_CUTOFF_NOT_NAMED}
+        />
+      </dl>
+    </>
+  );
+}
+
+function FactRow({
+  label,
+  named,
+  absent,
+}: {
+  label: string;
+  /** What the instance itself calls this, or null where it names nothing. */
+  named: string | null;
+  /** What the row states in the value's own place where the instance names nothing. */
+  absent: string;
+}) {
+  return (
     <div className="flex items-center gap-3">
-      <span className="text-xs text-secondary">{SCENE_FACT_STATE}</span>
-      <StateChip
-        state={deriveState({
-          excluded: view.excluded,
-          present: view.present,
-          monitored: view.monitored,
-        })}
-      />
+      <dt className="text-xs text-secondary">{label}</dt>
+      {/* An instance-supplied name has no bound, so it truncates and carries the whole of itself on
+          the element. An absent sentence is this product's own and needs neither. */}
+      <dd className="min-w-0 flex-1 truncate text-sm text-foreground" title={named ?? undefined}>
+        {named ?? absent}
+      </dd>
     </div>
   );
 }
