@@ -496,8 +496,8 @@ public sealed partial class WhisparrSync
 
     /// <summary>Whether the stored generation is positively the older one.</summary>
     /// <remarks>
-    /// False while no generation is established, so a store that has never been written to and one
-    /// that could not be read both keep every surface.
+    /// False for anything else, a generation nothing established included, so a store that could not
+    /// be read and a blob the model could not bind both keep every surface.
     /// </remarks>
     private bool SelectedGenerationIsOlder
         => string.Equals(
