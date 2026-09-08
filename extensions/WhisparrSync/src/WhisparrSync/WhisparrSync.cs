@@ -113,7 +113,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services => new CallbackSecretPort(services.GetRequiredService<DbContext>(), _log));
         services.AddScoped<IWhisparrNotificationPort>(
             services => new NotificationPort(services.GetRequiredService<IWhisparrClient>(), _log));
-        services.AddScoped(_ => new OptionsStore(Store, _log));
+        services.AddScoped(_ => NewOptionsStore());
         services.AddScoped<IEntityIdentityPort>(services => new EntityIdentityPort(
             services.GetRequiredService<DbContext>(),
             services.GetRequiredService<OptionsStore>()));
@@ -210,6 +210,20 @@ public sealed partial class WhisparrSync : FullExtensionBase
 
         await base.InitializeAsync(services, ct).ConfigureAwait(false);
     }
+
+    /// <summary>This extension's options store, publishing the generation each load establishes.</summary>
+    /// <remarks>
+    /// The manifest is built synchronously on a host thread, so it cannot load the store and reads
+    /// what the last load published instead. Publishing from the load rather than from this
+    /// extension's own save covers every writer of the blob, including the host's own
+    /// extension-data route, which reaches no code of this extension at all.
+    /// <para>
+    /// A factory over this instance rather than a type registration: the host hands an extension its
+    /// store through <c>IStatefulExtension.SetStore</c> and registers it in no container.
+    /// </para>
+    /// </remarks>
+    internal OptionsStore NewOptionsStore()
+        => new(Store, _log, generation => _selectedGeneration = generation);
 
     /// <summary>
     /// The stored generation's enum name, or null where the store could not be read.
