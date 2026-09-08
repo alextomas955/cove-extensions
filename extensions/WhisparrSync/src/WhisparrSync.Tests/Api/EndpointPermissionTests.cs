@@ -60,6 +60,7 @@ public sealed class EndpointPermissionTests
         "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/search-all-monitored",
         "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/scope",
         "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/unmonitor",
+        "POST /api/extensions/com.alextomas955.whisparrsync/library/{kind}/status",
         "PUT /api/extensions/com.alextomas955.whisparrsync/settings",
     ];
 
