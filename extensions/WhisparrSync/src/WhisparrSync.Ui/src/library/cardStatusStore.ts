@@ -23,6 +23,16 @@ import { createBatchCoalescer, type BatchCoalescer } from "./batchCoalescerLogic
  */
 export type LibraryCardKind = "video" | "studio" | "performer";
 
+/**
+ * The most identifiers one status request may carry.
+ *
+ * The route refuses a longer body outright, and how many cards mount at once is the host list page's
+ * own page size, which offers sizes well above this and remembers the one a reader chose. A page over
+ * the bound is therefore split across requests. `cardSlotProps.test.ts` pins this figure against the
+ * constant the route enforces.
+ */
+const IDS_PER_REQUEST = 40;
+
 const coalescers = new Map<LibraryCardKind, BatchCoalescer<LibraryCardReading>>();
 const refusals = new Map<LibraryCardKind, LibraryStatusRefusalKind>();
 const listeners = new Set<() => void>();
@@ -31,7 +41,7 @@ function emit(): void {
   for (const listener of listeners) listener();
 }
 
-/** One request for every card of `kind` that registered inside the same tick. */
+/** One request for the cards of `kind` handed over, up to the bound the route enforces. */
 async function readBatch(
   kind: LibraryCardKind,
   keys: string[],
@@ -51,7 +61,10 @@ function coalescerFor(kind: LibraryCardKind): BatchCoalescer<LibraryCardReading>
   const held = coalescers.get(kind);
   if (held !== undefined) return held;
 
-  const made = createBatchCoalescer<LibraryCardReading>((keys) => readBatch(kind, keys));
+  const made = createBatchCoalescer<LibraryCardReading>(
+    (keys) => readBatch(kind, keys),
+    IDS_PER_REQUEST,
+  );
   made.subscribe(emit);
   coalescers.set(kind, made);
   return made;

@@ -1,6 +1,6 @@
 /**
- * Folds every key requested within one scheduler tick into one fetch, so a page of cards costs one
- * request rather than one per card.
+ * Folds every key requested within one scheduler tick into as few fetches as the caller's bound
+ * allows, so a page of cards costs one request per `maxBatch` keys rather than one per card.
  *
  * The invariant this module holds: nothing is retained past the cards that asked for it. Each key is
  * held for as long as at least one caller holds its release, and the entry is dropped when the last
@@ -8,8 +8,9 @@
  * grow with how far someone scrolled.
  *
  * Import-free apart from its own relative siblings, so it runs with no environment and no mocks. The
- * injected `fetchBatch` owns the wire shape; a rejection from it resolves every key in that batch to
- * `null`, which is a card with no badge and never a thrown card.
+ * injected `fetchBatch` owns the wire shape; a rejection from it resolves every key in that fetch to
+ * `null`, which is a card with no badge and never a thrown card, and the keys after it are still
+ * asked about.
  */
 
 export interface BatchCoalescer<V> {
@@ -28,11 +29,15 @@ export interface BatchCoalescer<V> {
 }
 
 /**
- * @param fetchBatch resolves every not-yet-held key needed this tick to a value or `null`.
+ * @param fetchBatch resolves every key it is given to a value or `null`.
+ * @param maxBatch the most keys one fetch may carry. How many cards mount at once is the host page's
+ * own size and no caller here chooses it, so a tick holding more than this is split across fetches
+ * rather than sent whole or cut short.
  * @param schedule defers the flush one tick; a test injects a manual scheduler in its place.
  */
 export function createBatchCoalescer<V>(
   fetchBatch: (keys: string[]) => Promise<Map<string, V | null>>,
+  maxBatch: number,
   schedule: (flush: () => void) => void = (flush) => {
     queueMicrotask(flush);
   },
@@ -53,20 +58,26 @@ export function createBatchCoalescer<V>(
     queued = new Set();
     if (need.length === 0) return;
 
-    let answered: Map<string, V | null> | null = null;
-    try {
-      answered = await fetchBatch(need);
-    } catch {
-      answered = null;
-    }
+    // One fetch at a time: the reads behind each one are sequential against a third party, and a
+    // page's worth issued together would multiply that by however many fetches the page takes.
+    for (let from = 0; from < need.length; from += maxBatch) {
+      const sending = need.slice(from, from + maxBatch);
 
-    for (const key of need) {
-      // A key every holder released while the fetch was in flight is not stored, so its card
-      // leaves nothing behind.
-      if (!holders.has(key)) continue;
-      values.set(key, answered?.get(key) ?? null);
+      let answered: Map<string, V | null> | null = null;
+      try {
+        answered = await fetchBatch(sending);
+      } catch {
+        answered = null;
+      }
+
+      for (const key of sending) {
+        // A key every holder released while the fetch was in flight is not stored, so its card
+        // leaves nothing behind.
+        if (!holders.has(key)) continue;
+        values.set(key, answered?.get(key) ?? null);
+      }
+      notify();
     }
-    notify();
   }
 
   return {

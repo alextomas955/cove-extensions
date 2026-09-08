@@ -36,9 +36,15 @@ function register(coveId: number): void {
   releases.push(requestCardStatus("studio", coveId));
 }
 
-/** Lets the coalescer's microtask flush and its promise settle. */
+/** Every identifier one call carried, read off the request the store made. */
+function idsSent(call: number): number[] {
+  const [, options] = requestJson.mock.calls[call] as unknown as [string, { body: string }];
+  return (JSON.parse(options.body) as { coveIds: number[] }).coveIds;
+}
+
+/** Lets the coalescer's microtask flush and every request it makes settle. */
 async function settle(): Promise<void> {
-  for (let turn = 0; turn < 4; turn++) await Promise.resolve();
+  for (let turn = 0; turn < 16; turn++) await Promise.resolve();
 }
 
 beforeEach(() => {
@@ -124,4 +130,38 @@ test("the page's own reason is readable with no card carrying one", async () => 
   expect(told, "the reason arrived and nothing was told about it").toBeGreaterThan(0);
 
   unsubscribe();
+});
+
+test("a page holding more cards than one request may carry answers every one of them", async () => {
+  // A host page size above the route's bound, which is a size the list pages offer and remember.
+  const coveIds = Array.from({ length: 41 }, (_, index) => index + 100);
+  requestJson.mockImplementation((_path, options) => {
+    const sent = (JSON.parse((options as { body: string }).body) as { coveIds: number[] }).coveIds;
+    return Promise.resolve({
+      rows: sent.map((coveId) => ({
+        coveId,
+        reading: { excluded: false, present: true, monitored: true },
+      })),
+      refusal: "none",
+    });
+  });
+
+  for (const coveId of coveIds) register(coveId);
+  await settle();
+
+  expect(requestJson, "a page over the route's bound was sent as one body").toHaveBeenCalledTimes(
+    2,
+  );
+  for (let call = 0; call < 2; call++) {
+    expect(
+      idsSent(call).length,
+      "one request carried more than the route accepts",
+    ).toBeLessThanOrEqual(40);
+  }
+
+  // Every card, not a count: a bound applied by dropping identifiers would agree with a count of
+  // requests.
+  expect([...idsSent(0), ...idsSent(1)].sort()).toEqual([...coveIds].sort());
+  const silent = coveIds.filter((coveId) => readCardStatus("studio", coveId) === null);
+  expect(silent, "a card past the route's bound drew no badge").toEqual([]);
 });
