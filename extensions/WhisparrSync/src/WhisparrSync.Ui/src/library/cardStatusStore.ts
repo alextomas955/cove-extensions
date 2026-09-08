@@ -57,7 +57,7 @@ function coalescerFor(kind: LibraryCardKind): BatchCoalescer<LibraryCardReading>
   return made;
 }
 
-/** Subscribes to every change: a settled batch, and a page-level reason. */
+/** Subscribes to every change: a settled batch, a page-level reason, and how many cards asked. */
 export function subscribeCardStatus(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
@@ -65,9 +65,20 @@ export function subscribeCardStatus(listener: () => void): () => void {
   };
 }
 
-/** Registers one card and returns the release its component calls when it unmounts. */
+/**
+ * Registers one card and returns the release its component calls when it unmounts.
+ *
+ * Both ends emit, because the registered count is what the toolbar control reads to tell a display
+ * mode that mounts no card from one that mounts cards the extension cannot speak for.
+ */
 export function requestCardStatus(kind: LibraryCardKind, coveId: number): () => void {
-  return coalescerFor(kind).request(String(coveId));
+  const release = coalescerFor(kind).request(String(coveId));
+  emit();
+
+  return () => {
+    release();
+    emit();
+  };
 }
 
 /** What the instance holds for one card, or null where nothing was established for it. */
