@@ -24,6 +24,7 @@ function view(monitored: boolean): EntityMonitoringView {
   return {
     kind: "studio",
     generation: "v3",
+    present: monitored,
     monitored,
     refusal: "none",
     capabilities: ["monitorStudio"],

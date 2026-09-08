@@ -17,6 +17,7 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Jobs;
+using WhisparrSync.Library;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
@@ -54,6 +55,7 @@ public sealed partial class WhisparrSync
         RouteBase + "/entity/{kind}/{coveId}/missing/{providerSceneId}/monitor";
     private string MissingSceneSearchRoute =>
         RouteBase + "/entity/{kind}/{coveId}/missing/{providerSceneId}/search";
+    private string LibraryStatusRoute => RouteBase + "/library/{kind}/status";
     private string BulkMonitorRoute => RouteBase + "/entities/bulk-monitor";
     private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
 
@@ -210,6 +212,18 @@ public sealed partial class WhisparrSync
                 => ReadMissingPageAsync(
                     kind, coveId, page, perPage, sort, q, filters, menusHeld, principal, options,
                     credentials, client, endpoints, planner, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        // The read tier. This route names its cards in the body, the way the bulk route names its
+        // scenes, so its reach is the set the caller sent and never the library. It composes no
+        // write, and a caller who may see the library may see a read-only status over it.
+        endpoints.MapPost(LibraryStatusRoute,
+            (string kind, LibraryStatusRequest request, ICurrentPrincipalAccessor principal,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             ILibraryStatusPort cards, CancellationToken ct)
+                => ReadLibraryStatusAsync(
+                    kind, request, principal, options, credentials, client, cards, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
@@ -396,6 +410,12 @@ public sealed partial class WhisparrSync
                 componentName: "WhisparrSyncPage")
             .AddSlot("studio-detail-actions", componentName: "WhisparrStudioActions", order: 100)
             .AddSlot("performer-detail-actions", componentName: "WhisparrPerformerActions", order: 100)
+
+            // Both unconditional. A studio monitors as a series matched by ThePornDB on the older
+            // generation too, and MonitorStudio is in both capability tables, so the studio surfaces
+            // work whichever generation is connected.
+            .AddSlot("studios-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
+            .AddSlot("studio-card-footer", componentName: "WhisparrStudioCardBadge", order: 100)
 
             // One component, registered once per page type. The host passes a tab component only the
             // entity id and a navigate callback, so the component reads its own kind from its route.
@@ -1229,9 +1249,11 @@ public sealed partial class WhisparrSync
         async Task<EntityMonitoringView> Unmonitoring(
             HeldActing acting, int entityId, bool monitored, CancellationToken changeCt)
         {
+            // Present, in both arms. This runs only where the read above classified the entity as
+            // held, so the instance holding it is established here rather than assumed.
             if (!monitored)
             {
-                return State(kind, target, monitored: false, scope: null);
+                return State(kind, target, present: true, monitored: false, scope: null);
             }
 
             var flipped = await ContainedAsync(
@@ -1246,7 +1268,7 @@ public sealed partial class WhisparrSync
             var refused = MonitoringProjector.Accepted(flipped);
             return refused != MonitorRefusalKind.None
                 ? Refused(kind, target, refused)
-                : State(kind, target, monitored: false, scope: null);
+                : State(kind, target, present: true, monitored: false, scope: null);
         }
     }
 
@@ -1362,6 +1384,7 @@ public sealed partial class WhisparrSync
                     : State(
                         entityKind,
                         target,
+                        present: true,
                         monitored,
                         ScopeHeld(entityKind, target, monitored, read.Body)));
     }
@@ -1441,7 +1464,7 @@ public sealed partial class WhisparrSync
             var refused = MonitoringProjector.Accepted(applied);
             return refused != MonitorRefusalKind.None
                 ? Refused(entityKind, target, refused)
-                : State(entityKind, target, monitored, inForce);
+                : State(entityKind, target, present: true, monitored, inForce);
         }
     }
 
@@ -1836,17 +1859,22 @@ public sealed partial class WhisparrSync
         var answer = MonitoringProjector.Classify(read);
         return answer.Reading switch
         {
-            // Not held is not a refusal: the entity is simply not monitored yet.
+            // Not held is not a refusal: the instance holds no entry, and the entity is simply not
+            // monitored yet. The two are answered as separate members, so a reader is not left to
+            // infer an absence from an unmonitored flag.
             MonitoringProjector.EntityReading.NotHeld
-                => State(kind, target, monitored: false, scope: null),
+                => State(kind, target, present: false, monitored: false, scope: null),
             MonitoringProjector.EntityReading.Held => Held(read.Body),
             _ => Refused(kind, target, RefusalIn(answer)),
         };
 
         EntityMonitoringView Held(string body)
         {
-            var monitored = MonitoringProjector.MonitoredIn(body);
-            return State(kind, target, monitored, ScopeHeld(kind, target, monitored, body));
+            var presence = MonitoringProjector.PresenceOf(
+                MonitoringProjector.EntityReading.Held, body);
+            var monitored = presence.Monitored ?? false;
+            return State(
+                kind, target, present: true, monitored, ScopeHeld(kind, target, monitored, body));
         }
     }
 
@@ -1984,6 +2012,7 @@ public sealed partial class WhisparrSync
             return State(
                 kind,
                 target,
+                present: true,
                 monitored: true,
                 ScopeHeld(kind, target, monitored: true, read.Body));
         }
@@ -2057,7 +2086,7 @@ public sealed partial class WhisparrSync
             case MonitoringProjector.EntityReading.Held:
                 break;
             case MonitoringProjector.EntityReading.NotHeld:
-                return State(kind, target, monitored: false, scope: null);
+                return State(kind, target, present: false, monitored: false, scope: null);
             default:
                 return Refused(kind, target, RefusalIn(answer));
         }
@@ -2087,7 +2116,12 @@ public sealed partial class WhisparrSync
         {
             // Nothing is sent, so the read in hand IS the state: both the flag and the date gate it
             // reports are what the entity is left at.
-            return State(kind, target, monitored: true, ScopeHeld(kind, target, monitored: true, body));
+            return State(
+                kind,
+                target,
+                present: true,
+                monitored: true,
+                ScopeHeld(kind, target, monitored: true, body));
         }
 
         if (MonitoringProjector.EntityIdIn(body) is not { } entityId)
@@ -2222,9 +2256,13 @@ public sealed partial class WhisparrSync
         => EntityMonitoringView.Refused(kind, target.Generation, target.Capabilities.Held, refusal);
 
     private static EntityMonitoringView State(
-        WhisparrEntityKind kind, MonitoringTarget target, bool monitored, MonitorScope? scope)
+        WhisparrEntityKind kind,
+        MonitoringTarget target,
+        bool present,
+        bool monitored,
+        MonitorScope? scope)
         => EntityMonitoringView.State(
-            kind, target.Generation, target.Capabilities.Held, monitored, scope);
+            kind, target.Generation, target.Capabilities.Held, present, monitored, scope);
 
     /// <summary>The scope the entity <paramref name="body"/> describes is held at.</summary>
     /// <remarks>

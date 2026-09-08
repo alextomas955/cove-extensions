@@ -47,6 +47,21 @@ function registeredTabs() {
   });
 }
 
+/** Each `AddSettingsSection` registration in the manifest override, by component name. */
+const MANIFEST_SETTINGS_SECTION = /\.AddSettingsSection\([\s\S]*?componentName:\s*"([^"]*)"/g;
+
+/** Each `AddSlot` registration in the manifest override, by component name. */
+const MANIFEST_SLOT_COMPONENT = /\.AddSlot\(\s*"[^"]*"\s*,\s*componentName:\s*"([^"]*)"/g;
+
+/** Every component name the manifest advertises, however it advertises it. */
+function advertisedComponents(): string[] {
+  const source = readFileSync(manifestSource, "utf8");
+  const named = [MANIFEST_SETTINGS_SECTION, MANIFEST_SLOT_COMPONENT].flatMap((pattern) =>
+    [...source.matchAll(pattern)].map((match) => match[1]),
+  );
+  return [...new Set([...named, ...registeredTabs().map((tab) => tab.componentName)])];
+}
+
 function componentMapBody() {
   const body = COMPONENT_MAP.exec(readFileSync(bundleEntry, "utf8"));
   expect(body, `no component map found in ${bundleEntry}`).not.toBeNull();
@@ -78,12 +93,16 @@ test("the component every tab names is a key this bundle registers", () => {
   }
 });
 
-test("the bundle registers exactly the four components this extension advertises", () => {
+test("the bundle registers exactly the components this extension advertises", () => {
   const keys = componentMapBody()
     .split(",")
     .map((entry) => entry.split(":")[0].trim())
     .filter((key) => key !== "");
 
-  expect(keys).toHaveLength(4);
-  expect(keys).toContain(registeredTabs()[0].componentName);
+  const advertised = advertisedComponents();
+
+  // Both directions. A key the manifest never names is a component the host can never ask for, and a
+  // name the bundle never registers is a surface that renders nothing with no error anywhere.
+  expect(advertised.length, `${manifestSource} advertises no component at all`).toBeGreaterThan(0);
+  expect([...keys].sort()).toEqual([...advertised].sort());
 });

@@ -1,5 +1,5 @@
 /**
- * The two entity-action slots this extension registers, and the components they name.
+ * The host slots this extension registers, and the components they name.
  *
  * A slot registration binds three strings across two repositories: the host's slot name, the
  * manifest's `componentName`, and the key this bundle registers a component under. The host resolves
@@ -32,6 +32,19 @@ const PERFORMER_ACTION_SLOT = "performer-detail-actions";
  */
 const HOST_ENTITY_ACTION_SLOTS = [STUDIO_ACTION_SLOT, PERFORMER_ACTION_SLOT];
 
+/**
+ * Every library slot this extension is expected to occupy: the control in a list toolbar, and the
+ * status badge on a card of the same page.
+ *
+ * Held apart from the pair above because the two groups grow for different reasons. The toolbar slot
+ * is the page-scoped one and never the generic `list-page-toolbar-end`, which would put the control
+ * on audios, faces, galleries, groups, images, segments, tags and texts too.
+ */
+const HOST_LIBRARY_SLOTS = ["studios-list-toolbar-end", "studio-card-footer"];
+
+/** Every slot this extension registers, whatever it registers it for. */
+const HOST_SLOTS = [...HOST_ENTITY_ACTION_SLOTS, ...HOST_LIBRARY_SLOTS];
+
 const bundleEntry = path.resolve(import.meta.dirname, "..", "index.ts");
 const manifestSource = path.resolve(
   import.meta.dirname,
@@ -63,15 +76,15 @@ function componentMapBody(): string {
   return body![1];
 }
 
-test("the manifest registers one entity-action slot per detail page and no others", () => {
+test("the manifest registers each expected slot and no others", () => {
   const slots = registeredSlots();
 
   // The count is asserted before the names, because a pattern that stopped matching would otherwise
   // leave the comparison below reading two empty sets and passing.
   expect(slots, `${String(MANIFEST_SLOT)} matched nothing in ${manifestSource}`).toHaveLength(
-    HOST_ENTITY_ACTION_SLOTS.length,
+    HOST_SLOTS.length,
   );
-  expect(slots.map(({ slot }) => slot).sort()).toEqual([...HOST_ENTITY_ACTION_SLOTS].sort());
+  expect(slots.map(({ slot }) => slot).sort()).toEqual([...HOST_SLOTS].sort());
 });
 
 test("every component a slot names is a key this bundle registers", () => {

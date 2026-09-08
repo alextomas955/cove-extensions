@@ -57,6 +57,7 @@ function viewOf(overrides: Partial<EntityMonitoringView>): EntityMonitoringView 
   return {
     kind: "studio",
     generation: "v3",
+    present: false,
     monitored: false,
     refusal: "none",
     capabilities: ["monitorStudio"],
