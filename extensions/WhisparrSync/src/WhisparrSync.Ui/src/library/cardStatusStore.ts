@@ -33,8 +33,17 @@ export type LibraryCardKind = "video" | "studio" | "performer";
  */
 const IDS_PER_REQUEST = 40;
 
+/**
+ * Why a page could not be answered for, including the one reason the browser establishes itself.
+ *
+ * `LibraryStatusRefusalKind` is the server's vocabulary for what the server established. A request
+ * that produced no body established nothing there at all, so it carries a reason of its own rather
+ * than borrowing one that names a conclusion nobody reached.
+ */
+export type LibraryPageRefusal = LibraryStatusRefusalKind | "statusCouldNotBeRead";
+
 const coalescers = new Map<LibraryCardKind, BatchCoalescer<LibraryCardReading>>();
-const refusals = new Map<LibraryCardKind, LibraryStatusRefusalKind>();
+const refusals = new Map<LibraryCardKind, LibraryPageRefusal>();
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -46,15 +55,29 @@ async function readBatch(
   kind: LibraryCardKind,
   keys: string[],
 ): Promise<Map<string, LibraryCardReading | null>> {
-  const view = await requestJson<LibraryStatusView>(api(`library/${kind}/status`), {
-    method: "POST",
-    body: JSON.stringify({ coveIds: keys.map((key) => Number(key)) }),
-  });
+  // Dropped before the request rather than after it, so a reason from the batch before this one is
+  // not still on the control while this one runs.
+  refusals.delete(kind);
 
-  refusals.set(kind, view.refusal);
-  emit();
+  try {
+    const view = await requestJson<LibraryStatusView>(api(`library/${kind}/status`), {
+      method: "POST",
+      body: JSON.stringify({ coveIds: keys.map((key) => Number(key)) }),
+    });
 
-  return new Map(view.rows.map((row) => [String(row.coveId), row.reading]));
+    refusals.set(kind, view.refusal);
+    emit();
+
+    return new Map(view.rows.map((row) => [String(row.coveId), row.reading]));
+  } catch (failure) {
+    // Every way the request itself can fail lands here: a body the route refused, a tier the reader
+    // does not hold, a failure inside Cove, or a connection to Cove that dropped. Each of them draws
+    // no badge on any card, so without a reason on the page the control was pressed and nothing
+    // happened.
+    refusals.set(kind, "statusCouldNotBeRead");
+    emit();
+    throw failure;
+  }
 }
 
 function coalescerFor(kind: LibraryCardKind): BatchCoalescer<LibraryCardReading> {
@@ -111,7 +134,7 @@ export function cardStatusSettled(kind: LibraryCardKind, coveId: number): boolea
  * pages and reads no slot context, so it has no kind of its own to ask about, and one page mounts
  * cards of one kind.
  */
-export function cardStatusRefusal(): LibraryStatusRefusalKind {
+export function cardStatusRefusal(): LibraryPageRefusal {
   for (const refusal of refusals.values()) {
     if (refusal !== "none") return refusal;
   }
