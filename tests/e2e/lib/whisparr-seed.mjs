@@ -24,9 +24,14 @@ const SEEDER_TARGET = "/tmp/whisparr-seed-history.py";
 const ENTITY_SEEDER_SOURCE = join(import.meta.dirname, "whisparr-seed-entities.py");
 const ENTITY_SEEDER_TARGET = "/tmp/whisparr-seed-entities.py";
 
-// The resource each seeded kind is projected under. The id in the path is the FOREIGN one the seed
-// wrote rather than the row id, which is the addressing the extension itself uses.
-const ENTITY_PATHS = { studio: "/api/v3/studio", performer: "/api/v3/performer" };
+// How each seeded kind is read back, addressed the way the extension itself addresses it. An entity
+// answers under its own foreign id as a path segment; a scene answers under the one query key that
+// narrows the per-scene route, and its answer is a list of zero rows or one.
+const ENTITY_READ_BACK = {
+  studio: (foreignId) => `/api/v3/studio/${encodeURIComponent(foreignId)}`,
+  performer: (foreignId) => `/api/v3/performer/${encodeURIComponent(foreignId)}`,
+  scene: (foreignId) => `/api/v3/movie?stashId=${encodeURIComponent(foreignId)}`,
+};
 
 // What the instance offers to add against. Its first entry fills the seed's NOT NULL profile column.
 const QUALITY_PROFILE_PATH = "/api/v3/qualityprofile";
@@ -159,8 +164,8 @@ export async function seedHistory({
 }
 
 /**
- * Writes one studio or performer into a generation's own database, and answers with it as that
- * instance's API then projects it.
+ * Writes one studio, performer or scene into a generation's own database, and answers with it as
+ * that instance's API then projects it.
  *
  * The datastore rather than the add route, and that is the whole reason this exists: an add resolves
  * its foreign id against the vendor's metadata service, so it is a call to a third party this
@@ -175,7 +180,7 @@ export async function seedHistory({
  * NULL and the instance owns the value. It is read from the instance rather than assumed to be 1.
  *
  * @param {{container: import("testcontainers").StartedTestContainer, api: {get: Function},
- *          generation: "v3", kind: "studio"|"performer", foreignId: string, title: string,
+ *          generation: "v3", kind: "studio"|"performer"|"scene", foreignId: string, title: string,
  *          rootFolderPath: string, qualityProfileId?: number, monitored?: boolean}} options
  * @returns {Promise<object>} the entity as the instance projects it, its row id included
  */
@@ -195,10 +200,10 @@ export async function seedEntity({
       `seedEntity: no catalogue seed is wired for generation "${generation}"; it is wired for ${ENTITY_GENERATIONS.join(", ")}.`,
     );
   }
-  const entityPath = ENTITY_PATHS[kind];
-  if (entityPath === undefined) {
+  const readBack = ENTITY_READ_BACK[kind];
+  if (readBack === undefined) {
     throw new Error(
-      `seedEntity: no resource is declared for kind "${kind}"; declared kinds are ${Object.keys(ENTITY_PATHS).join(", ")}.`,
+      `seedEntity: no resource is declared for kind "${kind}"; declared kinds are ${Object.keys(ENTITY_READ_BACK).join(", ")}.`,
     );
   }
   if (!rootFolderPath) {
@@ -244,14 +249,16 @@ export async function seedEntity({
     );
   }
 
-  const projected = await api.get(`${entityPath}/${encodeURIComponent(foreignId)}`);
-  if (projected.status !== 200) {
+  const address = readBack(foreignId);
+  const projected = await api.get(address);
+  const answered = Array.isArray(projected.json) ? projected.json[0] : projected.json;
+  if (projected.status !== 200 || answered === undefined) {
     throw new Error(
-      `seedEntity: ${generation} answered GET ${entityPath}/${foreignId} with ${projected.status} after the seed reported ${written.output.trim()}. ` +
+      `seedEntity: ${generation} answered GET ${address} with ${projected.status} and ${answered === undefined ? "no row" : "a row"} after the seed reported ${written.output.trim()}. ` +
         "The row is in the table and the app will not project it, so nothing asserted against this entity would be about the extension.",
     );
   }
-  return projected.json;
+  return answered;
 }
 
 /**
