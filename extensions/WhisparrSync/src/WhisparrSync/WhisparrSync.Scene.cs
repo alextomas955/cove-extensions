@@ -346,6 +346,99 @@ public sealed partial class WhisparrSync
         return TypedResults.Ok(Classified(removed));
     }
 
+    /// <summary>Asks the connected instance to look for one scene it holds and monitors.</summary>
+    /// <remarks>
+    /// The one verb on this surface that can make an instance download. The read decides whether it
+    /// is sent at all: a scene the instance holds no entry for, or holds and is not monitoring, would
+    /// have nothing found for it, so each answers its own refusal and sends nothing.
+    /// <para>
+    /// What the answer claims is that the instance holds the command, read back off the instance by
+    /// the command's own identifier. One read and no loop: nothing here waits for a download, reads a
+    /// queue, or says a release was taken.
+    /// </para>
+    /// </remarks>
+    internal static async Task<Results<Ok<SceneActionResult>, BadRequest, ForbiddenCode>>
+        SearchSceneNowAsync(
+            int coveId,
+            ICurrentPrincipalAccessor principal,
+            OptionsStore options,
+            ICredentialPort credentials,
+            IWhisparrClient client,
+            ILibraryCardIdentityPort sceneCards,
+            ILogger log,
+            CancellationToken ct)
+    {
+        // Checked in the handler, because the route's own declaration enforces nothing on a minimal
+        // API.
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        if (coveId < 1)
+        {
+            return TypedResults.BadRequest();
+        }
+
+        var (ground, refusal) = await GroundSceneVerbAsync<IWhisparrSceneSearchGrabbing>(
+            coveId, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
+        if (ground is null)
+        {
+            return TypedResults.Ok(ActionRefused(refusal));
+        }
+
+        if (ground.Row.State == MissingSceneState.NotAdded)
+        {
+            return TypedResults.Ok(ActionRefused(SceneRefusalKind.WhisparrHasNoEntryForScene));
+        }
+
+        if (ground.Row.State == MissingSceneState.Unmonitored)
+        {
+            return TypedResults.Ok(
+                ActionRefused(SceneRefusalKind.WhisparrIsNotMonitoringThisScene));
+        }
+
+        if (ground.Row.InstanceId is not { } sceneId)
+        {
+            return TypedResults.Ok(ActionRefused(SceneRefusalKind.InstanceRefused));
+        }
+
+        var target = ground.Resolved.Target;
+        var posted = await ContainedAsync(
+            () => ground.Acting.SearchSceneAsync(
+                target.BaseAddress, target.ApiKey, sceneId, ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+        if (posted is null)
+        {
+            return TypedResults.Ok(ActionRefused(SceneRefusalKind.DidNotReachWhisparr));
+        }
+
+        // A body naming no command that can be read is the instance declining, not an accepted
+        // search: nothing was named that could be asked about afterwards.
+        if (MonitoringProjector.Accepted(posted) is not MonitorRefusalKind.None
+            || CommandProjector.IdIn(posted) is not { } commandId)
+        {
+            return TypedResults.Ok(ActionRefused(SceneRefusalKind.InstanceRefused));
+        }
+
+        var readBack = await ContainedAsync(
+            () => target.Reads.ReadCommandAsync(target.BaseAddress, target.ApiKey, commandId, ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+        if (readBack is null)
+        {
+            return TypedResults.Ok(ActionRefused(SceneRefusalKind.DidNotReachWhisparr));
+        }
+
+        return TypedResults.Ok(
+            CommandProjector.Confirmed(readBack, commandId)
+                ? new SceneActionResult(SceneRefusalKind.None, SearchIsWithWhisparr: true)
+                : ActionRefused(SceneRefusalKind.InstanceRefused));
+    }
+
     /// <summary>The instance and the identifier to name on it, once both are resolved.</summary>
     private sealed record SceneVerbTarget(MonitoringTarget Target, string RemoteId);
 

@@ -117,6 +117,16 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     /// <summary>Whether an exclusion lookup reports that it read a whole answer.</summary>
     public bool ExclusionReadCompletes { get; set; } = true;
 
+    /// <summary>
+    /// The verbs that produce no whole answer, whatever is queued for them.
+    /// </summary>
+    /// <remarks>
+    /// The call is recorded first, so a case can state both that the request was made and that
+    /// nothing came back. It is the one answer a queued response cannot express: a status is an
+    /// answer, and this is the absence of one.
+    /// </remarks>
+    public HashSet<string> Unreachable { get; } = new(StringComparer.Ordinal);
+
     /// <summary>Every notification request this client was asked for, in order.</summary>
     public List<NotificationCall> Notifications { get; } = [];
 
@@ -462,6 +472,11 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
 
     private WhisparrResponse Answer(string verb)
     {
+        if (Unreachable.Contains(verb))
+        {
+            throw new HttpRequestException("nothing answered");
+        }
+
         if (!NotificationAnswers.TryGetValue(verb, out var queued) || queued.Count == 0)
         {
             return answer;
