@@ -8,15 +8,16 @@
  * It is never disabled. An unreachable instance changes what it says, not whether it works, and
  * pressing it again re-issues the batch.
  */
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import {
   HIDE_WHISPARR_STATUS,
+  NO_PLACE_FOR_A_CARD_STATUS_HERE,
   SHOW_WHISPARR_STATUS,
   WHISPARR_STATUS_COULD_NOT_BE_READ,
 } from "../common/ui/copy";
 import { WhisparrLogo } from "../common/ui/WhisparrLogo";
-import { cardStatusRefusal, subscribeCardStatus } from "./cardStatusStore";
+import { cardStatusRefusal, registeredCardCount, subscribeCardStatus } from "./cardStatusStore";
 import {
   TOGGLE_CLASS,
   TOGGLE_MARK_CLASS,
@@ -26,9 +27,32 @@ import {
 } from "./libraryClasses";
 import { toggleLibraryStatus, useLibraryStatusOn } from "./libraryToggleStore";
 
+/**
+ * Whether enough time has passed for every badge on the page to have registered.
+ *
+ * A badge registers in its own effect and the coalescer folds the registrations one tick later, so a
+ * count read as the control turns on is the count of badges that had not mounted yet.
+ */
+function useRegistrationsSettled(on: boolean): boolean {
+  const [settled, setSettled] = useState(false);
+
+  useEffect(() => {
+    const settle = setTimeout(() => {
+      setSettled(on);
+    });
+    return () => {
+      clearTimeout(settle);
+    };
+  }, [on]);
+
+  return settled;
+}
+
 export function WhisparrLibraryToggle() {
   const on = useLibraryStatusOn();
   const refusal = useSyncExternalStore(subscribeCardStatus, cardStatusRefusal);
+  const registered = useSyncExternalStore(subscribeCardStatus, registeredCardCount);
+  const settled = useRegistrationsSettled(on);
 
   const name = on ? HIDE_WHISPARR_STATUS : SHOW_WHISPARR_STATUS;
 
@@ -36,9 +60,18 @@ export function WhisparrLibraryToggle() {
   // control's reader does not hold. The fact arrives only as a refusal from the batch the control
   // itself triggered, so there is no unreachable state before it is pressed.
   //
+  // The host mounts a card slot in its grid display mode only and this control sits in the toolbar
+  // of every mode, so a mode where no badge can appear is a mode where no card registered.
+  //
   // With no visible label the accessible name is the only name it has, so the name leads and the
   // reason follows it, matching the order the entity control uses.
-  const spoken = refusal === "none" ? name : `${name}. ${WHISPARR_STATUS_COULD_NOT_BE_READ}`;
+  const reason =
+    on && settled && registered === 0
+      ? NO_PLACE_FOR_A_CARD_STATUS_HERE
+      : refusal === "none"
+        ? null
+        : WHISPARR_STATUS_COULD_NOT_BE_READ;
+  const spoken = reason === null ? name : `${name}. ${reason}`;
 
   return (
     <button
