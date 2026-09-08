@@ -118,7 +118,7 @@ public sealed partial class SettingsProjectionTests
         var options = new OptionsStore(store);
         var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, key);
 
-        await global::WhisparrSync.WhisparrSync.SaveSettingsAsync(
+        await WhisparrSyncFixture.Create().SaveSettingsAsync(
             new WhisparrSyncSettingsSaveRequest(
                 WhisparrGeneration.V3,
                 new WhisparrSyncGenerationSaveRequest("http://whisparr-v3:6969", KeyWriteSignal.Replace, key),
