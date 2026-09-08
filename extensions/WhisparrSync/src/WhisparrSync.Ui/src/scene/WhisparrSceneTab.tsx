@@ -36,7 +36,12 @@ import {
 } from "../common/ui/copy";
 import { useSceneDetail } from "./useSceneDetail";
 
-/** The sentence each answered refusal reads as, or null where nothing was refused. */
+/**
+ * The sentence each answered refusal reads as, or null where the read never answers it.
+ *
+ * The vocabulary is shared with the tab's verbs, and a verb's own refusal is stated beside the
+ * control that produced it. A read answers none of those, so each maps to null here.
+ */
 const SENTENCE_FOR_A_REFUSAL: Record<SceneRefusalKind, string | null> = {
   none: null,
   noInstanceConnected: NO_INSTANCE_CONNECTED,
@@ -45,6 +50,10 @@ const SENTENCE_FOR_A_REFUSAL: Record<SceneRefusalKind, string | null> = {
   capabilityAbsentOnThisGeneration: WHISPARR_KEEPS_NO_RECORD_OF_THESE,
   didNotReachWhisparr: WHISPARR_STATUS_COULD_NOT_BE_READ,
   instanceRefused: INSTANCE_REFUSED,
+  instanceOffersNoQualityProfile: null,
+  instanceOffersNoRootFolder: null,
+  whisparrHasNoEntryForScene: null,
+  whisparrAlreadyHoldsThisScene: null,
 };
 
 /** How many of the tab's own surfaces one refused answer stops. */

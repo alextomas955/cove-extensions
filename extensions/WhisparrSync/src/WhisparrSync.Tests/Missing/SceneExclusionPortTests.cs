@@ -270,5 +270,11 @@ public sealed class SceneExclusionPortTests
             return Task.FromResult<IReadOnlySet<string>>(
                 new HashSet<string>(StringComparer.Ordinal));
         }
+
+        public Task<SceneExclusionLookup> FindSceneExclusionAsync(
+            Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+            => throw new NotSupportedException(
+                "The port under test reduces a page and never asks for one exclusion row's own "
+                    + "identifier.");
     }
 }

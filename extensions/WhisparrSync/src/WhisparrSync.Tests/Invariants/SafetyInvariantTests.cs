@@ -874,6 +874,12 @@ public sealed class SafetyInvariantTests
             return Task.FromResult<IReadOnlySet<string>>(
                 providerSceneIds.Where(excluded.Contains).ToHashSet(StringComparer.Ordinal));
         }
+
+        public Task<SceneExclusionLookup> FindSceneExclusionAsync(
+            Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+            => throw new NotSupportedException(
+                "A page derivation asks about a whole page at once and never for one row's own "
+                    + "identifier.");
     }
 
     /// <summary>The filesystem seam, faked, recording every operation it was asked for.</summary>
