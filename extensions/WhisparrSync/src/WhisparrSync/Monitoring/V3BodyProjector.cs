@@ -251,6 +251,18 @@ internal static class V3BodyProjector
     internal static MoviePatchResource SceneMonitorPatch(bool monitored)
         => new(monitored: monitored);
 
+    /// <summary>Excludes the scene <paramref name="foreignId"/> names.</summary>
+    /// <remarks>
+    /// The identifier and no other member. The title, the exclusion type and the reason are the
+    /// instance's own to fill, and it declares no acquisition-suppressing member on this resource at
+    /// all, so an exclusion issues no search.
+    /// </remarks>
+    internal static ImportListExclusionResource SceneExclusion(string foreignId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
+        return new ImportListExclusionResource(foreignId: foreignId);
+    }
+
     /// <summary>Sets only the monitored flag on the performer <paramref name="entityId"/> names.</summary>
     /// <inheritdoc cref="SetStudioMonitored" path="/remarks"/>
     internal static PerformerEditorResource SetPerformerMonitored(int entityId, bool monitored)
