@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
+using WhisparrSync.Library;
 using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
@@ -46,6 +48,7 @@ public sealed class EndpointPermissionTests
         "GET /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/count",
         "GET /api/extensions/com.alextomas955.whisparrsync/import/banner",
         "GET /api/extensions/com.alextomas955.whisparrsync/job-status/{jobId}",
+        "GET /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}",
         "GET /api/extensions/com.alextomas955.whisparrsync/settings",
         "POST /api/extensions/com.alextomas955.whisparrsync/callback",
         "POST /api/extensions/com.alextomas955.whisparrsync/callback/register",
@@ -173,6 +176,37 @@ public sealed class EndpointPermissionTests
     }
 
     [Fact]
+    public async Task TheSceneReadRefusesACallerWithoutTheReadTierAndResolvesNoIdentity()
+    {
+        var (store, options) = NewStore();
+        var credentials = new RecordingCredentialPort();
+        var identities = new RecordingCardIdentities();
+        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "[]"));
+
+        var refused = await global::WhisparrSync.WhisparrSync.SceneDetailAsync(
+            1, FakePrincipalAccessor.None(), options, credentials, client, identities,
+            NullLogger.Instance, TestCt);
+
+        Assert.Equal(403, StatusOf(refused));
+        Assert.Empty(store.GetKeys);
+        Assert.Empty(credentials.Reads);
+        Assert.Empty(identities.Resolved);
+
+        var answered = await global::WhisparrSync.WhisparrSync.SceneDetailAsync(
+            1,
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
+            options,
+            credentials,
+            client,
+            identities,
+            NullLogger.Instance,
+            TestCt);
+
+        Assert.NotEqual(403, StatusOf(answered));
+        Assert.NotEmpty(store.GetKeys);
+    }
+
+    [Fact]
     public async Task TheConnectionTestRefusesACallerWithoutTheConfigureTierAndRunsNoTest()
     {
         var runner = new RecordingConnectionTestRunner();
@@ -261,6 +295,19 @@ public sealed class EndpointPermissionTests
 
     private static FakePrincipalAccessor Configure()
         => FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure);
+
+    /// <summary>An identity source recording every card a caller asked it to resolve.</summary>
+    private sealed class RecordingCardIdentities : ILibraryCardIdentityPort
+    {
+        public List<int> Resolved { get; } = [];
+
+        public Task<IReadOnlyList<LibraryCardIdentity>> ResolveAsync(
+            IReadOnlyList<int> coveIds, WhisparrGeneration generation, CancellationToken ct)
+        {
+            Resolved.AddRange(coveIds);
+            return Task.FromResult<IReadOnlyList<LibraryCardIdentity>>([]);
+        }
+    }
 
     private static (FakeStore Store, OptionsStore Options) NewStore()
     {
