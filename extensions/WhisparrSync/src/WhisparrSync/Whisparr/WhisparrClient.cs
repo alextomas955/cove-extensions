@@ -239,7 +239,8 @@ internal sealed class WhisparrClient(
         IWhisparrSceneSearchGrabbing,
         IWhisparrSceneStatusReading,
         IWhisparrSceneExclusionReading,
-        IWhisparrSceneMonitorActing
+        IWhisparrSceneMonitorActing,
+        IWhisparrSceneExclusionActing
 {
     /// <summary>The header both generations authenticate an API request with.</summary>
     internal const string ApiKeyHeader = "X-Api-Key";
@@ -475,6 +476,25 @@ internal sealed class WhisparrClient(
             apiKey,
             api => api.Api<V3Api.IMovieApi>().PatchMovieByIdAsync(
                 sceneId, V3BodyProjector.SceneMonitorPatch(monitored), ct));
+    }
+
+    public Task<WhisparrResponse> AddSceneExclusionAsync(
+        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+        => GeneratedActAsync(
+            baseAddress,
+            apiKey,
+            api => api.Api<V3Api.IImportListExclusionApi>().CreateExclusionsAsync(
+                V3BodyProjector.SceneExclusion(Named(foreignId)), ct));
+
+    public Task<WhisparrResponse> RemoveSceneExclusionAsync(
+        Uri baseAddress, string apiKey, int exclusionId, CancellationToken ct)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(exclusionId, 1);
+
+        return GeneratedActAsync(
+            baseAddress,
+            apiKey,
+            api => api.Api<V3Api.IImportListExclusionApi>().DeleteExclusionsAsync(exclusionId, ct));
     }
 
     public Task<WhisparrResponse> SetStudioScopeAsync(

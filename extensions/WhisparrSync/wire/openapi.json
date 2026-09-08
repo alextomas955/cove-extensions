@@ -2334,7 +2334,8 @@
           "readSceneStatus",
           "readSceneExclusions",
           "searchScene",
-          "monitorScene"
+          "monitorScene",
+          "excludeScene"
         ]
       },
       "WhisparrEntityKind": {

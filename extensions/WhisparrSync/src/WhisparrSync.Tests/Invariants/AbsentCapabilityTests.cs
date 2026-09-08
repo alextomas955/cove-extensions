@@ -31,7 +31,9 @@ public sealed class AbsentCapabilityTests
     /// The set is the claim: three requests stay hand-composed, and the reason each stays is stated
     /// where it is sent. The notification route carries a body built from the schema the instance
     /// answered with, the studio route carries the answer it just read with two members changed, and
-    /// the exclusions route is read row by row so what it holds does not grow with the library.
+    /// the exclusions route is read row by row so what it holds does not grow with the library. That
+    /// last route string is also composed by the generated client for the two exclusion writes, so it
+    /// is named in both sets.
     /// <para>
     /// Every other route is composed by a generated client and is no literal on this type, so those
     /// are transcribed in <see cref="GeneratedRoutes"/> and asserted against the operations this
@@ -88,6 +90,8 @@ public sealed class AbsentCapabilityTests
         (WhisparrGeneration.V3, "IMediaManagementConfigApi", "GetMediaManagementConfigAsync", "api/v3/config/mediamanagement"),
         (WhisparrGeneration.V3, "CommandApi", "SendCommandAsync", "api/v3/command"),
         (WhisparrGeneration.V3, "ICommandApi", "GetCommandByIdAsync", "api/v3/command"),
+        (WhisparrGeneration.V3, "IImportListExclusionApi", "CreateExclusionsAsync", "api/v3/exclusions"),
+        (WhisparrGeneration.V3, "IImportListExclusionApi", "DeleteExclusionsAsync", "api/v3/exclusions"),
         (WhisparrGeneration.V2, "IHistoryApi", "GetHistoryAsync", "api/v3/history"),
         (WhisparrGeneration.V2, "ISeriesLookupApi", "ListSeriesLookupAsync", "api/v3/series/lookup"),
         (WhisparrGeneration.V2, "ISeriesApi", "ListSeriesAsync", "api/v3/series"),
@@ -121,8 +125,10 @@ public sealed class AbsentCapabilityTests
                 nameof(IWhisparrPerformerActing.AddMonitoredPerformerAsync),
                 nameof(IWhisparrStudioActing.AddMonitoredStudioAsync),
                 nameof(IWhisparrMissingSceneActing.AddSceneAsync),
+                nameof(IWhisparrSceneExclusionActing.AddSceneExclusionAsync),
                 nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync),
                 nameof(IWhisparrMissingSceneActing.RefreshCatalogueAsync),
+                nameof(IWhisparrSceneExclusionActing.RemoveSceneExclusionAsync),
                 nameof(IWhisparrPerformerActing.SetPerformerMonitoredAsync),
                 nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync),
                 nameof(IWhisparrStudioActing.SetStudioMonitoredAsync),
@@ -219,9 +225,10 @@ public sealed class AbsentCapabilityTests
     /// generation that declares it.
     /// </para>
     /// <para>
-    /// Nothing hand-composed is driven. The notification create and update and the exclusions read
-    /// reach routes <see cref="GeneratedRoutes"/> does not name, and they belong to
-    /// <see cref="DeclaredRoutes"/>.
+    /// Nothing hand-composed is driven. The notification create and update reach routes
+    /// <see cref="GeneratedRoutes"/> does not name and belong to <see cref="DeclaredRoutes"/>. The
+    /// exclusions route string is in both sets, because the read composes it by hand and the two
+    /// writes reach it through the generated client.
     /// </para>
     /// </remarks>
     [Fact]
@@ -300,6 +307,8 @@ public sealed class AbsentCapabilityTests
         await client.ReadSceneByRemoteIdAsync(address, key, "scene-1", ct);
         await client.RefreshCatalogueAsync(address, key, WhisparrEntityKind.Studio, 4, ct);
         await client.SetSceneMonitoredAsync(address, key, 41, monitored: true, ct);
+        await client.AddSceneExclusionAsync(address, key, "scene-1", ct);
+        await client.RemoveSceneExclusionAsync(address, key, 12, ct);
 
         await client.ReadHardlinkSettingAsync(address, key, ct);
         await client.ListImportableFilesAsync(address, key, "/config/library", ct);

@@ -140,6 +140,7 @@ internal static class ComposedAdds
         ComposedBody.Of(V3BodyProjector.SetPerformerMonitored(11, monitored: false)),
         ComposedBody.Of(V3BodyProjector.SceneMonitorPatch(monitored: true)),
         ComposedBody.Of(V3BodyProjector.SceneMonitorPatch(monitored: false)),
+        ComposedBody.Of(V3BodyProjector.SceneExclusion(SceneForeignId)),
         .. EveryScopeChange(),
         V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Studio, 4),
         V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Performer, 11),
@@ -229,6 +230,10 @@ internal static class ComposedAdds
             // Sets one flag on a scene the instance already holds and registers nothing, so it adds
             // no catalogue item to enumerate. Its own composed body is covered beside the flag flips.
             (_, WhisparrCapability.MonitorScene) => [],
+
+            // Excludes a scene from what the instance would take and adds no catalogue item, so it
+            // contributes no add either. Its own body is covered beside the flag flips.
+            (_, WhisparrCapability.ExcludeScene) => [],
 
             (WhisparrGeneration.V3, WhisparrCapability.MonitorStudio) =>
             [
@@ -416,6 +421,7 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.ReadSceneExclusions,
                 WhisparrCapability.SearchScene,
                 WhisparrCapability.MonitorScene,
+                WhisparrCapability.ExcludeScene,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
 
@@ -629,6 +635,26 @@ public sealed class NonGrabbingBodyTests
                 ComposedAdds.EverySuppressionSpelling,
                 path => Assert.Null(ComposedAdds.At(body, path)));
         }
+    }
+
+    /// <summary>
+    /// The exclusion body carries the scene's foreign id and no other member.
+    /// </summary>
+    /// <remarks>
+    /// The member set is asserted, so the title, the type and the reason stay the instance's own to
+    /// fill. Read off the composed body, so the absent search flag is absent by composition.
+    /// </remarks>
+    [Fact]
+    public void TheSceneExclusionBodyCarriesTheForeignIdAndNoOtherMember()
+    {
+        var body = ComposedBody.Of(V3BodyProjector.SceneExclusion("9b6a0f8e-5f2c-4a1d-8b7e-2c3d4e5f6a7b"));
+
+        Assert.Equal(["foreignId"], body.Select(member => member.Key).ToList());
+        Assert.Equal(
+            "9b6a0f8e-5f2c-4a1d-8b7e-2c3d4e5f6a7b", body["foreignId"]!.GetValue<string>());
+        Assert.All(
+            ComposedAdds.EverySuppressionSpelling,
+            path => Assert.Null(ComposedAdds.At(body, path)));
     }
 
     /// <summary>

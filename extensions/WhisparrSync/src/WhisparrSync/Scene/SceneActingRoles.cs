@@ -27,3 +27,35 @@ public interface IWhisparrSceneMonitorActing
     Task<WhisparrResponse> SetSceneMonitoredAsync(
         Uri baseAddress, string apiKey, int sceneId, bool monitored, CancellationToken ct);
 }
+
+/// <summary>Excludes one scene from what the connected instance will take.</summary>
+/// <remarks>
+/// A writing role of its own rather than a widening of the exclusion read: the safety invariants
+/// classify per member, and a role whose name says reading is what lets a caller hold it without
+/// holding a write.
+/// <para>
+/// Narrow in the same way the other acting roles are: no member takes a caller-supplied route and
+/// none takes an HTTP verb. Only the newer generation registers it, so neither member takes a
+/// generation, and the identifiers arrive already resolved off a stored identity row or off the
+/// instance's own exclusion list.
+/// </para>
+/// </remarks>
+public interface IWhisparrSceneExclusionActing
+{
+    /// <summary>Excludes the scene <paramref name="foreignId"/> names.</summary>
+    /// <remarks>
+    /// Governs what a later catalogue addition takes and retracts nothing the instance already
+    /// holds. Sent once, like every acting request, and it issues no search.
+    /// </remarks>
+    Task<WhisparrResponse> AddSceneExclusionAsync(
+        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct);
+
+    /// <summary>Removes the exclusion <paramref name="exclusionId"/> names.</summary>
+    /// <remarks>
+    /// Addressed by the exclusion row's own identifier and not by the scene's foreign id, because
+    /// that is what the removing route names. A caller reads the identifier off the instance's own
+    /// exclusion list first.
+    /// </remarks>
+    Task<WhisparrResponse> RemoveSceneExclusionAsync(
+        Uri baseAddress, string apiKey, int exclusionId, CancellationToken ct);
+}
