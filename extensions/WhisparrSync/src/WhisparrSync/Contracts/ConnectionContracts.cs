@@ -75,6 +75,9 @@ public enum WhisparrCapability
 
     /// <summary>One scene the instance holds can be monitored, and an unmonitored one left alone.</summary>
     MonitorScene,
+
+    /// <summary>One scene can be excluded from what the instance takes, and the exclusion removed.</summary>
+    ExcludeScene,
 }
 
 /// <summary>
