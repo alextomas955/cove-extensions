@@ -27,6 +27,19 @@ The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific
 - A route that declares no gate is admitted anonymously, with only a host warning. Declare a gate on
   every other route.
 
+## The library card surfaces
+
+- Whether a card badge exists on a generation is a manifest fact, not a branch inside a component.
+  `GetUIManifest` omits the videos-view and performers-view registrations when the stored generation
+  is the older one, so the host renders no wrapper element for them. A component returning null
+  leaves the host's in-card box behind, which is a different observable result.
+- The stored generation reaches the manifest through a volatile field filled at load and refreshed
+  after a settings save, because `GetUIManifest` is synchronous and cannot read the store. A
+  generation not established keeps every surface.
+- The host mounts its card slot in the grid display mode only, and the toolbar slot in every mode. So
+  a control that gates card badges can be pressed where no badge can mount, and the disclosure of
+  that is on the control.
+
 ## Settings component name
 
 The name the C# UI manifest advertises and the key in the bundle's `defineExtension` components map
