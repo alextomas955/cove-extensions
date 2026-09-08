@@ -25,7 +25,7 @@ export interface SceneState {
  * Before the first read completes. The answer is absent rather than empty, which is what keeps
  * "nothing has answered yet" from rendering as a state and four facts.
  */
-const INITIAL_SCENE_STATE: SceneState = {
+export const INITIAL_SCENE_STATE: SceneState = {
   read: INITIAL_ASYNC_READ,
   view: null,
 };
