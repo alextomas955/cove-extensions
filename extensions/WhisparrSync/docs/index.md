@@ -46,6 +46,15 @@ It also adds a **Missing** tab to studio, performer and tag pages:
 - **Mark one scene or a page of scenes wanted**, downloading nothing.
 - **Ask Whisparr to search for one scene**, which is the only action on that tab that downloads.
 
+It also adds a button to the videos, studios and performers list toolbars:
+
+- **See what Whisparr holds for every card on the page**, as one small badge per card reading
+  Monitored, Unmonitored, Not added or Excluded. The badges start off after every page load, and
+  turning them on changes nothing in either system. A full page costs up to forty requests to your
+  instance, so it takes a moment. Read [Show Whisparr status on library
+  cards](./library-status.md) for where the badges cannot appear and what they deliberately leave
+  out.
+
 Read [Monitor a studio or a performer](./monitoring.md) before the first time you press it: the
 wider scope marks a whole back catalogue wanted, and on Whisparr v3 (Eros) that choice is not undone
 by narrowing the scope again.
@@ -92,6 +101,8 @@ below, so on an older Cove this extension is not offered to you in the first pla
   costs, and the same actions in bulk.
 - [Browse what you do not own](./missing.md) - the Missing tab, what its number counts, and why a
   control you expected may be absent.
+- [Show Whisparr status on library cards](./library-status.md) - the toolbar button, the badge on
+  each card, what one press costs, and where no badge can appear.
 - [Settings reference](./settings.md) - every setting on the tab, its default and its valid values.
 - [Changelog](./changelog.mdx) - user-facing changes, newest first.
 
