@@ -761,6 +761,49 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/scene/{coveId}": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneDetailView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/count": {
       "get": {
         "tags": [
@@ -2207,6 +2250,71 @@
           "notCheckedYet",
           "registered",
           "notRegistered"
+        ]
+      },
+      "SceneDetailView": {
+        "required": [
+          "refusal",
+          "excluded",
+          "present",
+          "monitored",
+          "qualityName",
+          "qualityProfileName",
+          "cutoffName",
+          "profileReadDidNotComplete"
+        ],
+        "type": "object",
+        "properties": {
+          "refusal": {
+            "$ref": "#/components/schemas/SceneRefusalKind"
+          },
+          "excluded": {
+            "type": "boolean"
+          },
+          "present": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "monitored": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "qualityName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "qualityProfileName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cutoffName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "profileReadDidNotComplete": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SceneRefusalKind": {
+        "enum": [
+          "none",
+          "noInstanceConnected",
+          "noIdentityInThisNamespace",
+          "severalIdentitiesInThisNamespace",
+          "capabilityAbsentOnThisGeneration",
+          "didNotReachWhisparr",
+          "instanceRefused"
         ]
       },
       "UpgradeBehavior": {
