@@ -72,6 +72,9 @@ public enum WhisparrCapability
     /// here that acquires anything, and the narrower of the two.
     /// </summary>
     SearchScene,
+
+    /// <summary>One scene the instance holds can be monitored, and an unmonitored one left alone.</summary>
+    MonitorScene,
 }
 
 /// <summary>
