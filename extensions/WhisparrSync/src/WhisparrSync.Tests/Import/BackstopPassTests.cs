@@ -1086,6 +1086,10 @@ public sealed class BackstopPassTests
             Uri baseAddress, string apiKey, CancellationToken ct)
             => throw new NotSupportedException();
 
+        public Task<WhisparrResponse> ReadCommandAsync(
+            Uri baseAddress, string apiKey, int commandId, CancellationToken ct)
+            => throw new NotSupportedException();
+
         public Task<WhisparrResponse> CreateNotificationAsync(
             Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
             => throw new NotSupportedException();
@@ -1173,6 +1177,10 @@ public sealed class BackstopPassTests
         public Task<WhisparrResponse> ReadQualityProfilesAsync(
             Uri baseAddress, string apiKey, CancellationToken ct)
             => inner.ReadQualityProfilesAsync(baseAddress, apiKey, ct);
+
+        public Task<WhisparrResponse> ReadCommandAsync(
+            Uri baseAddress, string apiKey, int commandId, CancellationToken ct)
+            => inner.ReadCommandAsync(baseAddress, apiKey, commandId, ct);
 
         public Task<WhisparrResponse> CreateNotificationAsync(
             Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)

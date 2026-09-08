@@ -312,6 +312,10 @@ public sealed class RefusalBeforeRequestTests
             CancellationToken ct)
             => inner.ReadHistoryAsync(baseAddress, apiKey, generation, page, pageSize, ct);
 
+        public Task<WhisparrResponse> ReadCommandAsync(
+            Uri baseAddress, string apiKey, int commandId, CancellationToken ct)
+            => inner.ReadCommandAsync(baseAddress, apiKey, commandId, ct);
+
         public Task<WhisparrResponse> CreateNotificationAsync(
             Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
             => inner.CreateNotificationAsync(baseAddress, apiKey, body, ct);
