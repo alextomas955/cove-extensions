@@ -382,14 +382,14 @@ public sealed class LibraryStatusPortTests
         IEntityIdentityPort identities,
         IReadOnlyList<int> coveIds,
         ILogger? log = null)
-        => await new LibraryStatusPort(identities, log ?? NullLogger.Instance)
+        => (await new LibraryStatusPort(identities, log ?? NullLogger.Instance)
             .ReadEntityCardsAsync(
                 reading.AnswerAsync,
                 WhisparrEntityKind.Studio,
                 WhisparrGeneration.V3,
                 Instance,
                 coveIds,
-                TestCt);
+                TestCt)).Rows;
 
     /// <summary>The exclusion role, answering <paramref name="excluded"/> and counting its reads.</summary>
     private static Capability<IWhisparrSceneExclusionReading> Excluding(
@@ -404,14 +404,14 @@ public sealed class LibraryStatusPortTests
         Capability<IWhisparrSceneExclusionReading> exclusions,
         IReadOnlyList<LibraryCardIdentity> identities,
         ILogger? log = null)
-        => await new LibraryStatusPort(Nothing, log ?? NullLogger.Instance).ReadSceneCardsAsync(
+        => (await new LibraryStatusPort(Nothing, log ?? NullLogger.Instance).ReadSceneCardsAsync(
             reading,
             exclusions,
             Instance,
             ApiKey,
             WhisparrGeneration.V3,
             identities,
-            TestCt);
+            TestCt)).Readings;
 
     private sealed class FakeIdentities(IdentityResolution answer) : IEntityIdentityPort
     {
