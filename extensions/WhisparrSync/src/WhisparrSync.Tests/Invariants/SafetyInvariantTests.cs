@@ -13,6 +13,7 @@ using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Providers;
+using WhisparrSync.Scene;
 using WhisparrSync.Tests.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -90,6 +91,7 @@ internal static class OutboundSeam
             [nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)] = WhisparrVerbClass.Grab,
             [nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync)] = WhisparrVerbClass.Grab,
+            [nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync)] = WhisparrVerbClass.Act,
         };
 
     /// <summary>Every interface an outbound request of this product can be expressed through.</summary>
@@ -108,6 +110,7 @@ internal static class OutboundSeam
         typeof(IWhisparrReflectOwnedActing),
         typeof(IWhisparrSearchGrabbing),
         typeof(IWhisparrSceneSearchGrabbing),
+        typeof(IWhisparrSceneMonitorActing),
     ];
 
     /// <summary>The members doing <paramref name="verbClass"/>'s class of work, in name order.</summary>
@@ -203,7 +206,7 @@ public sealed class SafetyInvariantTests
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public void TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall()
     {
-        Assert.Equal(7, OutboundSeam.SeamInterfaces.Count);
+        Assert.Equal(8, OutboundSeam.SeamInterfaces.Count);
 
         Assert.Equal(
             OutboundSeam.VerbClassByMember.Keys.Order().ToList(),

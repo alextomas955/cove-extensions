@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Providers;
+using WhisparrSync.Scene;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
@@ -82,6 +83,7 @@ public sealed class AbsentCapabilityTests
         (WhisparrGeneration.V3, "IPerformerEditorApi", "PutPerformerEditorAsync", "api/v3/performer/editor"),
         (WhisparrGeneration.V3, "IMovieApi", "CreateMovieAsync", "api/v3/movie"),
         (WhisparrGeneration.V3, "IMovieApi", "ListMovieAsync", "api/v3/movie"),
+        (WhisparrGeneration.V3, "IMovieApi", "PatchMovieByIdAsync", "api/v3/movie"),
         (WhisparrGeneration.V3, "IManualImportApi", "ListManualImportAsync", "api/v3/manualimport"),
         (WhisparrGeneration.V3, "IMediaManagementConfigApi", "GetMediaManagementConfigAsync", "api/v3/config/mediamanagement"),
         (WhisparrGeneration.V3, "CommandApi", "SendCommandAsync", "api/v3/command"),
@@ -122,6 +124,7 @@ public sealed class AbsentCapabilityTests
                 nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync),
                 nameof(IWhisparrMissingSceneActing.RefreshCatalogueAsync),
                 nameof(IWhisparrPerformerActing.SetPerformerMonitoredAsync),
+                nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync),
                 nameof(IWhisparrStudioActing.SetStudioMonitoredAsync),
                 nameof(IWhisparrStudioActing.SetStudioScopeAsync),
             ],
@@ -296,6 +299,7 @@ public sealed class AbsentCapabilityTests
         await client.AddSceneAsync(address, key, "scene-1", defaults, ct);
         await client.ReadSceneByRemoteIdAsync(address, key, "scene-1", ct);
         await client.RefreshCatalogueAsync(address, key, WhisparrEntityKind.Studio, 4, ct);
+        await client.SetSceneMonitoredAsync(address, key, 41, monitored: true, ct);
 
         await client.ReadHardlinkSettingAsync(address, key, ct);
         await client.ListImportableFilesAsync(address, key, "/config/library", ct);
