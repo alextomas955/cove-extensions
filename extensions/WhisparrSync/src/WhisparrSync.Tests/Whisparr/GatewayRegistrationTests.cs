@@ -132,7 +132,7 @@ public sealed class GatewayRegistrationTests
     }
 
     [Fact]
-    public void DisposalDiscardsEveryRegistrationOnTheOlderGeneration()
+    public void DisposalDiscardsEveryRegistrationAndRefusesAFurtherReachOnTheOlderGeneration()
     {
         var gateway = new Whisparr2Gateway();
         var first = gateway.For(new Whisparr2Target(AddressNumbered(1), SomeKey));
@@ -142,10 +142,12 @@ public sealed class GatewayRegistrationTests
 
         Assert.Throws<ObjectDisposedException>(() => first.Api<V2Api.IHistoryApi>());
         Assert.Throws<ObjectDisposedException>(() => second.Api<V2Api.IHistoryApi>());
+        Assert.Throws<ObjectDisposedException>(
+            () => gateway.For(new Whisparr2Target(AddressNumbered(3), SomeKey)));
     }
 
     [Fact]
-    public void DisposalDiscardsEveryRegistrationOnTheNewerGeneration()
+    public void DisposalDiscardsEveryRegistrationAndRefusesAFurtherReachOnTheNewerGeneration()
     {
         var gateway = new Whisparr3Gateway();
         var first = gateway.For(new Whisparr3Target(AddressNumbered(1), SomeKey));
@@ -155,6 +157,8 @@ public sealed class GatewayRegistrationTests
 
         Assert.Throws<ObjectDisposedException>(() => first.Api<V3Api.IHistoryApi>());
         Assert.Throws<ObjectDisposedException>(() => second.Api<V3Api.IHistoryApi>());
+        Assert.Throws<ObjectDisposedException>(
+            () => gateway.For(new Whisparr3Target(AddressNumbered(3), SomeKey)));
     }
 
     private static Uri AddressNumbered(int pair) => new($"http://whisparr{pair}:6969");
