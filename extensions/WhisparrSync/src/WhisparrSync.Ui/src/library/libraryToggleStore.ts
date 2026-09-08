@@ -20,13 +20,20 @@ export function toggleLibraryStatus(): void {
   for (const listener of listeners) listener();
 }
 
+/** Whether the badges are shown right now. */
+export function libraryStatusOn(): boolean {
+  return statusOn;
+}
+
+/** Subscribes to the boolean, and returns the unsubscribe. */
+export function subscribeLibraryStatus(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 /** Subscribes a component to the shared boolean. */
 export function useLibraryStatusOn(): boolean {
-  return useSyncExternalStore(
-    (onChange) => {
-      listeners.add(onChange);
-      return () => listeners.delete(onChange);
-    },
-    () => statusOn,
-  );
+  return useSyncExternalStore(subscribeLibraryStatus, libraryStatusOn);
 }

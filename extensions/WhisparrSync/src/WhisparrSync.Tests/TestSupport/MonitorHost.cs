@@ -109,7 +109,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         string? apiKey = StoredKey,
         WhisparrGeneration generation = WhisparrGeneration.V3,
         BodyRecordingHandler? bytes = null,
-        MonitorScope defaultScope = MonitorScope.FutureScenes)
+        MonitorScope defaultScope = MonitorScope.FutureScenes,
+        IProviderCatalogue? catalogue = null)
     {
         var host = new MonitorHost();
         (host._db, host._connection) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -188,12 +189,14 @@ internal sealed class MonitorHost : IAsyncDisposable
         // before the handler runs, so a route-input case never reaches its own guard without them.
         // Built over no host configuration, which is the stated refusal rather than a throw.
         builder.Services.AddSingleton(new ProviderEndpointPort(null));
-        var catalogue = new InertProviderCatalogue();
+        // A case whose subject is a route reaching no provider passes one that throws on every
+        // member, so a reach is a failure rather than an answer nobody looked at.
+        var provider = catalogue ?? new InertProviderCatalogue();
         builder.Services.AddSingleton(
             new MissingPagePlanner(
                 new MissingIdentityResolver(
-                    host.Identities, catalogue, new EntityNamePort(host._db)),
-                catalogue,
+                    host.Identities, provider, new EntityNamePort(host._db)),
+                provider,
                 new OwnedScenePort(host._db),
                 new SceneStatusPort(),
                 new SceneExclusionPort()));
@@ -399,6 +402,20 @@ internal sealed class MonitorHost : IAsyncDisposable
     {
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
         return await Http.PostAsync(RouteBase + "/entities/bulk-monitor", content, TestCt);
+    }
+
+    /// <summary>
+    /// The raw answer to the card status route for <paramref name="kind"/>, given
+    /// <paramref name="body"/> verbatim.
+    /// </summary>
+    /// <remarks>
+    /// Both the kind segment and the body are sent as given, so a case can name a kind the route
+    /// answers for nothing and an id array of any length.
+    /// </remarks>
+    public async Task<HttpResponseMessage> PostLibraryStatusAsync(string kind, string body)
+    {
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+        return await Http.PostAsync($"{RouteBase}/library/{kind}/status", content, TestCt);
     }
 
     /// <summary>The raw answer to one entity's reflect-owned route, which takes no body at all.</summary>
