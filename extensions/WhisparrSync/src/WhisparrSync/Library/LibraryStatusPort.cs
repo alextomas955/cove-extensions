@@ -113,10 +113,17 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities) : ILibra
                     .ReadSceneByRemoteIdAsync(baseAddress, apiKey, identity.RemoteId, ct)
                     .ConfigureAwait(false);
             }
-            catch (Exception failure) when (failure is HttpRequestException or IOException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception failure)
+                when (failure is HttpRequestException or IOException or TaskCanceledException)
             {
                 // Contained per card, as the entity path's is: a read that dropped part way through
-                // one answer must not take the rest of the page's answers with it.
+                // one answer must not take the rest of the page's answers with it. An instance that
+                // accepts the connection and then hangs outlives the client's own timeout, which is
+                // told from a shutdown by the token and by nothing in the failure itself.
                 readings[identity.CoveId] = new LibraryCardReading(onList, null, null);
                 continue;
             }
@@ -220,10 +227,17 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities) : ILibra
         {
             answered = await reading(foreignId, ct).ConfigureAwait(false);
         }
-        catch (Exception failure) when (failure is HttpRequestException or IOException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
             // Contained per card. A read that dropped part way through one answer must not take the
-            // rest of the page's answers with it.
+            // rest of the page's answers with it. An instance that accepts the connection and then
+            // hangs outlives the client's own timeout, which is told from a shutdown by the token and
+            // by nothing in the failure itself.
             return Unestablished;
         }
 
