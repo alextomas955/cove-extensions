@@ -187,6 +187,19 @@ public interface IWhisparrClient
         int pageSize,
         CancellationToken ct);
 
+    /// <summary>Reads the command <paramref name="commandId"/> names back off the instance.</summary>
+    /// <remarks>
+    /// Proves that the instance holds the command, which is what a caller that just posted one can
+    /// establish. It proves nothing about anything being downloaded: the command's own progress is
+    /// the instance's business, and no answer here says a release was taken.
+    /// <para>
+    /// A read, so re-issuing it reads again and grabs nothing. The identifier comes off the answer
+    /// to the post rather than from a caller.
+    /// </para>
+    /// </remarks>
+    Task<WhisparrResponse> ReadCommandAsync(
+        Uri baseAddress, string apiKey, int commandId, CancellationToken ct);
+
     /// <summary>Creates one notification.</summary>
     /// <remarks>
     /// Never re-issued on a failure, whatever the failure is. The instance enforces name uniqueness,
@@ -363,6 +376,17 @@ internal sealed class WhisparrClient(
                     cancellationToken: ct)),
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
+    }
+
+    public Task<WhisparrResponse> ReadCommandAsync(
+        Uri baseAddress, string apiKey, int commandId, CancellationToken ct)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(commandId, 1);
+
+        return GeneratedReadAsync(
+            baseAddress,
+            apiKey,
+            api => api.Api<V3Api.ICommandApi>().GetCommandByIdAsync(commandId, ct));
     }
 
     public Task<WhisparrResponse> CreateNotificationAsync(
