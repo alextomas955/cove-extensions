@@ -24,7 +24,13 @@ public interface ILibraryStatusPort
     /// verb and no query key, so nothing here can replace the request that is issued.
     /// </para>
     /// </remarks>
-    Task<IReadOnlyList<LibraryStatusRow>> ReadEntityCardsAsync(
+    /// <returns>
+    /// One row per identifier in the order given, and whether any read left for the instance and did
+    /// not come back. The second is reported apart from the readings because it is the one fact a
+    /// reading cannot carry: a card the instance answered and established nothing about looks exactly
+    /// like a card whose read dropped.
+    /// </returns>
+    Task<(IReadOnlyList<LibraryStatusRow> Rows, bool AnyReadDropped)> ReadEntityCardsAsync(
         Func<string, CancellationToken, Task<WhisparrResponse>> reading,
         WhisparrEntityKind kind,
         WhisparrGeneration generation,
@@ -46,14 +52,19 @@ public interface ILibraryStatusPort
     /// excluded on a fact no instance answered.
     /// </para>
     /// </remarks>
-    Task<IReadOnlyDictionary<int, LibraryCardReading>> ReadSceneCardsAsync(
-        IWhisparrSceneStatusReading reading,
-        Capability<IWhisparrSceneExclusionReading> exclusions,
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
-        IReadOnlyList<LibraryCardIdentity> identities,
-        CancellationToken ct);
+    /// <returns>
+    /// One reading per identifier, keyed by the Cove id it was resolved from, and whether any read
+    /// left for the instance and did not come back.
+    /// </returns>
+    Task<(IReadOnlyDictionary<int, LibraryCardReading> Readings, bool AnyReadDropped)>
+        ReadSceneCardsAsync(
+            IWhisparrSceneStatusReading reading,
+            Capability<IWhisparrSceneExclusionReading> exclusions,
+            Uri baseAddress,
+            string apiKey,
+            WhisparrGeneration generation,
+            IReadOnlyList<LibraryCardIdentity> identities,
+            CancellationToken ct);
 }
 
 /// <inheritdoc cref="ILibraryStatusPort"/>
@@ -74,38 +85,41 @@ public interface ILibraryStatusPort
 internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger log)
     : ILibraryStatusPort
 {
-    public async Task<IReadOnlyList<LibraryStatusRow>> ReadEntityCardsAsync(
-        Func<string, CancellationToken, Task<WhisparrResponse>> reading,
-        WhisparrEntityKind kind,
-        WhisparrGeneration generation,
-        Uri baseAddress,
-        IReadOnlyList<int> coveIds,
-        CancellationToken ct)
+    public async Task<(IReadOnlyList<LibraryStatusRow> Rows, bool AnyReadDropped)>
+        ReadEntityCardsAsync(
+            Func<string, CancellationToken, Task<WhisparrResponse>> reading,
+            WhisparrEntityKind kind,
+            WhisparrGeneration generation,
+            Uri baseAddress,
+            IReadOnlyList<int> coveIds,
+            CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(reading);
         ArgumentNullException.ThrowIfNull(baseAddress);
         ArgumentNullException.ThrowIfNull(coveIds);
 
         var rows = new List<LibraryStatusRow>(coveIds.Count);
+        var dropped = false;
         foreach (var coveId in coveIds)
         {
-            rows.Add(new LibraryStatusRow(
-                coveId,
-                await ReadOneAsync(reading, kind, generation, baseAddress, coveId, ct)
-                    .ConfigureAwait(false)));
+            var read = await ReadOneAsync(reading, kind, generation, baseAddress, coveId, ct)
+                .ConfigureAwait(false);
+            dropped |= read.Dropped;
+            rows.Add(new LibraryStatusRow(coveId, read.Reading));
         }
 
-        return rows;
+        return (rows, dropped);
     }
 
-    public async Task<IReadOnlyDictionary<int, LibraryCardReading>> ReadSceneCardsAsync(
-        IWhisparrSceneStatusReading reading,
-        Capability<IWhisparrSceneExclusionReading> exclusions,
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
-        IReadOnlyList<LibraryCardIdentity> identities,
-        CancellationToken ct)
+    public async Task<(IReadOnlyDictionary<int, LibraryCardReading> Readings, bool AnyReadDropped)>
+        ReadSceneCardsAsync(
+            IWhisparrSceneStatusReading reading,
+            Capability<IWhisparrSceneExclusionReading> exclusions,
+            Uri baseAddress,
+            string apiKey,
+            WhisparrGeneration generation,
+            IReadOnlyList<LibraryCardIdentity> identities,
+            CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(reading);
         ArgumentNullException.ThrowIfNull(exclusions);
@@ -116,6 +130,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
             .ConfigureAwait(false);
 
         var readings = new Dictionary<int, LibraryCardReading>(identities.Count);
+        var dropped = false;
         foreach (var identity in identities)
         {
             var onList = excluded.Contains(identity.RemoteId);
@@ -141,13 +156,14 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
                 WhisparrSyncLog.MonitoringRequestContained(
                     log, generation, WhisparrSyncLog.Classify(failure), baseAddress.Host);
                 readings[identity.CoveId] = new LibraryCardReading(onList, null, null);
+                dropped = true;
                 continue;
             }
 
             readings[identity.CoveId] = SceneReading(answered, onList);
         }
 
-        return readings;
+        return (readings, dropped);
     }
 
     /// <summary>
@@ -218,13 +234,21 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
     private static IReadOnlySet<string> NothingExcluded { get; }
         = new HashSet<string>(StringComparer.Ordinal);
 
-    /// <summary>One card's reading, or null where the extension cannot speak for it.</summary>
+    /// <summary>
+    /// One card's reading, or null where the extension cannot speak for it, and whether its read
+    /// dropped before an answer arrived.
+    /// </summary>
     /// <remarks>
     /// A library naming no single identifier in the connected generation's namespace answers null
     /// rather than a state. No state in the vocabulary means "cannot be asked about", and reusing one
     /// that means something else is the confident wrong claim this product refuses to make.
+    /// <para>
+    /// A dropped read is reported beside the reading rather than inside it. The reading of a card the
+    /// instance answered and established nothing about is the same either way, so the caller cannot
+    /// tell the two apart from the reading alone.
+    /// </para>
     /// </remarks>
-    private async Task<LibraryCardReading?> ReadOneAsync(
+    private async Task<(LibraryCardReading? Reading, bool Dropped)> ReadOneAsync(
         Func<string, CancellationToken, Task<WhisparrResponse>> reading,
         WhisparrEntityKind kind,
         WhisparrGeneration generation,
@@ -236,7 +260,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
             .ConfigureAwait(false);
         if (identity.ForeignId is not { } foreignId)
         {
-            return null;
+            return (null, false);
         }
 
         WhisparrResponse answered;
@@ -257,7 +281,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
             // by nothing in the failure itself.
             WhisparrSyncLog.MonitoringRequestContained(
                 log, generation, WhisparrSyncLog.Classify(failure), baseAddress.Host);
-            return Unestablished;
+            return (Unestablished, true);
         }
 
         var presence = MonitoringProjector.PresenceOf(
@@ -265,7 +289,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
 
         // Never excluded on this path: no entity exclusion reading role exists, so a true here would
         // be a fact no instance answered.
-        return new LibraryCardReading(false, presence.Present, presence.Monitored);
+        return (new LibraryCardReading(false, presence.Present, presence.Monitored), false);
     }
 
     /// <summary>The instance was asked and nothing about the entity was established.</summary>
