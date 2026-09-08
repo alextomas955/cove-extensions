@@ -7,8 +7,9 @@ User-facing changes, newest first.
 A button in the toolbar of Cove's videos, studios and performers lists puts a small badge on every
 card saying what your Whisparr holds for that scene, studio or performer.
 
-**A full page costs up to forty requests to your Whisparr**, one after another, so the badges take a
+**A full page costs one request to your Whisparr per card**, one after another, so the badges take a
 moment to fill in. Nothing is asked until you press the button, and nothing is cached between pages.
+Any page size Cove offers is covered, however large.
 
 - **Turn the badges on from the list toolbar.** The button carries Whisparr's mark and names itself
   on hover. It is off after every page load and nothing about it is stored in your browser.
@@ -21,7 +22,9 @@ moment to fill in. Nothing is asked until you press the button, and nothing is c
   keeps a place on a card for them. Press the button in another mode and it says so on hover.
 - **A card Cove holds no Whisparr link for shows no badge**, rather than a state that would claim
   your Whisparr has no entry for it.
-- **An unreachable Whisparr is reported once, on the button**, and no card claims anything.
+- **A status that could not be read is reported once, on the button**, and no card claims anything.
+  The button says which of the four reasons applies: nothing is connected, the connected Whisparr
+  keeps no record of that kind of card, your instance did not answer, or the read did not complete.
 - **On a Whisparr v2 connection the button and the badges are absent from the videos and performers
   lists.** That generation keeps no per-scene records and has no performer entity. The studios list
   keeps both. Switching the connected generation takes effect on the next page load.
