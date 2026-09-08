@@ -6,10 +6,12 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Library;
 using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace WhisparrSync.Tests.Api;
@@ -64,6 +66,11 @@ public sealed class EndpointPermissionTests
         "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/scope",
         "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/unmonitor",
         "POST /api/extensions/com.alextomas955.whisparrsync/library/{kind}/status",
+        "POST /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/add",
+        "POST /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/exclude",
+        "POST /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/monitor",
+        "POST /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/remove-exclusion",
+        "POST /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/unmonitor",
         "PUT /api/extensions/com.alextomas955.whisparrsync/settings",
     ];
 
@@ -206,6 +213,52 @@ public sealed class EndpointPermissionTests
         Assert.NotEmpty(store.GetKeys);
     }
 
+    /// <summary>
+    /// Each scene write refuses a caller holding the read tier and reaches nothing at all.
+    /// </summary>
+    /// <remarks>
+    /// One case per mounted route rather than one over all five, so a handler whose own re-check was
+    /// dropped while its declaration stayed is named by the failure.
+    /// <para>
+    /// The caller holds the read tier, which is the tier the scene's own read sits at, so a pass
+    /// here is about the configure gate and not about holding no permission at all.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("add")]
+    [InlineData("monitor")]
+    [InlineData("unmonitor")]
+    [InlineData("exclude")]
+    [InlineData("remove-exclusion")]
+    public async Task EachSceneWriteRefusesACallerWithoutTheConfigureTierAndReachesNothing(
+        string verb)
+    {
+        var (store, options) = NewStore();
+        var credentials = new RecordingCredentialPort();
+        var identities = new RecordingCardIdentities();
+        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "[]"));
+
+        var refused = await SceneWriteAsync(
+            verb,
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
+            options,
+            credentials,
+            client,
+            identities);
+
+        Assert.Equal(403, StatusOf(refused));
+        Assert.Empty(store.GetKeys);
+        Assert.Empty(credentials.Reads);
+        Assert.Empty(identities.Resolved);
+        Assert.Empty(client.Verbs);
+
+        var answered = await SceneWriteAsync(
+            verb, Configure(), options, credentials, client, identities);
+
+        Assert.NotEqual(403, StatusOf(answered));
+        Assert.NotEmpty(store.GetKeys);
+    }
+
     [Fact]
     public async Task TheConnectionTestRefusesACallerWithoutTheConfigureTierAndRunsNoTest()
     {
@@ -290,6 +343,29 @@ public sealed class EndpointPermissionTests
 
         Assert.Equal(403, StatusOf(extension.HostConfiguration(FakePrincipalAccessor.NullPrincipal())));
     }
+
+    /// <summary>The scene write <paramref name="verb"/> names, driven at its own handler.</summary>
+    private static async Task<IResult> SceneWriteAsync(
+        string verb,
+        ICurrentPrincipalAccessor principal,
+        OptionsStore options,
+        ICredentialPort credentials,
+        IWhisparrClient client,
+        ILibraryCardIdentityPort identities)
+        => verb switch
+        {
+            "add" => await global::WhisparrSync.WhisparrSync.AddSceneAsync(
+                1, principal, options, credentials, client, identities, NullLogger.Instance, TestCt),
+            "monitor" => await global::WhisparrSync.WhisparrSync.MonitorSceneAsync(
+                1, principal, options, credentials, client, identities, NullLogger.Instance, TestCt),
+            "unmonitor" => await global::WhisparrSync.WhisparrSync.UnmonitorSceneAsync(
+                1, principal, options, credentials, client, identities, NullLogger.Instance, TestCt),
+            "exclude" => await global::WhisparrSync.WhisparrSync.ExcludeSceneAsync(
+                1, principal, options, credentials, client, identities, NullLogger.Instance, TestCt),
+            "remove-exclusion" => await global::WhisparrSync.WhisparrSync.RemoveSceneExclusionAsync(
+                1, principal, options, credentials, client, identities, NullLogger.Instance, TestCt),
+            _ => throw new ArgumentOutOfRangeException(nameof(verb)),
+        };
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 

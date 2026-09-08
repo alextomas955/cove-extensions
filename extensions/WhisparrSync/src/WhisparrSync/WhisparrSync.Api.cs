@@ -56,6 +56,11 @@ public sealed partial class WhisparrSync
     private string MissingSceneSearchRoute =>
         RouteBase + "/entity/{kind}/{coveId}/missing/{providerSceneId}/search";
     private string SceneDetailRoute => RouteBase + "/scene/{coveId}";
+    private string SceneAddRoute => RouteBase + "/scene/{coveId}/add";
+    private string SceneMonitorRoute => RouteBase + "/scene/{coveId}/monitor";
+    private string SceneUnmonitorRoute => RouteBase + "/scene/{coveId}/unmonitor";
+    private string SceneExcludeRoute => RouteBase + "/scene/{coveId}/exclude";
+    private string SceneRemoveExclusionRoute => RouteBase + "/scene/{coveId}/remove-exclusion";
     private string LibraryStatusRoute => RouteBase + "/library/{kind}/status";
     private string BulkMonitorRoute => RouteBase + "/entities/bulk-monitor";
     private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
@@ -239,6 +244,56 @@ public sealed partial class WhisparrSync
                     coveId, principal, options, credentials, client, sceneCards, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        // The configure tier for each of the five: one gesture aiming this extension's stored
+        // credential at a third party, creating or removing items in the reader's own Whisparr, is
+        // not something a caller who cannot configure the extension may do. Which scene a request
+        // touches is a path segment, so a caller cannot name one in a body the route would otherwise
+        // have to refuse.
+        endpoints.MapPost(SceneAddRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => AddSceneAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneMonitorRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => MonitorSceneAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneUnmonitorRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => UnmonitorSceneAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneExcludeRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => ExcludeSceneAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneRemoveExclusionRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => RemoveSceneExclusionAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
         endpoints.MapGet(MissingCountRoute,
             (string kind, int coveId, string? q, string? filters,

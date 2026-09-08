@@ -472,6 +472,12 @@ public sealed class LibraryStatusPortTests
             return Task.FromResult<IReadOnlySet<string>>(
                 new HashSet<string>(providerSceneIds.Where(_excluded.Contains), StringComparer.Ordinal));
         }
+
+        public Task<SceneExclusionLookup> FindSceneExclusionAsync(
+            Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+            => throw new NotSupportedException(
+                "The card path asks about a page of scenes at once and never for one exclusion "
+                    + "row's own identifier.");
     }
 
     /// <summary>Keeps the contained-request lines, by event id, as a sink would write them.</summary>

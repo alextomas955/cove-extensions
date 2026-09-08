@@ -294,9 +294,10 @@ internal sealed class WhisparrClient(
 
     private static readonly JsonSerializerOptions ExclusionRowShape = new(JsonSerializerDefaults.Web);
 
-    // The one member of an exclusion row this product reads. Declared with no other member so a row
-    // costs one small object that is dropped again before the next is read.
-    private sealed record ExclusionRow(string? ForeignId);
+    // The two members of an exclusion row this product reads. Declared with no others so a row costs
+    // one small object that is dropped again before the next is read. The identifier is the row's
+    // own, which is what the removing route addresses; the foreign id is the scene's.
+    private sealed record ExclusionRow(int Id, string? ForeignId);
 
     public async Task<WhisparrResponse> ReadStatusAsync(
         Uri baseAddress,
@@ -731,18 +732,9 @@ internal sealed class WhisparrClient(
             api => api.Api<V3Api.IMovieApi>().ListMovieAsync(
                 stashId: Named(remoteId), cancellationToken: ct));
 
-    // No parameter narrows this route, so none is composed. A filter key, a bare foreign id and a
-    // foreign id as a further segment were each measured against the instance: the first two are
-    // ignored and answer the whole list under a success, and the third is a not-found. An ignored
-    // parameter answering a success is indistinguishable from one that narrowed.
-    //
-    // The answer is therefore read as it arrives and each row is reduced to one question, so what
-    // this holds is the caller's own set and never the instance's. There is no row cap: a cap would
-    // stop part way and report the rest as not excluded, with nothing saying so.
-    //
-    // Sent once. Nothing is retained between rows, so a failure part way through has already
-    // discarded what it read, and a re-issue would transfer the whole list a second time to answer
-    // the same question.
+    // Each row is reduced to one question, so what this holds is the caller's own set and never the
+    // instance's. There is no row cap: a cap would stop part way and report the rest as not
+    // excluded, with nothing saying so.
     public async Task<IReadOnlySet<string>> ReduceExclusionsAsync(
         Uri baseAddress,
         string apiKey,
@@ -770,6 +762,85 @@ internal sealed class WhisparrClient(
             return excluded;
         }
 
+        // An answer that did not arrive, or one this could not read, excludes nothing. Reporting a
+        // scene as excluded on the strength of a failed read would remove it from the surface with
+        // nothing saying why, so the walk's own outcome is deliberately left unread here.
+        await OverExclusionRowsAsync(
+            baseAddress,
+            apiKey,
+            row =>
+            {
+                if (row.ForeignId is { Length: > 0 } named
+                    && asked.TryGetValue(named, out var asAsked))
+                {
+                    excluded.Add(asAsked);
+                }
+
+                return true;
+            },
+            ct).ConfigureAwait(false);
+
+        return excluded;
+    }
+
+    public async Task<SceneExclusionLookup> FindSceneExclusionAsync(
+        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
+
+        int? named = null;
+        var read = await OverExclusionRowsAsync(
+            baseAddress,
+            apiKey,
+            row =>
+            {
+                // Compared without regard to case for the reason the reduce above keys that way. A
+                // non-positive identifier is no address the removing route could take, so a row
+                // carrying one is passed over rather than answered.
+                if (row.Id >= 1
+                    && string.Equals(row.ForeignId, foreignId, StringComparison.OrdinalIgnoreCase))
+                {
+                    named = row.Id;
+                    return false;
+                }
+
+                return true;
+            },
+            ct).ConfigureAwait(false);
+
+        if (!read)
+        {
+            return SceneExclusionLookup.DidNotComplete;
+        }
+
+        return named is { } exclusionId
+            ? SceneExclusionLookup.At(exclusionId)
+            : SceneExclusionLookup.NamesNoExclusion;
+    }
+
+    /// <summary>
+    /// Reads the instance's exclusion list row by row, until <paramref name="visit"/> answers false.
+    /// </summary>
+    /// <remarks>
+    /// No parameter narrows this route, so none is composed. A filter key, a bare foreign id and a
+    /// foreign id as a further segment were each measured against the instance: the first two are
+    /// ignored and answer the whole list under a success, and the third is a not-found. An ignored
+    /// parameter answering a success is indistinguishable from one that narrowed.
+    /// <para>
+    /// The answer is therefore read as it arrives and each row is dropped again before the next is
+    /// read, so nothing here grows with what the instance holds.
+    /// </para>
+    /// <para>
+    /// Sent once. Nothing is retained between rows, so a failure part way through has already
+    /// discarded what it read, and a re-issue would transfer the whole list a second time to answer
+    /// the same question.
+    /// </para>
+    /// </remarks>
+    /// <returns>Whether a whole answer arrived and could be read.</returns>
+    private async Task<bool> OverExclusionRowsAsync(
+        Uri baseAddress, string apiKey, Func<ExclusionRow, bool> visit, CancellationToken ct)
+    {
         using var request = new HttpRequestMessage(
             HttpMethod.Get, RequestUri(baseAddress, ExclusionsPath));
         request.Headers.Add(ApiKeyHeader, apiKey);
@@ -785,7 +856,7 @@ internal sealed class WhisparrClient(
 
             if (!IsSuccess((int)response.StatusCode))
             {
-                return excluded;
+                return false;
             }
 
             var stream = await response.Content.ReadAsStreamAsync(attempt.Token).ConfigureAwait(false);
@@ -796,27 +867,23 @@ internal sealed class WhisparrClient(
 
                 await foreach (var row in rows.ConfigureAwait(false))
                 {
-                    if (row?.ForeignId is { Length: > 0 } named
-                        && asked.TryGetValue(named, out var asAsked))
+                    if (row is not null && !visit(row))
                     {
-                        excluded.Add(asAsked);
+                        break;
                     }
                 }
             }
 
-            return excluded;
+            return true;
         }
         catch (Exception failure)
             when (failure is HttpRequestException or IOException or JsonException)
         {
-            // An answer that did not arrive, or one this could not read, excludes nothing. Reporting
-            // a scene as excluded on the strength of a failed read would remove it from the surface
-            // with nothing saying why.
-            return excluded;
+            return false;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return excluded;
+            return false;
         }
     }
 

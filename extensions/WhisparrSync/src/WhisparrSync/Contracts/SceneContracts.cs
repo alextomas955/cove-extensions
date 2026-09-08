@@ -49,7 +49,50 @@ public enum SceneRefusalKind
 
     /// <summary>The instance answered, and would not do it.</summary>
     InstanceRefused,
+
+    /// <summary>The instance offers no quality profile, so no add can be composed.</summary>
+    /// <remarks>
+    /// A stop taken before anything is sent. This generation accepts a profile id of zero, echoes it
+    /// back, and the scene then monitors and can never acquire anything.
+    /// </remarks>
+    InstanceOffersNoQualityProfile,
+
+    /// <summary>The instance offers no library root, so no add can be composed.</summary>
+    /// <remarks>
+    /// A stop taken before anything is sent. A fresh instance is exactly this case, and its add
+    /// answers a conflict carrying a full stack trace.
+    /// </remarks>
+    InstanceOffersNoRootFolder,
+
+    /// <summary>The instance holds no entry for the scene, so there was nothing to act on.</summary>
+    /// <remarks>
+    /// A legitimate answer rather than a failure, and read as one: the instance reported an absence
+    /// instead of declining, which sends a reader somewhere different from every other value here.
+    /// </remarks>
+    WhisparrHasNoEntryForScene,
+
+    /// <summary>The instance already holds an entry for the scene, so an add would add nothing.</summary>
+    /// <remarks>
+    /// Read off the instance's own row before the add is composed, so a second entry is never
+    /// created. Not a failure: the state the reader wanted is the state the instance is already in.
+    /// </remarks>
+    WhisparrAlreadyHoldsThisScene,
 }
+
+/// <summary>What one of the scene tab's own verbs produced.</summary>
+/// <remarks>
+/// It carries no state. The browser re-reads the scene's facts after every verb, so what a reader
+/// sees is read off the instance rather than painted from what the browser asked for, and this
+/// answer cannot disagree with the tab beneath it.
+/// </remarks>
+/// <param name="Refusal">Why the verb did not take, or that it did.</param>
+/// <param name="SearchIsWithWhisparr">
+/// The instance holds the search command, read back off it by the command's own id. It says nothing
+/// about a download: whether anything was taken is the instance's own business, and no answer here
+/// reports a file, a release or a queue.
+/// </param>
+public sealed record SceneActionResult(
+    SceneRefusalKind Refusal, bool SearchIsWithWhisparr);
 
 /// <summary>What the connected instance holds for one scene, as its own tab reads it.</summary>
 /// <remarks>
