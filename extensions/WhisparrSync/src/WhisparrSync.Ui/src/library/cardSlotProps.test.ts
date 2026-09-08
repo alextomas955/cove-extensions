@@ -1,6 +1,7 @@
 /**
- * The one prop each card badge reads, pinned against the host's own slot context, and the card kinds
- * the status route answers for, pinned against the enum the server declares.
+ * The one prop each card badge reads, pinned against the host's own slot context, the card kinds the
+ * status route answers for, pinned against the enum the server declares, and the identifiers one
+ * status request may carry, pinned against the bound the route enforces.
  *
  * The host's `Studio` and `Performer` types cannot be generated into this bundle's wire types, which
  * are emitted from this extension's own registrations, so each prop shape is hand-declared. Its
@@ -48,15 +49,12 @@ const SLOTS = [
 
 const store = path.join(import.meta.dirname, "cardStatusStore.ts");
 
-const contracts = path.resolve(
-  import.meta.dirname,
-  "..",
-  "..",
-  "..",
-  "WhisparrSync",
-  "Contracts",
-  "LibraryStatusContracts.cs",
-);
+/** A file of the server project, which is in this repo and present on every leg. */
+function serverSource(...under: string[]): string {
+  return path.resolve(import.meta.dirname, "..", "..", "..", "WhisparrSync", ...under);
+}
+
+const contracts = serverSource("Contracts", "LibraryStatusContracts.cs");
 
 /** The members of the card-kind enum the server declares, in the casing the route parses. */
 const CARD_KIND_ENUM = /public enum LibraryCardKind\s*\{([\s\S]*?)\n\}/;
@@ -142,4 +140,28 @@ test("the card kinds the browser names are the ones the server declares", () => 
 
   expect(members.length, `${contracts} declares no enum member at all`).toBeGreaterThan(0);
   expect([...named].sort()).toEqual([...members].sort());
+});
+
+test("the identifiers one status request carries are the most the route accepts", () => {
+  // The bound reaches no request or response body, so it cannot be generated into this bundle's wire
+  // types. A figure transcribed here would agree with itself while the route refused every page.
+  const declaring = serverSource("WhisparrSync.Missing.cs");
+  const bound = /private const int MissingPerPage = (\d+);/.exec(readFileSync(declaring, "utf8"));
+  expect(bound, `no page bound found in ${declaring}`).not.toBeNull();
+
+  // The route enforcing that same constant is half of what makes the pin mean anything: a route
+  // switched to a bound of its own would leave the figure below agreeing with an unused one.
+  const route = serverSource("WhisparrSync.LibraryStatus.cs");
+  expect(
+    readFileSync(route, "utf8"),
+    "the status route no longer bounds its body by MissingPerPage",
+  ).toContain("request.CoveIds.Count > MissingPerPage");
+
+  const browser = readFileSync(path.join(import.meta.dirname, "cardStatusStore.ts"), "utf8");
+  const sending = /const IDS_PER_REQUEST = (\d+);/.exec(browser);
+  expect(sending, "no IDS_PER_REQUEST found in cardStatusStore.ts").not.toBeNull();
+
+  expect(Number(sending![1]), "the browser sends more identifiers than the route accepts").toBe(
+    Number(bound![1]),
+  );
 });
