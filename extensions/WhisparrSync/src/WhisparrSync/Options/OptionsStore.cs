@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Microsoft.Extensions.Logging;
@@ -24,18 +23,16 @@ public sealed record OptionsLoad(WhisparrSyncOptions Options, bool Bound);
 /// No normaliser is supplied: no member of the model can hold a stored value the extension cannot
 /// honour, so there is nothing for a load-time rule to replace.
 /// </remarks>
-public sealed class OptionsStore : ExtensionOptionsStore<WhisparrSyncOptions>
+public sealed class OptionsStore(
+    IExtensionStore store,
+    ILogger? logger = null,
+    Action<string?>? publishGeneration = null)
+    : ExtensionOptionsStore<WhisparrSyncOptions>(
+        store,
+        WhisparrSyncOptions.JsonOptions,
+        static () => new WhisparrSyncOptions(),
+        logger ?? NullLogger.Instance)
 {
-    private readonly IExtensionStore _store;
-
-    public OptionsStore(IExtensionStore store, ILogger? logger = null)
-        : base(
-            store,
-            WhisparrSyncOptions.JsonOptions,
-            static () => new WhisparrSyncOptions(),
-            logger ?? NullLogger.Instance)
-        => _store = store;
-
     /// <summary>
     /// Loads the persisted options and reports whether they were bound from the stored blob.
     /// </summary>
@@ -48,21 +45,19 @@ public sealed class OptionsStore : ExtensionOptionsStore<WhisparrSyncOptions>
     /// <returns>The options, and whether the stored blob bound.</returns>
     public async Task<OptionsLoad> LoadBoundAsync(CancellationToken ct = default)
     {
-        var loaded = await LoadAsync(ct).ConfigureAwait(false);
-        var json = await _store.GetAsync(Key, ct).ConfigureAwait(false);
-        return new OptionsLoad(loaded, string.IsNullOrWhiteSpace(json) || Binds(json));
+        var read = await LoadReportedAsync(ct).ConfigureAwait(false);
+        return new OptionsLoad(read.Options, read.Bound);
     }
 
-    private static bool Binds(string json)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize<WhisparrSyncOptions>(json, WhisparrSyncOptions.JsonOptions)
-                is not null;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
+    /// <summary>
+    /// Publishes the generation each load establishes, or null where nothing was established.
+    /// </summary>
+    /// <remarks>
+    /// A blob the model could not bind establishes nothing: its options are manufactured defaults,
+    /// and the default names the newer generation. Every writer of the blob is covered here,
+    /// including a caller that writes the store through the host's own extension-data route without
+    /// reaching this extension's save.
+    /// </remarks>
+    protected override void OnLoaded(WhisparrSyncOptions options, bool bound)
+        => publishGeneration?.Invoke(bound ? options.SelectedGeneration.ToString() : null);
 }

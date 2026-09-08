@@ -1,3 +1,4 @@
+using Cove.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Options;
@@ -82,6 +83,36 @@ public sealed class ManifestGenerationTests
         Assert.Equal(newer.Order(), slots.Order());
     }
 
+    /// <summary>
+    /// A generation written straight into the store reaches the manifest on the next load.
+    /// </summary>
+    /// <remarks>
+    /// The blob has writers this extension never sees: the host ships a route that writes an
+    /// extension's store directly and reaches no code here. A manifest refreshed only where this
+    /// extension saves keeps registering the previous generation's surfaces, and every badge on them
+    /// refuses.
+    /// </remarks>
+    [Fact]
+    public async Task AGenerationWrittenStraightIntoTheStoreReachesTheManifestOnTheNextLoad()
+    {
+        var store = new FakeStore();
+        await new OptionsStore(store)
+            .SaveAsync(new WhisparrSyncOptions { SelectedGeneration = WhisparrGeneration.V3 }, TestCt);
+        await using var loaded = await LoadedOverAsync(store);
+        Assert.All(VideosViewSlots, slot => Assert.Contains(slot, SlotsOf(loaded.Extension)));
+
+        // Written the way the host's own extension-data route writes it, so nothing of this
+        // extension's own save path runs.
+        await new OptionsStore(store)
+            .SaveAsync(new WhisparrSyncOptions { SelectedGeneration = WhisparrGeneration.V2 }, TestCt);
+        using var scope = loaded.Provider.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<OptionsStore>().LoadAsync(TestCt);
+
+        var slots = SlotsOf(loaded.Extension);
+        Assert.Contains("studios-list-toolbar-end", slots);
+        Assert.All(VideosViewSlots, slot => Assert.DoesNotContain(slot, slots));
+    }
+
     [Fact]
     public async Task NeitherGenerationOccupiesTheHostsFullWidthRowSlot()
     {
@@ -106,18 +137,43 @@ public sealed class ManifestGenerationTests
     /// Every slot the manifest registers for an extension loaded against <paramref name="store"/>.
     /// </summary>
     /// <remarks>
-    /// Loaded through <c>InitializeAsync</c> the way the host loads it, so the field the manifest
-    /// reads is filled by the shipped path and not by the test.
+    /// Loaded through <c>InitializeAsync</c> the way the host loads it, and over the extension's own
+    /// options store, so the field the manifest reads is filled by the shipped path and not by the
+    /// test.
     /// </remarks>
     private static async Task<IReadOnlyList<string>> SlotsOfAsync(FakeStore store)
     {
-        var services = new ServiceCollection();
-        services.AddScoped(_ => new OptionsStore(store));
-        await using var provider = services.BuildServiceProvider();
+        await using var loaded = await LoadedOverAsync(store);
+        return SlotsOf(loaded.Extension);
+    }
 
+    private static IReadOnlyList<string> SlotsOf(global::WhisparrSync.WhisparrSync extension)
+        => [.. extension.GetUIManifest().Slots.Select(slot => slot.Slot)];
+
+    /// <summary>
+    /// An extension initialized against <paramref name="store"/> through its own registration, and
+    /// the container it resolves its options store from.
+    /// </summary>
+    /// <remarks>
+    /// The store registration is the extension's own factory rather than one the test composes, so
+    /// what a load publishes is what the shipped wiring publishes.
+    /// </remarks>
+    private static async Task<LoadedExtension> LoadedOverAsync(FakeStore store)
+    {
         var extension = WhisparrSyncFixture.Create();
-        await extension.InitializeAsync(provider, TestCt);
+        ((IStatefulExtension)extension).SetStore(store);
 
-        return [.. extension.GetUIManifest().Slots.Select(slot => slot.Slot)];
+        var services = new ServiceCollection();
+        services.AddScoped(_ => extension.NewOptionsStore());
+        var provider = services.BuildServiceProvider();
+
+        await extension.InitializeAsync(provider, TestCt);
+        return new LoadedExtension(extension, provider);
+    }
+
+    private sealed record LoadedExtension(
+        global::WhisparrSync.WhisparrSync Extension, ServiceProvider Provider) : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() => Provider.DisposeAsync();
     }
 }
