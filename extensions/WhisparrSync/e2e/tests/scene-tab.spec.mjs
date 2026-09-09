@@ -1,9 +1,10 @@
 // The scene tab on a video detail page, in a real containerized host.
 //
-// TWO CASES, AND THE SECOND IS ABOUT AN ABSENCE. On the newer generation the tab states what the
-// instance holds. On the older one the registration never reaches the manifest, so nothing
-// Whisparr-shaped reaches the page: not the control, and not a host wrapper left behind with
-// nothing in it. Those are different DOM states and only one of them is what is promised.
+// THREE TESTS, AND THE SECOND IS ABOUT AN ABSENCE. On the newer generation the tab states what the
+// instance holds, and its four controls are pressed against a real instance. On the older one the
+// registration never reaches the manifest, so nothing Whisparr-shaped reaches the page: not the
+// control, and not a host wrapper left behind with nothing in it. Those are different DOM states
+// and only one of them is what is promised.
 //
 // WHY THIS SPEC EXISTS. Nothing below the browser can see the whole path this tab needs. Four
 // strings bind it across two repositories: the manifest's page type, its tab key, its component
@@ -40,6 +41,7 @@ import {
   seedCoveVideo,
   SETTLE_DWELL_MS,
   STASHDB_ENDPOINT,
+  whisparrActivity,
   WHISPARR_ROOT,
   WHISPARR_SYNC_EXTENSION,
 } from "../lib/whisparr-sync-fixtures.mjs";
@@ -51,10 +53,22 @@ const TAB_LABEL = "Whisparr";
 // The label of the tab's own state row, transcribed the same way.
 const STATE_ROW_LABEL = "State";
 
-// The two labels a held scene's state can read as, transcribed from the shipped vocabulary. The
-// three remaining labels belong to states a scene the instance holds and reports on cannot be in.
+// The labels a scene's state can read as, transcribed from the shipped vocabulary.
 const MONITORED = "Monitored";
 const UNMONITORED = "Unmonitored";
+const NOT_ADDED = "Not added";
+const EXCLUDED = "Excluded";
+const STATUS_UNKNOWN = "Status unknown";
+
+// The control names and the one confirmation sentence, transcribed by hand from the shipped copy. A
+// spec importing the constants would be asserting that a string equals itself.
+const ADD = "Add to Whisparr";
+const MONITOR = "Monitor in Whisparr";
+const STOP_MONITORING = "Stop monitoring in Whisparr";
+const SEARCH = "Search now";
+const EXCLUDE = "Exclude from Whisparr";
+const REMOVE_EXCLUSION = "Remove exclusion";
+const SEARCH_IS_WITH_WHISPARR = "Whisparr has the search.";
 
 // Each budget names the operation it bounds, so a failure says which one blew it rather than
 // reporting the whole test as a timeout naming nothing.
@@ -166,6 +180,46 @@ async function seedScene(coveApi, whisparr, { label, monitored }) {
   ).toBe("boolean");
 
   return { ...video, title, remoteId, statedAs: onInstance.monitored ? MONITORED : UNMONITORED };
+}
+
+/**
+ * The state label the INSTANCE's own answer puts this scene in, read off the instance every time.
+ *
+ * Exclusion is read first, matching the shipped vocabulary's own order: a scene that is both
+ * excluded and held reads as excluded. Nothing here is derived from what a press asked for, so a
+ * tab that painted an optimistic state disagrees with this rather than agreeing with itself.
+ */
+async function stateOnInstance(api, remoteId) {
+  const exclusions = await api.get("/api/v3/exclusions");
+  const rows = Array.isArray(exclusions.json) ? exclusions.json : [];
+  if (rows.some((row) => row.foreignId === remoteId)) return EXCLUDED;
+
+  const held = await api.get(`/api/v3/movie?stashId=${encodeURIComponent(remoteId)}`);
+  const row = Array.isArray(held.json) ? held.json[0] : held.json;
+  if (row === undefined || row === null) return NOT_ADDED;
+  return typeof row.monitored === "boolean"
+    ? row.monitored
+      ? MONITORED
+      : UNMONITORED
+    : STATUS_UNKNOWN;
+}
+
+/**
+ * One control, found by the accessible name it announces.
+ *
+ * Anchored at the start rather than matched exactly: a disabled control announces its own name and
+ * then its reason, and a reason-only match would pass a control whose name was lost.
+ */
+const sceneControl = (page, label) => page.getByRole("button", { name: new RegExp(`^${label}`) });
+
+/** Waits until the tab's own chip reads the state the instance answered, and answers with it. */
+async function chipAgreesWithInstance(page, api, remoteId, what) {
+  const stated = await stateOnInstance(api, remoteId);
+  await expect(
+    page.getByText(stated, { exact: true }),
+    `${what}: the instance answers "${stated}" for this scene and the tab does not read it, so the tab is painting a state of its own rather than reading one back`,
+  ).toBeVisible({ timeout: REGION_BUDGET_MS });
+  return stated;
 }
 
 test.describe("scene tab", () => {
@@ -301,6 +355,185 @@ test.describe("scene tab", () => {
         unresolvedExtensionComponent(page),
         "the host drew its placeholder for a contributed tab it could not resolve, so a tab surface renders empty rather than being absent",
       ).toHaveCount(0);
+    } finally {
+      await whisparr.stop();
+    }
+  });
+
+  // FIVE CASES IN ONE TEST, and the reason is cost rather than convenience. Each case needs a Cove
+  // container, an extension install, a browser and a real Whisparr, and the verbs act on the same
+  // scene in an order that matters: exclude changes the state monitor and search read back, so it
+  // goes last. This is the shape missing-card.spec.mjs already uses for the same reason.
+  //
+  // EVERY STATE ASSERTION IS THE INSTANCE'S OWN. No case supplies the state it then asserts: after
+  // each press the instance is read and the tab is asserted to agree with what it answered. A tab
+  // painting the state the browser asked for disagrees with that read whenever a verb is refused,
+  // which is the failure this spec exists to catch.
+  test("controls: add, monitor, search now and exclude, driven against the instance", async ({
+    page,
+    baseUrl,
+    sceneHarness,
+  }) => {
+    test.setTimeout(900_000);
+
+    const coveApi = createApiClient(
+      () => sceneHarness.baseUrl,
+      () => sceneHarness.token,
+    );
+
+    // Registered before the first press. No control on this tab asks for confirmation, so a dialog
+    // opening at all is the failure; dismissing it keeps the run from hanging on the way to saying
+    // so.
+    const dialogs = [];
+    page.on("dialog", async (dialog) => {
+      dialogs.push(dialog.type());
+      await dialog.dismiss();
+    });
+
+    const whisparr = await startWhisparr({
+      network: sceneHarness.container.getNetworkNames()[0],
+      generations: ["v3"],
+    });
+
+    try {
+      whisparr.v3.rootFolder = await registerRootFolder(
+        whisparr.v3.container,
+        whisparr.apiFor("v3"),
+        "v3",
+        WHISPARR_ROOT,
+      );
+      await connectWhisparr(coveApi, whisparr, "v3");
+      const instance = whisparr.apiFor("v3");
+
+      // CASE 1. Add, on a scene the instance holds no entry for. The Cove video carries an identity
+      // row and the instance carries nothing for it, which is the only state the add control is
+      // offered in.
+      const absentRemoteId = randomUUID();
+      const absent = await seedCoveVideo(coveApi, {
+        title: `Absent ${absentRemoteId.slice(0, 8)}`,
+        remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: absentRemoteId }],
+      });
+
+      await visit(
+        page,
+        baseUrl,
+        `/video/${String(absent.id)}`,
+        hostDetailTabs(page),
+        "the video detail page for a scene the instance does not hold",
+      );
+      await expect(whisparrTab(page)).toBeVisible({ timeout: TAB_BUDGET_MS });
+      await whisparrTab(page).click();
+      await expect(page.getByText(STATE_ROW_LABEL, { exact: true })).toBeVisible({
+        timeout: REGION_BUDGET_MS,
+      });
+
+      // The three controls this state stops each announce their own name first and their reason
+      // after it. A control whose name was lost still carries its reason, so the reason alone
+      // proves nothing.
+      for (const label of [MONITOR, SEARCH]) {
+        await expect(
+          sceneControl(page, label),
+          `${label} is unavailable on a scene the instance does not hold and did not announce itself by name`,
+        ).toBeDisabled();
+      }
+      await expect(sceneControl(page, ADD)).toBeEnabled();
+
+      // An enabled control announces its own name and nothing after it, so an exact match finds
+      // it. A control carrying a reason it is not disabled for would fail this and pass the
+      // anchored match above.
+      for (const label of [ADD, EXCLUDE]) {
+        await expect(
+          page.getByRole("button", { name: label, exact: true }),
+          `${label} is available and announces something beyond its own name`,
+        ).toBeEnabled();
+      }
+
+      await sceneControl(page, ADD).click();
+      await chipAgreesWithInstance(page, instance, absentRemoteId, "after Add");
+
+      // CASE 2. Monitor, on a scene the instance holds and is not monitoring. The instance's answer
+      // before the press is recorded, so the assertion is that the press moved it rather than that
+      // it landed on a value this test named.
+      const held = await seedScene(coveApi, whisparr, { label: "Held", monitored: false });
+      await visit(
+        page,
+        baseUrl,
+        `/video/${String(held.id)}`,
+        hostDetailTabs(page),
+        "the video detail page for a scene the instance holds",
+      );
+      await expect(whisparrTab(page)).toBeVisible({ timeout: TAB_BUDGET_MS });
+      await whisparrTab(page).click();
+      await chipAgreesWithInstance(page, instance, held.remoteId, "before Monitor");
+
+      const beforeMonitor = await stateOnInstance(instance, held.remoteId);
+      await sceneControl(page, MONITOR).click();
+      await expect(sceneControl(page, STOP_MONITORING)).toBeVisible({
+        timeout: REGION_BUDGET_MS,
+      });
+      const afterMonitor = await chipAgreesWithInstance(
+        page,
+        instance,
+        held.remoteId,
+        "after Monitor",
+      );
+      expect(
+        afterMonitor,
+        "the instance answers the same state before and after the press, so nothing reached it",
+      ).not.toBe(beforeMonitor);
+
+      // CASE 3. Search now, on the monitored scene. The tab is asserted to state that the instance
+      // holds the command, and nothing about a file, a queue or a download: confirming receipt is
+      // all the read behind that sentence establishes.
+      await sceneControl(page, SEARCH).click();
+      await expect(
+        page.getByText(SEARCH_IS_WITH_WHISPARR, { exact: false }),
+        "the tab said nothing after a search, so a reader has no way to know the instance took it",
+      ).toBeVisible({ timeout: REGION_BUDGET_MS });
+
+      const activity = await whisparrActivity(instance);
+      expect(
+        activity.commandNames.some((name) => /search/i.test(name)),
+        `the instance's own command roster names no search after the press: ${activity.commandNames.join(", ")}`,
+      ).toBe(true);
+
+      // CASE 4. Exclude, and CASE 5, its return leg. One control with two labels, so a reader who
+      // excludes the wrong scene fixes it where they broke it.
+      await sceneControl(page, EXCLUDE).click();
+      await expect(
+        sceneControl(page, REMOVE_EXCLUSION),
+        "the exclusion control kept its adding label, so the tab offers no way back from the press",
+      ).toBeVisible({ timeout: REGION_BUDGET_MS });
+      const afterExclude = await chipAgreesWithInstance(
+        page,
+        instance,
+        held.remoteId,
+        "after Exclude",
+      );
+      expect(afterExclude).not.toBe(afterMonitor);
+
+      await sceneControl(page, REMOVE_EXCLUSION).click();
+      await expect(
+        sceneControl(page, EXCLUDE),
+        "the control did not return to its adding label, so the toggle only goes one way",
+      ).toBeVisible({ timeout: REGION_BUDGET_MS });
+      const afterReturn = await chipAgreesWithInstance(
+        page,
+        instance,
+        held.remoteId,
+        "after Remove exclusion",
+      );
+      expect(afterReturn, "removing the exclusion left the scene reading as excluded").not.toBe(
+        afterExclude,
+      );
+
+      // Watched for as long as an absence is watched for anywhere here: a dialog that has not been
+      // raised yet is indistinguishable from one that never will be.
+      await page.waitForTimeout(SETTLE_DWELL_MS);
+      expect(
+        dialogs,
+        `a native browser dialog opened during a press: ${dialogs.join(", ")}. No control on this tab asks for confirmation.`,
+      ).toEqual([]);
     } finally {
       await whisparr.stop();
     }
