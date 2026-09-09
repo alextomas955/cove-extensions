@@ -151,12 +151,17 @@ One bar above the grid carries the tab's name, the range you are looking at and 
 - **Search titles** narrows the whole catalogue, not the page you are on. Typing settles before the
   list is re-read.
 - The ordering control offers the orderings the source itself declares. It reads the ordering in
-  force, such as **Newest first**.
+  force, such as **Newest first**, from the moment the page loads: with none picked the source
+  applies its own, and the control names that one.
 - One menu per facet the source filled. A menu lists the values the source served, and you can
   narrow by any of them. Its control reads what it covers while nothing is picked, such as **All
   tags**, and reads the value once you pick one. Pick that value again to clear it. The source
   decides how many values it serves, so a menu can carry fewer than the source lists. Where it does,
   the menu says how many of how many it carries and that the rest cannot be picked there.
+- Type in the box at the top of a menu to narrow its rows. It matches anywhere in a value's name and
+  ignores case. **It searches the values that menu holds, not the whole list at the source.** A menu
+  that carries part of the source's list says so, and typing does not reach the rest. When nothing in
+  the menu matches, the menu says so in place of its rows.
 - **Year**, where the source filters by one. It lists every year between the oldest and the newest
   scene the source holds for that entity, so a year with nothing in it is not offered.
 - **Refresh** reads the page again.

@@ -33,6 +33,9 @@ const TAB_LABEL = "Missing";
 const SEARCH_PLACEHOLDER = "Search titles";
 const REFRESH_LABEL = "Refresh";
 
+/** The placeholder in a menu's own search box, transcribed the same way. */
+const MENU_SEARCH_PLACEHOLDER = "Search this menu";
+
 /**
  * The keys Cove deletes from the address on every tab change, including the change into this tab.
  *
@@ -284,8 +287,8 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
     "leaving the tab and returning lost this tab's own state",
   ).toBe(TYPED_SEARCH);
 
-  // 6. A menu meets Cove's keyboard bar: a menu role, arrow-key roving focus, Escape closing it and
-  //    returning focus to the control that opened it.
+  // 6. A menu meets Cove's keyboard bar: a menu role, a caret that lands in its search box, arrow-key
+  //    roving focus into the rows, Escape closing it and returning focus to the control that opened it.
   const facetTriggers = await facetChip(page).count();
   if (facetTriggers > 0) {
     const trigger = facetChip(page).first();
@@ -293,10 +296,23 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
     const menu = page.getByRole("menu");
     await expect(menu).toBeVisible();
 
-    const first = await page.evaluate(() => document.activeElement?.textContent ?? "");
+    const search = page.getByPlaceholder(MENU_SEARCH_PLACEHOLDER);
+    await expect(search, "the menu opened with the caret somewhere else").toBeFocused();
+
+    // Typed rather than filled: a keystroke is what the roving focus could swallow.
+    await page.keyboard.type("zz");
+    await expect(search, "the menu's own arrow-key handling took the typed characters").toHaveValue(
+      "zz",
+    );
+
+    await search.fill("");
     await page.keyboard.press("ArrowDown");
-    const second = await page.evaluate(() => document.activeElement?.textContent ?? "");
-    expect(second, "the arrow keys moved focus nowhere inside the menu").not.toBe(first);
+    const focusedRole = await page.evaluate(
+      () => document.activeElement?.getAttribute("role") ?? "",
+    );
+    expect(focusedRole, "the arrow keys did not step from the search box into the rows").toBe(
+      "menuitemcheckbox",
+    );
 
     await page.keyboard.press("Escape");
     await expect(menu).toBeHidden();

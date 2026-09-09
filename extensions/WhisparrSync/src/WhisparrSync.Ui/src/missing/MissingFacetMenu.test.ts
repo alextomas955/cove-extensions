@@ -12,7 +12,7 @@ import { afterEach, expect, test } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { facetMenuBound } from "../common/ui/copy";
+import { FACET_MENU_NO_MATCHES, FACET_MENU_SEARCH, facetMenuBound } from "../common/ui/copy";
 import { MissingFacetMenu, type MissingMenuRow } from "./MissingFacetMenu";
 
 const sleep = (ms: number) =>
@@ -42,6 +42,7 @@ afterEach(() => {
 interface Mounted {
   panel: () => Element | null;
   items: () => Element[];
+  search: () => Element | null;
 }
 
 async function mount(node: (trigger: { current: HTMLElement | null }) => ReactNode) {
@@ -68,6 +69,7 @@ async function mount(node: (trigger: { current: HTMLElement | null }) => ReactNo
     // Queried from the document, because the panel is portaled out of the host page's own hero.
     panel: () => document.body.querySelector('[role="menu"]'),
     items: () => [...document.body.querySelectorAll('[role^="menuitem"]')],
+    search: () => document.body.querySelector("[data-menu-search]"),
   };
   return mounted;
 }
@@ -82,6 +84,20 @@ function panelWith(bound: string | null) {
       onPick: () => undefined,
       onClose: () => undefined,
     });
+}
+
+/**
+ * Types `text` into `input` the way a person does.
+ *
+ * React replaces the node's own `value` setter to track what it last rendered, so a plain assignment
+ * is read back as no change and the dispatched event is dropped. Writing through the prototype's
+ * setter is what a keystroke does.
+ */
+function type(input: HTMLInputElement, text: string) {
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- called with `input` as its `this`.
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  setter?.call(input, text);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 test("a bounded menu states how many values it carries and how many the source reported", async () => {
@@ -123,4 +139,67 @@ test("the panel still scrolls inside its own height with the disclosure present"
   const panel = mounted.panel();
   expect(panel?.className).toContain("min-h-0");
   expect(panel?.className).toContain("overflow-y-auto");
+});
+
+test("the search box carries the caret from the moment the menu opens", async () => {
+  const mounted = await mount(panelWith(null));
+
+  const search = mounted.search();
+  expect(search, "the menu drew no search box").not.toBeNull();
+  expect(search?.getAttribute("placeholder")).toBe(FACET_MENU_SEARCH);
+  expect(document.activeElement, "the menu opened with the caret somewhere else").toBe(search);
+});
+
+test("typing narrows the rows and leaves the caret where it was", async () => {
+  const mounted = await mount(panelWith(null));
+
+  const search = mounted.search() as HTMLInputElement;
+  type(search, "grace");
+  const narrowed = await settled(() => mounted.items().length === 1);
+
+  expect(narrowed, "the rows never narrowed").toBe(true);
+  expect(mounted.items()[0].textContent).toContain("Grace Hopper");
+  expect(document.activeElement, "filtering moved the caret out of the search box").toBe(search);
+});
+
+test("a search matching nothing reads a sentence rather than an empty panel", async () => {
+  const mounted = await mount(panelWith(null));
+
+  type(mounted.search() as HTMLInputElement, "zz");
+  const stated = await settled(() =>
+    (mounted.panel()?.textContent ?? "").includes(FACET_MENU_NO_MATCHES),
+  );
+
+  expect(stated, "an empty result drew nothing at all").toBe(true);
+  expect(mounted.items()).toHaveLength(0);
+});
+
+test("the arrow keys step from the search box into the rows", async () => {
+  const mounted = await mount(panelWith(null));
+
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  const moved = await settled(() => document.activeElement === mounted.items()[0]);
+
+  expect(moved, "the arrow keys left the caret in the search box").toBe(true);
+});
+
+test("the row in force is marked, and every row stays reachable by the arrow keys", async () => {
+  const mounted = await mount(panelWith(null));
+
+  const checked = mounted.items().filter((item) => item.getAttribute("aria-checked") === "true");
+  expect(checked).toHaveLength(1);
+  expect(checked[0].textContent).toContain("Grace Hopper");
+  expect(mounted.items().map((item) => item.getAttribute("role"))).toEqual([
+    "menuitemcheckbox",
+    "menuitemcheckbox",
+  ]);
+});
+
+test("the panel draws on the host's own dropdown surface", async () => {
+  const mounted = await mount(panelWith(null));
+
+  const surface = mounted.panel()?.parentElement;
+  expect(surface?.className).toContain("styled-dropdown-panel");
+  // The host class sets the radius its theme is on, so a radius utility here would fight it.
+  expect(surface?.className).not.toContain("rounded-");
 });
