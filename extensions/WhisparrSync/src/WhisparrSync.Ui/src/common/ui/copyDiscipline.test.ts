@@ -54,10 +54,13 @@ const FORBIDDEN_IN_A_CAPABILITY_GAP = [
 
 /**
  * The catalogue tab's own sentences: why the whole grid cannot answer, what an empty grid means,
- * what the count beside it counts, and the one card-level answer that is not a failure.
+ * what the count beside it counts, the one card-level answer that is not a failure, and what a
+ * facet menu's search box offers and reads when nothing in it matches.
  */
 const RENDERED_BY_THE_MISSING_TAB = [
   "MISSING_TAB_HEADING",
+  "FACET_MENU_SEARCH",
+  "FACET_MENU_NO_MATCHES",
   "NO_METADATA_PROVIDER_CONFIGURED",
   "NO_PROVIDER_ID_FOR_ENTITY",
   "NO_TITLES_MATCH",
