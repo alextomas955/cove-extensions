@@ -2,7 +2,11 @@
 //
 // This is the only safe moment to create the shared network: creating one raises a host address
 // event, and Chromium drops in-flight requests when it sees one. Here no browser exists yet.
-import { ensureSharedNetwork, removeSharedNetwork, SHARED_NETWORK_NAME } from "./shared-network.mjs";
+import {
+  ensureSharedNetwork,
+  removeSharedNetwork,
+  SHARED_NETWORK_NAME,
+} from "./shared-network.mjs";
 
 export default async function globalSetup() {
   const outcome = await ensureSharedNetwork();

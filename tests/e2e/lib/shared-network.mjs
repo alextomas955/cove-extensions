@@ -37,6 +37,7 @@ export async function ensureSharedNetwork() {
     if (/already exists/i.test(String(error.stderr ?? error.message))) return "existed";
     throw new Error(
       `Could not create the shared e2e network '${SHARED_NETWORK_NAME}': ${String(error.stderr ?? error.message).trim()}`,
+      { cause: error },
     );
   }
 }
