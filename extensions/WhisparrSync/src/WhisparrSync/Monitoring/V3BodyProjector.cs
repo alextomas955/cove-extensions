@@ -253,15 +253,30 @@ internal static class V3BodyProjector
 
     /// <summary>Excludes the scene <paramref name="foreignId"/> names.</summary>
     /// <remarks>
-    /// The identifier and no other member. The title, the exclusion type and the reason are the
-    /// instance's own to fill, and it declares no acquisition-suppressing member on this resource at
-    /// all, so an exclusion issues no search.
+    /// The instance validates the exclusion's display title as non-empty and binds it as
+    /// <c>movieTitle</c>, so a body carrying the identifier alone, or carrying a plain <c>title</c>,
+    /// is refused before anything is written. The title is composed from the identifier because an
+    /// exclusion governs a later catalogue addition and is offered for a scene the instance holds no
+    /// row to take a name from. The instance keeps what is sent here, so this is the name its own
+    /// exclusion list reads under. The type is stated rather than left to the instance's default,
+    /// because the default is the instance's to change and this product excludes scenes alone. The
+    /// reason is the instance's own to fill, and it declares no acquisition-suppressing member on
+    /// this resource at all, so an exclusion issues no search.
     /// </remarks>
     internal static ImportListExclusionResource SceneExclusion(string foreignId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
-        return new ImportListExclusionResource(foreignId: foreignId);
+        return new ImportListExclusionResource(
+            foreignId: foreignId,
+            movieTitle: SceneExclusionTitle(foreignId),
+            type: SceneExclusionType);
     }
+
+    /// <summary>The exclusion type covering one scene, which is the only kind this product excludes.</summary>
+    internal const ImportExclusionType SceneExclusionType = ImportExclusionType.Scene;
+
+    /// <summary>The display title an exclusion of the scene <paramref name="foreignId"/> names carries.</summary>
+    internal static string SceneExclusionTitle(string foreignId) => $"Scene {foreignId}";
 
     /// <summary>Sets only the monitored flag on the performer <paramref name="entityId"/> names.</summary>
     /// <inheritdoc cref="SetStudioMonitored" path="/remarks"/>

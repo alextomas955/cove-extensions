@@ -12,13 +12,19 @@ namespace WhisparrSync.Scene;
 /// </remarks>
 internal static class SceneDetailProjector
 {
-    /// <summary>What the two answers establish about the scene they answered for.</summary>
+    /// <summary>What the answers establish about the scene they answered for.</summary>
     /// <remarks>
     /// A null <paramref name="profiles"/> is a read that produced no whole answer, and an answer
     /// that cannot be read establishes as little, so both are reported as a profile read that did
     /// not complete and neither removes a scene fact.
+    /// <para>
+    /// <paramref name="excluded"/> is passed in because the scene's own row carries no exclusion
+    /// member at all: whether the instance excludes a scene is on its exclusion list and nowhere
+    /// else, and the caller is what read that list.
+    /// </para>
     /// </remarks>
-    internal static SceneDetailView Project(WhisparrResponse scene, WhisparrResponse? profiles)
+    internal static SceneDetailView Project(
+        WhisparrResponse scene, WhisparrResponse? profiles, bool excluded)
     {
         var row = SceneStatusPort.ReadRow(scene);
         var held = HeldValuesIn(scene);
@@ -26,7 +32,7 @@ internal static class SceneDetailProjector
 
         return new SceneDetailView(
             SceneRefusalKind.None,
-            Excluded: false,
+            Excluded: excluded,
             Present: PresenceIn(row.State),
             Monitored: MonitoringIn(row.State),
             QualityName: held.QualityName,
