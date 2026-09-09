@@ -45,7 +45,7 @@ The menu offers Whisparr's own two scopes, spelled the same way on both generati
 **Future Scenes is the default.** It is the option the menu marks, and it is what a request naming
 no scope is treated as.
 
-Three things the menu states, and they are the reason to read them before pressing:
+Each row draws a glyph and its own name and nothing else. Three things to know before you press one:
 
 - **The scope is not a limit.** Whisparr monitors every scene it lists for the studio whichever
   scope you choose. What the date gate governs is what a later catalogue read adds.
@@ -53,7 +53,12 @@ Three things the menu states, and they are the reason to read them before pressi
   becomes wanted, which spends indexer traffic and disk.
 - **On Whisparr v3 (Eros), All Scenes is a one-way door.** Changing the scope back to Future Scenes
   does not undo it: a scene that is already wanted stays wanted. On Whisparr v2 a scope change is
-  retroactive and does rewrite the flags, so the menu does not show this warning there.
+  retroactive and does rewrite the flags.
+
+**All Scenes asks you to confirm.** Choosing it opens a confirmation that states how many entities
+the choice covers and what it costs: that it marks every scene Whisparr already lists as wanted,
+and, on Whisparr v3 (Eros), that changing the scope back does not undo it. Nothing is sent until you
+confirm, and cancelling changes nothing.
 
 Neither scope starts a search. Whisparr acquires what it wants on its own schedule, which is why
 what you mark wanted is the cost to think about.
@@ -62,7 +67,8 @@ what you mark wanted is the cost to think about.
 
 The menu offers one item, **Monitor in Whisparr**, and no scope. Whisparr expresses no future-only
 option for a performer on either generation, so monitoring a performer covers every scene Whisparr
-lists for it. The menu says so on the item.
+lists for it. That item asks you to confirm for the same reason All Scenes does, and states the same
+cost.
 
 Monitoring a performer needs Whisparr v3 (Eros). On Whisparr v2 the button is disabled and says so.
 
@@ -85,8 +91,8 @@ leaves the monitor flag alone.
 On Whisparr v3 (Eros) the marked row is the scope the studio is actually set to, read from
 Whisparr's own answer each time the page is opened.
 
-On Whisparr v2 that answer does not carry a scope, so **no row is marked** and the menu says it
-cannot tell which one is in force. An unmarked pair there is not a fault and not a scope of zero:
+On Whisparr v2 that answer does not carry a scope, so **no row is marked**. An unmarked pair there
+is not a fault and not a scope of zero: Cove marks none because Whisparr's answer names none, and
 choosing a row still applies that scope.
 
 While the studio is not monitored yet, the rows are the monitor gesture rather than a report, and
@@ -267,7 +273,8 @@ disabled and carries its reason.
 Select studios or performers in Cove's own lists, then press **Monitor in Whisparr** in the
 selection bar.
 
-An overlay asks what to do with every entity you selected:
+A small popover opens, headed by the Whisparr mark, the product's name and how many entities you
+selected. Each row draws a glyph and its own name:
 
 - A studio selection is offered **Future Scenes**, **All Scenes** and **Stop monitoring in
   Whisparr**.
@@ -303,8 +310,10 @@ counts as succeeded whether or not its files were linked. To see whether linking
 **Reflect owned** on one entity from its own menu, where its result does appear.
 
 **Stop monitoring in Whisparr** over a selection leaves behind exactly what it leaves behind for one
-entity: it does not retract what All Scenes already made wanted. The overlay states that on the row
-before you press it.
+entity: it does not retract what All Scenes already made wanted.
+
+**All Scenes over a selection asks you to confirm**, the same way it does for one entity, and the
+confirmation names how many entities you selected. Cancelling it sends nothing.
 
 One gesture takes at most 1000 entities. Select more and Cove refuses the whole gesture, states the
 bound and changes nothing. Select fewer and repeat over the rest. A selection that lists every

@@ -148,9 +148,10 @@ qualities to become a name.
 
 Select scenes in Cove's videos list, then press **Whisparr** in the selection bar.
 
-An overlay asks what to do with every scene you selected. It offers five rows, in one fixed order
-that never changes: safest first, the only row that can download fourth, and the row that changes
-what your Whisparr accepts in future last.
+A small popover opens, headed by the Whisparr mark, the product's name and how many scenes you
+selected. It offers five rows, each drawing a glyph and its own name, in one fixed order that never
+changes: safest first, the only row that can download fourth, and the row that changes what your
+Whisparr accepts in future last.
 
 | Row                                | What it does                                                                     |
 | ---------------------------------- | -------------------------------------------------------------------------------- |
@@ -163,8 +164,8 @@ what your Whisparr accepts in future last.
 **Row 4 is the only row that can download files.** Closing the overlay without choosing a row sends
 nothing.
 
-There is no row that takes a scene back off the exclusion list. Row 5 says so, and says where to do
-it: that scene's own Whisparr tab.
+There is no row that takes a scene back off the exclusion list. Take one off on that scene's own
+Whisparr tab.
 
 ### What the selection run reports
 
@@ -185,7 +186,7 @@ holds grows with the size of your selection.
 
 ### The two limits
 
-One gesture is bounded, and each row names the limit that applies to it.
+One gesture is bounded, and which limit applies depends on the row.
 
 | Rows          | Limit       |
 | ------------- | ----------- |
