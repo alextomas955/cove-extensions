@@ -2,6 +2,17 @@
 
 User-facing changes, newest first.
 
+## 1.6.0 - Compact Whisparr menus, and a confirmation before All Scenes
+
+- **The three Whisparr menus are compact.** Every row draws one icon and its own name. The two
+  selection menus open as a small popover headed by the Whisparr mark, the word Whisparr and how many
+  things you selected.
+- **The sentence under each row is gone.** What each row does, and what it costs, is in the
+  monitoring and scenes pages of the documentation. Nothing a row does has changed.
+- **All Scenes asks you to confirm.** Choosing it, for one entity or for a whole selection, opens a
+  confirmation naming how many entities it covers and what it marks wanted. Cancelling sends nothing.
+- **A dimmed row still says why it cannot be pressed**, and a refused gesture still states its reason.
+
 ## 1.5.0 - A shorter Whisparr tab on a scene's page
 
 - **The tab leads with a header.** The Whisparr mark and the word Whisparr sit on the left, and the
