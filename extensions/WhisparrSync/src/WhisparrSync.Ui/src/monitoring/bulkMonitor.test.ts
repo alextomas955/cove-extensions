@@ -93,6 +93,7 @@ vi.mock("@cove-extensions/ui-shared/postAction", () => ({
 
 const { monitorSelected } = await import("./bulkMonitor");
 const {
+  ACTION_SEARCH_ALL_MONITORED,
   ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
   BULK_ACTIONS_COULD_NOT_BE_OFFERED,
   BULK_CANCEL,
@@ -103,6 +104,7 @@ const {
   MENU_UNMONITOR,
   SCOPE_ALL_SCENES,
   SCOPE_FUTURE_SCENES,
+  SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK,
   selectionMenuHeader,
 } = await import("../common/ui/copy");
 
@@ -299,16 +301,22 @@ test("a verb absent from the held list is not offered", async () => {
 });
 
 /**
- * The three secondary actions are served by no single-entity route, so the entity menu renders each
- * disabled. Whatever that menu renders disabled the selection overlay does not offer at all, even
- * where the connected generation holds every capability behind them.
+ * Add all missing and reflect owned reach no bulk verb, so the overlay offers neither even where the
+ * connected generation holds every capability behind them. The search reaches one, and reads last
+ * because it is the only row here that downloads.
  */
-test("the secondary actions are not offered even where the generation holds all of them", async () => {
+test("offers the search row last and neither of the other two secondary actions", async () => {
   answering(viewOf());
 
   const { running } = await open("studios", [7]);
 
-  expect(labels()).toEqual([SCOPE_FUTURE_SCENES, SCOPE_ALL_SCENES, MENU_UNMONITOR, BULK_CANCEL]);
+  expect(labels()).toEqual([
+    SCOPE_FUTURE_SCENES,
+    SCOPE_ALL_SCENES,
+    MENU_UNMONITOR,
+    ACTION_SEARCH_ALL_MONITORED,
+    BULK_CANCEL,
+  ]);
   press(BULK_CANCEL);
   await running;
 });
@@ -414,6 +422,39 @@ test("cancelling the All-Scenes confirmation posts nothing at all", async () => 
 
   const { running } = await open("studios", [7, 8]);
   await chosen(SCOPE_ALL_SCENES);
+  press(BULK_CANCEL);
+
+  await expect(running).resolves.toEqual({ cancelled: true });
+  expect(sent.filter((call) => call.method === "POST")).toEqual([]);
+});
+
+test("choosing the search posts nothing until the confirmation is answered", async () => {
+  answering(viewOf());
+
+  const { running } = await open("studios", [7, 8]);
+  await chosen(ACTION_SEARCH_ALL_MONITORED);
+
+  expect(document.body.textContent).toContain(SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK);
+  expect(document.body.textContent).toContain("This covers 2 entities.");
+  expect(sent.filter((call) => call.method === "POST")).toEqual([]);
+
+  press(ACTION_SEARCH_ALL_MONITORED);
+  await running;
+
+  const posted = sent.find((call) => call.method === "POST");
+  expect(posted?.body).toEqual({
+    EntityType: "studios",
+    Verb: "searchAllMonitored",
+    Scope: null,
+    EntityIds: [7, 8],
+  });
+});
+
+test("cancelling the search confirmation posts nothing at all", async () => {
+  answering(viewOf());
+
+  const { running } = await open("studios", [7, 8]);
+  await chosen(ACTION_SEARCH_ALL_MONITORED);
   press(BULK_CANCEL);
 
   await expect(running).resolves.toEqual({ cancelled: true });

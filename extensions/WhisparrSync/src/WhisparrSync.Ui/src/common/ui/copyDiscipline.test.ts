@@ -140,13 +140,19 @@ const CARRIED_BY_THE_MONITOR_MENU_ITEMS = [
 ];
 
 /**
- * The two consequences the confirmation states before All Scenes is carried out. Its own group,
+ * The two consequences the confirmation states before the wider scope is carried out. Its own group,
  * because the confirmation is the one surface that states either of them.
  */
 const RENDERED_BY_THE_ALL_SCENES_CONFIRMATION = [
   "ALL_SCENES_MARKS_THE_BACK_CATALOGUE",
   "ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE",
 ];
+
+/**
+ * The consequence the confirmation states before the search is carried out. Its own group, because
+ * that confirmation is the one surface that states it.
+ */
+const RENDERED_BY_THE_SEARCH_CONFIRMATION = ["SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK"];
 
 /**
  * The selection overlay's own sentences: why it sometimes has nothing to offer, how a refused
@@ -355,6 +361,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_ON_A_STALE_READ,
       ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
       ...RENDERED_BY_THE_ALL_SCENES_CONFIRMATION,
+      ...RENDERED_BY_THE_SEARCH_CONFIRMATION,
     ];
 
     const orphans = CONSTANTS.filter(
@@ -381,6 +388,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_ON_A_STALE_READ,
       ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
       ...RENDERED_BY_THE_ALL_SCENES_CONFIRMATION,
+      ...RENDERED_BY_THE_SEARCH_CONFIRMATION,
     ]) {
       expect(declared, name).toContain(name);
     }
@@ -435,6 +443,18 @@ describe("the confirmation names what the choice covers and what it costs", () =
     expect(message).toContain("12 entities.");
     expect(message).toContain(copy.ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
     expect(message).not.toContain(copy.ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE);
+  });
+
+  it("names what the search covers and that it takes files in", () => {
+    expect(copy.searchAllMonitoredConfirmation(1)).toContain("1 entity.");
+
+    const message = copy.searchAllMonitoredConfirmation(40);
+
+    expect(message).toContain("40 entities.");
+    expect(message).toContain(copy.SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK);
+
+    // The scope's own consequences are not restated here. The search writes no flag at all.
+    expect(message).not.toContain(copy.ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
   });
 });
 

@@ -29,6 +29,7 @@ import {
   BULK_ACTIONS_COULD_NOT_BE_OFFERED,
   BULK_SELECTION_IS_OVER_THE_BOUND,
   BULK_SELECTION_WAS_NOT_STARTED,
+  searchAllMonitoredConfirmation,
 } from "../common/ui/copy";
 import type { EntityMonitoringView, WhisparrEntityKind } from "../wire/api";
 import { BulkMonitorChoice } from "./BulkMonitorChoice";
@@ -78,7 +79,8 @@ export async function monitorSelected(
     return { cancelled: true };
   }
 
-  if (chosen.marksTheBackCatalogue && !(await confirmed(chosen, offer, payload.entityIds.length))) {
+  const confirmation = confirmationFor(chosen, offer, payload.entityIds.length);
+  if (confirmation !== null && !(await confirmed(chosen, confirmation))) {
     return { cancelled: true };
   }
 
@@ -103,22 +105,38 @@ export async function monitorSelected(
 }
 
 /**
+ * What the reader must stand by before <code>action</code> is sent, or null where it is sent
+ * straight away.
+ *
+ * Two of the rows spend something the reader cannot take back. The wider scope marks a whole back
+ * catalogue wanted, and the search asks Whisparr to go and take in what these entities lack, which
+ * is the only row here that downloads.
+ */
+function confirmationFor(
+  action: BulkMonitorAction,
+  offer: BulkMonitorOffer,
+  selected: number,
+): string | null {
+  if (action.marksTheBackCatalogue) {
+    return allScenesConfirmation(selected, offer.oneWayDoor);
+  }
+
+  return action.verb === "searchAllMonitored" ? searchAllMonitoredConfirmation(selected) : null;
+}
+
+/**
  * Whether the reader stood by a choice that cannot be taken back.
  *
  * A second imperative overlay after the first has resolved, rather than a dialog inside the chooser:
  * this handler owns no React tree to render one into.
  */
-async function confirmed(
-  action: BulkMonitorAction,
-  offer: BulkMonitorOffer,
-  selected: number,
-): Promise<boolean> {
+async function confirmed(action: BulkMonitorAction, message: string): Promise<boolean> {
   const answer = await presentOverlay<BulkMonitorAction>((finish) =>
     createElement(ConfirmDialog, {
       open: true,
       title: action.label,
       confirmLabel: action.label,
-      message: allScenesConfirmation(selected, offer.oneWayDoor),
+      message,
       onConfirm: () => {
         finish(action);
       },
