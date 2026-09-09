@@ -95,7 +95,12 @@ const test = base.extend({
 const missingTab = (page) => page.getByRole("tab", { name: TAB_LABEL }).first();
 const hostDetailTabs = (page) => page.getByRole("tablist").first();
 const cards = (page) => page.locator("article").filter({ has: page.locator("img, h3") });
-const countLine = (page) => page.getByRole("status").filter({ hasText: /\d+.*of\s+\d/ });
+/** The range, which the toolbar states above the grid. */
+const rangeInTheBar = (page) => page.getByRole("status").filter({ hasText: /\d+.*of\s+\d/ });
+
+/** What the total counts, which the line under the bar states. */
+const countLine = (page) =>
+  page.getByRole("status").filter({ hasText: "not the number you are missing" });
 
 /** Any sentence the tab stated in place of a grid. */
 const statedReasons = (page) => page.locator("p").filter({ hasText: /\S/ });
@@ -233,14 +238,14 @@ test("the grid never blanks between reads, and the pager offers no page that rep
   const gridStatesItsOwnReasons = (await countLine(page).count()) > 0;
 
   if (gridStatesItsOwnReasons) {
-    const stated = await countLine(page).first().innerText();
+    const stated = await rangeInTheBar(page).first().innerText();
     expect(
       stated,
-      "the count line names a range and a total taken from the provider, so it cannot be the number of cards left after ownership was subtracted",
+      "the bar names a range and a total taken from the provider, so it cannot be the number of cards left after ownership was subtracted",
     ).toMatch(/\d+.*of\s+\d/);
     expect(
-      stated,
-      "the count line says what its figure counts, the badge beside it having no room to",
+      await countLine(page).first().innerText(),
+      "the line under the bar says what that total counts, the badge beside it having no room to",
     ).toContain("not the number you are missing");
   } else {
     note(
