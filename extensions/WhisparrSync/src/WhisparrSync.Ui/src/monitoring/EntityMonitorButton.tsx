@@ -17,13 +17,23 @@ import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import {
   ACTION_ABSENT_IN_THIS_VERSION,
+  allScenesConfirmation,
   MONITORED_IN_WHISPARR,
   MONITORING_COULD_NOT_BE_READ,
   MONITOR_IN_WHISPARR,
 } from "../common/ui/copy";
 import type { WhisparrEntityKind } from "../wire/api";
 import { EntityMonitorMenu, NOTICE_SURFACE_CLASS } from "./EntityMonitorMenu";
-import { controlNotice, monitorMenu, routeFor, type MonitorMenuItem } from "./monitorMenuLogic";
+import { ConfirmDialog } from "./hostComponents";
+import {
+  allScenesIsAOneWayDoor,
+  controlNotice,
+  marksTheBackCatalogue,
+  monitorMenu,
+  routeFor,
+  type MonitorActionRoute,
+  type MonitorMenuItem,
+} from "./monitorMenuLogic";
 import { useAnchoredTo } from "./useAnchoredTo";
 import { WhisparrMark } from "./WhisparrMark";
 import { useMonitoring } from "./useMonitoring";
@@ -59,6 +69,10 @@ export function WhisparrPerformerActions({ performer }: { performer: { id: numbe
 function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; coveId: number }) {
   const { state, act } = useMonitoring(kind, coveId);
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState<{
+    item: MonitorMenuItem;
+    route: MonitorActionRoute;
+  } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const placement = useAnchoredTo(triggerRef);
 
@@ -179,6 +193,10 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
           onSelect={(item) => {
             const route = routeFor(item, monitored);
             if (route === null) return;
+            if (marksTheBackCatalogue(item)) {
+              setConfirming({ item, route });
+              return;
+            }
             act(route, bodyFor(item));
           }}
           onClose={() => {
@@ -186,6 +204,27 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
           }}
         />
       )}
+
+      {confirming === null
+        ? null
+        : // Portaled for the reason the menu is: the host's hero clips its children, and the
+          // dialog's own `fixed inset-0` would be cut to that rectangle rather than cover the page.
+          createPortal(
+            <ConfirmDialog
+              open
+              title={confirming.item.label}
+              confirmLabel={confirming.item.label}
+              message={allScenesConfirmation(1, allScenesIsAOneWayDoor(view?.generation ?? null))}
+              onConfirm={() => {
+                act(confirming.route, bodyFor(confirming.item));
+                setConfirming(null);
+              }}
+              onCancel={() => {
+                setConfirming(null);
+              }}
+            />,
+            document.body,
+          )}
 
       {outcome === null || openMenu !== null
         ? null

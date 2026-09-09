@@ -18,6 +18,38 @@ vi.mock("@cove-extensions/ui-shared", () => ({
   extensionApi: (extensionId: string) => (route: string) => `/extensions/${extensionId}/${route}`,
 }));
 
+/**
+ * The host dialog resolves only inside a running Cove, so it stands in here. The stand-in draws the
+ * two buttons the real one draws, because what a press of each sends is the property under test.
+ */
+vi.mock("./hostComponents", async () => {
+  const { createElement } = await import("react");
+  return {
+    ConfirmDialog: ({
+      title,
+      message,
+      confirmLabel,
+      onConfirm,
+      onCancel,
+    }: {
+      title: string;
+      message: string;
+      confirmLabel: string;
+      onConfirm: () => void;
+      onCancel: () => void;
+    }) =>
+      createElement("div", { role: "dialog", "aria-label": title }, [
+        createElement("p", { key: "message" }, message),
+        createElement(
+          "button",
+          { key: "confirm", type: "button", onClick: onConfirm },
+          confirmLabel,
+        ),
+        createElement("button", { key: "cancel", type: "button", onClick: onCancel }, "Cancel"),
+      ]),
+  };
+});
+
 interface Sent {
   path: string;
   method: string;
@@ -61,6 +93,7 @@ vi.mock("@cove-extensions/ui-shared/postAction", () => ({
 
 const { monitorSelected } = await import("./bulkMonitor");
 const {
+  ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
   BULK_ACTIONS_COULD_NOT_BE_OFFERED,
   BULK_CANCEL,
   BULK_CHOOSE_AN_ACTION,
@@ -193,6 +226,9 @@ test("the chosen verb and scope reach the body", async () => {
   answering(viewOf());
 
   const { running } = await open("studios", [7, 8]);
+  // The confirmation names the chosen row on its own confirm button, so the same label is pressed
+  // twice: once to choose the row, once to stand by it.
+  await chosen(SCOPE_ALL_SCENES);
   press(SCOPE_ALL_SCENES);
   await running;
 
@@ -368,6 +404,42 @@ test("a selection the route accepts returns the success result and opens no seco
  * D-20 holds wherever unmonitoring is offered. A reader unmonitoring a whole selection needs the
  * same sentence as one unmonitoring a single entity.
  */
+test("choosing All Scenes posts nothing until the confirmation is answered", async () => {
+  answering(viewOf());
+
+  const { running } = await open("studios", [7, 8]);
+  await chosen(SCOPE_ALL_SCENES);
+
+  expect(document.body.textContent).toContain(ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
+  expect(document.body.textContent).toContain("This covers 2 entities.");
+  expect(sent.filter((call) => call.method === "POST")).toEqual([]);
+
+  press(SCOPE_ALL_SCENES);
+  await running;
+  expect(sent.filter((call) => call.method === "POST")).toHaveLength(1);
+});
+
+test("cancelling the All-Scenes confirmation posts nothing at all", async () => {
+  answering(viewOf());
+
+  const { running } = await open("studios", [7, 8]);
+  await chosen(SCOPE_ALL_SCENES);
+  press(BULK_CANCEL);
+
+  await expect(running).resolves.toEqual({ cancelled: true });
+  expect(sent.filter((call) => call.method === "POST")).toEqual([]);
+});
+
+test("the narrower scope and the unmonitor row are posted with no confirmation at all", async () => {
+  answering(viewOf());
+
+  const { running } = await open("studios", [7]);
+  press(SCOPE_FUTURE_SCENES);
+  await running;
+
+  expect(sent.filter((call) => call.method === "POST")).toHaveLength(1);
+});
+
 test("the unmonitor row states what unmonitoring does not retract", async () => {
   answering(viewOf());
 
