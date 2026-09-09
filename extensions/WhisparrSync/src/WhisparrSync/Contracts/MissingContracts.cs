@@ -213,7 +213,10 @@ public sealed record MissingSortOption(string Value, string Label);
 /// <param name="Refusal">Why the grid cannot answer, or that it can.</param>
 /// <param name="Facets">The facet menus the provider filled.</param>
 /// <param name="Sorts">The orderings the provider offers.</param>
-/// <param name="SortInForce">The ordering this page was read under, or null for the provider's own.</param>
+/// <param name="SortInForce">
+/// The ordering this page was read under, which is the provider's own where the caller named none.
+/// Null only on a refused page, because nothing was read and so nothing was ordered.
+/// </param>
 /// <param name="StatusWasRead">Whether a status was established for the scenes on this page.</param>
 /// <param name="StatusIsPermanentlyAbsent">
 /// No retry can establish a status, because the connected generation keeps no per-scene records.

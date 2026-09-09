@@ -167,6 +167,13 @@ public interface IProviderCatalogue
     /// <summary>The orderings this provider offers, in the order they are shown.</summary>
     IReadOnlyList<ProviderSortOption> Sorts { get; }
 
+    /// <summary>The ordering this provider reads under when a caller names none.</summary>
+    /// <remarks>
+    /// One of <see cref="Sorts"/>, because a page is always served in some order and a caller that
+    /// named none still has one in force. The provider states it rather than a caller assuming it.
+    /// </remarks>
+    string DefaultSort { get; }
+
     /// <summary>What this provider can honour.</summary>
     /// <remarks>
     /// A capability the provider lacks holds no role, so a sort option, a facet or a year filter it

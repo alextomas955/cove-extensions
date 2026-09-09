@@ -593,6 +593,8 @@ internal sealed class InertProviderCatalogue : IProviderCatalogue
 {
     public IReadOnlyList<ProviderSortOption> Sorts { get; } = [];
 
+    public string DefaultSort => string.Empty;
+
     public ProviderCapabilitySet Capabilities { get; } = ProviderCapabilities.ForStashDb(new object());
 
     public Task<ProviderCatalogueAnswer> ReadPageAsync(

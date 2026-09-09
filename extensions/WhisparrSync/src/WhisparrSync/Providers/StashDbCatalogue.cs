@@ -151,6 +151,8 @@ internal sealed class StashDbCatalogue
     private const string DescendingFirst = "DESC";
     private const string AscendingFirst = "ASC";
 
+    private const string NewestFirst = $"{SortByDate}:{DescendingFirst}";
+
     /// <inheritdoc/>
     /// <remarks>
     /// The provider's own ordering and direction, joined into one opaque value because its input
@@ -158,13 +160,16 @@ internal sealed class StashDbCatalogue
     /// </remarks>
     public IReadOnlyList<ProviderSortOption> Sorts { get; } =
     [
-        new($"{SortByDate}:{DescendingFirst}", "Newest first"),
+        new(NewestFirst, "Newest first"),
         new($"{SortByDate}:{AscendingFirst}", "Oldest first"),
         new($"TITLE:{AscendingFirst}", "Title A to Z"),
         new($"TITLE:{DescendingFirst}", "Title Z to A"),
         new($"DURATION:{DescendingFirst}", "Longest first"),
         new($"DURATION:{AscendingFirst}", "Shortest first"),
     ];
+
+    /// <inheritdoc/>
+    public string DefaultSort => NewestFirst;
 
     public ProviderCapabilitySet Capabilities { get; }
 
