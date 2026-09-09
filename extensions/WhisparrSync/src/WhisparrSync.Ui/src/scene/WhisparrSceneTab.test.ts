@@ -23,6 +23,13 @@ interface Slotted {
   children?: ReactNode;
 }
 
+/** What the button primitive is handed, which is what a control's own name is asserted through. */
+interface Pressable extends Slotted {
+  disabled?: boolean;
+  onClick?: () => void;
+  variant?: string;
+}
+
 let answer: Promise<SceneDetailView> = Promise.resolve(null as unknown as SceneDetailView);
 
 vi.mock("@cove-extensions/ui-shared", () => ({
@@ -32,10 +39,16 @@ vi.mock("@cove-extensions/ui-shared", () => ({
   StatusPill: ({ icon, children }: Slotted) => createElement("span", null, icon, children),
   StatusText: ({ children }: Slotted) => createElement("span", null, children),
   Spinner: () => createElement("span", null, "reading"),
+  Button: ({ children, disabled, onClick, variant }: Pressable) =>
+    createElement("button", { disabled, onClick, "data-variant": variant }, children),
 }));
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   requestJson: () => answer,
+}));
+
+vi.mock("@cove-extensions/ui-shared/postAction", () => ({
+  postAction: () => new Promise(() => undefined),
 }));
 
 const { WhisparrSceneTab } = await import("./WhisparrSceneTab");
@@ -141,6 +154,50 @@ test("a profile read that established nothing keeps the scene facts and says so"
   expect(container.textContent).toContain(copy.THE_STATUS_READ_DID_NOT_COMPLETE);
   expect(labels(container)).toHaveLength(4);
   expect(values(container)[1]).toBe("WEBDL-1080p");
+});
+
+/** The name each control announces, in the order the tab drew them. */
+const controlNames = (container: HTMLElement) =>
+  [...container.querySelectorAll("button")].map((control) => control.textContent);
+
+test("the four controls draw beneath the facts, each stating what it does", async () => {
+  const container = await mount(view({ present: false, monitored: null }));
+
+  // A disabled control announces its own name and then its reason, so the two it stops carry both.
+  expect(controlNames(container)).toEqual([
+    copy.SCENE_ADD,
+    copy.MONITOR_IN_WHISPARR + copy.SCENE_MONITOR_NEEDS_AN_ENTRY,
+    copy.SCENE_SEARCH + copy.SCENE_SEARCH_NEEDS_AN_ENTRY,
+    copy.SCENE_EXCLUDE,
+  ]);
+
+  // All four go through the wrapper that takes a nullable reason, which is the only shape in which
+  // a dimmed control with nothing to hear is unrepresentable.
+  expect(container.querySelectorAll("span.inline-flex > button")).toHaveLength(4);
+
+  // Each sentence sits OUTSIDE its button: text inside one joins the accessible name, and a
+  // control's announced name has to be its own name.
+  const stated = [...container.querySelectorAll("p")].map((line) => line.textContent);
+  expect(stated).toEqual([
+    copy.SCENE_ADD_STATES,
+    copy.SCENE_MONITOR_STATES,
+    copy.SCENE_SEARCH_STATES,
+    copy.SCENE_UPGRADES_FOLLOW_THE_CUTOFF,
+    copy.SCENE_EXCLUDE_STATES,
+  ]);
+  expect(
+    stated.filter((line) => line === copy.SCENE_UPGRADES_FOLLOW_THE_CUTOFF),
+    "the upgrades sentence is stated once per tab, never per control",
+  ).toHaveLength(1);
+});
+
+test("a disabled control announces its own name and then its reason", async () => {
+  const container = await mount(view({ present: false, monitored: null }));
+  const monitor = [...container.querySelectorAll("button")][1];
+
+  expect(monitor.disabled).toBe(true);
+  expect(monitor.textContent).toBe(copy.MONITOR_IN_WHISPARR + copy.SCENE_MONITOR_NEEDS_AN_ENTRY);
+  expect(monitor.closest("span")?.getAttribute("title")).toBe(copy.SCENE_MONITOR_NEEDS_AN_ENTRY);
 });
 
 test("a refused answer states its reason and draws no fact block", async () => {
