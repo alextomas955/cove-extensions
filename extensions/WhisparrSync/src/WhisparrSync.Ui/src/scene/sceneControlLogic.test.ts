@@ -259,19 +259,19 @@ describe("the status line after a press", () => {
           searchIsWithWhisparr: true,
         }),
       ).statusLine,
-    ).toBe(ACTION_DID_NOT_REACH_WHISPARR);
+    ).toEqual({ sentence: ACTION_DID_NOT_REACH_WHISPARR, failed: true });
   });
 
-  it("reports an instance that answered and declined", () => {
+  it("reports an instance that answered and declined, in the failure tone", () => {
     expect(
       deriveSceneControls(input("monitored", { actionRefusal: "instanceRefused" })).statusLine,
-    ).toBe(INSTANCE_REFUSED);
+    ).toEqual({ sentence: INSTANCE_REFUSED, failed: true });
   });
 
-  it("confirms a search only that the instance holds it", () => {
-    expect(deriveSceneControls(input("monitored", { searchIsWithWhisparr: true })).statusLine).toBe(
-      SCENE_SEARCH_IS_WITH_WHISPARR,
-    );
+  it("confirms a search only that the instance holds it, and not as a failure", () => {
+    expect(
+      deriveSceneControls(input("monitored", { searchIsWithWhisparr: true })).statusLine,
+    ).toEqual({ sentence: SCENE_SEARCH_IS_WITH_WHISPARR, failed: false });
   });
 
   it("returns the controls to enabled after a failure, so a failure is retryable", () => {
