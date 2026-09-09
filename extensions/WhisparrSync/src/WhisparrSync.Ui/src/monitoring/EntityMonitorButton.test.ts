@@ -96,12 +96,12 @@ const {
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   INSTANCE_OFFERS_NO_QUALITY_PROFILE,
   INSTANCE_REFUSED,
-  MONITORED_IN_WHISPARR,
   MONITORING_COULD_NOT_BE_READ,
-  MONITOR_IN_WHISPARR,
   REFLECT_OWNED_SKIPPED,
   SCOPE_ALL_SCENES,
   STOP_MONITORING_IN_WHISPARR,
+  WHISPARR_MONITORED,
+  WHISPARR_NOT_MONITORED,
 } = await import("../common/ui/copy");
 
 const sleep = (ms: number) =>
@@ -190,7 +190,7 @@ test("the first frame is a bordered shell with no mark at all", async () => {
 
   expect(rendered.button).not.toBeNull();
   expect(rendered.marks()).toBe(0);
-  expect(rendered.button?.getAttribute("aria-label")).toBe(MONITOR_IN_WHISPARR);
+  expect(rendered.button?.getAttribute("aria-label")).toBe(WHISPARR_NOT_MONITORED);
 });
 
 test("a read answering not-monitored paints the mark and no tick", async () => {
@@ -200,7 +200,7 @@ test("a read answering not-monitored paints the mark and no tick", async () => {
 
   expect(rendered.marks()).toBe(1);
   expect(hasClass(rendered.button, "border-accent")).toBe(false);
-  expect(rendered.button?.getAttribute("aria-label")).toBe(MONITOR_IN_WHISPARR);
+  expect(rendered.button?.getAttribute("aria-label")).toBe(WHISPARR_NOT_MONITORED);
 });
 
 test("the monitored state is a border and a tick, and no accent fill on the control itself", async () => {
@@ -212,7 +212,7 @@ test("the monitored state is a border and a tick, and no accent fill on the cont
   // a filled two-tone disc that cannot inherit a colour.
   expect(rendered.marks()).toBe(2);
   expect(hasClass(rendered.button, "border-accent")).toBe(true);
-  expect(rendered.button?.getAttribute("aria-label")).toBe(MONITORED_IN_WHISPARR);
+  expect(rendered.button?.getAttribute("aria-label")).toBe(WHISPARR_MONITORED);
 
   // Neither accent background is on the button. The tint that lifts the border is a layer behind the
   // mark, which is what keeps a two-tone disc off a solid accent field.
@@ -232,10 +232,10 @@ test("a failed read says so, and never paints the unmonitored state", async () =
   expect(rendered.marks()).toBe(0);
   expect(rendered.button?.disabled).toBe(true);
   expect(rendered.button?.getAttribute("aria-label")).toBe(
-    `${MONITOR_IN_WHISPARR}, ${MONITORING_COULD_NOT_BE_READ}`,
+    `${WHISPARR_NOT_MONITORED}, ${MONITORING_COULD_NOT_BE_READ}`,
   );
   expect(rendered.button?.getAttribute("title")).toBe(
-    `${MONITOR_IN_WHISPARR}, ${MONITORING_COULD_NOT_BE_READ}`,
+    `${WHISPARR_NOT_MONITORED}, ${MONITORING_COULD_NOT_BE_READ}`,
   );
 });
 
@@ -333,7 +333,7 @@ test("a v2 performer keeps its control, disabled, saying what the generation can
   expect(rendered.button, "the control is omitted rather than refused").not.toBeNull();
   expect(rendered.button?.disabled).toBe(true);
   expect(rendered.button?.getAttribute("aria-label")).toBe(
-    `${MONITOR_IN_WHISPARR}, ${CAP_UNAVAILABLE_ON_THIS_GENERATION}`,
+    `${WHISPARR_NOT_MONITORED}, ${CAP_UNAVAILABLE_ON_THIS_GENERATION}`,
   );
 });
 
@@ -588,7 +588,7 @@ test("a read that failed says only that, with no refusal sentence beside it", as
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
 
   expect(rendered.button?.getAttribute("aria-label")).toBe(
-    `${MONITOR_IN_WHISPARR}, ${MONITORING_COULD_NOT_BE_READ}`,
+    `${WHISPARR_NOT_MONITORED}, ${MONITORING_COULD_NOT_BE_READ}`,
   );
   expect(document.body.textContent).not.toContain(INSTANCE_REFUSED);
 });
