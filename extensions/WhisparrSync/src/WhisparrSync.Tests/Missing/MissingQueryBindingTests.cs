@@ -241,6 +241,8 @@ public sealed class MissingQueryBindingTests
         public IReadOnlyList<ProviderSortOption> Sorts { get; } =
             [new ProviderSortOption("DATE", "Newest first")];
 
+        public string DefaultSort { get; init; } = "DATE";
+
         public ProviderCapabilitySet Capabilities { get; } =
             ProviderCapabilities.ForStashDb(new object());
 

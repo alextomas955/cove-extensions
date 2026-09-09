@@ -317,6 +317,8 @@ public sealed class LibraryStatusRouteTests
     {
         public IReadOnlyList<ProviderSortOption> Sorts => throw Reached();
 
+        public string DefaultSort => throw Reached();
+
         public ProviderCapabilitySet Capabilities => throw Reached();
 
         public Task<ProviderCatalogueAnswer> ReadPageAsync(
