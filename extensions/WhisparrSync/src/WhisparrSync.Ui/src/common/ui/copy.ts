@@ -570,6 +570,34 @@ export function allScenesConfirmation(count: number, oneWayDoor: boolean): strin
 }
 
 /**
+ * What marking a catalogue does not do, stated where the whole catalogue is about to be marked.
+ *
+ * The reason the confirmation exists. The gesture reaches every scene the source lists, which reads
+ * like a download of that size unless the sentence says otherwise.
+ */
+export const MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF =
+  "Marking a scene wanted downloads nothing by itself.";
+
+/**
+ * What the confirmation in front of the whole catalogue states.
+ *
+ * Names the catalogue's own size, which is the figure the count line beside the grid states, and
+ * says in the same breath that the scenes already held are not part of the run. The two together are
+ * what stop the figure reading as the number of scenes about to be registered.
+ *
+ * @param count how many scenes the source lists for the entity
+ * @param provider the metadata source the catalogue was read from, as a sentence names it
+ */
+export function monitorAllConfirmation(count: number, provider: string): string {
+  const catalogue =
+    count === 1
+      ? `the 1 scene ${provider} lists here`
+      : `all ${String(count)} scenes ${provider} lists here`;
+
+  return `This covers ${catalogue}, minus the ones you already have. ${MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF}`;
+}
+
+/**
  * What the confirmation in front of the search states.
  *
  * @param count how many entities the choice covers

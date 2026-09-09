@@ -5,6 +5,7 @@
  * and no member here carries a disabled flag for one.
  */
 import type { MissingSortOption } from "../wire/api";
+import type { MissingEntityKind } from "./entityKindLogic";
 
 /**
  * How long typing settles before the address is rewritten.
@@ -19,6 +20,26 @@ export const SEARCH_PLACEHOLDER = "Search titles";
 
 /** What the ordering menu is called, which is the only name its trigger carries. */
 export const SORT_MENU_LABEL = "Sort";
+
+/** What the whole-catalogue marking control is called. */
+export const MONITOR_ALL_LABEL = "Monitor all";
+
+/**
+ * Whether the toolbar offers the whole-catalogue marking control for `kind`.
+ *
+ * A studio's and a performer's catalogue is bounded by the entity, so the server can walk it and
+ * mark what it finds. A tag's spans the library, and a run over one is unbounded by construction
+ * rather than merely large.
+ *
+ * Absent rather than dimmed, for the reason a sort the source does not declare is absent: nothing
+ * the reader can do would make it available, so a control offering itself and then refusing would
+ * describe a fault where there is a boundary.
+ *
+ * @param kind which kind of entity page the tab is mounted on
+ */
+export function monitorAllOffered(kind: MissingEntityKind): boolean {
+  return kind !== "tag";
+}
 
 /** One control the toolbar draws. */
 export type MissingToolbarControl = "search" | "sort" | "facets" | "refresh";

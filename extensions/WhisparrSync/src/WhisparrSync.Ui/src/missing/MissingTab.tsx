@@ -84,10 +84,11 @@ function MissingTabFor({
       ? { ...view.filters, [INCLUDE_SUB_STUDIOS_KEY]: String(includeSubStudios) }
       : view.filters;
 
-  const { state, refresh, monitorScene, searchScene, monitorSelection } = useMissing(kind, coveId, {
-    ...view,
-    filters,
-  });
+  const { state, refresh, monitorScene, searchScene, monitorSelection, monitorAll } = useMissing(
+    kind,
+    coveId,
+    { ...view, filters },
+  );
   const entityName = `this ${kind}`;
   const page = state.view;
 
@@ -119,6 +120,7 @@ function MissingTabFor({
     <div className="mx-auto max-w-7xl px-4">
       <MissingToolbar
         onRefresh={refresh}
+        onMonitorAll={monitorAll}
         catalogue={page === null ? undefined : { kind, view: page }}
       />
       <MissingSelectionBar
