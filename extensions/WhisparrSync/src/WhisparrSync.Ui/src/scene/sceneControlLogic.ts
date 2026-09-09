@@ -97,8 +97,15 @@ export interface SceneControlState {
   /** How many controls {@link sharedReason} stops. Zero where there is none. */
   readonly affectedControls: number;
   /** What the status line beneath the controls states, or null where there is nothing to say. */
-  readonly statusLine: string | null;
+  readonly statusLine: SceneStatusLine | null;
   readonly state: WhisparrEntityState;
+}
+
+/** What the status line beneath the controls says, and whether it reports a failure. */
+export interface SceneStatusLine {
+  readonly sentence: string;
+  /** Whether the outcome failed, which is what decides the tone it reads in. */
+  readonly failed: boolean;
 }
 
 /** What the read's own refusal states, and how many of the tab's surfaces it stops. */
@@ -371,10 +378,12 @@ function statusLine(
   input: SceneControlInput,
   place: VerbRefusalPlace,
   refused: string | null,
-): string | null {
-  if (input.actionFailed) return ACTION_DID_NOT_REACH_WHISPARR;
-  if (place === "statusLine" && refused !== null) return refused;
-  return input.searchIsWithWhisparr ? SCENE_SEARCH_IS_WITH_WHISPARR : null;
+): SceneStatusLine | null {
+  if (input.actionFailed) return { sentence: ACTION_DID_NOT_REACH_WHISPARR, failed: true };
+  if (place === "statusLine" && refused !== null) return { sentence: refused, failed: true };
+  return input.searchIsWithWhisparr
+    ? { sentence: SCENE_SEARCH_IS_WITH_WHISPARR, failed: false }
+    : null;
 }
 
 function memberOf(answer: unknown, member: string): unknown {

@@ -107,6 +107,59 @@ test("a read settling for a video no longer on screen is dropped", () => {
   expect(store.getSnapshot()).toEqual(INITIAL_SCENE_STATE);
 });
 
+test("a verb in flight holds every control, and its answer releases them", () => {
+  const store = createSceneStore();
+  store.mounted(FIRST);
+  store.beginAction(FIRST);
+
+  expect(store.getSnapshot().acting).toBe(true);
+
+  store.actionSettled(FIRST, { refusal: "instanceRefused", searchIsWithWhisparr: false });
+
+  expect(store.getSnapshot()).toMatchObject({
+    acting: false,
+    actionFailed: false,
+    actionRefusal: "instanceRefused",
+  });
+});
+
+test("a verb that produced no answer records that, and not what it might have said", () => {
+  const store = createSceneStore();
+  store.mounted(FIRST);
+  store.beginAction(FIRST);
+  store.actionFailed(FIRST);
+
+  expect(store.getSnapshot()).toMatchObject({
+    acting: false,
+    actionFailed: true,
+    actionRefusal: null,
+  });
+});
+
+test("a confirmed search is held only until the next verb starts", () => {
+  const store = createSceneStore();
+  store.mounted(FIRST);
+  store.beginAction(FIRST);
+  store.actionSettled(FIRST, { refusal: "none", searchIsWithWhisparr: true });
+
+  expect(store.getSnapshot().searchIsWithWhisparr).toBe(true);
+
+  store.beginAction(FIRST);
+
+  expect(store.getSnapshot().searchIsWithWhisparr).toBe(false);
+});
+
+test("a verb settling for a video no longer on screen is dropped", () => {
+  const store = createSceneStore();
+  store.mounted(FIRST);
+  store.beginAction(FIRST);
+  store.mounted(SECOND);
+
+  store.actionSettled(FIRST, { refusal: "instanceRefused", searchIsWithWhisparr: false });
+
+  expect(store.getSnapshot()).toEqual(INITIAL_SCENE_STATE);
+});
+
 test("mounting the same video twice does not discard its answer", () => {
   const store = createSceneStore();
   store.mounted(FIRST);
