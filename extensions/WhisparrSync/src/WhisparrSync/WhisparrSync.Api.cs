@@ -585,7 +585,7 @@ public sealed partial class WhisparrSync
                 countEndpoint: MissingCountEndpointFor("tag"))
             .AddAction(
                 id: "whisparr-monitor-selected-studios",
-                label: "Monitor in Whisparr",
+                label: "Whisparr",
                 actionType: "bulk",
                 entityTypes: [StudiosSelectionType],
                 icon: "eye",
@@ -598,7 +598,7 @@ public sealed partial class WhisparrSync
                 suppressSuccessAlert: true)
             .AddAction(
                 id: "whisparr-monitor-selected-performers",
-                label: "Monitor in Whisparr",
+                label: "Whisparr",
                 actionType: "bulk",
                 entityTypes: [PerformersSelectionType],
                 icon: "eye",
