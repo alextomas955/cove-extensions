@@ -6,17 +6,46 @@
  *
  * There is no status line and no count of any sort. Whisparr's own catalogue count is unstable while
  * a refresh runs, so a number here would be wrong through no fault of this product.
+ *
+ * Every row draws a glyph and its own name, and states its reason in the row's title and in an
+ * off-screen span. Nothing else is drawn inside a row.
  */
-import { Fragment, useRef, type RefObject } from "react";
+import { useRef, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import {
+  CalendarClock,
+  CircleSlash,
+  FileCheck2,
+  Library,
+  PlusCircle,
+  Radar,
+  Search,
+} from "lucide-react";
 // From the subpath rather than the barrel, so drawing a menu does not pull the whole primitives
 // module - and its host-only imports - into this slice.
 import { useOverlayKeys } from "@cove-extensions/ui-shared/overlay";
 
+import type { RowIcon } from "../common/ui/ChoiceOverlay";
 import { OFF_SCREEN } from "../common/ui/offScreen";
 import { monitorMenuItemKey } from "./monitorMenuLogic";
-import type { MonitorMenu, MonitorMenuItem } from "./monitorMenuLogic";
+import type { MonitorMenu, MonitorMenuItem, MonitorMenuItemKey } from "./monitorMenuLogic";
 import { useAnchoredTo } from "./useAnchoredTo";
+
+/**
+ * The glyph each item draws, shared with the selection overlay so one verb keeps one glyph wherever
+ * it is offered.
+ *
+ * Total by TYPE, so an item added later fails this build rather than rendering a row with no glyph.
+ */
+export const MONITOR_ITEM_ICON: Record<MonitorMenuItemKey, RowIcon> = {
+  "scope:futureScenes": CalendarClock,
+  "scope:allScenes": Library,
+  monitor: Radar,
+  unmonitor: CircleSlash,
+  "secondary:addAllMissing": PlusCircle,
+  "secondary:reflectOwned": FileCheck2,
+  "secondary:searchAllMonitored": Search,
+};
 
 /**
  * One row of the menu.
@@ -30,7 +59,7 @@ function MenuRow({
   role,
   checked,
   label,
-  sentences,
+  icon: Icon,
   reason,
   onSelect,
 }: {
@@ -38,7 +67,7 @@ function MenuRow({
   /** The radio's own state. Omitted for a row that is not one of a pair. */
   checked?: boolean;
   label: string;
-  sentences: readonly string[];
+  icon: RowIcon;
   /** Why the row cannot be pressed, or null when it can. */
   reason: string | null;
   onSelect: () => void;
@@ -58,25 +87,19 @@ function MenuRow({
         onClick={onSelect}
         className="flex w-full items-center gap-2 text-left text-sm text-foreground disabled:cursor-not-allowed"
       >
-        <span
-          className={
-            role === "menuitemradio"
-              ? checked === true
+        {role === "menuitemradio" ? (
+          <span
+            className={
+              checked === true
                 ? "h-3.5 w-3.5 shrink-0 rounded-full border border-accent bg-accent"
                 : "h-3.5 w-3.5 shrink-0 rounded-full border border-border"
-              : "h-3.5 w-3.5 shrink-0"
-          }
-        />
-        {label}
+            }
+          />
+        ) : null}
+        <Icon className="h-4 w-4 shrink-0 text-secondary" />
+        <span className="flex-1">{label}</span>
         {reason === null ? null : <span style={OFF_SCREEN}>{reason}</span>}
       </button>
-      {sentences.map((sentence) => (
-        // Outside the button on purpose: text inside it would join the accessible name, and the
-        // name a control announces has to be its own name and its reason, not a paragraph.
-        <p key={sentence} className="mt-1 text-xs text-secondary">
-          {sentence}
-        </p>
-      ))}
     </div>
   );
 }
@@ -148,26 +171,20 @@ export function EntityMonitorMenu({
         // measurement loop to buy the same reachability.
         className="min-h-0 overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-surface py-1 text-left shadow-xl"
       >
+        {/* Every row carries a menu role. The overlay's roving focus selects on
+            `[role^="menuitem"]`, so a row without one is invisible to the arrow keys. */}
         {menu.items.map((item) => (
-          <Fragment key={monitorMenuItemKey(item)}>
-            {/* Every row carries a menu role. The overlay's roving focus selects on
-                `[role^="menuitem"]`, so a row without one is invisible to the arrow keys. */}
-            <MenuRow
-              role={item.item === "scope" ? "menuitemradio" : "menuitem"}
-              checked={item.item === "scope" ? item.selected : undefined}
-              label={item.label}
-              sentences={item.sentences}
-              reason={item.reason}
-              onSelect={() => {
-                onSelect(item);
-              }}
-            />
-            {/* Outside every row, because it is true of the pair rather than of one option, and
-                carries no role so the arrow keys pass over it. */}
-            {menu.scopeNote !== null && monitorMenuItemKey(item) === lastScopeKey(menu) ? (
-              <p className="px-3 py-2 text-xs text-secondary">{menu.scopeNote}</p>
-            ) : null}
-          </Fragment>
+          <MenuRow
+            key={monitorMenuItemKey(item)}
+            role={item.item === "scope" ? "menuitemradio" : "menuitem"}
+            checked={item.item === "scope" ? item.selected : undefined}
+            label={item.label}
+            icon={MONITOR_ITEM_ICON[monitorMenuItemKey(item)]}
+            reason={item.reason}
+            onSelect={() => {
+              onSelect(item);
+            }}
+          />
         ))}
       </div>
 
@@ -183,11 +200,4 @@ export function EntityMonitorMenu({
     </div>,
     document.body,
   );
-}
-
-/** The key of the last scope row, which is the row the pair's own sentence follows. */
-function lastScopeKey(menu: MonitorMenu): string | null {
-  const scopes = menu.items.filter((item) => item.item === "scope");
-  const last = scopes.at(-1);
-  return last === undefined ? null : monitorMenuItemKey(last);
 }

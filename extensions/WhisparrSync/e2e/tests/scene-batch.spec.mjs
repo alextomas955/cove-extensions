@@ -54,9 +54,7 @@ import {
 // the same constant would be asserting that a string equals itself.
 const BATCH_BUTTON_LABEL = "Whisparr";
 
-// What the overlay asks, and the five rows in the order they are promised in. Transcribed the same
-// way.
-const BATCH_CHOOSE_AN_ACTION = "Choose what to do with every scene you selected.";
+// The five rows in the order they are promised in. Transcribed the same way.
 const BATCH_ROW_LABELS = [
   "Add to Whisparr",
   "Monitor in Whisparr",
@@ -137,7 +135,10 @@ const test = base.extend({
 });
 
 const batchButton = (page) => page.getByRole("button", { name: BATCH_BUTTON_LABEL, exact: true });
-const chooserPanel = (page) => page.getByRole("dialog", { name: BATCH_CHOOSE_AN_ACTION });
+// The panel heads itself with the product's name and the count of what is selected, and that header
+// is its accessible name.
+const chooserPanel = (page) =>
+  page.getByRole("menu", { name: `Whisparr · ${SEEDED_SCENES} selected` });
 
 /**
  * Every contributed selection-action button the host drew, by the glyph it draws on all of them.
@@ -344,6 +345,12 @@ test.describe("scene batch", () => {
         offered,
         "the overlay does not offer the five rows in the order it promises: safest first, the only row that can download fourth, and the row that changes what Whisparr accepts in future last",
       ).toEqual([...BATCH_ROW_LABELS, BULK_CANCEL]);
+
+      // One glyph and one name per row, and no paragraph anywhere inside the panel.
+      expect(
+        await chooserPanel(page).locator("p").count(),
+        "the chooser draws a paragraph, so a row states prose the panel is no longer meant to carry",
+      ).toBe(0);
 
       // The cancel path, taken FIRST so the assertion that nothing was sent is made before this spec
       // has sent anything at all.

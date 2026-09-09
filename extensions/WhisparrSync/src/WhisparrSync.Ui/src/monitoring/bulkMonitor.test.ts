@@ -96,15 +96,14 @@ const {
   ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
   BULK_ACTIONS_COULD_NOT_BE_OFFERED,
   BULK_CANCEL,
-  BULK_CHOOSE_AN_ACTION,
   BULK_CLOSE,
   BULK_SELECTION_IS_OVER_THE_BOUND,
   BULK_SELECTION_WAS_NOT_STARTED,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   SCOPE_ALL_SCENES,
   SCOPE_FUTURE_SCENES,
+  selectionMenuHeader,
   STOP_MONITORING_IN_WHISPARR,
-  UNMONITORING_DOES_NOT_RETRACT,
 } = await import("../common/ui/copy");
 
 const sleep = (ms: number) =>
@@ -215,7 +214,7 @@ test("leaving without choosing returns the cancelled result and posts nothing", 
   answering(viewOf());
 
   const { running } = await open("studios", [7]);
-  expect(document.body.textContent).toContain(BULK_CHOOSE_AN_ACTION);
+  expect(document.body.textContent).toContain(selectionMenuHeader(1));
   press(BULK_CANCEL);
 
   await expect(running).resolves.toEqual({ cancelled: true });
@@ -400,10 +399,6 @@ test("a selection the route accepts returns the success result and opens no seco
   expect(document.body.textContent).toBe("");
 });
 
-/**
- * D-20 holds wherever unmonitoring is offered. A reader unmonitoring a whole selection needs the
- * same sentence as one unmonitoring a single entity.
- */
 test("choosing All Scenes posts nothing until the confirmation is answered", async () => {
   answering(viewOf());
 
@@ -440,12 +435,28 @@ test("the narrower scope and the unmonitor row are posted with no confirmation a
   expect(sent.filter((call) => call.method === "POST")).toHaveLength(1);
 });
 
-test("the unmonitor row states what unmonitoring does not retract", async () => {
+test("heads the panel with the product's name and the count, and draws no paragraph", async () => {
   answering(viewOf());
 
-  const { running } = await open("studios", [7]);
+  const { running } = await open("studios", [7, 8, 9]);
 
-  expect(document.body.textContent).toContain(UNMONITORING_DOES_NOT_RETRACT);
+  expect(document.querySelector('[role="menu"]')?.getAttribute("aria-label")).toBe(
+    selectionMenuHeader(3),
+  );
+  expect(document.querySelectorAll('[role="menu"] p')).toHaveLength(0);
   press(BULK_CANCEL);
+  await running;
+});
+
+test("states a refusal over the selection it was refused for", async () => {
+  readAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const { running } = await open("studios", [7, 8, 9]);
+
+  expect(document.querySelector('[role="menu"]')?.getAttribute("aria-label")).toBe(
+    selectionMenuHeader(3),
+  );
+  expect(document.body.textContent).toContain(BULK_ACTIONS_COULD_NOT_BE_OFFERED);
+  press(BULK_CLOSE);
   await running;
 });

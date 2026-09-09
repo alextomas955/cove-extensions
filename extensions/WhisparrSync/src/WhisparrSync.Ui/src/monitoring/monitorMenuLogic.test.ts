@@ -11,26 +11,22 @@ import {
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ,
   INSTANCE_HOLDS_NO_SUCH_ENTRY,
-  ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE,
-  ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
-  PERFORMER_HAS_NO_FUTURE_ONLY_SCOPE,
+  MONITOR_IN_WHISPARR,
   REFLECT_OWNED_SKIPPED,
   REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
   SCOPE_ALL_SCENES,
-  SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED,
   SCOPE_FUTURE_SCENES,
-  SCOPE_IN_FORCE_IS_NOT_REPORTED,
-  UNMONITORING_DOES_NOT_RETRACT,
+  STOP_MONITORING_IN_WHISPARR,
   WAITING_FOR_WHISPARR,
 } from "../common/ui/copy";
 import {
   allScenesIsAOneWayDoor,
   bulkMonitorActions,
   capabilityBehindAction,
-  marksTheBackCatalogue,
   controlNotice,
   describeMonitorRefusal,
   describeReflectOwnedSkip,
+  marksTheBackCatalogue,
   monitorMenu,
   monitorRefusalIn,
   reflectOwnedSkipIn,
@@ -159,11 +155,11 @@ describe("the studio menu", () => {
     ]);
   });
 
-  it("states at the unmonitor item what unmonitoring does not undo", () => {
+  it("offers the unmonitor item under the product's own name for that verb", () => {
     const menu = monitorMenu(view({ kind: "studio", monitored: true }), false);
     const unmonitor = menu.items.find((item) => item.item === "unmonitor");
 
-    expect(unmonitor?.sentences).toContain(UNMONITORING_DOES_NOT_RETRACT);
+    expect(unmonitor?.label).toBe(STOP_MONITORING_IN_WHISPARR);
   });
 });
 
@@ -189,7 +185,6 @@ describe("the scope pair", () => {
       );
 
       expect(selectedScopes(menu.items), generation).toEqual([SCOPE_FUTURE_SCENES]);
-      expect(menu.scopeNote, generation).toBeNull();
     }
   });
 
@@ -208,48 +203,19 @@ describe("the scope pair", () => {
     expect(menu.items.every((item) => item.item !== "scope" || !item.selected)).toBe(true);
   });
 
-  it("states that it does not know which scope is in force, and only where it does not", () => {
-    const noteOn = (monitored: boolean, scope: MonitorScopeChoice | null) =>
-      monitorMenu(view({ kind: "studio", monitored, scope }), false).scopeNote;
+  it("names each option and nothing else, on either generation", () => {
+    for (const generation of GENERATIONS) {
+      const menu = monitorMenu(view({ kind: "studio", generation }), false);
+      const scopes = menu.items.filter((item) => item.item === "scope");
 
-    expect(noteOn(true, null)).toBe(SCOPE_IN_FORCE_IS_NOT_REPORTED);
-    expect(noteOn(true, "allScenes")).toBeNull();
-    expect(noteOn(true, "futureScenes")).toBeNull();
-    // Nothing is in force yet on an unmonitored entity, so there is nothing unknown to report.
-    expect(noteOn(false, null)).toBeNull();
-  });
-
-  it("states nothing about a scope for a performer, which is offered no pair", () => {
-    expect(monitorMenu(view({ kind: "performer", monitored: true }), false).scopeNote).toBeNull();
-  });
-
-  it("tells the reader beside both options that the choice does not decide what is monitored", () => {
-    const menu = monitorMenu(view({ kind: "studio" }), false);
-
-    for (const item of menu.items) {
-      if (item.item === "scope") {
-        expect(item.sentences, item.label).toContain(SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED);
-      }
+      expect(
+        scopes.map((item) => Object.keys(item).toSorted()),
+        generation,
+      ).toEqual([
+        ["item", "label", "reason", "scope", "selected"],
+        ["item", "label", "reason", "scope", "selected"],
+      ]);
     }
-  });
-
-  it("states the back-catalogue cost beside All Scenes and nowhere else", () => {
-    const menu = monitorMenu(view({ kind: "studio" }), false);
-    const carrying = menu.items.filter((item) =>
-      item.sentences.includes(ALL_SCENES_MARKS_THE_BACK_CATALOGUE),
-    );
-
-    expect(carrying.map((item) => item.label)).toEqual([SCOPE_ALL_SCENES]);
-  });
-
-  it("calls All Scenes a one-way door only where a scope change leaves what is already monitored", () => {
-    const carriedOn = (generation: NonNullable<WhisparrGeneration>) =>
-      monitorMenu(view({ kind: "studio", generation }), false).items.some((item) =>
-        item.sentences.includes(ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE),
-      );
-
-    expect(carriedOn("v3")).toBe(true);
-    expect(carriedOn("v2")).toBe(false);
   });
 });
 
@@ -261,12 +227,11 @@ describe("a performer", () => {
     expect(menu.items.map((item) => item.item)).toEqual(["monitor"]);
   });
 
-  it("carries the All-Scenes consequence on that one item, and why there is no choice", () => {
+  it("names that one item for the verb rather than for a scope it is not offered", () => {
     const menu = monitorMenu(view({ kind: "performer", monitored: false }), false);
     const monitor = menu.items.find((item) => item.item === "monitor");
 
-    expect(monitor?.sentences).toContain(ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
-    expect(monitor?.sentences).toContain(PERFORMER_HAS_NO_FUTURE_ONLY_SCOPE);
+    expect(monitor?.label).toBe(MONITOR_IN_WHISPARR);
   });
 
   it("leaves the control itself unavailable, with the menu empty, where the generation cannot monitor one", () => {
@@ -694,9 +659,8 @@ describe("the choice that cannot be taken back", () => {
 describe("no count reaches this layer", () => {
   it("reads nothing off the view but the five fields the read carries", () => {
     const menu = monitorMenu(view({ kind: "studio", monitored: true }), false);
-    const everySentence = menu.items.flatMap((item) => [item.label, ...item.sentences]);
 
-    for (const text of everySentence) {
+    for (const text of menu.items.map((item) => item.label)) {
       expect(/\d/.test(text), text).toBe(false);
     }
   });
