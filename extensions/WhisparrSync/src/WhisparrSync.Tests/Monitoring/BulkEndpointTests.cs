@@ -24,6 +24,9 @@ public sealed class BulkEndpointTests
     private const string Studios = "studios";
     private const string Performers = "performers";
 
+    /// <summary>The spelling the bar passes for a video selection, which is the singular one.</summary>
+    private const string Videos = "video";
+
     /// <summary>Renamer's own bound, and the one this route copies.</summary>
     private const int Cap = 1000;
 
@@ -33,7 +36,7 @@ public sealed class BulkEndpointTests
         var bulk = BulkActions();
 
         Assert.Equal(
-            [[Performers], [Studios]],
+            [[Performers], [Studios], [Videos]],
             bulk.Select(action => action.EntityTypes).OrderBy(types => types[0], StringComparer.Ordinal));
     }
 
@@ -56,10 +59,18 @@ public sealed class BulkEndpointTests
         foreach (var action in BulkActions())
         {
             Assert.Null(action.ApiEndpoint);
-            Assert.Equal("whisparrMonitorSelected", action.HandlerName);
+            Assert.NotNull(action.HandlerName);
             Assert.Equal(Permissions.ExtensionsConfigure, action.RequiredPermission);
             Assert.True(action.SuppressSuccessAlert);
         }
+
+        // Pinned per selection, because the host resolves a handler name to the bundle's own map by
+        // exact string and dispatches nothing, with no error, when they differ.
+        Assert.Equal(
+            ["whisparrMonitorSelected", "whisparrMonitorSelected", "whisparrSceneBatch"],
+            BulkActions()
+                .OrderBy(action => action.EntityTypes[0], StringComparer.Ordinal)
+                .Select(action => action.HandlerName));
     }
 
     /// <summary>That action type has no renderer at all, so it would contribute nothing.</summary>
