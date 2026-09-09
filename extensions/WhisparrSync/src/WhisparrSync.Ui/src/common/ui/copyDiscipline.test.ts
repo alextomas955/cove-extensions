@@ -57,6 +57,7 @@ const FORBIDDEN_IN_A_CAPABILITY_GAP = [
  * what the count beside it counts, and the one card-level answer that is not a failure.
  */
 const RENDERED_BY_THE_MISSING_TAB = [
+  "MISSING_TAB_HEADING",
   "NO_METADATA_PROVIDER_CONFIGURED",
   "NO_PROVIDER_ID_FOR_ENTITY",
   "NO_TITLES_MATCH",
@@ -448,6 +449,13 @@ describe("the bound sentence names both counts at any size", () => {
 
   it("names both counts at one, so the wording assumes no plural", () => {
     expect(copy.facetMenuBound(1, 2)).toContain("1 of 2");
+  });
+});
+
+describe("a facet with nothing picked names what its menu covers", () => {
+  it("reads as one phrase whatever case the source spelled the menu's name in", () => {
+    expect(copy.facetCoversEverything("Tags")).toBe("All tags");
+    expect(copy.facetCoversEverything("Performers")).toBe("All performers");
   });
 });
 
