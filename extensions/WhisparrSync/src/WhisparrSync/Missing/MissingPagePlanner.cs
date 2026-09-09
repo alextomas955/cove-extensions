@@ -159,7 +159,7 @@ internal sealed class MissingPagePlanner(
             statusWasRead ? MissingRefusalKind.None : StatusRefusal(statusPermanentlyAbsent),
             [.. menus.Select(MenuFor)],
             [.. catalogue.Sorts.Select(sort => new MissingSortOption(sort.Value, sort.Label))],
-            request.Sort,
+            request.Sort is { Length: > 0 } sort ? sort : catalogue.DefaultSort,
             statusWasRead,
             statusPermanentlyAbsent,
             ProviderName);
@@ -317,7 +317,8 @@ internal sealed class MissingPagePlanner(
             menu.ReportedValueCount);
 
     // A refused page states its reason and carries no scenes. The range is empty rather than a
-    // provider range, because no provider was asked.
+    // provider range, because no provider was asked, and no ordering is in force because nothing
+    // was read.
     private MissingPageView Refused(MissingPageRequest request, MissingRefusalKind refusal)
         => new(
             [],
@@ -331,7 +332,7 @@ internal sealed class MissingPagePlanner(
             refusal,
             [],
             [],
-            request.Sort,
+            SortInForce: null,
             StatusWasRead: false,
             StatusIsPermanentlyAbsent: false,
             ProviderName);

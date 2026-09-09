@@ -127,6 +127,48 @@ public sealed class MissingPagePlannerTests
     }
 
     /// <summary>
+    /// A caller naming no ordering still reads an ordered page, so the view names the ordering
+    /// the provider applied rather than echoing the caller's silence back as nothing.
+    /// </summary>
+    [Fact]
+    public async Task APageReadUnderNoNamedOrderingReportsTheProvidersOwn()
+    {
+        var catalogue = new RecordingCatalogue(ScenesNamed("a"));
+        var planner = PlannerOver(catalogue);
+
+        var view = await planner.PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+
+        Assert.Equal(catalogue.DefaultSort, view.SortInForce);
+        Assert.Contains(view.Sorts, offered => offered.Value == view.SortInForce);
+    }
+
+    [Fact]
+    public async Task AnOrderingTheCallerNamedIsTheOneReported()
+    {
+        var catalogue = new RecordingCatalogue(ScenesNamed("a"));
+        var planner = PlannerOver(catalogue);
+
+        var view = await planner.PlanAsync(
+            Request() with { Sort = "TITLE:ASC" }, Context(), NullLogger.Instance, TestCt);
+
+        Assert.Equal("TITLE:ASC", view.SortInForce);
+    }
+
+    /// <summary>Nothing was read, so nothing was ordered.</summary>
+    [Fact]
+    public async Task ARefusedPageNamesNoOrdering()
+    {
+        var catalogue = new RecordingCatalogue(ScenesNamed("a"));
+        var planner = PlannerOver(catalogue, identity: null);
+
+        var view = await planner.PlanAsync(
+            Request() with { Sort = "TITLE:ASC" }, Context(), NullLogger.Instance, TestCt);
+
+        Assert.Equal(MissingRefusalKind.NoProviderIdForEntity, view.Refusal);
+        Assert.Null(view.SortInForce);
+    }
+
+    /// <summary>
     /// A generation keeping no per-scene record states that rather than offering a retry, because no
     /// retry could establish a status.
     /// </summary>
@@ -250,6 +292,8 @@ public sealed class MissingPagePlannerTests
 
         public IReadOnlyList<ProviderSortOption> Sorts { get; } =
             [new ProviderSortOption("DATE", "Newest first")];
+
+        public string DefaultSort { get; init; } = "DATE";
 
         public ProviderCapabilitySet Capabilities { get; init; } =
             ProviderCapabilities.ForStashDb(new object());

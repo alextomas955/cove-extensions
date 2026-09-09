@@ -114,6 +114,9 @@ internal sealed class ThePornDbCatalogue
         new("duration_asc", "Shortest first"),
     ];
 
+    /// <inheritdoc/>
+    public string DefaultSort => NewestFirst;
+
     public ProviderCapabilitySet Capabilities { get; }
 
     public async Task<ProviderCatalogueAnswer> ReadPageAsync(

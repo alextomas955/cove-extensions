@@ -94,6 +94,8 @@ internal sealed class ProviderCatalogueSelector : IProviderCatalogue
 
     public IReadOnlyList<ProviderSortOption> Sorts => Selected.Sorts;
 
+    public string DefaultSort => Selected.DefaultSort;
+
     public ProviderCapabilitySet Capabilities => Selected.Capabilities;
 
     private IProviderCatalogue Selected => _selected.GetAwaiter().GetResult();

@@ -27,6 +27,8 @@ internal sealed class StubProviderCatalogue(
     public IReadOnlyList<ProviderSortOption> Sorts { get; } =
         [new ProviderSortOption("DATE", "Newest first")];
 
+    public string DefaultSort => "DATE";
+
     public ProviderCapabilitySet Capabilities { get; } = ProviderCapabilities.ForStashDb(new object());
 
     public Task<ProviderCatalogueAnswer> ReadPageAsync(
@@ -79,6 +81,8 @@ internal sealed class PagedProviderCatalogue(List<ProviderScene> scenes, int per
 
     public IReadOnlyList<ProviderSortOption> Sorts { get; } =
         [new ProviderSortOption("DATE", "Newest first")];
+
+    public string DefaultSort => "DATE";
 
     public ProviderCapabilitySet Capabilities { get; } = ProviderCapabilities.ForStashDb(new object());
 
