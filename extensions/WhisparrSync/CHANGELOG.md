@@ -2,47 +2,6 @@
 
 User-facing changes, newest first.
 
-## 1.8.0 - Shorter names on the Whisparr menu rows
-
-- **A menu row now names its verb alone.** The scene selection menu reads Add, Monitor, Unmonitor,
-  Search now and Exclude, and the studio and performer menus read Monitor and Unmonitor. Every menu
-  is headed with the Whisparr name, so a row no longer repeats it. Which rows a menu offers, and what
-  each one does, are unchanged.
-- **The Whisparr tab on a scene's page keeps its longer control names.** Its controls sit beside
-  Cove's own, where the name says who acts.
-
-## 1.7.0 - The studio and performer Whisparr controls are named Whisparr
-
-- **The button on a studio or performer page, and the button in those lists' selection bars, are
-  now called Whisparr.** Each opens a menu of several actions, so neither is named after one of
-  them any more. The rows inside each menu keep the names they had.
-- **The page button still says whether Whisparr monitors the entity.** It carries the Whisparr mark
-  and no word, so its name reads "Whisparr, monitored" or "Whisparr, not monitored", and it still
-  carries its reason when it cannot be pressed.
-
-## 1.6.0 - Compact Whisparr menus, and a confirmation before All Scenes
-
-- **The three Whisparr menus are compact.** Every row draws one icon and its own name. The two
-  selection menus open as a small popover headed by the Whisparr mark, the word Whisparr and how many
-  things you selected.
-- **The sentence under each row is gone.** What each row does, and what it costs, is in the
-  monitoring and scenes pages of the documentation. Nothing a row does has changed.
-- **All Scenes asks you to confirm.** Choosing it, for one entity or for a whole selection, opens a
-  confirmation naming how many entities it covers and what it marks wanted. Cancelling sends nothing.
-- **A dimmed row still says why it cannot be pressed**, and a refused gesture still states its reason.
-
-## 1.5.0 - A shorter Whisparr tab on a scene's page
-
-- **The tab leads with a header.** The Whisparr mark and the word Whisparr sit on the left, and the
-  scene's state sits on the right where the first fact row used to be.
-- **The facts are a compact card, and it leaves out what your Whisparr names nothing for.** A scene
-  it holds no file for draws no Quality row, and a scene it has no entry for draws no card at all.
-  The state in the header reads for every scene.
-- **The sentence under each control is gone.** What each control does is in the scenes page of the
-  documentation, and nothing a control does has changed.
-- **Each control is a full-width bar on its own row**, one under the next, instead of four buttons
-  wrapped across the panel.
-
 ## 1.4.0 - Operate one scene, or a selection of scenes
 
 A **Whisparr** tab joins a scene's page in Cove. It states what your Whisparr holds for that scene
