@@ -2,6 +2,18 @@
 
 User-facing changes, newest first.
 
+## 1.5.0 - A shorter Whisparr tab on a scene's page
+
+- **The tab leads with a header.** The Whisparr mark and the word Whisparr sit on the left, and the
+  scene's state sits on the right where the first fact row used to be.
+- **The facts are a compact card, and it leaves out what your Whisparr names nothing for.** A scene
+  it holds no file for draws no Quality row, and a scene it has no entry for draws no card at all.
+  The state in the header reads for every scene.
+- **The sentence under each control is gone.** What each control does is in the scenes page of the
+  documentation, and nothing a control does has changed.
+- **Each control is a full-width bar on its own row**, one under the next, instead of four buttons
+  wrapped across the panel.
+
 ## 1.4.0 - Operate one scene, or a selection of scenes
 
 A **Whisparr** tab joins a scene's page in Cove. It states what your Whisparr holds for that scene
