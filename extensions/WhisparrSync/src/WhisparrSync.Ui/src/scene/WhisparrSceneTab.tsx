@@ -12,16 +12,14 @@
  */
 import { StatusText } from "@cove-extensions/ui-shared";
 
-import type { SceneDetailView, SceneRefusalKind } from "../wire/api";
+import type { SceneDetailView } from "../wire/api";
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
+import { OptionallyDisabled } from "../common/ui/DisabledControl";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { StateChip } from "../common/ui/StateChip";
-import { deriveState } from "../common/ui/stateVocabularyLogic";
+import type { WhisparrEntityState } from "../common/ui/stateVocabularyLogic";
 import {
-  INSTANCE_REFUSED,
-  NO_IDENTITY_IN_THIS_NAMESPACE,
-  NO_INSTANCE_CONNECTED,
   SCENE_CUTOFF_NOT_NAMED,
   SCENE_FACT_CUTOFF,
   SCENE_FACT_PROFILE,
@@ -29,39 +27,22 @@ import {
   SCENE_FACT_STATE,
   SCENE_HAS_NO_FILE_YET,
   SCENE_IS_NOT_IN_WHISPARR,
-  SEVERAL_IDENTITIES_IN_THIS_NAMESPACE,
+  SCENE_UPGRADES_FOLLOW_THE_CUTOFF,
   THE_STATUS_READ_DID_NOT_COMPLETE,
-  WHISPARR_KEEPS_NO_RECORD_OF_THESE,
   WHISPARR_STATUS_COULD_NOT_BE_READ,
 } from "../common/ui/copy";
+import {
+  deriveSceneControls,
+  sceneControls,
+  sceneReadRefusal,
+  type SceneControl,
+  type SceneVerb,
+} from "./sceneControlLogic";
+import type { SceneState } from "./sceneStore";
 import { useSceneDetail } from "./useSceneDetail";
 
-/**
- * The sentence each answered refusal reads as, or null where the read never answers it.
- *
- * The vocabulary is shared with the tab's verbs, and a verb's own refusal is stated beside the
- * control that produced it. A read answers none of those, so each maps to null here.
- */
-const SENTENCE_FOR_A_REFUSAL: Record<SceneRefusalKind, string | null> = {
-  none: null,
-  noInstanceConnected: NO_INSTANCE_CONNECTED,
-  noIdentityInThisNamespace: NO_IDENTITY_IN_THIS_NAMESPACE,
-  severalIdentitiesInThisNamespace: SEVERAL_IDENTITIES_IN_THIS_NAMESPACE,
-  capabilityAbsentOnThisGeneration: WHISPARR_KEEPS_NO_RECORD_OF_THESE,
-  didNotReachWhisparr: WHISPARR_STATUS_COULD_NOT_BE_READ,
-  instanceRefused: INSTANCE_REFUSED,
-  instanceOffersNoQualityProfile: null,
-  instanceOffersNoRootFolder: null,
-  whisparrHasNoEntryForScene: null,
-  whisparrAlreadyHoldsThisScene: null,
-  whisparrIsNotMonitoringThisScene: null,
-};
-
-/** How many of the tab's own surfaces one refused answer stops. */
-const FACTS_THE_TAB_STATES = 4;
-
 export function WhisparrSceneTab({ entityId }: { entityId: number }) {
-  const state = useSceneDetail(entityId);
+  const { state, act } = useSceneDetail(entityId);
   const couldNotBeRead = <StatusText kind="error">{WHISPARR_STATUS_COULD_NOT_BE_READ}</StatusText>;
 
   return (
@@ -69,7 +50,9 @@ export function WhisparrSceneTab({ entityId }: { entityId: number }) {
       <AsyncRegion
         state={deriveAsyncRegionState(state.read)}
         outageNotice={<StatusText kind="warning">{THE_STATUS_READ_DID_NOT_COMPLETE}</StatusText>}
-        content={state.view === null ? null : <SceneFacts view={state.view} />}
+        content={
+          state.view === null ? null : <SceneSurface scene={state} view={state.view} act={act} />
+        }
         // Unreachable, and given the failed node so that reaching it states something. Every
         // successful read carries a view and sets `hasContent`, so the derivation answers `content`
         // for a success and `reading` or `failed` for everything else.
@@ -80,47 +63,109 @@ export function WhisparrSceneTab({ entityId }: { entityId: number }) {
   );
 }
 
-function SceneFacts({ view }: { view: SceneDetailView }) {
-  const refused = SENTENCE_FOR_A_REFUSAL[view.refusal];
-  if (refused !== null) {
-    return <RefusalNotice reason={refused} affectedControls={FACTS_THE_TAB_STATES} />;
+function SceneSurface({
+  scene,
+  view,
+  act,
+}: {
+  scene: SceneState;
+  view: SceneDetailView;
+  act: (verb: SceneVerb) => void;
+}) {
+  const refusedRead = sceneReadRefusal(view.refusal);
+  if (refusedRead.sentence !== null) {
+    return (
+      <RefusalNotice
+        reason={refusedRead.sentence}
+        affectedControls={refusedRead.affectedControls}
+      />
+    );
   }
+
+  const controls = deriveSceneControls({
+    view,
+    acting: scene.acting,
+    actionFailed: scene.actionFailed,
+    actionRefusal: scene.actionRefusal,
+    searchIsWithWhisparr: scene.searchIsWithWhisparr,
+  });
 
   return (
     <>
       {view.profileReadDidNotComplete ? (
         <StatusText kind="warning">{THE_STATUS_READ_DID_NOT_COMPLETE}</StatusText>
       ) : null}
-      <dl className="space-y-2 rounded-lg border border-border bg-card px-3 py-2">
-        <div className="flex items-center gap-3">
-          <dt className="text-xs text-secondary">{SCENE_FACT_STATE}</dt>
-          <dd className="text-sm text-foreground">
-            <StateChip
-              state={deriveState({
-                excluded: view.excluded,
-                present: view.present,
-                monitored: view.monitored,
-              })}
+      <SceneFacts view={view} state={controls.state} />
+      {controls.sharedReason === null ? null : (
+        <RefusalNotice
+          reason={controls.sharedReason}
+          affectedControls={controls.affectedControls}
+        />
+      )}
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          {sceneControls(controls).map((control) => (
+            <SceneControlBlock
+              key={control.key}
+              control={control}
+              onPress={() => {
+                act(control.verb);
+              }}
             />
-          </dd>
+          ))}
         </div>
-        <FactRow
-          label={SCENE_FACT_QUALITY}
-          named={view.qualityName}
-          absent={SCENE_HAS_NO_FILE_YET}
-        />
-        <FactRow
-          label={SCENE_FACT_PROFILE}
-          named={view.qualityProfileName}
-          absent={SCENE_IS_NOT_IN_WHISPARR}
-        />
-        <FactRow
-          label={SCENE_FACT_CUTOFF}
-          named={view.cutoffName}
-          absent={view.present === false ? SCENE_IS_NOT_IN_WHISPARR : SCENE_CUTOFF_NOT_NAMED}
-        />
-      </dl>
+        {controls.statusLine === null ? null : (
+          <StatusText kind={controls.statusLine.failed ? "error" : "success"}>
+            {controls.statusLine.sentence}
+          </StatusText>
+        )}
+      </div>
     </>
+  );
+}
+
+function SceneControlBlock({ control, onPress }: { control: SceneControl; onPress: () => void }) {
+  return (
+    <div className="min-w-0">
+      <OptionallyDisabled
+        name={control.label}
+        onClick={onPress}
+        variant={control.variant}
+        reason={control.reason}
+      />
+      {/* Outside the button on purpose: text inside it joins the accessible name, and a control's
+          announced name has to be its own name and not a paragraph. */}
+      <p className="mt-1 text-xs text-secondary">{control.states}</p>
+      {/* Where the reader is deciding whether to spend a search, and the answer to where a separate
+          upgrades control went. Stated once per tab, never per control. */}
+      {control.key === "search" ? (
+        <p className="mt-1 text-xs text-secondary">{SCENE_UPGRADES_FOLLOW_THE_CUTOFF}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function SceneFacts({ view, state }: { view: SceneDetailView; state: WhisparrEntityState }) {
+  return (
+    <dl className="space-y-2 rounded-lg border border-border bg-card px-3 py-2">
+      <div className="flex items-center gap-3">
+        <dt className="text-xs text-secondary">{SCENE_FACT_STATE}</dt>
+        <dd className="text-sm text-foreground">
+          <StateChip state={state} />
+        </dd>
+      </div>
+      <FactRow label={SCENE_FACT_QUALITY} named={view.qualityName} absent={SCENE_HAS_NO_FILE_YET} />
+      <FactRow
+        label={SCENE_FACT_PROFILE}
+        named={view.qualityProfileName}
+        absent={SCENE_IS_NOT_IN_WHISPARR}
+      />
+      <FactRow
+        label={SCENE_FACT_CUTOFF}
+        named={view.cutoffName}
+        absent={view.present === false ? SCENE_IS_NOT_IN_WHISPARR : SCENE_CUTOFF_NOT_NAMED}
+      />
+    </dl>
   );
 }
 
