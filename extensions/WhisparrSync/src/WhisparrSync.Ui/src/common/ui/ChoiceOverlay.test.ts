@@ -2,8 +2,8 @@
 /**
  * What the overlay shell draws for a set of rows, and what it draws when it is given none.
  *
- * A DOM is needed because both properties are about the shape of what renders: whether the footer is
- * there at all, and which way out the reader is offered.
+ * A DOM is needed because both properties are about the shape of what renders: whether a row draws
+ * anything but its own glyph and name, and which way out the reader is offered.
  *
  * React arrives as its PRODUCTION build, which has no `act`, so a render is flushed by waiting.
  */
@@ -12,6 +12,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { test, expect, afterEach } from "vitest";
 
 import { ChoiceOverlay, type ChoiceRow } from "./ChoiceOverlay";
+import { selectionMenuHeader } from "./copy";
 
 const sleep = (ms: number) =>
   new Promise((resolve) => {
@@ -21,23 +22,29 @@ const sleep = (ms: number) =>
 /** Long enough for React to commit a render on the default lane without `act` to force it. */
 const COMMIT_MS = 50;
 
+const GLYPH: ChoiceRow["icon"] = ({ className }) =>
+  createElement("svg", { className, "data-glyph": "row" });
+
 const ROWS: ChoiceRow[] = [
-  { key: "first", label: "First", sentences: ["What the first one does."] },
-  { key: "second", label: "Second", sentences: ["What the second one does."] },
+  { key: "first", label: "First", icon: GLYPH },
+  { key: "second", label: "Second", icon: GLYPH },
 ];
 
 let root: Root | null = null;
 
-async function draw(rows: readonly ChoiceRow[], chosen: (row: ChoiceRow | null) => void) {
+async function draw(
+  rows: readonly ChoiceRow[],
+  chosen: (row: ChoiceRow | null) => void,
+  count = 1,
+) {
   const host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
   root.render(
     createElement(ChoiceOverlay<ChoiceRow>, {
-      label: "Choose one.",
+      count,
       reason: rows.length === 0 ? "Nothing was sent." : null,
       rows,
-      footer: "It reports in the job list.",
       cancelLabel: "Cancel",
       closeLabel: "Close",
       onChoose: chosen,
@@ -56,19 +63,37 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-test("draws a row per choice with its sentence outside the button, and the footer beneath", async () => {
+test("draws a glyph and a name per row, and nothing else inside one", async () => {
   await draw(ROWS, () => undefined);
 
   expect(buttons().map((button) => button.textContent)).toEqual(["First", "Second", "Cancel"]);
-  expect(document.body.textContent).toContain("What the first one does.");
-  expect(document.body.textContent).toContain("It reports in the job list.");
+  expect(
+    buttons().every((button) => button.querySelectorAll("svg").length === 1),
+    "every row carries exactly one glyph",
+  ).toBe(true);
+  expect(document.querySelectorAll('[role="menu"] p')).toHaveLength(0);
 });
 
-test("draws no footer when it is given no rows, and its way out reads Close", async () => {
+test("heads the panel with the mark, the product's name and the count", async () => {
+  await draw(ROWS, () => undefined, 12);
+  const panel = document.querySelector('[role="menu"]');
+
+  expect(panel?.getAttribute("aria-label")).toBe("Whisparr · 12 selected");
+  expect(panel?.textContent).toContain(selectionMenuHeader(12));
+});
+
+test("reads the count at one", async () => {
+  await draw(ROWS, () => undefined);
+
+  expect(document.querySelector('[role="menu"]')?.getAttribute("aria-label")).toBe(
+    "Whisparr · 1 selected",
+  );
+});
+
+test("states the refusal when it is given no rows, and its way out reads Close", async () => {
   await draw([], () => undefined);
 
   expect(buttons().map((button) => button.textContent)).toEqual(["Close"]);
-  expect(document.body.textContent).not.toContain("It reports in the job list.");
   expect(document.body.textContent).toContain("Nothing was sent.");
 });
 
@@ -91,10 +116,8 @@ test("answers the absent value on the way out and on Escape", async () => {
   expect(answers).toEqual([null, null]);
 });
 
-test("names the panel a dialog the reader must answer", async () => {
+test("every row the arrow keys must reach carries a menu role, the way out included", async () => {
   await draw(ROWS, () => undefined);
-  const panel = document.querySelector("[role='dialog']");
 
-  expect(panel?.getAttribute("aria-modal")).toBe("true");
-  expect(panel?.getAttribute("aria-label")).toBe("Choose one.");
+  expect(document.querySelectorAll('[role^="menuitem"]')).toHaveLength(3);
 });

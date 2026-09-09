@@ -68,6 +68,7 @@ export async function monitorSelected(
   const chosen = await presentOverlay<BulkMonitorAction>((finish) =>
     createElement(BulkMonitorChoice, {
       actions: offer.actions,
+      count: payload.entityIds.length,
       reason: offer.reason,
       onChoose: finish,
     }),
@@ -94,7 +95,7 @@ export async function monitorSelected(
   } catch (refusal) {
     // Nothing is rethrown. A HandlerResult carries no error member, so anything escaping here
     // reaches the host's own alert, which shows the answer's raw text.
-    await stated(refusalSentenceFor(refusal));
+    await stated(refusalSentenceFor(refusal), payload.entityIds.length);
     return { cancelled: true };
   }
 
@@ -163,9 +164,9 @@ function codeNamedIn(answer: string): string | null {
  * The same overlay the offer path reaches when it has nothing to offer, rather than a second surface
  * saying the same kind of thing in a different place.
  */
-async function stated(reason: string): Promise<void> {
+async function stated(reason: string, count: number): Promise<void> {
   await presentOverlay<BulkMonitorAction>((finish) =>
-    createElement(BulkMonitorChoice, { actions: [], reason, onChoose: finish }),
+    createElement(BulkMonitorChoice, { actions: [], count, reason, onChoose: finish }),
   );
 }
 

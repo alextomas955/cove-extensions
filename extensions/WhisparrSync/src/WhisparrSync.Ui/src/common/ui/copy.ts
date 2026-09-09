@@ -128,18 +128,6 @@ export const ALL_SCENES_MARKS_THE_BACK_CATALOGUE =
   "All Scenes marks every scene Whisparr already lists for this entity as wanted, which spends indexer traffic and disk.";
 
 /**
- * What choosing a scope does not decide, stated beside every scope option.
- *
- * Naming only the wider scope's cost would leave the narrower one reading as a limit. The connected
- * instance decides what a scope covers and has been seen covering everything, so the reader is told
- * that rather than being left to infer a guarantee.
- *
- * The wording here is provisional and single-sourced so it is one edit to change.
- */
-export const SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED =
-  "Whisparr monitors every scene it lists for this entity whichever scope you choose.";
-
-/**
  * That the wider scope is a one-way door, stated where the scope is chosen.
  *
  * For the generation whose date gate applies only to what a later refresh adds. The generation that
@@ -147,43 +135,6 @@ export const SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED =
  */
 export const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
   "Changing the scope back to Future Scenes does not undo this: a scene that is already wanted stays wanted.";
-
-/**
- * That the product does not know which scope is in force, stated where a marked option would be.
- *
- * Whisparr's own interface never states this, so there is nothing to mimic and the sentence is this
- * product's own. It states what is not known rather than naming a scope, because a marked option
- * the reader did not choose is a claim about their instance that this answer did not support.
- */
-export const SCOPE_IN_FORCE_IS_NOT_REPORTED =
-  "Whisparr's answer does not say which scope this studio is monitored at, so Cove marks none.";
-
-/**
- * What unmonitoring stops and what it leaves behind.
- *
- * The second sentence is the point of the message. A reader who unmonitors to stop acquisition has
- * not stopped it, and no other sentence in this product says so.
- */
-export const UNMONITORING_DOES_NOT_RETRACT =
-  "Unmonitoring stops Whisparr wanting new scenes. It does not retract what All Scenes already made wanted.";
-
-/**
- * Why a performer is offered no scope choice, stated on the one item that replaces the pair.
- *
- * Monitoring a performer with no date gate is All-Scenes behaviour, so the item says so rather than
- * presenting the wider scope as the only option.
- */
-export const PERFORMER_HAS_NO_FUTURE_ONLY_SCOPE =
-  "Whisparr offers no future-only option for a performer, so monitoring one covers every scene it lists.";
-
-/**
- * What reflect owned does, for both generations at once.
- *
- * Neither generation offers an in-place import mode, so a sentence promising one generation less
- * than the other could not be written truthfully.
- */
-export const REFLECT_OWNED =
-  "Whisparr links each file you already own into its scene's folder. This costs no extra disk while Whisparr's hard-link setting is on, and is skipped while that setting is off.";
 
 /** Why nothing was linked. Names the setting, because turning it on is what changes the answer. */
 export const REFLECT_OWNED_SKIPPED =
@@ -198,24 +149,8 @@ export const REFLECT_OWNED_SKIPPED =
 export const REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE =
   "Skipped: Cove could not read Whisparr's hard-link setting, so it could not establish that linking these files would cost no extra disk.";
 
-/** What add all missing does. Says what it does not do, because the name suggests acquisition. */
-export const ADD_ALL_MISSING =
-  "Registers every scene Cove holds that Whisparr does not. Nothing is downloaded.";
-
-/** The one action that downloads, said plainly rather than shaded into the others. */
-export const SEARCH_ALL_MONITORED =
-  "Asks Whisparr to search for every scene it wants for this entity, and to download what it finds.";
-
 /** The item that turns monitoring off. Named for what it does, not for the flag it writes. */
 export const STOP_MONITORING_IN_WHISPARR = "Stop monitoring in Whisparr";
-
-/**
- * What the selection overlay asks, above the actions it offers.
- *
- * Says "every" rather than naming a count. The count is on screen in the selection bar the reader
- * just used, and a second copy of it here would be a second thing that can be wrong.
- */
-export const BULK_CHOOSE_AN_ACTION = "Choose what to do with every entity you selected.";
 
 /**
  * Where the result of a selection appears.
@@ -433,40 +368,6 @@ export const SCENE_SEARCH_IS_WITH_WHISPARR =
   "Whisparr has the search. What it finds arrives the same way every other import does.";
 
 /**
- * What the batch overlay asks, above the rows it offers.
- *
- * Says "every scene you selected" rather than naming a count. The count is on screen in the
- * selection bar the reader just used, and a second copy of it here would be a second thing that can
- * be wrong.
- */
-export const BATCH_CHOOSE_AN_ACTION = "Choose what to do with every scene you selected.";
-
-/** What the add row states. Says what it does not do, because the name suggests acquisition. */
-export const BATCH_ADD_STATES =
-  "Adds every selected scene Whisparr does not hold yet. Downloads nothing.";
-
-/** What the monitor row states. Whisparr's own schedule decides what it takes later. */
-export const BATCH_MONITOR_STATES =
-  "Tells Whisparr to want every selected scene. Downloads nothing now.";
-
-/** What the unmonitor row states. The second sentence is what a reader would otherwise assume. */
-export const BATCH_UNMONITOR_STATES =
-  "Tells Whisparr to stop wanting every selected scene. Nothing already downloaded is removed.";
-
-/** What the search row states. The only row in the overlay with an external cost. */
-export const BATCH_SEARCH_STATES =
-  "Asks Whisparr to look for every selected scene it is monitoring. This is the only row here that can download files.";
-
-/**
- * What the exclude row states.
- *
- * The last clause is how the batch's one asymmetry is stated rather than hidden: there is no bulk
- * row that takes a scene back off the list, and a reader who needs one is told where it is.
- */
-export const BATCH_EXCLUDE_STATES =
-  "Puts every selected scene on Whisparr's exclusion list, so they are not added again. Nothing already downloaded is removed. Take one back off the list on that scene's own Whisparr tab.";
-
-/**
  * How many scenes one search run may carry.
  *
  * The route's own lower bound, declared here because the sentence below names it. One press of the
@@ -603,6 +504,15 @@ export function selectionCount(n: number): string {
   return n === 1 ? "1 selected" : `${String(n)} selected`;
 }
 
+/**
+ * What heads the selection popover, and the name the panel announces.
+ *
+ * Reuses {@link selectionCount}, so the count grammar is the one the selection bar already pins.
+ */
+export function selectionMenuHeader(n: number): string {
+  return `Whisparr · ${selectionCount(n)}`;
+}
+
 /** How many entities a choice made over a selection covers. */
 export function entitiesCovered(n: number): string {
   return n === 1 ? "This covers 1 entity." : `This covers ${String(n)} entities.`;
@@ -691,17 +601,6 @@ export const UPGRADE_KEEPS_BOTH_FILES =
 /** What the other upgrade behaviour does. */
 export const UPGRADE_DROPS_THE_SUPERSEDED_FILE =
   "The new file joins the scene you already have and the file it replaces is dropped from it. That file stays on disk, for Whisparr to remove.";
-
-/**
- * Whisparr's own renaming reaching files Cove already holds.
- *
- * The import mode this extension sends, and the shared library roots this extension requires, are
- * both facts about this product. Whether a later rename inside Whisparr reaches the library's own
- * entry rather than only Whisparr's own link to it is NOT measured, which is why the sentence says
- * a rename can reach a file rather than that it will or that it will not.
- */
-export const WHISPARR_MAY_RENAME =
-  "Whisparr takes charge of each file it links and names it by its own rules. Because Cove and Whisparr read the same library folders, a later rename inside Whisparr can reach a file Cove holds.";
 
 /** No address or key was entered, so nothing was tried. Names the settings that would fix it. */
 export const CONNECT_NOT_CONFIGURED =

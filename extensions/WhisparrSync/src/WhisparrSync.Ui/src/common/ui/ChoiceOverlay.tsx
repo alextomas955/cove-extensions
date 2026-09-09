@@ -7,40 +7,48 @@
  *
  * Mounted imperatively rather than rendered into a tree, because a selection-bar handler owns none.
  */
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
+import { X } from "lucide-react";
 import { useOverlayKeys } from "@cove-extensions/ui-shared/overlay";
 
-/** What one offered row needs to draw itself: a stable key, its own name, and what it states. */
+import { selectionMenuHeader } from "./copy";
+import { WhisparrLogo } from "./WhisparrLogo";
+
+/** What draws a row's glyph. Every row carries one, so no row is a label on its own. */
+export type RowIcon = (props: { className?: string }) => ReactNode;
+
+/** What one offered row needs to draw itself: a stable key, its own name, and its glyph. */
 export interface ChoiceRow {
   readonly key: string;
   readonly label: string;
-  /** What is stated beneath it, in the order it reads. */
-  readonly sentences: readonly string[];
+  readonly icon: RowIcon;
 }
 
-/** Cove's own dialog framing, copied verbatim from the host so this sits where its dialogs do. */
-const BACKDROP_CLASS = "fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4";
+/**
+ * The panel's width in pixels.
+ *
+ * Inline rather than a class, as the placement below is: the host's Tailwind JIT never scans this
+ * bundle, so a width class it does not already emit would not render.
+ */
+const PANEL_WIDTH = 288;
 
-/** The host's own dialog panel. */
-const PANEL_CLASS = "w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl";
+const ROW_CLASS =
+  "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-card focus:bg-card focus:outline-none";
 
 export function ChoiceOverlay<TRow extends ChoiceRow>({
-  label,
+  count,
   reason,
   rows,
-  footer,
   cancelLabel,
   closeLabel,
   onChoose,
 }: {
-  /** The panel's accessible name, and what it asks when no reason displaces the question. */
-  label: string;
+  /** How many things the selection holds, which the header names. */
+  count: number;
   /** The one sentence saying why nothing is offered, or null when something is. */
   reason: string | null;
   /** The rows offered, in the order they read. Empty when there is nothing to offer. */
   rows: readonly TRow[];
-  /** Where the result of a chosen row appears. Drawn only where a row can be chosen. */
-  footer: string;
   /** The way out of a choice. */
   cancelLabel: string;
   /** The way out of a panel with nothing to choose between. */
@@ -49,54 +57,69 @@ export function ChoiceOverlay<TRow extends ChoiceRow>({
   onChoose: (row: TRow | null) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
+  const header = selectionMenuHeader(count);
 
   useOverlayKeys(panel, {
     onClose: () => {
       onChoose(null);
     },
-    nav: "dialog",
+    nav: "menu",
   });
 
   return (
-    <div className={BACKDROP_CLASS}>
-      <div ref={panel} role="dialog" aria-modal="true" aria-label={label} className={PANEL_CLASS}>
-        <p className="text-sm text-foreground">{reason ?? label}</p>
-
-        {rows.map((row) => (
-          <div key={row.key} className="mt-3">
-            <button
-              type="button"
-              onClick={() => {
-                onChoose(row);
-              }}
-              className="flex w-full items-center gap-2 text-left text-sm text-foreground"
-            >
-              {row.label}
-            </button>
-            {row.sentences.map((sentence) => (
-              // Outside the button on purpose: text inside it would join the accessible name, and the
-              // name a control announces has to be its own name, not a paragraph.
-              <p key={sentence} className="mt-1 text-xs text-secondary">
-                {sentence}
-              </p>
-            ))}
-          </div>
-        ))}
-
-        {rows.length === 0 ? null : <p className="mt-3 text-xs text-secondary">{footer}</p>}
-
-        <div className="mt-4 flex justify-end">
-          <button
-            type="button"
-            onClick={() => {
-              onChoose(null);
-            }}
-            className="rounded border border-border px-3 py-1.5 text-sm text-secondary hover:text-foreground"
-          >
-            {rows.length === 0 ? closeLabel : cancelLabel}
-          </button>
-        </div>
+    <div
+      ref={panel}
+      role="menu"
+      aria-label={header}
+      // The panel is opened from a host action rather than from a control this bundle owns, so there
+      // is nothing to anchor it to and it is centred against the viewport instead.
+      style={{
+        position: "fixed",
+        top: "20vh",
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: PANEL_WIDTH,
+        zIndex: 60,
+      }}
+      className="flex flex-col gap-1 rounded-lg border border-border bg-background p-1 shadow-lg"
+    >
+      <div className="flex items-center gap-2 px-3 py-2">
+        <WhisparrLogo className="h-4 w-4 text-secondary" />
+        <span className="text-xs font-semibold uppercase tracking-wide text-secondary">
+          {header}
+        </span>
       </div>
+
+      {reason === null ? null : <p className="px-3 py-2 text-xs text-secondary">{reason}</p>}
+
+      {rows.map((row) => (
+        <button
+          key={row.key}
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            onChoose(row);
+          }}
+          className={ROW_CLASS}
+        >
+          <row.icon className="h-4 w-4 text-secondary" />
+          <span className="flex-1">{row.label}</span>
+        </button>
+      ))}
+
+      {/* A menu role admits menu children only, so the way out carries one too and the arrow keys
+          reach it. */}
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          onChoose(null);
+        }}
+        className={ROW_CLASS}
+      >
+        <X className="h-4 w-4 text-secondary" />
+        <span className="flex-1">{rows.length === 0 ? closeLabel : cancelLabel}</span>
+      </button>
     </div>
   );
 }
