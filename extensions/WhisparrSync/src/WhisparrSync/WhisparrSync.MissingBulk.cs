@@ -127,55 +127,69 @@ public sealed partial class WhisparrSync
         CancellationToken ct)
     {
         var batch = MissingBulkJob.Decode(parameters);
-        var run = await MissingBulkJob.RunAsync(batch, scopes, AimAsync, ct).ConfigureAwait(false);
+        var run = await MissingBulkJob
+            .RunAsync(batch, scopes, ComposeSceneAddAsync, ct)
+            .ConfigureAwait(false);
 
         // The host's progress carries no summary field, so the run's one line rides the final
         // report's sub-task.
         progress.Report(1d, MissingBulkJob.SummaryOf(run));
         ct.ThrowIfCancellationRequested();
+    }
 
-        async Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?> AimAsync(
-            IServiceProvider services, CancellationToken runCt)
+    /// <summary>
+    /// What a marking run offers each scene through, or null where it must not act at all.
+    /// </summary>
+    /// <remarks>
+    /// The one composition every marking run in this product aims through. The verb it closes over is
+    /// the non-grabbing scene add, so no run built from this can make an instance download.
+    /// <para>
+    /// The profile and the root are read here rather than at enqueue: each is the instance's to
+    /// change at any time, and a run started minutes ago must not create catalogue items under values
+    /// read before that.
+    /// </para>
+    /// </remarks>
+    private async Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?>
+        ComposeSceneAddAsync(IServiceProvider services, CancellationToken runCt)
+    {
+        if (await ResolveTargetAsync(
+                services.GetRequiredService<OptionsStore>(),
+                services.GetRequiredService<ICredentialPort>(),
+                services.GetRequiredService<IWhisparrClient>(),
+                runCt).ConfigureAwait(false) is not { } target
+            || target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
+                .Match<IWhisparrMissingSceneActing?>(held => held, _ => null) is not { } acting)
         {
-            if (await ResolveTargetAsync(
-                    services.GetRequiredService<OptionsStore>(),
-                    services.GetRequiredService<ICredentialPort>(),
-                    services.GetRequiredService<IWhisparrClient>(),
-                    runCt).ConfigureAwait(false) is not { } target
-                || target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
-                    .Match<IWhisparrMissingSceneActing?>(held => held, _ => null) is not { } acting)
-            {
-                return null;
-            }
+            return null;
+        }
 
-            var profiles = await ContainedAsync(
-                () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, runCt),
+        var profiles = await ContainedAsync(
+            () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, runCt),
+            target,
+            _log,
+            runCt).ConfigureAwait(false);
+        var roots = profiles is null
+            ? null
+            : await ContainedAsync(
+                () => target.Reads.ReadRootFoldersAsync(target.BaseAddress, target.ApiKey, runCt),
                 target,
                 _log,
                 runCt).ConfigureAwait(false);
-            var roots = profiles is null
-                ? null
-                : await ContainedAsync(
-                    () => target.Reads.ReadRootFoldersAsync(target.BaseAddress, target.ApiKey, runCt),
-                    target,
-                    _log,
-                    runCt).ConfigureAwait(false);
-            if (profiles is null || roots is null)
-            {
-                return null;
-            }
-
-            if (AddDefaultsProjector.From(profiles.Body, roots.Body).Defaults is not { } composeWith)
-            {
-                return null;
-            }
-
-            return (providerSceneId, markCt) => ContainedAsync(
-                () => acting.AddSceneAsync(
-                    target.BaseAddress, target.ApiKey, providerSceneId, composeWith, markCt),
-                target,
-                _log,
-                markCt);
+        if (profiles is null || roots is null)
+        {
+            return null;
         }
+
+        if (AddDefaultsProjector.From(profiles.Body, roots.Body).Defaults is not { } composeWith)
+        {
+            return null;
+        }
+
+        return (providerSceneId, markCt) => ContainedAsync(
+            () => acting.AddSceneAsync(
+                target.BaseAddress, target.ApiKey, providerSceneId, composeWith, markCt),
+            target,
+            _log,
+            markCt);
     }
 }

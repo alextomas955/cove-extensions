@@ -26,6 +26,32 @@ vi.mock("@cove-extensions/ui-shared", () => ({
   TextInput: () => createElement("input"),
 }));
 
+/**
+ * The host dialog resolves only inside a running Cove, so it stands in here. The stand-in draws the
+ * two buttons the real one draws, because whether a press of each starts the run is the property
+ * under test.
+ */
+vi.mock("./hostComponents", () => ({
+  ConfirmDialog: ({
+    title,
+    message,
+    confirmLabel,
+    onConfirm,
+    onCancel,
+  }: {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  }) =>
+    createElement("div", { role: "dialog", "aria-label": title }, [
+      createElement("p", { key: "message" }, message),
+      createElement("button", { key: "confirm", type: "button", onClick: onConfirm }, confirmLabel),
+      createElement("button", { key: "cancel", type: "button", onClick: onCancel }, "Cancel"),
+    ]),
+}));
+
 const { MissingToolbar } = await import("./MissingToolbar");
 
 const sleep = (ms: number) =>
@@ -91,14 +117,22 @@ afterEach(() => {
   while (teardowns.length > 0) teardowns.pop()?.();
 });
 
-async function mountToolbar(facets: MissingFacetMenu[]) {
+async function mountToolbar(
+  facets: MissingFacetMenu[],
+  over: { kind?: "studio" | "performer" | "tag"; catalogueSize?: number } = {},
+  onMonitorAll: () => void = () => undefined,
+) {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   root.render(
     createElement(MissingToolbar, {
       onRefresh: () => undefined,
-      catalogue: { kind: "studio", view: pageWith(facets) },
+      onMonitorAll,
+      catalogue: {
+        kind: over.kind ?? "studio",
+        view: { ...pageWith(facets), catalogueSize: over.catalogueSize ?? 0 },
+      },
     }),
   );
   teardowns.push(() => {
@@ -139,4 +173,60 @@ test("a menu carrying every value the source reported states no bound", async ()
 
   expect(panel?.textContent).toContain("2024");
   expect(panel?.textContent).not.toContain("This menu carries");
+});
+
+/** The control named `label`, or undefined where the toolbar drew none. */
+function control(container: Element, label: string) {
+  return [...container.querySelectorAll("button")].find(
+    (candidate) => candidate.textContent === label,
+  );
+}
+
+function press(button: Element | undefined) {
+  if (button === undefined) throw new Error("the toolbar drew no such control");
+  button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
+test("the whole-catalogue control confirms with the catalogue's own figure before it sends", async () => {
+  const started: number[] = [];
+  const container = await mountToolbar([YEAR], { catalogueSize: 665 }, () => started.push(1));
+
+  press(control(container, "Monitor all"));
+  const opened = await settled(() => document.body.querySelector('[role="dialog"]') !== null);
+  expect(opened, "no confirmation was drawn").toBe(true);
+
+  const dialog = document.body.querySelector('[role="dialog"]');
+  expect(dialog?.textContent).toContain("all 665 scenes a source lists here");
+  expect(dialog?.textContent).toContain("downloads nothing by itself");
+  expect(started).toEqual([]);
+
+  press([...(dialog?.querySelectorAll("button") ?? [])].at(0));
+  expect(started).toEqual([1]);
+});
+
+test("cancelling the confirmation sends nothing", async () => {
+  const started: number[] = [];
+  const container = await mountToolbar([YEAR], { catalogueSize: 665 }, () => started.push(1));
+
+  press(control(container, "Monitor all"));
+  const opened = await settled(() => document.body.querySelector('[role="dialog"]') !== null);
+  expect(opened, "no confirmation was drawn").toBe(true);
+
+  const dialog = document.body.querySelector('[role="dialog"]');
+  press([...(dialog?.querySelectorAll("button") ?? [])].at(1));
+
+  const closed = await settled(() => document.body.querySelector('[role="dialog"]') === null);
+  expect(closed, "the confirmation stayed open").toBe(true);
+  expect(started).toEqual([]);
+});
+
+/**
+ * A tag's catalogue spans the library, so no run over one can be bounded. The control is absent
+ * rather than dimmed, which is only observable on a rendered toolbar.
+ */
+test("a tag page draws no whole-catalogue control at all", async () => {
+  const container = await mountToolbar([YEAR], { kind: "tag" });
+
+  expect(control(container, "Monitor all")).toBeUndefined();
+  expect(container.textContent).not.toContain("Monitor all");
 });

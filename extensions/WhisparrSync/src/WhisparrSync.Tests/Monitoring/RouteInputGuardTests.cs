@@ -85,6 +85,7 @@ public sealed class RouteInputGuardTests
                 // different routes ending in the same segment.
                 "monitor",
                 "monitor",
+                "monitor-all",
                 "monitoring",
                 "reflect-owned",
                 "scope",

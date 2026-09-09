@@ -51,6 +51,8 @@ public sealed partial class WhisparrSync
     private string MissingCountRoute => RouteBase + "/entity/{kind}/{coveId}/missing/count";
     private string MissingBulkMonitorRoute =>
         RouteBase + "/entity/{kind}/{coveId}/missing/bulk-monitor";
+    private string MissingMonitorAllRoute =>
+        RouteBase + "/entity/{kind}/{coveId}/missing/monitor-all";
     private string MissingSceneMonitorRoute =>
         RouteBase + "/entity/{kind}/{coveId}/missing/{providerSceneId}/monitor";
     private string MissingSceneSearchRoute =>
@@ -342,6 +344,20 @@ public sealed partial class WhisparrSync
              CancellationToken ct)
                 => EnqueueMissingBulkMonitorAsync(
                     kind, coveId, request, principal, jobs, scopes, options, credentials, client, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The same tier again, and the same act over a wider reach. It names no scene at all: the
+        // narrowing rides the query string and the run re-derives its own set, so what a caller can
+        // reach is one entity's catalogue and never a set it composed itself.
+        endpoints.MapPost(MissingMonitorAllRoute,
+            (string kind, int coveId, string? q, string? filters,
+             ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             CancellationToken ct)
+                => EnqueueMissingMonitorAllAsync(
+                    kind, coveId, q, filters, principal, jobs, scopes, options, credentials, client,
+                    ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 

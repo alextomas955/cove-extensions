@@ -155,6 +155,12 @@ const RENDERED_BY_THE_ALL_SCENES_CONFIRMATION = [
 const RENDERED_BY_THE_SEARCH_CONFIRMATION = ["SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK"];
 
 /**
+ * The consequence the confirmation states before a whole catalogue is marked. Its own group, because
+ * that confirmation is the one surface that states it.
+ */
+const RENDERED_BY_THE_MONITOR_ALL_CONFIRMATION = ["MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF"];
+
+/**
  * The selection overlay's own sentences: why it sometimes has nothing to offer, how a refused
  * gesture is stated, and its two ways out.
  */
@@ -362,6 +368,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
       ...RENDERED_BY_THE_ALL_SCENES_CONFIRMATION,
       ...RENDERED_BY_THE_SEARCH_CONFIRMATION,
+      ...RENDERED_BY_THE_MONITOR_ALL_CONFIRMATION,
     ];
 
     const orphans = CONSTANTS.filter(
@@ -389,6 +396,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
       ...RENDERED_BY_THE_ALL_SCENES_CONFIRMATION,
       ...RENDERED_BY_THE_SEARCH_CONFIRMATION,
+      ...RENDERED_BY_THE_MONITOR_ALL_CONFIRMATION,
     ]) {
       expect(declared, name).toContain(name);
     }
@@ -403,6 +411,31 @@ describe("the count line says whether its total is a count or a floor", () => {
 
   it("names the range and the total", () => {
     expect(copy.countLine(41, 80, 272, false)).toBe("41–80 of 272");
+  });
+});
+
+describe("the whole-catalogue confirmation names the figure and what it is not", () => {
+  it("names the catalogue's size, the source, and that the held scenes are not in the run", () => {
+    expect(copy.monitorAllConfirmation(665, "a source")).toBe(
+      "This covers all 665 scenes a source lists here, minus the ones you already have. " +
+        "Marking a scene wanted downloads nothing by itself.",
+    );
+  });
+
+  it("reads as one scene at one, so the wording assumes no plural", () => {
+    expect(copy.monitorAllConfirmation(1, "a source")).toContain("the 1 scene a source lists here");
+  });
+
+  /**
+   * The point of confirming at all. A gesture reaching a whole catalogue reads as a download of that
+   * size, and the sentence is the only thing that says it is not.
+   */
+  it("says the marking downloads nothing, at every size", () => {
+    for (const count of [0, 1, 665]) {
+      expect(copy.monitorAllConfirmation(count, "a source")).toContain(
+        copy.MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF,
+      );
+    }
   });
 });
 
