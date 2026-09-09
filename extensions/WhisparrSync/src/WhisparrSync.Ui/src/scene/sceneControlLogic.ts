@@ -1,6 +1,6 @@
 /**
- * Pure rules for the scene tab's four controls: what each is called, what it states beneath itself,
- * which one carries the accent fill, and why a control that cannot act cannot act.
+ * Pure rules for the scene tab's four controls: what each is called, which one carries the accent
+ * fill, and why a control that cannot act cannot act.
  *
  * Relative imports only, so this module runs with no environment and needs no doubles. The wire
  * types arrive as `import type`, which erases at runtime and so takes nothing with it.
@@ -22,21 +22,15 @@ import {
   NO_IDENTITY_IN_THIS_NAMESPACE,
   NO_INSTANCE_CONNECTED,
   SCENE_ADD,
-  SCENE_ADD_STATES,
   SCENE_EXCLUDE,
-  SCENE_EXCLUDE_STATES,
   SCENE_IS_ALREADY_IN_WHISPARR,
   SCENE_IS_ON_THE_EXCLUSION_LIST,
   SCENE_MONITOR_NEEDS_AN_ENTRY,
-  SCENE_MONITOR_STATES,
   SCENE_REMOVE_EXCLUSION,
-  SCENE_REMOVE_EXCLUSION_STATES,
   SCENE_SEARCH,
   SCENE_SEARCH_IS_WITH_WHISPARR,
   SCENE_SEARCH_NEEDS_AN_ENTRY,
   SCENE_SEARCH_NEEDS_MONITORING,
-  SCENE_SEARCH_STATES,
-  SCENE_STOP_MONITORING_STATES,
   SEVERAL_IDENTITIES_IN_THIS_NAMESPACE,
   STOP_MONITORING_IN_WHISPARR,
   WAITING_FOR_WHISPARR,
@@ -73,8 +67,6 @@ export interface SceneControl {
   readonly key: SceneControlKey;
   /** What the control is called. Always a fixed constant; no instance-supplied text enters it. */
   readonly label: string;
-  /** The one sentence stated beneath it, outside the button. */
-  readonly states: string;
   readonly variant: "primary" | "ghost";
   /** The one sentence saying why it cannot be pressed, or null when it can. */
   readonly reason: string | null;
@@ -311,13 +303,11 @@ export function deriveSceneControls(input: SceneControlInput): SceneControlState
   const control = (
     key: SceneControlKey,
     label: string,
-    states: string,
     verb: SceneVerb,
     permanent: string | null,
   ): SceneControl => ({
     key,
     label,
-    states,
     variant: accent === key ? "primary" : "ghost",
     reason: reasonFor(permanent),
     verb,
@@ -327,40 +317,21 @@ export function deriveSceneControls(input: SceneControlInput): SceneControlState
   const excluded = state === "excluded";
 
   return {
-    add: control("add", SCENE_ADD, SCENE_ADD_STATES, "add", addReason),
+    add: control("add", SCENE_ADD, "add", addReason),
     monitor: monitoring
-      ? control(
-          "monitor",
-          STOP_MONITORING_IN_WHISPARR,
-          SCENE_STOP_MONITORING_STATES,
-          "unmonitor",
-          stateReason.monitor,
-        )
-      : control(
-          "monitor",
-          MONITOR_IN_WHISPARR,
-          SCENE_MONITOR_STATES,
-          "monitor",
-          stateReason.monitor,
-        ),
+      ? control("monitor", STOP_MONITORING_IN_WHISPARR, "unmonitor", stateReason.monitor)
+      : control("monitor", MONITOR_IN_WHISPARR, "monitor", stateReason.monitor),
     search: control(
       "search",
       SCENE_SEARCH,
-      SCENE_SEARCH_STATES,
       "search",
       place === "search" ? refused : stateReason.search,
     ),
     // One control with two labels, so the tab never shows both and a mistake is fixed where it was
     // made.
     exclude: excluded
-      ? control(
-          "exclude",
-          SCENE_REMOVE_EXCLUSION,
-          SCENE_REMOVE_EXCLUSION_STATES,
-          "removeExclusion",
-          stateReason.exclude,
-        )
-      : control("exclude", SCENE_EXCLUDE, SCENE_EXCLUDE_STATES, "exclude", stateReason.exclude),
+      ? control("exclude", SCENE_REMOVE_EXCLUSION, "removeExclusion", stateReason.exclude)
+      : control("exclude", SCENE_EXCLUDE, "exclude", stateReason.exclude),
     sharedReason: place === "sharedNotice" ? refused : null,
     affectedControls: place === "sharedNotice" ? EVERY_CONTROL : 0,
     statusLine: statusLine(input, place, refused),
