@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { MissingFacetMenu } from "../wire/api";
-import { facetMenuRows, menuIsBounded, toggleFacetValue } from "./missingFacetLogic";
+import {
+  facetMenuRows,
+  menuIsBounded,
+  menuRowsMatching,
+  toggleFacetValue,
+} from "./missingFacetLogic";
 
 /** A menu carrying every value the source reported. */
 const YEAR: MissingFacetMenu = {
@@ -82,5 +87,43 @@ describe("picking a value produces the next filter map", () => {
     const filters = { year: "2024" };
     toggleFacetValue(filters, "year", "2023");
     expect(filters).toEqual({ year: "2024" });
+  });
+});
+
+describe("typing narrows the rows the menu holds", () => {
+  const ROWS = [
+    { value: "p-1", label: "Ada Byron", selected: false },
+    { value: "p-2", label: "Grace Hopper", selected: true },
+    { value: "p-3", label: "Ada Lovelace", selected: false },
+  ];
+
+  it("keeps every row while nothing is typed", () => {
+    expect(menuRowsMatching(ROWS, "")).toEqual(ROWS);
+    expect(menuRowsMatching(ROWS, "   ")).toEqual(ROWS);
+  });
+
+  it("matches whatever case the reader typed, and whatever case the source spelled", () => {
+    expect(menuRowsMatching(ROWS, "ADA").map((row) => row.value)).toEqual(["p-1", "p-3"]);
+    expect(menuRowsMatching(ROWS, "hopper").map((row) => row.value)).toEqual(["p-2"]);
+  });
+
+  it("matches inside a label, not only at its start", () => {
+    expect(menuRowsMatching(ROWS, "love").map((row) => row.value)).toEqual(["p-3"]);
+  });
+
+  it("keeps the row in force while it matches, so what is picked stays visible", () => {
+    const kept = menuRowsMatching(ROWS, "grace");
+    expect(kept.map((row) => row.value)).toEqual(["p-2"]);
+    expect(kept.every((row) => row.selected)).toBe(true);
+  });
+
+  it("answers an empty list when nothing matches, which the panel states as a sentence", () => {
+    expect(menuRowsMatching(ROWS, "zz")).toEqual([]);
+  });
+
+  it("leaves the rows it was given as it found them", () => {
+    const rows = [...ROWS];
+    menuRowsMatching(rows, "ada");
+    expect(rows).toEqual(ROWS);
   });
 });
