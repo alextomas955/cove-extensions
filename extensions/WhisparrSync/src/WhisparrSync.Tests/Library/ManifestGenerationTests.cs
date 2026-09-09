@@ -51,8 +51,16 @@ public sealed class ManifestGenerationTests
     ];
 
     /// <inheritdoc cref="VideosViewSlots"/>
-    /// <remarks>Empty while the videos selection bar carries no action of this extension's.</remarks>
-    private static readonly string[] VideosViewActions = [];
+    /// <remarks>
+    /// The whole tuple, so the entity type is asserted as the SINGULAR spelling the host's selection
+    /// bar passes for a video selection. The plural would make the button simply not appear, with no
+    /// error anywhere. The absent endpoint is carried too, because the handler has to ask for a verb
+    /// before anything is sent.
+    /// </remarks>
+    private static readonly string[] VideosViewActions =
+    [
+        "whisparr-scene-batch|bulk|video|whisparrSceneBatch|no endpoint|100",
+    ];
 
     /// <summary>Which prefix of a projected tab names the video detail page.</summary>
     private const string VideoTabPrefix = "video|";
