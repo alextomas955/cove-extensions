@@ -116,7 +116,7 @@ export function MissingCard({
           <div className="mt-1 flex items-center justify-between gap-2">
             <OptionallyDisabled
               name={MONITOR_LABEL}
-              variant="primary"
+              variant="ghost"
               reason={action.inFlight === "monitor" ? WAITING_FOR_WHISPARR : null}
               onClick={() => {
                 onMonitor(card.providerSceneId);
