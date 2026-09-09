@@ -92,14 +92,17 @@ public sealed class MissingRouteRegistrationTests
                 .Contains("/missing", StringComparison.Ordinal))
             .ToList();
 
-        Assert.Equal(5, routes.Count);
-        Assert.Equal(5, routes.Select(Describe).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(6, routes.Count);
+        Assert.Equal(6, routes.Select(Describe).Distinct(StringComparer.Ordinal).Count());
 
         Assert.Equal([Permissions.VideosRead], PermissionsOf(routes, "GET", "/missing"));
         Assert.Equal([Permissions.VideosRead], PermissionsOf(routes, "GET", "/missing/count"));
         Assert.Equal(
             [Permissions.ExtensionsConfigure],
             PermissionsOf(routes, "POST", "/missing/bulk-monitor"));
+        Assert.Equal(
+            [Permissions.ExtensionsConfigure],
+            PermissionsOf(routes, "POST", "/missing/monitor-all"));
         Assert.Equal(
             [Permissions.ExtensionsConfigure],
             PermissionsOf(routes, "POST", "/missing/{providerSceneId}/monitor"));
