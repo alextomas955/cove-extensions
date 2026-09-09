@@ -35,12 +35,16 @@ Click the button to open its menu. Arrow keys move between items and Escape clos
 
 ### A studio
 
-The menu offers Whisparr's own two scopes, spelled the same way on both generations.
+The menu offers Whisparr's own two scopes. Each row is named for what it does to you rather than for
+the setting it carries.
 
-| Scope         | What the request carries                    |
-| ------------- | ------------------------------------------- |
-| Future Scenes | A date gate set to the moment you press it. |
-| All Scenes    | No date gate.                               |
+| Row                                         | Whisparr's scope | What the request carries                    |
+| ------------------------------------------- | ---------------- | ------------------------------------------- |
+| Monitor - new releases only                 | Future Scenes    | A date gate set to the moment you press it. |
+| Monitor - all scenes (queue back-catalogue) | All Scenes       | No date gate.                               |
+
+Whisparr's own two names are what the **Default monitor scope** setting is spelled with, and they are
+the same on both generations.
 
 **Future Scenes is the default.** It is the option the menu marks, and it is what a request naming
 no scope is treated as.
@@ -276,15 +280,15 @@ selection bar.
 A small popover opens, headed by the Whisparr mark, the product's name and how many entities you
 selected. Each row draws a glyph and its own name:
 
-- A studio selection is offered **Future Scenes**, **All Scenes** and **Unmonitor**.
-- A performer selection is offered **Monitor** and **Unmonitor**.
+- A studio selection is offered **Monitor - new releases only**, **Monitor - all scenes (queue
+  back-catalogue)**, **Unmonitor** and **Search all monitored**.
+- A performer selection is offered **Monitor**, **Unmonitor** and **Search all monitored**.
 
-Those rows carry two verbs between them, monitor and unmonitor, and the overlay offers no others.
-**Add all missing**, **Reflect owned** and **Search all monitored** are not offered for a selection.
-Two of them are left out on purpose: over a large selection, one press of Search all monitored would
-become one search per entity, and one press of Add all missing would become one background run per
-entity. Reflect owned needs no row of its own, because monitoring a selection runs it for every
-entity anyway. Closing the overlay without choosing sends nothing.
+**Add all missing** and **Reflect owned** are not offered for a selection. Add all missing is left
+out because it has no Whisparr command behind it: Cove reads each entity's catalogue and registers
+every scene you do not hold, one call per scene, so a selection multiplies a whole catalogue walk.
+Reflect owned needs no row, because monitoring a selection runs it for every entity anyway. Both
+remain available one entity at a time. Closing the overlay without choosing sends nothing.
 
 What you choose runs as one background job. Its progress and its result for each entity appear in
 Cove's job list, and it ends with Cove's own count of those results. An entity Whisparr now monitors
@@ -312,6 +316,16 @@ counts as succeeded whether or not its files were linked. To see whether linking
 
 **All Scenes over a selection asks you to confirm**, the same way it does for one entity, and the
 confirmation names how many entities you selected. Cancelling it sends nothing.
+
+**Search all monitored asks you to confirm too**, and it is the only row in this menu that makes
+Whisparr download. The confirmation names how many entities you selected and states that searching
+spends indexer traffic and disk. Cancelling sends nothing.
+
+Cove sends the whole selection as **one search command**, not one per entity, and Whisparr carries it
+out. Batching changes how many commands are sent, not how much searching happens: fifty entities cost
+fifty entities' worth of indexer traffic either way, which is what the confirmation is for. An entity
+the connected Whisparr does not hold is dropped before the command is sent and reported as skipped,
+because one unknown id would otherwise fail the search for every entity in the selection.
 
 One gesture takes at most 1000 entities. Select more and Cove refuses the whole gesture, states the
 bound and changes nothing. Select fewer and repeat over the rest. A selection that lists every
