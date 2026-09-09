@@ -64,7 +64,7 @@ public sealed class SceneDetailProjectorTests
     public void AFileTheInstanceHoldsIsNamedByTheInstancesOwnQualityName()
     {
         var view = SceneDetailProjector.Project(
-            Json(HeldWithAFile), Json(ProfileWithALeafCutoff));
+            Json(HeldWithAFile), Json(ProfileWithALeafCutoff), excluded: false);
 
         Assert.Equal("WEBDL-1080p", view.QualityName);
         Assert.True(view.Present);
@@ -75,16 +75,38 @@ public sealed class SceneDetailProjectorTests
     public void ASceneWithNoFileNamesNoQuality()
     {
         var view = SceneDetailProjector.Project(
-            Json(HeldWithNoFile), Json(ProfileWithALeafCutoff));
+            Json(HeldWithNoFile), Json(ProfileWithALeafCutoff), excluded: false);
 
         Assert.Null(view.QualityName);
         Assert.True(view.Present);
     }
 
+    /// <summary>
+    /// The exclusion the caller established is carried through, and it is never asserted.
+    /// </summary>
+    /// <remarks>
+    /// Both directions, because a projection that answered a constant would agree with one of them.
+    /// The scene's own row carries no exclusion member at all, so a row naming an excluded scene is
+    /// indistinguishable from a row naming any other one.
+    /// </remarks>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheExclusionTheCallerEstablishedIsWhatIsReported(bool excluded)
+    {
+        var view = SceneDetailProjector.Project(
+            Json(HeldWithAFile), Json(ProfileWithALeafCutoff), excluded);
+
+        Assert.Equal(excluded, view.Excluded);
+        Assert.True(view.Present);
+        Assert.True(view.Monitored);
+    }
+
     [Fact]
     public void ASceneTheInstanceDoesNotHoldNamesNoProfileAndNoCutoff()
     {
-        var view = SceneDetailProjector.Project(Json(NotHeld), Json(ProfileWithALeafCutoff));
+        var view = SceneDetailProjector.Project(
+            Json(NotHeld), Json(ProfileWithALeafCutoff), excluded: false);
 
         Assert.False(view.Present);
         Assert.Null(view.QualityProfileName);
@@ -96,7 +118,7 @@ public sealed class SceneDetailProjectorTests
     public void TheProfileTheSceneNamesCarriesItsOwnNameAndTheQualityItsCutoffResolvesTo()
     {
         var view = SceneDetailProjector.Project(
-            Json(HeldWithAFile), Json(ProfileWithALeafCutoff));
+            Json(HeldWithAFile), Json(ProfileWithALeafCutoff), excluded: false);
 
         Assert.Equal("HD-1080p", view.QualityProfileName);
         Assert.Equal("WEBDL-1080p", view.CutoffName);
@@ -109,7 +131,7 @@ public sealed class SceneDetailProjectorTests
     public void ACutoffNamingAGroupResolvesToTheGroupsOwnName()
     {
         var view = SceneDetailProjector.Project(
-            Json(HeldWithAFile), Json(ProfileWithAGroupCutoff));
+            Json(HeldWithAFile), Json(ProfileWithAGroupCutoff), excluded: false);
 
         Assert.Equal("WEB 1080p", view.CutoffName);
     }
@@ -118,7 +140,7 @@ public sealed class SceneDetailProjectorTests
     public void ACutoffNoItemAnswersToIsNamedByNothing()
     {
         var view = SceneDetailProjector.Project(
-            Json(HeldWithAFile), Json(ProfileWhoseCutoffNamesNothing));
+            Json(HeldWithAFile), Json(ProfileWhoseCutoffNamesNothing), excluded: false);
 
         Assert.Equal("HD-1080p", view.QualityProfileName);
         Assert.Null(view.CutoffName);
@@ -136,7 +158,7 @@ public sealed class SceneDetailProjectorTests
     [Fact]
     public void AProfileReadThatEstablishedNothingKeepsTheSceneFactsAndReportsItself()
     {
-        var noAnswer = SceneDetailProjector.Project(Json(HeldWithAFile), null);
+        var noAnswer = SceneDetailProjector.Project(Json(HeldWithAFile), null, excluded: false);
 
         Assert.True(noAnswer.ProfileReadDidNotComplete);
         Assert.True(noAnswer.Monitored);
@@ -145,7 +167,9 @@ public sealed class SceneDetailProjectorTests
         Assert.Null(noAnswer.CutoffName);
 
         var declined = SceneDetailProjector.Project(
-            Json(HeldWithAFile), new WhisparrResponse(500, JsonContentType, "nope"));
+            Json(HeldWithAFile),
+            new WhisparrResponse(500, JsonContentType, "nope"),
+            excluded: false);
 
         Assert.True(declined.ProfileReadDidNotComplete);
         Assert.Equal("WEBDL-1080p", declined.QualityName);
