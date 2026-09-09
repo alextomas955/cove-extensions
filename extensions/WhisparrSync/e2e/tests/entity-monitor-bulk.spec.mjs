@@ -53,8 +53,9 @@ import {
 // Transcribed by hand from the extension's own registration and copy module, never imported.
 const BULK_ACTION_LABEL = "Whisparr";
 const BULK_CANCEL = "Cancel";
-const SCOPE_FUTURE_SCENES = "Future Scenes";
+const SCOPE_FUTURE_SCENES = "Monitor - new releases only";
 const UNMONITOR = "Unmonitor";
+const SEARCH_ALL_MONITORED = "Search all monitored";
 
 // The route the overlay's choice is sent to. Watched on the wire, because "nothing was enqueued" is
 // only observable as a request that was never made.
@@ -296,6 +297,12 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
       chooserPanel(page).getByRole("button", { name: UNMONITOR, exact: true }),
       "the chooser offers no unmonitor verb, so it is not reading the connected generation's capabilities",
     ).toBeVisible();
+    // Present and never pressed. It is the one row here that makes the instance download, and this
+    // spec asserts below that no searching command reached the instance at all.
+    await expect(
+      chooserPanel(page).getByRole("button", { name: SEARCH_ALL_MONITORED, exact: true }),
+      "the chooser offers no search verb, so the selection bar is not offering what the entity menu carries out",
+    ).toBeVisible();
     // One glyph and one name per row, and no paragraph anywhere inside the panel.
     expect(
       await chooserPanel(page).locator("p").count(),
@@ -304,13 +311,15 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
     expect(
       await chooserPanel(page).getByRole("menuitem").count(),
       "the chooser offers a row count this build does not draw",
-    ).toBe(4);
+    ).toBe(5);
 
     const enqueued = page.waitForResponse(
       (response) => new URL(response.url()).pathname === BULK_ROUTE,
       { timeout: ENQUEUE_BUDGET_MS },
     );
-    await chooserPanel(page).getByRole("button", { name: SCOPE_FUTURE_SCENES }).click();
+    await chooserPanel(page)
+      .getByRole("button", { name: SCOPE_FUTURE_SCENES, exact: true })
+      .click();
     const response = await enqueued;
     expect(
       response.status(),
