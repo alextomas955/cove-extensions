@@ -22,40 +22,34 @@ and it reads again each time you open it.
 On a Whisparr v2 connection the tab is absent. See
 [What Whisparr v2 can do here](#what-whisparr-v2-can-do-here).
 
-## What the four facts say
+## What the tab says
 
-The tab states four facts, all of them your Whisparr's own. It repeats no title, performer, studio,
-date or runtime, because Cove's own page already carries those above the tab.
+The tab leads with a header carrying the Whisparr mark, the word Whisparr, and the scene's state on
+the right. The state is one of Monitored, Unmonitored, Not added, Excluded or Status unknown.
 
-| Fact                | What it reads                                                         |
-| ------------------- | --------------------------------------------------------------------- |
-| **State**           | One of Monitored, Unmonitored, Not added, Excluded or Status unknown. |
-| **Quality**         | The name your Whisparr gives the file it holds for the scene.         |
-| **Quality profile** | The name of the profile your Whisparr applies to the scene.           |
-| **Cutoff**          | The quality that profile stops upgrading at, by name.                 |
+Beneath the header the tab states up to three facts, all of them your Whisparr's own. It repeats no
+title, performer, studio, date or runtime, because Cove's own page already carries those above the
+tab.
 
-**All four rows are always drawn.** A fact with no value says so in the value's own place, so the
-tab's shape is the same for every scene and an absent value never reads as a failed read.
+| Fact                | What it reads                                                 |
+| ------------------- | ------------------------------------------------------------- |
+| **Quality**         | The name your Whisparr gives the file it holds for the scene. |
+| **Quality profile** | The name of the profile your Whisparr applies to the scene.   |
+| **Cutoff**          | The quality that profile stops upgrading at, by name.         |
 
-| What you read                                         | What it means                                                                |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Quality: **No file yet.**                             | Your Whisparr holds the scene and holds no file for it. The read succeeded.  |
-| Quality profile: **Not in Whisparr yet.**             | Your Whisparr has no entry for the scene, so it applies no profile to it.    |
-| Cutoff: **Not in Whisparr yet.**                      | The same reason. No entry means no profile and so no cutoff.                 |
-| Cutoff: **Whisparr names no cutoff on this profile.** | Your Whisparr holds the scene under a profile whose cutoff it does not name. |
+**A fact your Whisparr names nothing for is left out.** A scene it holds no file for draws no
+Quality row, and a scene it has no entry for at all draws no fact card. The state in the header is
+where you read that, and it reads for every scene.
 
-**No file yet is not a failure.** It is your Whisparr answering that it wants the scene and has not
-acquired it. A read that did not finish says so on its own, above the facts or in place of them, and
-never as a value.
+**A read that did not finish says so on its own**, above the facts, and never in a value's place. So
+an absent row is your Whisparr having nothing to name, and never a failed read.
 
-When the scene read succeeds and the profile read does not, the tab keeps the two facts it did
-establish and says the read did not complete. State and Quality still read; Quality profile and
-Cutoff read their absent values.
+When the scene read succeeds and the profile read does not, the tab keeps the facts it did establish
+and says the read did not complete.
 
 ## The four controls
 
-Each control says what it does in a sentence beneath it, before you press it. None asks for
-confirmation.
+Each control is a full-width bar on its own row, in one fixed order. None asks for confirmation.
 
 | Control                         | What it does                                                                         |
 | ------------------------------- | ------------------------------------------------------------------------------------ |
@@ -88,8 +82,8 @@ Nothing is retried. One press is one request.
 
 ### There is no separate control for better files
 
-A monitored scene already takes better files up to its cutoff on its own, which the tab says beside
-Search now. Search now is how you ask your Whisparr to look straight away. On Whisparr v3 (Eros) a
+A monitored scene already takes better files up to its cutoff on its own. Search now is how you ask
+your Whisparr to look straight away. On Whisparr v3 (Eros) a
 search for a better file and a search for the scene are the same request, and the scene carries no
 separate flag for one, so a second control would send the same thing under another name.
 
