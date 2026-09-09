@@ -436,6 +436,19 @@ internal sealed class MonitorHost : IAsyncDisposable
     }
 
     /// <summary>
+    /// The raw answer to the scene batch route, given <paramref name="body"/> verbatim.
+    /// </summary>
+    /// <remarks>
+    /// Sent as given, so a case can name a selection type the route answers for nothing, an absent
+    /// member, and an id array of any length.
+    /// </remarks>
+    public async Task<HttpResponseMessage> PostSceneBatchAsync(string body)
+    {
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+        return await Http.PostAsync(RouteBase + "/scenes/batch", content, TestCt);
+    }
+
+    /// <summary>
     /// The raw answer to the card status route for <paramref name="kind"/>, given
     /// <paramref name="body"/> verbatim.
     /// </summary>

@@ -132,16 +132,38 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
+        return TypedResults.Ok(
+            await AddSceneResolvedAsync(
+                coveId, known: null, options, credentials, client, sceneCards, log, ct)
+                .ConfigureAwait(false));
+    }
+
+    /// <summary>Adds one scene, with the caller's own tier already established.</summary>
+    /// <remarks>
+    /// Reached by the route once it has checked the tier, and by a batch run which carries no
+    /// principal of its own. With <paramref name="known"/> supplied the instance is not resolved
+    /// again, so a selection costs one stored read rather than one per scene.
+    /// </remarks>
+    private static async Task<SceneActionResult> AddSceneResolvedAsync(
+        int coveId,
+        MonitoringTarget? known,
+        OptionsStore options,
+        ICredentialPort credentials,
+        IWhisparrClient client,
+        ILibraryCardIdentityPort sceneCards,
+        ILogger log,
+        CancellationToken ct)
+    {
         var (ground, refusal) = await GroundSceneVerbAsync<IWhisparrMissingSceneActing>(
-            coveId, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
+            coveId, known, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
         if (ground is null)
         {
-            return TypedResults.Ok(ActionRefused(refusal));
+            return ActionRefused(refusal);
         }
 
         if (ground.Row.State != MissingSceneState.NotAdded)
         {
-            return TypedResults.Ok(ActionRefused(SceneRefusalKind.WhisparrAlreadyHoldsThisScene));
+            return ActionRefused(SceneRefusalKind.WhisparrAlreadyHoldsThisScene);
         }
 
         var target = ground.Resolved.Target;
@@ -159,7 +181,7 @@ public sealed partial class WhisparrSync
                 ct).ConfigureAwait(false);
         if (profiles is null || roots is null)
         {
-            return TypedResults.Ok(ActionRefused(SceneRefusalKind.DidNotReachWhisparr));
+            return ActionRefused(SceneRefusalKind.DidNotReachWhisparr);
         }
 
         // The indexer list is not read and no verb is refused for it: an absent indexer is the
@@ -168,7 +190,7 @@ public sealed partial class WhisparrSync
         var defaults = AddDefaultsProjector.From(profiles.Body, roots.Body);
         if (defaults.Defaults is not { } composeWith)
         {
-            return TypedResults.Ok(ActionRefused(SceneRefusalFor(defaults.Refusal)));
+            return ActionRefused(SceneRefusalFor(defaults.Refusal));
         }
 
         var added = await ContainedAsync(
@@ -178,7 +200,7 @@ public sealed partial class WhisparrSync
             log,
             ct).ConfigureAwait(false);
 
-        return TypedResults.Ok(Classified(added));
+        return Classified(added);
     }
 
     /// <summary>Asks the connected instance to want one scene it holds.</summary>
@@ -204,9 +226,15 @@ public sealed partial class WhisparrSync
             return new ForbiddenCode();
         }
 
-        return await SetSceneMonitoringAsync(
-            monitored: true, coveId, options, credentials, client, sceneCards, log, ct)
-            .ConfigureAwait(false);
+        if (coveId < 1)
+        {
+            return TypedResults.BadRequest();
+        }
+
+        return TypedResults.Ok(
+            await SetSceneMonitoringResolvedAsync(
+                monitored: true, coveId, known: null, options, credentials, client, sceneCards, log, ct)
+                .ConfigureAwait(false));
     }
 
     /// <summary>Asks the connected instance to stop wanting one scene it holds.</summary>
@@ -231,9 +259,15 @@ public sealed partial class WhisparrSync
             return new ForbiddenCode();
         }
 
-        return await SetSceneMonitoringAsync(
-            monitored: false, coveId, options, credentials, client, sceneCards, log, ct)
-            .ConfigureAwait(false);
+        if (coveId < 1)
+        {
+            return TypedResults.BadRequest();
+        }
+
+        return TypedResults.Ok(
+            await SetSceneMonitoringResolvedAsync(
+                monitored: false, coveId, known: null, options, credentials, client, sceneCards, log, ct)
+                .ConfigureAwait(false));
     }
 
     /// <summary>Puts one scene on the connected instance's own exclusion list.</summary>
@@ -267,16 +301,33 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
+        return TypedResults.Ok(
+            await ExcludeSceneResolvedAsync(
+                coveId, known: null, options, credentials, client, sceneCards, log, ct)
+                .ConfigureAwait(false));
+    }
+
+    /// <inheritdoc cref="AddSceneResolvedAsync"/>
+    private static async Task<SceneActionResult> ExcludeSceneResolvedAsync(
+        int coveId,
+        MonitoringTarget? known,
+        OptionsStore options,
+        ICredentialPort credentials,
+        IWhisparrClient client,
+        ILibraryCardIdentityPort sceneCards,
+        ILogger log,
+        CancellationToken ct)
+    {
         var (ground, refusal) = await GroundExclusionVerbAsync(
-            coveId, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
+            coveId, known, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
         if (ground is null)
         {
-            return TypedResults.Ok(ActionRefused(refusal));
+            return ActionRefused(refusal);
         }
 
         if (ground.Held.ExclusionId is not null)
         {
-            return TypedResults.Ok(Took());
+            return Took();
         }
 
         var excluded = await ContainedAsync(
@@ -289,7 +340,7 @@ public sealed partial class WhisparrSync
             log,
             ct).ConfigureAwait(false);
 
-        return TypedResults.Ok(Classified(excluded));
+        return Classified(excluded);
     }
 
     /// <summary>Takes one scene back off the connected instance's own exclusion list.</summary>
@@ -322,7 +373,8 @@ public sealed partial class WhisparrSync
         }
 
         var (ground, refusal) = await GroundExclusionVerbAsync(
-            coveId, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
+            coveId, known: null, options, credentials, client, sceneCards, log, ct)
+            .ConfigureAwait(false);
         if (ground is null)
         {
             return TypedResults.Ok(ActionRefused(refusal));
@@ -380,27 +432,43 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
+        return TypedResults.Ok(
+            await SearchSceneResolvedAsync(
+                coveId, known: null, options, credentials, client, sceneCards, log, ct)
+                .ConfigureAwait(false));
+    }
+
+    /// <inheritdoc cref="AddSceneResolvedAsync"/>
+    private static async Task<SceneActionResult> SearchSceneResolvedAsync(
+        int coveId,
+        MonitoringTarget? known,
+        OptionsStore options,
+        ICredentialPort credentials,
+        IWhisparrClient client,
+        ILibraryCardIdentityPort sceneCards,
+        ILogger log,
+        CancellationToken ct)
+    {
         var (ground, refusal) = await GroundSceneVerbAsync<IWhisparrSceneSearchGrabbing>(
-            coveId, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
+            coveId, known, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
         if (ground is null)
         {
-            return TypedResults.Ok(ActionRefused(refusal));
+            return ActionRefused(refusal);
         }
 
         if (ground.Row.State == MissingSceneState.NotAdded)
         {
-            return TypedResults.Ok(ActionRefused(SceneRefusalKind.WhisparrHasNoEntryForScene));
+            return ActionRefused(SceneRefusalKind.WhisparrHasNoEntryForScene);
         }
 
         if (ground.Row.State == MissingSceneState.Unmonitored)
         {
-            return TypedResults.Ok(
-                ActionRefused(SceneRefusalKind.WhisparrIsNotMonitoringThisScene));
+            return ActionRefused(SceneRefusalKind.WhisparrIsNotMonitoringThisScene);
         }
 
         if (ground.Row.InstanceId is not { } sceneId)
         {
-            return TypedResults.Ok(ActionRefused(SceneRefusalKind.InstanceRefused));
+            return ActionRefused(SceneRefusalKind.InstanceRefused);
         }
 
         var target = ground.Resolved.Target;
@@ -412,7 +480,7 @@ public sealed partial class WhisparrSync
             ct).ConfigureAwait(false);
         if (posted is null)
         {
-            return TypedResults.Ok(ActionRefused(SceneRefusalKind.DidNotReachWhisparr));
+            return ActionRefused(SceneRefusalKind.DidNotReachWhisparr);
         }
 
         // A body naming no command that can be read is the instance declining, not an accepted
@@ -420,7 +488,7 @@ public sealed partial class WhisparrSync
         if (MonitoringProjector.Accepted(posted) is not MonitorRefusalKind.None
             || CommandProjector.IdIn(posted) is not { } commandId)
         {
-            return TypedResults.Ok(ActionRefused(SceneRefusalKind.InstanceRefused));
+            return ActionRefused(SceneRefusalKind.InstanceRefused);
         }
 
         var readBack = await ContainedAsync(
@@ -430,13 +498,12 @@ public sealed partial class WhisparrSync
             ct).ConfigureAwait(false);
         if (readBack is null)
         {
-            return TypedResults.Ok(ActionRefused(SceneRefusalKind.DidNotReachWhisparr));
+            return ActionRefused(SceneRefusalKind.DidNotReachWhisparr);
         }
 
-        return TypedResults.Ok(
-            CommandProjector.Confirmed(readBack, commandId)
-                ? new SceneActionResult(SceneRefusalKind.None, SearchIsWithWhisparr: true)
-                : ActionRefused(SceneRefusalKind.InstanceRefused));
+        return CommandProjector.Confirmed(readBack, commandId)
+            ? new SceneActionResult(SceneRefusalKind.None, SearchIsWithWhisparr: true)
+            : ActionRefused(SceneRefusalKind.InstanceRefused);
     }
 
     /// <summary>The instance and the identifier to name on it, once both are resolved.</summary>
@@ -496,6 +563,7 @@ public sealed partial class WhisparrSync
     private static async Task<(SceneVerbTarget? Resolved, SceneRefusalKind Refusal)>
         ResolveSceneVerbTargetAsync(
             int coveId,
+            MonitoringTarget? known,
             OptionsStore options,
             ICredentialPort credentials,
             IWhisparrClient client,
@@ -504,7 +572,8 @@ public sealed partial class WhisparrSync
     {
         ArgumentNullException.ThrowIfNull(sceneCards);
 
-        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+        if ((known
+                ?? await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false))
             is not { } target)
         {
             return (null, SceneRefusalKind.NoInstanceConnected);
@@ -553,37 +622,32 @@ public sealed partial class WhisparrSync
     /// The read decides whether the verb is sent at all: a scene the instance holds no entry for has
     /// no instance-side identifier for the field-scoped patch to name.
     /// </remarks>
-    private static async Task<Results<Ok<SceneActionResult>, BadRequest, ForbiddenCode>>
-        SetSceneMonitoringAsync(
-            bool monitored,
-            int coveId,
-            OptionsStore options,
-            ICredentialPort credentials,
-            IWhisparrClient client,
-            ILibraryCardIdentityPort sceneCards,
-            ILogger log,
-            CancellationToken ct)
+    private static async Task<SceneActionResult> SetSceneMonitoringResolvedAsync(
+        bool monitored,
+        int coveId,
+        MonitoringTarget? known,
+        OptionsStore options,
+        ICredentialPort credentials,
+        IWhisparrClient client,
+        ILibraryCardIdentityPort sceneCards,
+        ILogger log,
+        CancellationToken ct)
     {
-        if (coveId < 1)
-        {
-            return TypedResults.BadRequest();
-        }
-
         var (ground, refusal) = await GroundSceneVerbAsync<IWhisparrSceneMonitorActing>(
-            coveId, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
+            coveId, known, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
         if (ground is null)
         {
-            return TypedResults.Ok(ActionRefused(refusal));
+            return ActionRefused(refusal);
         }
 
         if (ground.Row.State == MissingSceneState.NotAdded)
         {
-            return TypedResults.Ok(ActionRefused(SceneRefusalKind.WhisparrHasNoEntryForScene));
+            return ActionRefused(SceneRefusalKind.WhisparrHasNoEntryForScene);
         }
 
         if (ground.Row.InstanceId is not { } sceneId)
         {
-            return TypedResults.Ok(ActionRefused(SceneRefusalKind.InstanceRefused));
+            return ActionRefused(SceneRefusalKind.InstanceRefused);
         }
 
         var target = ground.Resolved.Target;
@@ -594,7 +658,7 @@ public sealed partial class WhisparrSync
             log,
             ct).ConfigureAwait(false);
 
-        return TypedResults.Ok(Classified(flipped));
+        return Classified(flipped);
     }
 
     /// <summary>
@@ -608,6 +672,7 @@ public sealed partial class WhisparrSync
     private static async Task<(SceneGround<TActing>? Ground, SceneRefusalKind Refusal)>
         GroundSceneVerbAsync<TActing>(
             int coveId,
+            MonitoringTarget? known,
             OptionsStore options,
             ICredentialPort credentials,
             IWhisparrClient client,
@@ -617,7 +682,7 @@ public sealed partial class WhisparrSync
         where TActing : class
     {
         var (resolved, refusal) = await ResolveSceneVerbTargetAsync(
-            coveId, options, credentials, client, sceneCards, ct).ConfigureAwait(false);
+            coveId, known, options, credentials, client, sceneCards, ct).ConfigureAwait(false);
         if (resolved is null)
         {
             return (null, refusal);
@@ -654,6 +719,7 @@ public sealed partial class WhisparrSync
     private static async Task<(SceneExclusionGround? Ground, SceneRefusalKind Refusal)>
         GroundExclusionVerbAsync(
             int coveId,
+            MonitoringTarget? known,
             OptionsStore options,
             ICredentialPort credentials,
             IWhisparrClient client,
@@ -662,7 +728,7 @@ public sealed partial class WhisparrSync
             CancellationToken ct)
     {
         var (resolved, refusal) = await ResolveSceneVerbTargetAsync(
-            coveId, options, credentials, client, sceneCards, ct).ConfigureAwait(false);
+            coveId, known, options, credentials, client, sceneCards, ct).ConfigureAwait(false);
         if (resolved is null)
         {
             return (null, refusal);
