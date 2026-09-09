@@ -16,24 +16,31 @@ namespace WhisparrSync.Monitoring;
 /// </remarks>
 public interface IWhisparrSearchGrabbing
 {
-    /// <summary>Asks the instance to look for the monitored catalogue of one entity it holds.</summary>
+    /// <summary>Asks the instance to look for the monitored catalogue of entities it holds.</summary>
     /// <remarks>
-    /// Names an entity and nothing else. There is no member taking a release, an indexer or a download
-    /// client, so what is looked for is whatever that entity is monitoring at the time and the choice
-    /// of where from is the instance's own.
+    /// Names entities and nothing else. There is no member taking a release, an indexer or a download
+    /// client, so what is looked for is whatever those entities are monitoring at the time and the
+    /// choice of where from is the instance's own.
     /// <para>
     /// The connected generation is named because both honour this role and neither spells the command
     /// the way the other does: one takes an id array and the other a single scalar id, and a body
     /// carrying the other's shape is accepted and does nothing. It names a lineage rather than a
-    /// route, so which body follows from it belongs to the implementation.
+    /// route, so which body follows from it belongs to the implementation, and so does how many
+    /// commands several ids become.
+    /// </para>
+    /// <para>
+    /// Every id must be one the instance holds. The generation that takes an array iterates the whole
+    /// of it and fails the command outright on the first it does not hold, so a caller establishes
+    /// that before composing the request.
     /// </para>
     /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="entityIds"/> is empty.</exception>
     Task<WhisparrResponse> SearchMonitoredAsync(
         Uri baseAddress,
         string apiKey,
         WhisparrGeneration generation,
         WhisparrEntityKind kind,
-        int entityId,
+        IReadOnlyList<int> entityIds,
         CancellationToken ct);
 }
 

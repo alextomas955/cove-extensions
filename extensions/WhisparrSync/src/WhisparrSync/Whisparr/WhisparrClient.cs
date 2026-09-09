@@ -915,24 +915,46 @@ internal sealed class WhisparrClient(
     // The one member of this whole seam that can make an instance acquire anything, and the only one
     // whose invocation is recorded on its own. Its verb class has no retry entry, so an attempt whose
     // answer did not arrive is reported rather than re-issued: a second search is a second download.
-    public Task<WhisparrResponse> SearchMonitoredAsync(
+    //
+    // How many commands the ids become is the generation's, not the caller's. The newer one's command
+    // names an id array and carries every id in one; the older one's names a single scalar id, so
+    // there it is one command per entity and the first answer that was not accepted is the one
+    // reported. Either way each entity is searched once.
+    public async Task<WhisparrResponse> SearchMonitoredAsync(
         Uri baseAddress,
         string apiKey,
         WhisparrGeneration generation,
         WhisparrEntityKind kind,
-        int entityId,
+        IReadOnlyList<int> entityIds,
         CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(entityIds);
+        ArgumentOutOfRangeException.ThrowIfZero(entityIds.Count);
         WhisparrSyncLog.SearchIssued(log, kind);
 
-        return generation switch
+        switch (generation)
         {
-            WhisparrGeneration.V3 => GeneratedCommandAsync(
-                baseAddress, apiKey, V3BodyProjector.SearchMonitored(kind, entityId), ct),
-            WhisparrGeneration.V2 => GeneratedV2GrabCommandAsync(
-                baseAddress, apiKey, V2BodyProjector.SearchMonitored(entityId), ct),
-            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
-        };
+            case WhisparrGeneration.V3:
+                return await GeneratedCommandAsync(
+                        baseAddress, apiKey, V3BodyProjector.SearchAllMonitored(kind, entityIds), ct)
+                    .ConfigureAwait(false);
+            case WhisparrGeneration.V2:
+                WhisparrResponse? answered = null;
+                foreach (var entityId in entityIds)
+                {
+                    answered = await GeneratedV2GrabCommandAsync(
+                            baseAddress, apiKey, V2BodyProjector.SearchMonitored(entityId), ct)
+                        .ConfigureAwait(false);
+                    if (MonitoringProjector.Accepted(answered) != MonitorRefusalKind.None)
+                    {
+                        return answered;
+                    }
+                }
+
+                return answered!;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(generation));
+        }
     }
 
     // Recorded for the reason the entity search is, and given nothing at all: which scene, which
