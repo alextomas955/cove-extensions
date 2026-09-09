@@ -164,7 +164,7 @@ describe("the studio menu", () => {
 });
 
 describe("the scope pair", () => {
-  it("reads Future Scenes first, whatever the generation and the state", () => {
+  it("reads the narrower scope first, whatever the generation and the state", () => {
     for (const generation of GENERATIONS) {
       for (const monitored of [false, true]) {
         const menu = monitorMenu(view({ kind: "studio", generation, monitored }), false);
@@ -177,7 +177,7 @@ describe("the scope pair", () => {
     }
   });
 
-  it("pre-selects Future Scenes while the entity is not monitored, on both generations", () => {
+  it("pre-selects the narrower scope while the entity is not monitored, on both generations", () => {
     for (const generation of GENERATIONS) {
       const menu = monitorMenu(
         view({ kind: "studio", generation, monitored: false, scope: null }),
@@ -563,7 +563,7 @@ describe("the verbs this build carries out", () => {
   });
 
   /**
-   * The absence from the selection bar is DERIVED, exactly as the search verb's is.
+   * The absence from the selection bar is DERIVED.
    *
    * The entity menu can carry the verb out, so the bar leaving it out cannot be read as the row
    * being unavailable. What excludes it is that the bulk route declares no verb reaching it.
@@ -583,28 +583,42 @@ describe("the verbs this build carries out", () => {
   it("offers reflect owned to the selection bar not at all, because no bulk verb carries it", () => {
     const offer = bulkMonitorActions(view({ kind: "studio" }));
 
-    expect(offer.actions.map((action) => action.verb)).toEqual(["monitor", "monitor", "unmonitor"]);
+    expect(offer.actions.map((action) => action.verb)).toEqual([
+      "monitor",
+      "monitor",
+      "unmonitor",
+      "searchAllMonitored",
+    ]);
   });
 
   /**
-   * The absence is DERIVED, not written down twice.
+   * The search row reads LAST, on both generations that hold the capability.
    *
-   * The entity menu can carry the verb out, so the selection bar leaving it out cannot be read as
-   * the row being unavailable. What excludes it is that the bulk route declares no verb reaching it,
-   * which is asserted here by pairing a non-null entity route with an absent bulk action.
+   * It is the one row here that makes Whisparr download, so it does not sit where the cursor lands
+   * on the way to a cheaper one.
    */
-  it("offers the search verb to no selection, on either generation, while carrying it out per entity", () => {
+  it("offers the search verb to a selection, after the rows that only set flags", () => {
     for (const generation of GENERATIONS) {
       for (const kind of ENTITY_KINDS) {
         const offer = bulkMonitorActions(view({ kind, generation }));
+        const keys = offer.actions.map((action) => action.key);
 
         expect(routeFor(secondaryItem("searchAllMonitored", generation), true)).not.toBeNull();
+        expect(keys.at(-1), `${generation} ${kind}`).toBe("secondary:searchAllMonitored");
         expect(
-          offer.actions.filter((action) => action.key.includes("searchAllMonitored")),
+          keys.filter((key) => key === "secondary:searchAllMonitored"),
           `${generation} ${kind}`,
-        ).toEqual([]);
+        ).toHaveLength(1);
       }
     }
+  });
+
+  it("offers the search verb to no selection on a generation holding no search", () => {
+    const offer = bulkMonitorActions(
+      view({ kind: "studio", capabilities: ["monitorStudio", "monitorPerformer"] }),
+    );
+
+    expect(offer.actions.filter((action) => action.verb === "searchAllMonitored")).toEqual([]);
   });
 
   it("states one sentence per skip reason", () => {
@@ -623,7 +637,7 @@ describe("the choice that cannot be taken back", () => {
     expect(allScenesIsAOneWayDoor(null)).toBe(false);
   });
 
-  it("marks the back catalogue at All Scenes and at the performer's one plain item", () => {
+  it("marks the back catalogue at the wider scope and at the performer's one plain item", () => {
     const studio = monitorMenu(view({ kind: "studio" }), false);
     const marking = studio.items.filter(marksTheBackCatalogue);
     expect(marking.map((item) => item.label)).toEqual([SCOPE_ALL_SCENES]);
@@ -651,7 +665,12 @@ describe("the choice that cannot be taken back", () => {
       expect(
         offer.actions.map((action) => `${action.key}:${String(action.marksTheBackCatalogue)}`),
         generation,
-      ).toEqual(["scope:futureScenes:false", "scope:allScenes:true", "unmonitor:false"]);
+      ).toEqual([
+        "scope:futureScenes:false",
+        "scope:allScenes:true",
+        "unmonitor:false",
+        "secondary:searchAllMonitored:false",
+      ]);
     }
   });
 });

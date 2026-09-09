@@ -128,16 +128,17 @@ export const ACTION_ABSENT_IN_THIS_VERSION =
   "This version of Whisparr Sync does not carry out this action.";
 
 /**
- * The narrower monitor scope, in Whisparr's own words.
+ * The narrower monitor scope.
  *
- * Both generations use these two names, so neither is this product's coinage and neither has to be
- * reconciled across a generation. Whisparr's other monitor wording is not carried across: its own
- * dropdown renders unsubstituted localization keys, so mimicry stops here.
+ * Says what pressing the row does. Whisparr's own two names for the setting are names for a flag,
+ * and a reader choosing between them cannot tell from them what either one will go and do. Its
+ * other monitor wording is not carried across either: its own dropdown renders unsubstituted
+ * localization keys, so mimicry stops here.
  */
-export const SCOPE_FUTURE_SCENES = "Future Scenes";
+export const SCOPE_FUTURE_SCENES = "Monitor - new releases only";
 
-/** The wider monitor scope, in Whisparr's own words. */
-export const SCOPE_ALL_SCENES = "All Scenes";
+/** The wider monitor scope, named for what it does with what Whisparr already lists. */
+export const SCOPE_ALL_SCENES = "Monitor - all scenes (queue back-catalogue)";
 
 /**
  * What the wider scope costs, stated where the scope is chosen rather than after it is taken.
@@ -146,7 +147,7 @@ export const SCOPE_ALL_SCENES = "All Scenes";
  * something anyone budgets for.
  */
 export const ALL_SCENES_MARKS_THE_BACK_CATALOGUE =
-  "All Scenes marks every scene Whisparr already lists for this entity as wanted, which spends indexer traffic and disk.";
+  "Monitoring all scenes marks every scene Whisparr already lists for this entity as wanted, which spends indexer traffic and disk.";
 
 /**
  * That the wider scope is a one-way door, stated where the scope is chosen.
@@ -155,7 +156,16 @@ export const ALL_SCENES_MARKS_THE_BACK_CATALOGUE =
  * rewrites every flag on a scope change does not render this, because there it would be false.
  */
 export const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
-  "Changing the scope back to Future Scenes does not undo this: a scene that is already wanted stays wanted.";
+  "Narrowing the scope back to new releases only does not undo this: a scene that is already wanted stays wanted.";
+
+/**
+ * What the search costs, stated where it is chosen rather than after it is taken.
+ *
+ * The one row on the selection bar that can download. Names what Whisparr goes and does rather than
+ * the command that is sent.
+ */
+export const SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK =
+  "Whisparr looks for everything these entities monitor and does not hold, and takes in what it finds, which spends indexer traffic and disk.";
 
 /** Why nothing was linked. Names the setting, because turning it on is what changes the answer. */
 export const REFLECT_OWNED_SKIPPED =
@@ -543,13 +553,13 @@ export function entitiesCovered(n: number): string {
 }
 
 /**
- * What the confirmation in front of All Scenes states.
+ * What the confirmation in front of the wider scope states.
  *
  * Built from the two consequence sentences declared above rather than from prose of its own, so the
  * cost a reader is warned about is worded once.
  *
  * @param count how many entities the choice covers
- * @param oneWayDoor whether a later scope change leaves what All Scenes already made wanted
+ * @param oneWayDoor whether a later scope change leaves what the wider scope already made wanted
  */
 export function allScenesConfirmation(count: number, oneWayDoor: boolean): string {
   return [
@@ -557,6 +567,15 @@ export function allScenesConfirmation(count: number, oneWayDoor: boolean): strin
     ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
     ...(oneWayDoor ? [ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE] : []),
   ].join(" ");
+}
+
+/**
+ * What the confirmation in front of the search states.
+ *
+ * @param count how many entities the choice covers
+ */
+export function searchAllMonitoredConfirmation(count: number): string {
+  return [entitiesCovered(count), SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK].join(" ");
 }
 
 /** Imports Cove recorded but can no longer read. Self-clears on a success. */
