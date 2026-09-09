@@ -24,8 +24,10 @@ import {
   WAITING_FOR_WHISPARR,
 } from "../common/ui/copy";
 import {
+  allScenesIsAOneWayDoor,
   bulkMonitorActions,
   capabilityBehindAction,
+  marksTheBackCatalogue,
   controlNotice,
   describeMonitorRefusal,
   describeReflectOwnedSkip,
@@ -645,6 +647,47 @@ describe("the verbs this build carries out", () => {
     expect(describeReflectOwnedSkip("hardLinkSettingUnreadable")).toBe(
       REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
     );
+  });
+});
+
+describe("the choice that cannot be taken back", () => {
+  it("is a one-way door only where a scope change leaves what is already monitored", () => {
+    expect(allScenesIsAOneWayDoor("v3")).toBe(true);
+    expect(allScenesIsAOneWayDoor("v2")).toBe(false);
+    // Nothing connected settles no scope behaviour either way.
+    expect(allScenesIsAOneWayDoor(null)).toBe(false);
+  });
+
+  it("marks the back catalogue at All Scenes and at the performer's one plain item", () => {
+    const studio = monitorMenu(view({ kind: "studio" }), false);
+    const marking = studio.items.filter(marksTheBackCatalogue);
+    expect(marking.map((item) => item.label)).toEqual([SCOPE_ALL_SCENES]);
+
+    const performer = monitorMenu(view({ kind: "performer" }), false);
+    expect(performer.items.filter(marksTheBackCatalogue).map((item) => item.item)).toEqual([
+      "monitor",
+    ]);
+  });
+
+  it("marks neither the narrower scope, the unmonitor item nor a secondary one", () => {
+    const menu = monitorMenu(view({ kind: "studio", monitored: true }), false);
+    const marking = menu.items
+      .filter((item) => item.item !== "scope" || item.scope !== "allScenes")
+      .filter(marksTheBackCatalogue);
+
+    expect(marking).toEqual([]);
+  });
+
+  it("carries the mark on every offered action and the door on the offer", () => {
+    for (const generation of GENERATIONS) {
+      const offer = bulkMonitorActions(view({ kind: "studio", generation }));
+
+      expect(offer.oneWayDoor, generation).toBe(generation === "v3");
+      expect(
+        offer.actions.map((action) => `${action.key}:${String(action.marksTheBackCatalogue)}`),
+        generation,
+      ).toEqual(["scope:futureScenes:false", "scope:allScenes:true", "unmonitor:false"]);
+    }
   });
 });
 
