@@ -49,7 +49,9 @@ and says the read did not complete.
 
 ## The four controls
 
-Each control is a full-width bar on its own row, in one fixed order. None asks for confirmation.
+Each control is a full-width bar on its own row, in one fixed order. None asks for confirmation. The
+controls sit in a rail beside Cove's own, so each names your Whisparr; the selection popover's rows
+name the same verbs more shortly.
 
 | Control                         | What it does                                                                         |
 | ------------------------------- | ------------------------------------------------------------------------------------ |
@@ -153,13 +155,16 @@ selected. It offers five rows, each drawing a glyph and its own name, in one fix
 changes: safest first, the only row that can download fourth, and the row that changes what your
 Whisparr accepts in future last.
 
-| Row                                | What it does                                                                     |
-| ---------------------------------- | -------------------------------------------------------------------------------- |
-| 1. **Add to Whisparr**             | Adds every selected scene your Whisparr does not hold yet. Downloads nothing.    |
-| 2. **Monitor in Whisparr**         | Tells your Whisparr to want every selected scene. Downloads nothing now.         |
-| 3. **Stop monitoring in Whisparr** | Tells your Whisparr to stop wanting them. Nothing already downloaded is removed. |
-| 4. **Search now**                  | Asks your Whisparr to look for every selected scene it is monitoring.            |
-| 5. **Exclude from Whisparr**       | Puts every selected scene on your Whisparr's exclusion list.                     |
+A row names its verb alone. The popover is already headed with the product's name, so these rows are
+shorter than the tab controls above that carry the same verbs.
+
+| Row               | What it does                                                                     |
+| ----------------- | -------------------------------------------------------------------------------- |
+| 1. **Add**        | Adds every selected scene your Whisparr does not hold yet. Downloads nothing.    |
+| 2. **Monitor**    | Tells your Whisparr to want every selected scene. Downloads nothing now.         |
+| 3. **Unmonitor**  | Tells your Whisparr to stop wanting them. Nothing already downloaded is removed. |
+| 4. **Search now** | Asks your Whisparr to look for every selected scene it is monitoring.            |
+| 5. **Exclude**    | Puts every selected scene on your Whisparr's exclusion list.                     |
 
 **Row 4 is the only row that can download files.** Closing the overlay without choosing a row sends
 nothing.

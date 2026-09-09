@@ -54,7 +54,7 @@ import {
 const BULK_ACTION_LABEL = "Whisparr";
 const BULK_CANCEL = "Cancel";
 const SCOPE_FUTURE_SCENES = "Future Scenes";
-const STOP_MONITORING_IN_WHISPARR = "Stop monitoring in Whisparr";
+const UNMONITOR = "Unmonitor";
 
 // The route the overlay's choice is sent to. Watched on the wire, because "nothing was enqueued" is
 // only observable as a request that was never made.
@@ -293,7 +293,7 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
     await bulkButton(page).click();
     await expect(chooserPanel(page), "the bulk button did not reopen its chooser").toBeVisible();
     await expect(
-      chooserPanel(page).getByRole("button", { name: STOP_MONITORING_IN_WHISPARR }),
+      chooserPanel(page).getByRole("button", { name: UNMONITOR, exact: true }),
       "the chooser offers no unmonitor verb, so it is not reading the connected generation's capabilities",
     ).toBeVisible();
     // One glyph and one name per row, and no paragraph anywhere inside the panel.
