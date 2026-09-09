@@ -41,14 +41,15 @@ describe("the action row", () => {
   });
 
   /**
-   * Accent marks the safe, non-grabbing verb. The one that spends indexer traffic and disk is the
-   * quieter of the two, so a swapped pair is a defect the eye reads as the opposite instruction.
+   * Neither verb takes the accent fill. A page draws forty cards, so an accent-filled verb puts ten
+   * solid blocks on screen at once and reads as the page's own instruction rather than as one card's
+   * choice. A typecheck cannot see a variant, so the value is pinned here.
    */
-  it("puts the accent fill on Monitor and the bordered variant on Search", () => {
+  it("draws both verbs as the quiet variant", () => {
     const monitor = /name=\{MONITOR_LABEL\}\s*\n\s*variant="(\w+)"/.exec(source);
     const search = /name=\{SEARCH_LABEL\}\s*\n\s*variant="(\w+)"/.exec(source);
 
-    expect(monitor?.[1]).toBe("primary");
+    expect(monitor?.[1]).toBe("ghost");
     expect(search?.[1]).toBe("ghost");
   });
 
