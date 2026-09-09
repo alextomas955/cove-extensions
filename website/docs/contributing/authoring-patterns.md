@@ -88,7 +88,8 @@ section its own folder only when it holds more than one file.
 
 "Shared" is reserved for **repo-level, cross-extension** code - the frontend package
 `shared/ui-shared` and the backend package `shared/Cove.Extensions.Shared`. A module earns a
-place there only by being business-agnostic and reusable by _every_ extension unchanged.
+place there when multiple extensions use it unchanged. Keep code local until there are concrete
+callers that benefit from sharing it.
 
 Before adding to one of them, check whether the host already provides it. Cove exposes shared runtime
 modules and a component library to extensions, and reimplementing those is the most common way this
@@ -147,8 +148,9 @@ without a red build, and the TypeScript is a pure function of it.
 ## Frontend conventions
 
 Use named exports (the one default export is `defineExtension` in `index.ts`) and avoid barrel files.
-Do data access through a named `use*` hook that lives beside its store, never a raw fetch in a
-`useEffect`, and don't collect hooks into a `hooks/` folder. Overlays rest on one small hand-rolled
+Keep component data access in a feature-local `use*` hook. A simple hook can own its request and
+cleanup directly. Add a store when shared state, caching, batching, or lifecycle coordination needs
+one. Do not collect hooks into a `hooks/` folder. Overlays rest on one small hand-rolled
 foundation shared by the popovers and dialogs: a focus, keyboard and outside-click hook offering two
 navigation modes, menu and dialog. It is deliberately neither a component library nor the native
 `<dialog>` element - the two modes keep Escape and focus semantics that differ on purpose, and either
@@ -161,8 +163,8 @@ comment.
 
 - Background database reads run as the System principal through one shared seam - under an anonymous
   principal Cove's authorization filters return zero rows with no error.
-- A best-effort `catch` that swallows an error still emits exactly one structured log line; nothing
-  fails silently.
+- Unexpected suppressed failures retain useful structured diagnostics. Avoid duplicate logs across
+  layers; expected cancellation needs no error log.
 - On shutdown, work classifies as cancelled, never as failed.
 - When a backend can't honor a role or a version, it simply doesn't implement that role interface -
   there is no capability probe and no version-mismatch throw to trip over.
