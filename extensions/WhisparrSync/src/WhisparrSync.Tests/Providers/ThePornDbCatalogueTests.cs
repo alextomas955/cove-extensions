@@ -116,6 +116,22 @@ public sealed class ThePornDbCatalogueTests
     }
 
     /// <summary>
+    /// The ordering reported as in force is the one a read under no named ordering really
+    /// sends, so a surface cannot name an order the provider did not apply.
+    /// </summary>
+    [Fact]
+    public async Task TheReportedDefaultOrderingIsTheOneAnUnnamedReadSends()
+    {
+        var (catalogue, handler) = CatalogueOver(RecordedSite(), Recorded(PageFixture));
+
+        await catalogue.ReadPageAsync(StudioPage(), TestCt);
+
+        Assert.Contains(
+            $"orderBy={catalogue.DefaultSort}", handler.Targets[1], StringComparison.Ordinal);
+        Assert.Contains(catalogue.Sorts, offered => offered.Value == catalogue.DefaultSort);
+    }
+
+    /// <summary>
     /// The provider serves no more than its ceiling and clamps a page past the last one, so a size
     /// at the ceiling is a floor and the pager is fed the provider's own last page.
     /// </summary>

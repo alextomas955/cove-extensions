@@ -279,6 +279,22 @@ public sealed class StashDbCatalogueTests
     }
 
     /// <summary>
+    /// The ordering reported as in force is the one an unnamed read really sends, so a surface
+    /// cannot name an order the provider did not apply.
+    /// </summary>
+    [Fact]
+    public void TheReportedDefaultOrderingIsTheOneAnUnnamedReadSends()
+    {
+        var scope = StashDbCatalogue.ScopeFor(StudioPage());
+        var sort = scope["sort"]!.GetValue<string>();
+        var direction = scope["direction"]!.GetValue<string>();
+        var (catalogue, _) = CatalogueOver("{}");
+
+        Assert.Equal($"{sort}:{direction}", catalogue.DefaultSort);
+        Assert.Contains(catalogue.Sorts, offered => offered.Value == catalogue.DefaultSort);
+    }
+
+    /// <summary>
     /// The title search reaches the provider, so it narrows the whole catalogue rather than the page
     /// that happened to load.
     /// </summary>
