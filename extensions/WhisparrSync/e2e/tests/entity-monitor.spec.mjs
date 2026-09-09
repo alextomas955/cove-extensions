@@ -60,8 +60,8 @@ const SETTINGS_PATH = "/settings/whisparr-sync";
 
 // Transcribed by hand from the extension's own copy module, never imported: a spec reading the same
 // constant the component renders would be asserting that a string equals itself.
-const MONITOR_IN_WHISPARR = "Monitor in Whisparr";
-const MONITORED_IN_WHISPARR = "Monitored in Whisparr";
+const WHISPARR_NOT_MONITORED = "Whisparr, not monitored";
+const WHISPARR_MONITORED = "Whisparr, monitored";
 const NO_IDENTITY_IN_THIS_NAMESPACE =
   "Cove holds no link for this entity that the connected Whisparr can identify it by.";
 const SCOPE_FUTURE_SCENES = "Future Scenes";
@@ -115,14 +115,14 @@ const test = base.extend({
 /** The extension's control, by the only name it has, in whichever state it is in. */
 const anyMonitorControl = (page) =>
   page
-    .getByRole("button", { name: new RegExp(`^(${MONITOR_IN_WHISPARR}|${MONITORED_IN_WHISPARR})`) })
+    .getByRole("button", { name: new RegExp(`^(${WHISPARR_NOT_MONITORED}|${WHISPARR_MONITORED})`) })
     .first();
 
 const monitorControl = (page) =>
-  page.getByRole("button", { name: new RegExp(`^${MONITOR_IN_WHISPARR}`) });
+  page.getByRole("button", { name: new RegExp(`^${WHISPARR_NOT_MONITORED}`) });
 
 const monitoredControl = (page) =>
-  page.getByRole("button", { name: new RegExp(`^${MONITORED_IN_WHISPARR}`) });
+  page.getByRole("button", { name: new RegExp(`^${WHISPARR_MONITORED}`) });
 
 /** Cove's own primary action on either detail page, which the slot has to render to the left of. */
 const hostEditButton = (page) => page.getByRole("button", { name: "Edit", exact: true });
@@ -301,7 +301,7 @@ test("the control renders and works on both real detail pages, and the instance 
       "the unreachable studio's detail page",
     );
     const refused = monitorControl(page);
-    const spoken = `${MONITOR_IN_WHISPARR}, ${NO_IDENTITY_IN_THIS_NAMESPACE}`;
+    const spoken = `${WHISPARR_NOT_MONITORED}, ${NO_IDENTITY_IN_THIS_NAMESPACE}`;
     await expect(
       refused,
       `the unreachable studio's control never named its reason within ${READ_SETTLED_BUDGET_MS}ms; the control carries no visible label, so its accessible name is the only name it has`,
@@ -333,7 +333,7 @@ test("the control renders and works on both real detail pages, and the instance 
     // reacting to the same key.
     const urlBeforeTheMenu = page.url();
     await monitorControl(page).click();
-    const menu = page.getByRole("menu", { name: MONITOR_IN_WHISPARR });
+    const menu = page.getByRole("menu", { name: WHISPARR_NOT_MONITORED });
     await expect(menu, "the control did not open its menu on a click").toBeVisible();
 
     const futureScenes = menu.getByRole("menuitemradio", { name: SCOPE_FUTURE_SCENES });
@@ -427,7 +427,7 @@ test("the control renders and works on both real detail pages, and the instance 
     // second monitor.
     await expect(
       page
-        .getByRole("menu", { name: MONITORED_IN_WHISPARR })
+        .getByRole("menu", { name: WHISPARR_MONITORED })
         .getByRole("menuitem", { name: STOP_MONITORING_IN_WHISPARR }),
       "the menu did not follow the state the instance now reports",
     ).toBeVisible();

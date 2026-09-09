@@ -2,6 +2,15 @@
 
 User-facing changes, newest first.
 
+## 1.7.0 - The studio and performer Whisparr controls are named Whisparr
+
+- **The button on a studio or performer page, and the button in those lists' selection bars, are
+  now called Whisparr.** Each opens a menu of several actions, so neither is named after one of
+  them any more. The rows inside each menu keep the names they had.
+- **The page button still says whether Whisparr monitors the entity.** It carries the Whisparr mark
+  and no word, so its name reads "Whisparr, monitored" or "Whisparr, not monitored", and it still
+  carries its reason when it cannot be pressed.
+
 ## 1.6.0 - Compact Whisparr menus, and a confirmation before All Scenes
 
 - **The three Whisparr menus are compact.** Every row draws one icon and its own name. The two
