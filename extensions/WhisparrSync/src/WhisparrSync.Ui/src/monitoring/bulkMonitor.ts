@@ -25,12 +25,14 @@ import { postAction } from "@cove-extensions/ui-shared/postAction";
 
 import { api } from "../common/lib/extension";
 import {
+  allScenesConfirmation,
   BULK_ACTIONS_COULD_NOT_BE_OFFERED,
   BULK_SELECTION_IS_OVER_THE_BOUND,
   BULK_SELECTION_WAS_NOT_STARTED,
 } from "../common/ui/copy";
 import type { EntityMonitoringView, WhisparrEntityKind } from "../wire/api";
 import { BulkMonitorChoice } from "./BulkMonitorChoice";
+import { ConfirmDialog } from "./hostComponents";
 import {
   bulkMonitorActions,
   type BulkMonitorAction,
@@ -75,6 +77,10 @@ export async function monitorSelected(
     return { cancelled: true };
   }
 
+  if (chosen.marksTheBackCatalogue && !(await confirmed(chosen, offer, payload.entityIds.length))) {
+    return { cancelled: true };
+  }
+
   try {
     // PascalCase, matching the C# request record. Requests bind case-insensitively while responses
     // are camelCase, so the casing is read from the server per direction rather than assumed to be
@@ -93,6 +99,35 @@ export async function monitorSelected(
   }
 
   return {};
+}
+
+/**
+ * Whether the reader stood by a choice that cannot be taken back.
+ *
+ * A second imperative overlay after the first has resolved, rather than a dialog inside the chooser:
+ * this handler owns no React tree to render one into.
+ */
+async function confirmed(
+  action: BulkMonitorAction,
+  offer: BulkMonitorOffer,
+  selected: number,
+): Promise<boolean> {
+  const answer = await presentOverlay<BulkMonitorAction>((finish) =>
+    createElement(ConfirmDialog, {
+      open: true,
+      title: action.label,
+      confirmLabel: action.label,
+      message: allScenesConfirmation(selected, offer.oneWayDoor),
+      onConfirm: () => {
+        finish(action);
+      },
+      onCancel: () => {
+        finish(null);
+      },
+    }),
+  );
+
+  return answer !== null;
 }
 
 /**
@@ -141,6 +176,7 @@ async function offeredFor(kind: WhisparrEntityKind, coveId: number): Promise<Bul
     );
     return bulkMonitorActions(view);
   } catch {
-    return { actions: [], reason: BULK_ACTIONS_COULD_NOT_BE_OFFERED };
+    // Nothing was read, so nothing is known about the connected generation either.
+    return { actions: [], reason: BULK_ACTIONS_COULD_NOT_BE_OFFERED, oneWayDoor: false };
   }
 }

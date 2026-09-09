@@ -429,6 +429,24 @@ describe("the selection count reads at zero, one and many", () => {
   });
 });
 
+describe("the confirmation names what the choice covers and what it costs", () => {
+  it("names one entity at one, and both consequences where the choice cannot be taken back", () => {
+    const message = copy.allScenesConfirmation(1, true);
+
+    expect(message).toContain("1 entity.");
+    expect(message).toContain(copy.ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
+    expect(message).toContain(copy.ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE);
+  });
+
+  it("names the count at many, and leaves out the door that is not one", () => {
+    const message = copy.allScenesConfirmation(12, false);
+
+    expect(message).toContain("12 entities.");
+    expect(message).toContain(copy.ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
+    expect(message).not.toContain(copy.ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE);
+  });
+});
+
 describe("the bound the over-the-bound sentence names is the server's own", () => {
   /** The route that declares it, read as text: the bound is a C# constant with no wire spelling. */
   const ROUTES = path.resolve(SRC, "../../WhisparrSync/WhisparrSync.Api.cs");
