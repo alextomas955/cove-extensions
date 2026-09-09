@@ -408,6 +408,83 @@ export const SCENE_IS_NOT_IN_WHISPARR = "Not in Whisparr yet.";
  */
 export const SCENE_CUTOFF_NOT_NAMED = "Whisparr names no cutoff on this profile.";
 
+/** The scene tab's add control. */
+export const SCENE_ADD = "Add to Whisparr";
+
+/** What the add control states beneath itself, so the reader knows before pressing it. */
+export const SCENE_ADD_STATES = "Adds this scene to Whisparr and downloads nothing.";
+
+/** What the monitor control states. Whisparr's own schedule decides what it takes later. */
+export const SCENE_MONITOR_STATES = "Tells Whisparr to want this scene. Downloads nothing now.";
+
+/** What the unmonitoring half states. The second sentence is what a reader would otherwise assume. */
+export const SCENE_STOP_MONITORING_STATES =
+  "Tells Whisparr to stop wanting this scene. Nothing already downloaded is removed.";
+
+/** The scene tab's search control, named as both surfaces name it. */
+export const SCENE_SEARCH = "Search now";
+
+/** What the search control states. The only control on the tab with an external cost. */
+export const SCENE_SEARCH_STATES =
+  "Asks Whisparr to look for this scene now. This is the only control here that can download a file.";
+
+/** The excluding half of the tab's one exclusion control. */
+export const SCENE_EXCLUDE = "Exclude from Whisparr";
+
+/** What the excluding half states. */
+export const SCENE_EXCLUDE_STATES =
+  "Puts this scene on Whisparr's exclusion list, so it is not added again. Nothing already downloaded is removed.";
+
+/** The removing half of the same control, which is what the reader sees once it is excluded. */
+export const SCENE_REMOVE_EXCLUSION = "Remove exclusion";
+
+/** What the removing half states. */
+export const SCENE_REMOVE_EXCLUSION_STATES =
+  "Takes this scene off Whisparr's exclusion list. Downloads nothing.";
+
+/**
+ * What a monitored scene already does on its own, stated once beside the search control.
+ *
+ * Says better files rather than the phrasing the discipline test forbids, and it is also the answer
+ * to where a separate upgrades control went without naming one that does not exist.
+ */
+export const SCENE_UPGRADES_FOLLOW_THE_CUTOFF =
+  "A monitored scene already takes better files up to its cutoff on its own. Search now is how you ask Whisparr to look straight away.";
+
+/**
+ * A search asked for on a scene the instance holds no entry for, on the scene's own tab.
+ *
+ * A second sentence for the meaning `SEARCH_WITH_NO_ENTRY` carries on the catalogue tab. The next
+ * step differs by surface, and naming where the reader fixes it is what the requirement asks for.
+ */
+export const SCENE_SEARCH_NEEDS_AN_ENTRY =
+  "Whisparr has no entry for this scene, so there is nothing to search for. Add it first.";
+
+/** The monitor control's own no-entry sentence, which names monitoring rather than searching. */
+export const SCENE_MONITOR_NEEDS_AN_ENTRY =
+  "Whisparr has no entry for this scene, so there is nothing to monitor. Add it first.";
+
+/** A search asked for on a scene the instance holds and is not monitoring. */
+export const SCENE_SEARCH_NEEDS_MONITORING =
+  "Whisparr only looks for a scene it is monitoring, so nothing was sent. Monitor it first.";
+
+/** The add control's reason once the instance holds the scene. */
+export const SCENE_IS_ALREADY_IN_WHISPARR =
+  "Whisparr already holds this scene, so there is nothing to add.";
+
+/** Why the other three controls are unavailable on an excluded scene. */
+export const SCENE_IS_ON_THE_EXCLUSION_LIST =
+  "This scene is on Whisparr's exclusion list, so Whisparr will not act on it. Remove the exclusion first.";
+
+/**
+ * What confirms a search, read back off the instance by the command's own id.
+ *
+ * Claims that Whisparr holds the command and nothing about a download, because the read that
+ * licenses it establishes only the first.
+ */
+export const SCENE_SEARCH_IS_WITH_WHISPARR =
+  "Whisparr has the search. What it finds arrives the same way every other import does.";
+
 /**
  * What a `{provider}` slot reads as before any page has answered.
  *
