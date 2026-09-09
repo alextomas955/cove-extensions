@@ -20,6 +20,33 @@ at all, and which of them gates a merge.
 The four are not interchangeable. The C# tier needs a Cove source checkout and refuses to build
 without one, which [Run the C# suite](#run-the-c-suite) covers.
 
+## Choose what to test
+
+Use the smallest test tier that can detect the relevant failure. Test domain rules with inputs and
+outputs, components through rendered behavior and user actions, and host integration through the
+assembled extension. Add coverage for meaningful regressions and failure modes; a new helper does
+not automatically need its own test file.
+
+For example, click a card's Monitor action and assert the callback receives that card's identifier.
+An assertion that its source contains `onMonitor(card.providerSceneId)` cannot establish that the
+rendered action works. Likewise, test the toolbar itself instead of rebuilding its output in a
+test-only function. Avoid tests for indentation, helper names, export counts, or guarantees already
+enforced by types or lint.
+
+Source inspection is a fallback for a contract that cannot reasonably be exercised. State why it
+is needed and keep the assertion limited to that contract. Prefer comparing actual manifest and
+bundle exports when testing component registration.
+
+Use React's `act` and observable completion conditions to synchronize component tests. Advance fake
+timers explicitly when testing debounce or timeout behavior. Do not use fixed sleeps to guess when
+React has committed. Production-only build defines belong outside test configuration; production
+bundle behavior is verified at the integration tier. Existing tests with sleeps are migration work,
+not a pattern to copy.
+
+Run checks appropriate to the changed behavior and required repository gates. Broaden the run when
+shared code changes or failures reveal wider impact. Report skipped checks and environmental limits;
+a successful build is not evidence that tests ran.
+
 ## Run the repo tooling tests
 
 From the repo root:
@@ -83,11 +110,10 @@ npm run test
 That generates the wire types first, then does one Vitest run. It is also one of the checks inside
 `npm run verify`, which is what the pull-request build runs for a UI bundle.
 
-The run covers two Vitest projects, not one. Besides the bundle's own tests, it runs the shared UI
-package's suite, rooted at `shared/ui-shared`. That package is consumed as raw source through a Vite
-alias rather than installed, so it has no dependencies of its own and cannot host a runner. One
-install and one runner serve both surfaces. The project names are declared in that extension's
-`vite.config.ts`.
+Renamer's configuration runs its own tests and the shared UI suite rooted at `shared/ui-shared` as
+separate Vitest projects. Whisparr's configuration runs its own suite. Read the project names from
+the relevant `vite.config.ts`. Shared UI currently resolves through source aliases and uses Renamer's
+test runner; run that suite when changing shared UI code.
 
 ## Measure coverage
 
@@ -154,7 +180,7 @@ often none of them is named after the file, so a pattern built from a filename m
 a filter matches nothing the summary still reads `failed: 0`, which looks green; the run reports
 `Zero tests ran` and exits non-zero. Read the `total` line, never the `failed` line.
 
-**UI.** Pass a path, or name a Vitest project. From the UI directory:
+**UI.** Pass a path, or name a Vitest project. These examples run from Renamer's UI directory:
 
 ```sh
 npm run test -- src/settings/options.test.ts

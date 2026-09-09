@@ -35,6 +35,10 @@ Follow Renamer's layout in `extensions/Renamer/docs/`:
 Before adding a paragraph to a how-to, ask whether most readers need it. If not, put it in
 troubleshooting or the reference page and link to it.
 
+Update only pages whose claims or instructions change. Keep one canonical explanation and link to it
+elsewhere; do not duplicate extension docs in a site wrapper that already imports them. Internal
+refactors and test changes do not require user documentation or changelog entries.
+
 ## Style
 
 - Second person, active voice, present tense. Sentence-case headings.
