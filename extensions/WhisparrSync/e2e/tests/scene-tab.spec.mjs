@@ -50,9 +50,6 @@ import {
 // same constant the manifest declares would be asserting that a string equals itself.
 const TAB_LABEL = "Whisparr";
 
-// The label of the tab's own state row, transcribed the same way.
-const STATE_ROW_LABEL = "State";
-
 // The two fact labels a long instance-supplied name can reach, transcribed the same way.
 const PROFILE_ROW_LABEL = "Quality profile";
 const CUTOFF_ROW_LABEL = "Cutoff";
@@ -244,13 +241,25 @@ async function stateOnInstance(api, remoteId) {
 const sceneControl = (page, label) => page.getByRole("button", { name: new RegExp(`^${label}`) });
 
 /**
- * The tab's own fact block, found by the label of the row the chip sits in.
+ * The tab's own fact block, found by a label every scene the geometry is read on carries.
  *
- * Scoped rather than page-wide: the host draws pills of its own on a video page, and a bare shape
+ * Scoped rather than page-wide: the host draws lists of its own on a video page, and a bare shape
  * locator would find one of those on a tab that drew nothing.
  */
 const sceneFacts = (page) =>
-  page.locator("dl").filter({ has: page.getByText(STATE_ROW_LABEL, { exact: true }) });
+  page.locator("dl").filter({ has: page.getByText(PROFILE_ROW_LABEL, { exact: true }) });
+
+/**
+ * The tab's own header row, found by the mark it draws on the left.
+ *
+ * The innermost such row: a host ancestor laid out the same way would otherwise match too, and the
+ * chip locator below would then reach a host pill elsewhere on the video page.
+ */
+const sceneHeader = (page) =>
+  page
+    .locator("div.justify-between")
+    .filter({ has: page.locator('svg[aria-label="Whisparr"]') })
+    .last();
 
 /**
  * The state chip, located by its shape and asserted on by its words.
@@ -259,7 +268,7 @@ const sceneFacts = (page) =>
  * exact-text locator finds nothing. Same reason library-status.spec.mjs locates its card badges
  * this way.
  */
-const stateChip = (page) => sceneFacts(page).locator("span.rounded-full");
+const stateChip = (page) => sceneHeader(page).locator("span.rounded-full");
 
 /** Waits until the tab's own chip reads the state the instance answered, and answers with it. */
 async function chipAgreesWithInstance(page, api, remoteId, what) {
@@ -471,7 +480,7 @@ function expectLongNamesTruncate(long, short, at) {
   const labelColumns = [...new Set(long.rows.map((row) => row.labelX))];
   expect(
     labelColumns,
-    `${at}: the four labels sit at ${labelColumns.join(", ")}, so one of them is out of alignment with the rest`,
+    `${at}: the ${String(long.rows.length)} labels sit at ${labelColumns.join(", ")}, so one of them is out of alignment with the rest`,
   ).toHaveLength(1);
   expect(
     long.rows.map((row) => row.labelX),
@@ -606,8 +615,8 @@ test.describe("scene tab", () => {
       await whisparrTab(page).click();
 
       await expect(
-        page.getByText(STATE_ROW_LABEL, { exact: true }),
-        "the tab mounted and drew no state row. A blank region is what a wrong component-map key looks like: it resolves to nothing, renders nothing and reports nothing.",
+        sceneHeader(page),
+        "the tab mounted and drew no header. A blank region is what a wrong component-map key looks like: it resolves to nothing, renders nothing and reports nothing.",
       ).toBeVisible({ timeout: REGION_BUDGET_MS });
 
       await expect(
@@ -820,7 +829,7 @@ test.describe("scene tab", () => {
       );
       await expect(whisparrTab(page)).toBeVisible({ timeout: TAB_BUDGET_MS });
       await whisparrTab(page).click();
-      await expect(page.getByText(STATE_ROW_LABEL, { exact: true })).toBeVisible({
+      await expect(sceneHeader(page)).toBeVisible({
         timeout: REGION_BUDGET_MS,
       });
 

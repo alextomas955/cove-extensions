@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 /**
- * What the tab draws for one scene: the same four rows every time, with each absent value named in
- * the slot its value would have taken.
+ * What the tab draws for one scene: a header, a fact row for each value the instance named, and one
+ * full-width bar per control.
  *
  * A DOM is needed because the property under test is the SHAPE of what renders. A projection that
- * answers four nulls and a block that draws one row both pass a value-level check on either half.
+ * answers three nulls and a block that draws one row both pass a value-level check on either half.
  *
  * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
  * too), which has no `act`, so a render is awaited on the condition it produces. The host's
@@ -28,6 +28,7 @@ interface Pressable extends Slotted {
   disabled?: boolean;
   onClick?: () => void;
   variant?: string;
+  fill?: boolean;
 }
 
 let answer: Promise<SceneDetailView> = Promise.resolve(null as unknown as SceneDetailView);
@@ -39,8 +40,12 @@ vi.mock("@cove-extensions/ui-shared", () => ({
   StatusPill: ({ icon, children }: Slotted) => createElement("span", null, icon, children),
   StatusText: ({ children }: Slotted) => createElement("span", null, children),
   Spinner: () => createElement("span", null, "reading"),
-  Button: ({ children, disabled, onClick, variant }: Pressable) =>
-    createElement("button", { disabled, onClick, "data-variant": variant }, children),
+  Button: ({ children, disabled, onClick, variant, fill }: Pressable) =>
+    createElement(
+      "button",
+      { disabled, onClick, "data-variant": variant, "data-fill": fill === true ? "" : undefined },
+      children,
+    ),
 }));
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
@@ -104,27 +109,24 @@ const labels = (container: HTMLElement) =>
 const values = (container: HTMLElement) =>
   [...container.querySelectorAll("dd")].map((value) => value.textContent);
 
-test("a scene with nothing named still draws all four rows, each absence stated", async () => {
+test("the header names the product beside the state chip", async () => {
   const container = await mount(view());
 
-  expect(labels(container)).toEqual([
-    copy.SCENE_FACT_STATE,
-    copy.SCENE_FACT_QUALITY,
-    copy.SCENE_FACT_PROFILE,
-    copy.SCENE_FACT_CUTOFF,
-  ]);
-  expect(values(container)).toHaveLength(4);
-  expect(values(container)[1]).toBe(copy.SCENE_HAS_NO_FILE_YET);
-  expect(values(container)[2]).toBe(copy.SCENE_IS_NOT_IN_WHISPARR);
-  expect(values(container)[3]).toBe(copy.SCENE_CUTOFF_NOT_NAMED);
+  expect(container.textContent).toContain(copy.SCENE_HEADER_WHISPARR);
 });
 
-test("a scene the instance does not hold names its own absence in both profile rows", async () => {
+test("a scene the instance named nothing for draws no fact rows at all", async () => {
+  const container = await mount(view());
+
+  expect(labels(container)).toEqual([]);
+  expect(values(container)).toEqual([]);
+});
+
+test("a scene the instance does not hold draws no fact rows and still states its state", async () => {
   const container = await mount(view({ present: false, monitored: null }));
 
-  expect(labels(container)).toHaveLength(4);
-  expect(values(container)[2]).toBe(copy.SCENE_IS_NOT_IN_WHISPARR);
-  expect(values(container)[3]).toBe(copy.SCENE_IS_NOT_IN_WHISPARR);
+  expect(labels(container)).toEqual([]);
+  expect(container.textContent).toContain(copy.SCENE_HEADER_WHISPARR);
 });
 
 test("the instance's own names are drawn verbatim, with the full text reachable", async () => {
@@ -136,31 +138,36 @@ test("the instance's own names are drawn verbatim, with the full text reachable"
     }),
   );
 
-  expect(values(container)[1]).toBe("WEBDL-1080p");
-  expect(values(container)[2]).toBe("Any but the very worst thing an indexer ever listed");
-  expect(values(container)[3]).toBe("WEBDL-1080p");
+  expect(labels(container)).toEqual([
+    copy.SCENE_FACT_QUALITY,
+    copy.SCENE_FACT_PROFILE,
+    copy.SCENE_FACT_CUTOFF,
+  ]);
+  expect(values(container)[0]).toBe("WEBDL-1080p");
+  expect(values(container)[1]).toBe("Any but the very worst thing an indexer ever listed");
+  expect(values(container)[2]).toBe("WEBDL-1080p");
 
   // The value truncates, so the whole of it has to stay reachable without it.
-  const wide = [...container.querySelectorAll("dd")][2];
+  const wide = [...container.querySelectorAll("dd")][1];
   expect(wide.className).toContain("truncate");
   expect(wide.getAttribute("title")).toBe("Any but the very worst thing an indexer ever listed");
 });
 
-test("a profile read that established nothing keeps the scene facts and says so", async () => {
+test("a profile read that established nothing keeps the named fact and says so", async () => {
   const container = await mount(
     view({ qualityName: "WEBDL-1080p", profileReadDidNotComplete: true }),
   );
 
   expect(container.textContent).toContain(copy.THE_STATUS_READ_DID_NOT_COMPLETE);
-  expect(labels(container)).toHaveLength(4);
-  expect(values(container)[1]).toBe("WEBDL-1080p");
+  expect(labels(container)).toEqual([copy.SCENE_FACT_QUALITY]);
+  expect(values(container)[0]).toBe("WEBDL-1080p");
 });
 
 /** The name each control announces, in the order the tab drew them. */
 const controlNames = (container: HTMLElement) =>
   [...container.querySelectorAll("button")].map((control) => control.textContent);
 
-test("the four controls draw beneath the facts, each stating what it does", async () => {
+test("the four controls draw as bars, each announcing its own name", async () => {
   const container = await mount(view({ present: false, monitored: null }));
 
   // A disabled control announces its own name and then its reason, so the two it stops carry both.
@@ -173,22 +180,13 @@ test("the four controls draw beneath the facts, each stating what it does", asyn
 
   // All four go through the wrapper that takes a nullable reason, which is the only shape in which
   // a dimmed control with nothing to hear is unrepresentable.
-  expect(container.querySelectorAll("span.inline-flex > button")).toHaveLength(4);
+  expect(container.querySelectorAll("span.flex.w-full > button")).toHaveLength(4);
 
-  // Each sentence sits OUTSIDE its button: text inside one joins the accessible name, and a
-  // control's announced name has to be its own name.
-  const stated = [...container.querySelectorAll("p")].map((line) => line.textContent);
-  expect(stated).toEqual([
-    copy.SCENE_ADD_STATES,
-    copy.SCENE_MONITOR_STATES,
-    copy.SCENE_SEARCH_STATES,
-    copy.SCENE_UPGRADES_FOLLOW_THE_CUTOFF,
-    copy.SCENE_EXCLUDE_STATES,
-  ]);
-  expect(
-    stated.filter((line) => line === copy.SCENE_UPGRADES_FOLLOW_THE_CUTOFF),
-    "the upgrades sentence is stated once per tab, never per control",
-  ).toHaveLength(1);
+  // Each fills its row, which is the property the shared button's own suite cannot check: the
+  // primitive is mocked here.
+  expect(container.querySelectorAll("button[data-fill]")).toHaveLength(4);
+
+  expect(container.querySelectorAll("p")).toHaveLength(0);
 });
 
 test("a disabled control announces its own name and then its reason", async () => {
