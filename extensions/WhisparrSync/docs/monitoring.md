@@ -270,7 +270,7 @@ disabled and carries its reason.
 
 ## Monitor a whole selection
 
-Select studios or performers in Cove's own lists, then press **Monitor in Whisparr** in the
+Select studios or performers in Cove's own lists, then press **Whisparr** in the
 selection bar.
 
 A small popover opens, headed by the Whisparr mark, the product's name and how many entities you
