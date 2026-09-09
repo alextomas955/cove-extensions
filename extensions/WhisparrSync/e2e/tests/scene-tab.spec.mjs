@@ -53,6 +53,36 @@ const TAB_LABEL = "Whisparr";
 // The label of the tab's own state row, transcribed the same way.
 const STATE_ROW_LABEL = "State";
 
+// The two fact labels a long instance-supplied name can reach, transcribed the same way.
+const PROFILE_ROW_LABEL = "Quality profile";
+const CUTOFF_ROW_LABEL = "Cutoff";
+
+// The two values in the fact block a reader can make any length, and the only two: a quality
+// profile's own name, and the name of the quality group a profile's cutoff resolves to. Every other
+// value the block can hold comes out of the instance's own quality vocabulary, which is 29 fixed
+// names whose longest is 12 characters - a renamed quality DEFINITION does not reach the name the
+// scene's row carries, measured against this pinned build.
+const LONG_PROFILE_NAME =
+  "A quality profile a reader named at length, eighty-four characters all told, no less";
+const LONG_CUTOFF_GROUP_NAME =
+  "A quality group a reader named at length, eighty-three characters all told, no less";
+
+// The same two names before a reader lengthens them, short enough to fit their box at the narrowest
+// width. The block is measured with these first, on the same scene, so the only thing that differs
+// between the two readings is what the instance answers.
+const SHORT_PROFILE_NAME = "Short";
+const SHORT_CUTOFF_GROUP_NAME = "Small";
+
+// What makes a name long enough to be worth measuring. Asserted rather than trusted: a later edit
+// that shortened either name above would leave a value that fits its box, and a measurement of
+// truncation on a value that does not overflow reports nothing.
+const LONG_NAME_FLOOR = 80;
+
+// The two widths the fact block is measured at: the default the rest of this suite drives, and the
+// narrowest a reader is offered.
+const WIDE_VIEWPORT = { width: 1280, height: 900 };
+const NARROW_VIEWPORT = { width: 360, height: 740 };
+
 // The labels a scene's state can read as, transcribed from the shipped vocabulary.
 const MONITORED = "Monitored";
 const UNMONITORED = "Unmonitored";
@@ -158,7 +188,7 @@ async function visit(page, baseUrl, path, present, label) {
  * depend on someone else's uptime. The seed reads the row back through the instance's own API, and
  * the expected label is derived from that read.
  */
-async function seedScene(coveApi, whisparr, { label, monitored }) {
+async function seedScene(coveApi, whisparr, { label, monitored, qualityProfileId }) {
   const remoteId = randomUUID();
 
   const onInstance = await whisparr.seedEntity("v3", {
@@ -166,6 +196,7 @@ async function seedScene(coveApi, whisparr, { label, monitored }) {
     foreignId: remoteId,
     title: `Whisparr ${label}`,
     monitored,
+    ...(qualityProfileId === undefined ? {} : { qualityProfileId }),
   });
 
   const title = `${label} ${remoteId.slice(0, 8)}`;
@@ -240,6 +271,285 @@ async function chipAgreesWithInstance(page, api, remoteId, what) {
   return stated;
 }
 
+/**
+ * A quality profile body carrying the two names a caller decides, composed off a profile the
+ * instance itself holds.
+ *
+ * Composed rather than written out: the profile resource carries a 25-item quality list and a
+ * format-item list, and a hand-written body is a transcription of the instance's schema that goes
+ * stale under it. Only the two names and the cutoff are this test's.
+ *
+ * The cutoff is pointed at a GROUP because a group's name is the reader's own. A cutoff resolving to
+ * a single quality reads that quality's name out of the instance's fixed vocabulary, which no reader
+ * can lengthen.
+ */
+function profileNamed(template, profileName, groupName) {
+  const group = (template.items ?? []).find(
+    (item) => Array.isArray(item.items) && item.items.length > 0,
+  );
+  expect(
+    group,
+    "the instance's own profile declares no quality group, so there is no name a reader could have made long",
+  ).toBeDefined();
+  return {
+    ...template,
+    name: profileName,
+    cutoff: group.id,
+    items: template.items.map((item) =>
+      item.id === group.id ? { ...item, name: groupName, allowed: true } : item,
+    ),
+  };
+}
+
+/**
+ * Reads the two names back off the instance.
+ *
+ * The write's own answer is not the evidence. The names are what the tab is measured against, and a
+ * name the instance shortened would make the measurement agree with itself.
+ */
+async function expectProfileNames(api, id, profileName, groupName) {
+  const held = await api.get(`/api/v3/qualityprofile/${String(id)}`);
+  expect(held.json?.name, "the instance holds a profile name other than the one it was sent").toBe(
+    profileName,
+  );
+  const cutoffItem = (held.json?.items ?? []).find((item) => item.id === held.json.cutoff);
+  expect(
+    cutoffItem?.name,
+    "the instance's cutoff does not resolve to the named group, so the Cutoff row has no such value to render",
+  ).toBe(groupName);
+}
+
+/** Puts a quality profile carrying the two names on the instance, and answers with its id. */
+async function seedProfile(api, { profileName, groupName }) {
+  const profiles = await api.get("/api/v3/qualityprofile");
+  expect(
+    profiles.status,
+    `GET the instance's quality profiles answered ${String(profiles.status)}`,
+  ).toBe(200);
+  const template = Array.isArray(profiles.json) ? profiles.json[0] : undefined;
+  expect(
+    template,
+    "the instance offers no quality profile to compose one from, so there is nothing to seed",
+  ).toBeDefined();
+
+  const body = profileNamed(template, profileName, groupName);
+  delete body.id;
+  const made = await api.post("/api/v3/qualityprofile", body);
+  expect(
+    made.status,
+    `the instance refused a quality profile named "${profileName}": ${String(made.status)} ${made.text.slice(0, 300)}`,
+  ).toBe(201);
+  await expectProfileNames(api, made.json.id, profileName, groupName);
+  return made.json.id;
+}
+
+/** Renames a profile the instance holds, and the group its cutoff resolves to. */
+async function renameProfile(api, id, { profileName, groupName }) {
+  const held = await api.get(`/api/v3/qualityprofile/${String(id)}`);
+  expect(held.status, `GET the profile to rename answered ${String(held.status)}`).toBe(200);
+  const answered = await api.put(
+    `/api/v3/qualityprofile/${String(id)}`,
+    profileNamed(held.json, profileName, groupName),
+  );
+  expect(
+    answered.status,
+    `the instance refused a ${String(profileName.length)}-character profile name: ${String(answered.status)} ${answered.text.slice(0, 300)}`,
+  ).toBeLessThan(300);
+  await expectProfileNames(api, id, profileName, groupName);
+}
+
+/**
+ * The rendered geometry of the fact block, read off the elements the host laid out.
+ *
+ * Runs in the page because none of it is in the DOM: a value that truncates is one whose text is
+ * wider than its own box, which is a pair of layout reads, and a class name cannot report either.
+ */
+const FACT_BLOCK_GEOMETRY = (dl) => {
+  const box = (el) => {
+    const rect = el.getBoundingClientRect();
+    return {
+      x: Math.round(rect.x),
+      right: Math.round(rect.right),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    };
+  };
+  // The host's own content column. The block is laid out inside it, so it is what a block that grew
+  // would have to grow past.
+  const column = dl.closest("section");
+  return {
+    block: box(dl),
+    blockOverflow: { scrollWidth: dl.scrollWidth, clientWidth: dl.clientWidth },
+    column: column === null ? null : box(column),
+    rows: Array.from(dl.children).map((row) => {
+      const dt = row.querySelector("dt");
+      const dd = row.querySelector("dd");
+      return {
+        label: dt === null ? null : dt.textContent.trim(),
+        labelX: dt === null ? null : Math.round(dt.getBoundingClientRect().x),
+        value: dd === null ? null : dd.textContent.trim(),
+        title: dd === null ? null : dd.getAttribute("title"),
+        valueScrollWidth: dd === null ? null : dd.scrollWidth,
+        valueClientWidth: dd === null ? null : dd.clientWidth,
+        height: box(row).height,
+      };
+    }),
+  };
+};
+
+/**
+ * Measures the open tab's fact block at `viewport`.
+ *
+ * The tab is re-opened when the resize left it closed: which tab strip a detail page draws follows
+ * its viewport, so a resize can re-mount the strip.
+ */
+async function factBlockAt(page, viewport, what) {
+  await page.setViewportSize(viewport);
+  await expect(whisparrTab(page), `${what}: no ${TAB_LABEL} tab at this width`).toBeVisible({
+    timeout: TAB_BUDGET_MS,
+  });
+  if ((await sceneFacts(page).count()) === 0) await whisparrTab(page).click();
+  await expect(
+    sceneFacts(page).first(),
+    `${what}: the tab drew no fact block, so there is no layout to measure`,
+  ).toBeVisible({ timeout: REGION_BUDGET_MS });
+  return sceneFacts(page).first().evaluate(FACT_BLOCK_GEOMETRY);
+}
+
+/** The row a label names, in a geometry reading. */
+const factRow = (geometry, label) => geometry.rows.find((row) => row.label === label);
+
+/**
+ * Asserts that the two long values truncate inside the block instead of widening it.
+ *
+ * `short` is the same block at the same width with the values the instance's own defaults produce,
+ * measured in the same run rather than read from a record of an earlier one.
+ */
+function expectLongNamesTruncate(long, short, at) {
+  for (const [label, named] of [
+    [PROFILE_ROW_LABEL, LONG_PROFILE_NAME],
+    [CUTOFF_ROW_LABEL, LONG_CUTOFF_GROUP_NAME],
+  ]) {
+    const row = factRow(long, label);
+    expect(row, `${at}: the block draws no ${label} row`).toBeDefined();
+    expect(
+      row.value,
+      `${at}: the ${label} row reads "${String(row.value)}" and not the long name the instance holds, so nothing long was rendered here`,
+    ).toBe(named);
+    expect(
+      row.title,
+      `${at}: the ${label} row truncates and carries "${String(row.title)}" on the element, so a reader cannot recover the whole name`,
+    ).toBe(named);
+    expect(
+      row.valueScrollWidth,
+      `${at}: the ${label} value is ${String(row.valueScrollWidth)}px of text in a ${String(row.valueClientWidth)}px box, so it is not overflowing and nothing here measures truncation`,
+    ).toBeGreaterThan(row.valueClientWidth);
+    expect(
+      row.height,
+      `${at}: the ${label} row is ${String(row.height)}px tall against ${String(factRow(short, label).height)}px with a short value, so the long name wrapped rather than truncating`,
+    ).toBe(factRow(short, label).height);
+  }
+
+  expect(long.column, `${at}: the block sits in no host content column`).not.toBeNull();
+  expect(
+    long.column.right,
+    `${at}: the host's content column ends at ${String(long.column.right)} with a long name and at ${String(short.column.right)} with a short one, so the value the instance answered moved the host's own layout`,
+  ).toBe(short.column.right);
+  expect(
+    long.block.right,
+    `${at}: the fact block ends at ${String(long.block.right)} and the host's content column ends at ${String(long.column.right)}, so a long name pushed the block past the column`,
+  ).toBeLessThanOrEqual(long.column.right);
+  expect(
+    long.block.right,
+    `${at}: the fact block ends at ${String(long.block.right)} with a long name and at ${String(short.block.right)} with a short one, so its width follows what the instance answered`,
+  ).toBe(short.block.right);
+  expect(
+    long.blockOverflow.scrollWidth,
+    `${at}: the block holds ${String(long.blockOverflow.scrollWidth)}px of content in ${String(long.blockOverflow.clientWidth)}px, so it overflows itself`,
+  ).toBe(long.blockOverflow.clientWidth);
+
+  const labelColumns = [...new Set(long.rows.map((row) => row.labelX))];
+  expect(
+    labelColumns,
+    `${at}: the four labels sit at ${labelColumns.join(", ")}, so one of them is out of alignment with the rest`,
+  ).toHaveLength(1);
+  expect(
+    long.rows.map((row) => row.labelX),
+    `${at}: the labels moved from where the short values left them`,
+  ).toEqual(short.rows.map((row) => row.labelX));
+}
+
+/**
+ * Asserts that the two short values fit their boxes, which is what makes them a baseline.
+ *
+ * A short value that already truncated would give the long reading nothing to be compared against.
+ */
+function expectShortNamesFit(short, at) {
+  for (const label of [PROFILE_ROW_LABEL, CUTOFF_ROW_LABEL]) {
+    const row = factRow(short, label);
+    expect(row, `${at}: the block draws no ${label} row`).toBeDefined();
+    expect(
+      row.valueScrollWidth,
+      `${at}: the short ${label} value already overflows its own box, so it is no baseline for a long one`,
+    ).toBe(row.valueClientWidth);
+  }
+}
+
+/**
+ * Opens the tab on `path` and measures its fact block at both widths.
+ *
+ * `expected` is text the instance answered, waited for before anything is measured, so the geometry
+ * is read off a completed read rather than off whatever a row held while one was in flight.
+ */
+async function factBlockOnPage(page, baseUrl, path, expected, what) {
+  await page.setViewportSize(NARROW_VIEWPORT);
+  await visit(page, baseUrl, path, hostDetailTabs(page), what);
+  await expect(whisparrTab(page), `${what}: the page drew no ${TAB_LABEL} tab`).toBeVisible({
+    timeout: TAB_BUDGET_MS,
+  });
+  await whisparrTab(page).click();
+  await expect(
+    sceneFacts(page).first(),
+    `${what}: the tab never drew "${expected}", which is what the instance holds for this scene`,
+  ).toContainText(expected, { timeout: REGION_BUDGET_MS });
+
+  return {
+    narrow: await factBlockAt(page, NARROW_VIEWPORT, `${what} at 360`),
+    wide: await factBlockAt(page, WIDE_VIEWPORT, `${what} at 1280`),
+  };
+}
+
+/**
+ * One scene's whole movie resource, as the instance holds it.
+ */
+async function sceneResource(api, remoteId, what) {
+  const held = await api.get(`/api/v3/movie?stashId=${encodeURIComponent(remoteId)}`);
+  expect(held.status, `${what}: the instance answered ${String(held.status)}`).toBe(200);
+  const row = Array.isArray(held.json) ? held.json[0] : held.json;
+  expect(row, `${what}: the instance holds no row for this scene`).toBeDefined();
+  return row;
+}
+
+/**
+ * Every member path at which two resources differ, walked whole and to the leaves.
+ *
+ * A whole-object walk rather than a list of the fields someone thought to name: the field a request
+ * carries away unnoticed is exactly the one no list has on it.
+ */
+function differingPaths(before, after, path = "") {
+  const shape = (value) =>
+    value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+  const here = path === "" ? "the whole resource" : path;
+  if (shape(before) !== shape(after)) return [here];
+  if (shape(before) === "object" || shape(before) === "array") {
+    const members = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+    return members.flatMap((member) =>
+      differingPaths(before[member], after[member], path === "" ? member : `${path}.${member}`),
+    );
+  }
+  return before === after ? [] : [here];
+}
+
 test.describe("scene tab", () => {
   test("states the state Whisparr holds for the scene", async ({ page, baseUrl, sceneHarness }) => {
     // A container pair, an extension install, a browser and a real instance. Well above the shared
@@ -304,6 +614,75 @@ test.describe("scene tab", () => {
         stateChip(page),
         `the tab drew no state chip reading "${scene.statedAs}", which is what the instance itself answered for the seeded scene`,
       ).toHaveText(new RegExp(`${scene.statedAs}$`), { timeout: REGION_BUDGET_MS });
+
+      // A LONG NAME THE INSTANCE SUPPLIED, IN THE SAME CONTAINER. Its own test would need a second
+      // Cove, a second install, a second browser and a second Whisparr for one page read, which is
+      // the cost the five-case test below is batched to avoid.
+      //
+      // MEASURED, NOT INSPECTED. The value element carries `truncate` and a `title`, and neither
+      // says whether the text overflows its own box or whether the block grew to fit it. Both are
+      // layout reads: text wider than its box, and a block no wider than the column it sits in and
+      // no wider than the same block with a short value.
+      expect(
+        [LONG_PROFILE_NAME.length, LONG_CUTOFF_GROUP_NAME.length].every(
+          (length) => length >= LONG_NAME_FLOOR,
+        ),
+        `the names driven here are ${String(LONG_PROFILE_NAME.length)} and ${String(LONG_CUTOFF_GROUP_NAME.length)} characters, under the ${String(LONG_NAME_FLOOR)} this measurement needs to be about truncation at all`,
+      ).toBe(true);
+
+      // ONE SCENE, READ TWICE. The profile is renamed between the two readings rather than a second
+      // scene being seeded under a second profile: the width of the host's content column follows
+      // the page it is on, so two pages cannot tell a block widened by a value from a block sitting
+      // in a wider column. Same video, same tab, same two viewports, and the instance's answer is
+      // the only thing that differs.
+      const instance = whisparr.apiFor("v3");
+      const profileId = await seedProfile(instance, {
+        profileName: SHORT_PROFILE_NAME,
+        groupName: SHORT_CUTOFF_GROUP_NAME,
+      });
+      const measured = await seedScene(coveApi, whisparr, {
+        label: "Named",
+        monitored: true,
+        qualityProfileId: profileId,
+      });
+      const measuredPath = `/video/${String(measured.id)}`;
+
+      const short = await factBlockOnPage(
+        page,
+        baseUrl,
+        measuredPath,
+        SHORT_PROFILE_NAME,
+        "the fact block with the short names",
+      );
+      expectShortNamesFit(short.wide, "at 1280");
+      expectShortNamesFit(short.narrow, "at 360");
+
+      await renameProfile(instance, profileId, {
+        profileName: LONG_PROFILE_NAME,
+        groupName: LONG_CUTOFF_GROUP_NAME,
+      });
+      const long = await factBlockOnPage(
+        page,
+        baseUrl,
+        measuredPath,
+        LONG_PROFILE_NAME,
+        "the fact block with the long names",
+      );
+
+      expectLongNamesTruncate(long.wide, short.wide, "at 1280");
+      expectLongNamesTruncate(long.narrow, short.narrow, "at 360");
+
+      // The Quality row's own value is out of a reader's reach: it is the name of the file's
+      // quality, and the instance's quality vocabulary is fixed. Asserted so a build that made it
+      // unbounded is not left measured by a value that no longer bounds it.
+      const vocabulary = await instance.get("/api/v3/qualitydefinition");
+      const longestQualityName = (vocabulary.json ?? [])
+        .map((definition) => definition.quality?.name ?? "")
+        .reduce((longest, name) => (name.length > longest.length ? name : longest), "");
+      expect(
+        longestQualityName.length,
+        `the instance's longest quality name is now "${longestQualityName}" at ${String(longestQualityName.length)} characters, so the Quality row can carry a name this measurement never drove through it`,
+      ).toBeLessThan(LONG_NAME_FLOOR);
 
       // Does NOT depend on the tab rendering. A wrong export name throws an ESM SyntaxError at
       // bundle load, and the host loads every extension bundle under one promise, so that one throw
@@ -485,6 +864,10 @@ test.describe("scene tab", () => {
       await chipAgreesWithInstance(page, instance, held.remoteId, "before Monitor");
 
       const beforeMonitor = await stateOnInstance(instance, held.remoteId);
+      // The whole resource, not the flag. The composed body carries one member and a unit test pins
+      // that; what the instance does with the members the body leaves out is a fact about the
+      // instance, and only a read of everything it holds before and after can report it.
+      const resourceBefore = await sceneResource(instance, held.remoteId, "before Monitor");
       await sceneControl(page, MONITOR).click();
       await expect(sceneControl(page, STOP_MONITORING)).toBeVisible({
         timeout: REGION_BUDGET_MS,
@@ -499,6 +882,13 @@ test.describe("scene tab", () => {
         afterMonitor,
         "the instance answers the same state before and after the press, so nothing reached it",
       ).not.toBe(beforeMonitor);
+
+      const resourceAfter = await sceneResource(instance, held.remoteId, "after Monitor");
+      const moved = differingPaths(resourceBefore, resourceAfter);
+      expect(
+        moved,
+        `the press moved ${moved.join(", ")} on the instance. Setting the monitored flag is meant to leave every other field the instance holds exactly as it was.`,
+      ).toEqual(["monitored"]);
 
       // CASE 3. Search now, on the monitored scene. The tab is asserted to state that the instance
       // holds the command, and nothing about a file, a queue or a download: confirming receipt is
