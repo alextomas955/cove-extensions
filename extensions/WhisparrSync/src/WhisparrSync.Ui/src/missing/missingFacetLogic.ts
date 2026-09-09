@@ -45,6 +45,26 @@ export function facetMenuRows(
 }
 
 /**
+ * The rows of one menu whose label matches `query`, case-insensitively.
+ *
+ * The rows the menu already holds and no others. A bounded menu carries part of the source's list,
+ * so typing narrows what arrived and reaches nothing the source did not send; {@link menuIsBounded}
+ * is what says the rest exists.
+ *
+ * @param rows the rows the menu holds
+ * @param query what the reader typed, which matches every row while it is blank
+ */
+export function menuRowsMatching<TRow extends { readonly label: string }>(
+  rows: readonly TRow[],
+  query: string,
+): readonly TRow[] {
+  const needle = query.trim().toLowerCase();
+  return needle.length === 0
+    ? rows
+    : rows.filter((row) => row.label.toLowerCase().includes(needle));
+}
+
+/**
  * The filter map after picking `value` in the menu keyed `key`.
  *
  * Picking the value already in force clears it. Nothing here decides whether a combination is one

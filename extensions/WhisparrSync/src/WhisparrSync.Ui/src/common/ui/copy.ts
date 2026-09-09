@@ -554,6 +554,22 @@ export function facetMenuBound(shown: number, reported: number): string {
   return `This menu carries ${String(shown)} of ${String(reported)} values. The rest cannot be picked here.`;
 }
 
+/**
+ * The placeholder in a facet menu's search box.
+ *
+ * Names the menu rather than the source, because typing narrows the values the menu holds and
+ * reaches none the source did not send. What is absent is what {@link facetMenuBound} states.
+ */
+export const FACET_MENU_SEARCH = "Search this menu";
+
+/** What a facet menu reads when nothing in it matches what was typed. */
+export const FACET_MENU_NO_MATCHES = "No values in this menu match.";
+
+/** The accessible name of a facet menu's search box, which the menu's own name leads. */
+export function facetMenuSearchLabel(menuLabel: string): string {
+  return `Search this ${menuLabel.toLowerCase()} menu`;
+}
+
 /** How many scenes are ticked. */
 export function selectionCount(n: number): string {
   return n === 1 ? "1 selected" : `${String(n)} selected`;
