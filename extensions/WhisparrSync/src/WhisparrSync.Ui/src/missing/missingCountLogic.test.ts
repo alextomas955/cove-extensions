@@ -90,20 +90,21 @@ describe("what the figure counts is said once", () => {
   it("names the provider and the entity the placeholders stand for", () => {
     const label = catalogueSizeLabel("StashDB", "this studio");
 
-    expect(label).toBe("scenes StashDB lists for this studio, not the number you are missing.");
+    expect(label).toBe(
+      "That total is the scenes StashDB lists for this studio, not the number you are missing.",
+    );
     expect(COUNT_IS_THE_CATALOGUE_SIZE).toContain("{provider}");
   });
 
   /**
-   * The whole line, composed the way the view composes it. The two halves were separate sentences
-   * run together with no punctuation between them, which is invisible to a check on either half.
+   * The sentence renders on its own, under a toolbar that states the range. A
+   * sentence written to continue from a range reads as a fragment once the range is not in front of
+   * it, which no check on the range itself would see.
    */
-  it("reads as one statement from the range through to what the figure counts", () => {
-    const parts = countLineParts(RECORDED.thePornDbBelowTheCeiling);
-    const line = `${countLine(parts.from, parts.to, parts.total, parts.atCeiling)} ${catalogueSizeLabel("StashDB", "this studio")}`;
+  it("stands as a sentence with no range in front of it", () => {
+    const label = catalogueSizeLabel("StashDB", "this studio");
 
-    expect(line).toBe(
-      "1–40 of 272 scenes StashDB lists for this studio, not the number you are missing.",
-    );
+    expect(label.startsWith("That total is")).toBe(true);
+    expect(label).not.toMatch(/\d/);
   });
 });
