@@ -13,10 +13,14 @@ Whisparr to search for what a monitored entity wants; and a Missing tab on studi
 pages that lists what the configured metadata source knows about and the library does not hold, says
 whether Whisparr holds each scene, and marks one scene or a page of scenes wanted; and a button in
 the videos, studios and performers list toolbars that puts a badge on every card on the page saying
-what the connected instance holds for it, reading only and asking the instance once per card. So this extension
-changes your library, changes what a third party monitors, and has two actions that spend the user's
-bandwidth and disk. Both are separately named, both act on a single entity or a single scene, and
-neither is offered over a selection.
+what the connected instance holds for it, reading only and asking the instance once per card; and a
+Whisparr tab on a scene's own page that states what the instance holds for that scene and adds,
+monitors, searches for or excludes it, with a Whisparr button in the videos selection bar that
+applies one of those five actions to a whole selection of scenes as one background job. So this
+extension changes your library, changes what a third party monitors, and has four actions that spend
+the user's bandwidth and disk. Each is separately named. Three of the four act on a single entity or
+a single scene; the fourth is the selection's own search row, which is bounded at 100 scenes in one
+run while the other selection rows are bounded at 1000.
 
 It also calls a second third party: it reads catalogue listings from the metadata source Cove is
 configured with, using the key Cove already holds for it, and the browser fetches cover images
@@ -30,6 +34,7 @@ straight from that source.
 - **[Monitor a studio or a performer](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/monitoring)** - the entity control, the two scopes and what each costs
 - **[Browse what you do not own](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/missing)** - the Missing tab and what its number counts
 - **[Show Whisparr status on library cards](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/library-status)** - the toolbar button, the card badge and what one press costs
+- **[Control one scene, or a selection of scenes](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/scenes)** - the scene tab, its four controls and the selection bar's five rows
 - **[Settings reference](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/settings)** - every setting on the tab
 
 The rest of this file is for contributors working on the extension itself.
