@@ -18,9 +18,9 @@ import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import {
   ACTION_ABSENT_IN_THIS_VERSION,
   allScenesConfirmation,
-  MONITORED_IN_WHISPARR,
   MONITORING_COULD_NOT_BE_READ,
-  MONITOR_IN_WHISPARR,
+  WHISPARR_MONITORED,
+  WHISPARR_NOT_MONITORED,
 } from "../common/ui/copy";
 import type { WhisparrEntityKind } from "../wire/api";
 import { EntityMonitorMenu, NOTICE_SURFACE_CLASS } from "./EntityMonitorMenu";
@@ -78,7 +78,7 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
 
   const view = state.view;
   const monitored = view?.monitored === true;
-  const name = monitored ? MONITORED_IN_WHISPARR : MONITOR_IN_WHISPARR;
+  const name = monitored ? WHISPARR_MONITORED : WHISPARR_NOT_MONITORED;
   const region = deriveAsyncRegionState(state.read);
 
   // Anything on its way, whether the action itself or the read that follows it, so no second gesture
