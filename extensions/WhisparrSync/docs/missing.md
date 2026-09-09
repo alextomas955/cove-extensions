@@ -36,9 +36,9 @@ because the number on the tab has no room for it.
 A number ending in a plus, such as `10,000+`, means the source will not serve a list past that
 point. The real figure is larger, and the pages stop where the source stops.
 
-The range at the left of the count line, such as `41-80 of 4,231`, is the source's own range for the
-page you are on. Scenes you already own are taken out after the page arrives, so a page can show
-thirty-one cards while its range still reads `41-80`. That is the range of the catalogue, not a
+The range at the left of the bar above the grid, such as `41-80 of 4,231`, is the source's own range
+for the page you are on. Scenes you already own are taken out after the page arrives, so a page can
+show thirty-one cards while its range still reads `41-80`. That is the range of the catalogue, not a
 count of what is drawn.
 
 A page holds at most forty scenes.
@@ -146,15 +146,17 @@ search and the facets and use a selection instead.
 
 ## Narrow the list
 
-Above the grid:
+One bar above the grid carries the tab's name, the range you are looking at and every control:
 
 - **Search titles** narrows the whole catalogue, not the page you are on. Typing settles before the
   list is re-read.
-- **Sort** offers the orderings the source itself declares.
+- The ordering control offers the orderings the source itself declares. It reads the ordering in
+  force, such as **Newest first**.
 - One menu per facet the source filled. A menu lists the values the source served, and you can
-  narrow by any of them. The source decides how many values it serves, so a menu can carry fewer
-  than the source lists. Where it does, the menu says how many of how many it carries and that the
-  rest cannot be picked there.
+  narrow by any of them. Its control reads what it covers while nothing is picked, such as **All
+  tags**, and reads the value once you pick one. Pick that value again to clear it. The source
+  decides how many values it serves, so a menu can carry fewer than the source lists. Where it does,
+  the menu says how many of how many it carries and that the rest cannot be picked there.
 - **Year**, where the source filters by one. It lists every year between the oldest and the newest
   scene the source holds for that entity, so a year with nothing in it is not offered.
 - **Refresh** reads the page again.

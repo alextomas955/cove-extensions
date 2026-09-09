@@ -66,12 +66,13 @@ const ANSWERED_SOURCE = "ThePornDB";
 const OTHER_SOURCE = "StashDB";
 
 /**
- * What the count line says the figure counts, transcribed by hand with its two slots filled.
- *
- * The tail of the line rather than the whole of it: the range in front of it is the answered page's
- * own, and this is the half that names the source.
+ * What the line under the bar says the total counts, transcribed by hand with its two slots filled.
+ * The total itself is stated in the bar.
  */
-const COUNT_LINE = `scenes ${ANSWERED_SOURCE} lists for this studio, not the number you are missing.`;
+const COUNT_LINE = `That total is the scenes ${ANSWERED_SOURCE} lists for this studio, not the number you are missing.`;
+
+/** The range the answered page below covers, in the wording the bar states it in. */
+const RANGE_IN_THE_BAR = "1–40 of 272";
 
 const BUNDLE_BUDGET_MS = 60_000;
 const BUNDLE_ATTEMPTS = 3;
@@ -106,12 +107,19 @@ const searchField = (page) => page.getByPlaceholder(SEARCH_PLACEHOLDER);
 const refreshControl = (page) => page.getByRole("button", { name: REFRESH_LABEL });
 
 /**
- * The control row itself, reached through the one control it always draws.
+ * The bar itself, reached by its role and the name it carries.
  *
- * Scoped this way because the entity hero above this tab draws a menu control of its own, and an
- * unscoped menu-trigger locator finds that one first.
+ * Scoped rather than unscoped because the entity hero above this tab draws a menu control of its
+ * own, and an unscoped menu-trigger locator finds that one first. Reached by the bar's own name
+ * rather than through a control inside it: every control in it now names the value in force, so a
+ * control's name changes when a filter is applied and the name of the bar does not.
  */
-const toolbar = (page) => refreshControl(page).locator("xpath=..");
+const toolbar = (page) => page.getByRole("toolbar", { name: TAB_LABEL });
+
+/**
+ * The ordering control, named by the menu it belongs to and then by the ordering in force. The
+ * leading name is off screen and is the half that does not change with the ordering.
+ */
 const sortControl = (page) => toolbar(page).getByRole("button", { name: /^Sort/ });
 const facetChip = (page) => toolbar(page).locator('[aria-haspopup="menu"]');
 
@@ -260,9 +268,9 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
     "the reloaded address does not describe the view it was copied from",
   ).toEqual(afterSearch);
 
-  // 4. A facet change moves the number the count line states, not only the cards.
+  // 4. A facet change moves the number the bar states, not only the cards.
   annotate(
-    "the count-line assertion did not run: the count line is drawn beneath this toolbar and no page had answered one",
+    "the range assertion did not run: the bar states a range only once a page has answered, and none had",
   );
 
   // 5. The host deletes its own keys on a tab change, including the change back into this tab. This
@@ -394,6 +402,17 @@ test("an answered page decides the source a sentence names", async ({
     pageReadWasIntercepted,
     "the answered page never arrived, so the assertion below would have run against a refusal",
   ).toBe(true);
+
+  // The range is stated in the bar and nowhere else. Two copies of it disagree the moment a facet
+  // moves one of them, and the reader has no way to tell which one is the page they are on.
+  await expect(
+    page.getByText(RANGE_IN_THE_BAR),
+    "the answered page's range is drawn more than once, or nowhere",
+  ).toHaveCount(1);
+  await expect(
+    toolbar(page).getByText(RANGE_IN_THE_BAR),
+    "the range is drawn somewhere other than the bar",
+  ).toBeVisible();
 
   // The sentence names the source the page carried, and names the other one nowhere.
   await expect(
