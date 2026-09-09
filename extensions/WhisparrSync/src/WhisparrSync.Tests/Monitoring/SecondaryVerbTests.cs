@@ -375,9 +375,9 @@ public sealed class SecondaryVerbTests
         var client = TestWhisparrClient.Over(http, handler);
 
         await ((IWhisparrSearchGrabbing)client).SearchMonitoredAsync(
-            Address, Key, WhisparrGeneration.V3, WhisparrEntityKind.Studio, 4, TestCt);
+            Address, Key, WhisparrGeneration.V3, WhisparrEntityKind.Studio, [4], TestCt);
         await ((IWhisparrSearchGrabbing)client).SearchMonitoredAsync(
-            Address, Key, WhisparrGeneration.V2, WhisparrEntityKind.Studio, 3, TestCt);
+            Address, Key, WhisparrGeneration.V2, WhisparrEntityKind.Studio, [3], TestCt);
 
         Assert.All(handler.Requests, request => Assert.Equal("/api/v3/command", request.Path));
 
@@ -393,7 +393,7 @@ public sealed class SecondaryVerbTests
         // generation's shape.
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => ((IWhisparrSearchGrabbing)client).SearchMonitoredAsync(
-                Address, Key, (WhisparrGeneration)(-1), WhisparrEntityKind.Studio, 3, TestCt));
+                Address, Key, (WhisparrGeneration)(-1), WhisparrEntityKind.Studio, [3], TestCt));
     }
 
     /// <summary>

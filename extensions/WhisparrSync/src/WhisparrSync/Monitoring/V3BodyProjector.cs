@@ -206,6 +206,30 @@ internal static class V3BodyProjector
                 nameof(kind), kind, "This is not an entity kind this product expresses."),
         };
 
+    /// <summary>The command asking the instance to look for what several entities monitor and lack.</summary>
+    /// <remarks>
+    /// One command naming every entity, which is this generation's own spelling: the id member is an
+    /// array and the instance iterates the whole of it.
+    /// <para>
+    /// An id the instance does not hold fails the WHOLE command, and the answer names only the first
+    /// such id, so a caller composes this over entities it has already established the instance holds.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="kind"/> is not a kind this product expresses, <paramref name="entityIds"/> is
+    /// empty, or one of them is below one.
+    /// </exception>
+    internal static JsonObject SearchAllMonitored(
+        WhisparrEntityKind kind, IReadOnlyList<int> entityIds)
+        => kind switch
+        {
+            WhisparrEntityKind.Studio => Command(StudiosSearchCommand, "studioIds", entityIds),
+            WhisparrEntityKind.Performer
+                => Command(PerformersSearchCommand, "performerIds", entityIds),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(kind), kind, "This is not an entity kind this product expresses."),
+        };
+
     /// <summary>The command asking the instance to look for one scene it holds.</summary>
     /// <remarks>
     /// Composed only for a caller holding the per-scene grabbing role, and it is one of the two
@@ -220,13 +244,30 @@ internal static class V3BodyProjector
     /// <summary>One command naming one entity, in this generation's id-array spelling.</summary>
     internal static JsonObject Command(string name, string idsProperty, int entityId)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
+        return Command(name, idsProperty, (IReadOnlyList<int>)[entityId]);
+    }
+
+    /// <summary>One command naming several entities, in this generation's id-array spelling.</summary>
+    /// <remarks>
+    /// An empty array is refused rather than composed. The instance accepts a command whose id array
+    /// is empty and runs it over nothing, which a reader cannot tell from a search that found nothing.
+    /// </remarks>
+    internal static JsonObject Command(string name, string idsProperty, IReadOnlyList<int> entityIds)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(idsProperty);
-        ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
+        ArgumentNullException.ThrowIfNull(entityIds);
+        ArgumentOutOfRangeException.ThrowIfZero(entityIds.Count);
+        foreach (var entityId in entityIds)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
+        }
+
         return new JsonObject
         {
             ["name"] = name,
-            [idsProperty] = new JsonArray(entityId),
+            [idsProperty] = new JsonArray([.. entityIds.Select(entityId => (JsonNode)entityId)]),
         };
     }
 

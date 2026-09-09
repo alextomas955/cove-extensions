@@ -82,6 +82,16 @@ public enum MonitorBulkVerb
 
     /// <summary>Stop the connected instance monitoring each selected entity.</summary>
     Unmonitor,
+
+    /// <summary>
+    /// Ask the connected instance to look for what each selected entity monitors and does not hold.
+    /// </summary>
+    /// <remarks>
+    /// The one verb here that can make an instance download. It changes no flag: an entity the
+    /// instance does not monitor is searched over nothing, and the scope each entity is monitored at
+    /// is left exactly as it stands.
+    /// </remarks>
+    SearchAllMonitored,
 }
 
 /// <summary>What a caller may say when it asks for a whole selection to be acted on.</summary>
