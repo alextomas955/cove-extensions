@@ -86,6 +86,42 @@ public enum SceneRefusalKind
     WhisparrIsNotMonitoringThisScene,
 }
 
+/// <summary>What one selection of scenes is asked to do.</summary>
+/// <remarks>
+/// A wire type, because the browser sends the value chosen in its own overlay. The converter is on
+/// the TYPE: an options-level one outranks a type attribute, so a second declaration could drift and
+/// win in silence.
+/// </remarks>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
+public enum SceneBatchVerb
+{
+    /// <summary>Add each scene the instance holds no entry for.</summary>
+    Add,
+
+    /// <summary>Ask the instance to want each scene it holds.</summary>
+    Monitor,
+
+    /// <summary>Ask the instance to stop wanting each scene it holds.</summary>
+    Unmonitor,
+
+    /// <summary>Ask the instance to look for each scene it holds and monitors.</summary>
+    Search,
+
+    /// <summary>Put each scene on the instance's own exclusion list.</summary>
+    Exclude,
+}
+
+/// <summary>What a caller may say when it asks for a selection of scenes to be acted on.</summary>
+/// <remarks>
+/// Every member is nullable, so a body naming none is a refusal this product writes with a code the
+/// browser can read rather than a bind failure whose shape it does not choose.
+/// </remarks>
+/// <param name="EntityType">The selection type as the host's bar passed it.</param>
+/// <param name="Verb">The gesture chosen, which decides which bound applies.</param>
+/// <param name="CoveIds">The Cove videos selected, repeats and all.</param>
+public sealed record SceneBatchRequest(
+    string? EntityType, SceneBatchVerb? Verb, int[]? CoveIds);
+
 /// <summary>What one of the scene tab's own verbs produced.</summary>
 /// <remarks>
 /// It carries no state. The browser re-reads the scene's facts after every verb, so what a reader

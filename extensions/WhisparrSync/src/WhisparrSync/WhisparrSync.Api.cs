@@ -62,6 +62,7 @@ public sealed partial class WhisparrSync
     private string SceneExcludeRoute => RouteBase + "/scene/{coveId}/exclude";
     private string SceneRemoveExclusionRoute => RouteBase + "/scene/{coveId}/remove-exclusion";
     private string SceneSearchRoute => RouteBase + "/scene/{coveId}/search";
+    private string SceneBatchRoute => RouteBase + "/scenes/batch";
     private string LibraryStatusRoute => RouteBase + "/library/{kind}/status";
     private string BulkMonitorRoute => RouteBase + "/entities/bulk-monitor";
     private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
@@ -309,6 +310,16 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
+        // The same tier again: one gesture aiming this extension's stored credential at a third
+        // party for every scene in a selection is not a lesser act than doing it for one. The reach
+        // is what the body names, and the verb it names decides which bound applies.
+        endpoints.MapPost(SceneBatchRoute,
+            (SceneBatchRequest request, ICurrentPrincipalAccessor principal, IJobService jobs,
+             IServiceScopeFactory scopes)
+                => EnqueueSceneBatch(request, principal, jobs, scopes))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
         endpoints.MapGet(MissingCountRoute,
             (string kind, int coveId, string? q, string? filters,
              ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
@@ -464,6 +475,18 @@ public sealed partial class WhisparrSync
     private const string PerformersSelectionType = "performers";
 
     /// <summary>
+    /// The spelling the host's selection bar passes for a video selection.
+    /// </summary>
+    /// <remarks>
+    /// SINGULAR, unlike the studio and performer spellings: the bar's own normalizer maps the videos
+    /// plural to the singular and every video call site passes the singular already. The host matches
+    /// an action's declared types by exact string membership, so the plural here would make the
+    /// button simply not appear, with no error anywhere.
+    /// </remarks>
+    private const string VideosSelectionType = "video";
+
+
+    /// <summary>
     /// The surfaces the host mounts: one dedicated settings tab, one control in each of the studio
     /// and performer pages' own action rows, one catalogue tab per entity page type, one scene tab
     /// on the video detail page, and one bulk action per selection bar.
@@ -492,8 +515,9 @@ public sealed partial class WhisparrSync
     /// the next page load.
     /// </para>
     /// <para>
-    /// The bulk actions stay registered on both generations: an action's PRESENCE is a manifest fact
-    /// and a verb's AVAILABILITY is a runtime one, enforced in the handler and again at the route.
+    /// The bulk actions stay registered on both generations: an action's
+    /// PRESENCE is a manifest fact and a verb's AVAILABILITY is a runtime one, enforced in the
+    /// handler and again at the route.
     /// </para>
     /// </remarks>
     public override UIManifest GetUIManifest()
@@ -1620,6 +1644,17 @@ public sealed partial class WhisparrSync
     /// and it sits far above any selection a page can make. A larger job is the caller's to split.
     /// </remarks>
     private const int MaxEntityIdsPerRequest = 1000;
+
+    /// <summary>
+    /// How many Cove ids one scene selection may carry for the search verb.
+    /// </summary>
+    /// <remarks>
+    /// One press of that verb becomes one search per scene against every indexer the instance has,
+    /// so its cost multiplies outside Cove in a way the other four verbs' does not, and it takes a
+    /// lower bound of its own. The bound is applied before anything is encoded or enqueued, and it
+    /// is answered under its own code so a caller can state the limit that applied.
+    /// </remarks>
+    private const int MaxSceneSearchIdsPerRequest = 100;
 
     /// <summary>The prefix the host mints onto every job type this extension enqueues.</summary>
     private string OwnJobTypePrefix => "ext:" + Id + ":";

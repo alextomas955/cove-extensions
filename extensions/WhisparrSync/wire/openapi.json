@@ -1062,6 +1062,55 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/scenes/batch": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SceneBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobEnqueued"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/count": {
       "get": {
         "tags": [
@@ -2524,6 +2573,52 @@
             "type": "boolean"
           }
         }
+      },
+      "SceneBatchRequest": {
+        "required": [
+          "entityType",
+          "verb",
+          "coveIds"
+        ],
+        "type": "object",
+        "properties": {
+          "entityType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "verb": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SceneBatchVerb"
+              }
+            ]
+          },
+          "coveIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "SceneBatchVerb": {
+        "enum": [
+          "add",
+          "monitor",
+          "unmonitor",
+          "search",
+          "exclude",
+          null
+        ]
       },
       "SceneDetailView": {
         "required": [
