@@ -171,6 +171,18 @@ declare module "@cove/runtime/components" {
     invertSelection: () => void;
   };
 
+  // Draws its own Cancel button, traps Tab, answers Escape, restores focus, and renders its own
+  // backdrop over the whole viewport. Narrowed to the props this repo passes: `confirmLabel`
+  // defaults to "Delete", so every call site here names its own verb instead.
+  export const ConfirmDialog: (props: {
+    open: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  }) => never;
+
   export type KeyboardShortcutSurface =
     "global" | "page" | "list" | "detail" | "player" | "viewer" | "overlay" | "local";
 

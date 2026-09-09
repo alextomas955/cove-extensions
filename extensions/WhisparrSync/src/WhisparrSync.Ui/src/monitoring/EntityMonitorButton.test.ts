@@ -62,11 +62,37 @@ vi.mock("@cove-extensions/ui-shared/postAction", () => ({
   },
 }));
 
+/**
+ * The host dialog resolves only inside a running Cove, so it stands in here. The stand-in draws the
+ * two buttons the real one draws, because what a press of each sends is the property under test.
+ */
+vi.mock("./hostComponents", () => ({
+  ConfirmDialog: ({
+    title,
+    message,
+    confirmLabel,
+    onConfirm,
+    onCancel,
+  }: {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  }) =>
+    createElement("div", { role: "dialog", "aria-label": title }, [
+      createElement("p", { key: "message" }, message),
+      createElement("button", { key: "confirm", type: "button", onClick: onConfirm }, confirmLabel),
+      createElement("button", { key: "cancel", type: "button", onClick: onCancel }, "Cancel"),
+    ]),
+}));
+
 const { WhisparrPerformerActions, WhisparrStudioActions } = await import("./EntityMonitorButton");
 const {
   ACTION_ADD_ALL_MISSING,
   ACTION_DID_NOT_REACH_WHISPARR,
   ACTION_REFLECT_OWNED,
+  ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   INSTANCE_OFFERS_NO_QUALITY_PROFILE,
   INSTANCE_REFUSED,
@@ -134,7 +160,21 @@ async function render(node: ReactNode) {
     // container clips its overflow, so a panel left in the flow there would be cut off.
     menu: () => document.body.querySelector('[role="menu"]'),
     rows: () => [...document.body.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]')],
+    // Portaled for the reason the menu is, so it is queried from the document too.
+    dialog: () => document.body.querySelector('[role="dialog"]'),
   };
+}
+
+/** Presses the confirmation's own confirm button, which is named for the row that opened it. */
+function confirm(): void {
+  const dialog = document.body.querySelector('[role="dialog"]');
+  dialog?.querySelectorAll("button")[0].click();
+}
+
+/** Presses the confirmation's way out. */
+function cancelConfirmation(): void {
+  const dialog = document.body.querySelector('[role="dialog"]');
+  dialog?.querySelectorAll("button")[1].click();
 }
 
 /** A read that never settles, which is the frame under test. */
@@ -319,6 +359,9 @@ test("each verb this build serves posts its own route rather than the monitor on
 
   expect(scope?.disabled).toBe(false);
   scope?.click();
+  await sleep(COMMIT_MS);
+  // All Scenes marks the back catalogue, so it asks before it sends.
+  confirm();
   await sleep(COMMIT_MS);
   expect(posted().at(-1)?.endsWith("/scope")).toBe(true);
 
@@ -598,4 +641,57 @@ test("add all missing is pressed at its own route on a generation holding the ca
   expect(posted[0].path).toBe(
     "/extensions/com.alextomas955.whisparrsync/entity/studio/1/add-all-missing",
   );
+});
+
+test("All Scenes asks before it sends, and a cancel sends nothing", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
+  rendered.button?.click();
+  await sleep(COMMIT_MS);
+
+  rendered.rows()[1].click();
+  await sleep(COMMIT_MS);
+
+  expect(rendered.dialog()?.textContent).toContain(ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
+  expect(rendered.dialog()?.textContent).toContain("1 entity.");
+  expect(sent.filter((call) => call.method === "POST")).toEqual([]);
+
+  cancelConfirmation();
+  await sleep(COMMIT_MS);
+
+  expect(rendered.dialog()).toBeNull();
+  expect(sent.filter((call) => call.method === "POST")).toEqual([]);
+});
+
+test("standing by All Scenes posts the scope the row carries", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
+  rendered.button?.click();
+  await sleep(COMMIT_MS);
+
+  rendered.rows()[1].click();
+  await sleep(COMMIT_MS);
+  confirm();
+  await sleep(COMMIT_MS);
+
+  const posted = sent.filter((call) => call.method === "POST");
+  expect(posted).toHaveLength(1);
+  expect((JSON.parse(posted[0].body ?? "{}") as { scope: string }).scope).toBe("allScenes");
+  expect(rendered.dialog()).toBeNull();
+});
+
+test("the narrower scope is posted with no confirmation at all", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
+  rendered.button?.click();
+  await sleep(COMMIT_MS);
+
+  rendered.rows()[0].click();
+  await sleep(COMMIT_MS);
+
+  expect(rendered.dialog()).toBeNull();
+  expect(sent.filter((call) => call.method === "POST")).toHaveLength(1);
 });
