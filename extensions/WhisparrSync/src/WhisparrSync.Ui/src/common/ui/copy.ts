@@ -374,12 +374,8 @@ export const CAP_UNAVAILABLE_ON_THIS_GENERATION = "Currently available on Whispa
 export const SEARCH_WITH_NO_ENTRY =
   "Whisparr has no entry for this scene yet, so there is nothing to search for - mark it wanted first.";
 
-/**
- * The label on the scene tab's state row.
- *
- * The row is drawn for every scene, so the label names the fact and never its value.
- */
-export const SCENE_FACT_STATE = "State";
+/** The product's own name, drawn beside the state chip in the scene tab's header. */
+export const SCENE_HEADER_WHISPARR = "Whisparr";
 
 /** The label on the scene tab's quality row, which names the file the instance holds. */
 export const SCENE_FACT_QUALITY = "Quality";
@@ -390,66 +386,17 @@ export const SCENE_FACT_PROFILE = "Quality profile";
 /** The label on the scene tab's cutoff row, which the profile above it resolves. */
 export const SCENE_FACT_CUTOFF = "Cutoff";
 
-/**
- * The quality row's value for a scene the instance has acquired nothing for.
- *
- * A statement about the instance and not a failure, so it reads as a fact rather than as a row that
- * could not be filled.
- */
-export const SCENE_HAS_NO_FILE_YET = "No file yet.";
-
-/** The profile and cutoff rows' value for a scene the instance holds no entry for. */
-export const SCENE_IS_NOT_IN_WHISPARR = "Not in Whisparr yet.";
-
-/**
- * The cutoff row's value where the profile itself resolves its own cutoff to nothing.
- *
- * Names the profile as where the answer is missing, because that is where a reader changes it.
- */
-export const SCENE_CUTOFF_NOT_NAMED = "Whisparr names no cutoff on this profile.";
-
 /** The scene tab's add control. */
 export const SCENE_ADD = "Add to Whisparr";
-
-/** What the add control states beneath itself, so the reader knows before pressing it. */
-export const SCENE_ADD_STATES = "Adds this scene to Whisparr and downloads nothing.";
-
-/** What the monitor control states. Whisparr's own schedule decides what it takes later. */
-export const SCENE_MONITOR_STATES = "Tells Whisparr to want this scene. Downloads nothing now.";
-
-/** What the unmonitoring half states. The second sentence is what a reader would otherwise assume. */
-export const SCENE_STOP_MONITORING_STATES =
-  "Tells Whisparr to stop wanting this scene. Nothing already downloaded is removed.";
 
 /** The scene tab's search control, named as both surfaces name it. */
 export const SCENE_SEARCH = "Search now";
 
-/** What the search control states. The only control on the tab with an external cost. */
-export const SCENE_SEARCH_STATES =
-  "Asks Whisparr to look for this scene now. This is the only control here that can download a file.";
-
 /** The excluding half of the tab's one exclusion control. */
 export const SCENE_EXCLUDE = "Exclude from Whisparr";
 
-/** What the excluding half states. */
-export const SCENE_EXCLUDE_STATES =
-  "Puts this scene on Whisparr's exclusion list, so it is not added again. Nothing already downloaded is removed.";
-
 /** The removing half of the same control, which is what the reader sees once it is excluded. */
 export const SCENE_REMOVE_EXCLUSION = "Remove exclusion";
-
-/** What the removing half states. */
-export const SCENE_REMOVE_EXCLUSION_STATES =
-  "Takes this scene off Whisparr's exclusion list. Downloads nothing.";
-
-/**
- * What a monitored scene already does on its own, stated once beside the search control.
- *
- * Says better files rather than the phrasing the discipline test forbids, and it is also the answer
- * to where a separate upgrades control went without naming one that does not exist.
- */
-export const SCENE_UPGRADES_FOLLOW_THE_CUTOFF =
-  "A monitored scene already takes better files up to its cutoff on its own. Search now is how you ask Whisparr to look straight away.";
 
 /**
  * A search asked for on a scene the instance holds no entry for, on the scene's own tab.
