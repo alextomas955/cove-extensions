@@ -1,4 +1,4 @@
-// The one network every harness stack joins, and the two operations that manage it.
+// The one network every harness stack joins, and the one operation that brings it into being.
 //
 // Why it exists at all is written in docker/docker-compose.yml, beside the `external` declaration
 // that consumes it: a project-owned network per stack means a bridge per stack, and each new bridge
@@ -15,16 +15,27 @@ const run = promisify(execFile);
 // create below is idempotent, so a leftover from a killed run is joined rather than fought over.
 export const SHARED_NETWORK_NAME = process.env.COVE_E2E_NETWORK || "cove-e2e-shared";
 
-// Marks the network as this suite's, so a human clearing up after a killed run can tell it from a
-// network some other project left behind.
+// Marks the network as this suite's, so a human clearing up after a run can tell it from a network
+// some other project left behind. Nothing here removes the network, so the label is for the person
+// reading `docker network ls`.
 const LABEL = "com.cove-extensions.e2e=shared-harness-network";
 
 /**
  * Creates the shared network, treating "it already exists" as success.
  *
- * Idempotent on purpose: a run killed before its teardown leaves the network behind, and the next
- * run must join that one rather than fail. `docker network create` is also the whole of the
- * mitigation's cost - one address event, paid before any browser exists.
+ * Idempotent on purpose, and nothing deletes it afterwards. Three reasons it OUTLIVES the run rather
+ * than being torn down:
+ *
+ * A name that already exists is not necessarily ours. `COVE_E2E_NETWORK` can name a network the
+ * developer keeps for something else, and an unrelated `cove-e2e-shared` can exist for reasons this
+ * suite knows nothing about. Removing what we merely joined would destroy someone else's resource.
+ *
+ * Two suites can share one Docker daemon. Whichever finished first would take the network away from
+ * the other, and the failure would land on compose startup in the run that did nothing wrong.
+ *
+ * What is left behind is ONE network, which the next run joins, and it is labelled so a person can
+ * see whose it is. On CI the runner is discarded anyway. Both costs are smaller than either failure
+ * above, and smaller than the 21 networks a run used to create and destroy.
  */
 export async function ensureSharedNetwork() {
   try {
@@ -39,18 +50,5 @@ export async function ensureSharedNetwork() {
       `Could not create the shared e2e network '${SHARED_NETWORK_NAME}': ${String(error.stderr ?? error.message).trim()}`,
       { cause: error },
     );
-  }
-}
-
-/**
- * Removes the shared network. Best-effort: a stack that outlived its test still holds an endpoint on
- * it, and Docker refuses to remove a network in use. Leaving it costs one unused network and the
- * next run joins it, so a failure here is not worth failing a green suite over.
- */
-export async function removeSharedNetwork() {
-  try {
-    await run("docker", ["network", "rm", SHARED_NETWORK_NAME]);
-  } catch {
-    // Intentionally silent; see above.
   }
 }

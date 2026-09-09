@@ -98,7 +98,7 @@ each against its own isolated Cove instance. This is safe because:
 **Worker count is capped, not left at Playwright's CPU-based default, and CI gets fewer workers
 than local.** Each worker brings up its own compose stack plus a real browser instance. The stacks
 share one network, so the address-pool limit below is now reached through nothing but that single
-network — but the containers, the databases and the browsers are still per worker.
+network. The containers, the databases and the browsers are still per worker.
 Locally, 4 is capped because Docker's default address-pool allocation is a finite, **host-wide**
 resource shared with any other Docker projects already running on the machine — confirmed
 directly: an uncapped run (Playwright's default, which scaled to 13 workers on the machine this was
@@ -122,9 +122,9 @@ docker network ls --filter "name=testcontainers" --format "{{.Name}}" | xargs -r
 docker network rm cove-e2e-shared
 ```
 
-The last line is the shared network `globalSetup` creates. Removing it is optional: the next run
-joins whatever is there, and `docker network rm` refuses while any container still holds an endpoint
-on it, so clear the containers first.
+The last line is the shared network `globalSetup` creates and deliberately never removes. Clearing
+it is optional and needs the containers gone first, since `docker network rm` refuses while any
+container still holds an endpoint on it. The next run joins whatever is there.
 
 ## Writing your first test
 
@@ -240,8 +240,8 @@ the app's own script and stylesheet chunks, so the page renders nothing on the c
 script error and no failed navigation to point at.
 
 Only an ADDRESS change does this. In Chromium, `RTM_NEWADDR` reaches `OnIPAddressChanged`
-(`net/base/address_tracker_linux.cc`), and the four socket and session pools that subscribe to it —
-`TransportClientSocketPool`, `SpdySessionPool`, `HttpStreamPool`, `QuicSessionPool` — flush with
+(`net/base/address_tracker_linux.cc`), and the four socket and session pools that subscribe to it
+(`TransportClientSocketPool`, `SpdySessionPool`, `HttpStreamPool`, `QuicSessionPool`) flush with
 `ERR_NETWORK_CHANGED`. `RTM_NEWLINK` sets only `link_changed`, which reaches at most a
 connection-type notification, and no pool observes that one. So attaching a container, which creates
 a veth, is harmless; creating a NETWORK, which creates a bridge that takes an IPv4 address, is not.
@@ -253,8 +253,8 @@ That is why every stack joins one shared network rather than getting its own (se
 [`lib/shared-network.mjs`](lib/shared-network.mjs)). Measured on a CI runner, a project-owned network
 per stack cost 21 network creations and 42 address events in one run, every one of them the suite's
 own; the same run then reported 37 aborts. Joining an existing network creates no interface, so the
-counts are 1 and 2 — `globalSetup`'s own create and teardown, paid before any browser exists — and
-the aborts are 0. Container attachment is unchanged at ~90 per run, which is the point: the veths
+count is 1, which is `globalSetup`'s own create, paid before any browser exists, and the aborts are 0. Nothing removes the network afterwards, for the reasons `lib/shared-network.mjs` gives, so a run
+raises one address event in total rather than 42. Container attachment is unchanged at ~90 per run, which is the point: the veths
 were never the problem.
 
 Related upstream reports, both of which describe the IPv6 half of this and neither of which has a
