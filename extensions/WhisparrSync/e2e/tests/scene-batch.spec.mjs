@@ -55,13 +55,7 @@ import {
 const BATCH_BUTTON_LABEL = "Whisparr";
 
 // The five rows in the order they are promised in. Transcribed the same way.
-const BATCH_ROW_LABELS = [
-  "Add to Whisparr",
-  "Monitor in Whisparr",
-  "Stop monitoring in Whisparr",
-  "Search now",
-  "Exclude from Whisparr",
-];
+const BATCH_ROW_LABELS = ["Add", "Monitor", "Unmonitor", "Search now", "Exclude"];
 const MONITOR = BATCH_ROW_LABELS[1];
 const SEARCH = BATCH_ROW_LABELS[3];
 const BULK_CANCEL = "Cancel";

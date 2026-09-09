@@ -2,6 +2,15 @@
 
 User-facing changes, newest first.
 
+## 1.8.0 - Shorter names on the Whisparr menu rows
+
+- **A menu row now names its verb alone.** The scene selection menu reads Add, Monitor, Unmonitor,
+  Search now and Exclude, and the studio and performer menus read Monitor and Unmonitor. Every menu
+  is headed with the Whisparr name, so a row no longer repeats it. Which rows a menu offers, and what
+  each one does, are unchanged.
+- **The Whisparr tab on a scene's page keeps its longer control names.** Its controls sit beside
+  Cove's own, where the name says who acts.
+
 ## 1.7.0 - The studio and performer Whisparr controls are named Whisparr
 
 - **The button on a studio or performer page, and the button in those lists' selection bars, are
