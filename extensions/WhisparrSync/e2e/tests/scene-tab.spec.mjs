@@ -212,13 +212,31 @@ async function stateOnInstance(api, remoteId) {
  */
 const sceneControl = (page, label) => page.getByRole("button", { name: new RegExp(`^${label}`) });
 
+/**
+ * The tab's own fact block, found by the label of the row the chip sits in.
+ *
+ * Scoped rather than page-wide: the host draws pills of its own on a video page, and a bare shape
+ * locator would find one of those on a tab that drew nothing.
+ */
+const sceneFacts = (page) =>
+  page.locator("dl").filter({ has: page.getByText(STATE_ROW_LABEL, { exact: true }) });
+
+/**
+ * The state chip, located by its shape and asserted on by its words.
+ *
+ * The chip's label shares its element with an aria-hidden glyph, so the element carries both and an
+ * exact-text locator finds nothing. Same reason library-status.spec.mjs locates its card badges
+ * this way.
+ */
+const stateChip = (page) => sceneFacts(page).locator("span.rounded-full");
+
 /** Waits until the tab's own chip reads the state the instance answered, and answers with it. */
 async function chipAgreesWithInstance(page, api, remoteId, what) {
   const stated = await stateOnInstance(api, remoteId);
   await expect(
-    page.getByText(stated, { exact: true }),
+    stateChip(page),
     `${what}: the instance answers "${stated}" for this scene and the tab does not read it, so the tab is painting a state of its own rather than reading one back`,
-  ).toBeVisible({ timeout: REGION_BUDGET_MS });
+  ).toHaveText(new RegExp(`${stated}$`), { timeout: REGION_BUDGET_MS });
   return stated;
 }
 
@@ -283,9 +301,9 @@ test.describe("scene tab", () => {
       ).toBeVisible({ timeout: REGION_BUDGET_MS });
 
       await expect(
-        page.getByText(scene.statedAs, { exact: true }),
+        stateChip(page),
         `the tab drew no state chip reading "${scene.statedAs}", which is what the instance itself answered for the seeded scene`,
-      ).toBeVisible({ timeout: REGION_BUDGET_MS });
+      ).toHaveText(new RegExp(`${scene.statedAs}$`), { timeout: REGION_BUDGET_MS });
 
       // Does NOT depend on the tab rendering. A wrong export name throws an ESM SyntaxError at
       // bundle load, and the host loads every extension bundle under one promise, so that one throw
