@@ -65,7 +65,7 @@ what you mark wanted is the cost to think about.
 
 ### A performer
 
-The menu offers one item, **Monitor in Whisparr**, and no scope. Whisparr expresses no future-only
+The menu offers one item, **Monitor**, and no scope. Whisparr expresses no future-only
 option for a performer on either generation, so monitoring a performer covers every scene Whisparr
 lists for it. That item asks you to confirm for the same reason All Scenes does, and states the same
 cost.
@@ -74,7 +74,7 @@ Monitoring a performer needs Whisparr v3 (Eros). On Whisparr v2 the button is di
 
 ## Turn monitoring off
 
-**Stop monitoring in Whisparr**, in the same menu.
+**Unmonitor**, in the same menu.
 
 It stops Whisparr wanting new scenes. **It does not retract what All Scenes already made wanted**: a
 scene that is already wanted stays wanted, and Whisparr will still acquire it. Unmonitoring deletes
@@ -276,9 +276,8 @@ selection bar.
 A small popover opens, headed by the Whisparr mark, the product's name and how many entities you
 selected. Each row draws a glyph and its own name:
 
-- A studio selection is offered **Future Scenes**, **All Scenes** and **Stop monitoring in
-  Whisparr**.
-- A performer selection is offered **Monitor in Whisparr** and **Stop monitoring in Whisparr**.
+- A studio selection is offered **Future Scenes**, **All Scenes** and **Unmonitor**.
+- A performer selection is offered **Monitor** and **Unmonitor**.
 
 Those rows carry two verbs between them, monitor and unmonitor, and the overlay offers no others.
 **Add all missing**, **Reflect owned** and **Search all monitored** are not offered for a selection.
@@ -309,8 +308,7 @@ reaches it. The counts are the honest count of the monitoring: an entity Whispar
 counts as succeeded whether or not its files were linked. To see whether linking is happening, run
 **Reflect owned** on one entity from its own menu, where its result does appear.
 
-**Stop monitoring in Whisparr** over a selection leaves behind exactly what it leaves behind for one
-entity: it does not retract what All Scenes already made wanted.
+**Unmonitor** over a selection leaves behind exactly what it leaves behind for one entity: it does not retract what All Scenes already made wanted.
 
 **All Scenes over a selection asks you to confirm**, the same way it does for one entity, and the
 confirmation names how many entities you selected. Cancelling it sends nothing.

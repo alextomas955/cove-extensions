@@ -66,7 +66,7 @@ const NO_IDENTITY_IN_THIS_NAMESPACE =
   "Cove holds no link for this entity that the connected Whisparr can identify it by.";
 const SCOPE_FUTURE_SCENES = "Future Scenes";
 const SCOPE_ALL_SCENES = "All Scenes";
-const STOP_MONITORING_IN_WHISPARR = "Stop monitoring in Whisparr";
+const UNMONITOR = "Unmonitor";
 
 // The refusal kind meaning nothing was refused, in the wire spelling the server answers it in.
 const MONITOR_REFUSAL_NONE = "none";
@@ -428,7 +428,7 @@ test("the control renders and works on both real detail pages, and the instance 
     await expect(
       page
         .getByRole("menu", { name: WHISPARR_MONITORED })
-        .getByRole("menuitem", { name: STOP_MONITORING_IN_WHISPARR }),
+        .getByRole("menuitem", { name: UNMONITOR, exact: true }),
       "the menu did not follow the state the instance now reports",
     ).toBeVisible();
 
