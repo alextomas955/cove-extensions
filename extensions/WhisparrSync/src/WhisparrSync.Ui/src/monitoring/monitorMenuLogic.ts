@@ -293,7 +293,7 @@ const REFLECT_OWNED_SKIP_SENTENCE: Record<ReflectOwnedSkip, string> = {
   hardLinkSettingUnreadable: REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
 };
 
-/** What each scope is called, in the instance's own words. */
+/** What each scope row is called, named for what pressing it does. */
 const SCOPE_LABEL: Record<MonitorScopeChoice, string> = {
   futureScenes: SCOPE_FUTURE_SCENES,
   allScenes: SCOPE_ALL_SCENES,
@@ -359,7 +359,7 @@ export function describeMonitorRefusal(kind: MonitorRefusalKind): MonitorRefusal
 }
 
 /**
- * Whether All Scenes cannot be taken back on <code>generation</code>.
+ * Whether the wider scope cannot be taken back on <code>generation</code>.
  *
  * A null generation is nothing connected, which settles no scope behaviour either way.
  */
@@ -370,7 +370,7 @@ export function allScenesIsAOneWayDoor(generation: WhisparrGeneration): boolean 
 /**
  * Whether pressing <code>item</code> marks every scene the instance already lists as wanted.
  *
- * True of the All Scenes row, and of the standalone monitor row, which is what a kind expressing no
+ * True of the wider scope row, and of the standalone monitor row, which is what a kind expressing no
  * scope pair is offered and covers the back catalogue with no scope to name.
  */
 export function marksTheBackCatalogue(item: MonitorMenuItem): boolean {
@@ -582,7 +582,7 @@ export function monitorMenuItemKey(item: MonitorMenuItem): MonitorMenuItemKey {
 }
 
 /** The verbs the bulk route carries, which are a subset of the entity routes. */
-export type BulkVerb = "monitor" | "unmonitor";
+export type BulkVerb = "monitor" | "unmonitor" | "searchAllMonitored";
 
 /** One action the selection overlay offers, already decided. */
 export interface BulkMonitorAction {
@@ -600,7 +600,7 @@ export interface BulkMonitorOffer {
   readonly actions: readonly BulkMonitorAction[];
   /** The one sentence to state when nothing can be offered, or null when something can. */
   readonly reason: string | null;
-  /** Whether All Scenes cannot be taken back on the connected generation. */
+  /** Whether the wider scope cannot be taken back on the connected generation. */
   readonly oneWayDoor: boolean;
 }
 
@@ -675,5 +675,6 @@ function offered(
 function bulkVerbFor(route: string): BulkVerb | null {
   if (route === MONITOR_ROUTE) return "monitor";
   if (route === UNMONITOR_ROUTE) return "unmonitor";
+  if (route === SEARCH_ALL_MONITORED_ROUTE) return "searchAllMonitored";
   return null;
 }
