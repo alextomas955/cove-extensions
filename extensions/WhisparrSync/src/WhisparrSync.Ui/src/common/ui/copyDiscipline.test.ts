@@ -100,8 +100,8 @@ const RENDERED_BY_THE_IMPORT_BANNER = [
 /** The entity control's two names. It carries the product's mark instead of a word, so its
  * accessible name is the only name it has. */
 const RENDERED_BY_THE_ENTITY_CONTROL = [
-  "MONITOR_IN_WHISPARR",
-  "MONITORED_IN_WHISPARR",
+  "WHISPARR_NOT_MONITORED",
+  "WHISPARR_MONITORED",
   "MONITORING_COULD_NOT_BE_READ",
   "ACTION_DID_NOT_REACH_WHISPARR",
   "ACTION_ABSENT_IN_THIS_VERSION",
@@ -130,6 +130,7 @@ const RENDERED_BY_THE_LIBRARY_PILL = [
  * entity surface. A row draws its name and its glyph, and states nothing beneath itself.
  */
 const CARRIED_BY_THE_MONITOR_MENU_ITEMS = [
+  "MONITOR_IN_WHISPARR",
   "SCOPE_FUTURE_SCENES",
   "SCOPE_ALL_SCENES",
   "STOP_MONITORING_IN_WHISPARR",
