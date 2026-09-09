@@ -33,9 +33,8 @@ The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific
   `GetUIManifest` omits the videos-view and performers-view registrations when the stored generation
   is the older one, so the host renders no wrapper element for them. A component returning null
   leaves the host's in-card box behind, which is a different observable result.
-- The stored generation reaches the manifest through a volatile field filled at load and refreshed
-  after a settings save, because `GetUIManifest` is synchronous and cannot read the store. A
-  generation not established keeps every surface.
+- `GetUIManifest` is synchronous and cannot read the store. Keep its generation available across
+  host threads and current after options are loaded. A generation not established keeps every surface.
 - The host mounts its card slot in the grid display mode only, and the toolbar slot in every mode. So
   a control that gates card badges can be pressed where no badge can mount, and the disclosure of
   that is on the control.
@@ -44,27 +43,23 @@ The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific
 
 The name the C# UI manifest advertises and the key in the bundle's `defineExtension` components map
 must match byte for byte. On a mismatch the host renders the tab and heading and an empty component,
-with no error. The test that checks it reads both files and compares them to each other, never to a
-literal.
+with no error. Verify agreement between the actual manifest and bundle registrations. Follow the
+root testing policy when choosing how to exercise that contract.
 
 ## Which half of the outbound seam a request belongs in
 
-Each generation's requests are composed by its own generated package: `Whisparr3.Net` reached
-through `Whisparr3Gateway`, `Whisparr2.Net` reached through `Whisparr2Gateway`. Both gateways hold an
-instance of `GeneratedClientRegistry<TTarget>`, so the registration cache, the reach counter, the cap
-and the eviction loop are declared once.
+Use the generated client package for the target generation: `Whisparr3.Net` or `Whisparr2.Net`.
 
 - A new request on either generation goes through that generation's generated client. Add it
   hand-composed only when the generated model cannot express the body, and say which member it
   cannot express.
-- Three requests stay hand-composed for that reason, and each is sent through the held `HttpClient`.
-  Their routes are the only `api/` literals on `WhisparrClient`, and a test asserts that set exactly.
+- Hand-composed requests use the configured `HttpClient` so the same transport bounds apply.
 - The notification create and update carry a body built from the schema the instance itself returned.
   Its flags differ per instance and per generation, so a fixed member set cannot express it.
 - The v3 studio scope change re-sends the resource it just read with two members changed. A fixed
   member set would drop whatever else the instance answered with.
-- The exclusions read is reduced row by row as it arrives, because the answer's row count grows with
-  the library and nothing this extension holds may grow with it.
+- Stream the exclusions read because its row count grows with the library. Keep per-operation
+  memory bounded independently of library size.
 - The generated client fixes its address and key at registration. The gateway holds one registration
   per address-and-key pair because both are settings a person edits.
 - The generated client applies no response bound, no redirect cap and no timeout of its own. All
