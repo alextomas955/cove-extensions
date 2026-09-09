@@ -203,6 +203,27 @@ const RENDERED_BY_THE_SCENE_TAB = [
 ];
 
 /**
+ * The batch overlay's own question, the name of each row that does not share one with the scene tab,
+ * what each of its five rows states, and the sentence a selection over the search row's own bound is
+ * refused with.
+ *
+ * Rows four and five read the tab's own two names, so those are named in the tab's group and not
+ * here.
+ */
+const RENDERED_BY_THE_BATCH_OVERLAY = [
+  "BATCH_CHOOSE_AN_ACTION",
+  "BATCH_ADD",
+  "BATCH_ADD_STATES",
+  "BATCH_MONITOR",
+  "BATCH_MONITOR_STATES",
+  "BATCH_UNMONITOR",
+  "BATCH_UNMONITOR_STATES",
+  "BATCH_SEARCH_STATES",
+  "BATCH_EXCLUDE_STATES",
+  "BATCH_SEARCH_IS_OVER_THE_BOUND",
+];
+
+/**
  * One sentence per reason a monitor control can be unavailable. The menu rules module maps the kind
  * the server answered onto exactly one of these, and a kind with none would be a dimmed control with
  * nothing to hear.
@@ -345,6 +366,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
     const accountedByName = [
       ...CARRIED_BY_THE_MONITOR_MENU_ITEMS,
       ...RENDERED_BY_THE_BULK_OVERLAY,
+      ...RENDERED_BY_THE_BATCH_OVERLAY,
       ...RENDERED_BY_THE_MISSING_TAB,
       ...RENDERED_BY_THE_SCENE_TAB,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
@@ -370,6 +392,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
     for (const name of [
       ...CARRIED_BY_THE_MONITOR_MENU_ITEMS,
       ...RENDERED_BY_THE_BULK_OVERLAY,
+      ...RENDERED_BY_THE_BATCH_OVERLAY,
       ...RENDERED_BY_THE_MISSING_TAB,
       ...RENDERED_BY_THE_SCENE_TAB,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
@@ -431,6 +454,18 @@ describe("the bound the over-the-bound sentence names is the server's own", () =
     expect(copy.MAX_ENTITY_IDS_PER_REQUEST).toBe(Number(declared?.[1]));
     expect(copy.BULK_SELECTION_IS_OVER_THE_BOUND).toContain(
       String(copy.MAX_ENTITY_IDS_PER_REQUEST),
+    );
+  });
+
+  it("names the lower number the route refuses the search verb above", () => {
+    // Its own pin rather than a second read of the first. The sentence above names one limit and
+    // cannot describe this one, so reusing it for the search row is what this catches.
+    const declared = /MaxSceneSearchIdsPerRequest\s*=\s*(\d+)/.exec(readFileSync(ROUTES, "utf8"));
+
+    expect(declared, "the route declares no MaxSceneSearchIdsPerRequest").not.toBeNull();
+    expect(copy.MAX_SCENE_SEARCH_IDS_PER_REQUEST).toBe(Number(declared?.[1]));
+    expect(copy.BATCH_SEARCH_IS_OVER_THE_BOUND).toContain(
+      String(copy.MAX_SCENE_SEARCH_IDS_PER_REQUEST),
     );
   });
 });
