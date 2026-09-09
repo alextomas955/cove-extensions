@@ -45,6 +45,11 @@ public sealed record ActingCall(string Verb, Uri BaseAddress, string ApiKey)
     /// <summary>The instance-side identifier supplied, or null where the member takes none.</summary>
     public int? EntityId { get; init; }
 
+    /// <summary>
+    /// The instance-side identifiers supplied, or null where the member names one entity.
+    /// </summary>
+    public IReadOnlyList<int>? EntityIds { get; init; }
+
     /// <summary>The scope asked for, or null where the member expresses no scope.</summary>
     public MonitorScope? Scope { get; init; }
 
@@ -376,14 +381,14 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         string apiKey,
         WhisparrGeneration generation,
         WhisparrEntityKind kind,
-        int entityId,
+        IReadOnlyList<int> entityIds,
         CancellationToken ct)
         => RecordActing(
             new ActingCall(nameof(SearchMonitoredAsync), baseAddress, apiKey)
             {
                 Generation = generation,
                 Kind = kind,
-                EntityId = entityId,
+                EntityIds = [.. entityIds],
             });
 
     public Task<WhisparrResponse> SearchSceneAsync(

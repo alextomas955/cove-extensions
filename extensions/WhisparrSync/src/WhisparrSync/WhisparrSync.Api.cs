@@ -1529,11 +1529,7 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));
         }
 
-        // Obtained BY NAME, and this is the only call site in the product that does so. A generation
-        // holding no search has no implementation to hand over, which is the refusal below rather
-        // than a member that accepts the call and declines it.
-        var grabbing = target.Capabilities.Obtain<IWhisparrSearchGrabbing>()
-            .Match<IWhisparrSearchGrabbing?>(held => held, _ => null);
+        var grabbing = SearchGrabbingOn(target);
         var reading = HeldActingFor(entityKind, target);
 
         // Identity first, so a refusal costs no outbound request. SEC-4: the outbound identifier is
@@ -1572,7 +1568,7 @@ public sealed partial class WhisparrSync
 
         var searched = await ContainedAsync(
             () => grabbing.SearchMonitoredAsync(
-                target.BaseAddress, target.ApiKey, target.Generation, entityKind, entityId, ct),
+                target.BaseAddress, target.ApiKey, target.Generation, entityKind, [entityId], ct),
             target,
             log,
             ct).ConfigureAwait(false);
@@ -1826,8 +1822,7 @@ public sealed partial class WhisparrSync
         var linkingReached = false;
 
         var run = TryParseSelectionType(batch.EntityType, out var kind) && batch.Verb is { } verb
-            ? await MonitoringBulkJob.RunAsync(
-                batch.EntityIds, scopes, ActOnOneAsync, progress, ct).ConfigureAwait(false)
+            ? await UnderTheVerbAsync().ConfigureAwait(false)
             : MonitorBulkRun.NothingSelected;
 
         // The host's progress carries no summary field, so the run's one line rides the final
@@ -1841,8 +1836,18 @@ public sealed partial class WhisparrSync
                     : null));
         ct.ThrowIfCancellationRequested();
 
-        async Task<MonitorRefusalKind> ActOnOneAsync(
-            IServiceProvider services, int coveId, CancellationToken entityCt)
+        // The search verb's instance-side command names an id array, so the whole selection is one
+        // call. Every other verb here is one instance call per entity, and loops.
+        Task<MonitorBulkRun> UnderTheVerbAsync()
+            => verb == MonitorBulkVerb.SearchAllMonitored
+                ? MonitoringBulkJob.RunOneCallAsync(
+                    batch.EntityIds, scopes, AimOneAsync, SearchNamedAsync, progress, ct)
+                : MonitoringBulkJob.RunAsync(batch.EntityIds, scopes, ActOnOneAsync, progress, ct);
+
+        // Resolved once for the whole batch: it is one stored read and one credential read, and
+        // taking them per entity would be a batch of them.
+        async Task<MonitoringTarget?> ResolvedAsync(
+            IServiceProvider services, CancellationToken runCt)
         {
             if (!targetResolved)
             {
@@ -1850,11 +1855,58 @@ public sealed partial class WhisparrSync
                     services.GetRequiredService<OptionsStore>(),
                     services.GetRequiredService<ICredentialPort>(),
                     services.GetRequiredService<IWhisparrClient>(),
-                    entityCt).ConfigureAwait(false);
+                    runCt).ConfigureAwait(false);
                 targetResolved = true;
             }
 
-            if (target is not { } resolved)
+            return target;
+        }
+
+        async Task<MonitoringBulkJob.MonitorBulkAim> AimOneAsync(
+            IServiceProvider services, int coveId, CancellationToken entityCt)
+            => await ResolvedAsync(services, entityCt).ConfigureAwait(false) is not { } resolved
+                ? new MonitoringBulkJob.MonitorBulkAim(null, MonitorRefusalKind.NotConfigured)
+                : await AimSearchAsync(
+                    kind,
+                    coveId,
+                    resolved,
+                    services.GetRequiredService<IEntityIdentityPort>(),
+                    SearchGrabbingOn(resolved) is not null,
+                    _log,
+                    entityCt).ConfigureAwait(false);
+
+        // One command naming every entity the resolution step established the instance holds. Its
+        // answer is each of those entities' outcome, because the instance answers the command and
+        // not the ids inside it.
+        async Task<MonitorRefusalKind> SearchNamedAsync(
+            IServiceProvider services, IReadOnlyList<int> entityIds, CancellationToken runCt)
+        {
+            if (await ResolvedAsync(services, runCt).ConfigureAwait(false) is not { } resolved)
+            {
+                return MonitorRefusalKind.NotConfigured;
+            }
+
+            if (SearchGrabbingOn(resolved) is not { } grabbing)
+            {
+                return MonitorRefusalKind.CapabilityAbsentOnThisGeneration;
+            }
+
+            var searched = await ContainedAsync(
+                () => grabbing.SearchMonitoredAsync(
+                    resolved.BaseAddress, resolved.ApiKey, resolved.Generation, kind, entityIds, runCt),
+                resolved,
+                _log,
+                runCt).ConfigureAwait(false);
+
+            return searched is null
+                ? MonitorRefusalKind.InstanceRefused
+                : MonitoringProjector.Accepted(searched);
+        }
+
+        async Task<MonitorRefusalKind> ActOnOneAsync(
+            IServiceProvider services, int coveId, CancellationToken entityCt)
+        {
+            if (await ResolvedAsync(services, entityCt).ConfigureAwait(false) is not { } resolved)
             {
                 return MonitorRefusalKind.NotConfigured;
             }
@@ -2432,6 +2484,66 @@ public sealed partial class WhisparrSync
     /// <summary>
     /// How one entity the instance holds is changed, or null where the generation cannot.
     /// </summary>
+    /// <summary>
+    /// How <paramref name="target"/> is asked to search, or null where its generation holds no search
+    /// at all.
+    /// </summary>
+    /// <remarks>
+    /// Obtained BY NAME, and this is the only place in the product that does so, which is what makes
+    /// "a call site that never asks for the role cannot express the request" a property of the type
+    /// set rather than a habit. A generation holding no search has no implementation to hand over,
+    /// which is a refusal at the caller rather than a member that accepts the call and declines it.
+    /// <para>
+    /// Both gestures that can reach a search come through here: the one over a single entity and the
+    /// one over a selection. A third would have to be written against this same member.
+    /// </para>
+    /// </remarks>
+    private static IWhisparrSearchGrabbing? SearchGrabbingOn(MonitoringTarget target)
+        => target.Capabilities.Obtain<IWhisparrSearchGrabbing>()
+            .Match<IWhisparrSearchGrabbing?>(held => held, _ => null);
+
+    /// <summary>
+    /// The instance's own identifier for one selected entity, or why the instance cannot be told to
+    /// search it.
+    /// </summary>
+    /// <remarks>
+    /// The same order the single-entity route takes: identity first, so an entity carrying no link
+    /// costs no outbound request, then the instance's own record, which is what establishes that it
+    /// holds the entity at all. An entity it does not hold monitors nothing there.
+    /// </remarks>
+    private static async Task<MonitoringBulkJob.MonitorBulkAim> AimSearchAsync(
+        WhisparrEntityKind kind,
+        int coveId,
+        MonitoringTarget target,
+        IEntityIdentityPort identities,
+        bool searchHeld,
+        ILogger log,
+        CancellationToken ct)
+    {
+        var reading = HeldActingFor(kind, target);
+        var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
+            .ConfigureAwait(false);
+
+        if (!searchHeld || reading is not { } actingFor || identity.ForeignId is not { } named)
+        {
+            return new MonitoringBulkJob.MonitorBulkAim(
+                null, RefusalAmong(!searchHeld || reading is null, identity.Refusal));
+        }
+
+        var read = await ContainedAsync(() => actingFor(named).ReadEntity(ct), target, log, ct)
+            .ConfigureAwait(false);
+        if (read is null)
+        {
+            return new MonitoringBulkJob.MonitorBulkAim(null, MonitorRefusalKind.InstanceRefused);
+        }
+
+        var answer = MonitoringProjector.Classify(read);
+        return answer.Reading != MonitoringProjector.EntityReading.Held
+            || MonitoringProjector.EntityIdIn(read.Body) is not { } entityId
+                ? new MonitoringBulkJob.MonitorBulkAim(null, RefusalIn(answer))
+                : new MonitoringBulkJob.MonitorBulkAim(entityId, MonitorRefusalKind.None);
+    }
+
     private static Func<string, HeldActing>? HeldActingFor(
         WhisparrEntityKind kind, MonitoringTarget target)
         => kind switch

@@ -164,6 +164,147 @@ public static class MonitoringBulkJob
         }).ConfigureAwait(false);
     }
 
+    /// <summary>What resolving one selected entity against the connected instance produced.</summary>
+    /// <param name="EntityId">
+    /// The identifier the instance's own record carries for it, or null where the entity cannot be
+    /// named on the instance at all.
+    /// </param>
+    /// <param name="Refusal">Why it cannot be named there, or that it can.</param>
+    internal sealed record MonitorBulkAim(int? EntityId, MonitorRefusalKind Refusal);
+
+    /// <summary>
+    /// Resolves every DISTINCT id in <paramref name="entityIds"/>, then acts on the ones that
+    /// resolved in ONE call.
+    /// </summary>
+    /// <remarks>
+    /// For a verb whose instance-side command names an id array rather than one entity. The
+    /// resolution is still per entity, because each entity's identifier is read from the library and
+    /// then from the instance's own record of it.
+    /// <para>
+    /// An entity that does not resolve is REPORTED and not sent. The command iterates the whole array
+    /// and fails outright on the first id the instance does not hold, naming that one alone, so one
+    /// unheld entity in a selection would otherwise cost every other entity its search and leave the
+    /// reader an error naming one id out of a hundred.
+    /// </para>
+    /// <para>
+    /// A selection where nothing resolves sends nothing. There is no command to compose, and an
+    /// empty id array is accepted by the instance and runs over nothing.
+    /// </para>
+    /// <para>
+    /// Each entity's unit is completed only once its outcome is settled. An entity that could not be
+    /// resolved settles at that moment and its unit closes there; one that was named in the command
+    /// settles when the command answers, and every such unit closes together on that one answer. A
+    /// unit closed as done before the command left would report work that had not happened.
+    /// </para>
+    /// <para>
+    /// The scope, the elevation and the cancellation rule are <see cref="RunAsync"/>'s.
+    /// </para>
+    /// </remarks>
+    /// <param name="entityIds">The Cove ids selected, repeats and all.</param>
+    /// <param name="scopes">The scope factory the extension was handed at initialization.</param>
+    /// <param name="aim">One entity's resolution, over the batch's own elevated services.</param>
+    /// <param name="act">
+    /// The one call, over every entity that resolved. It answers a refusal kind rather than throwing,
+    /// and that one answer is every named entity's outcome.
+    /// </param>
+    /// <param name="progress">The host's own progress, which the units are reported on.</param>
+    /// <param name="ct">Cancelled when the host stops the job.</param>
+    internal static async Task<MonitorBulkRun> RunOneCallAsync(
+        IReadOnlyList<int> entityIds,
+        IServiceScopeFactory scopes,
+        Func<IServiceProvider, int, CancellationToken, Task<MonitorBulkAim>> aim,
+        Func<IServiceProvider, IReadOnlyList<int>, CancellationToken, Task<MonitorRefusalKind>> act,
+        IJobProgress progress,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(entityIds);
+        ArgumentNullException.ThrowIfNull(scopes);
+        ArgumentNullException.ThrowIfNull(aim);
+        ArgumentNullException.ThrowIfNull(act);
+        ArgumentNullException.ThrowIfNull(progress);
+
+        var selected = Distinct(entityIds);
+        if (selected.Count == 0)
+        {
+            return MonitorBulkRun.NothingSelected;
+        }
+
+        return await RunAsSystem.RunInSystemScopeAsync(scopes, async services =>
+        {
+            var outcomes = new List<MonitorBulkOutcome>(selected.Count);
+            var named = new List<int>(selected.Count);
+            var open = new List<(int CoveId, IJobUnit Unit)>(selected.Count);
+
+            try
+            {
+                foreach (var coveId in selected)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    var unit = progress.StartUnit(UnitOf(coveId));
+                    var aimed = await aim(services, coveId, ct).ConfigureAwait(false);
+                    if (aimed.EntityId is { } entityId)
+                    {
+                        named.Add(entityId);
+                        open.Add((coveId, unit));
+                        continue;
+                    }
+
+                    outcomes.Add(new MonitorBulkOutcome(coveId, aimed.Refusal));
+                    Close(unit, aimed.Refusal);
+                }
+
+                var refusal = named.Count == 0
+                    ? MonitorRefusalKind.None
+                    : await act(services, named, ct).ConfigureAwait(false);
+
+                foreach (var (coveId, unit) in open)
+                {
+                    outcomes.Add(new MonitorBulkOutcome(coveId, refusal));
+                    Close(unit, refusal);
+                }
+
+                open.Clear();
+                return MonitorBulkRun.Completed(Supplied(selected, outcomes));
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return MonitorBulkRun.Cancelled(Supplied(selected, outcomes));
+            }
+            finally
+            {
+                foreach (var (_, unit) in open)
+                {
+                    unit.Dispose();
+                }
+            }
+        }).ConfigureAwait(false);
+    }
+
+    private static void Close(IJobUnit unit, MonitorRefusalKind refusal)
+    {
+        unit.Complete(
+            UnitOutcomeFor(refusal), refusal == MonitorRefusalKind.None ? null : refusal.ToString());
+        unit.Dispose();
+    }
+
+    /// <summary>
+    /// <paramref name="outcomes"/> back in the order <paramref name="selected"/> supplied.
+    /// </summary>
+    /// <remarks>
+    /// The outcomes are recorded as they settle, and on this path a refused entity settles before an
+    /// acted one whatever order they were selected in. A reader matches this list against the
+    /// selection they made, so the supplied order is restored before it is answered.
+    /// </remarks>
+    private static List<MonitorBulkOutcome> Supplied(
+        IReadOnlyList<int> selected, IReadOnlyList<MonitorBulkOutcome> outcomes)
+    {
+        var byCoveId = outcomes.ToDictionary(outcome => outcome.CoveId);
+        return [.. selected
+            .Where(byCoveId.ContainsKey)
+            .Select(coveId => byCoveId[coveId])];
+    }
+
     /// <summary>The one line the host's Job Drawer shows for <paramref name="run"/>.</summary>
     /// <remarks>
     /// Counts rather than a list. The per-entity answers are the run's own units, which the drawer
