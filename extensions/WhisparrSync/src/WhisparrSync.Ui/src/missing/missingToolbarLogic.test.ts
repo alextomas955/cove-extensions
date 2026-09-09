@@ -50,6 +50,12 @@ describe("the ordering menu is the provider's own", () => {
   it("marks nothing when the page names no ordering", () => {
     expect(sortOptionsFor(V3_SORTS, null).some((row) => row.selected)).toBe(false);
   });
+
+  it("marks the ordering the answered page reports, so a first load names one", () => {
+    // The address carries no ordering on a first load; the page reports the one it was read under.
+    const named = sortOptionsFor(V3_SORTS, "DATE-DESC").filter((row) => row.selected);
+    expect(named.map((row) => row.label)).toEqual(["Newest first"]);
+  });
 });
 
 describe("no control carries a disabled flag", () => {
