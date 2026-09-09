@@ -48,6 +48,7 @@ export async function sceneBatchSelected(
   const chosen = await presentOverlay<BatchMenuRow>((finish) =>
     createElement(WhisparrBatchChooser, {
       rows: BATCH_MENU_ROWS,
+      count: payload.entityIds.length,
       reason: null,
       onChoose: finish,
     }),
@@ -69,7 +70,7 @@ export async function sceneBatchSelected(
   } catch (refusal) {
     // Nothing is rethrown. A HandlerResult carries no error member, so anything escaping here
     // reaches the host's own alert, which shows the answer's raw text.
-    await stated(refusalSentenceFor(refusal));
+    await stated(refusalSentenceFor(refusal), payload.entityIds.length);
     return { cancelled: true };
   }
 
@@ -116,8 +117,8 @@ function codeNamedIn(answer: string): string | null {
  * The same overlay the reader just answered, reopened, rather than a second surface saying the same
  * kind of thing in a different place.
  */
-async function stated(reason: string): Promise<void> {
+async function stated(reason: string, count: number): Promise<void> {
   await presentOverlay<BatchMenuRow>((finish) =>
-    createElement(WhisparrBatchChooser, { rows: [], reason, onChoose: finish }),
+    createElement(WhisparrBatchChooser, { rows: [], count, reason, onChoose: finish }),
   );
 }

@@ -1,6 +1,6 @@
 /**
  * Pure rules for the entity monitor menu: which items exist at all, which of them can be pressed,
- * and what each one states beneath itself.
+ * and what each one is called.
  *
  * Relative imports only, so this module runs with no environment and needs no doubles. The wire types
  * arrive as `import type`, which erases at runtime and so takes nothing with it.
@@ -25,9 +25,6 @@ import {
   ACTION_DID_NOT_REACH_WHISPARR,
   ACTION_REFLECT_OWNED,
   ACTION_SEARCH_ALL_MONITORED,
-  ADD_ALL_MISSING,
-  ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE,
-  ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ,
   INSTANCE_DID_NOT_REPORT_THE_CHANGE,
@@ -38,20 +35,13 @@ import {
   MONITOR_IN_WHISPARR,
   NO_IDENTITY_IN_THIS_NAMESPACE,
   NO_INSTANCE_CONNECTED,
-  PERFORMER_HAS_NO_FUTURE_ONLY_SCOPE,
-  REFLECT_OWNED,
   REFLECT_OWNED_SKIPPED,
   REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
   SCOPE_ALL_SCENES,
-  SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED,
   SCOPE_FUTURE_SCENES,
-  SCOPE_IN_FORCE_IS_NOT_REPORTED,
-  SEARCH_ALL_MONITORED,
   SEVERAL_IDENTITIES_IN_THIS_NAMESPACE,
   STOP_MONITORING_IN_WHISPARR,
-  UNMONITORING_DOES_NOT_RETRACT,
   WAITING_FOR_WHISPARR,
-  WHISPARR_MAY_RENAME,
 } from "../common/ui/copy";
 
 /** A scope a caller can actually choose. The wire type admits null, which is "take the default". */
@@ -77,8 +67,6 @@ interface MenuItemFace {
   readonly label: string;
   /** The one sentence saying why it cannot be pressed, or null when it can. */
   readonly reason: string | null;
-  /** What is stated beneath it, in the order it reads. */
-  readonly sentences: readonly string[];
 }
 
 /** One item the menu offers. */
@@ -98,13 +86,6 @@ export interface MonitorMenu {
   readonly available: boolean;
   /** The one sentence to state at the control, or null when there is nothing to say. */
   readonly reason: string | null;
-  /**
-   * The one sentence to state beneath the scope rows, or null when there is nothing to say.
-   *
-   * Set only where a scope IS in force and the read did not report which, so a reader looking at an
-   * unmarked pair is told why none is marked rather than left to read it as a fault.
-   */
-  readonly scopeNote: string | null;
   readonly items: readonly MonitorMenuItem[];
 }
 
@@ -187,8 +168,8 @@ const OFFERS_A_SCOPE_PAIR: Record<WhisparrEntityKind, boolean> = {
  * Whether changing the scope on this generation rewrites what is already monitored.
  *
  * Total by TYPE, so a generation added to the wire enum fails this build rather than compiling with
- * no decision made about it. Where it does not, the wider scope is a one-way door and the item says
- * so.
+ * no decision made about it. Where it does not, the wider scope is a one-way door and the
+ * confirmation says so.
  */
 const A_SCOPE_CHANGE_IS_RETROACTIVE: Record<ConnectedGeneration, boolean> = {
   v3: false,
@@ -236,19 +217,6 @@ const SECONDARY_LABEL: Record<SecondaryAction, string> = {
   addAllMissing: ACTION_ADD_ALL_MISSING,
   reflectOwned: ACTION_REFLECT_OWNED,
   searchAllMonitored: ACTION_SEARCH_ALL_MONITORED,
-};
-
-/**
- * What each secondary action states beneath itself, in the order it reads.
- *
- * Total by TYPE, so a secondary action added later fails this build rather than rendering a row with
- * nothing stated under it. Reflect owned states two: what it does, and the consequence of Whisparr
- * taking charge of the files it links.
- */
-const SECONDARY_SENTENCES: Record<SecondaryAction, readonly string[]> = {
-  addAllMissing: [ADD_ALL_MISSING],
-  reflectOwned: [REFLECT_OWNED, WHISPARR_MAY_RENAME],
-  searchAllMonitored: [SEARCH_ALL_MONITORED],
 };
 
 /** Turning monitoring on, at a chosen scope. Only reached for an entity not yet monitored. */
@@ -508,16 +476,15 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
     refusal.sentence ?? (cannotMonitorThisKind ? CAP_UNAVAILABLE_ON_THIS_GENERATION : null);
   const available = !refusal.leavesNothingToOffer && !cannotMonitorThisKind;
   if (!available) {
-    return { available, reason, scopeNote: null, items: [] };
+    return { available, reason, items: [] };
   }
 
   const transient = inFlight ? WAITING_FOR_WHISPARR : null;
-  const face = (label: string, sentences: readonly string[], unavailable: string | null) => ({
+  const face = (label: string, unavailable: string | null) => ({
     label,
     // A permanent reason reads ahead of the transient one: a control that will never work should not
     // say it is waiting.
     reason: unavailable ?? transient,
-    sentences,
   });
 
   // The same two rows mean two different things. On an entity nothing monitors they are the monitor
@@ -527,52 +494,42 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
   const offersAScopePair = OFFERS_A_SCOPE_PAIR[view.kind];
   const scopes: MonitorMenuItem[] = offersAScopePair
     ? SCOPE_ORDER.map((scope) => ({
-        ...face(SCOPE_LABEL[scope], scopeSentences(scope, view.generation), null),
+        ...face(SCOPE_LABEL[scope], null),
         item: "scope" as const,
         scope,
         selected: view.monitored ? scope === view.scope : scope === DEFAULT_SCOPE,
       }))
     : [];
 
-  const scopeNote =
-    offersAScopePair && view.monitored && view.scope === null
-      ? SCOPE_IN_FORCE_IS_NOT_REPORTED
-      : null;
-
   const monitorItem: MonitorMenuItem[] =
     scopes.length === 0 && !view.monitored
       ? [
           {
-            ...face(
-              MONITOR_IN_WHISPARR,
-              [PERFORMER_HAS_NO_FUTURE_ONLY_SCOPE, ALL_SCENES_MARKS_THE_BACK_CATALOGUE],
-              null,
-            ),
+            ...face(MONITOR_IN_WHISPARR, null),
             item: "monitor" as const,
           },
         ]
       : [];
 
   if (!view.monitored) {
-    return { available, reason, scopeNote, items: [...scopes, ...monitorItem] };
+    return { available, reason, items: [...scopes, ...monitorItem] };
   }
 
   const unmonitor: MonitorMenuItem = {
-    ...face(STOP_MONITORING_IN_WHISPARR, [UNMONITORING_DOES_NOT_RETRACT], null),
+    ...face(STOP_MONITORING_IN_WHISPARR, null),
     item: "unmonitor",
   };
 
   const secondary: MonitorMenuItem[] = SECONDARY_ACTIONS.map((action) => ({
     ...face(
       SECONDARY_LABEL[action],
-      SECONDARY_SENTENCES[action],
       held.has(capabilityBehindAction(action)) ? null : CAP_UNAVAILABLE_ON_THIS_GENERATION,
     ),
     item: "secondary" as const,
     action,
   }));
 
-  return { available, reason, scopeNote, items: [...scopes, unmonitor, ...secondary] };
+  return { available, reason, items: [...scopes, unmonitor, ...secondary] };
 }
 
 /**
@@ -601,8 +558,16 @@ export function routeFor(item: MonitorMenuItem, monitored: boolean): MonitorActi
   }
 }
 
-/** A stable key for one item, so two secondary actions are not the same row. */
-export function monitorMenuItemKey(item: MonitorMenuItem): string {
+/**
+ * A stable key for one item, so two secondary actions are not the same row.
+ *
+ * Its own union type rather than a bare string, so a table keyed by it is total and an item added
+ * later fails the build rather than drawing a row with no glyph.
+ */
+export type MonitorMenuItemKey =
+  `scope:${MonitorScopeChoice}` | "monitor" | "unmonitor" | `secondary:${SecondaryAction}`;
+
+export function monitorMenuItemKey(item: MonitorMenuItem): MonitorMenuItemKey {
   switch (item.item) {
     case "scope":
       return `scope:${item.scope}`;
@@ -618,10 +583,8 @@ export type BulkVerb = "monitor" | "unmonitor";
 
 /** One action the selection overlay offers, already decided. */
 export interface BulkMonitorAction {
-  readonly key: string;
+  readonly key: MonitorMenuItemKey;
   readonly label: string;
-  /** What is stated beneath it, in the order it reads. */
-  readonly sentences: readonly string[];
   readonly verb: BulkVerb;
   /** The scope the request carries, or null where the verb expresses none. */
   readonly scope: MonitorScopeChoice | null;
@@ -697,7 +660,6 @@ function offered(
       {
         key: monitorMenuItemKey(item),
         label: item.label,
-        sentences: item.sentences,
         verb,
         scope: item.item === "scope" ? item.scope : null,
         marksTheBackCatalogue: marksTheBackCatalogue(item),
@@ -711,22 +673,4 @@ function bulkVerbFor(route: string): BulkVerb | null {
   if (route === MONITOR_ROUTE) return "monitor";
   if (route === UNMONITOR_ROUTE) return "unmonitor";
   return null;
-}
-
-function scopeSentences(
-  scope: MonitorScopeChoice,
-  generation: WhisparrGeneration,
-): readonly string[] {
-  if (scope !== "allScenes") {
-    return [SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED];
-  }
-  const oneWayDoor =
-    generation !== null && !A_SCOPE_CHANGE_IS_RETROACTIVE[generation]
-      ? [ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE]
-      : [];
-  return [
-    SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED,
-    ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
-    ...oneWayDoor,
-  ];
 }

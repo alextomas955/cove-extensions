@@ -72,6 +72,7 @@ const {
   SCENE_ADD,
   SCENE_EXCLUDE,
   SCENE_SEARCH,
+  selectionMenuHeader,
   STOP_MONITORING_IN_WHISPARR,
 } = await import("../common/ui/copy");
 
@@ -160,7 +161,7 @@ test("an empty selection answers cancelled and opens nothing", async () => {
   expect(sent).toEqual([]);
 });
 
-test("offers the five rows in their fixed order, each stating what it does", async () => {
+test("offers the five rows in their fixed order, headed by the count", async () => {
   const { running } = await open("video", [1, 2]);
 
   expect(labels()).toEqual([
@@ -171,7 +172,10 @@ test("offers the five rows in their fixed order, each stating what it does", asy
     SCENE_EXCLUDE,
     BULK_CANCEL,
   ]);
-  expect(document.body.textContent).toContain("This is the only row here that can download files.");
+  expect(document.querySelector('[role="menu"]')?.getAttribute("aria-label")).toBe(
+    selectionMenuHeader(2),
+  );
+  expect(document.querySelectorAll('[role="menu"] p')).toHaveLength(0);
 
   press(BULK_CANCEL);
   await running;
