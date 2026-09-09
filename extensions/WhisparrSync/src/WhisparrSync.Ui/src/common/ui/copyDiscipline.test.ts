@@ -168,32 +168,22 @@ const RENDERED_BY_THE_BULK_OVERLAY = [
 ];
 
 /**
- * The scene tab's own labels and sentences: its four fact labels, the absence each row states, the
- * name and the stated sentence of each of its four controls, the reason each control gives where it
- * cannot act, and the one sentence that confirms a search.
+ * The scene tab's own labels and sentences: the word in its header, its three fact labels, the name
+ * of each of its four controls, the reason each control gives where it cannot act, and the one
+ * sentence that confirms a search.
  *
  * The reasons it states for a refused READ are sentences other surfaces already declare, so those
  * are not named here.
  */
 const RENDERED_BY_THE_SCENE_TAB = [
-  "SCENE_FACT_STATE",
+  "SCENE_HEADER_WHISPARR",
   "SCENE_FACT_QUALITY",
   "SCENE_FACT_PROFILE",
   "SCENE_FACT_CUTOFF",
-  "SCENE_HAS_NO_FILE_YET",
-  "SCENE_IS_NOT_IN_WHISPARR",
-  "SCENE_CUTOFF_NOT_NAMED",
   "SCENE_ADD",
-  "SCENE_ADD_STATES",
-  "SCENE_MONITOR_STATES",
-  "SCENE_STOP_MONITORING_STATES",
   "SCENE_SEARCH",
-  "SCENE_SEARCH_STATES",
   "SCENE_EXCLUDE",
-  "SCENE_EXCLUDE_STATES",
   "SCENE_REMOVE_EXCLUSION",
-  "SCENE_REMOVE_EXCLUSION_STATES",
-  "SCENE_UPGRADES_FOLLOW_THE_CUTOFF",
   "SCENE_SEARCH_NEEDS_AN_ENTRY",
   "SCENE_MONITOR_NEEDS_AN_ENTRY",
   "SCENE_SEARCH_NEEDS_MONITORING",

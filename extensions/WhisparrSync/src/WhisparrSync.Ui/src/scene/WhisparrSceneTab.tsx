@@ -4,6 +4,9 @@
  * The host passes an entity id and nothing else, and the page type is fixed, so nothing here reads
  * the address.
  *
+ * A header naming Whisparr and carrying the state chip, a card of the facts the instance named, and
+ * one full-width control bar per row.
+ *
  * No outer padding and no max-width wrapper: the host already pads the tab panel it mounts this in.
  * No stylesheet and no background of its own either, because an extension CSS bundle is page-global
  * and would leak onto every host page, so every visual here is a host-emitted utility class.
@@ -18,16 +21,12 @@ import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { OptionallyDisabled } from "../common/ui/DisabledControl";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { StateChip } from "../common/ui/StateChip";
-import type { WhisparrEntityState } from "../common/ui/stateVocabularyLogic";
+import { WhisparrLogo } from "../common/ui/WhisparrLogo";
 import {
-  SCENE_CUTOFF_NOT_NAMED,
   SCENE_FACT_CUTOFF,
   SCENE_FACT_PROFILE,
   SCENE_FACT_QUALITY,
-  SCENE_FACT_STATE,
-  SCENE_HAS_NO_FILE_YET,
-  SCENE_IS_NOT_IN_WHISPARR,
-  SCENE_UPGRADES_FOLLOW_THE_CUTOFF,
+  SCENE_HEADER_WHISPARR,
   THE_STATUS_READ_DID_NOT_COMPLETE,
   WHISPARR_STATUS_COULD_NOT_BE_READ,
 } from "../common/ui/copy";
@@ -35,7 +34,6 @@ import {
   deriveSceneControls,
   sceneControls,
   sceneReadRefusal,
-  type SceneControl,
   type SceneVerb,
 } from "./sceneControlLogic";
 import type { SceneState } from "./sceneStore";
@@ -92,10 +90,23 @@ function SceneSurface({
 
   return (
     <>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {/* The logo declares its own accessible name, and the word beside it is that same name, so
+              the pair would otherwise announce twice. */}
+          <span aria-hidden="true" className="flex">
+            <WhisparrLogo className="h-4 w-4" />
+          </span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-secondary">
+            {SCENE_HEADER_WHISPARR}
+          </span>
+        </div>
+        <StateChip state={controls.state} />
+      </div>
       {view.profileReadDidNotComplete ? (
         <StatusText kind="warning">{THE_STATUS_READ_DID_NOT_COMPLETE}</StatusText>
       ) : null}
-      <SceneFacts view={view} state={controls.state} />
+      <SceneFacts view={view} />
       {controls.sharedReason === null ? null : (
         <RefusalNotice
           reason={controls.sharedReason}
@@ -103,15 +114,22 @@ function SceneSurface({
         />
       )}
       <div className="space-y-2">
-        <div className="flex flex-wrap gap-2">
-          {sceneControls(controls).map((control) => (
-            <SceneControlBlock
+        <div className="rounded-lg border border-border">
+          {sceneControls(controls).map((control, index) => (
+            <div
               key={control.key}
-              control={control}
-              onPress={() => {
-                act(control.verb);
-              }}
-            />
+              className={index === 0 ? "px-3 py-2" : "border-t border-border px-3 py-2"}
+            >
+              <OptionallyDisabled
+                name={control.label}
+                onClick={() => {
+                  act(control.verb);
+                }}
+                variant={control.variant}
+                fill
+                reason={control.reason}
+              />
+            </div>
           ))}
         </div>
         {controls.statusLine === null ? null : (
@@ -124,69 +142,34 @@ function SceneSurface({
   );
 }
 
-function SceneControlBlock({ control, onPress }: { control: SceneControl; onPress: () => void }) {
-  return (
-    <div className="min-w-0">
-      <OptionallyDisabled
-        name={control.label}
-        onClick={onPress}
-        variant={control.variant}
-        reason={control.reason}
-      />
-      {/* Outside the button on purpose: text inside it joins the accessible name, and a control's
-          announced name has to be its own name and not a paragraph. */}
-      <p className="mt-1 text-xs text-secondary">{control.states}</p>
-      {/* Where the reader is deciding whether to spend a search, and the answer to where a separate
-          upgrades control went. Stated once per tab, never per control. */}
-      {control.key === "search" ? (
-        <p className="mt-1 text-xs text-secondary">{SCENE_UPGRADES_FOLLOW_THE_CUTOFF}</p>
-      ) : null}
-    </div>
-  );
-}
+function SceneFacts({ view }: { view: SceneDetailView }) {
+  const facts = (
+    [
+      [SCENE_FACT_QUALITY, view.qualityName],
+      [SCENE_FACT_PROFILE, view.qualityProfileName],
+      [SCENE_FACT_CUTOFF, view.cutoffName],
+    ] as const
+  ).flatMap(([label, named]) => (named === null ? [] : [{ label, named }]));
 
-function SceneFacts({ view, state }: { view: SceneDetailView; state: WhisparrEntityState }) {
+  if (facts.length === 0) return null;
+
   return (
     <dl className="space-y-2 rounded-lg border border-border bg-card px-3 py-2">
-      <div className="flex items-center gap-3">
-        <dt className="text-xs text-secondary">{SCENE_FACT_STATE}</dt>
-        <dd className="text-sm text-foreground">
-          <StateChip state={state} />
-        </dd>
-      </div>
-      <FactRow label={SCENE_FACT_QUALITY} named={view.qualityName} absent={SCENE_HAS_NO_FILE_YET} />
-      <FactRow
-        label={SCENE_FACT_PROFILE}
-        named={view.qualityProfileName}
-        absent={SCENE_IS_NOT_IN_WHISPARR}
-      />
-      <FactRow
-        label={SCENE_FACT_CUTOFF}
-        named={view.cutoffName}
-        absent={view.present === false ? SCENE_IS_NOT_IN_WHISPARR : SCENE_CUTOFF_NOT_NAMED}
-      />
+      {facts.map((fact) => (
+        <FactRow key={fact.label} label={fact.label} named={fact.named} />
+      ))}
     </dl>
   );
 }
 
-function FactRow({
-  label,
-  named,
-  absent,
-}: {
-  label: string;
-  /** What the instance itself calls this, or null where it names nothing. */
-  named: string | null;
-  /** What the row states in the value's own place where the instance names nothing. */
-  absent: string;
-}) {
+function FactRow({ label, named }: { label: string; named: string }) {
   return (
     <div className="flex items-center gap-3">
       <dt className="text-xs text-secondary">{label}</dt>
       {/* An instance-supplied name has no bound, so it truncates and carries the whole of itself on
-          the element. An absent sentence is this product's own and needs neither. */}
-      <dd className="min-w-0 flex-1 truncate text-sm text-foreground" title={named ?? undefined}>
-        {named ?? absent}
+          the element. */}
+      <dd className="min-w-0 flex-1 truncate text-right text-sm text-foreground" title={named}>
+        {named}
       </dd>
     </div>
   );
