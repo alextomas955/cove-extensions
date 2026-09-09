@@ -2,6 +2,41 @@
 
 User-facing changes, newest first.
 
+## 1.4.0 - Operate one scene, or a selection of scenes
+
+A **Whisparr** tab joins a scene's page in Cove. It states what your Whisparr holds for that scene
+and gives you four controls over it. A Whisparr button in the videos selection bar applies one of
+five actions to every scene you selected, as one background job.
+
+**What this costs.** The tab makes three requests to your Whisparr each time you open it: one for the
+scene, one for the exclusion list, and one for the quality profile the scene names. Nothing is
+cached. **Search now** is the only control and the only selection row that can download a file, and
+over a selection it becomes one search per selected scene against every indexer your Whisparr has.
+
+- **The tab states four facts:** the state, the quality of the file your Whisparr holds, the quality
+  profile it applies, and that profile's cutoff. A fact with no value says so in the value's own
+  place, so a scene with no file reads differently from a read that failed.
+- **Nothing is asked of your Whisparr until you open the tab.** Opening a scene's page sends no
+  request, and the extension draws nothing else on that page.
+- **Four controls:** Add to Whisparr, Monitor in Whisparr, Search now and Exclude from Whisparr.
+  Monitor and Exclude each become their own reverse once they apply, so a scene excluded by mistake is
+  fixed on that same tab.
+- **Search now is the only control that downloads.** It reports that Whisparr has the search, read
+  back off your instance by the command's own identifier, and claims nothing about a download. What
+  it finds arrives the way every other import does.
+- **A monitored scene already takes better files up to its cutoff**, which the tab says beside Search
+  now. There is no separate control for it.
+- **A control that cannot act is disabled and says why**, in one reason rather than several: your
+  Whisparr has no entry for the scene, it already holds it, the scene is excluded, or the state could
+  not be read.
+- **A selection of scenes offers five rows in one fixed order:** Add, Monitor, Stop monitoring,
+  Search now, Exclude. Choosing one runs a background job whose counts appear in Cove's job list.
+- **One gesture takes at most 1000 scenes, and at most 100 for Search now.** A selection over the
+  limit sends nothing at all, states the limit that applied, and keeps your selection.
+- **On a Whisparr v2 connection neither surface exists.** The tab is absent from a scene's page and a
+  scene selection offers no Whisparr button. A studio or performer selection still offers one, which
+  explains what it cannot do there.
+
 ## 1.3.0 - See what Whisparr holds for every card in a list
 
 A button in the toolbar of Cove's videos, studios and performers lists puts a small badge on every
