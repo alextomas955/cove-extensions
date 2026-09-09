@@ -57,8 +57,8 @@ import {
   ACTION_ADD_ALL_MISSING,
   ACTION_REFLECT_OWNED,
   ACTION_SEARCH_ALL_MONITORED,
-  MONITORED_IN_WHISPARR,
   REFLECT_OWNED_SKIPPED,
+  WHISPARR_MONITORED,
 } from "../../src/WhisparrSync.Ui/src/common/ui/copy.ts";
 import {
   connectWhisparr,
@@ -127,10 +127,10 @@ const test = base.extend({
 const hostEditButton = (page) => page.getByRole("button", { name: "Edit", exact: true });
 
 const monitoredControl = (page) =>
-  page.getByRole("button", { name: new RegExp(`^${MONITORED_IN_WHISPARR}`) });
+  page.getByRole("button", { name: new RegExp(`^${WHISPARR_MONITORED}`) });
 
 /** The menu a monitored entity's control opens. */
-const monitoredMenu = (page) => page.getByRole("menu", { name: MONITORED_IN_WHISPARR });
+const monitoredMenu = (page) => page.getByRole("menu", { name: WHISPARR_MONITORED });
 
 /** Opens `path`, re-navigating while nothing the caller named has rendered. */
 async function visit(page, baseUrl, path, present, label) {
@@ -334,13 +334,13 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
       hostEditButton(page),
       "the unmonitored studio's page",
     );
-    const quietControl = page.getByRole("button", { name: /^Monitor in Whisparr/ });
+    const quietControl = page.getByRole("button", { name: /^Whisparr, not monitored/ });
     await expect(
       quietControl,
       `the unmonitored studio's control never became pressable within ${String(CONTROL_BUDGET_MS)}ms`,
     ).toBeEnabled({ timeout: CONTROL_BUDGET_MS });
     await quietControl.click();
-    const quietMenu = page.getByRole("menu", { name: /^Monitor in Whisparr/ });
+    const quietMenu = page.getByRole("menu", { name: /^Whisparr, not monitored/ });
     await expect(quietMenu, "the unmonitored control opened no menu").toBeVisible();
     // Bounded by the named window for the reason every absence here is: a row the menu has not
     // rendered yet is indistinguishable from one it never will.
@@ -476,7 +476,7 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
     // container: its own parent is that container, and the container is the child of the body.
     const escape = await page.evaluate((sentence) => {
       const trigger = Array.from(document.querySelectorAll("button")).find((button) =>
-        (button.getAttribute("aria-label") ?? "").startsWith("Monitored in Whisparr"),
+        (button.getAttribute("aria-label") ?? "").startsWith("Whisparr, monitored"),
       );
       const notice = Array.from(document.querySelectorAll('[role="status"]')).find((node) =>
         (node.textContent ?? "").includes(sentence),

@@ -51,7 +51,7 @@ import {
 } from "../lib/whisparr-sync-fixtures.mjs";
 
 // Transcribed by hand from the extension's own registration and copy module, never imported.
-const BULK_ACTION_LABEL = "Monitor in Whisparr";
+const BULK_ACTION_LABEL = "Whisparr";
 const BULK_CANCEL = "Cancel";
 const SCOPE_FUTURE_SCENES = "Future Scenes";
 const STOP_MONITORING_IN_WHISPARR = "Stop monitoring in Whisparr";
@@ -113,7 +113,7 @@ const test = base.extend({
   },
 });
 
-const bulkButton = (page) => page.getByRole("button", { name: BULK_ACTION_LABEL });
+const bulkButton = (page) => page.getByRole("button", { name: BULK_ACTION_LABEL, exact: true });
 // The panel heads itself with the product's name and the count of what is selected, and that header
 // is its accessible name.
 const chooserPanel = (page) =>
