@@ -5,9 +5,12 @@ paths:
 
 # C# comments and XML docs
 
-Comments explain why, not what. Default to no comment. Match the surrounding comment density.
+Comments explain why, not what. Default to no comment, even when surrounding code is more verbose.
+Document a constraint once, near the code that enforces it. Preserve non-obvious safety and
+compatibility reasoning.
 
-Write a comment only for:
+Add a comment only when omitting it would hide a non-obvious constraint needed to change the code
+safely. The topics below are candidates, not a requirement to comment:
 
 - A domain rule the code does not show, such as a routing precedence order.
 - A non-obvious edge case and its reason.
@@ -25,16 +28,18 @@ Never write:
   belongs in the commit message.
 - Process or tooling vocabulary: phases, plans, tickets, tasks, agents, or the name of a planning
   tool. Shipped code is tool-agnostic.
-- A measurement: a line number, count, version, date, hash, or timing. It goes stale with no
-  signal. Cover it with a test, or state the durable form ("the rollback catch", not "the catch at
-  :153").
-- The argument for a decision. State the constraint and stop.
-- A comparison with an alternative the code does not take ("rather than", "instead of").
-- Capitalised emphasis, arrows, or an XML doc block longer than one summary sentence and one
-  remarks paragraph.
+- Incidental measurements such as source line numbers or current member counts. Reference the owning
+  constant or contract for a timeout, protocol limit, or compatibility version when possible.
+- A long decision history. Keep the brief rationale needed to maintain a safety or compatibility
+  constraint, including relevant external limits.
+- Capitalised emphasis or decorative arrows.
+
+Keep comments as short as the constraint allows. A brief comparison is useful only when it explains
+why an apparently reasonable change would be unsafe or incompatible.
 
 Write XML docs (`///`) only on the SDK-facing surface (the `IExtension` boundary, interfaces, shared
-contract types), and only where a tag states something the signature cannot. Skip them on internal
+contract types). Public visibility alone does not justify documentation; document caller obligations
+or behavior the signature cannot express. Skip them on internal
 code, tests, and generated code. No `<param>` that restates the parameter name. `<remarks>` explains
 why and lists the edge cases. `<exception>` documents what a caller must catch.
 

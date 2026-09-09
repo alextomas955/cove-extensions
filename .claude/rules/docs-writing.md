@@ -8,7 +8,8 @@ paths:
 
 # Writing documentation
 
-The docs site follows Diátaxis. Keep the four modes on separate pages:
+Use Diátaxis to choose a page's primary purpose. Split pages when their audiences or tasks differ;
+do not create a page for every mode or move a short necessary explanation out of a guide.
 
 - How-to guide: one real goal, the user's perspective, a sequence of actions, no teaching.
 - Reference: neutral and factual. Its structure mirrors the product: settings grouped by UI section,
@@ -28,6 +29,10 @@ invented UPPERCASE convention.
 
 README versus site: the GitHub README is a short entry point plus contributor build and release
 detail. The user story (what it does, settings, tokens) lives on the site.
+
+Update only pages whose claims or instructions change. Keep one canonical explanation and link to
+it elsewhere; do not duplicate extension docs in a site wrapper that already imports them. Internal
+refactors and test changes do not require user documentation or changelog entries.
 
 Changelog: head the entry with the version it will ship as, never "Unreleased". List user impact
 only; refactors, tests, renames, and tooling do not appear. Lead with anything the user must do

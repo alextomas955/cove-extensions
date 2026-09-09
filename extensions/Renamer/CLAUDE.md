@@ -11,12 +11,9 @@ The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific
 
 - Cove has no core rename service. `POST /api/files/move` changes the folder and keeps the
   basename, so Renamer does the disk rename itself.
-- `extension.json` names `Renamer.dll` as `entryDll` and `index.mjs` as the bundle.
 - The backend is one rich capability layered by domain: `Engine/`, `Planner/`, `Execution/` beside
   `Api/`, `Contracts/`, `Jobs/`, `Options/`. Keep that layering. Do not split it into per-verb
   folders.
-- UI slices: `settings/` (with the dry-run modal nested at `settings/dry-run/`) and
-  `rename-action/`. Extension-local shared code is `common/`.
 - `settings/options.ts` is a hand-written REQUEST shape. The options blob travels in the PascalCase
   spelling of the C# record, which the wire document does not describe. Its casing must match the
   record exactly. Everything else the UI reads comes from the generated `wire/api.ts`.
