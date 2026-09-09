@@ -65,8 +65,13 @@ const TYPED_SEARCH = "sunrise";
 const ANSWERED_SOURCE = "ThePornDB";
 const OTHER_SOURCE = "StashDB";
 
-/** The count line, transcribed by hand from the shipped sentence with its two slots filled. */
-const COUNT_LINE = `This counts every scene ${ANSWERED_SOURCE} lists for this studio, not the number you are missing.`;
+/**
+ * What the count line says the figure counts, transcribed by hand with its two slots filled.
+ *
+ * The tail of the line rather than the whole of it: the range in front of it is the answered page's
+ * own, and this is the half that names the source.
+ */
+const COUNT_LINE = `scenes ${ANSWERED_SOURCE} lists for this studio, not the number you are missing.`;
 
 const BUNDLE_BUDGET_MS = 60_000;
 const BUNDLE_ATTEMPTS = 3;

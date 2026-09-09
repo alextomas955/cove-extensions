@@ -47,7 +47,12 @@ export function ceilingIsDisclosed(view: Pick<MissingPageView, "sizeIsLowerBound
   return view.sizeIsLowerBound;
 }
 
-/** What the figure beside the grid counts, said once beneath it. */
+/**
+ * The rest of the count line: what the figure the range ends on counts.
+ *
+ * Continues the range rather than following it as a second sentence, so the line reads as one
+ * statement and still says the figure is the catalogue's size and not the number missing.
+ */
 export function catalogueSizeLabel(provider: string, entity: string): string {
   return fillNames(COUNT_IS_THE_CATALOGUE_SIZE, provider, entity);
 }
