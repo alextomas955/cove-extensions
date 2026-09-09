@@ -25,8 +25,13 @@ public sealed partial class WhisparrSync
     /// identifier for costs no request.
     /// </para>
     /// <para>
-    /// Nothing is cached. Both reads happen on every open, so what the tab states is what the
+    /// Nothing is cached. Every read happens on every open, so what the tab states is what the
     /// instance holds at that moment.
+    /// </para>
+    /// <para>
+    /// The exclusion list is read as well as the scene, because the state vocabulary tests exclusion
+    /// ahead of everything else: an unread list would let an excluded scene read as monitored, so a
+    /// list that answered nothing refuses the whole read.
     /// </para>
     /// </remarks>
     internal static async Task<Results<Ok<SceneDetailView>, BadRequest, ForbiddenCode>>
@@ -71,7 +76,10 @@ public sealed partial class WhisparrSync
         // A generation registering no per-scene read has no implementation to hand over, so there is
         // nothing to compose and nothing was sent.
         if (target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
-                .Match<IWhisparrSceneStatusReading?>(held => held, _ => null) is not { } reading)
+                .Match<IWhisparrSceneStatusReading?>(held => held, _ => null) is not { } reading
+            || target.Capabilities.Obtain<IWhisparrSceneExclusionReading>()
+                .Match<IWhisparrSceneExclusionReading?>(held => held, _ => null)
+                is not { } exclusions)
         {
             return TypedResults.Ok(
                 NothingWasSent(SceneRefusalKind.CapabilityAbsentOnThisGeneration));
@@ -88,6 +96,13 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(NothingWasSent(SceneRefusalKind.DidNotReachWhisparr));
         }
 
+        var excluded = await FindExclusionAsync(
+            exclusions, new SceneVerbTarget(target, remoteId), log, ct).ConfigureAwait(false);
+        if (!excluded.ReadCompleted)
+        {
+            return TypedResults.Ok(NothingWasSent(SceneRefusalKind.DidNotReachWhisparr));
+        }
+
         // A profile read that answers nothing is not a failed tab: the scene's own facts stand, and
         // the two the profile carries are reported as unestablished.
         var profiles = await ContainedAsync(
@@ -96,7 +111,9 @@ public sealed partial class WhisparrSync
             log,
             ct).ConfigureAwait(false);
 
-        return TypedResults.Ok(SceneDetailProjector.Project(answered, profiles));
+        return TypedResults.Ok(
+            SceneDetailProjector.Project(
+                answered, profiles, excluded: excluded.ExclusionId is not null));
     }
 
     /// <summary>Adds one scene the connected instance does not hold.</summary>

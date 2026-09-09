@@ -638,20 +638,30 @@ public sealed class NonGrabbingBodyTests
     }
 
     /// <summary>
-    /// The exclusion body carries the scene's foreign id and no other member.
+    /// The exclusion body carries the scene's foreign id, a non-empty movie title and the scene
+    /// type, and no other member.
     /// </summary>
     /// <remarks>
-    /// The member set is asserted, so the title, the type and the reason stay the instance's own to
-    /// fill. Read off the composed body, so the absent search flag is absent by composition.
+    /// The instance validates the title as non-empty and binds it as <c>movieTitle</c>, so the
+    /// spelling is asserted as well as the presence: a body naming the identifier alone, or naming a
+    /// plain <c>title</c>, is refused and nothing is excluded. The type is asserted because the
+    /// instance's own exclusion form always carries one and this product excludes scenes alone. The
+    /// member set is asserted too, so the reason stays the instance's own to fill, and the absent
+    /// search flag is absent by composition.
     /// </remarks>
     [Fact]
-    public void TheSceneExclusionBodyCarriesTheForeignIdAndNoOtherMember()
+    public void TheSceneExclusionBodyCarriesTheForeignIdAMovieTitleAndTheSceneType()
     {
         var body = ComposedBody.Of(V3BodyProjector.SceneExclusion("9b6a0f8e-5f2c-4a1d-8b7e-2c3d4e5f6a7b"));
 
-        Assert.Equal(["foreignId"], body.Select(member => member.Key).ToList());
+        Assert.Equal(
+            ["foreignId", "movieTitle", "type"], body.Select(member => member.Key).Order().ToList());
         Assert.Equal(
             "9b6a0f8e-5f2c-4a1d-8b7e-2c3d4e5f6a7b", body["foreignId"]!.GetValue<string>());
+        Assert.False(string.IsNullOrWhiteSpace(body["movieTitle"]!.GetValue<string>()));
+        Assert.Contains(
+            "9b6a0f8e-5f2c-4a1d-8b7e-2c3d4e5f6a7b", body["movieTitle"]!.GetValue<string>());
+        Assert.Equal("scene", body["type"]!.GetValue<string>());
         Assert.All(
             ComposedAdds.EverySuppressionSpelling,
             path => Assert.Null(ComposedAdds.At(body, path)));
