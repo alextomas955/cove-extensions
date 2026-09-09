@@ -96,7 +96,9 @@ each against its own isolated Cove instance. This is safe because:
   same worker that's mid-assertion against it.
 
 **Worker count is capped, not left at Playwright's CPU-based default, and CI gets fewer workers
-than local.** Each worker brings up its own Docker Compose network plus a real browser instance.
+than local.** Each worker brings up its own compose stack plus a real browser instance. The stacks
+share one network, so the address-pool limit below is now reached through nothing but that single
+network — but the containers, the databases and the browsers are still per worker.
 Locally, 4 is capped because Docker's default address-pool allocation is a finite, **host-wide**
 resource shared with any other Docker projects already running on the machine — confirmed
 directly: an uncapped run (Playwright's default, which scaled to 13 workers on the machine this was
@@ -117,7 +119,12 @@ Clean up manually with:
 ```sh
 docker ps -a --filter "name=testcontainers" -q | xargs -r docker rm -f
 docker network ls --filter "name=testcontainers" --format "{{.Name}}" | xargs -r docker network rm
+docker network rm cove-e2e-shared
 ```
+
+The last line is the shared network `globalSetup` creates. Removing it is optional: the next run
+joins whatever is there, and `docker network rm` refuses while any container still holds an endpoint
+on it, so clear the containers first.
 
 ## Writing your first test
 
@@ -227,21 +234,34 @@ the cleanup command.
 
 ### A page that renders nothing, with `net::ERR_NETWORK_CHANGED` against the app's own assets
 
-The browser runs on the host and loads the app over a published container port. Attaching or
-detaching a container from a bridge network creates a veth on the host; the kernel runs IPv6 address
-configuration on it, and Chromium reads that as the network changing and aborts the requests it has
-in flight. Those requests are the app's own script and stylesheet chunks, so the page renders
-nothing on the correct URL, with no script error and no failed navigation to point at.
+The browser runs on the host and loads the app over a published container port. When a host IP
+address appears or goes away, Chromium discards every request it has in flight. Those requests are
+the app's own script and stylesheet chunks, so the page renders nothing on the correct URL, with no
+script error and no failed navigation to point at.
 
-Every test here brings up its own compose stack, so a run does that once per test. It is
-[chromium 974711](https://bugs.chromium.org/p/chromium/issues/detail?id=974711) and
-[docker/for-linux#914](https://github.com/docker/for-linux/issues/914); both report that it happens
-only where IPv6 is enabled on the host, and there is no Chromium flag that turns the notifier off.
+Only an ADDRESS change does this. In Chromium, `RTM_NEWADDR` reaches `OnIPAddressChanged`
+(`net/base/address_tracker_linux.cc`), and the four socket and session pools that subscribe to it —
+`TransportClientSocketPool`, `SpdySessionPool`, `HttpStreamPool`, `QuicSessionPool` — flush with
+`ERR_NETWORK_CHANGED`. `RTM_NEWLINK` sets only `link_changed`, which reaches at most a
+connection-type notification, and no pool observes that one. So attaching a container, which creates
+a veth, is harmless; creating a NETWORK, which creates a bridge that takes an IPv4 address, is not.
+There is no Chromium flag for it: `ignored_interfaces_` would do exactly this but nothing populates
+it from the command line.
 
-CI sets `net.ipv6.conf.default.disable_ipv6=1` before the suite, which is the template the kernel
-applies to interfaces created after it, so each new veth is covered and the runner's existing
-interfaces are not. Locally, disable IPv6 on the host if you see this; nothing in the harness can
-prevent it.
+That is why every stack joins one shared network rather than getting its own (see
+[`docker/docker-compose.yml`](docker/docker-compose.yml) and
+[`lib/shared-network.mjs`](lib/shared-network.mjs)). Measured on a CI runner, a project-owned network
+per stack cost 21 network creations and 42 address events in one run, every one of them the suite's
+own; the same run then reported 37 aborts. Joining an existing network creates no interface, so the
+counts are 1 and 2 — `globalSetup`'s own create and teardown, paid before any browser exists — and
+the aborts are 0. Container attachment is unchanged at ~90 per run, which is the point: the veths
+were never the problem.
+
+Related upstream reports, both of which describe the IPv6 half of this and neither of which has a
+fix: [chromium 974711](https://bugs.chromium.org/p/chromium/issues/detail?id=974711) and
+[docker/for-linux#914](https://github.com/docker/for-linux/issues/914). CI also sets
+`net.ipv6.conf.default.disable_ipv6=1`, which stops IPv6 address configuration on each new veth.
+That is a second address source rather than the same one, and it is still worth having.
 
 ## How it works (implementation notes)
 
