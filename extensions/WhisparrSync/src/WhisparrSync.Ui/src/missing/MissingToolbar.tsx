@@ -9,18 +9,22 @@
  * facet to offer, so the toolbar draws the two controls that need neither.
  */
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { Chip, TextInput } from "@cove-extensions/ui-shared";
 
-import { ACTION_REFRESH, facetMenuBound } from "../common/ui/copy";
+import { ACTION_REFRESH, facetMenuBound, monitorAllConfirmation } from "../common/ui/copy";
 import { OFF_SCREEN } from "../common/ui/offScreen";
 import type { MissingFacetMenu as FacetMenuView, MissingPageView } from "../wire/api";
 import type { MissingEntityKind } from "./entityKindLogic";
+import { ConfirmDialog } from "./hostComponents";
 import { facetMenuRows, menuIsBounded, toggleFacetValue } from "./missingFacetLogic";
 import { MissingFacetMenu, type MissingMenuRow } from "./MissingFacetMenu";
 import {
   MISSING_TOOLBAR_CONTROLS,
+  MONITOR_ALL_LABEL,
   SEARCH_PLACEHOLDER,
   SORT_MENU_LABEL,
+  monitorAllOffered,
   searchSettleDelayMs,
   sortOptionsFor,
 } from "./missingToolbarLogic";
@@ -38,14 +42,18 @@ export interface MissingToolbarCatalogue {
 
 export function MissingToolbar({
   onRefresh,
+  onMonitorAll,
   catalogue,
 }: {
   onRefresh: () => void;
+  /** Marks everything the narrowing in the address covers, once the reader has confirmed. */
+  onMonitorAll: () => void;
   catalogue?: MissingToolbarCatalogue;
 }) {
   const [view, setView] = useMissingUrlState();
   const [text, setText] = useState(() => view.q);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const openTrigger = useRef<HTMLElement | null>(null);
 
   // Written by replacement once typing settles, so the back button leaves the tab and does not step
@@ -127,6 +135,42 @@ export function MissingToolbar({
       <button type="button" onClick={onRefresh} className={CONTROL_CLASS}>
         {ACTION_REFRESH}
       </button>
+
+      {catalogue === undefined || !monitorAllOffered(catalogue.kind) ? null : (
+        <button
+          type="button"
+          onClick={() => {
+            setConfirming(true);
+          }}
+          className={CONTROL_CLASS}
+        >
+          {MONITOR_ALL_LABEL}
+        </button>
+      )}
+
+      {!confirming || catalogue === undefined
+        ? null
+        : // Portaled to the document, so no ancestor of this tab can become the containing block of a
+          // dialog that positions against the viewport and clip it to the grid.
+          createPortal(
+            <ConfirmDialog
+              open
+              title={MONITOR_ALL_LABEL}
+              confirmLabel={MONITOR_ALL_LABEL}
+              message={monitorAllConfirmation(
+                catalogue.view.catalogueSize,
+                catalogue.view.providerName,
+              )}
+              onConfirm={() => {
+                onMonitorAll();
+                setConfirming(false);
+              }}
+              onCancel={() => {
+                setConfirming(false);
+              }}
+            />,
+            document.body,
+          )}
     </div>
   );
 }

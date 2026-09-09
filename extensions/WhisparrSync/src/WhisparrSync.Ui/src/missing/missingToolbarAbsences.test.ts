@@ -7,6 +7,8 @@
  * calls. That makes it fit for counting which strings reach the toolbar and unfit for pinning any
  * value the view computes, which `MissingToolbar.test.ts` renders the view to assert.
  */
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import * as copy from "../common/ui/copy";
@@ -15,8 +17,10 @@ import { facetMenuRows } from "./missingFacetLogic";
 import * as facetLogic from "./missingFacetLogic";
 import {
   MISSING_TOOLBAR_CONTROLS,
+  MONITOR_ALL_LABEL,
   SEARCH_PLACEHOLDER,
   SORT_MENU_LABEL,
+  monitorAllOffered,
   sortOptionsFor,
 } from "./missingToolbarLogic";
 import * as toolbarLogic from "./missingToolbarLogic";
@@ -96,13 +100,15 @@ function drawnStrings(view: MissingPageView): string[] {
   return drawn;
 }
 
-describe("the toolbar's own vocabulary is the two control names", () => {
-  it("declares two strings across both logic modules, and each is a control's name", () => {
+describe("the toolbar's own vocabulary is its control names", () => {
+  it("declares three strings across both logic modules, and each is a control's name", () => {
     const declared = [...Object.entries(toolbarLogic), ...Object.entries(facetLogic)]
       .filter(([, value]) => typeof value === "string")
       .map(([, value]) => value as string);
 
-    expect(declared.sort()).toEqual([SEARCH_PLACEHOLDER, SORT_MENU_LABEL].sort());
+    expect(declared.sort()).toEqual(
+      [SEARCH_PLACEHOLDER, SORT_MENU_LABEL, MONITOR_ALL_LABEL].sort(),
+    );
   });
 
   it("draws no sentence but Refresh across the controls and their rows", () => {
@@ -114,6 +120,27 @@ describe("the toolbar's own vocabulary is the two control names", () => {
     );
 
     expect(drawnSentences).toEqual([copy.ACTION_REFRESH]);
+  });
+});
+
+describe("the whole-catalogue control is absent on a tag rather than dimmed", () => {
+  it("offers it for the two kinds whose catalogue an entity bounds", () => {
+    expect(monitorAllOffered("studio")).toBe(true);
+    expect(monitorAllOffered("performer")).toBe(true);
+    expect(monitorAllOffered("tag")).toBe(false);
+  });
+
+  /**
+   * The absence is the whole requirement, and the view is not rendered here. A source pin is what
+   * keeps the button from being drawn unconditionally, or drawn dimmed with a reason, once the
+   * answer above already says a tag is not offered it.
+   */
+  it("draws the control behind that answer and offers no dimmed form of it", () => {
+    const source = readFileSync(path.join(import.meta.dirname, "MissingToolbar.tsx"), "utf8");
+
+    expect(source).toContain("!monitorAllOffered(catalogue.kind) ? null");
+    expect(source).not.toMatch(/disabled(=|\s*[,}])/);
+    expect(source).not.toContain("OptionallyDisabled");
   });
 });
 

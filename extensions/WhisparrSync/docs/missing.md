@@ -88,8 +88,8 @@ catalogue, and:
 - **Monitor** and **Search** are still drawn on each card and neither can take. A press changes
   nothing and says the action is currently available on Whisparr v3 (Eros). Your instance is never
   asked, so it did not decline.
-- A selection's **Monitor** is refused before the run starts, and the bar says the connected
-  Whisparr keeps no per-scene records.
+- A selection's **Monitor** and the toolbar's **Monitor all** are both refused before the run
+  starts, and the page says the connected Whisparr keeps no per-scene records.
 
 Monitoring a whole studio or performer is not affected. That lives on the Whisparr button beside the
 entity's name. See [Monitor a studio or a performer](./monitoring.md).
@@ -117,13 +117,32 @@ A started run clears the ticks. A run refused before it started keeps them and s
 grid, so you can fix the cause and press again.
 
 **A selection covers the page you are looking at and nothing more.** Changing page clears the ticks.
-There is no select-everything-that-matches gesture, and that is deliberate: a catalogue here runs to
-tens of thousands of scenes, and a gesture that reached all of them would be one press away from a
-run of that size.
+There is no select-everything-that-matches gesture. Use **Monitor all** below for the whole list.
 
 The scenes Cove already holds are a separate list, and registering those in Whisparr lives on the
 Whisparr button beside the entity's name. See
 [Add all missing](./monitoring.md#add-all-missing).
+
+## Mark the whole list at once
+
+**Monitor all**, at the right of the toolbar, marks every scene the list currently shows as wanted.
+It downloads nothing, the same way each card's **Monitor** downloads nothing.
+
+Press it and Cove asks you to confirm first. The confirmation names how many scenes the source lists
+for that entity and says that the ones you already own are not part of the run. Cancel and nothing is
+sent.
+
+The run works from the search and the facet values in force, not from the page you are on, so it
+covers every page of the narrowed list. Your browser sends no list of scenes: Cove works out the same
+set on the server that it drew for you.
+
+It runs in the background, one job, and reports the same three counts a selection's run reports. The
+page does not change while it runs. It needs permission to configure extensions, as each card's own
+**Monitor** does.
+
+**Monitor all is not offered on a tag page.** A tag's list spans your whole library rather than one
+entity, so there is no bounded run to make. Nothing you can change turns it on. Narrow with the
+search and the facets and use a selection instead.
 
 ## Narrow the list
 
@@ -156,6 +175,8 @@ source your Whisparr generation reads from.
   a performer page each offer Tags.
 - **A tag page carries no facet menu on either source**, because the only menu left would narrow a
   tag to itself.
+- **Monitor all on a tag page.** A studio's and a performer's list is bounded by that entity; a
+  tag's spans the whole library, so there is no run of a knowable size to offer.
 - **A year filter is offered on ThePornDB and not on StashDB.** ThePornDB narrows to an exact year.
   StashDB carries one date bound that cannot express a year, so no year menu is drawn there.
 

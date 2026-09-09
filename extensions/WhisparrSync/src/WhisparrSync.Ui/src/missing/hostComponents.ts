@@ -8,6 +8,7 @@
  */
 
 export {
+  ConfirmDialog,
   DetailListPagination,
   PerformerTile,
   TagBadge,

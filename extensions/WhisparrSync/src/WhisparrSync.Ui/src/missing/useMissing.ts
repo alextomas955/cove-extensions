@@ -33,6 +33,13 @@ export interface Missing {
   readonly searchScene: (providerSceneId: string) => void;
   /** Marks the ticked scenes wanted as one background run. Acquires nothing. */
   readonly monitorSelection: (providerSceneIds: readonly string[]) => void;
+  /**
+   * Marks everything the current narrowing covers wanted, as one background run. Acquires nothing.
+   *
+   * Sends no scene identifiers. The server re-derives the set from the search and the facets in
+   * force, which is what keeps the run's cost off the browser and its set equal to the grid's.
+   */
+  readonly monitorAll: () => void;
 }
 
 /**
@@ -76,6 +83,25 @@ function sceneRouteFor(entity: MissingEntity, providerSceneId: string, verb: Car
 /** The selection's own route, which names the entity and carries the ticked scenes in its body. */
 function bulkRouteFor(entity: MissingEntity): string {
   return api(`entity/${entity.kind}/${String(entity.coveId)}/missing/bulk-monitor`);
+}
+
+/**
+ * The whole-catalogue route, which names the entity and the narrowing and no scene at all.
+ *
+ * The narrowing travels in the same spelling the page read sends it in, so the server parses one
+ * form and the set it derives is the set the grid was showing. The ordering is left out: it decides
+ * which page a scene lands on and never whether it is in the set.
+ */
+function monitorAllRouteFor(entity: MissingEntity, key: MissingViewKey): string {
+  const query = new URLSearchParams();
+  if (key.q !== "") query.set("q", key.q);
+  if (key.filters !== "") query.set("filters", key.filters);
+  const narrowing = query.toString();
+
+  return api(
+    `entity/${entity.kind}/${String(entity.coveId)}/missing/monitor-all` +
+      (narrowing === "" ? "" : `?${narrowing}`),
+  );
 }
 
 export function useMissing(kind: MissingEntityKind, coveId: number, view: MissingView): Missing {
@@ -168,5 +194,18 @@ export function useMissing(kind: MissingEntityKind, coveId: number, view: Missin
     [store, kind, coveId],
   );
 
-  return { state, refresh, monitorScene, searchScene, monitorSelection };
+  const monitorAll = useCallback(() => {
+    const entity: MissingEntity = { kind, coveId };
+    store.beginBulk(entity);
+
+    postAction<MissingBulkEnqueued>(monitorAllRouteFor(entity, { page, sort, q, filters }))
+      .then((answered) => {
+        store.bulkSettled(entity, selectionOutcomeIn(answered));
+      })
+      .catch(() => {
+        store.bulkSettled(entity, { kind: "refused", refusal: "notStarted" });
+      });
+  }, [store, kind, coveId, page, sort, q, filters]);
+
+  return { state, refresh, monitorScene, searchScene, monitorSelection, monitorAll };
 }

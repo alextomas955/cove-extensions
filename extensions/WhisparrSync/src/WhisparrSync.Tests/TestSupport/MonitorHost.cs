@@ -114,7 +114,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         WhisparrGeneration generation = WhisparrGeneration.V3,
         BodyRecordingHandler? bytes = null,
         MonitorScope defaultScope = MonitorScope.FutureScenes,
-        IProviderCatalogue? catalogue = null)
+        IProviderCatalogue? catalogue = null,
+        CoveConfiguration? metadataConfig = null)
     {
         var host = new MonitorHost();
         (host._db, host._connection) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -193,8 +194,9 @@ internal sealed class MonitorHost : IAsyncDisposable
 
         // The catalogue routes take these, and minimal-API binding resolves a handler's services
         // before the handler runs, so a route-input case never reaches its own guard without them.
-        // Built over no host configuration, which is the stated refusal rather than a throw.
-        builder.Services.AddSingleton(new ProviderEndpointPort(null));
+        // Built over no host configuration by default, which is the stated refusal rather than a
+        // throw. A case whose subject is a page the catalogue really answers names a source instead.
+        builder.Services.AddSingleton(new ProviderEndpointPort(metadataConfig));
         // A case whose subject is a route reaching no provider passes one that throws on every
         // member, so a reach is a failure rather than an answer nobody looked at.
         var provider = catalogue ?? new InertProviderCatalogue();
