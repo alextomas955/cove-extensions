@@ -68,16 +68,19 @@ export const THE_STATUS_READ_DID_NOT_COMPLETE =
 export const NO_PLACE_FOR_A_CARD_STATUS_HERE =
   "This display mode has no place for a per-card status. Switch to the Grid display mode to see it.";
 
+/** The row and the selection-bar action that ask the instance to monitor the entity. */
+export const MONITOR_IN_WHISPARR = "Monitor in Whisparr";
+
 /**
  * The entity control's own name while the entity is not monitored in Whisparr.
  *
  * The control carries the product's mark instead of a word, so its accessible name is the only name
  * it has. A filled two-tone disc cannot inherit `currentColor`, so it cannot carry the state either.
  */
-export const MONITOR_IN_WHISPARR = "Monitor in Whisparr";
+export const WHISPARR_NOT_MONITORED = "Whisparr, not monitored";
 
 /** The same control's name once the connected instance monitors the entity. */
-export const MONITORED_IN_WHISPARR = "Monitored in Whisparr";
+export const WHISPARR_MONITORED = "Whisparr, monitored";
 
 /**
  * The entity's monitored state could not be read.
