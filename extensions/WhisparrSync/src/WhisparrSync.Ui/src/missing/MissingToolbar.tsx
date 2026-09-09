@@ -15,7 +15,7 @@
  */
 import { useCallback, useEffect, useId, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { Radar, RefreshCw, Search } from "lucide-react";
+import { ChevronDown, Radar, RefreshCw, Search } from "lucide-react";
 
 import {
   ACTION_REFRESH,
@@ -63,6 +63,14 @@ const SELECT_CLASS =
 
 /** The same control with room for a leading glyph. */
 const ACTION_CLASS = `inline-flex items-center gap-1.5 ${SELECT_CLASS}`;
+
+/**
+ * The same control as the trigger of a menu, capped at Cove's own width for one.
+ *
+ * The cap is what makes the value truncate: a menu carries values the source spelled, and an
+ * uncapped trigger would stretch the bar to the longest of them.
+ */
+const MENU_TRIGGER_CLASS = `inline-flex max-w-[10rem] items-center gap-1.5 ${SELECT_CLASS}`;
 
 /** Cove's own search field, which dodges the glass rule the same way. */
 const SEARCH_INPUT_CLASS =
@@ -282,10 +290,11 @@ function MenuControl({
         onClick={(event) => {
           onOpen(name, event.currentTarget);
         }}
-        className={SELECT_CLASS}
+        className={MENU_TRIGGER_CLASS}
       >
         <span style={OFF_SCREEN}>{label}</span>
-        {trigger}
+        <span className="min-w-0 truncate">{trigger}</span>
+        <ChevronDown aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
       </button>
       {open ? (
         <MissingFacetMenu
