@@ -13,9 +13,43 @@
 # Not driven directly via `docker compose` CLI — `lib/harness.mjs`'s `startHarness()` (Testcontainers'
 # DockerComposeEnvironment) is the actual entry point; see tests/e2e/README.md.
 
+# Every stack joins ONE network that already exists, rather than getting a default network of its
+# own. Compose creates a bridge per project, the kernel gives each new bridge an IPv4 address, and
+# Chromium tears down every in-flight request when a host address appears or goes away
+# (net/base/address_tracker_linux.cc raises RTM_NEWADDR to OnIPAddressChanged; the four socket and
+# session pools that observe it flush with ERR_NETWORK_CHANGED). The browser here loads the app over
+# a published port from the host, so what it drops is the app's own script chunks: the page then
+# renders nothing, on the right URL, with no script error and no failed navigation to point at.
+#
+# `isolatedHarnessFixture` takes a stack per TEST, so the measured cost of a project-owned network was
+# 21 bridge creations and 21 removals in one run - 42 address events, every one of them ours. Joining
+# an existing network creates no interface, so the suite raises none.
+#
+# Attaching a container still creates a veth, and that is a LINK event: RTM_NEWLINK sets only
+# `link_changed`, which reaches OnLinkChanged and at most a connection-type notification. No socket
+# pool observes that one, so it cannot produce ERR_NETWORK_CHANGED. Interface churn per se is not the
+# hazard; a host ADDRESS appearing is.
+#
+# `external` is what makes this a join rather than a create. `lib/global-setup.mjs` creates the
+# network once before any worker starts, which is the one moment in the run when an address event
+# costs nothing, because no browser exists yet.
+networks:
+  default:
+    name: ${COVE_E2E_NETWORK:-cove-e2e-shared}
+    external: true
+
 services:
   db:
     image: pgvector/pgvector:pg18
+    # One network for every stack means one DNS namespace for every stack. Compose aliases a service
+    # by its own name, so N stacks would each publish `db` and `Host=db` would round-robin across
+    # other tests' databases - the same instance answering as a different library, which is a wrong
+    # answer rather than an error. This alias is the name the cove service actually dials, and it is
+    # unique per stack.
+    networks:
+      default:
+        aliases:
+          - db-${COVE_E2E_STACK:?set by tests/e2e/lib/harness.mjs, one value per stack - without it every stack would answer to the same database hostname}
     environment:
       POSTGRES_DB: cove
       POSTGRES_USER: cove
@@ -46,7 +80,7 @@ services:
       - "${COVE_E2E_PORT:-0}:5073"
     environment:
       COVE__Postgres__Managed: "false"
-      COVE__Postgres__ConnectionString: "Host=db;Port=5432;Database=cove;Username=cove;Password=cove"
+      COVE__Postgres__ConnectionString: "Host=db-${COVE_E2E_STACK};Port=5432;Database=cove;Username=cove;Password=cove"
       COVE_HOME: /config
       COVE__GeneratedPath: /generated
       COVE__CachePath: /cache

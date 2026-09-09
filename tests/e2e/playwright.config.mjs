@@ -93,5 +93,10 @@ export default defineConfig({
     screenshot: "only-on-failure",
     ...devices["Desktop Chrome"],
   },
+  // Creates the one network every stack joins, and removes it after the last worker. It has to run
+  // here rather than from a fixture: creating a network raises a host address event, and Chromium
+  // answers one by dropping every request in flight, so the only safe moment for it is before any
+  // browser exists. See lib/shared-network.mjs.
+  globalSetup: "./lib/global-setup.mjs",
   projects: e2eProjects,
 });
