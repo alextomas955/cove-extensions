@@ -19,9 +19,9 @@ import {
   ACTION_ADD_ALL_MISSING,
   ACTION_REFLECT_OWNED,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
+  MENU_UNMONITOR,
   SCOPE_ALL_SCENES,
   SCOPE_FUTURE_SCENES,
-  STOP_MONITORING_IN_WHISPARR,
 } from "../common/ui/copy";
 import type { EntityMonitoringView } from "../wire/api";
 
@@ -439,7 +439,7 @@ test("the arrow keys wrap past a disabled last row", async () => {
   expect(accessibleName(document.activeElement!)).toBe(ACTION_REFLECT_OWNED);
 
   press("ArrowDown");
-  expect(accessibleName(document.activeElement!)).toBe(STOP_MONITORING_IN_WHISPARR);
+  expect(accessibleName(document.activeElement!)).toBe(MENU_UNMONITOR);
 });
 
 test("with every row disabled an arrow press moves nothing and raises nothing", async () => {

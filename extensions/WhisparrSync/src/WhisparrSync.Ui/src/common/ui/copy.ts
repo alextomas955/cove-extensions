@@ -68,7 +68,25 @@ export const THE_STATUS_READ_DID_NOT_COMPLETE =
 export const NO_PLACE_FOR_A_CARD_STATUS_HERE =
   "This display mode has no place for a per-card status. Switch to the Grid display mode to see it.";
 
-/** The row and the selection-bar action that ask the instance to monitor the entity. */
+/**
+ * The name every menu row carries, which is not the name the scene tab's control of the same verb
+ * carries.
+ *
+ * A row names its verb alone, because the panel above it is headed with the product's name and the
+ * count the choice covers. The scene tab's controls sit in a rail beside Cove's own, where the
+ * product's name is what says who acts. The two sets are declared apart and neither is derived from
+ * the other.
+ */
+export const MENU_ADD = "Add";
+
+/** Sits beside {@link MENU_UNMONITOR}, so the pair reads as one axis at a glance. */
+export const MENU_MONITOR = "Monitor";
+
+export const MENU_UNMONITOR = "Unmonitor";
+
+export const MENU_EXCLUDE = "Exclude";
+
+/** The scene tab's monitor control, while the instance is not monitoring the scene. */
 export const MONITOR_IN_WHISPARR = "Monitor in Whisparr";
 
 /**
@@ -152,7 +170,10 @@ export const REFLECT_OWNED_SKIPPED =
 export const REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE =
   "Skipped: Cove could not read Whisparr's hard-link setting, so it could not establish that linking these files would cost no extra disk.";
 
-/** The item that turns monitoring off. Named for what it does, not for the flag it writes. */
+/**
+ * The same scene tab control once the instance monitors the scene. Named for what it does, not for
+ * the flag it writes.
+ */
 export const STOP_MONITORING_IN_WHISPARR = "Stop monitoring in Whisparr";
 
 /**

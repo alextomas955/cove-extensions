@@ -8,6 +8,9 @@
  * Nothing here is decided from a table of what a generation can do. The view carries the capabilities
  * the connected instance holds, and that list is the authority, so a capability registered later
  * needs no edit here.
+ *
+ * Every row is labelled from the menu set rather than from the scene tab's, because the menu above
+ * the rows is already headed with the product's name.
  */
 import type {
   AddAllMissingEnqueued,
@@ -32,7 +35,8 @@ import {
   INSTANCE_OFFERS_NO_QUALITY_PROFILE,
   INSTANCE_OFFERS_NO_ROOT_FOLDER,
   INSTANCE_REFUSED,
-  MONITOR_IN_WHISPARR,
+  MENU_MONITOR,
+  MENU_UNMONITOR,
   NO_IDENTITY_IN_THIS_NAMESPACE,
   NO_INSTANCE_CONNECTED,
   REFLECT_OWNED_SKIPPED,
@@ -40,7 +44,6 @@ import {
   SCOPE_ALL_SCENES,
   SCOPE_FUTURE_SCENES,
   SEVERAL_IDENTITIES_IN_THIS_NAMESPACE,
-  STOP_MONITORING_IN_WHISPARR,
   WAITING_FOR_WHISPARR,
 } from "../common/ui/copy";
 
@@ -505,7 +508,7 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
     scopes.length === 0 && !view.monitored
       ? [
           {
-            ...face(MONITOR_IN_WHISPARR, null),
+            ...face(MENU_MONITOR, null),
             item: "monitor" as const,
           },
         ]
@@ -516,7 +519,7 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
   }
 
   const unmonitor: MonitorMenuItem = {
-    ...face(STOP_MONITORING_IN_WHISPARR, null),
+    ...face(MENU_UNMONITOR, null),
     item: "unmonitor",
   };
 

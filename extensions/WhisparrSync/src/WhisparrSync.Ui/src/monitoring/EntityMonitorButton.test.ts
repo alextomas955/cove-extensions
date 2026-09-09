@@ -96,10 +96,10 @@ const {
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   INSTANCE_OFFERS_NO_QUALITY_PROFILE,
   INSTANCE_REFUSED,
+  MENU_UNMONITOR,
   MONITORING_COULD_NOT_BE_READ,
   REFLECT_OWNED_SKIPPED,
   SCOPE_ALL_SCENES,
-  STOP_MONITORING_IN_WHISPARR,
   WHISPARR_MONITORED,
   WHISPARR_NOT_MONITORED,
 } = await import("../common/ui/copy");
@@ -347,7 +347,7 @@ test("each verb this build serves posts its own route rather than the monitor on
   const rows = rendered.rows();
   const scope = rows.find((row) => (row.getAttribute("title") ?? "").startsWith(SCOPE_ALL_SCENES));
   const unmonitor = rows.find((row) =>
-    (row.getAttribute("title") ?? "").startsWith(STOP_MONITORING_IN_WHISPARR),
+    (row.getAttribute("title") ?? "").startsWith(MENU_UNMONITOR),
   );
 
   // A scope change on something already monitored is a different verb from monitoring it, so the

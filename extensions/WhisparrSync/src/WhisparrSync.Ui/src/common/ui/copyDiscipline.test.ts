@@ -130,10 +130,10 @@ const RENDERED_BY_THE_LIBRARY_PILL = [
  * entity surface. A row draws its name and its glyph, and states nothing beneath itself.
  */
 const CARRIED_BY_THE_MONITOR_MENU_ITEMS = [
-  "MONITOR_IN_WHISPARR",
+  "MENU_MONITOR",
   "SCOPE_FUTURE_SCENES",
   "SCOPE_ALL_SCENES",
-  "STOP_MONITORING_IN_WHISPARR",
+  "MENU_UNMONITOR",
   "ACTION_ADD_ALL_MISSING",
   "ACTION_REFLECT_OWNED",
   "ACTION_SEARCH_ALL_MONITORED",
@@ -175,6 +175,8 @@ const RENDERED_BY_THE_SCENE_TAB = [
   "SCENE_FACT_CUTOFF",
   "SCENE_ADD",
   "SCENE_SEARCH",
+  "MONITOR_IN_WHISPARR",
+  "STOP_MONITORING_IN_WHISPARR",
   "SCENE_EXCLUDE",
   "SCENE_REMOVE_EXCLUSION",
   "SCENE_SEARCH_NEEDS_AN_ENTRY",
@@ -186,12 +188,17 @@ const RENDERED_BY_THE_SCENE_TAB = [
 ];
 
 /**
- * The sentence a selection over the search row's own bound is refused with.
+ * The sentence a selection over the search row's own bound is refused with, and the two row names
+ * this overlay is the only surface to render.
  *
- * Every row reads a name the product already uses for that verb elsewhere, so no row's LABEL is
- * named here: each is named in the group of the surface that declared it.
+ * Its other three rows read a name named in another group: the monitor menu declares the pair, and
+ * the search row's name is the scene tab's.
  */
-const RENDERED_BY_THE_BATCH_OVERLAY = ["BATCH_SEARCH_IS_OVER_THE_BOUND"];
+const RENDERED_BY_THE_BATCH_OVERLAY = [
+  "BATCH_SEARCH_IS_OVER_THE_BOUND",
+  "MENU_ADD",
+  "MENU_EXCLUDE",
+];
 
 /**
  * One sentence per reason a monitor control can be unavailable. The menu rules module maps the kind
