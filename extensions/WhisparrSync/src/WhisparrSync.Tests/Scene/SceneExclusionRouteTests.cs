@@ -111,6 +111,56 @@ public sealed class SceneExclusionRouteTests
         Assert.Empty(host.Client.Acting);
     }
 
+    /// <summary>
+    /// The read reports the exclusion the instance's own list names, in both directions.
+    /// </summary>
+    /// <remarks>
+    /// This is the fact the tab's control set turns on: the state vocabulary tests exclusion ahead
+    /// of everything else, and one control carries both the excluding and the removing label. The
+    /// scene's own row carries no exclusion member, so the list is the only thing that establishes
+    /// it.
+    /// </remarks>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TheReadReportsWhetherTheInstancesListNamesTheScene(bool onTheList)
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var coveId = await SeedSceneAsync(host);
+        if (onTheList)
+        {
+            host.Client.ExclusionIdByScene[SceneId] = ExclusionOnTheInstance;
+        }
+
+        var view = await host.SceneDetailAsync(coveId);
+
+        Assert.Equal(SceneRefusalKind.None, view.Refusal);
+        Assert.Equal(onTheList, view.Excluded);
+        Assert.Equal([SceneId], host.Client.ExclusionLookups);
+    }
+
+    /// <summary>
+    /// A list read that produced no whole answer refuses the read rather than reporting no
+    /// exclusion.
+    /// </summary>
+    /// <remarks>
+    /// Reporting the scene as not excluded would let an excluded scene read as monitored, because
+    /// the vocabulary tests exclusion first and would never reach the flag it was given.
+    /// </remarks>
+    [Fact]
+    public async Task AListReadThatDidNotCompleteRefusesTheRead()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var coveId = await SeedSceneAsync(host);
+        host.Client.ExclusionReadCompletes = false;
+
+        var view = await host.SceneDetailAsync(coveId);
+
+        Assert.Equal(SceneRefusalKind.DidNotReachWhisparr, view.Refusal);
+        Assert.Null(view.Present);
+        Assert.Null(view.Monitored);
+    }
+
     /// <summary>Neither half claims anything about a search.</summary>
     [Theory]
     [InlineData(Exclude)]
