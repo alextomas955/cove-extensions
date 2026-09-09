@@ -64,8 +64,8 @@ const WHISPARR_NOT_MONITORED = "Whisparr, not monitored";
 const WHISPARR_MONITORED = "Whisparr, monitored";
 const NO_IDENTITY_IN_THIS_NAMESPACE =
   "Cove holds no link for this entity that the connected Whisparr can identify it by.";
-const SCOPE_FUTURE_SCENES = "Future Scenes";
-const SCOPE_ALL_SCENES = "All Scenes";
+const SCOPE_FUTURE_SCENES = "Monitor - new releases only";
+const SCOPE_ALL_SCENES = "Monitor - all scenes (queue back-catalogue)";
 const UNMONITOR = "Unmonitor";
 
 // The refusal kind meaning nothing was refused, in the wire spelling the server answers it in.
@@ -336,8 +336,11 @@ test("the control renders and works on both real detail pages, and the instance 
     const menu = page.getByRole("menu", { name: WHISPARR_NOT_MONITORED });
     await expect(menu, "the control did not open its menu on a click").toBeVisible();
 
-    const futureScenes = menu.getByRole("menuitemradio", { name: SCOPE_FUTURE_SCENES });
-    const allScenes = menu.getByRole("menuitemradio", { name: SCOPE_ALL_SCENES });
+    const futureScenes = menu.getByRole("menuitemradio", {
+      name: SCOPE_FUTURE_SCENES,
+      exact: true,
+    });
+    const allScenes = menu.getByRole("menuitemradio", { name: SCOPE_ALL_SCENES, exact: true });
     await expect(
       allScenes,
       "the menu offers no second scope, so the arrow keys have nothing to move between",
@@ -374,7 +377,7 @@ test("the control renders and works on both real detail pages, and the instance 
     // The gesture itself: the narrower scope, on an entity the instance already holds.
     await monitorControl(page).click();
     await expect(menu, "the control did not reopen its menu").toBeVisible();
-    await menu.getByRole("menuitemradio", { name: SCOPE_FUTURE_SCENES }).click();
+    await menu.getByRole("menuitemradio", { name: SCOPE_FUTURE_SCENES, exact: true }).click();
 
     // The extension's own read, asserted before the control's name and never instead of it. The two
     // can disagree, and which one is wrong is what a failure has to say: a server reporting the
