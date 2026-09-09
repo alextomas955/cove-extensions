@@ -12,11 +12,6 @@
  * one name across the product.
  */
 import {
-  BATCH_ADD_STATES,
-  BATCH_EXCLUDE_STATES,
-  BATCH_MONITOR_STATES,
-  BATCH_SEARCH_STATES,
-  BATCH_UNMONITOR_STATES,
   MONITOR_IN_WHISPARR,
   SCENE_ADD,
   SCENE_EXCLUDE,
@@ -29,25 +24,13 @@ import type { SceneBatchVerb } from "../wire/api";
 export interface BatchMenuRow {
   readonly key: string;
   readonly label: string;
-  /** What is stated beneath it, in the order it reads. */
-  readonly sentences: readonly string[];
   readonly verb: NonNullable<SceneBatchVerb>;
 }
 
 export const BATCH_MENU_ROWS: readonly BatchMenuRow[] = [
-  { key: "add", label: SCENE_ADD, sentences: [BATCH_ADD_STATES], verb: "add" },
-  {
-    key: "monitor",
-    label: MONITOR_IN_WHISPARR,
-    sentences: [BATCH_MONITOR_STATES],
-    verb: "monitor",
-  },
-  {
-    key: "unmonitor",
-    label: STOP_MONITORING_IN_WHISPARR,
-    sentences: [BATCH_UNMONITOR_STATES],
-    verb: "unmonitor",
-  },
-  { key: "search", label: SCENE_SEARCH, sentences: [BATCH_SEARCH_STATES], verb: "search" },
-  { key: "exclude", label: SCENE_EXCLUDE, sentences: [BATCH_EXCLUDE_STATES], verb: "exclude" },
+  { key: "add", label: SCENE_ADD, verb: "add" },
+  { key: "monitor", label: MONITOR_IN_WHISPARR, verb: "monitor" },
+  { key: "unmonitor", label: STOP_MONITORING_IN_WHISPARR, verb: "unmonitor" },
+  { key: "search", label: SCENE_SEARCH, verb: "search" },
+  { key: "exclude", label: SCENE_EXCLUDE, verb: "exclude" },
 ];

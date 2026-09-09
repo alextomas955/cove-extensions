@@ -34,10 +34,6 @@ import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { randomUUID } from "node:crypto";
 
-// Imported, unlike the labels below. This one is asserted for its PRESENCE in the overlay - 53-18
-// put it among the stop action's sentences and nothing else checks that it reaches a reader - so a
-// copied literal would keep passing after the shipped sentence moved out from under it.
-import { UNMONITORING_DOES_NOT_RETRACT } from "../../src/WhisparrSync.Ui/src/common/ui/copy.ts";
 import {
   connectWhisparr,
   expect,
@@ -56,7 +52,6 @@ import {
 
 // Transcribed by hand from the extension's own registration and copy module, never imported.
 const BULK_ACTION_LABEL = "Monitor in Whisparr";
-const BULK_CHOOSE_AN_ACTION = "Choose what to do with every entity you selected.";
 const BULK_CANCEL = "Cancel";
 const SCOPE_FUTURE_SCENES = "Future Scenes";
 const STOP_MONITORING_IN_WHISPARR = "Stop monitoring in Whisparr";
@@ -119,7 +114,10 @@ const test = base.extend({
 });
 
 const bulkButton = (page) => page.getByRole("button", { name: BULK_ACTION_LABEL });
-const chooserPanel = (page) => page.getByRole("dialog", { name: BULK_CHOOSE_AN_ACTION });
+// The panel heads itself with the product's name and the count of what is selected, and that header
+// is its accessible name.
+const chooserPanel = (page) =>
+  page.getByRole("menu", { name: `Whisparr · ${SEEDED_STUDIOS} selected` });
 
 /** Opens `path`, re-navigating while the host has painted its own error boundary in place of it. */
 async function visit(page, baseUrl, path, present, label) {
@@ -298,13 +296,15 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
       chooserPanel(page).getByRole("button", { name: STOP_MONITORING_IN_WHISPARR }),
       "the chooser offers no unmonitor verb, so it is not reading the connected generation's capabilities",
     ).toBeVisible();
-    // What unmonitoring does NOT do, stated where the choice is made rather than after it. A reader
-    // who unmonitors to stop acquisition has not stopped it, and no other sentence in this product
-    // says so - so the overlay carrying it is the only place that fact reaches them.
-    await expect(
-      chooserPanel(page).getByText(UNMONITORING_DOES_NOT_RETRACT, { exact: false }),
-      "the chooser offers the unmonitor verb without saying what it leaves behind, so a reader stops Whisparr wanting new scenes and believes they retracted what All Scenes already made wanted",
-    ).toBeVisible();
+    // One glyph and one name per row, and no paragraph anywhere inside the panel.
+    expect(
+      await chooserPanel(page).locator("p").count(),
+      "the chooser draws a paragraph, so a row states prose the panel is no longer meant to carry",
+    ).toBe(0);
+    expect(
+      await chooserPanel(page).getByRole("menuitem").count(),
+      "the chooser offers a row count this build does not draw",
+    ).toBe(4);
 
     const enqueued = page.waitForResponse(
       (response) => new URL(response.url()).pathname === BULK_ROUTE,
