@@ -486,6 +486,68 @@ export const SCENE_SEARCH_IS_WITH_WHISPARR =
   "Whisparr has the search. What it finds arrives the same way every other import does.";
 
 /**
+ * What the batch overlay asks, above the rows it offers.
+ *
+ * Says "every scene you selected" rather than naming a count. The count is on screen in the
+ * selection bar the reader just used, and a second copy of it here would be a second thing that can
+ * be wrong.
+ */
+export const BATCH_CHOOSE_AN_ACTION = "Choose what to do with every scene you selected.";
+
+/** The batch overlay's first row. One verb keeps one name across the product. */
+export const BATCH_ADD = SCENE_ADD;
+
+/** What the add row states. Says what it does not do, because the name suggests acquisition. */
+export const BATCH_ADD_STATES =
+  "Adds every selected scene Whisparr does not hold yet. Downloads nothing.";
+
+/** The batch overlay's second row. */
+export const BATCH_MONITOR = MONITOR_IN_WHISPARR;
+
+/** What the monitor row states. Whisparr's own schedule decides what it takes later. */
+export const BATCH_MONITOR_STATES =
+  "Tells Whisparr to want every selected scene. Downloads nothing now.";
+
+/** The batch overlay's third row. */
+export const BATCH_UNMONITOR = STOP_MONITORING_IN_WHISPARR;
+
+/** What the unmonitor row states. The second sentence is what a reader would otherwise assume. */
+export const BATCH_UNMONITOR_STATES =
+  "Tells Whisparr to stop wanting every selected scene. Nothing already downloaded is removed.";
+
+/** What the search row states. The only row in the overlay with an external cost. */
+export const BATCH_SEARCH_STATES =
+  "Asks Whisparr to look for every selected scene it is monitoring. This is the only row here that can download files.";
+
+/**
+ * What the exclude row states.
+ *
+ * The last clause is how the batch's one asymmetry is stated rather than hidden: there is no bulk
+ * row that takes a scene back off the list, and a reader who needs one is told where it is.
+ */
+export const BATCH_EXCLUDE_STATES =
+  "Puts every selected scene on Whisparr's exclusion list, so they are not added again. Nothing already downloaded is removed. Take one back off the list on that scene's own Whisparr tab.";
+
+/**
+ * How many scenes one search run may carry.
+ *
+ * The route's own lower bound, declared here because the sentence below names it. One press of the
+ * search row becomes one search per scene against every indexer the instance has, so its cost
+ * multiplies outside Cove in a way the other four rows' does not. A test compares this number
+ * against the route's `MaxSceneSearchIdsPerRequest`, which is what stops the two drifting apart in
+ * silence.
+ */
+export const MAX_SCENE_SEARCH_IDS_PER_REQUEST = 100;
+
+/**
+ * Why a selection larger than the search row's own bound did nothing.
+ *
+ * Names the limit that applied rather than the general one. A reader refused at 100 who is told
+ * about 1000 has been told something that is not true of what they just did.
+ */
+export const BATCH_SEARCH_IS_OVER_THE_BOUND = `A search runs against every indexer Whisparr has, so Cove searches at most ${String(MAX_SCENE_SEARCH_IDS_PER_REQUEST)} scenes in one run, and you selected more. Nothing was sent; select fewer and repeat over the rest.`;
+
+/**
  * What a `{provider}` slot reads as before any page has answered.
  *
  * Which source is read follows the connected generation and is named by the page, so a read that
