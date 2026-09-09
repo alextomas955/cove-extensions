@@ -49,27 +49,13 @@ test("carries a declared label constant on every row", () => {
   ]);
 });
 
-test("states what every row does, in declared sentences", () => {
-  expect(BATCH_MENU_ROWS.map((row) => row.sentences)).toEqual([
-    [copy.BATCH_ADD_STATES],
-    [copy.BATCH_MONITOR_STATES],
-    [copy.BATCH_UNMONITOR_STATES],
-    [copy.BATCH_SEARCH_STATES],
-    [copy.BATCH_EXCLUDE_STATES],
-  ]);
+test("carries a name and a verb per row and nothing else", () => {
+  for (const row of BATCH_MENU_ROWS) {
+    expect(Object.keys(row).toSorted(), row.key).toEqual(["key", "label", "verb"]);
+  }
 });
 
-test("names exactly one row as the only one that can download", () => {
-  const downloading = BATCH_MENU_ROWS.filter((row) =>
-    row.sentences.some((sentence) => sentence.includes("the only row here that can download")),
-  );
-
-  expect(downloading.map((row) => row.key)).toEqual(["search"]);
+test("puts the one row that can download fourth, where the order says it belongs", () => {
   expect(keys()[3]).toBe("search");
-});
-
-test("says on the exclude row where a single exclusion is taken back off the list", () => {
-  const exclude = BATCH_MENU_ROWS.find((row) => row.key === "exclude");
-
-  expect(exclude?.sentences.join(" ")).toContain("on that scene's own Whisparr tab");
+  expect(BATCH_MENU_ROWS[3].label).toBe(copy.SCENE_SEARCH);
 });

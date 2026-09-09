@@ -18,11 +18,9 @@ import { monitorMenu } from "./monitorMenuLogic";
 import {
   ACTION_ADD_ALL_MISSING,
   ACTION_REFLECT_OWNED,
-  ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   SCOPE_ALL_SCENES,
   SCOPE_FUTURE_SCENES,
-  SCOPE_IN_FORCE_IS_NOT_REPORTED,
   STOP_MONITORING_IN_WHISPARR,
 } from "../common/ui/copy";
 import type { EntityMonitoringView } from "../wire/api";
@@ -113,13 +111,6 @@ async function mount(
   };
 }
 
-/** The wrapper each row's button and its sentences share. */
-function rowOf(item: Element): HTMLElement {
-  const wrapper = item.parentElement;
-  if (wrapper === null) throw new Error("a menu row has no wrapper");
-  return wrapper;
-}
-
 function press(key: string) {
   (document.activeElement ?? document.body).dispatchEvent(
     new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
@@ -144,7 +135,7 @@ test("every row carries a menu role, and the scope pair carries the radio role a
   expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual(["true", "false"]);
 });
 
-test("marks no radio at all, and says why, when the read reported no scope", async () => {
+test("marks no radio at all when the read reported no scope", async () => {
   const menu = monitorMenu(viewOf({ monitored: true, scope: null }), false);
   const mounted = await mount((triggerRef) =>
     createElement(EntityMonitorMenu, {
@@ -160,10 +151,9 @@ test("marks no radio at all, and says why, when the read reported no scope", asy
   expect(rows.length).toBeGreaterThan(0);
   expect(rows.map((row) => row.getAttribute("aria-checked"))).not.toContain("true");
   expect(mounted.panel()?.querySelectorAll('[aria-checked="true"]').length).toBe(0);
-  expect(mounted.panel()?.textContent).toContain(SCOPE_IN_FORCE_IS_NOT_REPORTED);
 });
 
-test("marks the reported scope, and says nothing about not knowing one", async () => {
+test("marks the reported scope", async () => {
   const menu = monitorMenu(viewOf({ monitored: true, scope: "allScenes" }), false);
   const mounted = await mount((triggerRef) =>
     createElement(EntityMonitorMenu, {
@@ -177,7 +167,6 @@ test("marks the reported scope, and says nothing about not knowing one", async (
 
   const checked = [...(mounted.panel()?.querySelectorAll('[aria-checked="true"]') ?? [])];
   expect(checked.map((row) => accessibleName(row))).toEqual([SCOPE_ALL_SCENES]);
-  expect(mounted.panel()?.textContent).not.toContain(SCOPE_IN_FORCE_IS_NOT_REPORTED);
 });
 
 test("the panel leaves the page's own container, which clips what it holds", async () => {
@@ -219,40 +208,22 @@ test("the first scope option is Future Scenes and it is the one taken", async ()
   expect(accessibleName(rows[1])).toBe(SCOPE_ALL_SCENES);
 });
 
-test("the All-Scenes cost is stated beside the All-Scenes option and beside no other", async () => {
-  const menu = monitorMenu(viewOf({}), false);
+test("every row draws one glyph and its own name, and no paragraph anywhere", async () => {
+  const menu = monitorMenu(viewOf({ monitored: true }), false);
   const mounted = await mount((triggerRef) =>
     createElement(EntityMonitorMenu, {
       menu,
-      label: "Monitor in Whisparr",
+      label: "Monitored in Whisparr",
       triggerRef,
       onSelect: () => undefined,
       onClose: () => undefined,
     }),
   );
 
-  const carrying = mounted
-    .rows()
-    .filter((row) => rowOf(row).textContent.includes(ALL_SCENES_MARKS_THE_BACK_CATALOGUE));
-
-  expect(carrying).toHaveLength(1);
-  expect(accessibleName(carrying[0])).toBe(SCOPE_ALL_SCENES);
-});
-
-test("a sentence beneath a row stays out of that row's accessible name", async () => {
-  const menu = monitorMenu(viewOf({}), false);
-  const mounted = await mount((triggerRef) =>
-    createElement(EntityMonitorMenu, {
-      menu,
-      label: "Monitor in Whisparr",
-      triggerRef,
-      onSelect: () => undefined,
-      onClose: () => undefined,
-    }),
-  );
-
-  // The sentence is on screen, and the row is still called only what it is called.
-  expect(mounted.panel()?.textContent).toContain(ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
+  for (const row of mounted.rows()) {
+    expect(row.querySelectorAll("svg"), accessibleName(row)).toHaveLength(1);
+  }
+  expect(mounted.panel()?.querySelectorAll("p")).toHaveLength(0);
   expect(accessibleName(mounted.rows()[1])).toBe(SCOPE_ALL_SCENES);
 });
 

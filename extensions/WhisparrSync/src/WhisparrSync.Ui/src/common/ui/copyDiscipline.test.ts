@@ -69,6 +69,7 @@ const RENDERED_BY_THE_MISSING_TAB = [
   "COUNT_IS_THE_CATALOGUE_SIZE",
   "SEARCH_WITH_NO_ENTRY",
   "THE_METADATA_SOURCE",
+  "BULK_REPORTS_IN_THE_JOB_DRAWER",
 ];
 
 /** Sentences the connect surface reads through its own kind table. */
@@ -124,23 +125,13 @@ const RENDERED_BY_THE_LIBRARY_PILL = [
 ];
 
 /**
- * The scope names, the two consequence sentences that must be read before a scope is chosen, one per
- * secondary action, and the consequence of the one secondary action that hands files to Whisparr.
- * Each is placed on a menu item by `monitoring/monitorMenuLogic.ts`; the menu that draws those items
- * arrives with the rest of the entity surface.
+ * The name of every row the monitor menu offers. Each is placed on a menu item by
+ * `monitoring/monitorMenuLogic.ts`; the menu that draws those items arrives with the rest of the
+ * entity surface. A row draws its name and its glyph, and states nothing beneath itself.
  */
 const CARRIED_BY_THE_MONITOR_MENU_ITEMS = [
   "SCOPE_FUTURE_SCENES",
   "SCOPE_ALL_SCENES",
-  "ALL_SCENES_MARKS_THE_BACK_CATALOGUE",
-  "SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED",
-  "ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE",
-  "UNMONITORING_DOES_NOT_RETRACT",
-  "PERFORMER_HAS_NO_FUTURE_ONLY_SCOPE",
-  "REFLECT_OWNED",
-  "WHISPARR_MAY_RENAME",
-  "ADD_ALL_MISSING",
-  "SEARCH_ALL_MONITORED",
   "STOP_MONITORING_IN_WHISPARR",
   "ACTION_ADD_ALL_MISSING",
   "ACTION_REFLECT_OWNED",
@@ -148,18 +139,19 @@ const CARRIED_BY_THE_MONITOR_MENU_ITEMS = [
 ];
 
 /**
- * The sentence the menu states beneath the scope pair when the read named no scope in force. Its
- * own group rather than the item list's, because it belongs to the pair rather than to either row.
+ * The two consequences the confirmation states before All Scenes is carried out. Its own group,
+ * because the confirmation is the one surface that states either of them.
  */
-const STATED_BENEATH_THE_SCOPE_PAIR = ["SCOPE_IN_FORCE_IS_NOT_REPORTED"];
+const RENDERED_BY_THE_ALL_SCENES_CONFIRMATION = [
+  "ALL_SCENES_MARKS_THE_BACK_CATALOGUE",
+  "ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE",
+];
 
 /**
- * The selection overlay's own sentences: what it asks, where the answer appears, why it sometimes
- * has nothing to offer, and its two ways out.
+ * The selection overlay's own sentences: why it sometimes has nothing to offer, how a refused
+ * gesture is stated, and its two ways out.
  */
 const RENDERED_BY_THE_BULK_OVERLAY = [
-  "BULK_CHOOSE_AN_ACTION",
-  "BULK_REPORTS_IN_THE_JOB_DRAWER",
   "BULK_ACTIONS_COULD_NOT_BE_OFFERED",
   "BULK_SELECTION_IS_OVER_THE_BOUND",
   "BULK_SELECTION_WAS_NOT_STARTED",
@@ -193,21 +185,12 @@ const RENDERED_BY_THE_SCENE_TAB = [
 ];
 
 /**
- * The batch overlay's own question, what each of its five rows states, and the sentence a selection
- * over the search row's own bound is refused with.
+ * The sentence a selection over the search row's own bound is refused with.
  *
  * Every row reads a name the product already uses for that verb elsewhere, so no row's LABEL is
  * named here: each is named in the group of the surface that declared it.
  */
-const RENDERED_BY_THE_BATCH_OVERLAY = [
-  "BATCH_CHOOSE_AN_ACTION",
-  "BATCH_ADD_STATES",
-  "BATCH_MONITOR_STATES",
-  "BATCH_UNMONITOR_STATES",
-  "BATCH_SEARCH_STATES",
-  "BATCH_EXCLUDE_STATES",
-  "BATCH_SEARCH_IS_OVER_THE_BOUND",
-];
+const RENDERED_BY_THE_BATCH_OVERLAY = ["BATCH_SEARCH_IS_OVER_THE_BOUND"];
 
 /**
  * One sentence per reason a monitor control can be unavailable. The menu rules module maps the kind
@@ -363,7 +346,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_AS_A_MONITOR_REFUSAL,
       ...RENDERED_ON_A_STALE_READ,
       ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
-      ...STATED_BENEATH_THE_SCOPE_PAIR,
+      ...RENDERED_BY_THE_ALL_SCENES_CONFIRMATION,
     ];
 
     const orphans = CONSTANTS.filter(
@@ -389,7 +372,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_AS_A_MONITOR_REFUSAL,
       ...RENDERED_ON_A_STALE_READ,
       ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
-      ...STATED_BENEATH_THE_SCOPE_PAIR,
+      ...RENDERED_BY_THE_ALL_SCENES_CONFIRMATION,
     ]) {
       expect(declared, name).toContain(name);
     }
