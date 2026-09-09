@@ -41,11 +41,11 @@ test("sorts nothing, so two reads answer the same order", () => {
 
 test("carries a declared label constant on every row", () => {
   expect(BATCH_MENU_ROWS.map((row) => row.label)).toEqual([
-    copy.SCENE_ADD,
-    copy.MONITOR_IN_WHISPARR,
-    copy.STOP_MONITORING_IN_WHISPARR,
+    copy.MENU_ADD,
+    copy.MENU_MONITOR,
+    copy.MENU_UNMONITOR,
     copy.SCENE_SEARCH,
-    copy.SCENE_EXCLUDE,
+    copy.MENU_EXCLUDE,
   ]);
 });
 
