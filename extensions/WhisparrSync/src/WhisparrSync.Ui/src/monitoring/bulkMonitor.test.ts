@@ -100,10 +100,10 @@ const {
   BULK_SELECTION_IS_OVER_THE_BOUND,
   BULK_SELECTION_WAS_NOT_STARTED,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
+  MENU_UNMONITOR,
   SCOPE_ALL_SCENES,
   SCOPE_FUTURE_SCENES,
   selectionMenuHeader,
-  STOP_MONITORING_IN_WHISPARR,
 } = await import("../common/ui/copy");
 
 const sleep = (ms: number) =>
@@ -245,7 +245,7 @@ test("unmonitoring sends its own verb and no scope", async () => {
   answering(viewOf());
 
   const { running } = await open("studios", [7]);
-  press(STOP_MONITORING_IN_WHISPARR);
+  press(MENU_UNMONITOR);
   await running;
 
   const posted = sent.find((call) => call.method === "POST");
@@ -308,12 +308,7 @@ test("the secondary actions are not offered even where the generation holds all 
 
   const { running } = await open("studios", [7]);
 
-  expect(labels()).toEqual([
-    SCOPE_FUTURE_SCENES,
-    SCOPE_ALL_SCENES,
-    STOP_MONITORING_IN_WHISPARR,
-    BULK_CANCEL,
-  ]);
+  expect(labels()).toEqual([SCOPE_FUTURE_SCENES, SCOPE_ALL_SCENES, MENU_UNMONITOR, BULK_CANCEL]);
   press(BULK_CANCEL);
   await running;
 });
