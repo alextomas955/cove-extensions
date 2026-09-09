@@ -11,20 +11,13 @@
  * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
  * too), which has no `act`, so a render is awaited on the condition it produces.
  *
- * The search box and the chip stand in. Both come from the shared primitives module, whose icon
- * package resolves only from a consuming bundle's own install, and neither draws the sentence under
- * test. The menu panel is the real one, because the sentence is drawn there.
+ * The menu panel is the real one, because the sentence is drawn there.
  */
 import { afterEach, expect, test, vi } from "vitest";
-import { createElement, type ReactNode } from "react";
+import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import type { MissingFacetMenu, MissingPageView, MissingSortOption } from "../wire/api";
-
-vi.mock("@cove-extensions/ui-shared", () => ({
-  Chip: ({ children }: { children?: ReactNode }) => createElement("span", null, children),
-  TextInput: () => createElement("input"),
-}));
 
 /**
  * The host dialog resolves only inside a running Cove, so it stands in here. The stand-in draws the
@@ -119,7 +112,11 @@ afterEach(() => {
 
 async function mountToolbar(
   facets: MissingFacetMenu[],
-  over: { kind?: "studio" | "performer" | "tag"; catalogueSize?: number } = {},
+  over: {
+    kind?: "studio" | "performer" | "tag";
+    catalogueSize?: number;
+    view?: Partial<MissingPageView>;
+  } = {},
   onMonitorAll: () => void = () => undefined,
 ) {
   const container = document.createElement("div");
@@ -131,7 +128,11 @@ async function mountToolbar(
       onMonitorAll,
       catalogue: {
         kind: over.kind ?? "studio",
-        view: { ...pageWith(facets), catalogueSize: over.catalogueSize ?? 0 },
+        view: {
+          ...pageWith(facets),
+          catalogueSize: over.catalogueSize ?? 0,
+          ...over.view,
+        },
       },
     }),
   );
@@ -229,4 +230,80 @@ test("a tag page draws no whole-catalogue control at all", async () => {
 
   expect(control(container, "Monitor all")).toBeUndefined();
   expect(container.textContent).not.toContain("Monitor all");
+});
+
+/** How many times `needle` appears in `text`. */
+function occurrences(text: string, needle: string): number {
+  let count = 0;
+  for (let i = text.indexOf(needle); i !== -1; i = text.indexOf(needle, i + needle.length)) {
+    count += 1;
+  }
+  return count;
+}
+
+/**
+ * A page the provider answered with a range, so the bar has one to state.
+ *
+ * The three figures are unequal, so a bar that stated any of them in place of another reads
+ * differently.
+ */
+const A_PAGE_INTO_THE_CATALOGUE: Partial<MissingPageView> = {
+  rangeFrom: 41,
+  rangeTo: 80,
+  catalogueSize: 272,
+};
+
+test("the bar states the range once, and the grid beneath states none", async () => {
+  const container = await mountToolbar([YEAR], { view: A_PAGE_INTO_THE_CATALOGUE });
+
+  const drawn = await settled(() => container.textContent.includes("of 272"));
+  expect(drawn, "the bar drew no range").toBe(true);
+  expect(occurrences(container.textContent, "41–80 of 272")).toBe(1);
+});
+
+/**
+ * A catalogue with nothing in it has no position to be at, and the grid states why in place of a
+ * page of cards. A range there would be a measurement of an empty set.
+ */
+test("an empty catalogue is given no range", async () => {
+  const container = await mountToolbar([YEAR]);
+
+  expect(container.textContent).not.toContain(" of ");
+});
+
+/** The control whose accessible name starts with `label`, whatever it goes on to say. */
+function menuNamed(container: Element, label: string) {
+  return [...container.querySelectorAll('[aria-haspopup="menu"]')].find((candidate) =>
+    candidate.textContent.startsWith(label),
+  );
+}
+
+test("a facet control names what the menu covers while nothing is picked in it", async () => {
+  const container = await mountToolbar([YEAR]);
+
+  expect(menuNamed(container, "Year")?.textContent).toBe("YearAll year");
+});
+
+test("a facet control names the value in force once one is picked", async () => {
+  window.history.replaceState(null, "", "/?wsmFilters=year%3A2024");
+  const container = await mountToolbar([YEAR]);
+
+  const named = await settled(() => menuNamed(container, "Year")?.textContent === "Year2024");
+  expect(named, `the control read ${menuNamed(container, "Year")?.textContent ?? "nothing"}`).toBe(
+    true,
+  );
+  window.history.replaceState(null, "", "/");
+});
+
+test("the ordering control names the ordering in force rather than what it opens", async () => {
+  const container = await mountToolbar([YEAR], {
+    view: { sortInForce: "DATE-DESC" },
+  });
+
+  const named = await settled(
+    () => menuNamed(container, "Sort")?.textContent === "SortNewest first",
+  );
+  expect(named, `the control read ${menuNamed(container, "Sort")?.textContent ?? "nothing"}`).toBe(
+    true,
+  );
 });

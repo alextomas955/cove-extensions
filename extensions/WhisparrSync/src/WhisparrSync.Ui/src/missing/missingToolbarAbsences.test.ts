@@ -79,9 +79,12 @@ function pageWith(facets: MissingFacetMenu[]): MissingPageView {
 }
 
 /**
- * Every string the toolbar draws for one page, composed from the same functions the view calls: the
- * search placeholder, the ordering trigger and its rows, one trigger and its rows per facet menu,
- * and Refresh.
+ * Every string the toolbar's controls draw for one page, composed from the same functions the view
+ * calls: the search placeholder, the ordering trigger and its rows, one trigger and its rows per
+ * facet menu, and Refresh. Nothing picked in any menu, so each facet trigger names what its menu
+ * covers.
+ *
+ * The bar's own heading and range are not controls and are not composed here.
  */
 function drawnStrings(view: MissingPageView): string[] {
   const controls = MISSING_TOOLBAR_CONTROLS;
@@ -93,7 +96,7 @@ function drawnStrings(view: MissingPageView): string[] {
   }
   if (controls.includes("facets")) {
     for (const menu of view.facets) {
-      drawn.push(menu.label);
+      drawn.push(copy.facetCoversEverything(menu.label));
       for (const row of facetMenuRows(menu, null)) drawn.push(row.label);
     }
   }
@@ -147,7 +150,7 @@ describe("the whole-catalogue control is absent on a tag rather than dimmed", ()
 describe("nothing warns about an approximate year, because nothing approximates", () => {
   it("draws a year menu with its own values and no caveat beside it", () => {
     const drawn = drawnStrings(pageWith([YEAR]));
-    const fromTheYearMenu = [YEAR.label, ...YEAR.values.map((value) => value.label)];
+    const fromTheYearMenu = ["All year", ...YEAR.values.map((value) => value.label)];
 
     expect(drawn.filter((entry) => /year|20\d\d/i.test(entry)).sort()).toEqual(
       fromTheYearMenu.sort(),
