@@ -509,9 +509,12 @@ export const WHISPARR_KEEPS_NO_SCENE_RECORDS =
  * What the figure beside a catalogue counts.
  *
  * The tab badge takes a number and has no room for this, so the count line carries it.
+ *
+ * Written to CONTINUE the range rather than to stand on its own, so the line is one statement
+ * instead of a range with a second sentence run onto it. Nothing renders this alone.
  */
 export const COUNT_IS_THE_CATALOGUE_SIZE =
-  "This counts every scene {provider} lists for {entity}, not the number you are missing.";
+  "scenes {provider} lists for {entity}, not the number you are missing.";
 
 /**
  * The range a page covers, out of the whole catalogue.
