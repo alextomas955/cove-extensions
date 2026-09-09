@@ -110,7 +110,6 @@ export function MissingGrid({
           <>
             {view === null ? null : (
               <MissingCountLine
-                view={view}
                 provider={surroundings.provider}
                 entityName={surroundings.entityName}
               />

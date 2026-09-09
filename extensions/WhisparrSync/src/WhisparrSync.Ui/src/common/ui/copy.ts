@@ -508,13 +508,31 @@ export const WHISPARR_KEEPS_NO_SCENE_RECORDS =
 /**
  * What the figure beside a catalogue counts.
  *
- * The tab badge takes a number and has no room for this, so the count line carries it.
+ * The tab badge takes a number and has no room for this, so the line above the grid carries it.
  *
- * Written to CONTINUE the range rather than to stand on its own, so the line is one statement
- * instead of a range with a second sentence run onto it. Nothing renders this alone.
+ * Written to stand alone: the range it refers to is stated in the toolbar above that line, so this
+ * names the total it is about rather than continuing from it.
  */
 export const COUNT_IS_THE_CATALOGUE_SIZE =
-  "scenes {provider} lists for {entity}, not the number you are missing.";
+  "That total is the scenes {provider} lists for {entity}, not the number you are missing.";
+
+/**
+ * The catalogue tab's own name, drawn at the left of its toolbar.
+ *
+ * The same word the manifest advertises the tab under. The host draws that one on the tab strip and
+ * hands the tab no name of its own, so the toolbar states it.
+ */
+export const MISSING_TAB_HEADING = "Missing";
+
+/**
+ * What a facet control reads while nothing is picked in it.
+ *
+ * The control names the value in force, so with none in force it names the whole of what the menu
+ * covers rather than what pressing it opens. The menu's own name arrives from the source.
+ */
+export function facetCoversEverything(menuLabel: string): string {
+  return `All ${menuLabel.toLowerCase()}`;
+}
 
 /**
  * The range a page covers, out of the whole catalogue.
