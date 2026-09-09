@@ -11,12 +11,12 @@ import {
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ,
   INSTANCE_HOLDS_NO_SUCH_ENTRY,
-  MONITOR_IN_WHISPARR,
+  MENU_MONITOR,
+  MENU_UNMONITOR,
   REFLECT_OWNED_SKIPPED,
   REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
   SCOPE_ALL_SCENES,
   SCOPE_FUTURE_SCENES,
-  STOP_MONITORING_IN_WHISPARR,
   WAITING_FOR_WHISPARR,
 } from "../common/ui/copy";
 import {
@@ -155,11 +155,11 @@ describe("the studio menu", () => {
     ]);
   });
 
-  it("offers the unmonitor item under the product's own name for that verb", () => {
+  it("offers the unmonitor item under the menu's own name for that verb", () => {
     const menu = monitorMenu(view({ kind: "studio", monitored: true }), false);
     const unmonitor = menu.items.find((item) => item.item === "unmonitor");
 
-    expect(unmonitor?.label).toBe(STOP_MONITORING_IN_WHISPARR);
+    expect(unmonitor?.label).toBe(MENU_UNMONITOR);
   });
 });
 
@@ -231,7 +231,7 @@ describe("a performer", () => {
     const menu = monitorMenu(view({ kind: "performer", monitored: false }), false);
     const monitor = menu.items.find((item) => item.item === "monitor");
 
-    expect(monitor?.label).toBe(MONITOR_IN_WHISPARR);
+    expect(monitor?.label).toBe(MENU_MONITOR);
   });
 
   it("leaves the control itself unavailable, with the menu empty, where the generation cannot monitor one", () => {

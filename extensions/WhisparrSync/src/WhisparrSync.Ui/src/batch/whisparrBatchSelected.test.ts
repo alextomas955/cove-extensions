@@ -68,12 +68,12 @@ const {
   BULK_CANCEL,
   BULK_SELECTION_IS_OVER_THE_BOUND,
   BULK_SELECTION_WAS_NOT_STARTED,
-  MONITOR_IN_WHISPARR,
-  SCENE_ADD,
-  SCENE_EXCLUDE,
+  MENU_ADD,
+  MENU_EXCLUDE,
+  MENU_MONITOR,
+  MENU_UNMONITOR,
   SCENE_SEARCH,
   selectionMenuHeader,
-  STOP_MONITORING_IN_WHISPARR,
 } = await import("../common/ui/copy");
 
 const sleep = (ms: number) =>
@@ -165,11 +165,11 @@ test("offers the five rows in their fixed order, headed by the count", async () 
   const { running } = await open("video", [1, 2]);
 
   expect(labels()).toEqual([
-    SCENE_ADD,
-    MONITOR_IN_WHISPARR,
-    STOP_MONITORING_IN_WHISPARR,
+    MENU_ADD,
+    MENU_MONITOR,
+    MENU_UNMONITOR,
     SCENE_SEARCH,
-    SCENE_EXCLUDE,
+    MENU_EXCLUDE,
     BULK_CANCEL,
   ]);
   expect(document.querySelector('[role="menu"]')?.getAttribute("aria-label")).toBe(
@@ -191,7 +191,7 @@ test("leaving without choosing answers cancelled and sends nothing", async () =>
 
 test("a chosen row posts once, in the spelling the route binds", async () => {
   const { running } = await open("video", [7, 8]);
-  await chosen(SCENE_EXCLUDE);
+  await chosen(MENU_EXCLUDE);
 
   await expect(running).resolves.toEqual({});
   expect(sent).toEqual([
