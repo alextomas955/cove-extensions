@@ -19,6 +19,8 @@ type DisabledControlProps = {
   name: string;
   onClick: () => void;
   variant?: "primary" | "ghost";
+  /** Draw the control as a full-width bar. */
+  fill?: boolean;
 } & (
   | {
       disabled: true;
@@ -39,28 +41,38 @@ export function OptionallyDisabled({
   name,
   onClick,
   variant,
+  fill,
   reason,
 }: {
   name: string;
   onClick: () => void;
   variant?: "primary" | "ghost";
+  /** Draw the control as a full-width bar. */
+  fill?: boolean;
   /** Why the control is unavailable, or null when it is available. */
   reason: string | null;
 }) {
   return reason === null ? (
-    <DisabledControl name={name} onClick={onClick} variant={variant} />
+    <DisabledControl name={name} onClick={onClick} variant={variant} fill={fill} />
   ) : (
-    <DisabledControl name={name} onClick={onClick} variant={variant} disabled reason={reason} />
+    <DisabledControl
+      name={name}
+      onClick={onClick}
+      variant={variant}
+      fill={fill}
+      disabled
+      reason={reason}
+    />
   );
 }
 
 export function DisabledControl(props: DisabledControlProps) {
-  const { name, onClick, variant, disabled } = props;
+  const { name, onClick, variant, fill, disabled } = props;
   const reason = props.disabled === true ? props.reason : undefined;
 
   return (
-    <span title={reason} className="inline-flex">
-      <Button variant={variant} onClick={onClick} disabled={disabled}>
+    <span title={reason} className={fill === true ? "flex w-full" : "inline-flex"}>
+      <Button variant={variant} onClick={onClick} disabled={disabled} fill={fill}>
         {name}
         {reason === undefined ? null : <span style={OFF_SCREEN}>{reason}</span>}
       </Button>
