@@ -49,8 +49,18 @@ const MANIFEST_STRING_CONSTANT = (name: string) =>
 /** The whole body of the bundle's `actionHandlers` map. */
 const ACTION_HANDLER_MAP = /actionHandlers\s*=\s*\{([^}]*)\}/;
 
-/** The name the manifest's bulk actions declare their handler under. */
-const MANIFEST_HANDLER_NAME = /BulkHandlerName\s*=\s*"([^"]*)"/g;
+/**
+ * Every `handlerName:` argument the manifest passes, whether written as a literal or as a constant
+ * the same file declares.
+ *
+ * Read from the registrations rather than from one named constant: a pattern naming a constant
+ * reports nothing about a second action registered under a second one, and an action the host can
+ * dispatch that the bundle never registers is exactly what this compares.
+ */
+const MANIFEST_HANDLER_NAME_LITERAL = /handlerName:\s*"([^"]*)"/g;
+
+/** Each `handlerName:` argument written as a constant this same file declares. */
+const MANIFEST_HANDLER_NAME_CONSTANT = /handlerName:\s*(\w+)/g;
 
 /** Every capture of `pattern` in `file`, with the match count asserted to be at least one. */
 function readAll(pattern: RegExp, file: string): string[] {
@@ -97,6 +107,21 @@ function advertisedComponentNames(): string[] {
   return [...new Set(named)];
 }
 
+/** Every handler name the manifest declares, with any constant resolved to its value. */
+function declaredHandlerNames(): string[] {
+  const source = readFileSync(manifestSource, "utf8");
+  const named = [
+    ...[...source.matchAll(MANIFEST_HANDLER_NAME_LITERAL)].map((match) => match[1]),
+    ...readAll(MANIFEST_HANDLER_NAME_CONSTANT, manifestSource).map((name) => {
+      const declared = MANIFEST_STRING_CONSTANT(name).exec(source);
+      expect(declared, `${name} is not declared in ${manifestSource}`).not.toBeNull();
+      return declared![1];
+    }),
+  ];
+
+  return [...new Set(named)];
+}
+
 test("every name the C# manifest advertises is a key this bundle registers", () => {
   const advertised = advertisedComponentNames();
   const registered = bundleKeys();
@@ -110,9 +135,9 @@ test("every name the C# manifest advertises is a key this bundle registers", () 
  * handler name leaves the host dispatching nothing when the bulk button is pressed, with no error.
  */
 test("every handler name the C# manifest declares is a key this bundle registers", () => {
-  const declared = readAll(MANIFEST_HANDLER_NAME, manifestSource);
+  const declared = declaredHandlerNames();
   const registered = handlerKeys();
 
   expect(registered.length).toBeGreaterThan(0);
-  expect([...new Set(declared)].sort()).toEqual([...registered].sort());
+  expect([...declared].sort()).toEqual([...registered].sort());
 });

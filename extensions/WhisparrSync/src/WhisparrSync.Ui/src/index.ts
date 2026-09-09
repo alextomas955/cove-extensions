@@ -7,8 +7,8 @@
  *
  * The default export ALSO carries an `actionHandlers` map. The SDK's `ExtensionModule` type does not
  * declare it and the host loader reads `mod.default.actionHandlers` untyped, so it is attached
- * through a local cast rather than by editing the SDK. The handler key `whisparrMonitorSelected`
- * must equal the bulk actions' `HandlerName`, by the same exact-string rule.
+ * through a local cast rather than by editing the SDK. Every handler key must equal the
+ * `handlerName` the matching action is registered under, by the same exact-string rule.
  */
 import { defineExtension } from "@cove/extension-sdk";
 import { WhisparrSyncPage } from "./settings/WhisparrSyncPage";
@@ -22,6 +22,7 @@ import {
 } from "./library/WhisparrEntityCardBadge";
 import { WhisparrVideoCardBadge } from "./library/WhisparrVideoCardBadge";
 import { WhisparrSceneTab } from "./scene/WhisparrSceneTab";
+import { sceneBatchSelected } from "./batch/whisparrBatchSelected";
 
 interface WithActionHandlers {
   actionHandlers: Record<string, unknown>;
@@ -42,6 +43,7 @@ const mod = defineExtension({
 });
 (mod as typeof mod & WithActionHandlers).actionHandlers = {
   whisparrMonitorSelected: monitorSelected,
+  whisparrSceneBatch: sceneBatchSelected,
 };
 
 export default mod;

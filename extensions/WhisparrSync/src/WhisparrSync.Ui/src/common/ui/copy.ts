@@ -494,22 +494,13 @@ export const SCENE_SEARCH_IS_WITH_WHISPARR =
  */
 export const BATCH_CHOOSE_AN_ACTION = "Choose what to do with every scene you selected.";
 
-/** The batch overlay's first row. One verb keeps one name across the product. */
-export const BATCH_ADD = SCENE_ADD;
-
 /** What the add row states. Says what it does not do, because the name suggests acquisition. */
 export const BATCH_ADD_STATES =
   "Adds every selected scene Whisparr does not hold yet. Downloads nothing.";
 
-/** The batch overlay's second row. */
-export const BATCH_MONITOR = MONITOR_IN_WHISPARR;
-
 /** What the monitor row states. Whisparr's own schedule decides what it takes later. */
 export const BATCH_MONITOR_STATES =
   "Tells Whisparr to want every selected scene. Downloads nothing now.";
-
-/** The batch overlay's third row. */
-export const BATCH_UNMONITOR = STOP_MONITORING_IN_WHISPARR;
 
 /** What the unmonitor row states. The second sentence is what a reader would otherwise assume. */
 export const BATCH_UNMONITOR_STATES =

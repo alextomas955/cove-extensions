@@ -203,20 +203,16 @@ const RENDERED_BY_THE_SCENE_TAB = [
 ];
 
 /**
- * The batch overlay's own question, the name of each row that does not share one with the scene tab,
- * what each of its five rows states, and the sentence a selection over the search row's own bound is
- * refused with.
+ * The batch overlay's own question, what each of its five rows states, and the sentence a selection
+ * over the search row's own bound is refused with.
  *
- * Rows four and five read the tab's own two names, so those are named in the tab's group and not
- * here.
+ * Every row reads a name the product already uses for that verb elsewhere, so no row's LABEL is
+ * named here: each is named in the group of the surface that declared it.
  */
 const RENDERED_BY_THE_BATCH_OVERLAY = [
   "BATCH_CHOOSE_AN_ACTION",
-  "BATCH_ADD",
   "BATCH_ADD_STATES",
-  "BATCH_MONITOR",
   "BATCH_MONITOR_STATES",
-  "BATCH_UNMONITOR",
   "BATCH_UNMONITOR_STATES",
   "BATCH_SEARCH_STATES",
   "BATCH_EXCLUDE_STATES",

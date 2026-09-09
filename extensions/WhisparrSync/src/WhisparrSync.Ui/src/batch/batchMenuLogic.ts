@@ -7,18 +7,21 @@
  *
  * The order is the invariant this module holds: safest first, the only row that can download fourth,
  * and the row that changes what Whisparr accepts in future last. Nothing here sorts.
+ *
+ * Every row is labelled with the name the product already uses for that verb, because one verb keeps
+ * one name across the product.
  */
 import {
-  BATCH_ADD,
   BATCH_ADD_STATES,
   BATCH_EXCLUDE_STATES,
-  BATCH_MONITOR,
   BATCH_MONITOR_STATES,
   BATCH_SEARCH_STATES,
-  BATCH_UNMONITOR,
   BATCH_UNMONITOR_STATES,
+  MONITOR_IN_WHISPARR,
+  SCENE_ADD,
   SCENE_EXCLUDE,
   SCENE_SEARCH,
+  STOP_MONITORING_IN_WHISPARR,
 } from "../common/ui/copy";
 import type { SceneBatchVerb } from "../wire/api";
 
@@ -32,11 +35,16 @@ export interface BatchMenuRow {
 }
 
 export const BATCH_MENU_ROWS: readonly BatchMenuRow[] = [
-  { key: "add", label: BATCH_ADD, sentences: [BATCH_ADD_STATES], verb: "add" },
-  { key: "monitor", label: BATCH_MONITOR, sentences: [BATCH_MONITOR_STATES], verb: "monitor" },
+  { key: "add", label: SCENE_ADD, sentences: [BATCH_ADD_STATES], verb: "add" },
+  {
+    key: "monitor",
+    label: MONITOR_IN_WHISPARR,
+    sentences: [BATCH_MONITOR_STATES],
+    verb: "monitor",
+  },
   {
     key: "unmonitor",
-    label: BATCH_UNMONITOR,
+    label: STOP_MONITORING_IN_WHISPARR,
     sentences: [BATCH_UNMONITOR_STATES],
     verb: "unmonitor",
   },
