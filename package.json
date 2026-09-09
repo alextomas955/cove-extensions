@@ -25,7 +25,7 @@
     "eslint-plugin-import-x": "4.17.1",
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.11.0",
-    "jscpd": "5.1.1",
+    "jscpd": "5.1.2",
     "knip": "6.34.0",
     "lefthook": "2.1.12",
     "openapi-typescript": "7.13.0",
