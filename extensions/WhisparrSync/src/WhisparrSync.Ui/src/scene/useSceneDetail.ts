@@ -6,17 +6,31 @@
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
+import { postAction } from "@cove-extensions/ui-shared/postAction";
 
-import type { SceneDetailView } from "../wire/api";
+import type { SceneActionResult, SceneDetailView } from "../wire/api";
 import { api } from "../common/lib/extension";
+import {
+  routeSegmentFor,
+  searchIsWithWhisparrIn,
+  sceneVerbRefusalIn,
+  type SceneVerb,
+} from "./sceneControlLogic";
 import { createSceneStore, type SceneState, type SceneStore } from "./sceneStore";
+
+/** What the tab reads and presses through. */
+export interface SceneDetail {
+  readonly state: SceneState;
+  /** Carries out one verb for this scene and then reads its facts back. */
+  readonly act: (verb: SceneVerb) => void;
+}
 
 /** The route for one video. Per video, so it cannot be a module-scope constant. */
 function routeFor(coveId: number): string {
   return api(`scene/${String(coveId)}`);
 }
 
-export function useSceneDetail(coveId: number): SceneState {
+export function useSceneDetail(coveId: number): SceneDetail {
   // One store per page lifetime. A lazy useState initializer rather than a useMemo, because a memo
   // is a cache React may legitimately discard.
   const [store] = useState<SceneStore>(() => createSceneStore());
@@ -36,6 +50,28 @@ export function useSceneDetail(coveId: number): SceneState {
     [store],
   );
 
+  const act = useCallback(
+    (verb: SceneVerb) => {
+      store.beginAction(coveId);
+      // No body: which scene a verb touches is a path segment, so the routes bind nothing from one.
+      postAction<SceneActionResult>(`${routeFor(coveId)}/${routeSegmentFor(verb)}`)
+        .then((answered) => {
+          // The body is read for its refusal member and its confirmation and nothing else: one
+          // generation answers a refused verb with a body carrying a full stack trace.
+          store.actionSettled(coveId, {
+            refusal: sceneVerbRefusalIn(answered) ?? "none",
+            searchIsWithWhisparr: searchIsWithWhisparrIn(answered),
+          });
+          // What the instance now holds is read back rather than painted from what was asked for.
+          read(coveId);
+        })
+        .catch(() => {
+          store.actionFailed(coveId);
+        });
+    },
+    [store, read, coveId],
+  );
+
   // Keyed on the video rather than a bare boolean. The host keeps this component across a
   // navigation between two video pages, so a bare boolean would suppress the second video's read
   // and leave its tab blank for the whole visit. Nothing is cached, so every mount reads again.
@@ -47,5 +83,5 @@ export function useSceneDetail(coveId: number): SceneState {
     read(coveId);
   }, [store, read, coveId]);
 
-  return state;
+  return { state, act };
 }

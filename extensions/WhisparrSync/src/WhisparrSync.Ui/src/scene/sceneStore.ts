@@ -10,15 +10,32 @@
  * for the first can settle after the second has mounted and would otherwise paint one scene's state
  * onto the other.
  */
-import type { SceneDetailView } from "../wire/api";
+import type { SceneActionResult, SceneDetailView, SceneRefusalKind } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import { INITIAL_ASYNC_READ } from "../common/ui/asyncRegionLogic";
+
+/** What a verb's own answer was read for. */
+type SceneActionOutcome = Pick<SceneActionResult, "refusal" | "searchIsWithWhisparr">;
 
 /** Everything the tab renders from. */
 export interface SceneState {
   readonly read: AsyncRead;
   /** Null before any read has answered. */
   readonly view: SceneDetailView | null;
+  /** A verb is in flight, so no control on the tab is pressable. */
+  readonly acting: boolean;
+  /**
+   * The last verb produced no answer at all.
+   *
+   * Records THAT it produced none, and deliberately not what the answer would have been. One
+   * generation answers a refused verb with a body carrying a full stack trace, and a field holding
+   * that is a standing invitation for something to render it.
+   */
+  readonly actionFailed: boolean;
+  /** What the instance refused the last verb for, or null. */
+  readonly actionRefusal: SceneRefusalKind | null;
+  /** The last search was read back off the instance under its own command id. */
+  readonly searchIsWithWhisparr: boolean;
 }
 
 /**
@@ -28,6 +45,10 @@ export interface SceneState {
 export const INITIAL_SCENE_STATE: SceneState = {
   read: INITIAL_ASYNC_READ,
   view: null,
+  acting: false,
+  actionFailed: false,
+  actionRefusal: null,
+  searchIsWithWhisparr: false,
 };
 
 export interface SceneStore {
@@ -38,6 +59,13 @@ export interface SceneStore {
   beginRead: (coveId: number) => void;
   loaded: (coveId: number, view: SceneDetailView) => void;
   readFailed: (coveId: number) => void;
+  beginAction: (coveId: number) => void;
+  /**
+   * The verb was answered. It carries no view: what the instance now holds is read back, so nothing
+   * here paints a state composed from what the browser asked for.
+   */
+  actionSettled: (coveId: number, outcome: SceneActionOutcome) => void;
+  actionFailed: (coveId: number) => void;
 }
 
 export function createSceneStore(): SceneStore {
@@ -96,6 +124,36 @@ export function createSceneStore(): SceneStore {
       settle(coveId, (current) => ({
         ...current,
         read: { reading: false, failed: true, hasContent: current.view !== null },
+      }));
+    },
+
+    beginAction(coveId) {
+      settle(coveId, (current) => ({
+        ...current,
+        acting: true,
+        actionFailed: false,
+        actionRefusal: null,
+        searchIsWithWhisparr: false,
+      }));
+    },
+
+    actionSettled(coveId, outcome) {
+      settle(coveId, (current) => ({
+        ...current,
+        acting: false,
+        actionFailed: false,
+        actionRefusal: outcome.refusal,
+        searchIsWithWhisparr: outcome.searchIsWithWhisparr,
+      }));
+    },
+
+    actionFailed(coveId) {
+      settle(coveId, (current) => ({
+        ...current,
+        acting: false,
+        actionFailed: true,
+        actionRefusal: null,
+        searchIsWithWhisparr: false,
       }));
     },
   };
