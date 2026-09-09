@@ -182,10 +182,9 @@ counts:
 
 - **Succeeded** is a scene the verb was applied to.
 - **Failed** is a scene your Whisparr declined, or one the request did not reach it for.
-- **Skipped** is a scene passed over for a stated reason: no instance connected, no usable link,
-  several conflicting links, a capability the connected generation lacks, your Whisparr offering no
-  quality profile or no library root, a scene it already holds, a scene it has no entry for, or a
-  scene it is not monitoring.
+- **Skipped** is a scene passed over for a stated reason: no instance connected, no usable link, a
+  capability the connected generation lacks, your Whisparr offering no quality profile or no library
+  root, a scene it already holds, a scene it has no entry for, or a scene it is not monitoring.
 
 A scene selected twice is acted on once. The entry names no scene: it reports counts, so nothing it
 holds grows with the size of your selection.
