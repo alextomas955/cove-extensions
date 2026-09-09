@@ -603,6 +603,28 @@ export function selectionCount(n: number): string {
   return n === 1 ? "1 selected" : `${String(n)} selected`;
 }
 
+/** How many entities a choice made over a selection covers. */
+export function entitiesCovered(n: number): string {
+  return n === 1 ? "This covers 1 entity." : `This covers ${String(n)} entities.`;
+}
+
+/**
+ * What the confirmation in front of All Scenes states.
+ *
+ * Built from the two consequence sentences declared above rather than from prose of its own, so the
+ * cost a reader is warned about is worded once.
+ *
+ * @param count how many entities the choice covers
+ * @param oneWayDoor whether a later scope change leaves what All Scenes already made wanted
+ */
+export function allScenesConfirmation(count: number, oneWayDoor: boolean): string {
+  return [
+    entitiesCovered(count),
+    ALL_SCENES_MARKS_THE_BACK_CATALOGUE,
+    ...(oneWayDoor ? [ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE] : []),
+  ].join(" ");
+}
+
 /** Imports Cove recorded but can no longer read. Self-clears on a success. */
 export const IMPORTS_UNREADABLE = "Sync problem - Cove can't find imported files";
 

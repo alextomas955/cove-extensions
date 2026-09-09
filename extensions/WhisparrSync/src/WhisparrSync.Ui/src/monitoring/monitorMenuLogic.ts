@@ -387,6 +387,25 @@ export function describeMonitorRefusal(kind: MonitorRefusalKind): MonitorRefusal
   return REFUSALS[kind];
 }
 
+/**
+ * Whether All Scenes cannot be taken back on <code>generation</code>.
+ *
+ * A null generation is nothing connected, which settles no scope behaviour either way.
+ */
+export function allScenesIsAOneWayDoor(generation: WhisparrGeneration): boolean {
+  return generation !== null && !A_SCOPE_CHANGE_IS_RETROACTIVE[generation];
+}
+
+/**
+ * Whether pressing <code>item</code> marks every scene the instance already lists as wanted.
+ *
+ * True of the All Scenes row, and of the standalone monitor row, which is what a kind expressing no
+ * scope pair is offered and covers the back catalogue with no scope to name.
+ */
+export function marksTheBackCatalogue(item: MonitorMenuItem): boolean {
+  return item.item === "monitor" || (item.item === "scope" && item.scope === "allScenes");
+}
+
 /** Which capability <code>action</code> needs the connected generation to hold. */
 export function capabilityBehindAction(action: SecondaryAction): WhisparrCapability {
   return CAPABILITY_BEHIND_ITEM[action];
@@ -606,6 +625,8 @@ export interface BulkMonitorAction {
   readonly verb: BulkVerb;
   /** The scope the request carries, or null where the verb expresses none. */
   readonly scope: MonitorScopeChoice | null;
+  /** Whether pressing it marks every scene the instance already lists as wanted. */
+  readonly marksTheBackCatalogue: boolean;
 }
 
 /** What a selection of one entity kind can be offered against one connection. */
@@ -613,6 +634,8 @@ export interface BulkMonitorOffer {
   readonly actions: readonly BulkMonitorAction[];
   /** The one sentence to state when nothing can be offered, or null when something can. */
   readonly reason: string | null;
+  /** Whether All Scenes cannot be taken back on the connected generation. */
+  readonly oneWayDoor: boolean;
 }
 
 /**
@@ -633,14 +656,15 @@ export interface BulkMonitorOffer {
  * @param view what a read of one selected entity answered
  */
 export function bulkMonitorActions(view: EntityMonitoringView): BulkMonitorOffer {
+  const oneWayDoor = allScenesIsAOneWayDoor(view.generation);
   if (view.refusal === "notConfigured") {
-    return { actions: [], reason: NO_INSTANCE_CONNECTED };
+    return { actions: [], reason: NO_INSTANCE_CONNECTED, oneWayDoor };
   }
 
   const connection: EntityMonitoringView = { ...view, refusal: "none" };
   const notYetMonitored = monitorMenu({ ...connection, monitored: false }, false);
   if (!notYetMonitored.available) {
-    return { actions: [], reason: notYetMonitored.reason };
+    return { actions: [], reason: notYetMonitored.reason, oneWayDoor };
   }
 
   const alreadyMonitored = monitorMenu({ ...connection, monitored: true }, false);
@@ -656,6 +680,7 @@ export function bulkMonitorActions(view: EntityMonitoringView): BulkMonitorOffer
       ),
     ],
     reason: null,
+    oneWayDoor,
   };
 }
 
@@ -675,6 +700,7 @@ function offered(
         sentences: item.sentences,
         verb,
         scope: item.item === "scope" ? item.scope : null,
+        marksTheBackCatalogue: marksTheBackCatalogue(item),
       },
     ];
   });
