@@ -316,7 +316,7 @@ public sealed class AbsentCapabilityTests
             address, key, new JsonArray(new JsonObject { ["path"] = "/config/library/a.mp4" }), ct);
 
         await client.SearchMonitoredAsync(
-            address, key, WhisparrGeneration.V3, WhisparrEntityKind.Studio, 4, ct);
+            address, key, WhisparrGeneration.V3, WhisparrEntityKind.Studio, [4], ct);
 
         // The scope change is driven on the older generation only. The newer one reads and replaces
         // the resource through the hand-composed date gate, whose route belongs to DeclaredRoutes.
@@ -329,7 +329,7 @@ public sealed class AbsentCapabilityTests
         await client.SetStudioScopeAsync(
             address, key, WhisparrGeneration.V2, 4, MonitorScope.AllScenes, ct);
         await client.SearchMonitoredAsync(
-            address, key, WhisparrGeneration.V2, WhisparrEntityKind.Studio, 4, ct);
+            address, key, WhisparrGeneration.V2, WhisparrEntityKind.Studio, [4], ct);
     }
 
     /// <summary>

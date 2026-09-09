@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using Cove.Core.Auth;
+using Cove.Core.Interfaces;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.Invariants;
@@ -16,8 +18,14 @@ namespace WhisparrSync.Tests.Monitoring;
 /// The guarantee this route is allowed to exist under is not that no grabbing verb is reachable. It
 /// is that exactly one named gesture reaches one, and that nothing else can: the verb lives alone on
 /// its own role, exactly one call site obtains that role by name, the route has its own path segment,
-/// and no composed body and no bulk verb can express it. Each of those is asserted here rather than
-/// read off the source.
+/// and no composed body can express it. Each of those is asserted here rather than read off the
+/// source.
+/// <para>
+/// The selection bar offers that same gesture over a whole selection. It is the same named verb
+/// reached through the same obtained role, so the guarantee is unchanged: a selection carries one
+/// command over the entities the instance holds, and everything else the bar offers still reaches no
+/// grabbing verb at all.
+/// </para>
 /// <para>
 /// Driven through the shipped registration rather than by calling the handler. A handler called
 /// directly agrees with a route mounted at the wrong pattern, bound to a body the browser cannot
@@ -41,6 +49,10 @@ public sealed class SearchGrabbingRouteTests
     /// <summary>A studio the instance holds and does not yet monitor.</summary>
     private const string HeldNotMonitored =
         """{"id":9,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","monitored":false}""";
+
+    /// <summary>A second studio the instance holds and monitors, under an identifier of its own.</summary>
+    private const string SecondHeldAndMonitored =
+        """{"id":11,"foreignId":"9f0d6f27-1f3a-4a5f-8b21-6b2d3a5f9c10","monitored":true}""";
 
     private const string LinksIntoPlace = """{"copyUsingHardlinks":true}""";
 
@@ -71,8 +83,8 @@ public sealed class SearchGrabbingRouteTests
             call => call.Verb == nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync));
         Assert.Equal(WhisparrGeneration.V3, search.Generation);
         Assert.Equal(WhisparrEntityKind.Studio, search.Kind);
-        Assert.Equal(9, search.EntityId);
-        Assert.NotEqual(studioId, search.EntityId);
+        Assert.Equal([9], search.EntityIds);
+        Assert.DoesNotContain(studioId, search.EntityIds!);
     }
 
     /// <summary>
@@ -232,29 +244,126 @@ public sealed class SearchGrabbingRouteTests
     }
 
     /// <summary>
-    /// The bulk route carries no verb that reaches the search, and cannot be told to.
+    /// A selection is searched in ONE command naming every entity the instance holds.
     /// </summary>
     /// <remarks>
-    /// A selection is where one gesture becomes thousands of requests, and this library holds
-    /// thousands of performers. The verb is absent from the bulk request's own enum, so naming it is
-    /// not a refusal the route decides on but a body that does not bind at all.
+    /// The instance's own command takes an id array and iterates the whole of it, so the selection is
+    /// one call rather than one per entity. The ids are ASSERTED, not a count: what makes this the
+    /// right request is that each one came from the instance's own record of that entity rather than
+    /// from the selection the browser sent.
     /// </remarks>
     [Fact]
-    public async Task TheBulkRouteDeclaresNoSearchVerbAndCannotBeToldToUseOne()
+    public async Task ASelectionIsSearchedInOneCommandNamingEveryEntityTheInstanceHolds()
     {
+        await using var host = await AnsweringStudioReads(
+            Held(HeldAndMonitored), Held(SecondHeldAndMonitored));
+        var first = await SeededStudio(host);
+        var second = await SeededStudio(host);
+        var progress = new RecordingJobProgress();
+
+        await BulkSearchAsync(host, first, second);
+        await host.RunEnqueuedBatchAsync(progress);
+
+        var search = Assert.Single(
+            host.Client.Acting,
+            call => call.Verb == nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync));
+        Assert.Equal(WhisparrEntityKind.Studio, search.Kind);
+        Assert.Equal([9, 11], search.EntityIds);
         Assert.Equal(
-            [MonitorBulkVerb.Monitor, MonitorBulkVerb.Unmonitor], Enum.GetValues<MonitorBulkVerb>());
+            [JobUnitOutcome.Succeeded, JobUnitOutcome.Succeeded],
+            progress.Units.Select(unit => unit.Outcome));
+        Assert.Equal((1d, "2 applied, 0 refused."), Assert.Single(progress.Reports));
+    }
 
-        await using var host = await HoldingHost(HeldAndMonitored);
-        var studioId = await SeededStudio(host);
+    /// <summary>
+    /// An entity the instance does not hold is reported and left out, and the rest are still searched.
+    /// </summary>
+    /// <remarks>
+    /// One unheld id fails the whole command and the answer names only that one, so a selection sent
+    /// as supplied would cost every other entity its search and leave the reader an error naming one
+    /// id out of a hundred.
+    /// </remarks>
+    [Fact]
+    public async Task AnEntityTheInstanceDoesNotHoldIsLeftOutAndTheRestAreStillSearched()
+    {
+        await using var host = await AnsweringStudioReads(NotHeld, Held(HeldAndMonitored));
+        var absent = await SeededStudio(host);
+        var held = await SeededStudio(host);
+        var progress = new RecordingJobProgress();
 
-        var answered = await host.PostBulkAsync(
-            $$"""{"entityType":"studios","verb":"searchAllMonitored","entityIds":[{{studioId}}]}""");
+        await BulkSearchAsync(host, absent, held);
+        await host.RunEnqueuedBatchAsync(progress);
 
-        Assert.False(answered.IsSuccessStatusCode);
+        var search = Assert.Single(
+            host.Client.Acting,
+            call => call.Verb == nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync));
+        Assert.Equal([9], search.EntityIds);
+
+        // In the order the ids were supplied, so a reader can match them against the selection.
+        Assert.Equal(
+            [
+                new ReportedUnit(
+                    Unit(absent),
+                    JobUnitOutcome.Skipped,
+                    nameof(MonitorRefusalKind.InstanceHoldsNoSuchEntity)),
+                new ReportedUnit(Unit(held), JobUnitOutcome.Succeeded, null),
+            ],
+            progress.Units);
+        Assert.Equal((1d, "1 applied, 1 refused."), Assert.Single(progress.Reports));
+    }
+
+    /// <summary>
+    /// A selection the instance holds none of sends nothing at all.
+    /// </summary>
+    /// <remarks>
+    /// There is no command to compose. The instance accepts one whose id array is empty and runs it
+    /// over nothing, which a reader cannot tell from a search that found nothing.
+    /// </remarks>
+    [Fact]
+    public async Task ASelectionTheInstanceHoldsNoneOfSendsNothing()
+    {
+        await using var host = await AnsweringStudioReads(NotHeld);
+        var first = await SeededStudio(host);
+        var second = await SeededStudio(host);
+        var progress = new RecordingJobProgress();
+
+        await BulkSearchAsync(host, first, second);
+        await host.RunEnqueuedBatchAsync(progress);
+
+        Assert.DoesNotContain(
+            nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync), host.Client.Verbs);
+        Assert.All(progress.Units, unit => Assert.Equal(JobUnitOutcome.Skipped, unit.Outcome));
+        Assert.Equal((1d, "0 applied, 2 refused."), Assert.Single(progress.Reports));
+    }
+
+    /// <summary>
+    /// A caller who cannot configure the extension cannot reach the selection's route either.
+    /// </summary>
+    [Fact]
+    public async Task ACallerHoldingOnlyReadCannotSearchASelection()
+    {
+        await using var host = await MonitorHost.CreateAsync(
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead));
+
+        var answered = await BulkSearchAsync(host, 1);
+
+        Assert.Equal(HttpStatusCode.Forbidden, answered.StatusCode);
         Assert.Empty(host.Client.Verbs);
         Assert.Empty(host.Jobs.Enqueued);
     }
+
+    /// <summary>The selection route's answer for a search over <paramref name="coveIds"/>.</summary>
+    private static Task<HttpResponseMessage> BulkSearchAsync(MonitorHost host, params int[] coveIds)
+    {
+        var ids = string.Join(",", coveIds.Select(
+            coveId => coveId.ToString(CultureInfo.InvariantCulture)));
+
+        return host.PostBulkAsync(
+            $$"""{"entityType":"studios","verb":"searchAllMonitored","entityIds":[{{ids}}]}""");
+    }
+
+    /// <summary>The unit id one Cove entity's turn is reported under.</summary>
+    private static string Unit(int coveId) => coveId.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>A host whose instance answers a studio read with <paramref name="studio"/>.</summary>
     /// <summary>One host whose studio read answers <paramref name="studio"/> in turn.</summary>
@@ -263,18 +372,30 @@ public sealed class SearchGrabbingRouteTests
     /// path's own read-back then classifies from. The last one repeats, so a case that names one
     /// answer describes an instance that never changes.
     /// </remarks>
-    private static async Task<MonitorHost> HoldingHost(params string[] studio)
+    private static Task<MonitorHost> HoldingHost(params string[] studio)
+        => AnsweringStudioReads([.. studio.Select(Held)]);
+
+    /// <summary>An instance answering studio reads with <paramref name="answers"/> in turn.</summary>
+    /// <remarks>
+    /// The answers rather than their bodies, so a case can describe an instance that holds one
+    /// selected entity and not another.
+    /// </remarks>
+    private static async Task<MonitorHost> AnsweringStudioReads(params WhisparrResponse[] answers)
     {
         var host = await MonitorHost.CreateAsync();
         host.Client
-            .Answering(
-                nameof(IWhisparrStudioActing.ReadStudioAsync),
-                [.. studio.Select(answer => MonitorHost.Json(200, answer))])
+            .Answering(nameof(IWhisparrStudioActing.ReadStudioAsync), answers)
             .Answering(
                 nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
                 MonitorHost.Json(200, LinksIntoPlace));
         return host;
     }
+
+    /// <summary>How an instance answers a read of a studio it holds.</summary>
+    private static WhisparrResponse Held(string studio) => MonitorHost.Json(200, studio);
+
+    /// <summary>How an instance answers a read of a studio it does not hold.</summary>
+    private static WhisparrResponse NotHeld => MonitorHost.Json(404, "");
 
     private static Task<int> SeededStudio(MonitorHost host)
         => host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
