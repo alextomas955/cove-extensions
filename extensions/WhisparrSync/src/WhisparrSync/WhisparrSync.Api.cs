@@ -485,11 +485,20 @@ public sealed partial class WhisparrSync
     /// </remarks>
     private const string VideosSelectionType = "video";
 
+    /// <summary>The id the host resolves this extension's scene selection action by.</summary>
+    private const string SceneBatchActionId = "whisparr-scene-batch";
+
+    /// <summary>
+    /// The name the bundle registers this extension's scene selection handler under.
+    /// </summary>
+    /// <inheritdoc cref="BulkHandlerName" path="/remarks"/>
+    private const string SceneBatchHandlerName = "whisparrSceneBatch";
 
     /// <summary>
     /// The surfaces the host mounts: one dedicated settings tab, one control in each of the studio
     /// and performer pages' own action rows, one catalogue tab per entity page type, one scene tab
-    /// on the video detail page, and one bulk action per selection bar.
+    /// on the video detail page, and one bulk action per selection bar, the scene one on the newer
+    /// generation alone.
     /// </summary>
     /// <remarks>
     /// Page layout, so the host renders the panel full-width with no card chrome and this extension
@@ -515,9 +524,13 @@ public sealed partial class WhisparrSync
     /// the next page load.
     /// </para>
     /// <para>
-    /// The bulk actions stay registered on both generations: an action's
+    /// The studio and performer bulk actions stay registered on both generations: an action's
     /// PRESENCE is a manifest fact and a verb's AVAILABILITY is a runtime one, enforced in the
-    /// handler and again at the route.
+    /// handler and again at the route. The scene selection action departs from that principle and is
+    /// registered on the newer generation alone, because no verb it offers reaches anything on the
+    /// older one. The reader on the older generation therefore meets a studio or performer selection
+    /// that offers a Whisparr button explaining itself, and a scene selection that offers no button
+    /// at all.
     /// </para>
     /// </remarks>
     public override UIManifest GetUIManifest()
@@ -618,7 +631,27 @@ public sealed partial class WhisparrSync
                     key: SceneTabKey,
                     label: SceneTabLabel,
                     componentName: SceneTabComponentName,
-                    order: SceneTabOrder);
+                    order: SceneTabOrder)
+
+                // The label is the whole of what this extension supplies to the button. The host
+                // owns its layout and draws its own glyph there whatever an action declares, so a
+                // glyph named here would be a claim nothing renders, and the selected count beside
+                // it is the host's own.
+                //
+                // No api endpoint, because the handler asks which verb before anything is sent.
+                .AddAction(
+                    id: SceneBatchActionId,
+                    label: "Whisparr",
+                    actionType: "bulk",
+                    entityTypes: [VideosSelectionType],
+                    icon: null,
+                    apiEndpoint: null,
+                    handlerName: SceneBatchHandlerName,
+                    order: 100,
+                    requiredPermission: Permissions.ExtensionsConfigure,
+                    // The work reports into the host's own Job Drawer, so its queued-success alert
+                    // would say the same thing twice.
+                    suppressSuccessAlert: true);
         }
 
         return manifest.Build();
