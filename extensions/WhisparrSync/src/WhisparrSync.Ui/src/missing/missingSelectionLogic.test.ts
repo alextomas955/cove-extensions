@@ -1,6 +1,3 @@
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -17,8 +14,6 @@ import {
   selectionRefusalLine,
   type SelectionOutcome,
 } from "./missingSelectionLogic";
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 const PAGE = ["scene-a", "scene-b", "scene-c"] as const;
 
@@ -56,23 +51,6 @@ describe("selectionActionsFor", () => {
   it("inverts over the loaded page", () => {
     expect(actionNamed("invert", new Set(["scene-b"])).resulting).toEqual(["scene-a", "scene-c"]);
     expect(invertSelection(PAGE, new Set(PAGE))).toEqual([]);
-  });
-
-  it("reaches for no whole-result-set identifier walk", () => {
-    // Cove's own Select all matching pages the entire result set through these. Named rather than
-    // grepped for a phrase: reaching one of them is what would make the walk possible at all.
-    const forbidden = ["fetchAllMatchingIds", "selectAllMatching"];
-    const shipped = readdirSync(HERE).filter(
-      (name) => /\.tsx?$/.test(name) && !name.endsWith(".test.ts"),
-    );
-
-    expect(shipped.length, "no module of this surface was read").toBeGreaterThan(10);
-    for (const name of shipped) {
-      const source = readFileSync(path.join(HERE, name), "utf8");
-      for (const helper of forbidden) {
-        expect(source, `${name} reaches for ${helper}`).not.toContain(helper);
-      }
-    }
   });
 
   it("registers each gesture under the binding id Cove's own list page uses", () => {

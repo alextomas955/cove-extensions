@@ -8,9 +8,9 @@
  * can count them.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createElement, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+import { createElement } from "react";
 
+import { press, render } from "../common/lib/testRender";
 import { selectionActionsFor } from "./missingSelectionLogic";
 
 interface Sent {
@@ -50,40 +50,22 @@ const PAGE_ANSWER = {
 
 const { useMissing } = await import("./useMissing");
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
-const teardowns: (() => void)[] = [];
 afterEach(() => {
-  while (teardowns.length > 0) teardowns.pop()?.();
   sent.length = 0;
 });
 
-async function render(node: ReactNode) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(node);
-  await sleep(COMMIT_MS);
-  teardowns.push(() => {
-    root.unmount();
-    container.remove();
-  });
-  return container;
-}
-
-/** Mounts the data layer and hands its selection verb back through a button a test can press. */
+/**
+ * Mounts the data layer behind a button that ticks every scene through the Select all gesture and
+ * sends that selection, which is the whole path a reader takes.
+ */
 function Probe() {
   const missing = useMissing("studio", 7, { page: 1, sort: null, q: "", filters: {} });
+  const loaded = (missing.state.view?.cards ?? []).map((card) => card.providerSceneId);
   return createElement("button", {
     type: "button",
     onClick: () => {
-      missing.monitorSelection(["scene-a", "scene-b"]);
+      const selectAll = selectionActionsFor(loaded, new Set());
+      missing.monitorSelection(selectAll[0].resulting);
     },
   });
 }
@@ -110,20 +92,20 @@ describe("no Select all matching control exists", () => {
 });
 
 describe("no server-side re-derivation runs before a bulk action", () => {
-  it("enqueues the ticked ids with no catalogue read in between", async () => {
+  it("enqueues the ids the loaded page carried, with no catalogue read in between", async () => {
     const container = await render(createElement(Probe));
 
     // The tab's own first read. Everything after the press is what this case counts.
     expect(sent.filter((request) => request.method === "GET")).toHaveLength(1);
     const before = sent.length;
 
-    container.querySelector("button")?.click();
-    await sleep(COMMIT_MS);
+    await press(container.querySelector("button") ?? undefined);
 
     const afterThePress = sent.slice(before);
     expect(afterThePress).toHaveLength(1);
     expect(afterThePress[0].method).toBe("POST");
     expect(afterThePress[0].path).toContain("/missing/bulk-monitor");
+    // The scenes the one loaded page answered with, and no page was read to find them.
     expect(afterThePress[0].body).toBe(
       JSON.stringify({ providerSceneIds: ["scene-a", "scene-b"] }),
     );

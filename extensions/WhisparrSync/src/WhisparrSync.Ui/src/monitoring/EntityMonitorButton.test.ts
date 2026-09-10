@@ -12,7 +12,8 @@
  */
 import { test, expect, vi, afterEach } from "vitest";
 import { createElement, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+
+import { press, render as renderRoot } from "../common/lib/testRender";
 
 vi.mock("@cove-extensions/ui-shared", () => ({
   // The real primitive draws an SVG, so the stand-in draws one too. A stand-in rendering nothing
@@ -102,14 +103,6 @@ const {
   WHISPARR_NOT_MONITORED,
 } = await import("../common/ui/copy");
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 /**
  * Whether `element` carries `cls` as a WHOLE class.
  *
@@ -132,24 +125,14 @@ function view(overrides: Record<string, unknown>) {
   };
 }
 
-const teardowns: (() => void)[] = [];
 afterEach(() => {
-  while (teardowns.length > 0) teardowns.pop()?.();
   sent.length = 0;
   readAnswer = () => Promise.resolve(null);
   actionAnswer = () => Promise.resolve({});
 });
 
 async function render(node: ReactNode) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(node);
-  await sleep(COMMIT_MS);
-  teardowns.push(() => {
-    root.unmount();
-    container.remove();
-  });
+  const container = await renderRoot(node);
   return {
     container,
     button: container.querySelector("button"),
@@ -164,15 +147,15 @@ async function render(node: ReactNode) {
 }
 
 /** Presses the confirmation's own confirm button, which is named for the row that opened it. */
-function confirm(): void {
+async function confirm(): Promise<void> {
   const dialog = document.body.querySelector('[role="dialog"]');
-  dialog?.querySelectorAll("button")[0].click();
+  await press(dialog?.querySelectorAll("button")[0]);
 }
 
 /** Presses the confirmation's way out. */
-function cancelConfirmation(): void {
+async function cancelConfirmation(): Promise<void> {
   const dialog = document.body.querySelector('[role="dialog"]');
-  dialog?.querySelectorAll("button")[1].click();
+  await press(dialog?.querySelectorAll("button")[1]);
 }
 
 /** A read that never settles, which is the frame under test. */
@@ -266,8 +249,7 @@ test("a press opens the menu and posts nothing, because monitoring lives in the 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
   expect(rendered.menu()).toBeNull();
 
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
 
   expect(rendered.menu()).not.toBeNull();
   expect(rendered.button?.getAttribute("aria-expanded")).toBe("true");
@@ -278,11 +260,9 @@ test("choosing a scope posts it, with no identifier of any kind, and reads the s
   readAnswer = () => Promise.resolve(view({}));
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
 
-  rendered.rows()[0].click();
-  await sleep(COMMIT_MS);
+  await press(rendered.rows()[0]);
 
   const posted = sent.filter((call) => call.method === "POST");
   expect(posted).toHaveLength(1);
@@ -302,15 +282,12 @@ test("an item already on its way is not pressable again", async () => {
   actionAnswer = NEVER;
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
 
-  rendered.rows()[0].click();
-  await sleep(COMMIT_MS);
+  await press(rendered.rows()[0]);
 
   expect(rendered.rows().every((row) => row.disabled)).toBe(true);
-  rendered.rows()[1].click();
-  await sleep(COMMIT_MS);
+  await press(rendered.rows()[1]);
 
   expect(sent.filter((call) => call.method === "POST")).toHaveLength(1);
 });
@@ -339,8 +316,7 @@ test("each verb this build serves posts its own route rather than the monitor on
   readAnswer = () => Promise.resolve(view({ monitored: true }));
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
 
   const rows = rendered.rows();
   const scope = rows.find((row) => (row.getAttribute("title") ?? "").startsWith(SCOPE_ALL_SCENES));
@@ -356,16 +332,13 @@ test("each verb this build serves posts its own route rather than the monitor on
   const posted = () => sent.filter((call) => call.method === "POST").map((call) => call.path);
 
   expect(scope?.disabled).toBe(false);
-  scope?.click();
-  await sleep(COMMIT_MS);
+  await press(scope);
   // All Scenes marks the back catalogue, so it asks before it sends.
-  confirm();
-  await sleep(COMMIT_MS);
+  await confirm();
   expect(posted().at(-1)?.endsWith("/scope")).toBe(true);
 
   expect(unmonitor?.disabled).toBe(false);
-  unmonitor?.click();
-  await sleep(COMMIT_MS);
+  await press(unmonitor);
   expect(posted().at(-1)?.endsWith("/unmonitor")).toBe(true);
   expect(posted()).toHaveLength(2);
 });
@@ -375,14 +348,12 @@ const REFLECTING = ["monitorStudio", "reflectOwnedFiles"];
 
 /** The reflect-owned row of an open menu, which this build does serve a route for. */
 async function pressReflectOwned(rendered: Awaited<ReturnType<typeof render>>) {
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
   const reflect = rendered
     .rows()
     .find((row) => (row.getAttribute("title") ?? "").startsWith(ACTION_REFLECT_OWNED));
   expect(reflect?.disabled).toBe(false);
-  reflect?.click();
-  await sleep(COMMIT_MS);
+  await press(reflect);
   // Queried from the document for the reason the menu is: the hero clips its children, so the
   // notice leaves that container too and is not reachable from the control's own subtree.
   return document.body.querySelector('[role="status"]');
@@ -507,8 +478,7 @@ test("the notice appears exactly once whichever way the menu is", async () => {
   expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(1);
   expect(occurrencesOf(REFLECT_OWNED_SKIPPED)).toBe(1);
 
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
 
   expect(rendered.menu()).toBeNull();
   expect(document.body.querySelectorAll('[role="status"]')).toHaveLength(1);
@@ -550,11 +520,9 @@ test("a press refused for no quality profile states that beneath the control", a
   actionAnswer = () => Promise.resolve(view({ refusal: "noQualityProfile", scope: null }));
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
 
-  rendered.rows()[0].click();
-  await sleep(COMMIT_MS);
+  await press(rendered.rows()[0]);
 
   expect(document.body.textContent).toContain(INSTANCE_OFFERS_NO_QUALITY_PROFILE);
   // The retry the refusal must not take away: a reader can add a profile in Whisparr and press again.
@@ -575,8 +543,7 @@ test("a read answering that the instance declined states that beneath the contro
   expect(document.body.textContent).toContain(INSTANCE_REFUSED);
   expect(rendered.button?.disabled).toBe(false);
 
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
   expect(rendered.menu()).not.toBeNull();
 });
 
@@ -600,14 +567,12 @@ test("a refused add all missing states the reason, on an answer carrying no view
   actionAnswer = () => Promise.resolve({ jobId: null, refusal: "instanceRefused" });
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
 
   const row = rendered
     .rows()
     .find((entry) => (entry.getAttribute("title") ?? "").startsWith(ACTION_ADD_ALL_MISSING));
-  row?.click();
-  await sleep(COMMIT_MS);
+  await press(row);
 
   expect(document.body.querySelector('[role="status"]')?.textContent).toBe(INSTANCE_REFUSED);
   expect(rendered.button?.disabled).toBe(false);
@@ -621,8 +586,7 @@ test("add all missing is pressed at its own route on a generation holding the ca
   actionAnswer = () => Promise.resolve({ jobId: "job-1", refusal: "none" });
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
 
   const row = rendered
     .rows()
@@ -631,8 +595,7 @@ test("add all missing is pressed at its own route on a generation holding the ca
   expect(row).toBeDefined();
   expect(row?.disabled).toBe(false);
 
-  row?.click();
-  await sleep(COMMIT_MS);
+  await press(row);
 
   const posted = sent.filter((call) => call.method === "POST");
   expect(posted).toHaveLength(1);
@@ -645,18 +608,15 @@ test("All Scenes asks before it sends, and a cancel sends nothing", async () => 
   readAnswer = () => Promise.resolve(view({}));
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
 
-  rendered.rows()[1].click();
-  await sleep(COMMIT_MS);
+  await press(rendered.rows()[1]);
 
   expect(rendered.dialog()?.textContent).toContain(ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
   expect(rendered.dialog()?.textContent).toContain("1 entity.");
   expect(sent.filter((call) => call.method === "POST")).toEqual([]);
 
-  cancelConfirmation();
-  await sleep(COMMIT_MS);
+  await cancelConfirmation();
 
   expect(rendered.dialog()).toBeNull();
   expect(sent.filter((call) => call.method === "POST")).toEqual([]);
@@ -666,13 +626,10 @@ test("standing by All Scenes posts the scope the row carries", async () => {
   readAnswer = () => Promise.resolve(view({}));
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
 
-  rendered.rows()[1].click();
-  await sleep(COMMIT_MS);
-  confirm();
-  await sleep(COMMIT_MS);
+  await press(rendered.rows()[1]);
+  await confirm();
 
   const posted = sent.filter((call) => call.method === "POST");
   expect(posted).toHaveLength(1);
@@ -684,11 +641,9 @@ test("the narrower scope is posted with no confirmation at all", async () => {
   readAnswer = () => Promise.resolve(view({}));
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
-  rendered.button?.click();
-  await sleep(COMMIT_MS);
+  await press(rendered.button);
 
-  rendered.rows()[0].click();
-  await sleep(COMMIT_MS);
+  await press(rendered.rows()[0]);
 
   expect(rendered.dialog()).toBeNull();
   expect(sent.filter((call) => call.method === "POST")).toHaveLength(1);

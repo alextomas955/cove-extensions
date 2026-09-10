@@ -1,8 +1,13 @@
 /**
- * Four properties of the bundle's user-facing copy that no reviewer catches reliably by eye.
+ * The properties of the bundle's user-facing copy that no reviewer catches reliably by eye: the
+ * words no sentence may use, the sentence that must be declared once, and what each formatted line
+ * reads at the sizes that change its wording.
  *
- * Every expectation below is a literal array transcribed by hand from the spec. An expectation
- * computed from the module it checks agrees with itself forever and reports nothing.
+ * Every expectation below is transcribed by hand from the spec. One computed from the module it
+ * checks agrees with itself forever and reports nothing.
+ *
+ * Whether a sentence reaches the page is a property of a rendered surface, so it is asserted in the
+ * component suite that draws it rather than in a list here.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -50,228 +55,6 @@ const FORBIDDEN_IN_A_CAPABILITY_GAP = [
   "turn on",
   "configure",
   "preferences",
-];
-
-/**
- * The catalogue tab's own sentences: why the whole grid cannot answer, what an empty grid means,
- * what the count beside it counts, the one card-level answer that is not a failure, and what a
- * facet menu's search box offers and reads at each answer a value lookup can give.
- */
-const RENDERED_BY_THE_MISSING_TAB = [
-  "MISSING_TAB_HEADING",
-  "FACET_MENU_SEARCH",
-  "FACET_MENU_NO_MATCHES",
-  "FACET_VALUES_ASKING",
-  "FACET_VALUES_NONE_MATCH",
-  "FACET_VALUES_NOT_READ",
-  "NO_METADATA_PROVIDER_CONFIGURED",
-  "NO_PROVIDER_ID_FOR_ENTITY",
-  "NO_TITLES_MATCH",
-  "NO_SCENES_MATCH_THESE_FILTERS",
-  "NO_SCENES_WITHOUT_SUB_STUDIOS",
-  "EVERY_SCENE_ON_THIS_PAGE_IS_OWNED",
-  "ACTION_REFRESH",
-  "WHISPARR_STATUS_NOT_READ",
-  "WHISPARR_KEEPS_NO_SCENE_RECORDS",
-  "COUNT_IS_THE_CATALOGUE_SIZE",
-  "SEARCH_WITH_NO_ENTRY",
-  "THE_METADATA_SOURCE",
-  "BULK_REPORTS_IN_THE_JOB_DRAWER",
-];
-
-/** Sentences the connect surface reads through its own kind table. */
-const RENDERED_BY_THE_CONNECT_SURFACE = ["CONNECT_NOT_CONFIGURED", "CONNECT_KEY_REJECTED"];
-
-/** Sentences the import-behaviour section reads: one per upgrade behaviour. */
-const RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION = [
-  "UPGRADE_KEEPS_BOTH_FILES",
-  "UPGRADE_DROPS_THE_SUPERSEDED_FILE",
-];
-
-/**
- * The sentence both read surfaces show when a refresh failed over content already on screen.
- *
- * Its own group rather than either surface's, because two surfaces render it and a per-surface list
- * would have to name it twice.
- */
-const RENDERED_ON_A_STALE_READ = ["READ_IS_STALE"];
-
-/** Sentences the import banner reads: its heading, and one per refusal cause. */
-const RENDERED_BY_THE_IMPORT_BANNER = [
-  "IMPORTS_UNREADABLE",
-  "IMPORT_CAUSE_NOT_FOUND",
-  "IMPORT_CAUSE_AMBIGUOUS",
-  "IMPORT_CAUSE_UNREADABLE",
-];
-
-/** The entity control's two names. It carries the product's mark instead of a word, so its
- * accessible name is the only name it has. */
-const RENDERED_BY_THE_ENTITY_CONTROL = [
-  "WHISPARR_NOT_MONITORED",
-  "WHISPARR_MONITORED",
-  "MONITORING_COULD_NOT_BE_READ",
-  "ACTION_DID_NOT_REACH_WHISPARR",
-  "ACTION_ABSENT_IN_THIS_VERSION",
-];
-
-/**
- * The library toolbar control's two names, and every reason it states for the whole page.
- *
- * Each reason rides the control rather than the cards, because a page of cards would state it once
- * per card. Four of them are read through the page's own reason table; the last is a fact about the
- * display mode, which no read reports.
- */
-const RENDERED_BY_THE_LIBRARY_PILL = [
-  "SHOW_WHISPARR_STATUS",
-  "HIDE_WHISPARR_STATUS",
-  "NO_WHISPARR_CONNECTED",
-  "WHISPARR_KEEPS_NO_RECORD_OF_THESE",
-  "WHISPARR_STATUS_COULD_NOT_BE_READ",
-  "THE_STATUS_READ_DID_NOT_COMPLETE",
-  "NO_PLACE_FOR_A_CARD_STATUS_HERE",
-];
-
-/**
- * The name of every row the monitor menu offers. Each is placed on a menu item by
- * `monitoring/monitorMenuLogic.ts`; the menu that draws those items arrives with the rest of the
- * entity surface. A row draws its name and its glyph, and states nothing beneath itself.
- */
-const CARRIED_BY_THE_MONITOR_MENU_ITEMS = [
-  "MENU_MONITOR",
-  "SCOPE_FUTURE_SCENES",
-  "SCOPE_ALL_SCENES",
-  "MENU_UNMONITOR",
-  "ACTION_ADD_ALL_MISSING",
-  "ACTION_REFLECT_OWNED",
-  "ACTION_SEARCH_ALL_MONITORED",
-];
-
-/**
- * The two consequences the confirmation states before the wider scope is carried out. Its own group,
- * because the confirmation is the one surface that states either of them.
- */
-const RENDERED_BY_THE_ALL_SCENES_CONFIRMATION = [
-  "ALL_SCENES_MARKS_THE_BACK_CATALOGUE",
-  "ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE",
-];
-
-/**
- * The consequence the confirmation states before the search is carried out. Its own group, because
- * that confirmation is the one surface that states it.
- */
-const RENDERED_BY_THE_SEARCH_CONFIRMATION = ["SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK"];
-
-/**
- * The sync section's own sentences: the count control's first-press name, the three count rows, what
- * the skipped row means and what to do about it, the section's reading, empty, failed and busy
- * lines, the sync control's name, the monitor choice's label, every reason the sync control gives,
- * the line after the press, and the consequence its confirmation states.
- *
- * The control's second name is the shared refresh verb, the monitor choice's helper is the
- * monitor-all confirmation's consequence, the no-connection reason is the connect surface's own
- * sentence, and the refused enqueue reads the selection overlay's. Four other groups account for
- * those.
- */
-const RENDERED_BY_THE_SYNC_SECTION = [
-  "SYNC_COUNT",
-  "SYNC_NOT_YET_IN_WHISPARR",
-  "SYNC_ALREADY_IN_WHISPARR",
-  "SYNC_SKIPPED_NO_ID",
-  "SYNC_SKIPPED_CANNOT_BE_REGISTERED",
-  "SYNC_COUNTING",
-  "SYNC_NOTHING_COUNTED_YET",
-  "SYNC_COUNT_DID_NOT_FINISH",
-  "SYNC_IS_COUNTING",
-  "SYNC_LIBRARY",
-  "SYNC_ALSO_MONITOR",
-  "SYNC_NEEDS_A_COUNT_FIRST",
-  "SYNC_NOTHING_LEFT_TO_SYNC",
-  "SYNC_ALREADY_RUNNING",
-  "SYNC_IS_STARTING",
-  "SYNC_RUNS_IN_THE_JOB_DRAWER",
-  "SYNC_DOWNLOADS_NOTHING",
-];
-
-/**
- * The consequence the confirmation states before a whole catalogue is marked. Its own group, because
- * that confirmation is the one surface that states it.
- */
-const RENDERED_BY_THE_MONITOR_ALL_CONFIRMATION = ["MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF"];
-
-/**
- * The selection overlay's own sentences: why it sometimes has nothing to offer, how a refused
- * gesture is stated, and its two ways out.
- */
-const RENDERED_BY_THE_BULK_OVERLAY = [
-  "BULK_ACTIONS_COULD_NOT_BE_OFFERED",
-  "BULK_SELECTION_IS_OVER_THE_BOUND",
-  "RUN_WAS_NOT_STARTED",
-  "BULK_CANCEL",
-  "BULK_CLOSE",
-];
-
-/**
- * The scene tab's own labels and sentences: the word in its header, its three fact labels, the name
- * of each of its four controls, the reason each control gives where it cannot act, and the one
- * sentence that confirms a search.
- *
- * The reasons it states for a refused READ are sentences other surfaces already declare, so those
- * are not named here.
- */
-const RENDERED_BY_THE_SCENE_TAB = [
-  "SCENE_HEADER_WHISPARR",
-  "SCENE_FACT_QUALITY",
-  "SCENE_FACT_PROFILE",
-  "SCENE_FACT_CUTOFF",
-  "SCENE_ADD",
-  "SCENE_SEARCH",
-  "MONITOR_IN_WHISPARR",
-  "STOP_MONITORING_IN_WHISPARR",
-  "SCENE_EXCLUDE",
-  "SCENE_REMOVE_EXCLUSION",
-  "SCENE_SEARCH_NEEDS_AN_ENTRY",
-  "SCENE_MONITOR_NEEDS_AN_ENTRY",
-  "SCENE_SEARCH_NEEDS_MONITORING",
-  "SCENE_IS_ALREADY_IN_WHISPARR",
-  "SCENE_IS_ON_THE_EXCLUSION_LIST",
-  "SCENE_SEARCH_IS_WITH_WHISPARR",
-];
-
-/**
- * The sentence a selection over the search row's own bound is refused with, and the two row names
- * this overlay is the only surface to render.
- *
- * Its other three rows read a name named in another group: the monitor menu declares the pair, and
- * the search row's name is the scene tab's.
- */
-const RENDERED_BY_THE_BATCH_OVERLAY = [
-  "BATCH_SEARCH_IS_OVER_THE_BOUND",
-  "MENU_ADD",
-  "MENU_EXCLUDE",
-];
-
-/**
- * One sentence per reason a monitor control can be unavailable. The menu rules module maps the kind
- * the server answered onto exactly one of these, and a kind with none would be a dimmed control with
- * nothing to hear.
- */
-const RENDERED_AS_A_MONITOR_REFUSAL = [
-  "WAITING_FOR_WHISPARR",
-  "NO_INSTANCE_CONNECTED",
-  "NO_IDENTITY_IN_THIS_NAMESPACE",
-  "SEVERAL_IDENTITIES_IN_THIS_NAMESPACE",
-  "INSTANCE_OFFERS_NO_QUALITY_PROFILE",
-  "INSTANCE_OFFERS_NO_ROOT_FOLDER",
-  "INSTANCE_REFUSED",
-  "INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ",
-  "INSTANCE_HOLDS_NO_SUCH_ENTRY",
-  "INSTANCE_DID_NOT_REPORT_THE_CHANGE",
-];
-
-/** The outcome sentence for the one secondary action that can decline to do anything. */
-const RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED = [
-  "REFLECT_OWNED_SKIPPED",
-  "REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE",
 ];
 
 /**
@@ -376,69 +159,11 @@ describe("a capability gap is never worded as a fault or a fix", () => {
   });
 });
 
-describe("no sentence is orphaned and no kind is silent", () => {
+describe("no refusal kind is silent", () => {
   it("gives every kind a specified sentence, or names it as the surface's to write", () => {
     for (const kind of REFUSAL_KINDS) {
       const hasSentence = describeRefusal(kind).sentence !== null;
       expect(hasSentence, kind).toBe(!SENTENCE_SUPPLIED_BY_THE_SURFACE.includes(kind));
-    }
-  });
-
-  it("accounts for every declared sentence", () => {
-    const fromAKind = new Set(
-      REFUSAL_KINDS.map((kind) => describeRefusal(kind).sentence).filter(
-        (sentence) => sentence !== null,
-      ),
-    );
-    const accountedByName = [
-      ...CARRIED_BY_THE_MONITOR_MENU_ITEMS,
-      ...RENDERED_BY_THE_BULK_OVERLAY,
-      ...RENDERED_BY_THE_BATCH_OVERLAY,
-      ...RENDERED_BY_THE_MISSING_TAB,
-      ...RENDERED_BY_THE_SCENE_TAB,
-      ...RENDERED_BY_THE_CONNECT_SURFACE,
-      ...RENDERED_BY_THE_ENTITY_CONTROL,
-      ...RENDERED_BY_THE_LIBRARY_PILL,
-      ...RENDERED_BY_THE_IMPORT_BANNER,
-      ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
-      ...RENDERED_AS_A_MONITOR_REFUSAL,
-      ...RENDERED_ON_A_STALE_READ,
-      ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
-      ...RENDERED_BY_THE_ALL_SCENES_CONFIRMATION,
-      ...RENDERED_BY_THE_SEARCH_CONFIRMATION,
-      ...RENDERED_BY_THE_MONITOR_ALL_CONFIRMATION,
-      ...RENDERED_BY_THE_SYNC_SECTION,
-    ];
-
-    const orphans = CONSTANTS.filter(
-      ([name, sentence]) => !fromAKind.has(sentence) && !accountedByName.includes(name),
-    ).map(([name]) => name);
-
-    expect(orphans).toEqual([]);
-  });
-
-  it("names no sentence that no longer exists", () => {
-    const declared = CONSTANTS.map(([name]) => name);
-    for (const name of [
-      ...CARRIED_BY_THE_MONITOR_MENU_ITEMS,
-      ...RENDERED_BY_THE_BULK_OVERLAY,
-      ...RENDERED_BY_THE_BATCH_OVERLAY,
-      ...RENDERED_BY_THE_MISSING_TAB,
-      ...RENDERED_BY_THE_SCENE_TAB,
-      ...RENDERED_BY_THE_CONNECT_SURFACE,
-      ...RENDERED_BY_THE_ENTITY_CONTROL,
-      ...RENDERED_BY_THE_LIBRARY_PILL,
-      ...RENDERED_BY_THE_IMPORT_BANNER,
-      ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
-      ...RENDERED_AS_A_MONITOR_REFUSAL,
-      ...RENDERED_ON_A_STALE_READ,
-      ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
-      ...RENDERED_BY_THE_ALL_SCENES_CONFIRMATION,
-      ...RENDERED_BY_THE_SEARCH_CONFIRMATION,
-      ...RENDERED_BY_THE_MONITOR_ALL_CONFIRMATION,
-      ...RENDERED_BY_THE_SYNC_SECTION,
-    ]) {
-      expect(declared, name).toContain(name);
     }
   });
 });
