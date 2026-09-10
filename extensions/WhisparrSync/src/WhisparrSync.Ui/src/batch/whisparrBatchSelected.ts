@@ -23,7 +23,7 @@ import { api } from "../common/lib/extension";
 import {
   BATCH_SEARCH_IS_OVER_THE_BOUND,
   BULK_SELECTION_IS_OVER_THE_BOUND,
-  BULK_SELECTION_WAS_NOT_STARTED,
+  RUN_WAS_NOT_STARTED,
 } from "../common/ui/copy";
 import { BATCH_MENU_ROWS, type BatchMenuRow } from "./batchMenuLogic";
 import { WhisparrBatchChooser } from "./WhisparrBatchChooser";
@@ -85,7 +85,7 @@ export async function sceneBatchSelected(
  * else, and each bound names the limit that actually applied rather than a general one.
  */
 function refusalSentenceFor(refusal: unknown): string {
-  if (!(refusal instanceof ApiError)) return BULK_SELECTION_WAS_NOT_STARTED;
+  if (!(refusal instanceof ApiError)) return RUN_WAS_NOT_STARTED;
 
   switch (codeNamedIn(refusal.body)) {
     case "TOO_MANY_IDS":
@@ -93,7 +93,7 @@ function refusalSentenceFor(refusal: unknown): string {
     case "TOO_MANY_SEARCH_IDS":
       return BATCH_SEARCH_IS_OVER_THE_BOUND;
     default:
-      return BULK_SELECTION_WAS_NOT_STARTED;
+      return RUN_WAS_NOT_STARTED;
   }
 }
 
