@@ -317,3 +317,28 @@ test("the ordering control names the ordering in force rather than what it opens
     true,
   );
 });
+
+// Whichever fill and shadow utilities a control carries. jsdom applies no host stylesheet, so what a
+// control draws is only readable from its classes; naming none of them keeps this true of whatever
+// Cove spells them.
+function fillUtilities(drawn: Element): string[] {
+  return [...drawn.classList].filter(
+    (name) => name.startsWith("bg-") || name.startsWith("shadow-"),
+  );
+}
+
+// Refresh and Monitor all read no value, so they take no fill of their own. A menu control is a
+// field, and Cove fills one.
+test("the actions draw no fill of their own, and the menu controls do", async () => {
+  const container = await mountToolbar([YEAR], { catalogueSize: 665 });
+
+  for (const label of ["Refresh", "Monitor all"]) {
+    const action = control(container, label);
+    if (action === undefined) throw new Error(`the toolbar drew no ${label}`);
+    expect(fillUtilities(action), `${label} draws a fill`).toEqual([]);
+  }
+
+  const menu = menuNamed(container, "Year");
+  if (menu === undefined) throw new Error("the toolbar drew no facet control");
+  expect(fillUtilities(menu).length, "the facet control draws no fill").toBeGreaterThan(0);
+});
