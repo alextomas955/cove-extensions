@@ -203,6 +203,8 @@ const ITEM_BEHIND_CAPABILITY: Record<WhisparrCapability, SecondaryAction | null>
   // Reached from the library sync section on the settings page, which acts on the whole library
   // rather than on the studio this menu is opened from.
   registerOwnedSites: null,
+  // A read, so this menu offers nothing for it.
+  readSiteSceneRows: null,
 };
 
 /**

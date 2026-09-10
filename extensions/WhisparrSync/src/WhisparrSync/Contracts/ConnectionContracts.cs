@@ -84,6 +84,12 @@ public enum WhisparrCapability
     /// generation whose unit of presence is a site rather than a scene.
     /// </summary>
     RegisterOwnedSites,
+
+    /// <summary>
+    /// Which of a set of scenes one site the instance holds has a row for can be read. Held by the
+    /// generation that names a scene only as a row under a site.
+    /// </summary>
+    ReadSiteSceneRows,
 }
 
 /// <summary>

@@ -178,6 +178,25 @@ internal static class V2BodyProjector
         return new SeriesEditorResource(seriesIds: new List<int> { entityId }, monitored: monitored);
     }
 
+    /// <summary>
+    /// Sets only the monitored flag on the row <paramref name="rowId"/> names, and on nothing else.
+    /// </summary>
+    /// <remarks>
+    /// The instance's own row id and the flag, and no other member. This generation names a scene
+    /// only as a row under a site, so the id is the one its own list answered with rather than the
+    /// number the metadata provider issued.
+    /// <para>
+    /// A list of exactly one row. The route takes a list, and a body naming several would set the
+    /// flag on every one of them.
+    /// </para>
+    /// </remarks>
+    internal static EpisodesMonitoredResource MonitorScene(int rowId, bool monitored)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(rowId, 1);
+        return new EpisodesMonitoredResource(
+            episodeIds: new List<int> { rowId }, monitored: monitored);
+    }
+
     /// <summary>Re-applies <paramref name="scope"/> over what the instance already holds.</summary>
     /// <remarks>
     /// The entity is named inside an array of objects rather than as a scalar. The route answers a body
@@ -322,6 +341,50 @@ internal static class V2LookupProjector
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Which of <paramref name="asked"/> the site's own rows in <paramref name="listed"/> name, and
+    /// each row's own identifier, or null where the answer is not a list of rows at all.
+    /// </summary>
+    /// <remarks>
+    /// The answer is bounded by <paramref name="asked"/> and by nothing the instance sent, so a
+    /// site's whole catalogue reduces to at most as many entries as were asked about. Each row is
+    /// read and dropped, so nothing here grows with the site.
+    /// <para>
+    /// A number the list does not carry is absent from the answer rather than present with a zero.
+    /// The two would read the same at a caller that looked the number up and got a default.
+    /// </para>
+    /// </remarks>
+    internal static IReadOnlyDictionary<int, int>? SiteSceneRows(
+        string? listed, IReadOnlyCollection<int> asked)
+    {
+        ArgumentNullException.ThrowIfNull(asked);
+
+        if (AsArray(listed) is not { } rows)
+        {
+            return null;
+        }
+
+        var wanted = asked.ToHashSet();
+        var found = new Dictionary<int, int>();
+        foreach (var row in rows)
+        {
+            if (row is not JsonObject entry
+                || entry["tvdbId"] is not JsonValue numbered
+                || !numbered.TryGetValue<int>(out var sceneNumber)
+                || !wanted.Contains(sceneNumber)
+                || entry["id"] is not JsonValue identified
+                || !identified.TryGetValue<int>(out var rowId)
+                || rowId < 1)
+            {
+                continue;
+            }
+
+            found[sceneNumber] = rowId;
+        }
+
+        return found;
     }
 
     private static V2Site? SiteIn(JsonNode? answered)

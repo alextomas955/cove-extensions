@@ -670,7 +670,7 @@ public sealed partial class WhisparrSync
         var target = ground.Resolved.Target;
         var flipped = await ContainedAsync(
             () => ground.Acting.SetSceneMonitoredAsync(
-                target.BaseAddress, target.ApiKey, sceneId, monitored, ct),
+                target.BaseAddress, target.ApiKey, target.Generation, sceneId, monitored, ct),
             target,
             log,
             ct).ConfigureAwait(false);

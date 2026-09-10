@@ -241,7 +241,8 @@ internal sealed class WhisparrClient(
         IWhisparrSceneStatusReading,
         IWhisparrSceneExclusionReading,
         IWhisparrSceneMonitorActing,
-        IWhisparrSceneExclusionActing
+        IWhisparrSceneExclusionActing,
+        IWhisparrSiteSceneReading
 {
     /// <summary>The header both generations authenticate an API request with.</summary>
     internal const string ApiKeyHeader = "X-Api-Key";
@@ -472,18 +473,76 @@ internal sealed class WhisparrClient(
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
 
-    // The field-scoped patch, whose body carries only what changes. A whole-resource replace would
-    // write back a resource read a moment earlier, dropping whatever the read did not answer with.
+    // On the newer generation a field-scoped patch, whose body carries only what changes: a
+    // whole-resource replace would write back a resource read a moment earlier, dropping whatever
+    // the read did not answer with. On the older one the flag travels on a list of exactly one row
+    // id, which is the only shape that route takes.
     public Task<WhisparrResponse> SetSceneMonitoredAsync(
-        Uri baseAddress, string apiKey, int sceneId, bool monitored, CancellationToken ct)
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        int sceneId,
+        bool monitored,
+        CancellationToken ct)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(sceneId, 1);
 
-        return GeneratedActAsync(
+        return generation switch
+        {
+            WhisparrGeneration.V3 => GeneratedActAsync(
+                baseAddress,
+                apiKey,
+                api => api.Api<V3Api.IMovieApi>().PatchMovieByIdAsync(
+                    sceneId, V3BodyProjector.SceneMonitorPatch(monitored), ct)),
+            WhisparrGeneration.V2 => GeneratedV2ActAsync(
+                baseAddress,
+                apiKey,
+                api => api.Api<V2Api.IEpisodeApi>().PutEpisodeMonitorAsync(
+                    episodesMonitoredResource: V2BodyProjector.MonitorScene(sceneId, monitored),
+                    cancellationToken: ct)),
+            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
+        };
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// One request against the site's own row list, naming the site and nothing else. The members
+    /// that would attach images, files or the site resource are left off, so nothing arrives that
+    /// this read drops.
+    /// </remarks>
+    public async Task<IReadOnlyDictionary<int, int>> ReduceSiteSceneRowsAsync(
+        Uri baseAddress,
+        string apiKey,
+        int siteId,
+        IReadOnlyCollection<int> sceneNumbers,
+        CancellationToken ct)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(siteId, 1);
+        ArgumentNullException.ThrowIfNull(sceneNumbers);
+
+        if (sceneNumbers.Count == 0)
+        {
+            return new Dictionary<int, int>();
+        }
+
+        var listed = await GeneratedV2ReadAsync(
             baseAddress,
             apiKey,
-            api => api.Api<V3Api.IMovieApi>().PatchMovieByIdAsync(
-                sceneId, V3BodyProjector.SceneMonitorPatch(monitored), ct));
+            api => api.Api<V2Api.IEpisodeApi>().ListEpisodeAsync(
+                seriesId: siteId, cancellationToken: ct)).ConfigureAwait(false);
+
+        // Raised rather than answered as an empty map. An empty map would report every scene it
+        // asked about as one this site holds no row for, which is the opposite of the truth.
+        if (Refused(listed))
+        {
+            throw new HttpRequestException(
+                "The site's own scene rows could not be read, so which of them the instance holds "
+                    + "was not established.");
+        }
+
+        return V2LookupProjector.SiteSceneRows(listed.Body, sceneNumbers)
+            ?? throw new HttpRequestException(
+                "The answer to the site's own scene rows is not a list of rows at all.");
     }
 
     public Task<WhisparrResponse> AddSceneExclusionAsync(
