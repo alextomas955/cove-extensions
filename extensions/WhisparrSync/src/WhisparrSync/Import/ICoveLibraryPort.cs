@@ -1,3 +1,5 @@
+using WhisparrSync.Identity;
+
 namespace WhisparrSync.Import;
 
 /// <summary>How one call to the host's own import ended.</summary>

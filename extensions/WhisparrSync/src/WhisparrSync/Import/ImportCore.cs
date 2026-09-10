@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using WhisparrSync.Identity;
 using WhisparrSync.Options;
 
 namespace WhisparrSync.Import;

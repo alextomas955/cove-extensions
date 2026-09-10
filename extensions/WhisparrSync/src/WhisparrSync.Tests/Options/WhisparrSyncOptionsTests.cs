@@ -4,7 +4,6 @@ using Cove.Extensions.Shared;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 
 namespace WhisparrSync.Tests.Options;
@@ -325,7 +324,7 @@ public sealed class WhisparrSyncOptionsTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(["WhisparrSync.Monitoring.MonitorScope"], named);
+        Assert.Equal(["WhisparrSync.Contracts.MonitorScope"], named);
     }
 
     /// <summary>

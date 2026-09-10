@@ -1,3 +1,5 @@
+using WhisparrSync.Contracts;
+
 namespace WhisparrSync.Monitoring;
 
 /// <summary>The folders one entity's own files sit in, as the library holds them.</summary>

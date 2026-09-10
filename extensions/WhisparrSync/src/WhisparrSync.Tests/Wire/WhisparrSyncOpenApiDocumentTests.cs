@@ -5,7 +5,6 @@ using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Wire;

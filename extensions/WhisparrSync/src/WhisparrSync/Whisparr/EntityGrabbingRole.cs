@@ -1,7 +1,6 @@
 using WhisparrSync.Contracts;
-using WhisparrSync.Whisparr;
 
-namespace WhisparrSync.Monitoring;
+namespace WhisparrSync.Whisparr;
 
 // The roles declared here are the only ones in this product that can make an instance download
 // anything, and they share this file for that reason: a call site that never obtains one of them by
