@@ -9,12 +9,17 @@
  * The cover is fetched by the browser straight from the provider's own address: nothing is proxied
  * and nothing is stored. Every provider-supplied string renders as an escaped text node.
  */
-import { Check, ImageOff, User } from "lucide-react";
+import { Check, ImageOff, Loader, Radar, Search, User } from "lucide-react";
 import { StatusText } from "@cove-extensions/ui-shared";
 
-import { OptionallyDisabled } from "../common/ui/DisabledControl";
+import type { RowIcon } from "../common/ui/ChoiceOverlay";
 import { StateChip } from "../common/ui/StateChip";
-import { WAITING_FOR_WHISPARR } from "../common/ui/copy";
+import {
+  monitorSceneName,
+  nameWhileWaiting,
+  searchSceneName,
+  WAITING_FOR_WHISPARR,
+} from "../common/ui/copy";
 import type { MissingCard as MissingCardView, MissingPerformerChip } from "../wire/api";
 import {
   CARD_ACTION_AT_REST,
@@ -47,9 +52,15 @@ import {
  */
 const MONITORED_LABEL = "Wanted";
 
-/** The card's two verbs. The second one is the only action on this surface that downloads. */
-const MONITOR_LABEL = "Monitor";
-const SEARCH_LABEL = "Search";
+/**
+ * The card's two verbs, as squares carrying a glyph.
+ *
+ * The glyph is the one each verb already draws in this product's menus, so the same action reads
+ * the same wherever it is offered. Searching is the only action on this surface that downloads.
+ */
+const ACTION_CLASS =
+  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border text-secondary transition-colors hover:border-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60";
+const GLYPH_CLASS = "h-3.5 w-3.5";
 
 /** What the selection control is called, in each of the two states it can be pressed from. */
 const SELECT_LABEL = "Select scene";
@@ -106,32 +117,32 @@ export function MissingCard({
           {card.title}
         </h3>
         <CardBodyRows rows={rows} />
-        <div className="mt-1">
+        <div className="mt-auto flex items-center justify-between gap-2 pt-1">
           <StateChip
             state={pillState}
             label={pillState === "monitored" ? MONITORED_LABEL : undefined}
           />
+          {onMonitor === undefined || onSearch === undefined ? null : (
+            <div className="flex shrink-0 items-center gap-1.5">
+              <CardAction
+                name={monitorSceneName(card.title)}
+                glyph={Radar}
+                waiting={action.inFlight === "monitor"}
+                onPress={() => {
+                  onMonitor(card.providerSceneId);
+                }}
+              />
+              <CardAction
+                name={searchSceneName(card.title)}
+                glyph={Search}
+                waiting={action.inFlight === "search"}
+                onPress={() => {
+                  onSearch(card.providerSceneId);
+                }}
+              />
+            </div>
+          )}
         </div>
-        {onMonitor === undefined || onSearch === undefined ? null : (
-          <div className="mt-1 flex items-center justify-between gap-2">
-            <OptionallyDisabled
-              name={MONITOR_LABEL}
-              variant="ghost"
-              reason={action.inFlight === "monitor" ? WAITING_FOR_WHISPARR : null}
-              onClick={() => {
-                onMonitor(card.providerSceneId);
-              }}
-            />
-            <OptionallyDisabled
-              name={SEARCH_LABEL}
-              variant="ghost"
-              reason={action.inFlight === "search" ? WAITING_FOR_WHISPARR : null}
-              onClick={() => {
-                onSearch(card.providerSceneId);
-              }}
-            />
-          </div>
-        )}
         {failure === null ? null : (
           <p className="mt-1">
             <StatusText kind={failure.kind}>{failure.sentence}</StatusText>
@@ -139,6 +150,42 @@ export function MissingCard({
         )}
       </div>
     </article>
+  );
+}
+
+/**
+ * One of the card's verbs.
+ *
+ * A control with no text takes no accessible name from its contents, so the name is stated here and
+ * arrives already composed. While its own request is unanswered the glyph turns and the control
+ * cannot be pressed again, and the reason for that reaches a reader who cannot see the turning.
+ */
+function CardAction({
+  name,
+  glyph: Glyph,
+  waiting,
+  onPress,
+}: {
+  name: string;
+  glyph: RowIcon;
+  waiting: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={waiting ? nameWhileWaiting(name) : name}
+      title={waiting ? WAITING_FOR_WHISPARR : name}
+      disabled={waiting}
+      onClick={onPress}
+      className={ACTION_CLASS}
+    >
+      {waiting ? (
+        <Loader className={`${GLYPH_CLASS} animate-spin`} />
+      ) : (
+        <Glyph className={GLYPH_CLASS} />
+      )}
+    </button>
   );
 }
 
