@@ -96,7 +96,7 @@ const {
   BULK_CANCEL,
   BULK_CLOSE,
   BULK_SELECTION_IS_OVER_THE_BOUND,
-  BULK_SELECTION_WAS_NOT_STARTED,
+  RUN_WAS_NOT_STARTED,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   MENU_UNMONITOR,
   SCOPE_ALL_SCENES,
@@ -370,7 +370,7 @@ test("no part of the refusal body reaches the sentence the reader is shown", asy
   await chosen(SCOPE_FUTURE_SCENES);
 
   const shown = document.body.textContent;
-  expect(shown).toContain(BULK_SELECTION_WAS_NOT_STARTED);
+  expect(shown).toContain(RUN_WAS_NOT_STARTED);
   for (const word of ["InvalidOperationException", "Whisparr.Api.V3", "SOMETHING_ELSE", "500"]) {
     expect(shown, word).not.toContain(word);
   }

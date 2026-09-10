@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
-  BULK_SELECTION_WAS_NOT_STARTED,
+  RUN_WAS_NOT_STARTED,
   NO_INSTANCE_CONNECTED,
   WHISPARR_KEEPS_NO_SCENE_RECORDS,
 } from "../common/ui/copy";
@@ -92,7 +92,7 @@ describe("selectionRefusalLine", () => {
     expect(selectionRefusalLine("whisparrKeepsNoSceneRecords")).toBe(
       WHISPARR_KEEPS_NO_SCENE_RECORDS,
     );
-    expect(selectionRefusalLine("notStarted")).toBe(BULK_SELECTION_WAS_NOT_STARTED);
+    expect(selectionRefusalLine("notStarted")).toBe(RUN_WAS_NOT_STARTED);
   });
 
   it("states a sentence for every kind", () => {
