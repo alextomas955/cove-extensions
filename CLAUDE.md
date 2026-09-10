@@ -73,7 +73,9 @@ npm test                                           # tests for scripts/
   Read the result from `UseLocalCoveSource` and `CoveRepoRootResolved`, not from the switch you set.
   A build that fell back to NuGet compiles fewer tests and still reports success.
 - Every package version lives in `Directory.Packages.props`. `Cove.Sdk` is the exception. Its
-  version is `CoveSdkVersion`, derived from `CoveMinVersion` in `Directory.Build.props`.
+  version is `CoveSdkVersion`, read from the `minCoveVersion` in the `extension.json` beside the
+  project, falling back to `CoveMinVersion` in `Directory.Build.props`. So an extension compiles
+  against the host it advertises, and raising one extension's floor leaves the others alone.
 - The validator reads `CoveMinVersion` as the host floor. Never edit the floor to make a version
   check pass.
 - Never bundle host-provided assemblies (`Cove.*`, EF Core, Npgsql, Pgvector). The host loads its

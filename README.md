@@ -57,9 +57,11 @@ npm run generate:wire
 `Cove.Sdk` (transitively `Cove.Plugins` + `Cove.Core`), either from a local sibling `../cove`
 checkout (if present) or from NuGet - individual extensions do not declare their own Cove
 reference. Package versions are centralized via NuGet Central Package Management in the root
-`Directory.Packages.props`; the `Cove.Sdk` pin stays the `$(CoveSdkVersion)` property, which derives
-from `$(CoveMinVersion)` - the declared host floor that the extension-repo validator compares each
-extension's `minCoveVersion` against.
+`Directory.Packages.props`; the `Cove.Sdk` pin stays the `$(CoveSdkVersion)` property, read from the
+`minCoveVersion` in the `extension.json` beside the project so each extension compiles against the
+host it advertises. A project with no manifest beside it falls back to `$(CoveMinVersion)`, the
+repo-wide floor that the extension-repo validator compares each extension's `minCoveVersion`
+against.
 
 ### Adding an extension
 

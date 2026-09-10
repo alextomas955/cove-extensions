@@ -80,16 +80,17 @@ is empty when none was found.
 
 ### The host version floor
 
-| Property         | What it does                                                                                                                                                                    |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CoveMinVersion` | The single declared floor for the host Cove version the extensions require. `scripts/validate-extension-repo.mjs` compares each `extension.json`'s `minCoveVersion` against it. |
-| `CoveSdkVersion` | The version used for the `Cove.Sdk` and `Cove.Plugins` package references. It defaults to `CoveMinVersion`.                                                                     |
+| Property         | What it does                                                                                                                                                                                                      |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CoveMinVersion` | The lowest floor an extension here may declare, and the SDK version for a project with no manifest beside it. `scripts/validate-extension-repo.mjs` compares each `extension.json`'s `minCoveVersion` against it. |
+| `CoveSdkVersion` | The version used for the `Cove.Sdk` and `Cove.Plugins` package references. Read from the `minCoveVersion` in the `extension.json` beside the project, falling back to `CoveMinVersion`.                           |
 
-Both live in `Directory.Build.props`, and their declaration order there is load-bearing: MSBuild
-evaluates properties top to bottom, so `CoveSdkVersion` must be declared after `CoveMinVersion` or it
-expands to an empty version and every Cove package reference silently takes it.
+Both live in `Directory.Build.props`. Each extension therefore compiles against the host it
+advertises, and raising one extension's floor leaves every other extension alone. A build that
+resolves an empty version fails in `Directory.Build.targets` rather than taking whatever the feed
+offers.
 
-Raise the floor only when the extensions depend on a host capability that requires it. It is what
+Raise an extension's floor only when it depends on a host capability that requires it. It is what
 users see as the minimum Cove version, so never edit it to make a version comparison pass.
 
 ### The Cove test image
