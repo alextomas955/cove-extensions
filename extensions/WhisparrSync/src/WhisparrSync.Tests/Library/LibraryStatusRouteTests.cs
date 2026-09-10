@@ -334,6 +334,13 @@ public sealed class LibraryStatusRouteTests
         public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
             WhisparrEntityKind kind, string providerEntityId, CancellationToken ct) => throw Reached();
 
+        public Task<ProviderFacetSearch> SearchFacetValuesAsync(
+            WhisparrEntityKind kind,
+            string providerEntityId,
+            string facetKey,
+            string fragment,
+            CancellationToken ct) => throw Reached();
+
         private static InvalidOperationException Reached()
             => new("A library card status read reached a metadata provider.");
     }
