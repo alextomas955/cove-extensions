@@ -89,10 +89,23 @@ public sealed record LibraryStatusRow(int CoveId, LibraryCardReading? Reading);
 
 /// <summary>What one page of cards holds, as the badges read it.</summary>
 /// <remarks>
-/// One row per requested identifier, in the order requested, so the row count is the caller's own
-/// and never grows with the library.
+/// One row per identifier answered for, in the order requested, so the row count is bounded by the
+/// route's own page and never grows with the library.
+/// <para>
+/// The kind is carried because the route names it in a path segment, where no generated type can
+/// reach it. Answered here it reaches the wire document as an enum, so the browser imports the
+/// members instead of transcribing them.
+/// </para>
 /// </remarks>
-/// <param name="Rows">One row per requested card.</param>
+/// <param name="Kind">The card kind this answer is about, as the route segment named it.</param>
+/// <param name="Rows">One row per card answered for.</param>
 /// <param name="Refusal">Why the whole page cannot be answered for, or that it can.</param>
+/// <param name="MoreNotAnswered">
+/// Whether the request named more cards than one page answers for. The cards with no row here are
+/// the ones to ask about again, so a caller needs no figure of its own to reach every card.
+/// </param>
 public sealed record LibraryStatusView(
-    IReadOnlyList<LibraryStatusRow> Rows, LibraryStatusRefusalKind Refusal);
+    LibraryCardKind Kind,
+    IReadOnlyList<LibraryStatusRow> Rows,
+    LibraryStatusRefusalKind Refusal,
+    bool MoreNotAnswered = false);

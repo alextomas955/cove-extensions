@@ -2224,6 +2224,13 @@
           "clear"
         ]
       },
+      "LibraryCardKind": {
+        "enum": [
+          "video",
+          "studio",
+          "performer"
+        ]
+      },
       "LibraryCardReading": {
         "required": [
           "excluded",
@@ -2297,11 +2304,15 @@
       },
       "LibraryStatusView": {
         "required": [
+          "kind",
           "rows",
           "refusal"
         ],
         "type": "object",
         "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/LibraryCardKind"
+          },
           "rows": {
             "type": "array",
             "items": {
@@ -2310,6 +2321,10 @@
           },
           "refusal": {
             "$ref": "#/components/schemas/LibraryStatusRefusalKind"
+          },
+          "moreNotAnswered": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

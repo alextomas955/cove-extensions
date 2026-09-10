@@ -61,13 +61,18 @@ afterEach(() => {
   requestJson.mockReset();
 });
 
+/** One answer for every request, with the members no test here is about left at their quiet value. */
+function answering(rows: LibraryStatusView["rows"]): void {
+  requestJson.mockResolvedValue({ kind: "studio", rows, refusal: "none", moreNotAnswered: false });
+}
+
 /** Turns the badges on, which is what a reader does on the toolbar before any card asks anything. */
 function showBadges(): void {
   if (!libraryStatusOn()) toggleLibraryStatus();
 }
 
 test("a badge asks for its own card kind, naming the Cove id and nothing else", async () => {
-  requestJson.mockResolvedValue({ rows: [], refusal: "none" });
+  answering([]);
   showBadges();
 
   await render(createElement(WhisparrStudioCardBadge, { studio: HOST_OBJECT }));
@@ -79,7 +84,7 @@ test("a badge asks for its own card kind, naming the Cove id and nothing else", 
 });
 
 test("nothing else the host object carries reaches the request at all", async () => {
-  requestJson.mockResolvedValue({ rows: [], refusal: "none" });
+  answering([]);
   showBadges();
 
   await render(createElement(WhisparrVideoCardBadge, { video: HOST_OBJECT }));
@@ -91,7 +96,7 @@ test("nothing else the host object carries reaches the request at all", async ()
 });
 
 test("each card kind rides in the address rather than in the body", async () => {
-  requestJson.mockResolvedValue({ rows: [], refusal: "none" });
+  answering([]);
   showBadges();
 
   await render(createElement(WhisparrPerformerCardBadge, { performer: HOST_OBJECT }));
@@ -101,7 +106,7 @@ test("each card kind rides in the address rather than in the body", async () => 
 });
 
 test("a badge sends nothing at all until a reader asks for the badges", async () => {
-  requestJson.mockResolvedValue({ rows: [], refusal: "none" });
+  answering([]);
 
   const container = await render(createElement(WhisparrStudioCardBadge, { studio: HOST_OBJECT }));
 
@@ -110,16 +115,13 @@ test("a badge sends nothing at all until a reader asks for the badges", async ()
 });
 
 test("the answered reading is drawn on the card, and a row with none draws nothing", async () => {
-  requestJson.mockResolvedValue({
-    rows: [{ coveId: 7, reading: { excluded: false, present: true, monitored: true } }],
-    refusal: "none",
-  });
+  answering([{ coveId: 7, reading: { excluded: false, present: true, monitored: true } }]);
   showBadges();
 
   const drawn = await render(createElement(WhisparrStudioCardBadge, { studio: HOST_OBJECT }));
   expect(drawn.textContent).not.toBe("");
 
-  requestJson.mockResolvedValue({ rows: [{ coveId: 8, reading: null }], refusal: "none" });
+  answering([{ coveId: 8, reading: null }]);
   const silent = await render(
     createElement(WhisparrStudioCardBadge, { studio: { ...HOST_OBJECT, id: 8 } }),
   );
