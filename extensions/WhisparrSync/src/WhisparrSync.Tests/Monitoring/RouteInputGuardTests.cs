@@ -93,6 +93,10 @@ public sealed class RouteInputGuardTests
                 "search-all-monitored",
                 "status",
                 "unmonitor",
+
+                // The facet-value lookup, which names the facet in its last segment rather than a
+                // verb.
+                "{facetKey}",
             ],
             templates);
     }

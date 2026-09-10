@@ -63,6 +63,14 @@ internal sealed class StubProviderCatalogue(
     public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
         WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
         => Task.FromResult<IReadOnlyList<ProviderFacetMenu>>([]);
+
+    public Task<ProviderFacetSearch> SearchFacetValuesAsync(
+        WhisparrEntityKind kind,
+        string providerEntityId,
+        string facetKey,
+        string fragment,
+        CancellationToken ct)
+        => Task.FromResult(ProviderFacetSearch.NotReached);
 }
 
 /// <summary>
@@ -127,6 +135,14 @@ internal sealed class PagedProviderCatalogue(List<ProviderScene> scenes, int per
     public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
         WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
         => Task.FromResult<IReadOnlyList<ProviderFacetMenu>>([]);
+
+    public Task<ProviderFacetSearch> SearchFacetValuesAsync(
+        WhisparrEntityKind kind,
+        string providerEntityId,
+        string facetKey,
+        string fragment,
+        CancellationToken ct)
+        => Task.FromResult(ProviderFacetSearch.NotReached);
 }
 
 /// <summary>An identity table holding one identifier, or none.</summary>

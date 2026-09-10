@@ -146,6 +146,72 @@ public sealed partial class WhisparrSync
         }
     }
 
+    /// <summary>The values of one facet that match what a reader typed.</summary>
+    /// <remarks>
+    /// A read of the metadata source alone. It composes no write, and it asks the connected instance
+    /// nothing: which values a source lists is not a fact the instance holds.
+    /// </remarks>
+    internal static async Task<Results<Ok<MissingFacetSearchView>, BadRequest, ForbiddenCode>>
+        ReadMissingFacetValuesAsync(
+            string kind,
+            int coveId,
+            string facetKey,
+            string? q,
+            ICurrentPrincipalAccessor principal,
+            OptionsStore options,
+            MissingPagePlanner planner,
+            ILogger log,
+            CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(planner);
+
+        if (!HasReadPermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        if (!TryReadEntity(kind, coveId, out var entityKind) || string.IsNullOrWhiteSpace(facetKey))
+        {
+            return TypedResults.BadRequest();
+        }
+
+        var fragment = (q ?? string.Empty).Trim();
+        if (fragment.Length < MinimumFacetFragment)
+        {
+            return TypedResults.Ok(
+                MissingPagePlanner.NoFacetValues(MissingFacetSearchOutcome.FragmentTooShort));
+        }
+
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+
+        try
+        {
+            return TypedResults.Ok(
+                await planner
+                    .SearchFacetValuesAsync(
+                        new MissingFacetSearchRequest(entityKind, coveId, facetKey, fragment),
+                        stored.SelectedGeneration,
+                        ct)
+                    .ConfigureAwait(false));
+        }
+        catch (Exception failure) when (failure is HttpRequestException or IOException)
+        {
+            WhisparrSyncLog.CatalogueReadContained(log, WhisparrSyncLog.Classify(failure));
+            return TypedResults.Ok(
+                MissingPagePlanner.NoFacetValues(MissingFacetSearchOutcome.NoAnswer));
+        }
+    }
+
+    /// <summary>The shortest fragment a facet lookup carries to the metadata source.</summary>
+    /// <remarks>
+    /// One character matches most of a source's list, so the answer would be a page of an
+    /// arbitrary slice rather than the values the reader means, at the cost of a request per menu.
+    /// Two is the shortest fragment that can be a whole value: a source spells real tags as two
+    /// letters, so a higher floor would refuse a value that exists.
+    /// </remarks>
+    internal const int MinimumFacetFragment = 2;
+
     /// <summary>No measurement at all, which draws no badge rather than a zero.</summary>
     private static MissingCountView NoCount => new(null);
 

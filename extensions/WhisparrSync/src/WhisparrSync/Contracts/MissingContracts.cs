@@ -178,6 +178,47 @@ public sealed record MissingFacetMenu(
     IReadOnlyList<MissingFacetValue> Values,
     int ReportedValueCount);
 
+/// <summary>What a facet-value lookup answered.</summary>
+/// <remarks>
+/// A lookup that did not answer is held apart from one that matched nothing. Reporting an absence
+/// for a value the source holds is the failure this vocabulary exists to keep expressible.
+/// </remarks>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
+public enum MissingFacetSearchOutcome
+{
+    /// <summary>The source answered, with however many values it matched.</summary>
+    Matched,
+
+    /// <summary>
+    /// The source holds no value list it can search for this facet, so the values already carried
+    /// are the whole of what a search can narrow.
+    /// </summary>
+    NotSearchable,
+
+    /// <summary>
+    /// The fragment is shorter than the surface asks the source about, so nothing was sent.
+    /// </summary>
+    FragmentTooShort,
+
+    /// <summary>The lookup was attempted and no whole answer arrived.</summary>
+    NoAnswer,
+}
+
+/// <summary>The values of one facet that match what a reader typed.</summary>
+/// <remarks>
+/// Carries the same rows a menu carries, so a value found here is picked the same way a value the
+/// menu was handed is.
+/// </remarks>
+/// <param name="Values">The values matched, bounded by what one lookup returns.</param>
+/// <param name="ReportedValueCount">
+/// How many values the source says match, however many <paramref name="Values"/> carries.
+/// </param>
+/// <param name="Outcome">What the lookup answered, or why it answered no values.</param>
+public sealed record MissingFacetSearchView(
+    IReadOnlyList<MissingFacetValue> Values,
+    int ReportedValueCount,
+    MissingFacetSearchOutcome Outcome);
+
 /// <summary>One ordering the provider offers.</summary>
 /// <param name="Value">
 /// The opaque string the provider itself issued. One value, never an ordering plus a direction: one

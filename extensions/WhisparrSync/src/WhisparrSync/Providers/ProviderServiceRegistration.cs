@@ -128,6 +128,19 @@ internal sealed class ProviderCatalogueSelector : IProviderCatalogue
         return await catalogue.ListFacetMenusAsync(kind, providerEntityId, ct).ConfigureAwait(false);
     }
 
+    public async Task<ProviderFacetSearch> SearchFacetValuesAsync(
+        WhisparrEntityKind kind,
+        string providerEntityId,
+        string facetKey,
+        string fragment,
+        CancellationToken ct)
+    {
+        var catalogue = await _selected.ConfigureAwait(false);
+        return await catalogue
+            .SearchFacetValuesAsync(kind, providerEntityId, facetKey, fragment, ct)
+            .ConfigureAwait(false);
+    }
+
     private static async Task<IProviderCatalogue> SelectAsync(
         OptionsStore options, StashDbCatalogue stashDb, ThePornDbCatalogue thePornDb)
     {

@@ -445,6 +445,73 @@ public sealed class StashDbCatalogueTests
         Assert.Empty(handler.Requests);
     }
 
+    /// <summary>
+    /// A typed fragment travels as the provider's own name criterion, on the query the menu is
+    /// filled from, so a value the menu was never handed is found.
+    /// </summary>
+    [Fact]
+    public async Task AFragmentTravelsAsTheProvidersOwnNameCriterion()
+    {
+        var (catalogue, handler) = CatalogueOver(Facet("tags"));
+
+        var answer = await catalogue.SearchFacetValuesAsync(
+            WhisparrEntityKind.Studio, "a-studio", StashDbCatalogue.TagFacetKey, "ana", TestCt);
+
+        Assert.True(answer.IsSearchable);
+        Assert.NotEmpty(answer.Values!);
+        Assert.True(answer.ReportedValueCount > answer.Values!.Count);
+
+        var input = JsonNode.Parse(handler.Requests[0].Body)!["variables"]!["input"]!;
+        Assert.Equal("ana", input["name"]!.GetValue<string>());
+        Assert.Equal(StashDbCatalogue.FacetPageSize, input["per_page"]!.GetValue<int>());
+
+        // The provider was measured ignoring its alias criterion entirely, so a filter sent under
+        // that name would be dropped in silence.
+        Assert.Null(input["alias"]);
+    }
+
+    /// <summary>
+    /// A search that matched nothing is a measurement, and is held apart from a read that answered
+    /// nothing. Reported as the same thing, a failed read would state that a value does not exist.
+    /// </summary>
+    [Fact]
+    public async Task AMatchOfNothingAndAReadThatAnsweredNothingAreDifferentAnswers()
+    {
+        var (matched, _) = CatalogueOver(
+            """{"data":{"queryTags":{"count":0,"tags":[]}}}""");
+        var (refused, _) = CatalogueOver(
+            """{"errors":[{"message":"invalid"}]}""");
+
+        var none = await matched.SearchFacetValuesAsync(
+            WhisparrEntityKind.Studio, "a-studio", StashDbCatalogue.TagFacetKey, "zz", TestCt);
+        var unread = await refused.SearchFacetValuesAsync(
+            WhisparrEntityKind.Studio, "a-studio", StashDbCatalogue.TagFacetKey, "zz", TestCt);
+
+        Assert.Empty(none.Values!);
+        Assert.Null(unread.Values);
+        Assert.True(unread.IsSearchable);
+    }
+
+    /// <summary>
+    /// A facet this entity's page is offered no menu of is not searchable, and costs no request. A
+    /// tag page carries no tag menu, so searching one there would narrow a set nobody is looking at.
+    /// </summary>
+    [Theory]
+    [InlineData(WhisparrEntityKind.Tag, StashDbCatalogue.TagFacetKey)]
+    [InlineData(WhisparrEntityKind.Performer, StashDbCatalogue.PerformerFacetKey)]
+    [InlineData(WhisparrEntityKind.Studio, ThePornDbCatalogue.YearKey)]
+    public async Task AFacetThisPageIsOfferedNoMenuOfIsNotSearchable(
+        WhisparrEntityKind kind, string facetKey)
+    {
+        var (catalogue, handler) = CatalogueOver(Facet("tags"));
+
+        var answer = await catalogue.SearchFacetValuesAsync(kind, "an-entity", facetKey, "an", TestCt);
+
+        Assert.False(answer.IsSearchable);
+        Assert.Null(answer.Values);
+        Assert.Empty(handler.Requests);
+    }
+
     [Fact]
     public void TheFacetFixtureStatesItsOwnProvenance()
     {
