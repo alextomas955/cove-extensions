@@ -58,7 +58,9 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
+                WhisparrCapability.MonitorScene,
                 WhisparrCapability.RegisterOwnedSites,
+                WhisparrCapability.ReadSiteSceneRows,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);
     }
@@ -169,7 +171,9 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
+                WhisparrCapability.MonitorScene,
                 WhisparrCapability.RegisterOwnedSites,
+                WhisparrCapability.ReadSiteSceneRows,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
         Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
@@ -196,7 +200,9 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
+                WhisparrCapability.MonitorScene,
                 WhisparrCapability.RegisterOwnedSites,
+                WhisparrCapability.ReadSiteSceneRows,
             ],
             held);
         Assert.All(
@@ -207,7 +213,6 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.ReadSceneStatus,
                 WhisparrCapability.ReadSceneExclusions,
                 WhisparrCapability.SearchScene,
-                WhisparrCapability.MonitorScene,
                 WhisparrCapability.ExcludeScene,
             },
             absent => Assert.DoesNotContain(absent, held));

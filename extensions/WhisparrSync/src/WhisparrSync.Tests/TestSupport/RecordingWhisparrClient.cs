@@ -98,7 +98,8 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         IWhisparrSceneStatusReading,
         IWhisparrSceneExclusionReading,
         IWhisparrSceneMonitorActing,
-        IWhisparrSceneExclusionActing
+        IWhisparrSceneExclusionActing,
+        IWhisparrSiteSceneReading
 {
     private const string JsonContentType = "application/json; charset=utf-8";
 
@@ -119,6 +120,12 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
 
     /// <summary>Which identifiers a batched presence read answers as already held.</summary>
     public HashSet<string> HeldScenes { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The site and the numbers each site-row read was asked about, in order.</summary>
+    public List<(int SiteId, IReadOnlyCollection<int> SceneNumbers)> SiteSceneReads { get; } = [];
+
+    /// <summary>The row identifier each scene number on a site is answered under.</summary>
+    public Dictionary<int, int> SiteSceneRowIds { get; } = [];
 
     /// <summary>The scene each exclusion lookup named, in order.</summary>
     public List<string> ExclusionLookups { get; } = [];
@@ -316,10 +323,16 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             });
 
     public Task<WhisparrResponse> SetSceneMonitoredAsync(
-        Uri baseAddress, string apiKey, int sceneId, bool monitored, CancellationToken ct)
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        int sceneId,
+        bool monitored,
+        CancellationToken ct)
         => RecordActing(
             new ActingCall(nameof(SetSceneMonitoredAsync), baseAddress, apiKey)
             {
+                Generation = generation,
                 EntityId = sceneId,
                 Monitored = monitored,
             });
@@ -498,6 +511,34 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
 
         return Task.FromResult<IReadOnlySet<string>>(
             foreignIds.Where(HeldScenes.Contains).ToHashSet(StringComparer.Ordinal));
+    }
+
+    public Task<IReadOnlyDictionary<int, int>> ReduceSiteSceneRowsAsync(
+        Uri baseAddress,
+        string apiKey,
+        int siteId,
+        IReadOnlyCollection<int> sceneNumbers,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(sceneNumbers);
+
+        if (sceneNumbers.Count == 0)
+        {
+            return Task.FromResult<IReadOnlyDictionary<int, int>>(new Dictionary<int, int>());
+        }
+
+        SiteSceneReads.Add((siteId, [.. sceneNumbers]));
+        Verbs.Add(nameof(ReduceSiteSceneRowsAsync));
+
+        if (Unreachable.Contains(nameof(ReduceSiteSceneRowsAsync)))
+        {
+            throw new HttpRequestException("nothing answered");
+        }
+
+        return Task.FromResult<IReadOnlyDictionary<int, int>>(
+            sceneNumbers
+                .Where(SiteSceneRowIds.ContainsKey)
+                .ToDictionary(number => number, number => SiteSceneRowIds[number]));
     }
 
     public Task<SceneExclusionLookup> FindSceneExclusionAsync(
