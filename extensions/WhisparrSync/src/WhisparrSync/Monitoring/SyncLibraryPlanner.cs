@@ -53,7 +53,7 @@ internal sealed record SyncLibraryRun(
 /// one identifier: each is offered, classified into a count and dropped, so nothing here grows with
 /// the library.
 /// <para>
-/// Whether the instance already holds a scene is ANSWERED by the instance, one row at a time, rather
+/// Whether the instance already holds a scene is answered by the instance, one row at a time, rather
 /// than computed from a catalogue listing read off it. That is what makes a second run over the same
 /// library create no duplicate: a second offer of a scene the instance holds costs one request and
 /// changes nothing.
@@ -79,18 +79,18 @@ internal static class SyncLibraryPlanner
     /// The three progress calls are in the order the host requires, and each order is load-bearing.
     /// The count comes first, because the host refuses a declaration made once a unit has started.
     /// The declaration comes before the first unit, because a run that never declares one never
-    /// derives a fraction. The summary comes LAST, because the host writes its own aggregate line
+    /// derives a fraction. The summary comes last, because the host writes its own aggregate line
     /// into the job's summary on every unit completion and copies that over the sub-task, so a
     /// summary set before the final completion is silently replaced by phrasing that counts units
     /// rather than scenes.
     /// <para>
-    /// A unit is completed AND disposed inside one scope. The host removes a completed unit's state
+    /// A unit is completed and disposed inside one scope. The host removes a completed unit's state
     /// only on disposal, so a run that completed every unit and disposed none would leave one entry
     /// per scene in a host dictionary - which is what would make a per-scene tick unaffordable here.
     /// </para>
     /// </remarks>
     /// <param name="identities">
-    /// The identifier stream, as a factory rather than one enumerable. It is enumerated TWICE - once
+    /// The identifier stream, as a factory rather than one enumerable. It is enumerated twice - once
     /// to count and once to offer - and both enumerations must come from the same derivation: the
     /// stream applies the host's same-source rule in memory after the query's own distinct, and two
     /// spellings of one source are present in real data, so a second cheaper count would disagree

@@ -77,6 +77,17 @@ public sealed record SyncPreviewView(
 public sealed record SyncPreviewRead(
     SyncPreviewView? View, SyncRefusalKind Refusal, bool SyncRunning);
 
+/// <summary>What one library run was asked to do.</summary>
+/// <remarks>
+/// The monitor choice travels with the press rather than being stored: it is the reader's decision
+/// about this run, and a stored one would apply to a run started from somewhere else.
+/// </remarks>
+/// <param name="AlsoMonitor">
+/// Whether the scenes the run offers should also be marked wanted. Absent reads as false, so a
+/// caller that names nothing monitors nothing.
+/// </param>
+public sealed record SyncRunRequest(bool AlsoMonitor);
+
 /// <summary>The job id a sync enqueue answered with, or why it answered none.</summary>
 /// <param name="JobId">What this extension's own status route answers about, or null on a refusal.</param>
 /// <param name="Refusal">Why nothing was started, or that something was.</param>

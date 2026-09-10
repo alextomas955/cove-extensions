@@ -70,6 +70,7 @@ public sealed partial class WhisparrSync
     private string LibraryStatusRoute => RouteBase + "/library/{kind}/status";
     private string BulkMonitorRoute => RouteBase + "/entities/bulk-monitor";
     private string SyncPreviewRoute => RouteBase + "/sync/preview";
+    private string SyncRunRoute => RouteBase + "/sync/run";
     private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
 
     // Derived from the same builder the registered address is, so the route Whisparr is told to call
@@ -422,6 +423,17 @@ public sealed partial class WhisparrSync
              CancellationToken ct)
                 => ReadSyncPreviewAsync(
                     principal, jobs, counts, options, credentials, client, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The same tier as the count, and for a stronger reason: this one writes into a third
+        // party's catalogue on behalf of the whole library.
+        endpoints.MapPost(SyncRunRoute,
+            (SyncRunRequest? request, ICurrentPrincipalAccessor principal, IJobService jobs,
+             IServiceScopeFactory scopes, OptionsStore options, ICredentialPort credentials,
+             IWhisparrClient client, CancellationToken ct)
+                => EnqueueSyncRunAsync(
+                    request, principal, jobs, scopes, options, credentials, client, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
