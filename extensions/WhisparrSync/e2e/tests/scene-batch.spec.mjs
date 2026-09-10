@@ -105,6 +105,10 @@ const JOB_BUDGET_MS = 120_000;
 // How long the cancel path is watched for a request it must never make. An absence is only as good
 // as the window it was watched over.
 const CANCEL_DWELL_MS = 5_000;
+// A press inside the overlay, bounded like every other wait here. A click left unbounded takes the
+// whole test budget when its locator stops matching, which reads as a slow spec rather than a
+// missing control.
+const ROW_BUDGET_MS = 20_000;
 
 const test = base.extend({
   batchHarness: [
@@ -333,8 +337,8 @@ test.describe("scene batch", () => {
         "the Whisparr button opened no chooser, so nothing below is about the rows",
       ).toBeVisible();
       const offered = await chooserPanel(page)
-        .getByRole("button")
-        .evaluateAll((buttons) => buttons.map((button) => button.textContent?.trim()));
+        .getByRole("menuitem")
+        .evaluateAll((rows) => rows.map((row) => row.textContent?.trim()));
       expect(
         offered,
         "the overlay does not offer the five rows in the order it promises: safest first, the only row that can download fourth, and the row that changes what Whisparr accepts in future last",
@@ -348,7 +352,9 @@ test.describe("scene batch", () => {
 
       // The cancel path, taken FIRST so the assertion that nothing was sent is made before this spec
       // has sent anything at all.
-      await chooserPanel(page).getByRole("button", { name: BULK_CANCEL, exact: true }).click();
+      await chooserPanel(page)
+        .getByRole("menuitem", { name: BULK_CANCEL, exact: true })
+        .click({ timeout: ROW_BUDGET_MS });
       await expect(chooserPanel(page), "cancelling did not close the chooser").toBeHidden();
       await page.waitForTimeout(CANCEL_DWELL_MS);
       expect(
@@ -376,7 +382,9 @@ test.describe("scene batch", () => {
         (response) => new URL(response.url()).pathname === BATCH_ROUTE,
         { timeout: ENQUEUE_BUDGET_MS },
       );
-      await chooserPanel(page).getByRole("button", { name: MONITOR, exact: true }).click();
+      await chooserPanel(page)
+        .getByRole("menuitem", { name: MONITOR, exact: true })
+        .click({ timeout: ROW_BUDGET_MS });
       const response = await enqueued;
       expect(
         response.status(),
@@ -472,7 +480,9 @@ test.describe("scene batch", () => {
         chooserPanel(page),
         "the Whisparr button did not reopen its chooser",
       ).toBeVisible();
-      await chooserPanel(page).getByRole("button", { name: SEARCH, exact: true }).click();
+      await chooserPanel(page)
+        .getByRole("menuitem", { name: SEARCH, exact: true })
+        .click({ timeout: ROW_BUDGET_MS });
 
       // The same overlay, reopened with the sentence and no row to choose.
       await expect(
@@ -488,7 +498,9 @@ test.describe("scene batch", () => {
         `the refusal reached the host's own alert, which shows the answer's raw text: ${JSON.stringify(alerts)}`,
       ).toEqual([]);
 
-      await page.getByRole("button", { name: BULK_CLOSE, exact: true }).click();
+      await page
+        .getByRole("menuitem", { name: BULK_CLOSE, exact: true })
+        .click({ timeout: ROW_BUDGET_MS });
       expect(
         await selectedCount(page),
         "the refusal cleared the selection, so a reader told to select fewer has nothing left to select fewer of",
