@@ -525,6 +525,32 @@ export const COUNT_IS_THE_CATALOGUE_SIZE =
 export const MISSING_TAB_HEADING = "Missing";
 
 /**
+ * The name of the card control that marks one scene wanted.
+ *
+ * The control carries a glyph and no word, so this is the only name it has. It names the scene as
+ * well as the verb, because a page draws forty of the same control and a name carrying the verb
+ * alone reads identically on every one of them.
+ */
+export function monitorSceneName(title: string): string {
+  return `Monitor ${title} in Whisparr`;
+}
+
+/** The name of the card control that asks Whisparr to look for one scene, under the same rule. */
+export function searchSceneName(title: string): string {
+  return `Search Whisparr for ${title}`;
+}
+
+/**
+ * A control's name while its own request is unanswered.
+ *
+ * The reason joins the name rather than riding beside it: a control with no text has nothing for a
+ * separate carrier to sit next to.
+ */
+export function nameWhileWaiting(name: string): string {
+  return `${name}. ${WAITING_FOR_WHISPARR}`;
+}
+
+/**
  * What a facet control reads while nothing is picked in it.
  *
  * The control names the value in force, so with none in force it names the whole of what the menu
