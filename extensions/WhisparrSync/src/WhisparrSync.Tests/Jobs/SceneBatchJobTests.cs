@@ -305,7 +305,8 @@ public sealed class SceneBatchJobTests
                 new ReportedUnit(
                     coveId.ToString(CultureInfo.InvariantCulture),
                     JobUnitOutcome.Skipped,
-                    nameof(SceneRefusalKind.WhisparrHasNoEntryForScene)),
+                    nameof(SceneRefusalKind.WhisparrHasNoEntryForScene),
+                    Disposed: true),
             ],
             progress.Units);
     }

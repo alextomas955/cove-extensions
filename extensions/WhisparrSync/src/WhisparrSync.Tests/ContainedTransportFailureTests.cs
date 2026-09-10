@@ -75,8 +75,16 @@ public sealed class ContainedTransportFailureTests
 
         Assert.Equal(
             [
-                new ReportedUnit(UnitOf(first), JobUnitOutcome.Failed, nameof(MonitorRefusalKind.InstanceRefused)),
-                new ReportedUnit(UnitOf(second), JobUnitOutcome.Failed, nameof(MonitorRefusalKind.InstanceRefused)),
+                new ReportedUnit(
+                    UnitOf(first),
+                    JobUnitOutcome.Failed,
+                    nameof(MonitorRefusalKind.InstanceRefused),
+                    Disposed: true),
+                new ReportedUnit(
+                    UnitOf(second),
+                    JobUnitOutcome.Failed,
+                    nameof(MonitorRefusalKind.InstanceRefused),
+                    Disposed: true),
             ],
             progress.Units);
         Assert.Contains(progress.Reports, report => report.Fraction >= 1d && report.SubTask is not null);
