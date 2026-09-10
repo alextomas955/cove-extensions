@@ -22,16 +22,25 @@ public sealed record SyncLibraryBatch(bool AlsoMonitor);
 /// registration carries are the instance's to change at any time, and a run enqueued minutes ago
 /// must not create catalogue items under values read before that.
 /// </remarks>
-/// <param name="Generation">Whose namespace the library's own scene identifiers are read under.</param>
-/// <param name="Register">Offers one scene, answering whatever the instance said.</param>
+/// <remarks>
+/// Which pass runs follows from <paramref name="Registers"/>, and the delegate that pass needs is
+/// the one supplied. A pass named with no delegate for it is a construction fault rather than a
+/// generation gap, so the run throws on it rather than reporting an empty library.
+/// </remarks>
+/// <param name="Generation">Whose namespace the library's own identifiers are read under.</param>
+/// <param name="Registers">Which pass the run makes, which is what the capability decided.</param>
+/// <param name="RegisterScene">Offers one scene, answering what it established.</param>
+/// <param name="RegisterSite">Registers one site, answering what it established.</param>
 /// <param name="Monitor">
 /// Marks one offered scene wanted, or null where the reader did not ask for it or the generation
 /// registers no per-scene monitor.
 /// </param>
 internal sealed record SyncLibraryAiming(
     WhisparrGeneration Generation,
-    Func<string, CancellationToken, Task<WhisparrResponse?>> Register,
-    Func<string, WhisparrResponse?, CancellationToken, Task<WhisparrResponse?>>? Monitor);
+    SyncRegisters Registers,
+    Func<string, CancellationToken, Task<SyncRegistration>>? RegisterScene,
+    Func<LibrarySiteIdentity, CancellationToken, Task<SyncRegistration>>? RegisterSite,
+    Func<string, SyncRegistration, CancellationToken, Task<WhisparrResponse?>>? Monitor);
 
 /// <summary>
 /// The library run's id, its (de)serialization onto the host's string-only parameter map, and the
@@ -123,12 +132,44 @@ public static class SyncLibraryJob
 
             var identities = services.GetRequiredService<ILibrarySceneIdentityPort>();
 
-            return await SyncLibraryPlanner.RunAsync(
-                runCt => identities.SceneIdentities(aimed.Generation, runCt),
-                aimed.Register,
-                aimed.Monitor,
-                progress,
-                ct).ConfigureAwait(false);
+            return aimed.Registers switch
+            {
+                SyncRegisters.Scenes => await SyncLibraryPlanner.RunAsync(
+                    aimed.Registers,
+                    runCt => identities.SceneIdentities(aimed.Generation, runCt),
+                    identity => identity,
+                    Supplied(aimed.RegisterScene, aimed.Registers),
+                    aimed.Monitor,
+                    progress,
+                    ct).ConfigureAwait(false),
+
+                // Nothing monitors a site here. What the reader owns on a site is its scenes, and
+                // reaching one of those is a per-scene verb this pass does not obtain.
+                SyncRegisters.Sites => await SyncLibraryPlanner.RunAsync<LibrarySiteIdentity>(
+                    aimed.Registers,
+                    runCt => identities.SiteIdentities(aimed.Generation, runCt),
+                    site => site.RemoteId,
+                    Supplied(aimed.RegisterSite, aimed.Registers),
+                    monitor: null,
+                    progress,
+                    ct).ConfigureAwait(false),
+
+                _ => throw new InvalidOperationException(
+                    $"{aimed.Registers} is not a pass this run makes."),
+            };
         });
     }
+
+    /// <summary>
+    /// <paramref name="offer"/>, or the fault of a pass named with no way to make it.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <paramref name="offer"/> is null. That says nothing about a generation, so it is not
+    /// expressible as an empty library or as a refusal.
+    /// </exception>
+    private static Func<TIdentity, CancellationToken, Task<SyncRegistration>> Supplied<TIdentity>(
+        Func<TIdentity, CancellationToken, Task<SyncRegistration>>? offer, SyncRegisters registers)
+        => offer
+            ?? throw new InvalidOperationException(
+                $"A run naming {registers} was aimed with no way to register one.");
 }
