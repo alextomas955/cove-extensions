@@ -8,7 +8,7 @@
  * component that renders them.
  */
 import {
-  BULK_SELECTION_WAS_NOT_STARTED,
+  RUN_WAS_NOT_STARTED,
   NO_INSTANCE_CONNECTED,
   WHISPARR_KEEPS_NO_SCENE_RECORDS,
 } from "../common/ui/copy";
@@ -100,7 +100,7 @@ export const SELECTION_AT_REST: SelectionOutcome = { kind: "atRest" };
 const REFUSAL_LINES: Record<SelectionRefusalKind, string> = {
   noInstanceConnected: NO_INSTANCE_CONNECTED,
   whisparrKeepsNoSceneRecords: WHISPARR_KEEPS_NO_SCENE_RECORDS,
-  notStarted: BULK_SELECTION_WAS_NOT_STARTED,
+  notStarted: RUN_WAS_NOT_STARTED,
 };
 
 /** The kinds, so a caller that must cover them all cannot miss one. */

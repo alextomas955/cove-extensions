@@ -228,7 +228,7 @@ export const BULK_SELECTION_IS_OVER_THE_BOUND = `Cove acts on at most ${String(M
  * Quotes nothing the instance said. This generation answers a refusal with a body carrying a full
  * stack trace, and a sentence built from that body would put it in front of the reader.
  */
-export const BULK_SELECTION_WAS_NOT_STARTED =
+export const RUN_WAS_NOT_STARTED =
   "Cove could not start this run. Nothing was changed; try again shortly.";
 
 /** The overlay's way out, on the choice it presents. */
@@ -831,3 +831,47 @@ export const SYNC_COUNT_DID_NOT_FINISH =
 
 /** Why the count control cannot be pressed while a count is in flight. */
 export const SYNC_IS_COUNTING = "Cove is counting what would sync.";
+
+/** What the sync control is called, and the words its confirmation is titled with. */
+export const SYNC_LIBRARY = "Sync library to Whisparr";
+
+/** The monitor choice, made at press time rather than stored. */
+export const SYNC_ALSO_MONITOR = "Also monitor what it syncs";
+
+/** Why the sync control cannot be pressed before a count exists. */
+export const SYNC_NEEDS_A_COUNT_FIRST =
+  "Count what would sync first, so this can say how many scenes it will offer.";
+
+/**
+ * Why there is nothing for the sync control to do.
+ *
+ * Only while the monitor choice is off: the run marks every scene the reader owns monitored,
+ * including one the instance already holds, so with that choice on a fully held library still has
+ * work.
+ */
+export const SYNC_NOTHING_LEFT_TO_SYNC =
+  "Whisparr already holds every scene in your library that carries a metadata id.";
+
+/** Why nothing on the sync side can act while a run is in flight. Points at the progress surface. */
+export const SYNC_ALREADY_RUNNING =
+  "A library sync is already running. Its progress is in Cove's job list.";
+
+/** Why nothing on the sync side can act while the enqueue itself is in flight. */
+export const SYNC_IS_STARTING = "Cove is starting the sync.";
+
+/**
+ * What the section says after the press, and the whole of what it says.
+ *
+ * Not `BULK_REPORTS_IN_THE_JOB_DRAWER`: that sentence promises a result for each entity, and this
+ * run reports none, so reusing it would put a promise the run cannot keep in front of the reader.
+ */
+export const SYNC_RUNS_IN_THE_JOB_DRAWER =
+  "This runs in the background. Its progress appears in Cove's job list.";
+
+/**
+ * The reason the confirmation exists, stated at every size.
+ *
+ * A gesture reaching a whole library reads as a download of that size, and this sentence is the only
+ * thing that says it is not.
+ */
+export const SYNC_DOWNLOADS_NOTHING = "Registering a scene in Whisparr downloads nothing.";

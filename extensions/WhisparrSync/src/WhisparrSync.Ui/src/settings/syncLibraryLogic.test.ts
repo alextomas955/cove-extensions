@@ -1,7 +1,25 @@
 import { describe, expect, it } from "vitest";
 
-import { ACTION_REFRESH, SYNC_COUNT, SYNC_IS_COUNTING } from "../common/ui/copy";
-import { countControl, groupThousands } from "./syncLibraryLogic";
+import {
+  ACTION_REFRESH,
+  CONNECT_NOT_CONFIGURED,
+  SYNC_ALREADY_RUNNING,
+  SYNC_COUNT,
+  SYNC_DOWNLOADS_NOTHING,
+  SYNC_IS_COUNTING,
+  SYNC_IS_STARTING,
+  SYNC_NEEDS_A_COUNT_FIRST,
+  SYNC_NOTHING_LEFT_TO_SYNC,
+} from "../common/ui/copy";
+import {
+  countControl,
+  groupThousands,
+  monitorToggleReason,
+  syncConfirmation,
+  syncDisabledReason,
+  type SyncControlState,
+  type SyncCounts,
+} from "./syncLibraryLogic";
 
 describe("a count reads the same wherever it is rendered", () => {
   // Hand-transcribed. An expectation computed from the module would agree with whatever grouping
@@ -38,5 +56,149 @@ describe("the count control's name and its one reason", () => {
   it("is pressable whenever no count is in flight", () => {
     expect(countControl(false, false).reason).toBeNull();
     expect(countControl(false, true).reason).toBeNull();
+  });
+});
+
+const LIBRARY: SyncCounts = { notYetThere: 5894, alreadyThere: 4, skipped: 1648 };
+const ONE_SCENE: SyncCounts = { notYetThere: 1, alreadyThere: 0, skipped: 0 };
+const NOTHING: SyncCounts = { notYetThere: 0, alreadyThere: 0, skipped: 0 };
+const FULLY_HELD: SyncCounts = { notYetThere: 0, alreadyThere: 5898, skipped: 1648 };
+
+const PRESSABLE: SyncControlState = {
+  sharedReason: null,
+  noConnection: false,
+  syncRunning: false,
+  starting: false,
+  counts: LIBRARY,
+  monitorAlso: false,
+};
+
+describe("the confirmation names the figures and the consequence", () => {
+  // Every expectation below is transcribed by hand. One composed from the module's own clauses would
+  // agree with whatever the module produced.
+  it("names what it covers and what it skips, and that it monitors nothing", () => {
+    expect(syncConfirmation(LIBRARY, false)).toBe(
+      "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that carry no metadata id. " +
+        "It monitors nothing. Registering a scene in Whisparr downloads nothing.",
+    );
+  });
+
+  it("names what monitoring does, and what it does not do by itself", () => {
+    expect(syncConfirmation(LIBRARY, true)).toBe(
+      "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that carry no metadata id. " +
+        "It also marks each of them monitored. Marking a scene wanted downloads nothing by itself. " +
+        "Registering a scene in Whisparr downloads nothing.",
+    );
+  });
+
+  it("reads as one scene at one, and drops the skip clause where nothing is skipped", () => {
+    expect(syncConfirmation(ONE_SCENE, false)).toBe(
+      "This offers the 1 scene you own to Whisparr. It monitors nothing. " +
+        "Registering a scene in Whisparr downloads nothing.",
+    );
+  });
+
+  it("agrees with a single skipped scene", () => {
+    expect(syncConfirmation({ notYetThere: 4, alreadyThere: 0, skipped: 1 }, false)).toBe(
+      "This offers all 4 scenes you own to Whisparr, and skips 1 that carries no metadata id. " +
+        "It monitors nothing. Registering a scene in Whisparr downloads nothing.",
+    );
+  });
+
+  /**
+   * The reason the dialog exists. Three assertions rather than one loop, because a loop over a table
+   * of sizes states the property once and this is the one clause that has to hold at each of them.
+   */
+  it("says registering downloads nothing where nothing is offered", () => {
+    expect(syncConfirmation(NOTHING, false)).toContain(SYNC_DOWNLOADS_NOTHING);
+  });
+
+  it("says registering downloads nothing at one scene", () => {
+    expect(syncConfirmation(ONE_SCENE, true)).toContain(SYNC_DOWNLOADS_NOTHING);
+  });
+
+  it("says registering downloads nothing at library scale", () => {
+    expect(syncConfirmation(LIBRARY, true)).toContain(SYNC_DOWNLOADS_NOTHING);
+  });
+});
+
+describe("the sync control states one reason at a time", () => {
+  it("states the page's own reason over every other one in force", () => {
+    expect(
+      syncDisabledReason({
+        ...PRESSABLE,
+        sharedReason: "Cove could not read the stored connection.",
+        noConnection: true,
+        syncRunning: true,
+        starting: true,
+        counts: null,
+      }),
+    ).toBe("Cove could not read the stored connection.");
+  });
+
+  it("states the missing connection over a run in flight", () => {
+    expect(syncDisabledReason({ ...PRESSABLE, noConnection: true, syncRunning: true })).toBe(
+      CONNECT_NOT_CONFIGURED,
+    );
+  });
+
+  it("states the run in flight over the enqueue in flight", () => {
+    expect(syncDisabledReason({ ...PRESSABLE, syncRunning: true, starting: true })).toBe(
+      SYNC_ALREADY_RUNNING,
+    );
+  });
+
+  it("states the enqueue in flight over the absent count", () => {
+    expect(syncDisabledReason({ ...PRESSABLE, starting: true, counts: null })).toBe(
+      SYNC_IS_STARTING,
+    );
+  });
+
+  it("states the absent count over there being nothing left", () => {
+    expect(syncDisabledReason({ ...PRESSABLE, counts: null })).toBe(SYNC_NEEDS_A_COUNT_FIRST);
+  });
+
+  it("is pressable with counts held and nothing in flight", () => {
+    expect(syncDisabledReason(PRESSABLE)).toBeNull();
+  });
+
+  /**
+   * The run marks every scene the reader owns monitored, including one the instance already holds,
+   * so the same counts leave real work to do with the choice on and none with it off.
+   */
+  it("has nothing left to do on a fully held library with monitoring off", () => {
+    expect(syncDisabledReason({ ...PRESSABLE, counts: FULLY_HELD, monitorAlso: false })).toBe(
+      SYNC_NOTHING_LEFT_TO_SYNC,
+    );
+  });
+
+  it("has work to do on the same library with monitoring on", () => {
+    expect(syncDisabledReason({ ...PRESSABLE, counts: FULLY_HELD, monitorAlso: true })).toBeNull();
+  });
+});
+
+describe("the monitor choice states one reason at a time", () => {
+  it("cannot be made while a run it would apply to is in flight", () => {
+    expect(monitorToggleReason({ ...PRESSABLE, syncRunning: true })).toBe(SYNC_ALREADY_RUNNING);
+    expect(monitorToggleReason({ ...PRESSABLE, syncRunning: true, starting: true })).toBe(
+      SYNC_ALREADY_RUNNING,
+    );
+  });
+
+  it("cannot be made while the enqueue that would read it is in flight", () => {
+    expect(monitorToggleReason({ ...PRESSABLE, starting: true })).toBe(SYNC_IS_STARTING);
+  });
+
+  /** Nothing else disables it: it issues no request and it is read at press time. */
+  it("can be made whatever else the page could not do", () => {
+    expect(monitorToggleReason(PRESSABLE)).toBeNull();
+    expect(
+      monitorToggleReason({
+        ...PRESSABLE,
+        sharedReason: "Cove could not read the stored connection.",
+        noConnection: true,
+        counts: null,
+      }),
+    ).toBeNull();
   });
 });
