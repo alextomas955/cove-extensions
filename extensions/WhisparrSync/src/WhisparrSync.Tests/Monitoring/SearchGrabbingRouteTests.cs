@@ -70,6 +70,7 @@ public sealed class SearchGrabbingRouteTests
     public async Task AHeldStudioIsSearchedOnceWithTheInstancesOwnIdentifier()
     {
         await using var host = await HoldingHost(HeldAndMonitored);
+        host.Client.Answering(nameof(RecordingWhisparrClient.SearchMonitoredAsync), MonitorHost.Json(200, "{}"));
         var studioId = await SeededStudio(host);
 
         var answered = await SearchAsync(host, "studio", studioId);
@@ -101,6 +102,7 @@ public sealed class SearchGrabbingRouteTests
     public async Task OnePressIssuesOneGrabbingClassVerbAndNoSecond()
     {
         await using var host = await HoldingHost(HeldAndMonitored);
+        host.Client.Answering(nameof(RecordingWhisparrClient.SearchMonitoredAsync), MonitorHost.Json(200, "{}"));
         var studioId = await SeededStudio(host);
 
         Assert.Equal(MonitorRefusalKind.None, (await SearchViewAsync(host, "studio", studioId)).Refusal);
@@ -223,6 +225,9 @@ public sealed class SearchGrabbingRouteTests
     public async Task NoOtherMountedGestureReachesAGrabbingVerbAtAnyPosition()
     {
         await using var host = await HoldingHost(HeldNotMonitored, HeldAndMonitored);
+        host.Client.Answering(nameof(RecordingWhisparrClient.ListImportableFilesAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioScopeAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
         var studioId = await SeededStudio(host);
         await host.SeedStudioFileAsync(studioId, "/library/vixen/2026");
 
@@ -257,6 +262,7 @@ public sealed class SearchGrabbingRouteTests
     {
         await using var host = await AnsweringStudioReads(
             Held(HeldAndMonitored), Held(SecondHeldAndMonitored));
+        host.Client.Answering(nameof(RecordingWhisparrClient.SearchMonitoredAsync), MonitorHost.Json(200, "{}"));
         var first = await SeededStudio(host);
         var second = await SeededStudio(host);
         var progress = new RecordingJobProgress();
@@ -287,6 +293,7 @@ public sealed class SearchGrabbingRouteTests
     public async Task AnEntityTheInstanceDoesNotHoldIsLeftOutAndTheRestAreStillSearched()
     {
         await using var host = await AnsweringStudioReads(NotHeld, Held(HeldAndMonitored));
+        host.Client.Answering(nameof(RecordingWhisparrClient.SearchMonitoredAsync), MonitorHost.Json(200, "{}"));
         var absent = await SeededStudio(host);
         var held = await SeededStudio(host);
         var progress = new RecordingJobProgress();

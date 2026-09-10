@@ -1,18 +1,7 @@
 // @vitest-environment jsdom
-/**
- * What a facet menu the toolbar opens says about how much of the source's list it carries.
- *
- * The toolbar is rendered rather than recomposed. The property under test is the one expression in
- * the view that turns a menu's two counts into a sentence, and a test calling the same copy function
- * with the same two counts agrees with whatever that expression does with them. The expected
- * sentence is written out here instead, so swapping the two counts in the view reads differently and
- * turns this red.
- *
- * The menu panel is the real one, because the sentence is drawn there.
- */
 import { afterEach, expect, test, vi } from "vitest";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { render, press } from "../common/lib/testRender";
 
 import type {
   MissingFacetMenu,
@@ -21,11 +10,6 @@ import type {
   MissingSortOption,
 } from "../wire/api";
 
-/**
- * The host dialog resolves only inside a running Cove, so it stands in here. The stand-in draws the
- * two buttons the real one draws, because whether a press of each starts the run is the property
- * under test.
- */
 vi.mock("./hostComponents", () => ({
   ConfirmDialog: ({
     title,
@@ -49,30 +33,14 @@ vi.mock("./hostComponents", () => ({
 
 const { MissingToolbar } = await import("./MissingToolbar");
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Polls `until` until it holds, so a render is waited for rather than a number of milliseconds. */
-async function settled(until: () => boolean, budgetMs = 2000): Promise<boolean> {
-  const deadline = Date.now() + budgetMs;
-  while (!until() && Date.now() < deadline) {
-    await sleep(5);
-  }
-  return until();
-}
-
 const SORTS: MissingSortOption[] = [{ value: "DATE-DESC", label: "Newest first" }];
 
-/** A source that searches no facet, so every menu here narrows the values it was handed. */
 const NOT_SEARCHABLE: MissingFacetSearchView = {
   values: [],
   reportedValueCount: 0,
   outcome: "notSearchable",
 };
 
-/** A menu the source reports far more values for than it served. */
 const PERFORMER: MissingFacetMenu = {
   key: "performer",
   label: "Performer",
@@ -83,7 +51,6 @@ const PERFORMER: MissingFacetMenu = {
   ],
 };
 
-/** A menu carrying every value the source reported. */
 const YEAR: MissingFacetMenu = {
   key: "year",
   label: "Year",
@@ -114,9 +81,8 @@ function pageWith(facets: MissingFacetMenu[]): MissingPageView {
   };
 }
 
-const teardowns: (() => void)[] = [];
 afterEach(() => {
-  while (teardowns.length > 0) teardowns.pop()?.();
+  window.history.replaceState(null, "", "/");
 });
 
 async function mountToolbar(
@@ -128,10 +94,7 @@ async function mountToolbar(
   } = {},
   onMonitorAll: () => void = () => undefined,
 ) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(
+  return render(
     createElement(MissingToolbar, {
       onRefresh: () => undefined,
       onMonitorAll,
@@ -146,26 +109,16 @@ async function mountToolbar(
       },
     }),
   );
-  teardowns.push(() => {
-    root.unmount();
-    container.remove();
-  });
-
-  const drawn = await settled(() => container.querySelector('[aria-haspopup="menu"]') !== null);
-  expect(drawn, "the toolbar drew no menu trigger").toBe(true);
-  return container;
 }
 
-/** Presses the trigger named `label` and hands back the panel it opens. */
 async function openMenu(container: Element, label: string) {
   const trigger = [...container.querySelectorAll('[aria-haspopup="menu"]')].find((candidate) =>
     candidate.textContent.includes(label),
   );
   if (trigger === undefined) throw new Error(`the toolbar drew no trigger named ${label}`);
 
-  trigger.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-  const opened = await settled(() => document.body.querySelector('[role="menu"]') !== null);
-  expect(opened, `the ${label} menu did not open`).toBe(true);
+  await press(trigger);
+  expect(document.body.querySelector('[role="menu"]')).not.toBeNull();
   return document.body.querySelector('[role="menu"]');
 }
 
@@ -186,32 +139,25 @@ test("a menu carrying every value the source reported states no bound", async ()
   expect(panel?.textContent).not.toContain("This menu carries");
 });
 
-/** The control named `label`, or undefined where the toolbar drew none. */
 function control(container: Element, label: string) {
   return [...container.querySelectorAll("button")].find(
     (candidate) => candidate.textContent === label,
   );
 }
 
-function press(button: Element | undefined) {
-  if (button === undefined) throw new Error("the toolbar drew no such control");
-  button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-}
-
 test("the whole-catalogue control confirms with the catalogue's own figure before it sends", async () => {
   const started: number[] = [];
   const container = await mountToolbar([YEAR], { catalogueSize: 665 }, () => started.push(1));
 
-  press(control(container, "Monitor all"));
-  const opened = await settled(() => document.body.querySelector('[role="dialog"]') !== null);
-  expect(opened, "no confirmation was drawn").toBe(true);
+  await press(control(container, "Monitor all"));
+  expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
 
   const dialog = document.body.querySelector('[role="dialog"]');
   expect(dialog?.textContent).toContain("all 665 scenes a source lists here");
   expect(dialog?.textContent).toContain("downloads nothing by itself");
   expect(started).toEqual([]);
 
-  press([...(dialog?.querySelectorAll("button") ?? [])].at(0));
+  await press([...(dialog?.querySelectorAll("button") ?? [])].at(0));
   expect(started).toEqual([1]);
 });
 
@@ -219,22 +165,16 @@ test("cancelling the confirmation sends nothing", async () => {
   const started: number[] = [];
   const container = await mountToolbar([YEAR], { catalogueSize: 665 }, () => started.push(1));
 
-  press(control(container, "Monitor all"));
-  const opened = await settled(() => document.body.querySelector('[role="dialog"]') !== null);
-  expect(opened, "no confirmation was drawn").toBe(true);
+  await press(control(container, "Monitor all"));
+  expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
 
   const dialog = document.body.querySelector('[role="dialog"]');
-  press([...(dialog?.querySelectorAll("button") ?? [])].at(1));
+  await press([...(dialog?.querySelectorAll("button") ?? [])].at(1));
 
-  const closed = await settled(() => document.body.querySelector('[role="dialog"]') === null);
-  expect(closed, "the confirmation stayed open").toBe(true);
+  expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   expect(started).toEqual([]);
 });
 
-/**
- * A tag's catalogue spans the library, so no run over one can be bounded. The control is absent
- * rather than dimmed, which is only observable on a rendered toolbar.
- */
 test("a tag page draws no whole-catalogue control at all", async () => {
   const container = await mountToolbar([YEAR], { kind: "tag" });
 
@@ -242,7 +182,6 @@ test("a tag page draws no whole-catalogue control at all", async () => {
   expect(container.textContent).not.toContain("Monitor all");
 });
 
-/** How many times `needle` appears in `text`. */
 function occurrences(text: string, needle: string): number {
   let count = 0;
   for (let i = text.indexOf(needle); i !== -1; i = text.indexOf(needle, i + needle.length)) {
@@ -251,37 +190,24 @@ function occurrences(text: string, needle: string): number {
   return count;
 }
 
-/**
- * A page the provider answered with a range, so the bar has one to state.
- *
- * The three figures are unequal, so a bar that stated any of them in place of another reads
- * differently.
- */
 const A_PAGE_INTO_THE_CATALOGUE: Partial<MissingPageView> = {
   rangeFrom: 41,
   rangeTo: 80,
   catalogueSize: 272,
 };
 
-test("the bar states the range once, and the grid beneath states none", async () => {
+test("the bar states the range once", async () => {
   const container = await mountToolbar([YEAR], { view: A_PAGE_INTO_THE_CATALOGUE });
 
-  const drawn = await settled(() => container.textContent.includes("of 272"));
-  expect(drawn, "the bar drew no range").toBe(true);
   expect(occurrences(container.textContent, "41–80 of 272")).toBe(1);
 });
 
-/**
- * A catalogue with nothing in it has no position to be at, and the grid states why in place of a
- * page of cards. A range there would be a measurement of an empty set.
- */
 test("an empty catalogue is given no range", async () => {
   const container = await mountToolbar([YEAR]);
 
   expect(container.textContent).not.toContain(" of ");
 });
 
-/** The control whose accessible name starts with `label`, whatever it goes on to say. */
 function menuNamed(container: Element, label: string) {
   return [...container.querySelectorAll('[aria-haspopup="menu"]')].find((candidate) =>
     candidate.textContent.startsWith(label),
@@ -298,10 +224,7 @@ test("a facet control names the value in force once one is picked", async () => 
   window.history.replaceState(null, "", "/?wsmFilters=year%3A2024");
   const container = await mountToolbar([YEAR]);
 
-  const named = await settled(() => menuNamed(container, "Year")?.textContent === "Year2024");
-  expect(named, `the control read ${menuNamed(container, "Year")?.textContent ?? "nothing"}`).toBe(
-    true,
-  );
+  expect(menuNamed(container, "Year")?.textContent).toBe("Year2024");
   window.history.replaceState(null, "", "/");
 });
 
@@ -310,12 +233,7 @@ test("the ordering control names the ordering in force rather than what it opens
     view: { sortInForce: "DATE-DESC" },
   });
 
-  const named = await settled(
-    () => menuNamed(container, "Sort")?.textContent === "SortNewest first",
-  );
-  expect(named, `the control read ${menuNamed(container, "Sort")?.textContent ?? "nothing"}`).toBe(
-    true,
-  );
+  expect(menuNamed(container, "Sort")?.textContent).toBe("SortNewest first");
 });
 
 // Whichever fill and shadow utilities a control carries. jsdom applies no host stylesheet, so what a
@@ -341,4 +259,17 @@ test("the actions draw no fill of their own, and the menu controls do", async ()
   const menu = menuNamed(container, "Year");
   if (menu === undefined) throw new Error("the toolbar drew no facet control");
   expect(fillUtilities(menu).length, "the facet control draws no fill").toBeGreaterThan(0);
+});
+
+test("no year control is offered when the source provides no year facet", async () => {
+  const container = await mountToolbar([PERFORMER]);
+  expect(menuNamed(container, "Performer")).toBeDefined();
+  expect(menuNamed(container, "Year")).toBeUndefined();
+});
+
+test("a performer page offers an enabled whole-catalogue control", async () => {
+  const container = await mountToolbar([PERFORMER], { kind: "performer" });
+  const button = control(container, "Monitor all");
+  expect(button).toBeDefined();
+  expect(button?.disabled).toBe(false);
 });

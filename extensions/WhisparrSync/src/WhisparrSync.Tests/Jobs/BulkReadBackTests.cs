@@ -83,6 +83,7 @@ public sealed class BulkReadBackTests
     public async Task AnAcceptedAddWhoseReadBackReportsMonitoredIsSucceeded()
     {
         await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(nameof(RecordingWhisparrClient.ReadHardlinkSettingAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             MonitorHost.Json(404, NotHeld),
@@ -129,6 +130,7 @@ public sealed class BulkReadBackTests
     public async Task AFlipOnAnEntityTheInstanceHoldsIsAlsoClassifiedFromAReadBack()
     {
         await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             MonitorHost.Json(200, HeldUnmonitored),
@@ -150,6 +152,8 @@ public sealed class BulkReadBackTests
     public async Task AFlipTheInstanceThenReportsMonitoredIsSucceeded()
     {
         await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(nameof(RecordingWhisparrClient.ReadHardlinkSettingAsync), MonitorHost.Json(200, "{}"));
+        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             MonitorHost.Json(200, HeldUnmonitored),
@@ -175,6 +179,7 @@ public sealed class BulkReadBackTests
     public async Task AOneEntityBatchReadsTheEntityTwiceAndNoMore()
     {
         await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(nameof(RecordingWhisparrClient.ReadHardlinkSettingAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             MonitorHost.Json(404, NotHeld),
