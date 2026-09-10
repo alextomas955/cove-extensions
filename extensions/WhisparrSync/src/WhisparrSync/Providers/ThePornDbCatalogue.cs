@@ -261,6 +261,63 @@ internal sealed class ThePornDbCatalogue
         return menus;
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The tag route takes a <c>q</c>, so tags are searched at the provider. The year menu is
+    /// derived from the two edges of the entity's own catalogue rather than from a value list, so
+    /// there is nothing to search there and that is what it answers.
+    /// </remarks>
+    public async Task<ProviderFacetSearch> SearchFacetValuesAsync(
+        WhisparrEntityKind kind,
+        string providerEntityId,
+        string facetKey,
+        string fragment,
+        CancellationToken ct)
+    {
+        if (kind == WhisparrEntityKind.Tag
+            || !string.Equals(facetKey, TagFacetKey, StringComparison.Ordinal))
+        {
+            return ProviderFacetSearch.NotSearchable;
+        }
+
+        var resolved = await ResolveProviderAsync(ct).ConfigureAwait(false);
+        if (resolved is null)
+        {
+            return ProviderFacetSearch.NotReached;
+        }
+
+        // No page size is asked for. The route serves thirty rows a page and declares no per_page,
+        // so a size named here would be a number this product invented for a parameter the provider
+        // does not read.
+        var answered = await AskAsync(
+                resolved, TagsRoute, Query(("q", fragment), ("page", "1")), ct)
+            .ConfigureAwait(false);
+
+        if (answered is null
+            || !answered.Value.TryGetProperty("data", out var rows)
+            || rows.ValueKind != JsonValueKind.Array)
+        {
+            return ProviderFacetSearch.NotReached;
+        }
+
+        var values = new List<ProviderFacetValue>();
+        foreach (var row in rows.EnumerateArray())
+        {
+            if (values.Count == FacetPageSize)
+            {
+                break;
+            }
+
+            if (Identifier(row, "id") is { Length: > 0 } id && Text(row, "name") is { Length: > 0 } label)
+            {
+                values.Add(new ProviderFacetValue(id, label));
+            }
+        }
+
+        return ProviderFacetSearch.Matched(
+            values, Number(Meta(answered.Value), "total") ?? values.Count);
+    }
+
     private async Task<ProviderFacetMenu?> TagMenuAsync(
         ResolvedProvider resolved, CancellationToken ct)
     {

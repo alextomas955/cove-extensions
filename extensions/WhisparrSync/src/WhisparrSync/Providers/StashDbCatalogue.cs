@@ -269,49 +269,49 @@ internal sealed class StashDbCatalogue
     {
         var menus = new List<ProviderFacetMenu>();
 
-        if (kind == WhisparrEntityKind.Studio)
+        foreach (var key in MenuOrder)
         {
-            var performers = await MenuAsync(
-                    PerformersQuery,
-                    "queryPerformers",
-                    "performers",
-                    new JsonObject { ["studio_id"] = providerEntityId },
-                    PerformerFacetKey,
-                    "Performers",
-                    ct)
-                .ConfigureAwait(false);
-            if (performers is not null)
+            if (FacetQueryFor(kind, key, providerEntityId) is not { } facet)
             {
-                menus.Add(performers);
+                continue;
             }
 
-            var subStudios = await MenuAsync(
-                    SubStudiosQuery,
-                    "queryStudios",
-                    "studios",
-                    new JsonObject { ["parent"] = Criterion(providerEntityId) },
-                    SubStudioFacetKey,
-                    "Sub-studios",
-                    ct)
-                .ConfigureAwait(false);
-            if (subStudios is not null)
+            if (await MenuAsync(facet, ct).ConfigureAwait(false) is { } menu)
             {
-                menus.Add(subStudios);
-            }
-        }
-
-        if (kind != WhisparrEntityKind.Tag)
-        {
-            var tags = await MenuAsync(
-                    TagsQuery, "queryTags", "tags", [], TagFacetKey, "Tags", ct)
-                .ConfigureAwait(false);
-            if (tags is not null)
-            {
-                menus.Add(tags);
+                menus.Add(menu);
             }
         }
 
         return menus;
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The same queries the menus are filled from, under the provider's own <c>name</c> criterion,
+    /// which it matches on a substring. Its <c>alias</c> criterion is not used: it was measured
+    /// answering the whole set, so it is dropped rather than honoured, and a filter dropped in
+    /// silence is worse than one refused.
+    /// </remarks>
+    public async Task<ProviderFacetSearch> SearchFacetValuesAsync(
+        WhisparrEntityKind kind,
+        string providerEntityId,
+        string facetKey,
+        string fragment,
+        CancellationToken ct)
+    {
+        // A key that is no menu on this entity's page narrows a set the reader is not looking at, so
+        // it is answered as unsearchable rather than asked for.
+        if (FacetQueryFor(kind, facetKey, providerEntityId) is not { } facet)
+        {
+            return ProviderFacetSearch.NotSearchable;
+        }
+
+        facet.Input["name"] = fragment;
+
+        var read = await ValuesAsync(facet, ct).ConfigureAwait(false);
+        return read is not { } answered
+            ? ProviderFacetSearch.NotReached
+            : ProviderFacetSearch.Matched(answered.Values, answered.Reported);
     }
 
     /// <summary>The scope one catalogue request narrows the provider's scenes to.</summary>
@@ -365,6 +365,51 @@ internal sealed class StashDbCatalogue
 
         return scope;
     }
+
+    /// <summary>One facet's query, its scope, and how the menu it fills reads.</summary>
+    private sealed record FacetQuery(
+        string Query,
+        string Member,
+        string Collection,
+        string Key,
+        string Label,
+        JsonObject Input);
+
+    /// <summary>The menus a page offers, in the order they are drawn.</summary>
+    private static readonly string[] MenuOrder =
+        [PerformerFacetKey, SubStudioFacetKey, TagFacetKey];
+
+    /// <summary>
+    /// The query the facet <paramref name="facetKey"/> names is read through, or null where this
+    /// entity kind is offered no such menu.
+    /// </summary>
+    /// <remarks>
+    /// The one table both the menu fill and the value search read, so the two cannot come to offer
+    /// different facets. A studio's own performers and sub-studios are listable and a tag's are not,
+    /// and a tag menu on a tag page would narrow a tag to itself.
+    /// </remarks>
+    private static FacetQuery? FacetQueryFor(
+        WhisparrEntityKind kind, string facetKey, string providerEntityId)
+        => facetKey switch
+        {
+            PerformerFacetKey when kind == WhisparrEntityKind.Studio => new(
+                PerformersQuery,
+                "queryPerformers",
+                "performers",
+                PerformerFacetKey,
+                "Performers",
+                new JsonObject { ["studio_id"] = providerEntityId }),
+            SubStudioFacetKey when kind == WhisparrEntityKind.Studio => new(
+                SubStudiosQuery,
+                "queryStudios",
+                "studios",
+                SubStudioFacetKey,
+                "Sub-studios",
+                new JsonObject { ["parent"] = Criterion(providerEntityId) }),
+            TagFacetKey when kind != WhisparrEntityKind.Tag => new(
+                TagsQuery, "queryTags", "tags", TagFacetKey, "Tags", []),
+            _ => null,
+        };
 
     private static JsonObject Scope(ProviderCatalogueRequest request)
         => new() { ["input"] = ScopeFor(request) };
@@ -492,23 +537,32 @@ internal sealed class StashDbCatalogue
         };
     }
 
-    private async Task<ProviderFacetMenu?> MenuAsync(
-        string query,
-        string member,
-        string collection,
-        JsonObject scope,
-        string key,
-        string label,
-        CancellationToken ct)
+    private async Task<ProviderFacetMenu?> MenuAsync(FacetQuery facet, CancellationToken ct)
     {
-        scope["page"] = 1;
-        scope["per_page"] = FacetPageSize;
+        var read = await ValuesAsync(facet, ct).ConfigureAwait(false);
 
-        var answered = await AskAsync(query, new JsonObject { ["input"] = scope }, ct)
+        // A menu the provider filled with nothing is absent rather than empty, which a search's own
+        // empty answer is not: that one is a measurement of what matches.
+        return read is not { } answered || answered.Values.Count == 0
+            ? null
+            : new ProviderFacetMenu(
+                facet.Key, facet.Label, answered.Values, answered.Reported);
+    }
+
+    // Null where no whole answer arrived. One page of values, so a menu read whole cannot grow with
+    // the provider's own list.
+    private async Task<(IReadOnlyList<ProviderFacetValue> Values, int Reported)?> ValuesAsync(
+        FacetQuery facet, CancellationToken ct)
+    {
+        facet.Input["page"] = 1;
+        facet.Input["per_page"] = FacetPageSize;
+
+        var answered = await AskAsync(
+                facet.Query, new JsonObject { ["input"] = facet.Input }, ct)
             .ConfigureAwait(false);
         if (answered is null
-            || !answered.Value.TryGetProperty(member, out var result)
-            || !result.TryGetProperty(collection, out var rows)
+            || !answered.Value.TryGetProperty(facet.Member, out var result)
+            || !result.TryGetProperty(facet.Collection, out var rows)
             || rows.ValueKind != JsonValueKind.Array)
         {
             return null;
@@ -523,15 +577,9 @@ internal sealed class StashDbCatalogue
             }
         }
 
-        if (values.Count == 0)
-        {
-            return null;
-        }
-
-        // An absent count member reads as zero, which is no measurement of the menu's length.
+        // An absent count member reads as zero, which is no measurement of how many there are.
         var reported = Count(result);
-        return new ProviderFacetMenu(
-            key, label, values, reported == 0 ? values.Count : reported);
+        return (values, reported == 0 ? values.Count : reported);
     }
 
     // Null where no catalogue arrived: no whole answer, a status that is not a success, or a body

@@ -1,4 +1,5 @@
 using Cove.Core.Auth;
+using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
@@ -169,6 +170,78 @@ public sealed class MissingQueryBindingTests
         Assert.IsType<BadRequest>(answered.Result);
     }
 
+    /// <summary>
+    /// The typed fragment reaches the source, and the values it matched come back for the menu to
+    /// offer.
+    /// </summary>
+    [Fact]
+    public async Task AFacetFragmentReachesTheSourceThroughTheRoute()
+    {
+        var catalogue = new RecordingCatalogue();
+
+        var answered = await WhisparrSync.ReadMissingFacetValuesAsync(
+            "studio", 7, "tags", " ana ",
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
+            new OptionsStore(new FakeStore()),
+            PlannerOver(catalogue),
+            NullLogger.Instance,
+            TestCt);
+
+        var view = Assert.IsType<Ok<MissingFacetSearchView>>(answered.Result).Value;
+        Assert.NotNull(view);
+        Assert.Equal(MissingFacetSearchOutcome.Matched, view.Outcome);
+        Assert.Equal("t-1", Assert.Single(view.Values).Value);
+        Assert.Equal(64, view.ReportedValueCount);
+
+        // Trimmed, so a trailing space does not become a fragment the source matches nothing for.
+        Assert.Equal("ana", Assert.Single(catalogue.Fragments));
+    }
+
+    /// <summary>
+    /// A fragment below the bound is answered without asking the source. One character matches most
+    /// of a list, so the request buys nothing and the menu keeps narrowing what it holds.
+    /// </summary>
+    [Theory]
+    [InlineData("a")]
+    [InlineData(" ")]
+    [InlineData("")]
+    public async Task AFragmentBelowTheBoundAsksTheSourceNothing(string fragment)
+    {
+        var catalogue = new RecordingCatalogue();
+
+        var answered = await WhisparrSync.ReadMissingFacetValuesAsync(
+            "studio", 7, "tags", fragment,
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
+            new OptionsStore(new FakeStore()),
+            PlannerOver(catalogue),
+            NullLogger.Instance,
+            TestCt);
+
+        var view = Assert.IsType<Ok<MissingFacetSearchView>>(answered.Result).Value;
+        Assert.NotNull(view);
+        Assert.Equal(MissingFacetSearchOutcome.FragmentTooShort, view.Outcome);
+        Assert.Empty(view.Values);
+        Assert.Empty(catalogue.Fragments);
+    }
+
+    /// <summary>A caller who may not read the library is refused before anything is asked.</summary>
+    [Fact]
+    public async Task AFacetLookupIsRefusedWithoutTheReadPermission()
+    {
+        var catalogue = new RecordingCatalogue();
+
+        var answered = await WhisparrSync.ReadMissingFacetValuesAsync(
+            "studio", 7, "tags", "ana",
+            FakePrincipalAccessor.WithPermissions(),
+            new OptionsStore(new FakeStore()),
+            PlannerOver(catalogue),
+            NullLogger.Instance,
+            TestCt);
+
+        Assert.IsType<ForbiddenCode>(answered.Result);
+        Assert.Empty(catalogue.Fragments);
+    }
+
     private static ProviderCatalogueRequest Composed(RecordingCatalogue catalogue)
         => Assert.Single(catalogue.Requests);
 
@@ -236,6 +309,8 @@ public sealed class MissingQueryBindingTests
     {
         public List<ProviderCatalogueRequest> Requests { get; } = [];
 
+        public List<string> Fragments { get; } = [];
+
         public IReadOnlyList<ProviderFacetMenu> Menus { get; init; } = [];
 
         public IReadOnlyList<ProviderSortOption> Sorts { get; } =
@@ -272,5 +347,17 @@ public sealed class MissingQueryBindingTests
         public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
             WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
             => Task.FromResult(Menus);
+
+        public Task<ProviderFacetSearch> SearchFacetValuesAsync(
+            WhisparrEntityKind kind,
+            string providerEntityId,
+            string facetKey,
+            string fragment,
+            CancellationToken ct)
+        {
+            Fragments.Add(fragment);
+            return Task.FromResult(
+                ProviderFacetSearch.Matched([new ProviderFacetValue("t-1", "Anal Sex")], 64));
+        }
     }
 }

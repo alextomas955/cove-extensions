@@ -48,6 +48,7 @@ public sealed class EndpointPermissionTests
         "GET /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitoring",
         "GET /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing",
         "GET /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/count",
+        "GET /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/facet/{facetKey}",
         "GET /api/extensions/com.alextomas955.whisparrsync/import/banner",
         "GET /api/extensions/com.alextomas955.whisparrsync/job-status/{jobId}",
         "GET /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}",
