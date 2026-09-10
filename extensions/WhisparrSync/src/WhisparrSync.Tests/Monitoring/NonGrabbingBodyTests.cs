@@ -737,6 +737,9 @@ public sealed class NonGrabbingBodyTests
         foreach (var verb in nonGrabbing)
         {
             await using var host = await MonitorHost.CreateAsync();
+            host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioScopeAsync), MonitorHost.Json(200, "{}"));
+            host.Client.Answering(nameof(RecordingWhisparrClient.ListImportableFilesAsync), MonitorHost.Json(200, "{}"));
+            host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
             host.Client
                 .Answering(
                     nameof(IWhisparrStudioActing.ReadStudioAsync),
@@ -854,6 +857,7 @@ public sealed class NonGrabbingBodyTests
         foreach (var verb in nonGrabbing)
         {
             await using var host = await MonitorHost.CreateAsync();
+            host.Client.Answering(nameof(RecordingWhisparrClient.AddSceneAsync), MonitorHost.Json(200, "{}"));
             var studioId = await host.SeedStudioAsync(
                 MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 

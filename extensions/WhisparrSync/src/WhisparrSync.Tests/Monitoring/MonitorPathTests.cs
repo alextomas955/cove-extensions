@@ -820,6 +820,7 @@ public sealed class MonitorPathTests
     public async Task TheScopeChangeAnswersTheScopeItApplied()
     {
         await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioScopeAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             Json(200, """{"id":1,"monitored":true,"afterDate":"2026-09-03"}"""));
@@ -835,6 +836,7 @@ public sealed class MonitorPathTests
     public async Task UnmonitoringAnswersNoScope()
     {
         await using var host = await MonitorHost.CreateAsync();
+        host.Client.Answering(nameof(RecordingWhisparrClient.SetStudioMonitoredAsync), MonitorHost.Json(200, "{}"));
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             Json(200, """{"id":1,"monitored":true,"afterDate":"2026-09-03"}"""));

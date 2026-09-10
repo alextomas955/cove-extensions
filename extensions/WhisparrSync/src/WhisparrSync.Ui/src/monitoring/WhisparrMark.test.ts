@@ -1,38 +1,15 @@
 // @vitest-environment jsdom
-/**
- * What the mark draws for each generation, and what it draws before one is known.
- *
- * A DOM is needed because both properties are about the rendered tree: nothing at all before the read
- * answers is what keeps the wrong product's colour off the screen, and a mark contributing text would
- * put a second name on a control whose accessible name is the only name it has.
- */
 import { test, expect } from "vitest";
 import { createElement, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+import { render as renderNode } from "../common/lib/testRender";
 
 import { WhisparrMark } from "./WhisparrMark";
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 async function render(node: ReactNode) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(node);
-  await sleep(COMMIT_MS);
+  const container = await renderNode(node);
   return {
     container,
     svg: container.querySelector("svg"),
-    teardown: () => {
-      root.unmount();
-      container.remove();
-    },
   };
 }
 
@@ -40,14 +17,12 @@ test("no generation yet draws nothing at all, so no wrong-generation colour is s
   const rendered = await render(createElement(WhisparrMark, { generation: undefined }));
 
   expect(rendered.container.innerHTML).toBe("");
-  rendered.teardown();
 });
 
 test("a connection to nothing draws nothing either", async () => {
   const rendered = await render(createElement(WhisparrMark, { generation: null }));
 
   expect(rendered.container.innerHTML).toBe("");
-  rendered.teardown();
 });
 
 test("each generation draws its own product's mark", async () => {
@@ -68,7 +43,6 @@ test("each generation draws its own product's mark", async () => {
     expect(
       rendered.container.querySelector("path[transform]")?.getAttribute("transform"),
     ).toContain("matrix(");
-    rendered.teardown();
   }
 });
 
@@ -79,7 +53,6 @@ test("neither mark contributes any text, so the control keeps the only name it h
     expect(rendered.container.textContent, generation).toBe("");
     expect(rendered.svg?.getAttribute("aria-hidden")).toBe("true");
     expect(rendered.svg?.getAttribute("focusable")).toBe("false");
-    rendered.teardown();
   }
 });
 
@@ -89,5 +62,4 @@ test("the caller's class reaches the element, so the button decides the size", a
   );
 
   expect(rendered.svg?.getAttribute("class")).toBe("h-5 w-5");
-  rendered.teardown();
 });
