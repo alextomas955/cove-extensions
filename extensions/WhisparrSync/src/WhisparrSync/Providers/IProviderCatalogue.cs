@@ -263,6 +263,22 @@ public interface IProviderCatalogue
         WhisparrEntityKind kind, string name, IReadOnlyList<string> aliases, CancellationToken ct);
 
     /// <summary>
+    /// The provider's own numeric id for the scene <paramref name="providerSceneId"/> names, or null
+    /// where it has none for it.
+    /// </summary>
+    /// <remarks>
+    /// One read per scene. Nothing is held between calls, for the reason the entity reads already
+    /// state: a cache here would answer for a source the host was reconfigured away from.
+    /// <para>
+    /// Null and a refusal are different answers and this member gives only the first. A provider
+    /// that issues no number of its own holds no <see cref="IResolvesNumericSceneId"/> role, so a
+    /// caller obtains the role first and is refused there rather than reading a null as a scene the
+    /// provider does not name.
+    /// </para>
+    /// </remarks>
+    Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct);
+
+    /// <summary>
     /// The facet menus this provider fills for the <paramref name="kind"/> entity
     /// <paramref name="providerEntityId"/> names.
     /// </summary>
