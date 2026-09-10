@@ -264,7 +264,7 @@ const sceneHeader = (page) =>
 /**
  * The state chip, located by its shape and asserted on by its words.
  *
- * The chip's label shares its element with an aria-hidden glyph, so the element carries both and an
+ * The chip's label shares its element with a drawn mark, so the element carries both and an
  * exact-text locator finds nothing. Same reason library-status.spec.mjs locates its card badges
  * this way.
  */

@@ -191,7 +191,7 @@ public sealed class LibraryStatusRouteTests
         var view = await ReadAsync(await host.PostLibraryStatusAsync("video", Asking(videoId)));
 
         Assert.Equal(
-            new LibraryCardReading(true, false, null), Assert.Single(view.Rows).Reading);
+            new LibraryCardReading(true, false, null, false), Assert.Single(view.Rows).Reading);
     }
 
     /// <summary>

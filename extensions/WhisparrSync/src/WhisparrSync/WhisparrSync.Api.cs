@@ -621,6 +621,7 @@ public sealed partial class WhisparrSync
             // work whichever generation is connected.
             .AddSlot("studios-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
             .AddSlot("studio-card-footer", componentName: "WhisparrStudioCardBadge", order: 100)
+            .AddSlot("studios-list-row", componentName: "WhisparrStudioLibraryRow", order: 100)
 
             // One component, registered once per page type. The host passes a tab component only the
             // entity id and a navigate callback, so the component reads its own kind from its route.
@@ -677,8 +678,8 @@ public sealed partial class WhisparrSync
             .WithJsBundle("index.mjs");
 
         // The older generation publishes no per-scene identity and holds no performer entity, so
-        // these surfaces have no meaning there and are hidden by omission. The host's full-width row
-        // slot below a list toolbar is occupied on neither generation.
+        // these surfaces have no meaning there and are hidden by omission. The full-width row below
+        // a list toolbar goes with the badges it counts, so it is registered wherever they are.
         //
         // The scene tab carries neither a countEndpoint nor an icon: the video detail page maps a
         // contributed tab into its own list keeping only the key, the label and the manual contexts,
@@ -689,10 +690,13 @@ public sealed partial class WhisparrSync
             manifest
                 .AddSlot("videos-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
                 .AddSlot("video-card-content", componentName: "WhisparrVideoCardBadge", order: 100)
+                .AddSlot("videos-list-row", componentName: "WhisparrVideoLibraryRow", order: 100)
                 .AddSlot(
                     "performers-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
                 .AddSlot(
                     "performer-card-footer", componentName: "WhisparrPerformerCardBadge", order: 100)
+                .AddSlot(
+                    "performers-list-row", componentName: "WhisparrPerformerLibraryRow", order: 100)
                 .AddTab(
                     pageType: "video",
                     key: SceneTabKey,

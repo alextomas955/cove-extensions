@@ -37,8 +37,10 @@ public sealed class ManifestGenerationTests
     [
         "videos-list-toolbar-end",
         "video-card-content",
+        "videos-list-row",
         "performers-list-toolbar-end",
         "performer-card-footer",
+        "performers-list-row",
     ];
 
     /// <inheritdoc cref="VideosViewSlots"/>
@@ -198,14 +200,30 @@ public sealed class ManifestGenerationTests
         Assert.Equal([nameof(WhisparrGeneration.V3)], published);
     }
 
+    /// <summary>
+    /// The full-width row goes with the card badges it counts, on every page that has them.
+    /// </summary>
+    /// <remarks>
+    /// A row registered where no badge is is a row of counts over nothing, and a page of badges with
+    /// no row leaves every glyph on it unnamed.
+    /// </remarks>
     [Fact]
-    public async Task NeitherGenerationOccupiesTheHostsFullWidthRowSlot()
+    public async Task EveryPageWithCardBadgesCarriesTheFullWidthRow()
     {
         foreach (var generation in new[] { WhisparrGeneration.V3, WhisparrGeneration.V2 })
         {
-            Assert.All(
-                await SlotsForAsync(generation),
-                slot => Assert.DoesNotContain("-list-row", slot, StringComparison.Ordinal));
+            var slots = await SlotsForAsync(generation);
+            var pagesWithBadges = slots
+                .Where(slot => slot.EndsWith("-card-footer", StringComparison.Ordinal)
+                    || slot.EndsWith("-card-content", StringComparison.Ordinal))
+                .Select(slot => slot.Split('-')[0])
+                .Order();
+            var pagesWithARow = slots
+                .Where(slot => slot.EndsWith("-list-row", StringComparison.Ordinal))
+                .Select(slot => slot.Split('-')[0].TrimEnd('s'))
+                .Order();
+
+            Assert.Equal(pagesWithBadges, pagesWithARow);
         }
     }
 
