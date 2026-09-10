@@ -1,15 +1,7 @@
 // @vitest-environment jsdom
-/**
- * Three properties of the upgrade control that only a rendered DOM can settle: that both choices are
- * offered, that the consequence shown is the chosen one's, and that the control cannot be used before
- * the stored value has arrived.
- *
- * The shared primitives stand in, because their `react` import resolves only inside a consuming bundle; each
- * stand-in reproduces the element the real one renders, which is what the assertions read.
- */
 import { expect, test, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+import { render as renderNode } from "../common/lib/testRender";
 
 import type { UpgradeBehavior } from "../wire/api";
 import { UPGRADE_DROPS_THE_SUPERSEDED_FILE, UPGRADE_KEEPS_BOTH_FILES } from "../common/ui/copy";
@@ -40,19 +32,6 @@ vi.mock("@cove-extensions/ui-shared", async () => {
 
 const { ImportBehaviorSection } = await import("./ImportBehaviorSection");
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-async function render(node: ReactNode): Promise<HTMLElement> {
-  const host = document.createElement("div");
-  document.body.append(host);
-  createRoot(host).render(node);
-  await sleep(20);
-  return host;
-}
-
 function section(overrides: {
   behavior?: UpgradeBehavior | null;
   saving?: boolean;
@@ -69,15 +48,15 @@ function section(overrides: {
 }
 
 test("both choices are offered, whichever one is stored", async () => {
-  const host = await render(section({ behavior: "add" }));
+  const host = await renderNode(section({ behavior: "add" }));
 
   const offered = [...host.querySelectorAll("option")].map((option) => option.value);
   expect(offered).toEqual(["add", "replace"]);
 });
 
 test("the consequence shown is the chosen one's, and the two do not read the same", async () => {
-  const keeping = await render(section({ behavior: "add" }));
-  const replacing = await render(section({ behavior: "replace" }));
+  const keeping = await renderNode(section({ behavior: "add" }));
+  const replacing = await renderNode(section({ behavior: "replace" }));
 
   expect(keeping.textContent).toContain(UPGRADE_KEEPS_BOTH_FILES);
   expect(keeping.textContent).not.toContain(UPGRADE_DROPS_THE_SUPERSEDED_FILE);
@@ -86,8 +65,8 @@ test("the consequence shown is the chosen one's, and the two do not read the sam
 });
 
 test("the control cannot be used before the stored value has arrived", async () => {
-  const unread = await render(section({ behavior: null }));
-  const read = await render(section({ behavior: "add" }));
+  const unread = await renderNode(section({ behavior: null }));
+  const read = await renderNode(section({ behavior: "add" }));
 
   expect(unread.querySelector("select")?.disabled).toBe(true);
   // The control: it is enabled once the read has answered, so the disabling above is about the
@@ -96,14 +75,14 @@ test("the control cannot be used before the stored value has arrived", async () 
 });
 
 test("a save in flight is announced busy and the control is not usable", async () => {
-  const host = await render(section({ saving: true }));
+  const host = await renderNode(section({ saving: true }));
 
   expect(host.querySelector('[aria-busy="true"]')).not.toBeNull();
   expect(host.querySelector("select")?.disabled).toBe(true);
 });
 
 test("the shared reason takes the control out without repeating itself beside it", async () => {
-  const host = await render(
+  const host = await renderNode(
     section({ sharedReason: "Cove could not read the stored connection." }),
   );
 
