@@ -6,9 +6,7 @@
  * returns: a route composed correctly and never reached, or reached with a body naming other scenes,
  * both pass a value-level check on the composer alone.
  *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is awaited on the condition it produces. The host's
- * authenticated fetch and its POST helper stand in, because each resolves only inside a consuming
+ * The host's authenticated fetch and its POST helper stand in, because each resolves only inside a consuming
  * bundle.
  */
 import { test, expect, vi, afterEach } from "vitest";

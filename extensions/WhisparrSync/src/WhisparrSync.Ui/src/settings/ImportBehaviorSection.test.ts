@@ -4,9 +4,7 @@
  * offered, that the consequence shown is the chosen one's, and that the control cannot be used before
  * the stored value has arrived.
  *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is flushed by waiting rather than by wrapping. The shared
- * primitives stand in, because their `react` import resolves only inside a consuming bundle; each
+ * The shared primitives stand in, because their `react` import resolves only inside a consuming bundle; each
  * stand-in reproduces the element the real one renders, which is what the assertions read.
  */
 import { expect, test, vi } from "vitest";
