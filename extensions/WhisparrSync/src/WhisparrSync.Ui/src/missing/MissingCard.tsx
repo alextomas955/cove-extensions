@@ -2,13 +2,16 @@
  * One catalogue scene the library does not hold.
  *
  * Hand-built on the host's own utility classes rather than through a host card component. The host's
- * video card takes a Cove entity and navigates to that entity's page, and a provider scene has
- * neither an id nor a page, so the card carries no card-level link at all. That is also what keeps
- * it to three focus stops.
+ * video card takes a Cove entity and navigates to that entity's page, and a provider scene has no
+ * page in Cove, so the cover and the title lead out to the source instead.
+ *
+ * The link is scoped to those two and never wraps the card: the card holds a selection control and
+ * two verbs, and a target around all of it would swallow them or fire behind them.
  *
  * The cover is fetched by the browser straight from the provider's own address: nothing is proxied
  * and nothing is stored. Every provider-supplied string renders as an escaped text node.
  */
+import type { ReactNode } from "react";
 import { Check, ImageOff, Loader, Radar, Search, User } from "lucide-react";
 import { StatusText } from "@cove-extensions/ui-shared";
 
@@ -17,6 +20,7 @@ import { StateChip } from "../common/ui/StateChip";
 import {
   monitorSceneName,
   nameWhileWaiting,
+  openSceneName,
   searchSceneName,
   WAITING_FOR_WHISPARR,
 } from "../common/ui/copy";
@@ -52,14 +56,16 @@ import {
  */
 const MONITORED_LABEL = "Wanted";
 
+/** The focus state every control on the card carries, in the spelling the host stylesheet emits. */
+const FOCUS_RING = "focus:outline-none focus:ring-2 focus:ring-accent";
+
 /**
  * The card's two verbs, as squares carrying a glyph.
  *
  * The glyph is the one each verb already draws in this product's menus, so the same action reads
  * the same wherever it is offered. Searching is the only action on this surface that downloads.
  */
-const ACTION_CLASS =
-  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border text-secondary transition-colors hover:border-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60";
+const ACTION_CLASS = `inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border text-secondary transition-colors hover:border-accent hover:text-foreground ${FOCUS_RING} disabled:cursor-not-allowed disabled:opacity-60`;
 const GLYPH_CLASS = "h-3.5 w-3.5";
 
 /** What the selection control is called, in each of the two states it can be pressed from. */
@@ -103,7 +109,13 @@ export function MissingCard({
   return (
     <article className={selected ? CARD_SELECTED_CLASS : CARD_CLASS}>
       <div className={CARD_MEDIA_CLASS}>
-        <Cover coverUrl={card.coverUrl} title={card.title} />
+        <AtTheSource
+          url={card.sceneUrl}
+          title={card.title}
+          className={`block h-full w-full ${FOCUS_RING}`}
+        >
+          <Cover coverUrl={card.coverUrl} title={card.title} />
+        </AtTheSource>
         {onToggleSelect === undefined ? null : (
           <SelectionToggle
             selected={selected}
@@ -114,7 +126,9 @@ export function MissingCard({
       </div>
       <div className={CARD_BODY_CLASS}>
         <h3 className={CARD_TITLE_CLASS} title={card.title}>
-          {card.title}
+          <AtTheSource url={card.sceneUrl} title={card.title} className={FOCUS_RING}>
+            {card.title}
+          </AtTheSource>
         </h3>
         <CardBodyRows rows={rows} />
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
@@ -150,6 +164,44 @@ export function MissingCard({
         )}
       </div>
     </article>
+  );
+}
+
+/**
+ * What the reader follows to see the scene where it came from.
+ *
+ * A real anchor, so middle-click, ctrl-click and the browser's own open-in-a-new-tab all work; a
+ * click handler on a box gives a reader none of those. The name is stated because the cover carries
+ * no text and the title alone does not say that following it leaves Cove.
+ *
+ * A source that named no address leaves the children exactly as they are, so a card nothing can be
+ * opened from is not drawn as one that can.
+ */
+function AtTheSource({
+  url,
+  title,
+  className,
+  children,
+}: {
+  url: string | null;
+  title: string;
+  className: string;
+  children: ReactNode;
+}) {
+  if (url === null) {
+    return children;
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={openSceneName(title)}
+      className={className}
+    >
+      {children}
+    </a>
   );
 }
 
@@ -279,7 +331,7 @@ function SelectionToggle({
       onClick={(event) => {
         onToggleSelect({ range: event.shiftKey });
       }}
-      className={`absolute left-0.5 top-0.5 z-10 flex h-8 w-8 items-center justify-center rounded-md transition-opacity focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-accent ${revealed}`}
+      className={`absolute left-0.5 top-0.5 z-10 flex h-8 w-8 items-center justify-center rounded-md transition-opacity focus:opacity-100 ${FOCUS_RING} ${revealed}`}
     >
       <span
         className={`flex h-4 w-4 items-center justify-center rounded border ${
