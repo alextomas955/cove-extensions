@@ -7,13 +7,12 @@
  */
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
-import type { LibraryCardReading } from "../wire/api";
+import type { LibraryCardKind, LibraryCardReading } from "../wire/api";
 import {
   cardStatusSettled,
   readCardStatus,
   requestCardStatus,
   subscribeCardStatus,
-  type LibraryCardKind,
 } from "./cardStatusStore";
 
 /** What the hook hands the badge. */

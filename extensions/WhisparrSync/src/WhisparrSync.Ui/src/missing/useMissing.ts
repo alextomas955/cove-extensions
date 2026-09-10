@@ -15,7 +15,7 @@ import type {
   MissingSceneActionResult,
 } from "../wire/api";
 import { api } from "../common/lib/extension";
-import type { MissingEntityKind } from "./entityKindLogic";
+import type { WhisparrEntityKind } from "../wire/api";
 import { sceneActionIn, type CardVerb } from "./missingCardLogic";
 import { selectionOutcomeIn } from "./missingSelectionLogic";
 import type { MissingView } from "./missingUrlLogic";
@@ -121,7 +121,7 @@ function monitorAllRouteFor(entity: MissingEntity, key: MissingViewKey): string 
   );
 }
 
-export function useMissing(kind: MissingEntityKind, coveId: number, view: MissingView): Missing {
+export function useMissing(kind: WhisparrEntityKind, coveId: number, view: MissingView): Missing {
   // One store per page lifetime. A lazy useState initializer rather than a useMemo, because a memo
   // is a cache React may legitimately discard.
   const [store] = useState<MissingStore>(() => createMissingStore());

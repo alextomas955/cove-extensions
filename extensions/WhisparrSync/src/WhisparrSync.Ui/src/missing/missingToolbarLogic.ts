@@ -5,7 +5,7 @@
  * and no member here carries a disabled flag for one.
  */
 import type { MissingSortOption } from "../wire/api";
-import type { MissingEntityKind } from "./entityKindLogic";
+import type { WhisparrEntityKind } from "../wire/api";
 
 /**
  * How long typing settles before the address is rewritten.
@@ -37,7 +37,7 @@ export const MONITOR_ALL_LABEL = "Monitor all";
  *
  * @param kind which kind of entity page the tab is mounted on
  */
-export function monitorAllOffered(kind: MissingEntityKind): boolean {
+export function monitorAllOffered(kind: WhisparrEntityKind): boolean {
   return kind !== "tag";
 }
 
