@@ -34,7 +34,7 @@ const SEARCH_PLACEHOLDER = "Search titles";
 const REFRESH_LABEL = "Refresh";
 
 /** The placeholder in a menu's own search box, transcribed the same way. */
-const MENU_SEARCH_PLACEHOLDER = "Search this menu";
+const MENU_SEARCH_PLACEHOLDER = "Search values";
 
 /**
  * The keys Cove deletes from the address on every tab change, including the change into this tab.
