@@ -46,8 +46,10 @@ afterEach(() => {
 /** One blank card of the studio kind on screen, whose page read established a reason. */
 async function aBlankStudioCardOnScreen(): Promise<void> {
   requestJson.mockResolvedValue({
+    kind: "studio",
     rows: [{ coveId: 1, reading: null }],
     refusal: "instanceUnreachable",
+    moreNotAnswered: false,
   });
   await act(() => {
     teardowns.push(requestCardStatus("studio", 1));
