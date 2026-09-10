@@ -135,6 +135,10 @@ public sealed record MissingPerformerChip(string ProviderPerformerId, string Nam
 /// <param name="Title">The scene title as the provider spells it.</param>
 /// <param name="ReleaseDate">The release date the provider carries, or null where it carries none.</param>
 /// <param name="CoverUrl">The provider's own cover address, or null where it offers none.</param>
+/// <param name="SceneUrl">
+/// Where the source shows the scene, or null where the source publishes no address for it. Composed
+/// by the source that answered, so the browser holds no address pattern of its own.
+/// </param>
 /// <param name="StudioName">The studio the provider names, or null where it names none.</param>
 /// <param name="Description">The provider's own description, or null where it carries none.</param>
 /// <param name="Performers">The performers the card shows, bounded by what one card renders.</param>
@@ -147,6 +151,7 @@ public sealed record MissingCard(
     string Title,
     string? ReleaseDate,
     string? CoverUrl,
+    string? SceneUrl,
     string? StudioName,
     string? Description,
     IReadOnlyList<MissingPerformerChip> Performers,

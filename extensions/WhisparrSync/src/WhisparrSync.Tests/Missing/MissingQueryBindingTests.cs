@@ -318,6 +318,8 @@ public sealed class MissingQueryBindingTests
 
         public string DefaultSort { get; init; } = "DATE";
 
+        public string? SceneAddress(string providerSceneId) => null;
+
         public ProviderCapabilitySet Capabilities { get; } =
             ProviderCapabilities.ForStashDb(new object());
 

@@ -31,6 +31,8 @@ internal sealed class StubProviderCatalogue(
 
     public ProviderCapabilitySet Capabilities { get; } = ProviderCapabilities.ForStashDb(new object());
 
+    public string? SceneAddress(string providerSceneId) => null;
+
     public Task<ProviderCatalogueAnswer> ReadPageAsync(
         ProviderCatalogueRequest request, CancellationToken ct)
     {
@@ -93,6 +95,8 @@ internal sealed class PagedProviderCatalogue(List<ProviderScene> scenes, int per
     public string DefaultSort => "DATE";
 
     public ProviderCapabilitySet Capabilities { get; } = ProviderCapabilities.ForStashDb(new object());
+
+    public string? SceneAddress(string providerSceneId) => null;
 
     /// <summary>The scenes a title search leaves, in the source's own order.</summary>
     public List<ProviderScene> Matching(string? titleSearch)
