@@ -24,6 +24,9 @@ internal sealed class StubProviderCatalogue(
     public List<(WhisparrEntityKind Kind, string Name, IReadOnlyList<string> Aliases)> Lookups { get; }
         = [];
 
+    /// <summary>Every scene this was asked to resolve to a number, in order.</summary>
+    public List<string> Resolutions { get; } = [];
+
     public IReadOnlyList<ProviderSortOption> Sorts { get; } =
         [new ProviderSortOption("DATE", "Newest first")];
 
@@ -60,6 +63,14 @@ internal sealed class StubProviderCatalogue(
     {
         Lookups.Add((kind, name, aliases));
         return Task.FromResult(lookup ?? ProviderIdentityLookup.Unmatched);
+    }
+
+    // This stub names itself StashDB, which issues no number of its own for a scene. Answering one
+    // would let a case pass against a provider that cannot resolve one.
+    public Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
+    {
+        Resolutions.Add(providerSceneId);
+        return Task.FromResult<int?>(null);
     }
 
     public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
@@ -135,6 +146,9 @@ internal sealed class PagedProviderCatalogue(List<ProviderScene> scenes, int per
     public Task<ProviderIdentityLookup> LookUpByNameAsync(
         WhisparrEntityKind kind, string name, IReadOnlyList<string> aliases, CancellationToken ct)
         => Task.FromResult(ProviderIdentityLookup.Unmatched);
+
+    public Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
+        => Task.FromResult<int?>(null);
 
     public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
         WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)

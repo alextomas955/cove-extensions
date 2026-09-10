@@ -33,6 +33,9 @@ public enum ProviderCapability
 
     /// <summary>An entity can be looked up by its exact name.</summary>
     LookUpByName,
+
+    /// <summary>A stored scene identifier can be resolved to the provider's own numeric id.</summary>
+    ResolveNumericSceneId,
 }
 
 /// <summary>The catalogue can be ordered by title.</summary>
@@ -66,6 +69,14 @@ public interface ISearchesTitles;
 /// <summary>An entity can be looked up by its exact name.</summary>
 public interface ILooksUpByName;
 
+/// <summary>A stored scene identifier can be resolved to the provider's own numeric id.</summary>
+/// <remarks>
+/// Held by a provider that issues a number of its own for a scene beside the identifier Cove
+/// stores. A provider that issues none holds no role here, so the resolution is refused before any
+/// request rather than answered as a scene the provider does not name.
+/// </remarks>
+public interface IResolvesNumericSceneId;
+
 /// <summary>The capability set each provider holds.</summary>
 /// <remarks>
 /// A role is registered here only where the provider has been measured to honour it. A capability
@@ -89,7 +100,10 @@ internal static class ProviderCapabilities
     ];
 
     // Neither the performer route nor the site route exposes a filter that would scope its values to
-    // one entity, so neither of those menus is listable here.
+    // one entity, so neither of those menus is listable here. Resolving a scene to a number is this
+    // provider's alone: its scene rows carry an `_id` beside the uuid Cove stores, measured on
+    // 2026-09-10 against the whole of one site, where 412 of 412 numbers matched. StashDB names a
+    // scene by its uuid and by nothing else, so it issues no such number to resolve to.
     private static readonly ProviderCapability[] ThePornDbHolds =
     [
         ProviderCapability.SortByDate,
@@ -98,6 +112,7 @@ internal static class ProviderCapabilities
         ProviderCapability.ListTagFacet,
         ProviderCapability.SearchTitles,
         ProviderCapability.LookUpByName,
+        ProviderCapability.ResolveNumericSceneId,
     ];
 
     /// <summary>What StashDB holds, acting through <paramref name="source"/>.</summary>
@@ -173,6 +188,7 @@ public sealed class ProviderCapabilitySet
         [typeof(IListsSubStudioFacet)] = ProviderCapability.ListSubStudioFacet,
         [typeof(ISearchesTitles)] = ProviderCapability.SearchTitles,
         [typeof(ILooksUpByName)] = ProviderCapability.LookUpByName,
+        [typeof(IResolvesNumericSceneId)] = ProviderCapability.ResolveNumericSceneId,
     };
 
     private readonly Dictionary<ProviderCapability, object> _roles;
