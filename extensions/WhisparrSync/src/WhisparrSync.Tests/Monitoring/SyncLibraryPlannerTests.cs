@@ -71,7 +71,9 @@ public sealed class SyncLibraryPlannerTests
         var ordered = new OrderedProgress(progress);
 
         var run = await SyncLibraryPlanner.RunAsync(
+            SyncRegisters.Scenes,
             ct => host.LibraryScenes.SceneIdentities(WhisparrGeneration.V3, ct),
+            identity => identity,
             instance.RegisterAsync,
             monitor: null,
             ordered,
@@ -233,7 +235,9 @@ public sealed class SyncLibraryPlannerTests
         var ordered = new OrderedProgress(progress);
 
         var run = await SyncLibraryPlanner.RunAsync(
+            SyncRegisters.Scenes,
             ct => Streamed([FirstScene, SecondScene, ThirdScene], ct),
+            identity => identity,
             instance.RegisterAsync,
             monitor: null,
             ordered,
@@ -303,7 +307,9 @@ public sealed class SyncLibraryPlannerTests
         var progress = new RecordingJobProgress();
 
         var run = await SyncLibraryPlanner.RunAsync(
+            SyncRegisters.Scenes,
             ct => Streamed([FirstScene, SecondScene], ct),
+            identity => identity,
             instance.RegisterAsync,
             monitor: null,
             progress,
@@ -338,7 +344,9 @@ public sealed class SyncLibraryPlannerTests
         var asked = new Instance(_ => Accepted) { MonitorAnswers = _ => Monitored };
         var progress = new RecordingJobProgress();
         await SyncLibraryPlanner.RunAsync(
+            SyncRegisters.Scenes,
             ct => Streamed([FirstScene], ct),
+            identity => identity,
             asked.RegisterAsync,
             asked.MonitorAsync,
             progress,
@@ -368,7 +376,9 @@ public sealed class SyncLibraryPlannerTests
         var ordered = new OrderedProgress(progress);
 
         var run = await SyncLibraryPlanner.RunAsync(
+            SyncRegisters.Scenes,
             ct => Streamed(identities, ct),
+            identity => identity,
             new Instance(answers).RegisterAsync,
             monitor: null,
             ordered,
@@ -379,7 +389,9 @@ public sealed class SyncLibraryPlannerTests
 
     private static Task<SyncLibraryRun> RunWith(Instance instance, string[] identities)
         => SyncLibraryPlanner.RunAsync(
+            SyncRegisters.Scenes,
             ct => Streamed(identities, ct),
+            identity => identity,
             instance.RegisterAsync,
             instance.MonitorAsync,
             new RecordingJobProgress(),
@@ -421,7 +433,7 @@ public sealed class SyncLibraryPlannerTests
 
         public CancellationTokenSource? Stopping { get; init; }
 
-        public Task<WhisparrResponse?> RegisterAsync(string identity, CancellationToken ct)
+        public Task<SyncRegistration> RegisterAsync(string identity, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             Offered.Add(identity);
@@ -431,15 +443,15 @@ public sealed class SyncLibraryPlannerTests
                 Stopping?.Cancel();
             }
 
-            return Task.FromResult(answers(identity));
+            return Task.FromResult(SyncRegistration.Offered(answers(identity)));
         }
 
         public Task<WhisparrResponse?> MonitorAsync(
-            string identity, WhisparrResponse? offered, CancellationToken ct)
+            string identity, SyncRegistration offered, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             MonitorAsked.Add(identity);
-            MonitorHandedStatus.Add(offered?.StatusCode);
+            MonitorHandedStatus.Add(offered.Answer?.StatusCode);
             return Task.FromResult(MonitorAnswers?.Invoke(identity));
         }
     }
