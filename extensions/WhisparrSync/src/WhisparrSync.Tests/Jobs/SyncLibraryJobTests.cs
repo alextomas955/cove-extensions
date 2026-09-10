@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Cove.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
@@ -99,7 +98,7 @@ public sealed class SyncLibraryJobTests
     public async Task ARunThatCouldNotBeAimedOffersNothingAndSaysSo()
     {
         var progress = new RecordingJobProgress();
-        await using var provider = Scopes(new StubLibraryScenes(Identifiers(3)));
+        await using var provider = Scopes(StubLibraryIdentities.OfScenes(Identifiers(3)));
 
         var run = await SyncLibraryJob.RunAsync(
             new SyncLibraryBatch(AlsoMonitor: false),
@@ -192,13 +191,18 @@ public sealed class SyncLibraryJobTests
         RecordingJobProgress progress,
         Func<string, CancellationToken, Task<WhisparrResponse?>> register)
     {
-        await using var provider = Scopes(new StubLibraryScenes(identifiers));
+        await using var provider = Scopes(StubLibraryIdentities.OfScenes(identifiers));
 
         return await SyncLibraryJob.RunAsync(
             batch,
             provider.GetRequiredService<IServiceScopeFactory>(),
             (_, _, _) => Task.FromResult<SyncLibraryAiming?>(
-                new SyncLibraryAiming(WhisparrGeneration.V3, register, Monitor: null)),
+                new SyncLibraryAiming(
+                    WhisparrGeneration.V3,
+                    SyncRegisters.Scenes,
+                    (identity, ct) => Offered(register, identity, ct),
+                    RegisterSite: null,
+                    Monitor: null)),
             progress,
             TestCt);
     }
@@ -209,28 +213,10 @@ public sealed class SyncLibraryJobTests
     private static List<string> Identifiers(int count)
         => [.. Enumerable.Range(1, count).Select(n => $"{n:x8}-0000-4000-8000-000000000000")];
 
-    /// <summary>A library answering the same identifiers on every enumeration.</summary>
-    /// <remarks>
-    /// Enumerable more than once on purpose: the run walks it to count and again to offer, and a
-    /// source that answered nothing the second time would report a library it never touched.
-    /// </remarks>
-    private sealed class StubLibraryScenes(IReadOnlyList<string> identifiers)
-        : ILibrarySceneIdentityPort
-    {
-        public async IAsyncEnumerable<string> SceneIdentities(
-            WhisparrGeneration generation, [EnumeratorCancellation] CancellationToken ct)
-        {
-            foreach (var identity in identifiers)
-            {
-                ct.ThrowIfCancellationRequested();
-                yield return identity;
-            }
-
-            await Task.CompletedTask;
-        }
-
-        public Task<int> CountUnidentifiedAsync(WhisparrGeneration generation, CancellationToken ct)
-            => throw new InvalidOperationException(
-                "A library run reports no unidentified count; the count job is what answers that.");
-    }
+    /// <summary>One offer classified the way the scene pass classifies it.</summary>
+    private static async Task<SyncRegistration> Offered(
+        Func<string, CancellationToken, Task<WhisparrResponse?>> register,
+        string identity,
+        CancellationToken ct)
+        => SyncRegistration.Offered(await register(identity, ct));
 }

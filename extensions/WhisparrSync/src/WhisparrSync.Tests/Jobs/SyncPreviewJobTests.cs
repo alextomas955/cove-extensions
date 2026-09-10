@@ -1,5 +1,4 @@
 using System.Net;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -148,7 +147,7 @@ public sealed class SyncPreviewJobTests
     public async Task ACountThatCouldNotBeAimedHoldsNothing()
     {
         var cache = new SyncPreviewCache(TimeProvider.System);
-        await using var provider = Scopes(new StubLibraryScenes([], 0), cache);
+        await using var provider = Scopes(StubLibraryIdentities.OfScenes([], unidentified: 0), cache);
 
         var counted = await SyncPreviewJob.RunAsync(
             provider.GetRequiredService<IServiceScopeFactory>(),
@@ -175,13 +174,17 @@ public sealed class SyncPreviewJobTests
         IReadOnlyList<string> identifiers, HeldScenes instance, SyncPreviewCache? cache = null)
     {
         var provider = Scopes(
-            new StubLibraryScenes(identifiers, unidentified: 7),
+            StubLibraryIdentities.OfScenes(identifiers, unidentified: 7),
             cache ?? new SyncPreviewCache(TimeProvider.System));
 
         return SyncPreviewJob.RunAsync(
             provider.GetRequiredService<IServiceScopeFactory>(),
             (_, _) => Task.FromResult<SyncPreviewAiming?>(
-                new SyncPreviewAiming(WhisparrGeneration.V3, SyncRegisters.Scenes, instance.AskAsync)),
+                new SyncPreviewAiming(
+                    WhisparrGeneration.V3,
+                    SyncRegisters.Scenes,
+                    instance.AskAsync,
+                    SitePresence: null)),
             NullLogger.Instance,
             TestCt);
     }
@@ -211,28 +214,6 @@ public sealed class SyncPreviewJobTests
                 ? throw new HttpRequestException("nothing answered")
                 : Task.FromResult<IReadOnlySet<string>>(
                     foreignIds.Where(_held.Contains).ToHashSet(StringComparer.Ordinal));
-        }
-    }
-
-    private sealed class StubLibraryScenes(IReadOnlyList<string> identifiers, int unidentified)
-        : ILibrarySceneIdentityPort
-    {
-        public async IAsyncEnumerable<string> SceneIdentities(
-            WhisparrGeneration generation, [EnumeratorCancellation] CancellationToken ct)
-        {
-            foreach (var identity in identifiers)
-            {
-                ct.ThrowIfCancellationRequested();
-                yield return identity;
-            }
-
-            await Task.CompletedTask;
-        }
-
-        public Task<int> CountUnidentifiedAsync(WhisparrGeneration generation, CancellationToken ct)
-        {
-            ct.ThrowIfCancellationRequested();
-            return Task.FromResult(unidentified);
         }
     }
 }

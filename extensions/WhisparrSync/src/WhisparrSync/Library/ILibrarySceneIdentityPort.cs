@@ -43,4 +43,33 @@ public interface ILibrarySceneIdentityPort
     /// walked rather than collected, for the reason the stream above is.
     /// </remarks>
     Task<int> CountUnidentifiedAsync(WhisparrGeneration generation, CancellationToken ct);
+
+    /// <summary>
+    /// Every studio the library holds that carries an identifier in
+    /// <paramref name="generation"/>'s namespace.
+    /// </summary>
+    /// <remarks>
+    /// Streamed and capped by nothing, for the reason <see cref="SceneIdentities"/> is. A caller
+    /// needing the number of sites enumerates this same member and counts what it yields.
+    /// </remarks>
+    IAsyncEnumerable<LibrarySiteIdentity> SiteIdentities(
+        WhisparrGeneration generation, CancellationToken ct);
+
+    /// <summary>
+    /// How many of the library's studios carry no identity row in
+    /// <paramref name="generation"/>'s namespace.
+    /// </summary>
+    /// <inheritdoc cref="CountUnidentifiedAsync" path="/remarks"/>
+    Task<int> CountUnidentifiedSitesAsync(WhisparrGeneration generation, CancellationToken ct);
 }
+
+/// <summary>One studio the library holds, as the site pass addresses it.</summary>
+/// <remarks>
+/// Both identifiers travel together. The identifier is what a Whisparr is asked about, and Cove's
+/// own id is what the read answering that studio's own scenes is keyed by, so a caller holding one
+/// and not the other would have to walk the studios a second time to reach the scenes under them -
+/// and a second walk answers a different set from the one the run walked.
+/// </remarks>
+/// <param name="StudioId">Cove's own id for the studio.</param>
+/// <param name="RemoteId">The identifier the studio carries in the connected namespace.</param>
+public sealed record LibrarySiteIdentity(int StudioId, string RemoteId);

@@ -5,13 +5,37 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 
-/// <summary>How a run over the whole library's scene identifiers ended.</summary>
+/// <summary>What one offer established, and what the instance now calls the entry.</summary>
+/// <remarks>
+/// The classification travels with the answer rather than being derived from it here, because the
+/// two passes establish it from different requests: the scene pass reads it off the add's own
+/// refusal, and the site pass off the read that precedes the add. A single derivation would have to
+/// treat one generation's success as the other's already-held.
+/// </remarks>
+/// <param name="Registration">What the offer established.</param>
+/// <param name="Answer">Whatever the instance said, or null where nothing arrived.</param>
+/// <param name="InstanceId">
+/// The instance's own numeric id for the entry, or null where the answer names none. Read off the
+/// answer the offer already has, so reaching the entry afterwards costs no further request.
+/// </param>
+internal sealed record SyncRegistration(
+    SceneRegistration Registration, WhisparrResponse? Answer, int? InstanceId)
+{
+    /// <summary>What <paramref name="answered"/> says about an entry that was offered outright.</summary>
+    internal static SyncRegistration Offered(WhisparrResponse? answered)
+        => new(
+            AddAllMissingPlanner.Classify(answered),
+            answered,
+            MonitoringProjector.EntityIdIn(answered?.Body));
+}
+
+/// <summary>How a run over the whole library's identifiers ended.</summary>
 internal enum SyncLibraryRunOutcome
 {
     /// <summary>Every identifier was offered.</summary>
     Completed,
 
-    /// <summary>No scene in the library carries an identifier, so nothing was offered at all.</summary>
+    /// <summary>Nothing in the library carries an identifier, so nothing was offered at all.</summary>
     NothingToRegister,
 
     /// <summary>
@@ -20,13 +44,13 @@ internal enum SyncLibraryRunOutcome
     Cancelled,
 }
 
-/// <summary>What a run over the whole library's scene identifiers did.</summary>
+/// <summary>What a run over the whole library's identifiers did.</summary>
 /// <remarks>
 /// Counts and nothing else. A member listing the identifiers would grow with the library, and a
 /// library reaches millions of files.
 /// </remarks>
 /// <param name="Outcome">How the run ended.</param>
-/// <param name="Registered">How many scenes the instance's catalogue did not already hold.</param>
+/// <param name="Registered">How many entries the instance's catalogue did not already hold.</param>
 /// <param name="AlreadyHeld">How many it already held, which is not a failure.</param>
 /// <param name="Refused">How many it would not take.</param>
 /// <param name="Monitored">How many were marked wanted, which is zero unless monitoring was on.</param>
@@ -45,7 +69,7 @@ internal sealed record SyncLibraryRun(
     int Offered);
 
 /// <summary>
-/// Offers every identified scene in the library to the connected instance once, one bounded request
+/// Offers every identifier the library yields to the connected instance once, one bounded request
 /// each, reporting on the host's own progress as it goes.
 /// </summary>
 /// <remarks>
@@ -53,7 +77,12 @@ internal sealed record SyncLibraryRun(
 /// one identifier: each is offered, classified into a count and dropped, so nothing here grows with
 /// the library.
 /// <para>
-/// Whether the instance already holds a scene is answered by the instance, one row at a time, rather
+/// Which kind of entry the identifiers name is the caller's, not this loop's. Whatever the run
+/// registers, the counts and the lines are the same shape and every figure a reader sees is stated
+/// in that generation's own noun.
+/// </para>
+/// <para>
+/// Whether the instance already holds an entry is answered by the instance, one row at a time, rather
 /// than computed from a catalogue listing read off it. That is what makes a second run over the same
 /// library create no duplicate: a second offer of a scene the instance holds costs one request and
 /// changes nothing.
@@ -63,9 +92,10 @@ internal sealed record SyncLibraryRun(
 /// an instance that declines a hundred scenes still leaves the rest of the library registered.
 /// </para>
 /// <para>
-/// The classification is <see cref="AddAllMissingPlanner.Classify(WhisparrResponse)"/> and its
-/// <see cref="AddAllMissingPlanner.AlreadyHeldErrorCode"/>, reused rather than restated. The code is
-/// transcribed from what one instance answered, and a second transcription here could drift from it
+/// The classification arrives on <see cref="SyncRegistration"/> rather than being derived here. The
+/// scene pass composes it through <see cref="AddAllMissingPlanner.Classify(WhisparrResponse)"/> and
+/// its <see cref="AddAllMissingPlanner.AlreadyHeldErrorCode"/>, reused rather than restated: the code
+/// is transcribed from what one instance answered, and a second transcription could drift from it
 /// while both files still passed their own tests.
 /// </para>
 /// </remarks>
@@ -73,7 +103,7 @@ internal static class SyncLibraryPlanner
 {
     /// <summary>
     /// Offers each identifier <paramref name="identities"/> yields once through
-    /// <paramref name="register"/>, reporting one host unit per scene on <paramref name="progress"/>.
+    /// <paramref name="register"/>, reporting one host unit per entry on <paramref name="progress"/>.
     /// </summary>
     /// <remarks>
     /// The three progress calls are in the order the host requires, and each order is load-bearing.
@@ -96,22 +126,36 @@ internal static class SyncLibraryPlanner
     /// spellings of one source are present in real data, so a second cheaper count would disagree
     /// with the number of ticks.
     /// </param>
-    /// <param name="register">Offers one scene, answering whatever the instance said.</param>
+    /// <param name="registers">
+    /// What the run registers, which is the noun every line and every summary figure is stated in.
+    /// </param>
+    /// <param name="named">
+    /// What one identifier is called on the host's own unit. The unit name is what a reader sees
+    /// beside the line, so it is the identifier itself rather than anything composed from it.
+    /// </param>
+    /// <param name="register">
+    /// Offers one entry, answering what it established and whatever the instance said.
+    /// </param>
     /// <param name="monitor">
-    /// Marks one scene wanted, or null where monitoring is off. Called for a scene the instance
+    /// Marks one entry wanted, or null where monitoring is off. Called for an entry the instance
     /// already held as well as for one just registered: the choice means monitor what I own, not
-    /// monitor what I just added.
+    /// monitor what I just added. It is handed the offer's own answer, so the instance's numeric id
+    /// costs no further request.
     /// </param>
     /// <param name="progress">The host's own progress, which the units are reported on.</param>
     /// <param name="ct">Cancelled when the host stops the job.</param>
-    internal static async Task<SyncLibraryRun> RunAsync(
-        Func<CancellationToken, IAsyncEnumerable<string>> identities,
-        Func<string, CancellationToken, Task<WhisparrResponse?>> register,
-        Func<string, WhisparrResponse?, CancellationToken, Task<WhisparrResponse?>>? monitor,
+    /// <typeparam name="TIdentity">What one identifier the run offers carries.</typeparam>
+    internal static async Task<SyncLibraryRun> RunAsync<TIdentity>(
+        SyncRegisters registers,
+        Func<CancellationToken, IAsyncEnumerable<TIdentity>> identities,
+        Func<TIdentity, string> named,
+        Func<TIdentity, CancellationToken, Task<SyncRegistration>> register,
+        Func<TIdentity, SyncRegistration, CancellationToken, Task<WhisparrResponse?>>? monitor,
         IJobProgress progress,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(identities);
+        ArgumentNullException.ThrowIfNull(named);
         ArgumentNullException.ThrowIfNull(register);
         ArgumentNullException.ThrowIfNull(progress);
 
@@ -137,8 +181,7 @@ internal static class SyncLibraryPlanner
             // would never be given an ending at all.
             if (total == 0)
             {
-                return Ending(
-                    Nothing, monitor is not null, progress);
+                return Ending(Nothing, monitor is not null, registers, progress);
             }
 
             progress.DeclareUnitCount(total);
@@ -148,11 +191,11 @@ internal static class SyncLibraryPlanner
                 ct.ThrowIfCancellationRequested();
                 offered++;
 
-                var line = LineFor(offered, total);
-                using var unit = progress.StartUnit(identity, line);
+                var line = LineFor(offered, total, registers);
+                using var unit = progress.StartUnit(named(identity), line);
 
                 var answered = await register(identity, ct).ConfigureAwait(false);
-                var registration = AddAllMissingPlanner.Classify(answered);
+                var registration = answered.Registration;
 
                 switch (registration)
                 {
@@ -167,7 +210,7 @@ internal static class SyncLibraryPlanner
                         break;
                 }
 
-                // Skipped only where the offer was refused: there is no scene on the instance there
+                // Skipped only where the offer was refused: there is no entry on the instance there
                 // to set a flag on.
                 if (monitor is not null && registration is not SceneRegistration.Refused)
                 {
@@ -198,6 +241,7 @@ internal static class SyncLibraryPlanner
                     monitorRefused,
                     offered),
                 monitor is not null,
+                registers,
                 progress);
         }
 
@@ -211,21 +255,23 @@ internal static class SyncLibraryPlanner
                 monitorRefused,
                 offered),
             monitor is not null,
+            registers,
             progress);
     }
 
     /// <summary>The one line a reader sees while the run works.</summary>
     /// <remarks>
-    /// Scenes and nothing else. Composed under the invariant culture with a grouped format, so the
-    /// same figure reads the same wherever it appears - including beside the browser's own
-    /// hand-written grouping on the settings page.
+    /// Whatever the run registers, and nothing else. Composed under the invariant culture with a
+    /// grouped format, so the same figure reads the same wherever it appears - including beside the
+    /// browser's own hand-written grouping on the settings page.
     /// <para>
     /// No word for a batch, a chunk, a unit or a slice appears here or in the summary. A reader could
-    /// take any of them for a number of scenes, which is the confusion SYNC-5 is about.
+    /// take any of them for a number of entries, which is the confusion SYNC-5 is about.
     /// </para>
     /// </remarks>
-    internal static string LineFor(int offered, int total)
-        => string.Create(CultureInfo.InvariantCulture, $"Scene {offered:N0} of {total:N0}");
+    internal static string LineFor(int offered, int total, SyncRegisters registers)
+        => string.Create(
+            CultureInfo.InvariantCulture, $"{Singular(registers)} {offered:N0} of {total:N0}");
 
     /// <summary>The one line the host's job list shows for <paramref name="run"/>.</summary>
     /// <remarks>
@@ -235,31 +281,59 @@ internal static class SyncLibraryPlanner
     /// named only where monitoring was asked for, so a run with the choice off says nothing about a
     /// flag it never set.
     /// </remarks>
-    internal static string SummaryOf(SyncLibraryRun run, bool monitoring)
+    internal static string SummaryOf(SyncLibraryRun run, bool monitoring, SyncRegisters registers)
     {
         ArgumentNullException.ThrowIfNull(run);
 
         if (run.Outcome == SyncLibraryRunOutcome.NothingToRegister)
         {
-            return "No scene in the library carries an identifier this Whisparr names scenes by.";
+            return registers switch
+            {
+                SyncRegisters.Sites =>
+                    "No studio in the library carries an identifier this Whisparr names sites by.",
+                _ => "No scene in the library carries an identifier this Whisparr names scenes by.",
+            };
         }
 
         var ending = run.Outcome == SyncLibraryRunOutcome.Cancelled ? ", then stopped" : string.Empty;
 
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{run.Registered:N0} scenes registered, {run.AlreadyHeld:N0} already in Whisparr, "
-                + $"{run.Refused:N0} refused{Monitoring(run, monitoring)}{ending}.");
+            $"{run.Registered:N0} {Plural(registers)} registered, {run.AlreadyHeld:N0} already in "
+                + $"Whisparr, {run.Refused:N0} refused{Monitoring(run, monitoring)}{ending}.");
     }
+
+    /// <summary>What one entry the run registers is called.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="registers"/> is not something this product registers. A default noun would
+    /// state the wrong one to a reader rather than failing.
+    /// </exception>
+    private static string Singular(SyncRegisters registers) => registers switch
+    {
+        SyncRegisters.Scenes => "Scene",
+        SyncRegisters.Sites => "Site",
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(registers), registers, "This is not something this product registers."),
+    };
+
+    /// <inheritdoc cref="Singular"/>
+    private static string Plural(SyncRegisters registers) => registers switch
+    {
+        SyncRegisters.Scenes => "scenes",
+        SyncRegisters.Sites => "sites",
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(registers), registers, "This is not something this product registers."),
+    };
 
     /// <summary>A run that reached no identifier at all.</summary>
     internal static SyncLibraryRun Nothing { get; } =
         new(SyncLibraryRunOutcome.NothingToRegister, 0, 0, 0, 0, 0, 0);
 
     /// <summary>Sets <paramref name="run"/>'s own summary as the last progress call, and answers it.</summary>
-    private static SyncLibraryRun Ending(SyncLibraryRun run, bool monitoring, IJobProgress progress)
+    private static SyncLibraryRun Ending(
+        SyncLibraryRun run, bool monitoring, SyncRegisters registers, IJobProgress progress)
     {
-        progress.SetSummary(SummaryOf(run, monitoring));
+        progress.SetSummary(SummaryOf(run, monitoring, registers));
         return run;
     }
 

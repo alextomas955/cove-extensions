@@ -140,18 +140,64 @@ public sealed partial class WhisparrSync
                     runCt)
                 .ConfigureAwait(false);
 
-            if (target?.Capabilities.Obtain<IWhisparrSceneStatusReading>()
-                    .Match<IWhisparrSceneStatusReading?>(held => held, _ => null) is not { } reads)
+            if (target is null)
             {
                 return null;
             }
 
-            return new SyncPreviewAiming(
-                target.Generation,
-                SyncRegisters.Scenes,
-                (asked, batchCt) =>
-                    reads.ReduceHeldScenesAsync(target.BaseAddress, target.ApiKey, asked, batchCt));
+            return SyncPassFor(target) switch
+            {
+                SyncRegisters.Scenes => new SyncPreviewAiming(
+                    target.Generation,
+                    SyncRegisters.Scenes,
+                    (asked, batchCt) => target.Capabilities
+                        .Obtain<IWhisparrSceneStatusReading>()
+                        .Match(
+                            reads => reads.ReduceHeldScenesAsync(
+                                target.BaseAddress, target.ApiKey, asked, batchCt),
+                            _ => throw new InvalidOperationException(
+                                "A scene count reached a target holding no scene-status read.")),
+                    SitePresence: null),
+
+                SyncRegisters.Sites => new SyncPreviewAiming(
+                    target.Generation,
+                    SyncRegisters.Sites,
+                    Held: null,
+                    (identity, siteCt) => SiteIsHeldAsync(target, identity, siteCt)),
+
+                _ => null,
+            };
         }
+    }
+
+    /// <summary>Whether the instance holds the site <paramref name="identity"/> names.</summary>
+    /// <remarks>
+    /// One read per site, and it is not contained: an answer that did not arrive has to reach the
+    /// count so the count fails whole. Three counts arrive together or not at all, and a site put in
+    /// the not-yet-there column because its read failed is a number a reader cannot tell from a real
+    /// one.
+    /// </remarks>
+    /// <exception cref="HttpRequestException">
+    /// The read established neither presence nor absence, so nothing about the site is known.
+    /// </exception>
+    private static async Task<bool> SiteIsHeldAsync(
+        MonitoringTarget target, string identity, CancellationToken ct)
+    {
+        var studios = target.Capabilities.Obtain<IWhisparrStudioActing>()
+            .Match<IWhisparrStudioActing?>(held => held, _ => null)
+            ?? throw new InvalidOperationException(
+                "A site count reached a target holding no studio read.");
+
+        var answered = await studios.ReadStudioAsync(
+            target.BaseAddress, target.ApiKey, target.Generation, identity, ct).ConfigureAwait(false);
+
+        return MonitoringProjector.Classify(answered).Reading switch
+        {
+            MonitoringProjector.EntityReading.Held => true,
+            MonitoringProjector.EntityReading.NotHeld => false,
+            _ => throw new HttpRequestException(
+                "A site presence read answered neither presence nor absence."),
+        };
     }
 
     /// <summary>Starts one library run, or refuses it by name.</summary>
@@ -238,22 +284,122 @@ public sealed partial class WhisparrSync
                     runCt)
                 .ConfigureAwait(false);
 
-            // The one composition every registering run in this product aims through, so the add
-            // this run offers is the non-grabbing one and the values it composes with are read here
-            // rather than at enqueue.
-            if (target is null
-                || await ComposeSceneAddAsync(services, runCt).ConfigureAwait(false)
-                    is not { } register)
+            if (target is null)
             {
                 return null;
             }
 
-            // The newer generation offers scenes and nothing else: it creates a scene's studio and
-            // its performers itself as presence, so there is no studio pass and no performer pass.
-            // Nor is there a catalogue refresh after the loop - that is a per-entity act, and there
-            // is no single entity here.
-            return new SyncLibraryAiming(target.Generation, register, MonitorFor(batch, target));
+            return SyncPassFor(target) switch
+            {
+                // The one composition every registering run in this product aims through, so the add
+                // this run offers is the non-grabbing one and the values it composes with are read
+                // here rather than at enqueue.
+                //
+                // This pass offers scenes and nothing else: the generation that keeps them creates a
+                // scene's studio and its performers itself as presence, so there is no studio pass
+                // and no performer pass. Nor is there a catalogue refresh after the loop - that is a
+                // per-entity act, and there is no single entity here.
+                SyncRegisters.Scenes =>
+                    await ComposeSceneAddAsync(services, runCt).ConfigureAwait(false) is { } register
+                        ? new SyncLibraryAiming(
+                            target.Generation,
+                            SyncRegisters.Scenes,
+                            (identity, sceneCt) => OfferSceneAsync(register, identity, sceneCt),
+                            RegisterSite: null,
+                            MonitorFor(batch, target))
+                        : null,
+
+                // The other pass registers a site's presence and monitors nothing. What the reader
+                // owns on a site is its scenes, and this generation registers no per-scene verb this
+                // pass could reach one through.
+                SyncRegisters.Sites =>
+                    await ComposeSiteRegistrationAsync(services, runCt).ConfigureAwait(false)
+                        is { } registerSite
+                        ? new SyncLibraryAiming(
+                            target.Generation,
+                            SyncRegisters.Sites,
+                            RegisterScene: null,
+                            registerSite,
+                            Monitor: null)
+                        : null,
+
+                _ => null,
+            };
         }
+    }
+
+    /// <summary>Offers one scene and classifies what the instance answered.</summary>
+    /// <remarks>
+    /// The add's own refusal is what tells a scene the instance already holds from one it declines,
+    /// so the classification is composed where that answer arrives.
+    /// </remarks>
+    private static async Task<SyncRegistration> OfferSceneAsync(
+        Func<string, CancellationToken, Task<WhisparrResponse?>> register,
+        string identity,
+        CancellationToken ct)
+        => SyncRegistration.Offered(await register(identity, ct).ConfigureAwait(false));
+
+    /// <summary>
+    /// What a site pass registers each site through, or null where it must not act at all.
+    /// </summary>
+    /// <remarks>
+    /// The presence-only add, so nothing this run registers is monitored and nothing it registers is
+    /// searched for. The profile and the root are read here rather than at enqueue, for the reason
+    /// the scene composition reads them here.
+    /// </remarks>
+    private async Task<Func<LibrarySiteIdentity, CancellationToken, Task<SyncRegistration>>?>
+        ComposeSiteRegistrationAsync(IServiceProvider services, CancellationToken runCt)
+    {
+        if (await ResolveTargetAsync(
+                services.GetRequiredService<OptionsStore>(),
+                services.GetRequiredService<ICredentialPort>(),
+                services.GetRequiredService<IWhisparrClient>(),
+                runCt).ConfigureAwait(false) is not { } target
+            || target.Capabilities.Obtain<IWhisparrSiteRegistrationActing>()
+                .Match<IWhisparrSiteRegistrationActing?>(held => held, _ => null) is not { } acting
+            || target.Capabilities.Obtain<IWhisparrStudioActing>()
+                .Match<IWhisparrStudioActing?>(held => held, _ => null) is not { } studios)
+        {
+            return null;
+        }
+
+        var profiles = await ContainedAsync(
+            () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, runCt),
+            target,
+            _log,
+            runCt).ConfigureAwait(false);
+        var roots = profiles is null
+            ? null
+            : await ContainedAsync(
+                () => target.Reads.ReadRootFoldersAsync(target.BaseAddress, target.ApiKey, runCt),
+                target,
+                _log,
+                runCt).ConfigureAwait(false);
+        if (profiles is null || roots is null)
+        {
+            return null;
+        }
+
+        if (AddDefaultsProjector.From(profiles.Body, roots.Body).Defaults is not { } composeWith)
+        {
+            return null;
+        }
+
+        return (site, siteCt) => SiteRegistrationStep.RegisterAsync(
+            (identity, readCt) => ContainedAsync(
+                () => studios.ReadStudioAsync(
+                    target.BaseAddress, target.ApiKey, target.Generation, identity, readCt),
+                target,
+                _log,
+                readCt),
+            (identity, addCt) => ContainedAsync(
+                () => acting.RegisterSiteAsync(
+                    target.BaseAddress, target.ApiKey, identity, composeWith, addCt),
+                target,
+                _log,
+                addCt),
+            site,
+            siteCt);
     }
 
     /// <summary>How one offered scene is marked wanted, or null where nothing marks one.</summary>
@@ -265,7 +411,7 @@ public sealed partial class WhisparrSync
     /// there is no parallel loop here and no second request in flight.
     /// </para>
     /// </remarks>
-    private Func<string, WhisparrResponse?, CancellationToken, Task<WhisparrResponse?>>? MonitorFor(
+    private Func<string, SyncRegistration, CancellationToken, Task<WhisparrResponse?>>? MonitorFor(
         SyncLibraryBatch batch, MonitoringTarget target)
     {
         if (!batch.AlsoMonitor
@@ -294,10 +440,10 @@ public sealed partial class WhisparrSync
         IWhisparrSceneMonitorActing monitoring,
         IWhisparrSceneStatusReading? reading,
         string identity,
-        WhisparrResponse? offered,
+        SyncRegistration offered,
         CancellationToken ct)
     {
-        var sceneId = MonitoringProjector.EntityIdIn(offered?.Body);
+        var sceneId = offered.InstanceId;
 
         if (sceneId is null && reading is not null)
         {
@@ -353,11 +499,36 @@ public sealed partial class WhisparrSync
             return SyncRefusalKind.NoInstanceConnected;
         }
 
-        // A generation keeping no per-scene records registers no scene-status read, so there is
-        // nothing to ask which scenes it holds. What it can be told about instead is the site pass.
-        return target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
-                .Match<IWhisparrSceneStatusReading?>(held => held, _ => null) is null
-            ? SyncRefusalKind.WhisparrKeepsNoSceneRecords
-            : SyncRefusalKind.None;
+        // Read off the roles the target obtains rather than off its version. A generation keeping no
+        // per-scene records registers no scene-status read, so there is nothing to ask which scenes
+        // it holds - and what it can be told about instead is its sites. The refusal stands only
+        // where neither role is obtained.
+        if (SyncPassFor(target) is not null)
+        {
+            return SyncRefusalKind.None;
+        }
+
+        return SyncRefusalKind.WhisparrKeepsNoSceneRecords;
+    }
+
+    /// <summary>Which pass <paramref name="target"/> can take, or none.</summary>
+    /// <remarks>
+    /// One derivation for the three routes and for the run, so the refusal a reader is shown and the
+    /// pass the run then makes cannot disagree. Scenes are preferred where both are obtainable: a
+    /// per-scene entry is what the reader's own library holds, and a site entry stands in for one
+    /// only where no per-scene entry exists.
+    /// </remarks>
+    private static SyncRegisters? SyncPassFor(MonitoringTarget target)
+    {
+        if (target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
+            .Match<IWhisparrSceneStatusReading?>(held => held, _ => null) is not null)
+        {
+            return SyncRegisters.Scenes;
+        }
+
+        return target.Capabilities.Obtain<IWhisparrSiteRegistrationActing>()
+            .Match<IWhisparrSiteRegistrationActing?>(held => held, _ => null) is not null
+                ? SyncRegisters.Sites
+                : null;
     }
 }
