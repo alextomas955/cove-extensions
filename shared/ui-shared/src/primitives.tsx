@@ -578,28 +578,35 @@ export function Toggle({
   onChange,
   helper,
   ariaLabel,
+  disabled,
 }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   helper?: string;
   ariaLabel?: string;
+  disabled?: boolean;
 }) {
   const id = useId();
   return (
     <div>
-      <label htmlFor={id} className="flex items-center gap-2 text-sm text-secondary" title={helper}>
+      <label
+        htmlFor={id}
+        className={`flex items-center gap-2 text-sm ${disabled === true ? "text-muted" : "text-secondary"}`}
+        title={helper}
+      >
         <button
           id={id}
           type="button"
           role="switch"
           aria-checked={checked}
           aria-label={label ? undefined : ariaLabel}
+          disabled={disabled}
           onClick={() => {
             onChange(!checked);
           }}
-          className={`inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-            checked ? "bg-accent" : "border border-border"
+          className={`inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-accent ${
+            checked ? "bg-accent" : "bg-card border border-border"
           }`}
           // The off track has to step away from every container this panel puts a toggle in - card
           // and surface alike - or it reads as a bare knob. Cove's border tone does, and it goes
