@@ -200,6 +200,9 @@ const ITEM_BEHIND_CAPABILITY: Record<WhisparrCapability, SecondaryAction | null>
   // Offered on one scene's own surface rather than in this menu.
   monitorScene: null,
   excludeScene: null,
+  // Reached from the library sync section on the settings page, which acts on the whole library
+  // rather than on the studio this menu is opened from.
+  registerOwnedSites: null,
 };
 
 /**
