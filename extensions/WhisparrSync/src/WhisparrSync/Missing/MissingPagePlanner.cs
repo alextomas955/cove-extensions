@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Contracts;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Providers;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Missing;
 

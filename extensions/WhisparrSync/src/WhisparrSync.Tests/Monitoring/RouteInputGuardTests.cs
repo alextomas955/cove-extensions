@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Net;
 using System.Text;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 

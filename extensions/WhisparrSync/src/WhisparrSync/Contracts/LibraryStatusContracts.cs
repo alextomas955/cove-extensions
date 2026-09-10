@@ -5,7 +5,7 @@ namespace WhisparrSync.Contracts;
 
 /// <summary>Which kind of library card a status read is about.</summary>
 /// <remarks>
-/// Held apart from <see cref="Monitoring.WhisparrEntityKind"/> and never folded into it. Every arm
+/// Held apart from <see cref="WhisparrEntityKind"/> and never folded into it. Every arm
 /// switching on that kind throws for one it cannot express, and a video is not an entity this
 /// product monitors, so a member added there would reach a throw rather than an answer.
 /// <para>

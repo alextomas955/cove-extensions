@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Text.Json.Nodes;
 using Whisparr3.Net.Client;
 using Whisparr3.Net.Model;
+using WhisparrSync.Contracts;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 

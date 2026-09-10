@@ -2,10 +2,10 @@ using System.Net;
 using Cove.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 using WhisparrSync.Contracts;
+using WhisparrSync.Identity;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
-
-using EndpointMatchGuard = WhisparrSync.Import.EndpointMatchGuard;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 

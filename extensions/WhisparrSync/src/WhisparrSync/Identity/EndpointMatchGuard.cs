@@ -1,4 +1,4 @@
-namespace WhisparrSync.Import;
+namespace WhisparrSync.Identity;
 
 /// <summary>
 /// Whether two metadata endpoints name the same source, by the host's own rule.

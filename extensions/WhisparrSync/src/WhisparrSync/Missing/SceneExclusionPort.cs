@@ -1,4 +1,4 @@
-using WhisparrSync.Monitoring;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Missing;
 

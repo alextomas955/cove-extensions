@@ -9,7 +9,6 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Missing;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Providers;
 using WhisparrSync.Whisparr;
