@@ -1,50 +1,31 @@
 /**
- * The one prop each card badge reads, pinned against the host's own slot context, the card kinds the
- * status route answers for, pinned against the enum the server declares, and the identifiers one
- * status request may carry, pinned against the bound the route enforces.
+ * The three facts about this surface that travel outside a request or response body, so no generated
+ * type carries either side of them: the prop name each host card slot passes, the card kinds the
+ * status route answers for, and the most identifiers one status request may carry.
  *
- * The host's `Studio` and `Performer` types cannot be generated into this bundle's wire types, which
- * are emitted from this extension's own registrations, so each prop shape is hand-declared. Its
- * field name is read out of the host source where that source is present, because a name copied into
- * this file would agree with whichever side it was copied from and stop reporting the other.
+ * Each is read out of the file that declares it rather than transcribed, so a change on one side
+ * reports here instead of answering a bad request. The host source is not always present: one CI leg
+ * builds with no Cove checkout at all, and there the slot half has nothing to compare against.
  *
- * The host source is not always present: one CI leg builds with no Cove checkout at all. There the
- * transcribed names below are what is asserted, and the browser-side half is the containerized
- * leg's.
- *
- * A source pin rather than a DOM test, and in its own file for that reason: the rendering tests run
- * under jsdom, where the filesystem is not reachable.
+ * What the badges send and draw is `CardStatusBadge.test.ts`'s, and what the route accepts is the
+ * backend suite's. This file is separate from both because the rendering tests run under jsdom,
+ * where the filesystem is not reachable.
  */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test } from "vitest";
 
 /**
- * Each card slot, the field it passes, the host source that draws it and the badge that declares it.
+ * Each card slot, the field it passes, and the host source that draws it.
  *
  * The host draws its card slots in two places: a list page for an entity card, and the shared card
  * component for a scene card. Each entry carries its own path under the host's `ui/src` for that
  * reason.
  */
 const SLOTS = [
-  {
-    slot: "studio-card-footer",
-    field: "studio",
-    source: ["pages", "StudiosPage.tsx"],
-    badge: "WhisparrEntityCardBadge.tsx",
-  },
-  {
-    slot: "performer-card-footer",
-    field: "performer",
-    source: ["pages", "PerformersPage.tsx"],
-    badge: "WhisparrEntityCardBadge.tsx",
-  },
-  {
-    slot: "video-card-content",
-    field: "video",
-    source: ["components", "EntityCards.tsx"],
-    badge: "WhisparrVideoCardBadge.tsx",
-  },
+  { slot: "studio-card-footer", field: "studio", source: ["pages", "StudiosPage.tsx"] },
+  { slot: "performer-card-footer", field: "performer", source: ["pages", "PerformersPage.tsx"] },
+  { slot: "video-card-content", field: "video", source: ["components", "EntityCards.tsx"] },
 ];
 
 const store = path.join(import.meta.dirname, "cardStatusStore.ts");
@@ -95,33 +76,6 @@ test("each host card slot carries the field this pin names", () => {
   }
 });
 
-test("each badge declares its field at its narrowest and reads nothing else off it", () => {
-  for (const { field, badge } of SLOTS) {
-    const source = readFileSync(path.join(import.meta.dirname, badge), "utf8");
-
-    expect(
-      new RegExp(
-        `\\{\\s*${field}\\s*\\}:\\s*\\{\\s*${field}:\\s*\\{\\s*id:\\s*number\\s*\\}\\s*\\}`,
-      ).test(source),
-      `the badge no longer declares exactly { ${field}: { id: number } }`,
-    ).toBe(true);
-
-    // The Cove id and nothing else. The host object also carries the library's own identity rows,
-    // and the identifier the instance is given is re-resolved from them ON THE SERVER; a browser
-    // reading one would be naming the entity a third party is asked about, which the product forbids
-    // outright. Asserted as the whole set of fields read rather than as the absence of one name, so
-    // a field nobody thought to forbid fails here too.
-    const read = [
-      ...new Set(
-        [...source.matchAll(new RegExp(`\\b${field}\\.([A-Za-z_$][\\w$]*)`, "g"))].map(
-          (match) => match[1],
-        ),
-      ),
-    ];
-    expect(read, field).toEqual(["id"]);
-  }
-});
-
 test("the card kinds the browser names are the ones the server declares", () => {
   // The kind travels in a path segment, so it reaches no request or response body and cannot be
   // generated into this bundle's wire types. It is read from the file that declares it rather than
@@ -145,17 +99,11 @@ test("the card kinds the browser names are the ones the server declares", () => 
 test("the identifiers one status request carries are the most the route accepts", () => {
   // The bound reaches no request or response body, so it cannot be generated into this bundle's wire
   // types. A figure transcribed here would agree with itself while the route refused every page.
+  // That the route enforces this figure rather than one of its own is the backend suite's:
+  // LibraryStatusRouteTests serves a body at the bound and refuses one over it.
   const declaring = serverSource("WhisparrSync.Missing.cs");
   const bound = /private const int MissingPerPage = (\d+);/.exec(readFileSync(declaring, "utf8"));
   expect(bound, `no page bound found in ${declaring}`).not.toBeNull();
-
-  // The route enforcing that same constant is half of what makes the pin mean anything: a route
-  // switched to a bound of its own would leave the figure below agreeing with an unused one.
-  const route = serverSource("WhisparrSync.LibraryStatus.cs");
-  expect(
-    readFileSync(route, "utf8"),
-    "the status route no longer bounds its body by MissingPerPage",
-  ).toContain("request.CoveIds.Count > MissingPerPage");
 
   const browser = readFileSync(path.join(import.meta.dirname, "cardStatusStore.ts"), "utf8");
   const sending = /const IDS_PER_REQUEST = (\d+);/.exec(browser);
