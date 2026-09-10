@@ -77,6 +77,7 @@ public sealed class EndpointPermissionTests
         "POST /api/extensions/com.alextomas955.whisparrsync/scene/{coveId}/unmonitor",
         "POST /api/extensions/com.alextomas955.whisparrsync/scenes/batch",
         "POST /api/extensions/com.alextomas955.whisparrsync/sync/preview",
+        "POST /api/extensions/com.alextomas955.whisparrsync/sync/run",
         "PUT /api/extensions/com.alextomas955.whisparrsync/settings",
     ];
 
