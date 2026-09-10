@@ -91,6 +91,10 @@ const JOB_BUDGET_MS = 120_000;
 // How long the cancel path is watched for a request it must never make. An absence is only as good
 // as the window it was watched over.
 const CANCEL_DWELL_MS = 5_000;
+// A press inside the chooser, bounded like every other wait here. A click left unbounded takes the
+// whole test budget when its locator stops matching, which reads as a slow spec rather than a
+// missing control.
+const ROW_BUDGET_MS = 20_000;
 
 const test = base.extend({
   bulkHarness: [
@@ -278,7 +282,9 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
       chooserPanel(page),
       "the bulk button opened no chooser, so there was nothing to cancel",
     ).toBeVisible();
-    await chooserPanel(page).getByRole("button", { name: BULK_CANCEL, exact: true }).click();
+    await chooserPanel(page)
+      .getByRole("menuitem", { name: BULK_CANCEL, exact: true })
+      .click({ timeout: ROW_BUDGET_MS });
     await expect(chooserPanel(page), "cancelling did not close the chooser").toBeHidden();
     await page.waitForTimeout(CANCEL_DWELL_MS);
     expect(
@@ -294,13 +300,13 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
     await bulkButton(page).click();
     await expect(chooserPanel(page), "the bulk button did not reopen its chooser").toBeVisible();
     await expect(
-      chooserPanel(page).getByRole("button", { name: UNMONITOR, exact: true }),
+      chooserPanel(page).getByRole("menuitem", { name: UNMONITOR, exact: true }),
       "the chooser offers no unmonitor verb, so it is not reading the connected generation's capabilities",
     ).toBeVisible();
     // Present and never pressed. It is the one row here that makes the instance download, and this
     // spec asserts below that no searching command reached the instance at all.
     await expect(
-      chooserPanel(page).getByRole("button", { name: SEARCH_ALL_MONITORED, exact: true }),
+      chooserPanel(page).getByRole("menuitem", { name: SEARCH_ALL_MONITORED, exact: true }),
       "the chooser offers no search verb, so the selection bar is not offering what the entity menu carries out",
     ).toBeVisible();
     // One glyph and one name per row, and no paragraph anywhere inside the panel.
@@ -318,8 +324,8 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
       { timeout: ENQUEUE_BUDGET_MS },
     );
     await chooserPanel(page)
-      .getByRole("button", { name: SCOPE_FUTURE_SCENES, exact: true })
-      .click();
+      .getByRole("menuitem", { name: SCOPE_FUTURE_SCENES, exact: true })
+      .click({ timeout: ROW_BUDGET_MS });
     const response = await enqueued;
     expect(
       response.status(),

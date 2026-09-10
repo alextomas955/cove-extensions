@@ -47,6 +47,12 @@ const SELECT_SCENE = "Select scene";
 const DESELECT_SCENE = "Deselect scene";
 const MONITOR = "Monitor";
 const SEARCH = "Search";
+
+// Each verb control names the scene it acts on: "Monitor" alone would say the same thing on every
+// card in the grid. Composed the way the product composes it, so the walk below reads the whole
+// accessible name rather than the substring the click locators above match on.
+const monitorName = (title) => `Monitor ${title} in Whisparr`;
+const searchName = (title) => `Search Whisparr for ${title}`;
 // The pill draws its glyph and this word inside one element, so no element carries the word
 // alone and a match on it has to be a substring one.
 const WANTED = "Wanted";
@@ -261,7 +267,7 @@ test("missing card: the three controls, the keyboard walk through them and what 
   expect(
     walk.map((stop) => stop.name),
     "the card offers three stops, in the order the design contract fixes",
-  ).toEqual([SELECT_SCENE, MONITOR, SEARCH]);
+  ).toEqual([SELECT_SCENE, monitorName(HOSTILE_TITLE), searchName(HOSTILE_TITLE)]);
 
   // CASE 2. Each of those three paints a ring. Read as a computed box shadow, because the class
   // being present in the markup says nothing about whether the host's stylesheet declares it.
