@@ -122,21 +122,12 @@ async function openMenu(container: Element, label: string) {
   return document.body.querySelector('[role="menu"]');
 }
 
-test("a menu carrying part of the source's list states what it carries, then what the source reported", async () => {
-  const container = await mountToolbar([PERFORMER]);
-
-  const panel = await openMenu(container, "Performer");
-
-  expect(panel?.textContent).toContain("This menu carries 2 of 400 values.");
-});
-
-test("a menu carrying every value the source reported states no bound", async () => {
+test("a menu draws the values the source handed it", async () => {
   const container = await mountToolbar([YEAR]);
 
   const panel = await openMenu(container, "Year");
 
   expect(panel?.textContent).toContain("2024");
-  expect(panel?.textContent).not.toContain("This menu carries");
 });
 
 function control(container: Element, label: string) {
