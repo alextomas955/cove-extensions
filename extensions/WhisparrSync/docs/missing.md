@@ -60,6 +60,16 @@ One pill on each card says what your Whisparr holds for that scene:
 
 A scene you excluded in Whisparr v3 (Eros) is not on the list at all, so there is no pill for it.
 
+## Open a scene at its source
+
+The cover and the title are links. Follow either and the scene opens at your metadata source, in a
+new tab. Nothing else on the card is a link, so the checkbox and the two buttons act on the card
+where they are.
+
+This works on StashDB, which is the source Whisparr v3 (Eros) reads from. On ThePornDB the cover and
+the title are plain, because the identifier the source hands Cove does not address a page on that
+site and a link built from it would lead nowhere.
+
 ## What each card's two buttons do
 
 **Monitor** registers the scene in Whisparr and marks it wanted. It downloads nothing. Whisparr

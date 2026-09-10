@@ -29,6 +29,7 @@ function scene(overrides: Partial<MissingCard> = {}): MissingCard {
     title: "A title",
     releaseDate: "2026-01-02",
     coverUrl: "https://provider.example/cover.jpg",
+    sceneUrl: null,
     studioName: "A studio",
     description: "A description",
     performers: [],
