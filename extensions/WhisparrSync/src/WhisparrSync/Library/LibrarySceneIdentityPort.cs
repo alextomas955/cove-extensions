@@ -89,6 +89,67 @@ internal sealed class LibrarySceneIdentityPort(DbContext db, OptionsStore option
         return Math.Max(0, scenes - identified);
     }
 
+    public async IAsyncEnumerable<LibrarySiteIdentity> SiteIdentities(
+        WhisparrGeneration generation, [EnumeratorCancellation] CancellationToken ct)
+    {
+        var namespaced = await NamespacedFor(generation, ct).ConfigureAwait(false);
+
+        var carried = db.Set<StudioRemoteId>()
+            .AsNoTracking()
+            .Select(row => new { row.StudioId, row.Endpoint, row.RemoteId })
+            .Distinct()
+            .OrderBy(row => row.StudioId)
+            .ThenBy(row => row.Endpoint)
+            .ThenBy(row => row.RemoteId)
+            .AsAsyncEnumerable();
+
+        await foreach (var row in carried.WithCancellation(ct).ConfigureAwait(false))
+        {
+            if (EndpointMatchGuard.SameSource(row.Endpoint, namespaced)
+                && !string.IsNullOrWhiteSpace(row.RemoteId))
+            {
+                yield return new LibrarySiteIdentity(row.StudioId, row.RemoteId);
+            }
+        }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Derived the way the scene count is, and for the same reason: the same-source rule cannot be
+    /// expressed as a query. The rows arrive ordered by studio, so a studio already counted is
+    /// recognised from the one before it and the walk holds one identifier at a time.
+    /// </remarks>
+    public async Task<int> CountUnidentifiedSitesAsync(
+        WhisparrGeneration generation, CancellationToken ct)
+    {
+        var namespaced = await NamespacedFor(generation, ct).ConfigureAwait(false);
+        var studios = await db.Set<Studio>().AsNoTracking().CountAsync(ct).ConfigureAwait(false);
+
+        var carried = db.Set<StudioRemoteId>()
+            .AsNoTracking()
+            .Select(row => new { row.StudioId, row.Endpoint, row.RemoteId })
+            .Distinct()
+            .OrderBy(row => row.StudioId)
+            .AsAsyncEnumerable();
+
+        var identified = 0;
+        int? counted = null;
+        await foreach (var row in carried.WithCancellation(ct).ConfigureAwait(false))
+        {
+            if (row.StudioId != counted
+                && EndpointMatchGuard.SameSource(row.Endpoint, namespaced)
+                && !string.IsNullOrWhiteSpace(row.RemoteId))
+            {
+                identified++;
+                counted = row.StudioId;
+            }
+        }
+
+        // Never below zero, for the reason the scene count is not: the two reads are separate
+        // statements, so a studio deleted between them would otherwise read as a negative number.
+        return Math.Max(0, studios - identified);
+    }
+
     private async Task<string> NamespacedFor(WhisparrGeneration generation, CancellationToken ct)
     {
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
