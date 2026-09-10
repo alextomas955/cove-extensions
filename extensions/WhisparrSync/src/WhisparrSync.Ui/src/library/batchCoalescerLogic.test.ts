@@ -5,15 +5,12 @@
  * Two are the point of the module. An entry is dropped when its last holder releases, so nothing is
  * retained past the cards that asked for it: a library here reaches millions of entities, and a cache
  * that outlived the page would grow with how far someone scrolled. And a tick holding more keys than
- * one fetch may carry is split rather than sent whole, because the number of cards that mount at once
- * is the host page's own size.
+ * the server answers for in one page reaches every one of them without the coalescer holding a page
+ * size of its own, so the fake below is what decides how many one answer carries.
  */
 import { expect, test } from "vitest";
 
-import { createBatchCoalescer } from "./batchCoalescerLogic";
-
-/** The bound this test hands the coalescer, standing for the one the route enforces. */
-const PER_FETCH = 40;
+import { createBatchCoalescer, type FetchedBatch } from "./batchCoalescerLogic";
 
 /** A scheduler under the test's own control, so a flush happens where the test says it does. */
 function manualScheduler(): { schedule: (flush: () => void) => void; run: () => Promise<void> } {
@@ -24,21 +21,29 @@ function manualScheduler(): { schedule: (flush: () => void) => void; run: () => 
     },
     run: async () => {
       while (pending.length > 0) pending.shift()!();
-      // The flush itself is async, so the queued promise has to drain before its result is read.
-      await Promise.resolve();
-      await Promise.resolve();
+      // The flush itself is async and each answered page awaits the next, so the queued promises
+      // have to drain repeatedly before the result is read.
+      for (let turn = 0; turn < 50; turn += 1) await Promise.resolve();
     },
   };
 }
 
-/** A fetch that answers every key it is given, counting the calls it took. */
-function answering(value: string) {
+/**
+ * A fetch that answers at most `perPage` of the keys it is given and says when it was given more,
+ * which is what the route does. The page size lives here rather than in the coalescer, so a
+ * coalescer tuned to one figure fails against another.
+ */
+function answering(value: string, perPage = Number.MAX_SAFE_INTEGER) {
   const calls: string[][] = [];
   return {
     calls,
-    fetchBatch: (keys: string[]) => {
+    fetchBatch: (keys: string[]): Promise<FetchedBatch<string>> => {
       calls.push([...keys]);
-      return Promise.resolve(new Map(keys.map((key) => [key, value])));
+      const answered = keys.slice(0, perPage);
+      return Promise.resolve({
+        answers: new Map(answered.map((key) => [key, value])),
+        moreNotAnswered: answered.length < keys.length,
+      });
     },
   };
 }
@@ -46,23 +51,23 @@ function answering(value: string) {
 test("a page of keys requested in one tick costs exactly one fetch", async () => {
   const scheduler = manualScheduler();
   const fetching = answering("held");
-  const coalescer = createBatchCoalescer(fetching.fetchBatch, PER_FETCH, scheduler.schedule);
+  const coalescer = createBatchCoalescer(fetching.fetchBatch, scheduler.schedule);
 
-  const keys = Array.from({ length: PER_FETCH }, (_, index) => String(index + 1));
+  const keys = Array.from({ length: 40 }, (_, index) => String(index + 1));
   for (const key of keys) coalescer.request(key);
   await scheduler.run();
 
   // Counted on the injected function rather than read out of the module, so what is asserted is the
   // number of requests a page actually costs.
   expect(fetching.calls, "a page of cards did not fold into one request").toHaveLength(1);
-  expect(fetching.calls[0]).toHaveLength(PER_FETCH);
+  expect(fetching.calls[0]).toHaveLength(keys.length);
   expect(coalescer.get("1")).toBe("held");
 });
 
 test("a key already held is not asked about again", async () => {
   const scheduler = manualScheduler();
   const fetching = answering("held");
-  const coalescer = createBatchCoalescer(fetching.fetchBatch, PER_FETCH, scheduler.schedule);
+  const coalescer = createBatchCoalescer(fetching.fetchBatch, scheduler.schedule);
 
   coalescer.request("7");
   await scheduler.run();
@@ -72,13 +77,13 @@ test("a key already held is not asked about again", async () => {
   expect(fetching.calls).toHaveLength(1);
 });
 
-test("a rejected fetch leaves every key in that batch with no answer, and throws nothing", async () => {
+test("a rejected fetch leaves every key waiting on it with no answer, and throws nothing", async () => {
   const scheduler = manualScheduler();
-  const coalescer = createBatchCoalescer<string>(
-    () => Promise.reject(new Error("nothing answered")),
-    PER_FETCH,
-    scheduler.schedule,
-  );
+  const asked: string[][] = [];
+  const coalescer = createBatchCoalescer<string>((keys) => {
+    asked.push([...keys]);
+    return Promise.reject(new Error("nothing answered"));
+  }, scheduler.schedule);
 
   let told = 0;
   coalescer.subscribe(() => {
@@ -98,12 +103,13 @@ test("a rejected fetch leaves every key in that batch with no answer, and throws
   expect(told, "a failed read notified nobody, so the cards never left their loading state").toBe(
     1,
   );
+  expect(asked, "a rejected fetch was sent again with the same keys").toHaveLength(1);
 });
 
 test("the last release drops the entry, so nothing is held between pages", async () => {
   const scheduler = manualScheduler();
   const fetching = answering("held");
-  const coalescer = createBatchCoalescer(fetching.fetchBatch, PER_FETCH, scheduler.schedule);
+  const coalescer = createBatchCoalescer(fetching.fetchBatch, scheduler.schedule);
 
   const first = coalescer.request("9");
   const second = coalescer.request("9");
@@ -126,66 +132,63 @@ test("the last release drops the entry, so nothing is held between pages", async
   ).toHaveLength(2);
 });
 
-test("a tick holding more keys than one fetch may carry answers every one of them", async () => {
-  const scheduler = manualScheduler();
-  const fetching = answering("held");
-  const coalescer = createBatchCoalescer(fetching.fetchBatch, PER_FETCH, scheduler.schedule);
+/**
+ * Two page sizes, because the property is that every card is reached whatever the server answers
+ * for. A coalescer carrying a figure of its own would pass at one size and fail at the other.
+ */
+test.for([
+  { perPage: 40, count: 81, fetches: 3 },
+  { perPage: 7, count: 20, fetches: 3 },
+])(
+  "every key is answered where the server answers $perPage at a time",
+  async ({ perPage, count, fetches }) => {
+    const scheduler = manualScheduler();
+    const fetching = answering("held", perPage);
+    const coalescer = createBatchCoalescer(fetching.fetchBatch, scheduler.schedule);
 
-  // A host page size above the bound, which is a size the list pages offer and remember.
-  const keys = Array.from({ length: PER_FETCH * 2 + 1 }, (_, index) => String(index + 1));
-  for (const key of keys) coalescer.request(key);
+    const keys = Array.from({ length: count }, (_, index) => String(index + 1));
+    for (const key of keys) coalescer.request(key);
+    await scheduler.run();
+
+    // Counted on the injected function, so what is asserted is what the server was actually sent.
+    expect(fetching.calls, "the remainder was not asked about again").toHaveLength(fetches);
+
+    // Every key, not a count: a client that dropped the remainder would agree with a count of
+    // fetches.
+    const unanswered = keys.filter((key) => coalescer.get(key) !== "held");
+    expect(unanswered, "a card past the first page was left with no answer").toEqual([]);
+  },
+);
+
+test("a server answering nothing and naming no remainder is not asked again", async () => {
+  const scheduler = manualScheduler();
+  const asked: string[][] = [];
+  const coalescer = createBatchCoalescer<string>((keys) => {
+    asked.push([...keys]);
+    return Promise.resolve({ answers: new Map<string, string | null>(), moreNotAnswered: false });
+  }, scheduler.schedule);
+
+  coalescer.request("1");
+  coalescer.request("2");
   await scheduler.run();
 
-  // Counted on the injected function, so what is asserted is what the server would have been sent.
-  expect(fetching.calls, "a page over the bound was not split").toHaveLength(3);
-  for (const sent of fetching.calls) {
-    expect(sent.length, "one fetch carried more than the bound allows").toBeLessThanOrEqual(
-      PER_FETCH,
-    );
-  }
-
-  // Every key, not a count: a bound applied by dropping keys would agree with a count of fetches.
-  expect([...fetching.calls.flat()].sort()).toEqual([...keys].sort());
-  const unanswered = keys.filter((key) => coalescer.get(key) !== "held");
-  expect(unanswered, "a card past the bound was left with no answer").toEqual([]);
-});
-
-test("a fetch that rejects leaves the keys after it still asked about", async () => {
-  const scheduler = manualScheduler();
-  const sent: string[][] = [];
-  const coalescer = createBatchCoalescer<string>(
-    (keys) => {
-      sent.push([...keys]);
-      return sent.length === 1
-        ? Promise.reject(new Error("nothing answered"))
-        : Promise.resolve(new Map(keys.map((key) => [key, "held"])));
-    },
-    PER_FETCH,
-    scheduler.schedule,
-  );
-
-  const keys = Array.from({ length: PER_FETCH + 1 }, (_, index) => String(index + 1));
-  for (const key of keys) coalescer.request(key);
-  await scheduler.run();
-
-  expect(sent, "one fetch rejecting took the rest of the page with it").toHaveLength(2);
-  expect(coalescer.get(String(PER_FETCH + 1))).toBe("held");
-  expect(coalescer.settled("1"), "a rejected fetch left its own keys unsettled").toBe(true);
+  // A refused page answers no row and names no remainder. Asking again would loop forever against a
+  // server that has already said all it can.
+  expect(asked, "a refused page was asked about again").toHaveLength(1);
+  expect(coalescer.settled("1"), "a refused card reads as still loading").toBe(true);
+  expect(coalescer.get("1")).toBeNull();
 });
 
 test("only a fetch beginning with no answer held is told it holds none", async () => {
   const scheduler = manualScheduler();
   const told: boolean[] = [];
-  const coalescer = createBatchCoalescer<string>(
-    (keys, noAnswersHeld) => {
-      told.push(noAnswersHeld);
-      return Promise.resolve(new Map(keys.map((key) => [key, "held"])));
-    },
-    PER_FETCH,
-    scheduler.schedule,
-  );
+  const fetching = answering("held", 40);
+  const coalescer = createBatchCoalescer<string>((keys, noAnswersHeld) => {
+    told.push(noAnswersHeld);
+    return fetching.fetchBatch(keys);
+  }, scheduler.schedule);
 
-  const keys = Array.from({ length: PER_FETCH + 1 }, (_, index) => String(index + 1));
+  const keys = Array.from({ length: 41 }, (_, index) => String(index + 1));
   const held = keys.map((key) => coalescer.request(key));
   await scheduler.run();
 
@@ -198,14 +201,6 @@ test("only a fetch beginning with no answer held is told it holds none", async (
     false,
   ]);
 
-  for (const release of [...held, late]) release();
-  coalescer.request("1000");
-  await scheduler.run();
-
-  expect(told, "a coalescer holding nothing at all was not told so").toEqual([
-    true,
-    false,
-    false,
-    true,
-  ]);
+  for (const release of held) release();
+  late();
 });

@@ -12,28 +12,13 @@
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { api } from "../common/lib/extension";
-import type { LibraryCardReading, LibraryStatusView } from "../wire/api";
-import { createBatchCoalescer, type BatchCoalescer } from "./batchCoalescerLogic";
+import type { LibraryCardKind, LibraryCardReading, LibraryStatusView } from "../wire/api";
+import {
+  createBatchCoalescer,
+  type BatchCoalescer,
+  type FetchedBatch,
+} from "./batchCoalescerLogic";
 import type { LibraryPageRefusal } from "./libraryRefusalLogic";
-
-/**
- * The card kinds the status route answers for.
- *
- * The route names its kind in a path segment, so the value reaches no request or response body and
- * cannot be generated into this bundle's wire types. `cardSlotProps.test.ts` pins these three names
- * against the enum the server declares.
- */
-export type LibraryCardKind = "video" | "studio" | "performer";
-
-/**
- * The most identifiers one status request may carry.
- *
- * The route refuses a longer body outright, and how many cards mount at once is the host list page's
- * own page size, which offers sizes well above this and remembers the one a reader chose. A page over
- * the bound is therefore split across requests. `cardSlotProps.test.ts` pins this figure against the
- * constant the route enforces.
- */
-const IDS_PER_REQUEST = 40;
 
 const coalescers = new Map<LibraryCardKind, BatchCoalescer<LibraryCardReading>>();
 const refusals = new Map<LibraryCardKind, LibraryPageRefusal>();
@@ -44,8 +29,8 @@ function emit(): void {
 }
 
 function recordRefusal(kind: LibraryCardKind, refusal: LibraryPageRefusal): void {
-  // A page over the route's bound is split across requests, and the page has a reason when any one
-  // of those requests could not be answered. So a request that answered never overwrites the reason
+  // A page over the route's bound is asked for across requests, and the page has a reason when any
+  // one of those requests could not be answered. So a request that answered never overwrites the reason
   // an earlier one established. Two requests can fail for reasons of their own, and the page states
   // the first: one sentence that stands still while the rest of the page answers.
   const held = refusals.get(kind);
@@ -54,7 +39,7 @@ function recordRefusal(kind: LibraryCardKind, refusal: LibraryPageRefusal): void
 }
 
 /**
- * One request for the cards of `kind` handed over, up to the bound the route enforces.
+ * One request for the cards of `kind` handed over, whatever the route answers for.
  *
  * `noAnswersHeld` is true when no card of this kind on screen has an answer yet, and the kind's
  * reason is dropped there and nowhere else. While one answered card is still on screen the reason
@@ -65,7 +50,7 @@ async function readBatch(
   kind: LibraryCardKind,
   keys: string[],
   noAnswersHeld: boolean,
-): Promise<Map<string, LibraryCardReading | null>> {
+): Promise<FetchedBatch<LibraryCardReading>> {
   if (noAnswersHeld) refusals.delete(kind);
 
   try {
@@ -77,7 +62,10 @@ async function readBatch(
     recordRefusal(kind, view.refusal);
     emit();
 
-    return new Map(view.rows.map((row) => [String(row.coveId), row.reading]));
+    return {
+      answers: new Map(view.rows.map((row) => [String(row.coveId), row.reading])),
+      moreNotAnswered: view.moreNotAnswered,
+    };
   } catch (failure) {
     // Every way the request itself can fail lands here: a body the route refused, a tier the reader
     // does not hold, a failure inside Cove, or a connection to Cove that dropped. Each of them draws
@@ -93,9 +81,8 @@ function coalescerFor(kind: LibraryCardKind): BatchCoalescer<LibraryCardReading>
   const held = coalescers.get(kind);
   if (held !== undefined) return held;
 
-  const made = createBatchCoalescer<LibraryCardReading>(
-    (keys, noAnswersHeld) => readBatch(kind, keys, noAnswersHeld),
-    IDS_PER_REQUEST,
+  const made = createBatchCoalescer<LibraryCardReading>((keys, noAnswersHeld) =>
+    readBatch(kind, keys, noAnswersHeld),
   );
   made.subscribe(emit);
   coalescers.set(kind, made);

@@ -61,24 +61,43 @@ public sealed class LibraryStatusRouteTests
         Assert.Empty(host.Client.Acting);
     }
 
-    /// <summary>A body carrying the most identifiers allowed is served, and one more is refused.</summary>
+    /// <summary>
+    /// A body over what one page answers for is answered as far as the page reaches and says so.
+    /// </summary>
     /// <remarks>
-    /// Both halves, because a refusal on its own holds for a route that refuses every page. The cap
-    /// is one rendered page: a body over it is one no page of this surface can produce, and the
-    /// browser splits a longer page across requests to it.
+    /// Both halves, because a remainder reported on its own holds for a route that answers no page
+    /// whole. No caller has to hold this route's figure: it sends what it has, and the identifiers
+    /// with no row of their own are the ones to ask about again.
     /// </remarks>
     [Fact]
-    public async Task ABodyAtTheBoundIsServedAndOneOverItIsRefused()
+    public async Task ABodyOverOnePageIsAnsweredAsFarAsThePageReaches()
     {
         await using var host = await MonitorHost.CreateAsync();
 
-        var atTheBound = await host.PostLibraryStatusAsync(
-            "studio", Asking([.. Enumerable.Range(1, 40)]));
-        var overIt = await host.PostLibraryStatusAsync(
-            "studio", Asking([.. Enumerable.Range(1, 41)]));
+        var whole = await ReadAsync(await host.PostLibraryStatusAsync(
+            "studio", Asking([.. Enumerable.Range(1, 40)])));
+        var overIt = await ReadAsync(await host.PostLibraryStatusAsync(
+            "studio", Asking([.. Enumerable.Range(1, 41)])));
 
-        Assert.Equal(HttpStatusCode.OK, atTheBound.StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, overIt.StatusCode);
+        Assert.False(whole.MoreNotAnswered);
+        Assert.Equal(40, whole.Rows.Count);
+
+        Assert.True(overIt.MoreNotAnswered);
+        Assert.Equal([.. Enumerable.Range(1, 40)], overIt.Rows.Select(row => row.CoveId));
+    }
+
+    /// <summary>The answer names the kind it is about, which is what the browser reads it from.</summary>
+    [Theory]
+    [InlineData("studio", LibraryCardKind.Studio)]
+    [InlineData("performer", LibraryCardKind.Performer)]
+    [InlineData("video", LibraryCardKind.Video)]
+    public async Task TheAnswerNamesTheKindTheRouteSegmentAsked(string segment, LibraryCardKind kind)
+    {
+        await using var host = await MonitorHost.CreateAsync();
+
+        var answered = await ReadAsync(await host.PostLibraryStatusAsync(segment, Asking(1)));
+
+        Assert.Equal(kind, answered.Kind);
     }
 
     /// <summary>A kind segment naming nothing this route answers for is a bad request.</summary>
