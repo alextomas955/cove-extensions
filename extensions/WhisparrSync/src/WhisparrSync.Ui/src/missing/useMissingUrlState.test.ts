@@ -5,8 +5,6 @@
  * `history.replaceState` fires no `popstate` and this hook dispatches no host location event, so a
  * second instance would otherwise never learn that the first one wrote. The two instances here are
  * the toolbar and the tab shell in miniature.
- *
- * React arrives as its PRODUCTION build, which has no `act`, so a render is flushed by waiting.
  */
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { createElement } from "react";

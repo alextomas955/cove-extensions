@@ -6,9 +6,6 @@
  * The second one needs a real transport rather than a helper's return value: what is under test is
  * how many requests leave the browser between a press and the enqueue, and only a recorded transport
  * can count them.
- *
- * React arrives as its production build here, which has no `act`, so a render is flushed by waiting
- * rather than by wrapping.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement, type ReactNode } from "react";

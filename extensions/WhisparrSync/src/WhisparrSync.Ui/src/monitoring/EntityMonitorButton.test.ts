@@ -7,9 +7,7 @@
  * screen, a failed read painted as unmonitored is a wrong answer dressed as an answer, and a body
  * carrying an identifier is a request the server is obliged to ignore.
  *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is flushed by waiting rather than by wrapping. The shared
- * primitives, the host's authenticated fetch and its POST helper all stand in, because each resolves
+ * The shared primitives, the host's authenticated fetch and its POST helper all stand in, because each resolves
  * only inside a consuming bundle.
  */
 import { test, expect, vi, afterEach } from "vitest";
