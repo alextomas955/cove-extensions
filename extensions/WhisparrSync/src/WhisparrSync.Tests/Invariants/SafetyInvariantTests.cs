@@ -102,6 +102,9 @@ internal static class OutboundSeam
             [nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrSceneExclusionActing.AddSceneExclusionAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrSceneExclusionActing.RemoveSceneExclusionAsync)] = WhisparrVerbClass.Act,
+            // A read too, and for the same reasons: it answers only rows the site already holds
+            // under it, it composes no body at all, and it starts nothing on the instance's side.
+            [nameof(IWhisparrSiteSceneReading.ReduceSiteSceneRowsAsync)] = WhisparrVerbClass.Read,
         };
 
     /// <summary>Every interface an outbound request of this product can be expressed through.</summary>
@@ -124,6 +127,7 @@ internal static class OutboundSeam
         typeof(IWhisparrSceneStatusReading),
         typeof(IWhisparrSceneMonitorActing),
         typeof(IWhisparrSceneExclusionActing),
+        typeof(IWhisparrSiteSceneReading),
     ];
 
     /// <summary>The members doing <paramref name="verbClass"/>'s class of work, in name order.</summary>
@@ -219,7 +223,7 @@ public sealed class SafetyInvariantTests
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public void TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall()
     {
-        Assert.Equal(11, OutboundSeam.SeamInterfaces.Count);
+        Assert.Equal(12, OutboundSeam.SeamInterfaces.Count);
 
         Assert.Equal(
             OutboundSeam.VerbClassByMember.Keys.Order().ToList(),
