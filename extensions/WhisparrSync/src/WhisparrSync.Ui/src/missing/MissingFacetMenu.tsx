@@ -1,8 +1,9 @@
 /**
  * The panel a toolbar menu opens: the ordering menu and every facet menu draw through this one.
  *
- * Presentational. The rows arrive already decided, so nothing here reads a provider or decides
- * which values exist.
+ * The rows a menu opens on arrive already decided. A facet menu given a way to ask replaces them
+ * with the values the source itself matches while a fragment is typed, so a value the menu was never
+ * handed is still reachable; a menu given none narrows the rows it holds.
  */
 import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
@@ -10,15 +11,31 @@ import { Check, Search } from "lucide-react";
 // From the subpath, so drawing a menu does not pull the whole primitives module into this slice.
 import { useOverlayKeys } from "@cove-extensions/ui-shared/overlay";
 
-import { FACET_MENU_NO_MATCHES, FACET_MENU_SEARCH, facetMenuSearchLabel } from "../common/ui/copy";
-import { menuRowsMatching } from "./missingFacetLogic";
+import {
+  FACET_MENU_NO_MATCHES,
+  FACET_MENU_SEARCH,
+  FACET_VALUES_ASKING,
+  FACET_VALUES_NONE_MATCH,
+  FACET_VALUES_NOT_READ,
+  facetMatchesBound,
+  facetMenuBound,
+  facetMenuSearchLabel,
+} from "../common/ui/copy";
+import {
+  facetPanelView,
+  type MissingFacetCounts,
+  type MissingFacetNotice,
+  type MissingFacetRow,
+} from "./missingFacetLogic";
+import { useFacetValueLookup, type FacetValueSearch } from "./useFacetValueLookup";
 
-/** One row the panel draws. */
-export interface MissingMenuRow {
-  readonly value: string;
-  readonly label: string;
-  readonly selected: boolean;
-}
+/** The sentence each state of a lookup reads as. */
+const NOTICES: Record<MissingFacetNotice, string> = {
+  asking: FACET_VALUES_ASKING,
+  noneHere: FACET_MENU_NO_MATCHES,
+  noneAtSource: FACET_VALUES_NONE_MATCH,
+  notRead: FACET_VALUES_NOT_READ,
+};
 
 /** The host's own gap between a control and the panel it opens. */
 const OFFSET = 4;
@@ -86,25 +103,37 @@ export function MissingFacetMenu({
   rows,
   triggerRef,
   bound,
+  facetKey,
+  search,
   onPick,
   onClose,
 }: {
   /** What the menu is called, which is the name it announces. */
   label: string;
-  rows: readonly MissingMenuRow[];
+  rows: readonly MissingFacetRow[];
   /** The control that opened it. */
   triggerRef: RefObject<HTMLElement | null>;
   /** What the menu carries of the source's list, or null where it carries all of it. */
-  bound?: string | null;
-  onPick: (value: string) => void;
+  bound?: MissingFacetCounts | null;
+  /** The facet the source knows this menu by, absent for a menu that is not a facet. */
+  facetKey?: string;
+  /** How to ask the source which values match, absent for a menu that asks nothing. */
+  search?: FacetValueSearch;
+  onPick: (value: string, label: string) => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const boundId = useId();
   const placement = useAnchoredTo(triggerRef);
-  const stated = bound ?? null;
   const [query, setQuery] = useState("");
-  const shown = menuRowsMatching(rows, query);
+  const lookup = useFacetValueLookup(search, facetKey, query);
+  const panel = facetPanelView(rows, bound ?? null, query, lookup);
+  const stated =
+    panel.bound === null
+      ? null
+      : panel.bound.ofMatches
+        ? facetMatchesBound(panel.bound.shown, panel.bound.reported)
+        : facetMenuBound(panel.bound.shown, panel.bound.reported);
 
   useOverlayKeys(ref, {
     onClose,
@@ -155,30 +184,31 @@ export function MissingFacetMenu({
             {stated}
           </div>
         )}
-        {shown.length === 0 ? (
-          // Carries no menu role either: an empty result is a sentence to read, not a row to pick.
-          <p className="px-3 py-2 text-xs text-secondary">{FACET_MENU_NO_MATCHES}</p>
-        ) : (
-          shown.map((row) => (
-            // The overlay's roving focus selects on `[role^="menuitem"]`, so a row without one is
-            // invisible to the arrow keys.
-            <button
-              key={row.value}
-              type="button"
-              role="menuitemcheckbox"
-              aria-checked={row.selected}
-              onClick={() => {
-                onPick(row.value);
-              }}
-              className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs text-foreground hover:bg-card focus:outline-none focus:ring-2 focus:ring-accent"
-            >
-              <span className="min-w-0 truncate">{row.label}</span>
-              {row.selected ? (
-                <Check aria-hidden className="h-3.5 w-3.5 shrink-0 text-accent" />
-              ) : null}
-            </button>
-          ))
+        {panel.says === null ? null : (
+          // Carries no menu role either: what a lookup answered is a sentence to read, not a row to
+          // pick. It is stated beside the value in force rather than instead of it, so a value
+          // picked before the fragment was typed can still be unpicked.
+          <p className="px-3 py-2 text-xs text-secondary">{NOTICES[panel.says]}</p>
         )}
+        {panel.rows.map((row) => (
+          // The overlay's roving focus selects on `[role^="menuitem"]`, so a row without one is
+          // invisible to the arrow keys.
+          <button
+            key={row.value}
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={row.selected}
+            onClick={() => {
+              onPick(row.value, row.label);
+            }}
+            className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs text-foreground hover:bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+          >
+            <span className="min-w-0 truncate">{row.label}</span>
+            {row.selected ? (
+              <Check aria-hidden className="h-3.5 w-3.5 shrink-0 text-accent" />
+            ) : null}
+          </button>
+        ))}
       </div>
     </div>,
     document.body,

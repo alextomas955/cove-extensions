@@ -14,7 +14,12 @@ import { afterEach, expect, test, vi } from "vitest";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
-import type { MissingFacetMenu, MissingPageView, MissingSortOption } from "../wire/api";
+import type {
+  MissingFacetMenu,
+  MissingFacetSearchView,
+  MissingPageView,
+  MissingSortOption,
+} from "../wire/api";
 
 /**
  * The host dialog resolves only inside a running Cove, so it stands in here. The stand-in draws the
@@ -59,6 +64,13 @@ async function settled(until: () => boolean, budgetMs = 2000): Promise<boolean> 
 }
 
 const SORTS: MissingSortOption[] = [{ value: "DATE-DESC", label: "Newest first" }];
+
+/** A source that searches no facet, so every menu here narrows the values it was handed. */
+const NOT_SEARCHABLE: MissingFacetSearchView = {
+  values: [],
+  reportedValueCount: 0,
+  outcome: "notSearchable",
+};
 
 /** A menu the source reports far more values for than it served. */
 const PERFORMER: MissingFacetMenu = {
@@ -123,6 +135,7 @@ async function mountToolbar(
     createElement(MissingToolbar, {
       onRefresh: () => undefined,
       onMonitorAll,
+      onSearchFacetValues: () => Promise.resolve(NOT_SEARCHABLE),
       catalogue: {
         kind: over.kind ?? "studio",
         view: {

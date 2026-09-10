@@ -44,7 +44,9 @@ describe("a menu is the provider's own", () => {
   });
 
   it("marks the value in force and no other", () => {
-    const marked = facetMenuRows(YEAR, "2023").filter((row) => row.selected);
+    const marked = facetMenuRows(YEAR, { value: "2023", label: "2023" }).filter(
+      (row) => row.selected,
+    );
     expect(marked.map((row) => row.value)).toEqual(["2023"]);
   });
 });
