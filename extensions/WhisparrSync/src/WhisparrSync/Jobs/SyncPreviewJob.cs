@@ -12,12 +12,12 @@ namespace WhisparrSync.Jobs;
 /// Resolved when the run STARTS rather than when it was asked for. Which instance is connected is a
 /// setting a person edits, and a count enqueued minutes ago must not compare against an address read
 /// before that.
-/// </remarks>
-/// <remarks>
+/// <para>
 /// Which count runs follows from <paramref name="Registers"/>, and the read that count needs is the
 /// one supplied. The two are not interchangeable: one generation answers about a batch of scenes in
 /// one request and the other answers about one site per request, because it offers no batched
 /// lookup at all.
+/// </para>
 /// </remarks>
 /// <param name="Generation">Whose namespace the library's own identifiers are read under.</param>
 /// <param name="Registers">What a run against this instance would register in it.</param>
