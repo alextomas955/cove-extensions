@@ -110,18 +110,25 @@ public sealed class SyncLibraryRouteTests
     }
 
     /// <summary>
-    /// The older generation refuses from the absent registration rather than a version check.
+    /// The older generation is aimed at its own pass rather than refused, from the roles the target
+    /// obtains rather than from a version check.
     /// </summary>
+    /// <remarks>
+    /// It registers no scene-status read, so the scene pass has nothing to ask; it does register the
+    /// site add, so the run is a site pass. The keeps-no-scene-records refusal stays for a target
+    /// obtaining neither role, which is what the route answers where no generation this product
+    /// expresses is connected.
+    /// </remarks>
     [Fact]
-    public async Task TheOlderGenerationRefusesFromTheAbsentRegistrationRatherThanAVersionCheck()
+    public async Task TheOlderGenerationIsAimedAtItsOwnPassRatherThanRefused()
     {
         await using var host = await MonitorHost.CreateAsync(generation: WhisparrGeneration.V2);
 
         var enqueued = await RunAsync(host);
 
-        Assert.Equal(SyncRefusalKind.WhisparrKeepsNoSceneRecords, enqueued.Refusal);
-        Assert.Null(enqueued.JobId);
-        Assert.Empty(host.Jobs.Enqueued);
+        Assert.Equal(SyncRefusalKind.None, enqueued.Refusal);
+        Assert.NotNull(enqueued.JobId);
+        Assert.Single(host.Jobs.Enqueued);
     }
 
     /// <summary>

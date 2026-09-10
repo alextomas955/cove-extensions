@@ -13,13 +13,25 @@ namespace WhisparrSync.Jobs;
 /// setting a person edits, and a count enqueued minutes ago must not compare against an address read
 /// before that.
 /// </remarks>
-/// <param name="Generation">Whose namespace the library's own scene identifiers are read under.</param>
+/// <remarks>
+/// Which count runs follows from <paramref name="Registers"/>, and the read that count needs is the
+/// one supplied. The two are not interchangeable: one generation answers about a batch of scenes in
+/// one request and the other answers about one site per request, because it offers no batched
+/// lookup at all.
+/// </remarks>
+/// <param name="Generation">Whose namespace the library's own identifiers are read under.</param>
 /// <param name="Registers">What a run against this instance would register in it.</param>
-/// <param name="Held">Which of one batch of identifiers the instance already holds.</param>
+/// <param name="Held">Which of one batch of scene identifiers the instance already holds.</param>
+/// <param name="SitePresence">
+/// Whether the instance holds the site one identifier names. Raises rather than answering false
+/// where the read could not be answered, because a false would put the site in the not-yet-there
+/// column on the strength of nothing.
+/// </param>
 internal sealed record SyncPreviewAiming(
     WhisparrGeneration Generation,
     SyncRegisters Registers,
-    Func<IReadOnlyCollection<string>, CancellationToken, Task<IReadOnlySet<string>>> Held);
+    Func<IReadOnlyCollection<string>, CancellationToken, Task<IReadOnlySet<string>>>? Held,
+    Func<string, CancellationToken, Task<bool>>? SitePresence);
 
 /// <summary>
 /// The count job's id, the batch size its comparison asks in, and the pass one count goes through.
@@ -49,6 +61,20 @@ public static class SyncPreviewJob
     /// figure written once in prose and never checked again.
     /// </remarks>
     internal const int MeasuredBytesPerHit = 2370;
+
+    /// <summary>How many site presence reads are in flight at once.</summary>
+    /// <remarks>
+    /// A pacing bound and not a ceiling on how many reads are issued. The site count reads every
+    /// site the library yields, however many that is; what this bounds is how many of those reads
+    /// are outstanding at any moment, and it is one because the instance's own request queue is the
+    /// shared resource - the same reason the library run keeps one request in flight.
+    /// <para>
+    /// Raising it costs the instance rather than costing the answer. A bound on the NUMBER of reads
+    /// would cost the answer: it would report a short already-there and not-yet-there pair with
+    /// nothing saying so.
+    /// </para>
+    /// </remarks>
+    internal const int SitePresenceReadsInFlight = 1;
 
     /// <summary>
     /// Counts the library's identified scenes against what the instance holds, inside ONE scope
@@ -115,12 +141,92 @@ public static class SyncPreviewJob
                 + $"{counted.Skipped:N0} carrying no metadata id.");
     }
 
-    private static async Task<SyncPreviewView> CompareAsync(
+    private static Task<SyncPreviewView> CompareAsync(
+        ILibrarySceneIdentityPort identities,
+        SyncPreviewAiming aimed,
+        ILogger log,
+        CancellationToken ct)
+        => aimed.Registers switch
+        {
+            SyncRegisters.Scenes => CompareScenesAsync(identities, aimed, log, ct),
+            SyncRegisters.Sites => CompareSitesAsync(identities, aimed, log, ct),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(aimed), aimed.Registers, "This is not a count this product takes."),
+        };
+
+    /// <summary>
+    /// Counts every site the library's studios name against what the instance holds.
+    /// </summary>
+    /// <remarks>
+    /// One request per site, because this generation offers no batched lookup at all. Nothing caps
+    /// how many are issued: the whole stream is read however many studios the reader owns, and a cap
+    /// would answer a short already-there and not-yet-there pair that reads exactly like a complete
+    /// one. What is bounded is how many reads are in flight, which is
+    /// <see cref="SitePresenceReadsInFlight"/> and is why the reads are awaited one at a time here.
+    /// <para>
+    /// Nothing per site is held. One identifier is alive at a time and the three answers are
+    /// integers.
+    /// </para>
+    /// </remarks>
+    private static async Task<SyncPreviewView> CompareSitesAsync(
         ILibrarySceneIdentityPort identities,
         SyncPreviewAiming aimed,
         ILogger log,
         CancellationToken ct)
     {
+        if (aimed.SitePresence is not { } presence)
+        {
+            throw new InvalidOperationException(
+                "A site count was aimed with no way to ask whether a site is held.");
+        }
+
+        var notYetThere = 0;
+        var alreadyThere = 0;
+
+        try
+        {
+            await foreach (var site in identities
+                .SiteIdentities(aimed.Generation, ct)
+                .WithCancellation(ct)
+                .ConfigureAwait(false))
+            {
+                if (await presence(site.RemoteId, ct).ConfigureAwait(false))
+                {
+                    alreadyThere++;
+                }
+                else
+                {
+                    notYetThere++;
+                }
+            }
+        }
+        catch (Exception failure) when (failure is HttpRequestException or IOException)
+        {
+            WhisparrSyncLog.SyncCountDidNotFinish(log, WhisparrSyncLog.Classify(failure));
+            throw new InvalidOperationException(
+                "The count could not be finished, so no count was held.", failure);
+        }
+
+        return new SyncPreviewView(
+            notYetThere,
+            alreadyThere,
+            await identities.CountUnidentifiedSitesAsync(aimed.Generation, ct).ConfigureAwait(false),
+            aimed.Registers,
+            DateTimeOffset.UtcNow);
+    }
+
+    private static async Task<SyncPreviewView> CompareScenesAsync(
+        ILibrarySceneIdentityPort identities,
+        SyncPreviewAiming aimed,
+        ILogger log,
+        CancellationToken ct)
+    {
+        if (aimed.Held is not { } held)
+        {
+            throw new InvalidOperationException(
+                "A scene count was aimed with no way to ask which scenes are held.");
+        }
+
         var notYetThere = 0;
         var alreadyThere = 0;
         var batch = new List<string>(ChunkSize);
@@ -162,7 +268,7 @@ public static class SyncPreviewJob
 
         async Task AskAsync()
         {
-            var answered = await aimed.Held(batch, ct).ConfigureAwait(false);
+            var answered = await held(batch, ct).ConfigureAwait(false);
 
             // Each offered identifier is classified rather than the answered set being counted.
             // Two spellings of one source yield one identifier twice, and counting the answer's own
