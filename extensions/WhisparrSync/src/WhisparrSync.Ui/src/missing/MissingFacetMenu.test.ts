@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 /**
- * What a facet menu draws: where the bound disclosure lands, and what a typed fragment reaches.
+ * What a facet menu draws, and what a typed fragment reaches.
  *
- * The overlay hook is the real one: whether the disclosure is reachable by the arrow keys is the
- * hook's decision, and a stand-in for it would assert the stand-in. The lookup is a stub, so each
- * test chooses what the source answers, including answering nothing.
+ * The overlay hook is the real one: which elements the arrow keys reach is the hook's decision, and
+ * a stand-in for it would assert the stand-in. The lookup is a stub, so each test chooses what the
+ * source answers, including answering nothing.
  */
 import { afterEach, expect, test, vi } from "vitest";
 import { act, createElement, type ReactNode } from "react";
@@ -16,11 +16,9 @@ import {
   FACET_VALUES_ASKING,
   FACET_VALUES_NONE_MATCH,
   FACET_VALUES_NOT_READ,
-  facetMatchesBound,
-  facetMenuBound,
 } from "../common/ui/copy";
 import type { MissingFacetSearchView } from "../wire/api";
-import type { MissingFacetCounts, MissingFacetRow } from "./missingFacetLogic";
+import type { MissingFacetRow } from "./missingFacetLogic";
 import { MissingFacetMenu } from "./MissingFacetMenu";
 import { searchSettleDelayMs } from "./missingToolbarLogic";
 import type { FacetValueSearch } from "./useFacetValueLookup";
@@ -76,7 +74,6 @@ function mount(node: (trigger: { current: HTMLElement | null }) => ReactNode): M
 }
 
 function panelWith(
-  bound: MissingFacetCounts | null,
   over: { search?: FacetValueSearch; onPick?: (value: string, label: string) => void } = {},
 ) {
   return (triggerRef: { current: HTMLElement | null }) =>
@@ -84,7 +81,6 @@ function panelWith(
       label: "Performer",
       rows: ROWS,
       triggerRef,
-      bound,
       facetKey: over.search === undefined ? undefined : "performer",
       search: over.search,
       onPick: over.onPick ?? (() => undefined),
@@ -130,41 +126,8 @@ const MATCHED: MissingFacetSearchView = {
   outcome: "matched",
 };
 
-test("a bounded menu states how many values it carries and how many the source reported", () => {
-  const mounted = mount(panelWith({ shown: 25, reported: 400 }));
-
-  const panel = mounted.panel();
-  expect(panel).not.toBeNull();
-  expect(panel?.textContent).toContain("25");
-  expect(panel?.textContent).toContain("400");
-  expect(panel?.textContent).toContain(facetMenuBound(25, 400));
-});
-
-test("the disclosure is announced with the menu and passed over by the arrow keys", () => {
-  const mounted = mount(panelWith({ shown: 1, reported: 2 }));
-
-  const panel = mounted.panel();
-  const describedBy = panel?.getAttribute("aria-describedby");
-  expect(describedBy).toBeTruthy();
-
-  const disclosure = document.getElementById(describedBy ?? "");
-  expect(disclosure?.textContent).toBe(facetMenuBound(1, 2));
-  expect(disclosure?.getAttribute("role")).toBeNull();
-  expect(mounted.items()).toHaveLength(ROWS.length);
-  expect(mounted.items().some((item) => item.contains(disclosure))).toBe(false);
-});
-
-test("a whole menu states no bound", () => {
-  const mounted = mount(panelWith(null));
-
-  const panel = mounted.panel();
-  expect(panel?.textContent).not.toContain("This menu carries");
-  expect(panel?.getAttribute("aria-describedby")).toBeNull();
-  expect(mounted.items()).toHaveLength(ROWS.length);
-});
-
-test("the panel still scrolls inside its own height with the disclosure present", () => {
-  const mounted = mount(panelWith({ shown: 25, reported: 400 }));
+test("the panel scrolls inside its own height", () => {
+  const mounted = mount(panelWith());
 
   const panel = mounted.panel();
   expect(panel?.className).toContain("min-h-0");
@@ -172,7 +135,7 @@ test("the panel still scrolls inside its own height with the disclosure present"
 });
 
 test("the search box carries the caret from the moment the menu opens", () => {
-  const mounted = mount(panelWith(null));
+  const mounted = mount(panelWith());
 
   const search = mounted.search();
   expect(search, "the menu drew no search box").not.toBeNull();
@@ -181,7 +144,7 @@ test("the search box carries the caret from the moment the menu opens", () => {
 });
 
 test("typing narrows the rows and leaves the caret where it was", () => {
-  const mounted = mount(panelWith(null));
+  const mounted = mount(panelWith());
 
   const search = mounted.search()!;
   type(search, "grace");
@@ -192,7 +155,7 @@ test("typing narrows the rows and leaves the caret where it was", () => {
 });
 
 test("a search matching nothing reads a sentence, and keeps the value in force pickable", () => {
-  const mounted = mount(panelWith(null));
+  const mounted = mount(panelWith());
 
   type(mounted.search()!, "zz");
 
@@ -201,7 +164,7 @@ test("a search matching nothing reads a sentence, and keeps the value in force p
 });
 
 test("the arrow keys step from the search box into the rows", () => {
-  const mounted = mount(panelWith(null));
+  const mounted = mount(panelWith());
 
   act(() => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
@@ -213,7 +176,7 @@ test("the arrow keys step from the search box into the rows", () => {
 });
 
 test("the row in force is marked, and every row stays reachable by the arrow keys", () => {
-  const mounted = mount(panelWith(null));
+  const mounted = mount(panelWith());
 
   const checked = mounted.items().filter((item) => item.getAttribute("aria-checked") === "true");
   expect(checked).toHaveLength(1);
@@ -225,7 +188,7 @@ test("the row in force is marked, and every row stays reachable by the arrow key
 });
 
 test("the panel draws on the host's own dropdown surface", () => {
-  const mounted = mount(panelWith(null));
+  const mounted = mount(panelWith());
 
   const surface = mounted.panel()?.parentElement;
   expect(surface?.className).toContain("styled-dropdown-panel");
@@ -237,7 +200,7 @@ test("a typed fragment offers values the menu was never handed, at one request f
   vi.useFakeTimers();
   const asked: string[] = [];
   const mounted = mount(
-    panelWith(null, {
+    panelWith({
       search: (facetKey, fragment) => {
         asked.push(`${facetKey}:${fragment}`);
         return Promise.resolve(MATCHED);
@@ -257,14 +220,13 @@ test("a typed fragment offers values the menu was never handed, at one request f
     "Mia Malkova",
     "Mia Khalifa",
   ]);
-  expect(mounted.panel()?.textContent).toContain(facetMatchesBound(2, 460));
 });
 
 test("an answer for a fragment the reader has typed past is not drawn under the newer one", async () => {
   vi.useFakeTimers();
   const answers = new Map<string, (answer: MissingFacetSearchView) => void>();
   const mounted = mount(
-    panelWith(null, {
+    panelWith({
       search: (_facetKey, fragment) =>
         new Promise<MissingFacetSearchView>((resolve) => {
           answers.set(fragment, resolve);
@@ -291,7 +253,7 @@ test("an answer for a fragment the reader has typed past is not drawn under the 
 
 test("a read that did not answer says so rather than reporting an absence", async () => {
   vi.useFakeTimers();
-  const mounted = mount(panelWith(null, { search: () => Promise.reject(new Error("no answer")) }));
+  const mounted = mount(panelWith({ search: () => Promise.reject(new Error("no answer")) }));
 
   type(mounted.search()!, "mia");
   await settle();
@@ -305,7 +267,7 @@ test("a read that did not answer says so rather than reporting an absence", asyn
 test("a source that matched nothing says so in its own words", async () => {
   vi.useFakeTimers();
   const mounted = mount(
-    panelWith(null, {
+    panelWith({
       search: () =>
         Promise.resolve({ values: [], reportedValueCount: 0, outcome: "matched" as const }),
     }),
@@ -323,7 +285,7 @@ test("the value in force can be unpicked while the matches leave it out", async 
   vi.useFakeTimers();
   const picked: string[] = [];
   const mounted = mount(
-    panelWith(null, {
+    panelWith({
       search: () => Promise.resolve(MATCHED),
       onPick: (value, label) => picked.push(`${value}:${label}`),
     }),

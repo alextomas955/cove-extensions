@@ -31,10 +31,8 @@ import { ConfirmDialog } from "./hostComponents";
 import { countLineParts } from "./missingCountLogic";
 import {
   facetMenuRows,
-  menuIsBounded,
   toggleFacetValue,
   type MissingFacetChoice,
-  type MissingFacetCounts,
   type MissingFacetRow,
 } from "./missingFacetLogic";
 import { MissingFacetMenu } from "./MissingFacetMenu";
@@ -284,7 +282,6 @@ function MenuControl({
   rows,
   open,
   openTrigger,
-  bound,
   facetKey,
   search,
   onOpen,
@@ -297,7 +294,6 @@ function MenuControl({
   rows: readonly MissingFacetRow[];
   open: boolean;
   openTrigger: RefObject<HTMLElement | null>;
-  bound?: MissingFacetCounts | null;
   facetKey?: string;
   search?: FacetValueSearch;
   onOpen: (name: string, trigger: HTMLElement) => void;
@@ -324,7 +320,6 @@ function MenuControl({
           label={label}
           rows={rows}
           triggerRef={openTrigger}
-          bound={bound}
           facetKey={facetKey}
           search={search}
           onPick={onPick}
@@ -380,11 +375,6 @@ function FacetControl({
       rows={facetMenuRows(menu, inForce)}
       open={open}
       openTrigger={openTrigger}
-      bound={
-        menuIsBounded(menu)
-          ? { shown: menu.values.length, reported: menu.reportedValueCount }
-          : null
-      }
       facetKey={menu.key}
       search={onSearchValues}
       onOpen={onOpen}
