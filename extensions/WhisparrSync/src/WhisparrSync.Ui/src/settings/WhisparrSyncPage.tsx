@@ -111,6 +111,15 @@ export function WhisparrSyncPage() {
         counting={sync.counting}
         now={now}
         onCount={sync.count}
+        sharedReason={sharedReason}
+        noConnection={sync.read?.refusal === "noInstanceConnected"}
+        syncRunning={sync.syncRunning}
+        starting={sync.starting}
+        started={sync.started}
+        refused={sync.refused}
+        monitorAlso={sync.monitorAlso}
+        onMonitorAlso={sync.chooseMonitorAlso}
+        onSync={sync.sync}
       />
     </div>
   );
@@ -119,9 +128,10 @@ export function WhisparrSyncPage() {
 /**
  * How many controls the shared reason takes out while the settings are unreadable: the connection
  * test, the connection save, the registration, which acts on the stored connection rather than on the
- * form, and the upgrade behaviour, whose save would write over the settings that could not be read.
+ * form, the upgrade behaviour, whose save would write over the settings that could not be read, and
+ * the library sync, whose run acts on the stored connection the shared reason says could not be read.
  */
-const SHARED_REASON_CONTROLS = 4;
+const SHARED_REASON_CONTROLS = 5;
 
 function reasonNothingIsReadable(readError: string | null): string {
   return readError === null
