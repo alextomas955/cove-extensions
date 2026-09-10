@@ -235,6 +235,10 @@ internal static class ComposedAdds
             // contributes no add either. Its own body is covered beside the flag flips.
             (_, WhisparrCapability.ExcludeScene) => [],
 
+            // Reads which of a set of scenes one site already holds a row for, through one get, and
+            // composes no body at all.
+            (_, WhisparrCapability.ReadSiteSceneRows) => [],
+
             (WhisparrGeneration.V3, WhisparrCapability.MonitorStudio) =>
             [
                 new ComposedAdd(
@@ -445,7 +449,9 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
+                WhisparrCapability.MonitorScene,
                 WhisparrCapability.RegisterOwnedSites,
+                WhisparrCapability.ReadSiteSceneRows,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
 

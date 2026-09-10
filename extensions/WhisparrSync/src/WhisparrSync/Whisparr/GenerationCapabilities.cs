@@ -61,6 +61,7 @@ public sealed class WhisparrCapabilitySet
         [typeof(IWhisparrSceneSearchGrabbing)] = WhisparrCapability.SearchScene,
         [typeof(IWhisparrSceneMonitorActing)] = WhisparrCapability.MonitorScene,
         [typeof(IWhisparrSceneExclusionActing)] = WhisparrCapability.ExcludeScene,
+        [typeof(IWhisparrSiteSceneReading)] = WhisparrCapability.ReadSiteSceneRows,
     };
 
     private readonly Dictionary<WhisparrCapability, object> _roles;
@@ -161,10 +162,18 @@ public static class GenerationCapabilities
     /// scene exclusions, and this generation answers a not-found on the exclusion route too. No
     /// per-scene search entry either, for the same reason: a generation holding no scene has none to
     /// be searched for, and the entity search it does hold covers everything the entity monitors. No
-    /// per-scene monitor entry either: a generation holding no scene holds no flag to set on one, and
-    /// no scene-exclusion write entry, because it keeps no scene exclusions to write to. It does hold
+    /// scene-exclusion write entry, because it keeps no scene exclusions to write to. It does hold
     /// a site-registration entry, which the newer generation does not: here a site is the unit of
     /// presence, and there a site arrives as a side effect of a scene add.
+    /// <para>
+    /// It also holds the per-scene monitor entry and the site-row read. This generation does hold a
+    /// row per scene, under a site and named by the number the metadata provider issued, so both
+    /// have an implementation to register. Measured on 2026-09-10 against
+    /// <c>whisparr:v2-2.2.0-release.231</c>: for the site whose own number is 5999, 412 of 412 rows
+    /// carried a number equal to a ThePornDB <c>_id</c> for that site, and the route setting the
+    /// flag on named rows answered 202 and left exactly those rows monitored. What is absent is a
+    /// per-scene route addressing a scene without its site, not the flag itself.
+    /// </para>
     /// </remarks>
     private static readonly WhisparrCapability[] V2Capabilities =
     [
@@ -172,7 +181,9 @@ public static class GenerationCapabilities
         WhisparrCapability.MonitorStudio,
         WhisparrCapability.ReflectOwnedFiles,
         WhisparrCapability.SearchMonitored,
+        WhisparrCapability.MonitorScene,
         WhisparrCapability.RegisterOwnedSites,
+        WhisparrCapability.ReadSiteSceneRows,
     ];
 
     /// <summary>What <paramref name="generation"/> can honour, with no acting role supplied.</summary>
@@ -247,7 +258,9 @@ public static class GenerationCapabilities
                     registered[WhisparrCapability.MonitorStudio] = roles.StudioActing;
                     registered[WhisparrCapability.ReflectOwnedFiles] = roles.ReflectOwnedActing;
                     registered[WhisparrCapability.SearchMonitored] = roles.SearchGrabbing;
+                    registered[WhisparrCapability.MonitorScene] = roles.SceneMonitorActing;
                     registered[WhisparrCapability.RegisterOwnedSites] = roles.SiteRegistrationActing;
+                    registered[WhisparrCapability.ReadSiteSceneRows] = roles.SiteSceneReading;
                 }
 
                 break;
@@ -289,6 +302,9 @@ public static class GenerationCapabilities
 /// <param name="SiteRegistrationActing">
 /// Registers a site the instance does not hold, monitoring nothing.
 /// </param>
+/// <param name="SiteSceneReading">
+/// Reads which of a set of scenes one site the instance holds has a row for.
+/// </param>
 internal sealed record WhisparrRoleSet(
     IWhisparrStudioActing StudioActing,
     IWhisparrPerformerActing PerformerActing,
@@ -300,7 +316,8 @@ internal sealed record WhisparrRoleSet(
     IWhisparrSceneSearchGrabbing SceneSearchGrabbing,
     IWhisparrSceneMonitorActing SceneMonitorActing,
     IWhisparrSceneExclusionActing SceneExclusionActing,
-    IWhisparrSiteRegistrationActing SiteRegistrationActing)
+    IWhisparrSiteRegistrationActing SiteRegistrationActing,
+    IWhisparrSiteSceneReading SiteSceneReading)
 {
     /// <summary>The roles <paramref name="client"/> implements.</summary>
     /// <exception cref="InvalidOperationException">
@@ -323,6 +340,7 @@ internal sealed record WhisparrRoleSet(
             and IWhisparrSceneMonitorActing sceneMonitorActing
             and IWhisparrSceneExclusionActing sceneExclusionActing
             and IWhisparrSiteRegistrationActing siteRegistrationActing
+            and IWhisparrSiteSceneReading siteSceneReading
             ? new WhisparrRoleSet(
                 studioActing,
                 performerActing,
@@ -334,7 +352,8 @@ internal sealed record WhisparrRoleSet(
                 sceneSearchGrabbing,
                 sceneMonitorActing,
                 sceneExclusionActing,
-                siteRegistrationActing)
+                siteRegistrationActing,
+                siteSceneReading)
             : throw new InvalidOperationException(
                 $"{client.GetType()} holds this product's HTTP client but implements only part of "
                     + $"{nameof(WhisparrRoleSet)}.");

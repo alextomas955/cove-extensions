@@ -460,7 +460,12 @@ public sealed partial class WhisparrSync
         return sceneId is { } named
             ? await ContainedAsync(
                 () => monitoring.SetSceneMonitoredAsync(
-                    target.BaseAddress, target.ApiKey, named, monitored: true, ct),
+                    target.BaseAddress,
+                    target.ApiKey,
+                    target.Generation,
+                    named,
+                    monitored: true,
+                    ct),
                 target,
                 _log,
                 ct).ConfigureAwait(false)
