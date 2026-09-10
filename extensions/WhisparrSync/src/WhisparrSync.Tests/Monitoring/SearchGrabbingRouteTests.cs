@@ -312,8 +312,9 @@ public sealed class SearchGrabbingRouteTests
                 new ReportedUnit(
                     Unit(absent),
                     JobUnitOutcome.Skipped,
-                    nameof(MonitorRefusalKind.InstanceHoldsNoSuchEntity)),
-                new ReportedUnit(Unit(held), JobUnitOutcome.Succeeded, null),
+                    nameof(MonitorRefusalKind.InstanceHoldsNoSuchEntity),
+                    Disposed: true),
+                new ReportedUnit(Unit(held), JobUnitOutcome.Succeeded, null, Disposed: true),
             ],
             progress.Units);
         Assert.Equal((1d, "1 applied, 1 refused."), Assert.Single(progress.Reports));
