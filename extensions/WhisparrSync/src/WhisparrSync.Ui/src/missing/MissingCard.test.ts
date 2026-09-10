@@ -29,6 +29,7 @@ const SCENE: MissingCardView = {
   title: TITLE,
   releaseDate: "2024-03-01",
   coverUrl: "https://example.invalid/cover.jpg",
+  sceneUrl: "https://a.source.invalid/scenes/3ac7838f",
   studioName: "A Studio",
   description: "What the source says about it.",
   performers: [],
@@ -239,14 +240,49 @@ test("no verb is drawn at all where the surface offers none", async () => {
   expect([...container.querySelectorAll("button")]).toEqual([]);
 });
 
+test("the cover and the title lead to the address the source named, in a new tab", async () => {
+  const container = await mountCard();
+
+  const links = [...container.querySelectorAll("a")];
+  expect(links.length).toBe(2);
+  for (const link of links) {
+    expect(link.getAttribute("href")).toBe("https://a.source.invalid/scenes/3ac7838f");
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noreferrer");
+    expect(link.getAttribute("aria-label")).toBe(`Open ${TITLE} at your metadata source`);
+  }
+
+  expect(links[0]?.querySelector("img")?.getAttribute("alt")).toBe(TITLE);
+  expect(links[1]?.textContent).toBe(TITLE);
+});
+
+test("a card whose source named no address is not a link", async () => {
+  const container = await mountCard({ sceneUrl: null });
+
+  expect([...container.querySelectorAll("a")]).toEqual([]);
+  expect(container.textContent).toContain(TITLE);
+});
+
+// A control inside the link would follow it on every press, and its own handler would run behind a
+// page the reader did not ask for.
+test("no control the card offers sits inside the link", async () => {
+  const container = await mountCard({}, { onToggleSelect: () => undefined });
+
+  const inside = [...container.querySelectorAll("button")].filter(
+    (control) => control.closest("a") !== null,
+  );
+
+  expect(inside).toEqual([]);
+});
+
 // jsdom applies no host stylesheet, so what a control carries is read from its class list. The host
 // emits `focus:ring-*` and not `focus-visible:ring-*`, and a ring that is never emitted is a focus
 // state nobody can see.
 test("every control takes the focus ring the host stylesheet emits", async () => {
   const container = await mountCard({}, { onToggleSelect: () => undefined });
 
-  const controls = [...container.querySelectorAll("button")];
-  expect(controls.length).toBe(3);
+  const controls = [...container.querySelectorAll("button, a")];
+  expect(controls.length).toBe(5);
   for (const control of controls) {
     expect(control.className, control.getAttribute("aria-label") ?? "").toContain(
       "focus:ring-2 focus:ring-accent",
