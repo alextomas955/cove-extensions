@@ -17,6 +17,7 @@ import { DisabledToggle } from "./DisabledToggle";
 
 const LABEL = "Monitor";
 const REASON = CAP_UNAVAILABLE_ON_THIS_GENERATION;
+const HELPER = "Marking a scene wanted downloads nothing by itself.";
 
 /** What a sighted reader is shown: the element's text in order, minus the off-screen carriers. */
 function visibleText(element: Element): string {
@@ -34,11 +35,12 @@ function visibleText(element: Element): string {
     .join("");
 }
 
-function toggle(reason: string | null, calls: boolean[]) {
+function toggle(reason: string | null, calls: boolean[], helper?: string) {
   return createElement(DisabledToggle, {
     label: LABEL,
     checked: false,
     reason,
+    helper,
     onChange: (checked: boolean) => {
       calls.push(checked);
     },
@@ -74,4 +76,23 @@ test("a switch with no reason flips and reports the new state once", async () =>
 
   expect(calls).toEqual([true]);
   expect(host.querySelector("[title]")).toBeNull();
+});
+
+test("a reason in force is the only thing a pointer reads, even beside a helper", async () => {
+  const host = await render(toggle(REASON, [], HELPER));
+
+  // A pointer reads the nearest titled ancestor, so a second title anywhere under the reason
+  // would win over it and the reader would never see why the switch is unavailable.
+  const titled = [...host.querySelectorAll("[title]")].map((node) => node.getAttribute("title"));
+
+  expect(titled).toEqual([REASON]);
+  expect(host.textContent).toContain(HELPER);
+});
+
+test("an available switch still explains itself on hover", async () => {
+  const host = await render(toggle(null, [], HELPER));
+
+  const titled = [...host.querySelectorAll("[title]")].map((node) => node.getAttribute("title"));
+
+  expect(titled).toEqual([HELPER]);
 });
