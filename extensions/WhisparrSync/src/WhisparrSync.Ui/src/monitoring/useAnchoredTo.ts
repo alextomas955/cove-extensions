@@ -12,7 +12,7 @@
  * @param triggerRef The control the overlay belongs to.
  * @returns The style placing the overlay beside that control, and the room below it in pixels.
  */
-import { useEffect, useState, type CSSProperties, type RefObject } from "react";
+import { useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 
 /** The host's own gap between a control and the panel it opens. */
 const OFFSET = 4;
@@ -51,7 +51,7 @@ export function useAnchoredTo(triggerRef: RefObject<HTMLElement | null>): Anchor
     availableHeight: null,
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const place = () => {
       const anchor = triggerRef.current;
       if (anchor === null) return;

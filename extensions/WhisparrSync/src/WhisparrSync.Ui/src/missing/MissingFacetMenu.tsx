@@ -5,7 +5,7 @@
  * with the values the source itself matches while a fragment is typed, so a value the menu was never
  * handed is still reachable; a menu given none narrows the rows it holds.
  */
-import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Check, Search } from "lucide-react";
 // From the subpath, so drawing a menu does not pull the whole primitives module into this slice.
@@ -17,16 +17,9 @@ import {
   FACET_VALUES_ASKING,
   FACET_VALUES_NONE_MATCH,
   FACET_VALUES_NOT_READ,
-  facetMatchesBound,
-  facetMenuBound,
   facetMenuSearchLabel,
 } from "../common/ui/copy";
-import {
-  facetPanelView,
-  type MissingFacetCounts,
-  type MissingFacetNotice,
-  type MissingFacetRow,
-} from "./missingFacetLogic";
+import { facetPanelView, type MissingFacetNotice, type MissingFacetRow } from "./missingFacetLogic";
 import { useFacetValueLookup, type FacetValueSearch } from "./useFacetValueLookup";
 
 /** The sentence each state of a lookup reads as. */
@@ -73,7 +66,7 @@ function useAnchoredTo(triggerRef: RefObject<HTMLElement | null>): AnchoredPlace
     availableHeight: null,
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const place = () => {
       const anchor = triggerRef.current;
       if (anchor === null) return;
@@ -102,7 +95,6 @@ export function MissingFacetMenu({
   label,
   rows,
   triggerRef,
-  bound,
   facetKey,
   search,
   onPick,
@@ -113,8 +105,6 @@ export function MissingFacetMenu({
   rows: readonly MissingFacetRow[];
   /** The control that opened it. */
   triggerRef: RefObject<HTMLElement | null>;
-  /** What the menu carries of the source's list, or null where it carries all of it. */
-  bound?: MissingFacetCounts | null;
   /** The facet the source knows this menu by, absent for a menu that is not a facet. */
   facetKey?: string;
   /** How to ask the source which values match, absent for a menu that asks nothing. */
@@ -123,17 +113,10 @@ export function MissingFacetMenu({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const boundId = useId();
   const placement = useAnchoredTo(triggerRef);
   const [query, setQuery] = useState("");
   const lookup = useFacetValueLookup(search, facetKey, query);
-  const panel = facetPanelView(rows, bound ?? null, query, lookup);
-  const stated =
-    panel.bound === null
-      ? null
-      : panel.bound.ofMatches
-        ? facetMatchesBound(panel.bound.shown, panel.bound.reported)
-        : facetMenuBound(panel.bound.shown, panel.bound.reported);
+  const panel = facetPanelView(rows, query, lookup);
 
   useOverlayKeys(ref, {
     onClose,
@@ -173,17 +156,10 @@ export function MissingFacetMenu({
       <div
         role="menu"
         aria-label={label}
-        aria-describedby={stated === null ? undefined : boundId}
         // `min-h-0` is what lets the panel shrink below its own content, so every row is reachable
         // with a pointer at any trigger position.
         className="min-h-0 overflow-y-auto overflow-x-hidden py-1 text-left"
       >
-        {stated === null ? null : (
-          // Carries no menu role, so the overlay's roving focus passes over it.
-          <div id={boundId} className="px-3 py-2 text-xs text-secondary">
-            {stated}
-          </div>
-        )}
         {panel.says === null ? null : (
           // Carries no menu role either: what a lookup answered is a sentence to read, not a row to
           // pick. It is stated beside the value in force rather than instead of it, so a value

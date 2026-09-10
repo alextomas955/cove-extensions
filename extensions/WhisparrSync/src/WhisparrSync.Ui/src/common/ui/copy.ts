@@ -582,27 +582,6 @@ export function countLine(from: number, to: number, total: number, atCeiling: bo
 }
 
 /**
- * What a menu carrying part of the source's list says at the control, with nothing typed.
- *
- * The source decides how many values it serves for one read, so `reported` is the source's own
- * figure and `shown` is what arrived.
- */
-export function facetMenuBound(shown: number, reported: number): string {
-  return `This menu carries ${String(shown)} of ${String(reported)} values. The rest cannot be picked here.`;
-}
-
-/**
- * What the same menu says once a fragment is in force.
- *
- * The counts are of the values matching what was typed rather than of the whole list, so the two
- * sentences are worded apart: the same figures under the other wording would say the rest cannot be
- * reached, when typing more of the name is what reaches them.
- */
-export function facetMatchesBound(shown: number, reported: number): string {
-  return `This menu shows ${String(shown)} of ${String(reported)} matching values. Type more of the name to reach the rest.`;
-}
-
-/**
  * The placeholder in a facet menu's search box.
  *
  * Names neither the menu nor the source: a fragment reaches the source's own list for a facet it

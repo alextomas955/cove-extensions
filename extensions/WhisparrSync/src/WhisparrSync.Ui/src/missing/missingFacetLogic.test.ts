@@ -7,7 +7,6 @@ import {
   facetLookupIn,
   facetMenuRows,
   facetPanelView,
-  menuIsBounded,
   menuRowsMatching,
   MINIMUM_FACET_FRAGMENT,
   toggleFacetValue,
@@ -54,20 +53,6 @@ describe("a menu is the provider's own", () => {
       (row) => row.selected,
     );
     expect(marked.map((row) => row.value)).toEqual(["2023"]);
-  });
-});
-
-describe("a menu carrying part of the provider's list is bounded", () => {
-  it("is bounded where the provider reported more values than the menu carries", () => {
-    expect(menuIsBounded(PERFORMER)).toBe(true);
-  });
-
-  it("is not bounded where the counts agree", () => {
-    expect(menuIsBounded(YEAR)).toBe(false);
-  });
-
-  it("is not bounded where the provider reported fewer values than the menu carries", () => {
-    expect(menuIsBounded({ ...YEAR, reportedValueCount: 1 })).toBe(false);
   });
 });
 
@@ -156,11 +141,10 @@ describe("what a lookup answered is read as one of four positions", () => {
     return { values: [{ value: "p-9", label: "Mia Malkova" }], reportedValueCount: 460, outcome };
   }
 
-  it("carries the matched values and the source's own count of them", () => {
+  it("carries the matched values", () => {
     expect(facetLookupIn(answering("matched"))).toEqual({
       state: "matched",
       values: [{ value: "p-9", label: "Mia Malkova" }],
-      reportedValueCount: 460,
     });
   });
 
@@ -174,7 +158,6 @@ describe("what a lookup answered is read as one of four positions", () => {
     expect(facetLookupIn({ values: [], reportedValueCount: 0, outcome: "matched" })).toEqual({
       state: "matched",
       values: [],
-      reportedValueCount: 0,
     });
   });
 
@@ -187,48 +170,23 @@ describe("what a lookup answered is read as one of four positions", () => {
 
 describe("a fragment reaches values the menu was never handed", () => {
   const HANDED = facetMenuRows(PERFORMER, null);
-  const BOUND = { shown: 2, reported: 400 };
-
   const MATCHED: MissingFacetLookup = {
     state: "matched",
     values: [
       { value: "p-40", label: "Mia Malkova" },
       { value: "p-41", label: "Mia Khalifa" },
     ],
-    reportedValueCount: 460,
   };
 
   it("offers the source's matches rather than the rows the menu holds", () => {
-    const panel = facetPanelView(HANDED, BOUND, "mia", MATCHED);
+    const panel = facetPanelView(HANDED, "mia", MATCHED);
 
     expect(panel.rows.map((row) => row.label)).toEqual(["Mia Malkova", "Mia Khalifa"]);
     expect(panel.says).toBeNull();
   });
 
-  it("counts what it shows against the matches, not against the whole list", () => {
-    expect(facetPanelView(HANDED, BOUND, "mia", MATCHED).bound).toEqual({
-      shown: 2,
-      reported: 460,
-      ofMatches: true,
-    });
-  });
-
-  it("states no bound where every match is drawn", () => {
-    const whole = { ...MATCHED, reportedValueCount: 2 };
-
-    expect(facetPanelView(HANDED, BOUND, "mia", whole).bound).toBeNull();
-  });
-
-  it("counts against the whole list while nothing has been asked", () => {
-    expect(facetPanelView(HANDED, BOUND, "", { state: "handed" }).bound).toEqual({
-      shown: 2,
-      reported: 400,
-      ofMatches: false,
-    });
-  });
-
   it("narrows the rows it holds where nothing was asked, which is what an unsearchable facet gets", () => {
-    const panel = facetPanelView(HANDED, BOUND, "grace", { state: "handed" });
+    const panel = facetPanelView(HANDED, "grace", { state: "handed" });
 
     expect(panel.rows.map((row) => row.value)).toEqual(["p-2"]);
     expect(panel.says).toBeNull();
@@ -239,10 +197,9 @@ describe("an absence is only ever reported by a source that measured one", () =>
   const HANDED = facetMenuRows(PERFORMER, null);
 
   it("says the source matched nothing only where the source answered", () => {
-    const panel = facetPanelView(HANDED, null, "zz", {
+    const panel = facetPanelView(HANDED, "zz", {
       state: "matched",
       values: [],
-      reportedValueCount: 0,
     });
 
     expect(panel.says).toBe("noneAtSource");
@@ -250,21 +207,21 @@ describe("an absence is only ever reported by a source that measured one", () =>
   });
 
   it("says a read did not answer rather than drawing the empty list of no answer", () => {
-    const panel = facetPanelView(HANDED, null, "mia", { state: "notRead" });
+    const panel = facetPanelView(HANDED, "mia", { state: "notRead" });
 
     expect(panel.says).toBe("notRead");
     expect(panel.rows).toEqual([]);
   });
 
   it("says nothing about absence while the answer is still coming, and keeps the rows meanwhile", () => {
-    const panel = facetPanelView(HANDED, null, "zz", { state: "asking" });
+    const panel = facetPanelView(HANDED, "zz", { state: "asking" });
 
     expect(panel.says).toBe("asking");
-    expect(facetPanelView(HANDED, null, "grace", { state: "asking" }).rows).toHaveLength(1);
+    expect(facetPanelView(HANDED, "grace", { state: "asking" }).rows).toHaveLength(1);
   });
 
   it("says only the menu matched nothing where the menu is all that was searched", () => {
-    expect(facetPanelView(HANDED, null, "zz", { state: "handed" }).says).toBe("noneHere");
+    expect(facetPanelView(HANDED, "zz", { state: "handed" }).says).toBe("noneHere");
   });
 });
 
@@ -276,13 +233,13 @@ describe("the value in force survives every answer, so it can always be unpicked
     { state: "handed" },
     { state: "asking" },
     { state: "notRead" },
-    { state: "matched", values: [{ value: "p-40", label: "Mia Malkova" }], reportedValueCount: 1 },
-    { state: "matched", values: [], reportedValueCount: 0 },
+    { state: "matched", values: [{ value: "p-40", label: "Mia Malkova" }] },
+    { state: "matched", values: [] },
   ];
 
   it("keeps it drawn and marked under a fragment none of the answers match", () => {
     for (const lookup of EVERY_STATE) {
-      const panel = facetPanelView(HANDED, null, "mia", lookup);
+      const panel = facetPanelView(HANDED, "mia", lookup);
       const kept = panel.rows.filter((row) => row.value === IN_FORCE.value);
 
       expect(
@@ -293,10 +250,9 @@ describe("the value in force survives every answer, so it can always be unpicked
   });
 
   it("leads the matches with it rather than drawing it twice", () => {
-    const panel = facetPanelView(HANDED, null, "ada", {
+    const panel = facetPanelView(HANDED, "ada", {
       state: "matched",
       values: [IN_FORCE, { value: "p-1", label: "Ada Byron" }],
-      reportedValueCount: 2,
     });
 
     expect(panel.rows.map((row) => row.value)).toEqual(["p-99", "p-1"]);
