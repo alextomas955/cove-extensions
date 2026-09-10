@@ -15,6 +15,7 @@
 import type {
   AddAllMissingEnqueued,
   EntityMonitoringView,
+  MonitorBulkVerb,
   MonitorRefusalKind,
   MonitorScope,
   ReflectOwnedEnqueued,
@@ -586,8 +587,8 @@ export function monitorMenuItemKey(item: MonitorMenuItem): MonitorMenuItemKey {
   }
 }
 
-/** The verbs the bulk route carries, which are a subset of the entity routes. */
-export type BulkVerb = "monitor" | "unmonitor" | "searchAllMonitored";
+/** A verb the bulk route carries. The wire type admits null, which names no verb. */
+export type BulkVerb = NonNullable<MonitorBulkVerb>;
 
 /** One action the selection overlay offers, already decided. */
 export interface BulkMonitorAction {
