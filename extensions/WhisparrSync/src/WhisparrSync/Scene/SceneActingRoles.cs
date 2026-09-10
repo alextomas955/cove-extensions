@@ -1,3 +1,4 @@
+using WhisparrSync.Contracts;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Scene;
@@ -11,9 +12,9 @@ namespace WhisparrSync.Scene;
 /// none takes an HTTP verb. The identifier arrives already resolved off the instance's own row for
 /// the scene, so nothing here can be aimed by an identifier a browser supplied.
 /// <para>
-/// Only the newer generation registers it, so the member takes no generation. Nothing declared here
-/// can make an instance download: the verbs that can are on the grabbing roles, each of which a
-/// caller has to obtain by name.
+/// Both generations register it, so the member takes one, and each composes the flag in its own
+/// shape. Nothing declared here can make an instance download: the verbs that can are on the
+/// grabbing roles, each of which a caller has to obtain by name.
 /// </para>
 /// </remarks>
 public interface IWhisparrSceneMonitorActing
@@ -23,9 +24,19 @@ public interface IWhisparrSceneMonitorActing
     /// Every other field the instance holds for that scene is left unset, and an unset field is not
     /// applied. Setting the flag false governs what a later catalogue addition does and retracts
     /// nothing already downloaded.
+    /// <para>
+    /// <paramref name="sceneId"/> is the instance's own identifier for the scene on whichever
+    /// generation is named: the catalogue item's id on one, and the row's id under its site on the
+    /// other.
+    /// </para>
     /// </remarks>
     Task<WhisparrResponse> SetSceneMonitoredAsync(
-        Uri baseAddress, string apiKey, int sceneId, bool monitored, CancellationToken ct);
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        int sceneId,
+        bool monitored,
+        CancellationToken ct);
 }
 
 /// <summary>Excludes one scene from what the connected instance will take.</summary>

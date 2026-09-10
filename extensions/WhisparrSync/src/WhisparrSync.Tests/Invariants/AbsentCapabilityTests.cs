@@ -99,6 +99,8 @@ public sealed class AbsentCapabilityTests
         (WhisparrGeneration.V2, "ISeriesEditorApi", "PutSeriesEditorAsync", "api/v3/series/editor"),
         (WhisparrGeneration.V2, "ISeasonPassApi", "CreateSeasonPassAsync", "api/v3/seasonpass"),
         (WhisparrGeneration.V2, "CommandApi", "SendCommandAsync", "api/v3/command"),
+        (WhisparrGeneration.V2, "IEpisodeApi", "ListEpisodeAsync", "api/v3/episode"),
+        (WhisparrGeneration.V2, "IEpisodeApi", "PutEpisodeMonitorAsync", "api/v3/episode/monitor"),
     ];
 
     /// <summary>
@@ -254,10 +256,16 @@ public sealed class AbsentCapabilityTests
     // The older generation reaches its entity through a lookup and then a listing, so the lookup has
     // to resolve for the second request to happen at all. The answered entry carries the three members
     // the resolution reads, with the values the committed lookup fixture holds.
+    // The site-row read raises where its answer is not a list of rows, so that one route answers a
+    // list. Empty is enough: the case is about which route was reached.
     private static string AnswerFor(string path)
-        => path.EndsWith("/series/lookup", StringComparison.Ordinal)
-            ? """[{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen"}]"""
-            : "{}";
+        => path switch
+        {
+            _ when path.EndsWith("/series/lookup", StringComparison.Ordinal) =>
+                """[{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen"}]""",
+            _ when path.EndsWith("/episode", StringComparison.Ordinal) => "[]",
+            _ => "{}",
+        };
 
     // A route naming one entity carries its identifier as a further segment, so the transcribed route
     // is a whole-segment prefix of what was sent. The longest match wins: several transcribed routes
@@ -307,7 +315,8 @@ public sealed class AbsentCapabilityTests
         await client.AddSceneAsync(address, key, "scene-1", defaults, ct);
         await client.ReadSceneByRemoteIdAsync(address, key, "scene-1", ct);
         await client.RefreshCatalogueAsync(address, key, WhisparrEntityKind.Studio, 4, ct);
-        await client.SetSceneMonitoredAsync(address, key, 41, monitored: true, ct);
+        await client.SetSceneMonitoredAsync(
+            address, key, WhisparrGeneration.V3, 41, monitored: true, ct);
         await client.AddSceneExclusionAsync(address, key, "scene-1", ct);
         await client.RemoveSceneExclusionAsync(address, key, 12, ct);
 
@@ -331,6 +340,9 @@ public sealed class AbsentCapabilityTests
             address, key, WhisparrGeneration.V2, 4, MonitorScope.AllScenes, ct);
         await client.SearchMonitoredAsync(
             address, key, WhisparrGeneration.V2, WhisparrEntityKind.Studio, [4], ct);
+        await client.SetSceneMonitoredAsync(
+            address, key, WhisparrGeneration.V2, 41, monitored: true, ct);
+        await client.ReduceSiteSceneRowsAsync(address, key, 1, [1363738], ct);
     }
 
     /// <summary>

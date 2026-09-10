@@ -194,6 +194,51 @@ public interface IWhisparrSiteRegistrationActing
         CancellationToken ct);
 }
 
+/// <summary>Reads which of a set of scenes one site the instance holds has a row for.</summary>
+/// <remarks>
+/// A read role, so nothing declared here changes an instance. Only one generation registers it, so
+/// the member takes no generation: the other names a scene by its own identifier and needs no site
+/// to find it, so it has nothing to implement.
+/// <para>
+/// Narrow in the same way the other roles are: no member takes a caller-supplied route, verb or
+/// query key. The site's own numeric id arrives already resolved off the answer the registering
+/// pass read, so nothing here can be aimed by an id a browser supplied.
+/// </para>
+/// </remarks>
+public interface IWhisparrSiteSceneReading
+{
+    /// <summary>
+    /// Which of <paramref name="sceneNumbers"/> the site <paramref name="siteId"/> names holds a row
+    /// for, and the row's own identifier.
+    /// </summary>
+    /// <remarks>
+    /// The answer carries only the numbers that were asked about, so what it holds is bounded by the
+    /// caller's own set whatever the site's catalogue holds. The instance narrows its own answer by
+    /// no parameter, so the whole answer is read as it arrives and each row is reduced to this
+    /// question and dropped. There is no row cap: a cap would stop part way and report the rest as
+    /// rows the instance holds none of, with nothing saying so.
+    /// <para>
+    /// An empty input answers an empty map with no request.
+    /// </para>
+    /// <para>
+    /// The instance's answer is that site's whole list, so a site whose list exceeds the transport's
+    /// own response bound fails this read rather than being truncated. A caller then counts that
+    /// site's scenes as unresolved rather than reporting them monitored.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="HttpRequestException">
+    /// No answer arrived, or the answer could not be read as the site's own rows. Raised rather than
+    /// answered as an empty map, because an empty map would report every scene it asked about as one
+    /// the instance holds no row for, which is the opposite of the truth.
+    /// </exception>
+    Task<IReadOnlyDictionary<int, int>> ReduceSiteSceneRowsAsync(
+        Uri baseAddress,
+        string apiKey,
+        int siteId,
+        IReadOnlyCollection<int> sceneNumbers,
+        CancellationToken ct);
+}
+
 /// <summary>Tells an instance where files the library already holds are.</summary>
 /// <remarks>
 /// Transfers no file data. The instance is asked to link a file into place, which costs no second
