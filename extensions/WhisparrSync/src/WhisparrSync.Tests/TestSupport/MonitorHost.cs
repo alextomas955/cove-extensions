@@ -595,6 +595,8 @@ internal sealed class InertProviderCatalogue : IProviderCatalogue
 
     public string DefaultSort => string.Empty;
 
+    public string? SceneAddress(string providerSceneId) => null;
+
     public ProviderCapabilitySet Capabilities { get; } = ProviderCapabilities.ForStashDb(new object());
 
     public Task<ProviderCatalogueAnswer> ReadPageAsync(

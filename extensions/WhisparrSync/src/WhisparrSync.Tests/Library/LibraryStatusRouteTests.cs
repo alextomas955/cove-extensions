@@ -319,6 +319,8 @@ public sealed class LibraryStatusRouteTests
 
         public string DefaultSort => throw Reached();
 
+        public string? SceneAddress(string providerSceneId) => throw Reached();
+
         public ProviderCapabilitySet Capabilities => throw Reached();
 
         public Task<ProviderCatalogueAnswer> ReadPageAsync(

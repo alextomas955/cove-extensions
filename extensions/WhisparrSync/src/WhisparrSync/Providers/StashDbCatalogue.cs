@@ -58,6 +58,9 @@ internal sealed class StashDbCatalogue
     /// </remarks>
     internal const string ApiKeyHeader = "ApiKey";
 
+    /// <summary>Where StashDB shows a scene to a reader, which is not where it serves its API.</summary>
+    internal const string SiteBase = "https://stashdb.org";
+
     /// <summary>The provider this catalogue names itself as.</summary>
     internal const string ProviderName = "StashDB";
 
@@ -172,6 +175,17 @@ internal sealed class StashDbCatalogue
     public string DefaultSort => NewestFirst;
 
     public ProviderCapabilitySet Capabilities { get; }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The site address rather than the GraphQL one the catalogue is read from. Measured: a real
+    /// identifier under this path redirected to the sign-in page carrying the same path back, so
+    /// the route resolves and only the sign-in was missing.
+    /// </remarks>
+    public string? SceneAddress(string providerSceneId)
+        => string.IsNullOrWhiteSpace(providerSceneId)
+            ? null
+            : $"{SiteBase}/scenes/{Uri.EscapeDataString(providerSceneId)}";
 
     public async Task<ProviderCatalogueAnswer> ReadPageAsync(
         ProviderCatalogueRequest request, CancellationToken ct)

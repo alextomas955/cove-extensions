@@ -554,6 +554,33 @@ public sealed class StashDbCatalogueTests
             titleSearch,
             filters ?? new Dictionary<string, string>());
 
+    /// <summary>Where a card sends a reader, which is the site rather than the API.</summary>
+    /// <remarks>
+    /// Measured 2026-09-09: a real identifier under this path redirected to the sign-in page
+    /// carrying the same path back, so the route resolves and only the sign-in was missing.
+    /// </remarks>
+    [Fact]
+    public void ASceneIsAddressedOnTheSiteRatherThanWhereTheCatalogueIsRead()
+    {
+        var (catalogue, _) = CatalogueOver("{}");
+
+        Assert.Equal(
+            "https://stashdb.org/scenes/3ac7838f-0e3f-4f19-9d2b-7c1a5b9e2f10",
+            catalogue.SceneAddress("3ac7838f-0e3f-4f19-9d2b-7c1a5b9e2f10"));
+    }
+
+    /// <summary>
+    /// The identifier is a path segment and the provider issued it, so it travels escaped and
+    /// cannot reach past the path it is placed in.
+    /// </summary>
+    [Fact]
+    public void AnIdentifierCannotWidenThePathItIsPlacedIn()
+    {
+        var (catalogue, _) = CatalogueOver("{}");
+
+        Assert.Equal("https://stashdb.org/scenes/..%2Fusers", catalogue.SceneAddress("../users"));
+    }
+
     private static (StashDbCatalogue Catalogue, BodyRecordingHandler Handler) CatalogueOverEach(
         params string[] answers)
         => CatalogueOver(

@@ -220,6 +220,18 @@ public interface IProviderCatalogue
     /// </remarks>
     ProviderCapabilitySet Capabilities { get; }
 
+    /// <summary>
+    /// Where this provider shows the scene <paramref name="providerSceneId"/> names, or null where
+    /// it publishes no address a reader can open.
+    /// </summary>
+    /// <remarks>
+    /// Composed here rather than in the browser, because the pattern belongs to the provider and a
+    /// browser composing one would hold a copy per source. A provider whose public address cannot
+    /// be composed from the identifier it issued answers null, and the card that carries it is then
+    /// not a link at all.
+    /// </remarks>
+    string? SceneAddress(string providerSceneId);
+
     /// <summary>One page of the catalogue <paramref name="request"/> names.</summary>
     /// <remarks>
     /// A read that answered nothing carries no page, so a failure is stated at this seam rather than

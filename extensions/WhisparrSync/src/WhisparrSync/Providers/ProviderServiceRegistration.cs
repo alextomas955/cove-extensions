@@ -100,6 +100,8 @@ internal sealed class ProviderCatalogueSelector : IProviderCatalogue
 
     private IProviderCatalogue Selected => _selected.GetAwaiter().GetResult();
 
+    public string? SceneAddress(string providerSceneId) => Selected.SceneAddress(providerSceneId);
+
     public async Task<ProviderCatalogueAnswer> ReadPageAsync(
         ProviderCatalogueRequest request, CancellationToken ct)
     {

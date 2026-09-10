@@ -2250,6 +2250,7 @@
           "title",
           "releaseDate",
           "coverUrl",
+          "sceneUrl",
           "studioName",
           "description",
           "performers",
@@ -2273,6 +2274,12 @@
             ]
           },
           "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sceneUrl": {
             "type": [
               "null",
               "string"
