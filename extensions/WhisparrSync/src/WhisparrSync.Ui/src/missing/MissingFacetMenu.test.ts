@@ -10,7 +10,8 @@ import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { FACET_MENU_NO_MATCHES, FACET_MENU_SEARCH, facetMenuBound } from "../common/ui/copy";
-import { MissingFacetMenu, type MissingMenuRow } from "./MissingFacetMenu";
+import type { MissingFacetCounts, MissingFacetRow } from "./missingFacetLogic";
+import { MissingFacetMenu } from "./MissingFacetMenu";
 
 const sleep = (ms: number) =>
   new Promise((resolve) => {
@@ -26,7 +27,7 @@ async function settled(until: () => boolean, budgetMs = 2000): Promise<boolean> 
   return until();
 }
 
-const ROWS: readonly MissingMenuRow[] = [
+const ROWS: readonly MissingFacetRow[] = [
   { value: "p-1", label: "Ada Byron", selected: false },
   { value: "p-2", label: "Grace Hopper", selected: true },
 ];
@@ -71,7 +72,7 @@ async function mount(node: (trigger: { current: HTMLElement | null }) => ReactNo
   return mounted;
 }
 
-function panelWith(bound: string | null) {
+function panelWith(bound: MissingFacetCounts | null) {
   return (triggerRef: { current: HTMLElement | null }) =>
     createElement(MissingFacetMenu, {
       label: "Performer",
@@ -98,7 +99,7 @@ function type(input: HTMLInputElement, text: string) {
 }
 
 test("a bounded menu states how many values it carries and how many the source reported", async () => {
-  const mounted = await mount(panelWith(facetMenuBound(25, 400)));
+  const mounted = await mount(panelWith({ shown: 25, reported: 400 }));
 
   const panel = mounted.panel();
   expect(panel).not.toBeNull();
@@ -108,7 +109,7 @@ test("a bounded menu states how many values it carries and how many the source r
 });
 
 test("the disclosure is announced with the menu and passed over by the arrow keys", async () => {
-  const mounted = await mount(panelWith(facetMenuBound(1, 2)));
+  const mounted = await mount(panelWith({ shown: 1, reported: 2 }));
 
   const panel = mounted.panel();
   const describedBy = panel?.getAttribute("aria-describedby");
@@ -131,7 +132,7 @@ test("a whole menu states no bound", async () => {
 });
 
 test("the panel still scrolls inside its own height with the disclosure present", async () => {
-  const mounted = await mount(panelWith(facetMenuBound(25, 400)));
+  const mounted = await mount(panelWith({ shown: 25, reported: 400 }));
 
   const panel = mounted.panel();
   expect(panel?.className).toContain("min-h-0");
@@ -159,7 +160,7 @@ test("typing narrows the rows and leaves the caret where it was", async () => {
   expect(document.activeElement, "filtering moved the caret out of the search box").toBe(search);
 });
 
-test("a search matching nothing reads a sentence rather than an empty panel", async () => {
+test("a search matching nothing reads a sentence, and keeps the value in force pickable", async () => {
   const mounted = await mount(panelWith(null));
 
   type(mounted.search() as HTMLInputElement, "zz");
@@ -168,7 +169,7 @@ test("a search matching nothing reads a sentence rather than an empty panel", as
   );
 
   expect(stated, "an empty result drew nothing at all").toBe(true);
-  expect(mounted.items()).toHaveLength(0);
+  expect(mounted.items().map((item) => item.textContent)).toEqual(["Grace Hopper"]);
 });
 
 test("the arrow keys step from the search box into the rows", async () => {

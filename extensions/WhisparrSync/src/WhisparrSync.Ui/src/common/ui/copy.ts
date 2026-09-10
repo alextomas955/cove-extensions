@@ -545,7 +545,7 @@ export function countLine(from: number, to: number, total: number, atCeiling: bo
 }
 
 /**
- * What a menu carrying part of the source's list says at the control.
+ * What a menu carrying part of the source's list says at the control, with nothing typed.
  *
  * The source decides how many values it serves for one read, so `reported` is the source's own
  * figure and `shown` is what arrived.
@@ -555,19 +555,45 @@ export function facetMenuBound(shown: number, reported: number): string {
 }
 
 /**
+ * What the same menu says once a fragment is in force.
+ *
+ * The counts are of the values matching what was typed rather than of the whole list, so the two
+ * sentences are worded apart: the same figures under the other wording would say the rest cannot be
+ * reached, when typing more of the name is what reaches them.
+ */
+export function facetMatchesBound(shown: number, reported: number): string {
+  return `This menu shows ${String(shown)} of ${String(reported)} matching values. Type more of the name to reach the rest.`;
+}
+
+/**
  * The placeholder in a facet menu's search box.
  *
- * Names the menu rather than the source, because typing narrows the values the menu holds and
- * reaches none the source did not send. What is absent is what {@link facetMenuBound} states.
+ * Names neither the menu nor the source: a fragment reaches the source's own list for a facet it
+ * searches and the menu's rows for one it does not, and the box is the same box either way.
  */
-export const FACET_MENU_SEARCH = "Search this menu";
+export const FACET_MENU_SEARCH = "Search values";
 
-/** What a facet menu reads when nothing in it matches what was typed. */
+/** What a facet menu reads when nothing it holds matches, its values having not been looked up. */
 export const FACET_MENU_NO_MATCHES = "No values in this menu match.";
+
+/** What a facet menu reads while the source is being asked for the values that match. */
+export const FACET_VALUES_ASKING = "Looking for matching values.";
+
+/** What a facet menu reads when the source answered and matched nothing. */
+export const FACET_VALUES_NONE_MATCH = "The metadata source lists no value matching this.";
+
+/**
+ * What a facet menu reads when the lookup did not answer.
+ *
+ * The second sentence is the point of the message. Rows that simply did not appear would read as a
+ * source that lists no such value, which is the answer this read never got.
+ */
+export const FACET_VALUES_NOT_READ =
+  "The values could not be read. That is not the same as the source listing none that match.";
 
 /** The accessible name of a facet menu's search box, which the menu's own name leads. */
 export function facetMenuSearchLabel(menuLabel: string): string {
-  return `Search this ${menuLabel.toLowerCase()} menu`;
+  return `Search ${menuLabel.toLowerCase()} values`;
 }
 
 /** How many scenes are ticked. */
