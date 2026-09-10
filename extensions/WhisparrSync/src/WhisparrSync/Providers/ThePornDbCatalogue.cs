@@ -119,6 +119,15 @@ internal sealed class ThePornDbCatalogue
 
     public ProviderCapabilitySet Capabilities { get; }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// None. The identifier this product reads and carries is the API's own, and nothing measured
+    /// says that identifier addresses a page on the provider's site. A scene row also carries a
+    /// <c>url</c>, which is the studio's own address rather than the provider's. A composed address
+    /// that answered 404 would be worse than no link, so a card from this source is not a link.
+    /// </remarks>
+    public string? SceneAddress(string providerSceneId) => null;
+
     public async Task<ProviderCatalogueAnswer> ReadPageAsync(
         ProviderCatalogueRequest request, CancellationToken ct)
     {

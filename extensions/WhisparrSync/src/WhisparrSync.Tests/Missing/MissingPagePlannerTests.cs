@@ -207,6 +207,36 @@ public sealed class MissingPagePlannerTests
             withStatusRole ? new StubStatusReading() : null,
             ExclusionReading: null);
 
+    /// <summary>
+    /// The card carries where its scene is shown, composed by the source that answered. A browser
+    /// composing one would hold a pattern per source, and the wrong one on the other generation.
+    /// </summary>
+    [Fact]
+    public async Task ACardCarriesTheAddressTheSourceNamedForItsScene()
+    {
+        var catalogue = new RecordingCatalogue(ScenesNamed("a", "b"))
+        {
+            Address = id => $"https://a.source.invalid/scenes/{id}",
+        };
+
+        var view = await PlannerOver(catalogue)
+            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+
+        Assert.Equal(
+            ["https://a.source.invalid/scenes/a", "https://a.source.invalid/scenes/b"],
+            view.Cards.Select(card => card.SceneUrl));
+    }
+
+    /// <summary>A source that names no address leaves the card with none, rather than a guess.</summary>
+    [Fact]
+    public async Task ACardFromASourceThatNamesNoAddressCarriesNone()
+    {
+        var view = await PlannerOver(new RecordingCatalogue(ScenesNamed("a")))
+            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+
+        Assert.Null(Assert.Single(view.Cards).SceneUrl);
+    }
+
     private static List<ProviderScene> ScenesNamed(params string[] ids)
         => [.. ids.Select(id => new ProviderScene(id, id, null, null, null, null, [], []))];
 
@@ -396,8 +426,13 @@ public sealed class MissingPagePlannerTests
 
         public string DefaultSort { get; init; } = "DATE";
 
+        /// <summary>Where this catalogue says one of its scenes is shown.</summary>
+        public Func<string, string?> Address { get; init; } = _ => null;
+
         public ProviderCapabilitySet Capabilities { get; init; } =
             ProviderCapabilities.ForStashDb(new object());
+
+        public string? SceneAddress(string providerSceneId) => Address(providerSceneId);
 
         public Task<ProviderCatalogueAnswer> ReadPageAsync(
             ProviderCatalogueRequest request, CancellationToken ct)

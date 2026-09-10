@@ -667,6 +667,20 @@ public sealed class ThePornDbCatalogueTests
         return config;
     }
 
+    /// <summary>This source names no address for a scene, so a card from it is not a link.</summary>
+    /// <remarks>
+    /// The identifier this product reads and carries is the API's own, and nothing measured says it
+    /// addresses a page on the provider's site. A composed address that answered 404 would be worse
+    /// than no link at all.
+    /// </remarks>
+    [Fact]
+    public void NoSceneIsGivenAnAddress()
+    {
+        var (catalogue, _) = CatalogueOver(HttpStatusCode.OK, "{}");
+
+        Assert.Null(catalogue.SceneAddress("2846feb8-f7da-4312-a3a7-a32d32d3b865"));
+    }
+
     private static (ThePornDbCatalogue Catalogue, BodyRecordingHandler Handler) CatalogueOver(
         params string[] answers)
         => CatalogueOver(

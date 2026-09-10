@@ -347,13 +347,14 @@ internal sealed class MissingPagePlanner(
             _ => MissingSceneState.StatusUnknown,
             StringComparer.Ordinal);
 
-    private static MissingCard CardFor(
+    private MissingCard CardFor(
         ProviderScene scene, IReadOnlyDictionary<string, MissingSceneState> states)
         => new(
             scene.ProviderSceneId,
             scene.Title,
             scene.ReleaseDate,
             scene.CoverUrl,
+            catalogue.SceneAddress(scene.ProviderSceneId),
             scene.StudioName,
             scene.Description,
             [.. scene.Performers.Select(
