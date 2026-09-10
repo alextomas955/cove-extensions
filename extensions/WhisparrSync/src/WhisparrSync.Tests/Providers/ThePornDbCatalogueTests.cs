@@ -460,6 +460,86 @@ public sealed class ThePornDbCatalogueTests
         Assert.DoesNotContain(menus, menu => menu.Key == ThePornDbCatalogue.YearKey);
     }
 
+    /// <summary>
+    /// A typed fragment reaches the provider's own search parameter, so a value the menu was never
+    /// handed is found.
+    /// </summary>
+    [Fact]
+    public async Task ATagFragmentReachesTheProvidersOwnSearchParameter()
+    {
+        var (catalogue, handler) = CatalogueOver(BoundedTagsMenuAnswer);
+
+        var answer = await catalogue.SearchFacetValuesAsync(
+            WhisparrEntityKind.Studio, "92", ThePornDbCatalogue.TagFacetKey, "ana", TestCt);
+
+        Assert.True(answer.IsSearchable);
+        Assert.Equal(["70", "71"], answer.Values?.Select(value => value.Value));
+        Assert.Equal(400, answer.ReportedValueCount);
+        Assert.StartsWith("/tags", handler.Targets[0], StringComparison.Ordinal);
+        Assert.Contains("q=ana", handler.Targets[0], StringComparison.Ordinal);
+
+        // The route serves thirty rows a page and declares no page size, so none is named.
+        Assert.DoesNotContain("per_page=", handler.Targets[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A search that matched nothing is a measurement, and is held apart from a read that answered
+    /// nothing. Reported as the same thing, a failed read would state that a value does not exist.
+    /// </summary>
+    [Fact]
+    public async Task AMatchOfNothingAndAReadThatAnsweredNothingAreDifferentAnswers()
+    {
+        var (matched, _) = CatalogueOver("""{"data":[],"meta":{"total":0}}""");
+        var (refused, _) = CatalogueOver(HttpStatusCode.InternalServerError, "{}");
+
+        var none = await matched.SearchFacetValuesAsync(
+            WhisparrEntityKind.Studio, "92", ThePornDbCatalogue.TagFacetKey, "zz", TestCt);
+        var unread = await refused.SearchFacetValuesAsync(
+            WhisparrEntityKind.Studio, "92", ThePornDbCatalogue.TagFacetKey, "zz", TestCt);
+
+        Assert.Empty(none.Values!);
+        Assert.Null(unread.Values);
+        Assert.True(unread.IsSearchable);
+    }
+
+    /// <summary>
+    /// The year menu is derived from the catalogue's own two date edges rather than from a value
+    /// list, so it answers that it cannot be searched and costs no request.
+    /// </summary>
+    [Fact]
+    public async Task TheYearMenuAnswersThatItCannotBeSearched()
+    {
+        var (catalogue, handler) = CatalogueOver(TagsMenuAnswer);
+
+        var answer = await catalogue.SearchFacetValuesAsync(
+            WhisparrEntityKind.Studio, "92", ThePornDbCatalogue.YearKey, "201", TestCt);
+
+        Assert.False(answer.IsSearchable);
+        Assert.Null(answer.Values);
+        Assert.Empty(handler.Requests);
+    }
+
+    /// <summary>
+    /// A page carrying more rows than one lookup returns is cut to the bound, and the provider's own
+    /// total still states how many match.
+    /// </summary>
+    [Fact]
+    public async Task ASearchCarriesAtMostOneBoundedSetOfValues()
+    {
+        var rows = string.Join(
+            ',',
+            Enumerable.Range(1, ThePornDbCatalogue.FacetPageSize + 5)
+                .Select(at => $"{{\"id\":{at},\"name\":\"Tag {at}\"}}"));
+        var (catalogue, _) = CatalogueOver(
+            $"{{\"data\":[{rows}],\"meta\":{{\"total\":34}}}}");
+
+        var answer = await catalogue.SearchFacetValuesAsync(
+            WhisparrEntityKind.Studio, "92", ThePornDbCatalogue.TagFacetKey, "tag", TestCt);
+
+        Assert.Equal(ThePornDbCatalogue.FacetPageSize, answer.Values?.Count);
+        Assert.Equal(34, answer.ReportedValueCount);
+    }
+
     /// <summary>The year the surface chose reaches the provider, so it narrows the catalogue.</summary>
     [Fact]
     public async Task TheYearReachesTheProvidersOwnParameter()

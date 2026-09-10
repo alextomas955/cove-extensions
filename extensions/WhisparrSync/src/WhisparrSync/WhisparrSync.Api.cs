@@ -49,6 +49,8 @@ public sealed partial class WhisparrSync
         RouteBase + "/entity/{kind}/{coveId}/search-all-monitored";
     private string MissingPageRoute => RouteBase + "/entity/{kind}/{coveId}/missing";
     private string MissingCountRoute => RouteBase + "/entity/{kind}/{coveId}/missing/count";
+    private string MissingFacetValuesRoute =>
+        RouteBase + "/entity/{kind}/{coveId}/missing/facet/{facetKey}";
     private string MissingBulkMonitorRoute =>
         RouteBase + "/entity/{kind}/{coveId}/missing/bulk-monitor";
     private string MissingMonitorAllRoute =>
@@ -330,6 +332,18 @@ public sealed partial class WhisparrSync
                 => ReadMissingCountAsync(
                     kind, coveId, q, filters, principal, options, credentials, client, endpoints,
                     planner, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        // The same read tier as the page and the count beside it: the reach is the one Cove entity
+        // the route segment names, and the answer is a list of values the metadata source already
+        // publishes. It composes no write and asks the connected instance nothing.
+        endpoints.MapGet(MissingFacetValuesRoute,
+            (string kind, int coveId, string facetKey, string? q,
+             ICurrentPrincipalAccessor principal, OptionsStore options, MissingPagePlanner planner,
+             CancellationToken ct)
+                => ReadMissingFacetValuesAsync(
+                    kind, coveId, facetKey, q, principal, options, planner, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
