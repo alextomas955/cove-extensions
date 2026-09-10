@@ -560,7 +560,7 @@ export function Toggle({
   ariaLabel,
   disabled,
 }: {
-  label: string;
+  label: ReactNode;
   checked: boolean;
   onChange: (checked: boolean) => void;
   helper?: string;
