@@ -264,6 +264,15 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] a search was issued for one scene the connected instance holds")]
     internal static partial void SceneSearchIssued(ILogger logger);
 
+    // A count that reached the instance for part of the library and then did not. The classification
+    // and nothing else, for the reason the contained catalogue read states. Recorded here as well as
+    // failing the run, because the run's own error is the host's record of a failure and this is this
+    // product's record of which failure it was.
+    [LoggerMessage(
+        EventId = 2126, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a library count could not be finished ({Failure}); no count was held")]
+    internal static partial void SyncCountDidNotFinish(ILogger logger, string failure);
+
     // A write dropped because the blob it would have been built on could not be read, so the fold ran
     // on defaults. The stored configuration is what survives; the update the caller asked for is
     // lost, and the writers that reach this run with nobody watching.

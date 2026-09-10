@@ -229,6 +229,9 @@ public sealed partial class SettingsProjectionTests
                 // A status read that reached no instance, given the same classification and for the
                 // same reason.
                 "SceneStatusReadContained.failure",
+                // A library count that could not be finished, given the same classification and for
+                // the same reason.
+                "SyncCountDidNotFinish.failure",
             }.Order(),
             LogTemplates()
                 .SelectMany(template => template.GetParameters(), (template, parameter) => (template, parameter))
