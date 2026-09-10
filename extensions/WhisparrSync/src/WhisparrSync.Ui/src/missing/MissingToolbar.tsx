@@ -22,7 +22,6 @@ import {
   MISSING_TAB_HEADING,
   countLine,
   facetCoversEverything,
-  facetMenuBound,
   monitorAllConfirmation,
 } from "../common/ui/copy";
 import { OFF_SCREEN } from "../common/ui/offScreen";
@@ -30,8 +29,15 @@ import type { MissingFacetMenu as FacetMenuView, MissingPageView } from "../wire
 import type { MissingEntityKind } from "./entityKindLogic";
 import { ConfirmDialog } from "./hostComponents";
 import { countLineParts } from "./missingCountLogic";
-import { facetMenuRows, menuIsBounded, toggleFacetValue } from "./missingFacetLogic";
-import { MissingFacetMenu, type MissingMenuRow } from "./MissingFacetMenu";
+import {
+  facetMenuRows,
+  menuIsBounded,
+  toggleFacetValue,
+  type MissingFacetChoice,
+  type MissingFacetCounts,
+  type MissingFacetRow,
+} from "./missingFacetLogic";
+import { MissingFacetMenu } from "./MissingFacetMenu";
 import {
   MISSING_TOOLBAR_CONTROLS,
   MONITOR_ALL_LABEL,
@@ -41,6 +47,7 @@ import {
   searchSettleDelayMs,
   sortOptionsFor,
 } from "./missingToolbarLogic";
+import type { FacetValueSearch } from "./useFacetValueLookup";
 import { useMissingUrlState } from "./useMissingUrlState";
 
 /** Cove's own list toolbar surface, so the controls read as one bar rather than a row of boxes. */
@@ -88,11 +95,14 @@ export interface MissingToolbarCatalogue {
 export function MissingToolbar({
   onRefresh,
   onMonitorAll,
+  onSearchFacetValues,
   catalogue,
 }: {
   onRefresh: () => void;
   /** Marks everything the narrowing in the address covers, once the reader has confirmed. */
   onMonitorAll: () => void;
+  /** How a facet menu asks the source which of its values match a typed fragment. */
+  onSearchFacetValues: FacetValueSearch;
   catalogue?: MissingToolbarCatalogue;
 }) {
   const [view, setView] = useMissingUrlState();
@@ -192,6 +202,7 @@ export function MissingToolbar({
               openTrigger={openTrigger}
               onOpen={openFrom}
               onClose={closeMenu}
+              onSearchValues={onSearchFacetValues}
               onPick={(value) => {
                 setView({
                   ...view,
@@ -266,6 +277,8 @@ function MenuControl({
   open,
   openTrigger,
   bound,
+  facetKey,
+  search,
   onOpen,
   onClose,
   onPick,
@@ -273,13 +286,15 @@ function MenuControl({
   name: string;
   label: string;
   trigger: string;
-  rows: readonly MissingMenuRow[];
+  rows: readonly MissingFacetRow[];
   open: boolean;
   openTrigger: RefObject<HTMLElement | null>;
-  bound?: string | null;
+  bound?: MissingFacetCounts | null;
+  facetKey?: string;
+  search?: FacetValueSearch;
   onOpen: (name: string, trigger: HTMLElement) => void;
   onClose: () => void;
-  onPick: (value: string) => void;
+  onPick: (value: string, valueLabel: string) => void;
 }) {
   return (
     <div className={SEGMENT_CLASS}>
@@ -302,6 +317,8 @@ function MenuControl({
           rows={rows}
           triggerRef={openTrigger}
           bound={bound}
+          facetKey={facetKey}
+          search={search}
           onPick={onPick}
           onClose={onClose}
         />
@@ -325,6 +342,7 @@ function FacetControl({
   onOpen,
   onClose,
   onPick,
+  onSearchValues,
 }: {
   menu: FacetMenuView;
   selected: string | null;
@@ -333,25 +351,40 @@ function FacetControl({
   onOpen: (name: string, trigger: HTMLElement) => void;
   onClose: () => void;
   onPick: (value: string) => void;
+  onSearchValues: FacetValueSearch;
 }) {
-  const rows = facetMenuRows(menu, selected);
-  const inForce =
-    selected === null ? null : (menu.values.find((value) => value.value === selected) ?? null);
+  // How a value found by a lookup reads. The menus arrive with the page and carry a page of the
+  // source's list, so a value picked out of a lookup is usually not on the menu that offered it and
+  // has no label anywhere else.
+  const [picked, setPicked] = useState<MissingFacetChoice | null>(null);
+
+  const inForce: MissingFacetChoice | null =
+    selected === null
+      ? null
+      : (menu.values.find((value) => value.value === selected) ??
+        (picked?.value === selected ? picked : { value: selected, label: selected }));
 
   return (
     <MenuControl
       name={menu.key}
       label={menu.label}
-      trigger={selected === null ? facetCoversEverything(menu.label) : (inForce?.label ?? selected)}
-      rows={rows}
+      trigger={inForce === null ? facetCoversEverything(menu.label) : inForce.label}
+      rows={facetMenuRows(menu, inForce)}
       open={open}
       openTrigger={openTrigger}
       bound={
-        menuIsBounded(menu) ? facetMenuBound(menu.values.length, menu.reportedValueCount) : null
+        menuIsBounded(menu)
+          ? { shown: menu.values.length, reported: menu.reportedValueCount }
+          : null
       }
+      facetKey={menu.key}
+      search={onSearchValues}
       onOpen={onOpen}
       onClose={onClose}
-      onPick={onPick}
+      onPick={(value, valueLabel) => {
+        setPicked({ value, label: valueLabel });
+        onPick(value);
+      }}
     />
   );
 }
