@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
-using WhisparrSync.Monitoring;
 
 namespace WhisparrSync;
 

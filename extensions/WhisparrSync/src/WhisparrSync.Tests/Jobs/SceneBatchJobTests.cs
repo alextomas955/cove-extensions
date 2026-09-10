@@ -5,8 +5,8 @@ using Cove.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Jobs;
 

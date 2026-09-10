@@ -1,4 +1,4 @@
-using WhisparrSync.Monitoring;
+using WhisparrSync.Contracts;
 using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Monitoring;

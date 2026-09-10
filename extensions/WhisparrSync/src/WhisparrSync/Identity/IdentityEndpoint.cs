@@ -1,7 +1,7 @@
 using WhisparrSync.Contracts;
 using WhisparrSync.Options;
 
-namespace WhisparrSync.Import;
+namespace WhisparrSync.Identity;
 
 /// <summary>
 /// Which endpoint spelling an identity row is written under.

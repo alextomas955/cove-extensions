@@ -4,7 +4,6 @@ using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
-using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Jobs;
 

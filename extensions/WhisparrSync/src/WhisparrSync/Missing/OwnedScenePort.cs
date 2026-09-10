@@ -1,6 +1,6 @@
 using Cove.Core.Entities;
 using Microsoft.EntityFrameworkCore;
-using WhisparrSync.Import;
+using WhisparrSync.Identity;
 
 namespace WhisparrSync.Missing;
 

@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;

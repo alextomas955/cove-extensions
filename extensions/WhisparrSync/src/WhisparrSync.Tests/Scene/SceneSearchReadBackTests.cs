@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using WhisparrSync.Contracts;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
