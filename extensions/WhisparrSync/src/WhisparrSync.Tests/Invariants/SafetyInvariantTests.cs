@@ -91,6 +91,11 @@ internal static class OutboundSeam
             [nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)] = WhisparrVerbClass.Grab,
             [nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync)] = WhisparrVerbClass.Grab,
+            [nameof(IWhisparrSceneStatusReading.ReadEntityPresenceAsync)] = WhisparrVerbClass.Read,
+            [nameof(IWhisparrSceneStatusReading.ReadSceneByRemoteIdAsync)] = WhisparrVerbClass.Read,
+            // A read, not a grab: it answers only entries the instance already holds, it composes no
+            // command name, and it starts nothing on the instance's side.
+            [nameof(IWhisparrSceneStatusReading.ReduceHeldScenesAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrSceneExclusionActing.AddSceneExclusionAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrSceneExclusionActing.RemoveSceneExclusionAsync)] = WhisparrVerbClass.Act,
@@ -112,6 +117,7 @@ internal static class OutboundSeam
         typeof(IWhisparrReflectOwnedActing),
         typeof(IWhisparrSearchGrabbing),
         typeof(IWhisparrSceneSearchGrabbing),
+        typeof(IWhisparrSceneStatusReading),
         typeof(IWhisparrSceneMonitorActing),
         typeof(IWhisparrSceneExclusionActing),
     ];
@@ -209,7 +215,7 @@ public sealed class SafetyInvariantTests
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public void TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall()
     {
-        Assert.Equal(9, OutboundSeam.SeamInterfaces.Count);
+        Assert.Equal(10, OutboundSeam.SeamInterfaces.Count);
 
         Assert.Equal(
             OutboundSeam.VerbClassByMember.Keys.Order().ToList(),
