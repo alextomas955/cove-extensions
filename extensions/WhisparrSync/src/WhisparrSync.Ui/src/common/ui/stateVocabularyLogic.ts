@@ -17,8 +17,13 @@ export type WhisparrEntityState =
 
 /** How one state reads. Read-only because the entries below are shared constants, not per-call copies. */
 export interface StateDescription {
-  /** A non-empty leading mark, so a state is never distinguished by colour alone. */
-  readonly glyph: string;
+  /**
+   * A leading mark, so a state is never distinguished by colour alone.
+   *
+   * A key rather than the mark itself, because this module is pure: the component beside it is the
+   * one place a key becomes a drawn glyph, so every surface draws the same shape for a state.
+   */
+  readonly iconKey: string;
   readonly label: string;
   readonly variant: Variant;
 }
@@ -29,17 +34,30 @@ export interface StateDescription {
  * The axis is Whisparr's monitored flag. Having a file is deliberately absent: a monitored entity
  * stays monitored once its file lands, and file presence is reported separately.
  *
- * There is a sixth marker in the vocabulary, `◆ In library`, which is not a state and so has no entry
- * here. A view that shows it draws it beside a state, never instead of one.
+ * There is a sixth marker in the vocabulary, {@link FILE_MARKER}, which is not a state and so has no
+ * entry here. A view that shows it draws it beside a state, never instead of one.
  *
  * Two states share the `gray` tint, which is why every entry carries its own glyph and its own label.
  */
 export const STATE_VOCABULARY: Record<WhisparrEntityState, StateDescription> = {
-  monitored: { glyph: "●", label: "Monitored", variant: "green" },
-  unmonitored: { glyph: "○", label: "Unmonitored", variant: "gray" },
-  notAdded: { glyph: "–", label: "Not added", variant: "gray" },
-  excluded: { glyph: "⊘", label: "Excluded", variant: "red" },
-  statusUnknown: { glyph: "?", label: "Status unknown", variant: "amber" },
+  monitored: { iconKey: "bookmark", label: "Monitored", variant: "green" },
+  unmonitored: { iconKey: "circle", label: "Unmonitored", variant: "gray" },
+  notAdded: { iconKey: "circleDashed", label: "Not added", variant: "gray" },
+  excluded: { iconKey: "ban", label: "Excluded", variant: "red" },
+  statusUnknown: { iconKey: "circleQuestion", label: "Status unknown", variant: "amber" },
+};
+
+/**
+ * The sixth marker, which is not a state.
+ *
+ * Whether the instance holds a file cross-cuts the five: a monitored entity and an unmonitored one
+ * can each have one. A view that shows it draws it beside a state and never instead of one, which is
+ * why it sits apart from {@link STATE_VOCABULARY} rather than as a member of it.
+ */
+export const FILE_MARKER: StateDescription = {
+  iconKey: "download",
+  label: "In library",
+  variant: "green",
 };
 
 /** How <code>state</code> reads, in the vocabulary's own words. */
