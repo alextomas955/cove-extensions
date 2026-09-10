@@ -28,7 +28,7 @@ import {
   allScenesConfirmation,
   BULK_ACTIONS_COULD_NOT_BE_OFFERED,
   BULK_SELECTION_IS_OVER_THE_BOUND,
-  BULK_SELECTION_WAS_NOT_STARTED,
+  RUN_WAS_NOT_STARTED,
   searchAllMonitoredConfirmation,
 } from "../common/ui/copy";
 import type { EntityMonitoringView, WhisparrEntityKind } from "../wire/api";
@@ -159,7 +159,7 @@ async function confirmed(action: BulkMonitorAction, message: string): Promise<bo
 function refusalSentenceFor(refusal: unknown): string {
   return refusal instanceof ApiError && codeNamedIn(refusal.body) === "TOO_MANY_IDS"
     ? BULK_SELECTION_IS_OVER_THE_BOUND
-    : BULK_SELECTION_WAS_NOT_STARTED;
+    : RUN_WAS_NOT_STARTED;
 }
 
 /** The code one refusal answer names, or null where it named none that could be read. */
