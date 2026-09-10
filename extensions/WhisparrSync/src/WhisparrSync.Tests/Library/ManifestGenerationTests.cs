@@ -1,5 +1,7 @@
 using System.Globalization;
 using Cove.Plugins;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Options;
@@ -283,25 +285,39 @@ public sealed class ManifestGenerationTests
             action.ApiEndpoint ?? "no endpoint",
             action.Order.ToString(CultureInfo.InvariantCulture)))];
 
-    /// <summary>
-    /// An extension initialized against <paramref name="store"/> through its own registration, and
-    /// the container it resolves its options store from.
-    /// </summary>
-    /// <remarks>
-    /// The store registration is the extension's own factory rather than one the test composes, so
-    /// what a load publishes is what the shipped wiring publishes.
-    /// </remarks>
     private static async Task<LoadedExtension> LoadedOverAsync(FakeStore store)
     {
         var extension = WhisparrSyncFixture.Create();
         ((IStatefulExtension)extension).SetStore(store);
 
         var services = new ServiceCollection();
-        services.AddScoped(_ => extension.NewOptionsStore());
-        var provider = services.BuildServiceProvider();
+        services.AddLogging();
+        services.AddHttpClient();
+        // These lifecycle tests resolve host dependencies but execute no database queries.
+        services.AddScoped(_ => new DbContext(new DbContextOptionsBuilder().Options));
+        extension.ConfigureServices(services, new ExtensionContext
+        {
+            Configuration = new ConfigurationBuilder().Build(),
+            DataDirectory = AppContext.BaseDirectory,
+            CoveVersion = WhisparrSyncFixture.Manifest.MinCoveVersion
+                ?? throw new InvalidOperationException("The manifest must declare its host floor."),
+        });
+        var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = true,
+            ValidateOnBuild = true,
+        });
 
-        await extension.InitializeAsync(provider, TestCt);
-        return new LoadedExtension(extension, provider);
+        try
+        {
+            await extension.InitializeAsync(provider, TestCt);
+            return new LoadedExtension(extension, provider);
+        }
+        catch
+        {
+            await provider.DisposeAsync();
+            throw;
+        }
     }
 
     /// <summary>The three registration groups one manifest carries, each already projected.</summary>

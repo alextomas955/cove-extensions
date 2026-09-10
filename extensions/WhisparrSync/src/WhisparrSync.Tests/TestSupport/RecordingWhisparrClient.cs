@@ -475,6 +475,10 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
                 : SceneExclusionLookup.NamesNoExclusion);
     }
 
+    public bool RequireConfiguredResponses { get; init; }
+
+    public List<string> UnexpectedCalls { get; } = [];
+
     private WhisparrResponse Answer(string verb)
     {
         if (Unreachable.Contains(verb))
@@ -484,6 +488,11 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
 
         if (!NotificationAnswers.TryGetValue(verb, out var queued) || queued.Count == 0)
         {
+            if (RequireConfiguredResponses)
+            {
+                UnexpectedCalls.Add(verb);
+                throw new InvalidOperationException($"Unexpected Whisparr call: {verb}. Configure its response explicitly.");
+            }
             return answer;
         }
 
