@@ -8,8 +8,7 @@
  * Absence is asserted as ELEMENT NOT PRESENT rather than as element empty: an empty red block still
  * occupies the screen and still reads as a problem in force.
  *
- * React arrives as its PRODUCTION build, which has no `act`, so a render is flushed by waiting. The
- * shared primitives stand in, because their `react` import resolves only inside a consuming bundle.
+ * The shared primitives stand in, because their `react` import resolves only inside a consuming bundle.
  */
 import { expect, test, vi } from "vitest";
 import { createElement, type ReactNode } from "react";

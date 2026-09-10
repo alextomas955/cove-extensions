@@ -4,9 +4,6 @@
  *
  * The overlay hook is the real one: whether the disclosure is reachable by the arrow keys is the
  * hook's decision, and a stand-in for it would assert the stand-in.
- *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is awaited on the condition it produces.
  */
 import { afterEach, expect, test } from "vitest";
 import { createElement, type ReactNode } from "react";

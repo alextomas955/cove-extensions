@@ -6,9 +6,6 @@
  * A DOM is needed because the overlay is mounted imperatively into the document rather than returned
  * as a value: the properties under test are which rows a reader is actually offered and what
  * pressing one sends. The real mounter is used rather than a stand-in for the same reason.
- *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is flushed by waiting rather than by wrapping.
  */
 import { test, expect, vi, afterEach } from "vitest";
 import type { EntityMonitoringView, WhisparrCapability } from "../wire/api";

@@ -5,9 +5,7 @@
  * that a pressed control is both announced busy and no longer pressable, and that no part of a key
  * reaches the page.
  *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is flushed by waiting rather than by wrapping. The shared
- * primitives stand in, because their `react` import resolves only inside a consuming bundle; each
+ * The shared primitives stand in, because their `react` import resolves only inside a consuming bundle; each
  * stand-in reproduces the element the real one renders, which is what the assertions read.
  */
 import { expect, test, vi } from "vitest";

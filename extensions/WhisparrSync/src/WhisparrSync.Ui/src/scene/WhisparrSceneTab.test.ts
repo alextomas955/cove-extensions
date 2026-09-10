@@ -6,9 +6,7 @@
  * A DOM is needed because the property under test is the SHAPE of what renders. A projection that
  * answers three nulls and a block that draws one row both pass a value-level check on either half.
  *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is awaited on the condition it produces. The host's
- * authenticated fetch and its shared primitives stand in, because each resolves only inside a
+ * The host's authenticated fetch and its shared primitives stand in, because each resolves only inside a
  * consuming bundle.
  */
 import { test, expect, vi, afterEach } from "vitest";

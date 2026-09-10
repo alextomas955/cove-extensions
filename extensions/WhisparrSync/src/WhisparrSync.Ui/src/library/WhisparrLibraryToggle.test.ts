@@ -6,9 +6,7 @@
  * visible label, so its `aria-label` and its hover text are the only name it has, and a reason left
  * on it is a claim a reader is told.
  *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is flushed by waiting rather than by wrapping. The host's
- * route builder and its authenticated request both stand in, because each resolves only inside a
+ * The host's route builder and its authenticated request both stand in, because each resolves only inside a
  * consuming bundle.
  */
 import { createElement, type ReactNode } from "react";

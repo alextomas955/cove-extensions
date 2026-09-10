@@ -6,8 +6,6 @@
  * A DOM is needed because the overlay is mounted imperatively into the document rather than returned
  * as a value: the properties under test are which rows a reader is actually offered, and that a
  * refusal is stated in that same overlay rather than escaping to the host's own alert.
- *
- * React arrives as its PRODUCTION build, which has no `act`, so a render is flushed by waiting.
  */
 import { test, expect, vi, afterEach } from "vitest";
 
