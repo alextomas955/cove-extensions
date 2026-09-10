@@ -108,6 +108,45 @@ public sealed record ProviderFacetMenu(
     IReadOnlyList<ProviderFacetValue> Values,
     int ReportedValueCount);
 
+/// <summary>What a provider answered when one facet's values were searched.</summary>
+/// <remarks>
+/// Three answers and no fourth. A search that matched nothing carries an empty list, which is a
+/// measurement; a read that answered nothing carries no list at all and measures nothing. A facet
+/// the provider has no value list to search is a third answer rather than a flag a caller tests
+/// before asking.
+/// </remarks>
+public sealed record ProviderFacetSearch
+{
+    private ProviderFacetSearch(
+        IReadOnlyList<ProviderFacetValue>? values, int reportedValueCount, bool isSearchable)
+    {
+        Values = values;
+        ReportedValueCount = reportedValueCount;
+        IsSearchable = isSearchable;
+    }
+
+    /// <summary>The values the provider matched, or null where it matched none.</summary>
+    public IReadOnlyList<ProviderFacetValue>? Values { get; }
+
+    /// <summary>
+    /// How many values the provider says match, however many <see cref="Values"/> carries.
+    /// </summary>
+    public int ReportedValueCount { get; }
+
+    /// <summary>The provider searches this facet at all.</summary>
+    public bool IsSearchable { get; }
+
+    /// <summary>The provider was not reached, or refused.</summary>
+    public static ProviderFacetSearch NotReached { get; } = new(null, 0, true);
+
+    /// <summary>The provider holds no value list it can search for this facet.</summary>
+    public static ProviderFacetSearch NotSearchable { get; } = new(null, 0, false);
+
+    /// <summary>The provider matched <paramref name="values"/>, of <paramref name="reported"/>.</summary>
+    public static ProviderFacetSearch Matched(
+        IReadOnlyList<ProviderFacetValue> values, int reported) => new(values, reported, true);
+}
+
 /// <summary>One ordering a provider offers.</summary>
 /// <param name="Value">The opaque string the provider itself issued.</param>
 /// <param name="Label">How the option reads.</param>
@@ -221,4 +260,25 @@ public interface IProviderCatalogue
     /// </remarks>
     Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
         WhisparrEntityKind kind, string providerEntityId, CancellationToken ct);
+
+    /// <summary>
+    /// The values of the facet <paramref name="facetKey"/> names that match
+    /// <paramref name="fragment"/>, for the <paramref name="kind"/> entity
+    /// <paramref name="providerEntityId"/> names.
+    /// </summary>
+    /// <remarks>
+    /// Asked of the provider, so a value the menu was never handed is reachable. Bounded to one page
+    /// of values, and the provider's own count of the matches is carried beside them so a bound can
+    /// still be stated.
+    /// <para>
+    /// A facet this provider derives rather than lists answers that it cannot be searched, and the
+    /// caller keeps narrowing the values it holds for that one.
+    /// </para>
+    /// </remarks>
+    Task<ProviderFacetSearch> SearchFacetValuesAsync(
+        WhisparrEntityKind kind,
+        string providerEntityId,
+        string facetKey,
+        string fragment,
+        CancellationToken ct);
 }

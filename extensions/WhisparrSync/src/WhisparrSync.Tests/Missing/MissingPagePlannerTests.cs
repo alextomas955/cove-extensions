@@ -233,6 +233,99 @@ public sealed class MissingPagePlannerTests
         Assert.Equal("ThePornDB", refused.ProviderName);
     }
 
+    /// <summary>
+    /// A fragment reaches the source under the entity the page is for, and the values it matched
+    /// come back as rows a menu can offer.
+    /// </summary>
+    [Fact]
+    public async Task AFragmentReachesTheSourceAndItsValuesComeBackAsMenuRows()
+    {
+        var catalogue = new RecordingCatalogue(ScenesNamed("a"))
+        {
+            FacetSearch = ProviderFacetSearch.Matched(
+                [new ProviderFacetValue("t-1", "Anal Sex")], 64),
+        };
+        var planner = PlannerOver(catalogue);
+
+        var found = await planner.SearchFacetValuesAsync(
+            new MissingFacetSearchRequest(WhisparrEntityKind.Studio, 7, "tags", "ana"),
+            WhisparrGeneration.V3,
+            TestCt);
+
+        Assert.Equal(MissingFacetSearchOutcome.Matched, found.Outcome);
+        Assert.Equal("t-1", Assert.Single(found.Values).Value);
+        Assert.Equal(64, found.ReportedValueCount);
+        Assert.Equal("ana", catalogue.SearchedFor);
+        Assert.Equal("tags", catalogue.SearchedFacet);
+        Assert.Equal("a-studio", catalogue.SearchedEntityId);
+    }
+
+    /// <summary>
+    /// A lookup that answered nothing is not an absence. Answered as a match of nothing it would
+    /// state that a value the source holds does not exist, which is what a lookup is for.
+    /// </summary>
+    [Fact]
+    public async Task ALookupThatAnsweredNothingIsHeldApartFromAMatchOfNothing()
+    {
+        var unread = new RecordingCatalogue(ScenesNamed("a"))
+        {
+            FacetSearch = ProviderFacetSearch.NotReached,
+        };
+        var matched = new RecordingCatalogue(ScenesNamed("a"))
+        {
+            FacetSearch = ProviderFacetSearch.Matched([], 0),
+        };
+
+        var refused = await PlannerOver(unread).SearchFacetValuesAsync(
+            new MissingFacetSearchRequest(WhisparrEntityKind.Studio, 7, "tags", "zz"),
+            WhisparrGeneration.V3,
+            TestCt);
+        var none = await PlannerOver(matched).SearchFacetValuesAsync(
+            new MissingFacetSearchRequest(WhisparrEntityKind.Studio, 7, "tags", "zz"),
+            WhisparrGeneration.V3,
+            TestCt);
+
+        Assert.Equal(MissingFacetSearchOutcome.NoAnswer, refused.Outcome);
+        Assert.Equal(MissingFacetSearchOutcome.Matched, none.Outcome);
+        Assert.Empty(none.Values);
+    }
+
+    /// <summary>
+    /// A facet the source cannot search says so, and the surface keeps narrowing the values it
+    /// already holds for that one.
+    /// </summary>
+    [Fact]
+    public async Task AFacetTheSourceCannotSearchSaysSo()
+    {
+        var catalogue = new RecordingCatalogue(ScenesNamed("a"))
+        {
+            FacetSearch = ProviderFacetSearch.NotSearchable,
+        };
+
+        var answer = await PlannerOver(catalogue).SearchFacetValuesAsync(
+            new MissingFacetSearchRequest(WhisparrEntityKind.Studio, 7, "year", "201"),
+            WhisparrGeneration.V3,
+            TestCt);
+
+        Assert.Equal(MissingFacetSearchOutcome.NotSearchable, answer.Outcome);
+        Assert.Empty(answer.Values);
+    }
+
+    /// <summary>An entity the source names nothing for is asked nothing, and states no absence.</summary>
+    [Fact]
+    public async Task AnUnresolvedIdentityAsksTheSourceNothingAndStatesNoAbsence()
+    {
+        var catalogue = new RecordingCatalogue(ScenesNamed("a"));
+
+        var answer = await PlannerOver(catalogue, identity: null).SearchFacetValuesAsync(
+            new MissingFacetSearchRequest(WhisparrEntityKind.Studio, 7, "tags", "ana"),
+            WhisparrGeneration.V3,
+            TestCt);
+
+        Assert.Equal(MissingFacetSearchOutcome.NoAnswer, answer.Outcome);
+        Assert.Null(catalogue.SearchedFor);
+    }
+
     private static MissingPagePlanner PlannerOver(
         RecordingCatalogue catalogue,
         StubOwned? owned = null,
@@ -290,6 +383,14 @@ public sealed class MissingPagePlannerTests
 
         public IReadOnlyList<ProviderFacetMenu> Menus { get; init; } = [];
 
+        public ProviderFacetSearch FacetSearch { get; init; } = ProviderFacetSearch.NotReached;
+
+        public string? SearchedFor { get; private set; }
+
+        public string? SearchedFacet { get; private set; }
+
+        public string? SearchedEntityId { get; private set; }
+
         public IReadOnlyList<ProviderSortOption> Sorts { get; } =
             [new ProviderSortOption("DATE", "Newest first")];
 
@@ -334,6 +435,19 @@ public sealed class MissingPagePlannerTests
         {
             MenuReads++;
             return Task.FromResult(Menus);
+        }
+
+        public Task<ProviderFacetSearch> SearchFacetValuesAsync(
+            WhisparrEntityKind kind,
+            string providerEntityId,
+            string facetKey,
+            string fragment,
+            CancellationToken ct)
+        {
+            SearchedFor = fragment;
+            SearchedFacet = facetKey;
+            SearchedEntityId = providerEntityId;
+            return Task.FromResult(FacetSearch);
         }
     }
 }

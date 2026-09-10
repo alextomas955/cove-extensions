@@ -27,6 +27,14 @@ internal sealed record MissingPageRequest(
     IReadOnlyDictionary<string, string> Filters,
     bool MenusAlreadyHeld);
 
+/// <summary>What one facet-value lookup is asked for.</summary>
+/// <param name="Kind">Which kind of entity the catalogue is for.</param>
+/// <param name="CoveId">The entity in the library's own namespace.</param>
+/// <param name="FacetKey">The opaque key the provider itself issued for the facet.</param>
+/// <param name="Fragment">What the reader typed.</param>
+internal sealed record MissingFacetSearchRequest(
+    WhisparrEntityKind Kind, int CoveId, string FacetKey, string Fragment);
+
 /// <summary>Where a page's connection and provider come from.</summary>
 /// <param name="BaseAddress">The connected instance's address, or null where none is connected.</param>
 /// <param name="ApiKey">The connected instance's credential.</param>
@@ -209,6 +217,53 @@ internal sealed class MissingPagePlanner(
 
         return new MissingCountView(size);
     }
+
+    /// <summary>The values of one facet that match what a reader typed.</summary>
+    /// <remarks>
+    /// A read, and only of the metadata source: nothing here asks the connected instance anything,
+    /// because what a source lists is not a fact the instance holds.
+    /// </remarks>
+    internal async Task<MissingFacetSearchView> SearchFacetValuesAsync(
+        MissingFacetSearchRequest request, WhisparrGeneration generation, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var identity = await identities
+            .ResolveAsync(request.Kind, request.CoveId, generation, ct)
+            .ConfigureAwait(false);
+
+        // No identifier is no catalogue to search, which is not a source that lists no matching
+        // value. Answered as no answer, so nothing states an absence the source never reported.
+        if (identity.ProviderEntityId is not { Length: > 0 } providerEntityId)
+        {
+            return NoFacetValues(MissingFacetSearchOutcome.NoAnswer);
+        }
+
+        var answer = await catalogue
+            .SearchFacetValuesAsync(
+                request.Kind, providerEntityId, request.FacetKey, request.Fragment, ct)
+            .ConfigureAwait(false);
+
+        if (!answer.IsSearchable)
+        {
+            return NoFacetValues(MissingFacetSearchOutcome.NotSearchable);
+        }
+
+        return answer.Values is not { } values
+            ? NoFacetValues(MissingFacetSearchOutcome.NoAnswer)
+            : new MissingFacetSearchView(
+                [.. values.Select(value => new MissingFacetValue(value.Value, value.Label))],
+                answer.ReportedValueCount,
+                MissingFacetSearchOutcome.Matched);
+    }
+
+    /// <summary>No values, and why there are none.</summary>
+    /// <remarks>
+    /// The count is zero rather than a figure, because nothing was measured. A surface reading this
+    /// states the outcome and never draws an empty list under it.
+    /// </remarks>
+    internal static MissingFacetSearchView NoFacetValues(MissingFacetSearchOutcome outcome)
+        => new([], 0, outcome);
 
     private async Task<(IReadOnlyDictionary<string, MissingSceneState> States, bool WasRead, bool PermanentlyAbsent)>
         ReadStatesAsync(
