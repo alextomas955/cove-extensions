@@ -160,6 +160,10 @@ export function SyncLibrarySection({
           createPortal(
             <ConfirmDialog
               open
+              // The host defaults this to true and paints the confirm button red. Registering
+              // scenes creates nothing a reader loses and triggers no download, so a red button
+              // would contradict the sentence this dialog exists to state.
+              destructive={false}
               title={SYNC_LIBRARY}
               confirmLabel={SYNC_LIBRARY}
               message={syncConfirmation(counts, monitorAlso)}
