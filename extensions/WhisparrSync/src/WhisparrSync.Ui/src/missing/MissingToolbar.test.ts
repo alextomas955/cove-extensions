@@ -8,9 +8,6 @@
  * sentence is written out here instead, so swapping the two counts in the view reads differently and
  * turns this red.
  *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is awaited on the condition it produces.
- *
  * The menu panel is the real one, because the sentence is drawn there.
  */
 import { afterEach, expect, test, vi } from "vitest";

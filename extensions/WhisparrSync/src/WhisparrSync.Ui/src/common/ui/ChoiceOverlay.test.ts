@@ -4,8 +4,6 @@
  *
  * A DOM is needed because both properties are about the shape of what renders: whether a row draws
  * anything but its own glyph and name, and which way out the reader is offered.
- *
- * React arrives as its PRODUCTION build, which has no `act`, so a render is flushed by waiting.
  */
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";

@@ -7,9 +7,7 @@
  * carrying no `aria-label` takes its accessible name from its contents in document order, so the
  * element's text content in order IS the accessible name being asserted here.
  *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is flushed by waiting rather than by wrapping. The shared
- * primitives stand in, because their `react` import resolves only inside a consuming bundle; the
+ * The shared primitives stand in, because their `react` import resolves only inside a consuming bundle; the
  * stand-in for `Button` reproduces the real element - a `<button>` carrying `disabled` and its
  * children - which is what the accessible name is read from.
  */

@@ -5,9 +5,6 @@
  * The overlay hook is the real one, because the three properties under test are the ones it decides:
  * roving focus finds rows only through their role, its Escape must not reach the page underneath, and
  * the trigger must not count as a click outside. A stand-in for it would assert the stand-in.
- *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is flushed by waiting rather than by wrapping.
  */
 import { test, expect, afterEach } from "vitest";
 import { createElement, type ReactNode } from "react";
