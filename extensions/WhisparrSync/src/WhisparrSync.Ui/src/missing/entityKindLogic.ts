@@ -1,13 +1,11 @@
 /**
  * Which kind of entity page the tab is mounted on.
  *
- * Pure and relative-import-free. One component is registered for all three page types and the host
- * passes it the entity id and a navigate callback and nothing else, so the kind is read from the
- * address rather than from a prop that does not exist.
+ * One component is registered for all three page types and the host passes it the entity id and a
+ * navigate callback and nothing else, so the kind is read from the address rather than from a prop
+ * that does not exist.
  */
-
-/** The three page types this tab is registered on. */
-export type MissingEntityKind = "studio" | "performer" | "tag";
+import type { WhisparrEntityKind } from "../wire/api";
 
 /**
  * The host's own route segment for each kind.
@@ -15,7 +13,7 @@ export type MissingEntityKind = "studio" | "performer" | "tag";
  * Host-owned literals: these belong to Cove's router rather than to this repository, so there is no
  * file here to read them from.
  */
-const SEGMENTS: Record<string, MissingEntityKind | undefined> = {
+const SEGMENTS: Record<string, WhisparrEntityKind | undefined> = {
   studios: "studio",
   studio: "studio",
   performers: "performer",
@@ -32,7 +30,7 @@ const SEGMENTS: Record<string, MissingEntityKind | undefined> = {
  *
  * @param pathname the address the tab is mounted at
  */
-export function readEntityKind(pathname: string): MissingEntityKind | null {
+export function readEntityKind(pathname: string): WhisparrEntityKind | null {
   const segments = pathname.split("/").filter((segment) => segment !== "");
   for (let at = 0; at < segments.length; at++) {
     const kind = SEGMENTS[segments[at].toLowerCase()];

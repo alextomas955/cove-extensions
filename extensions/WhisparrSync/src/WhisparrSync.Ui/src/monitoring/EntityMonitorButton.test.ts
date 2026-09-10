@@ -232,6 +232,29 @@ test("the read names the mounted entity and asks for its monitoring", async () =
   expect(sent[0].method).toBe("GET");
 });
 
+/**
+ * The host passes its whole entity object, which also carries the library's own identity rows. The
+ * identifier the instance is asked about is re-resolved on the server, so a browser naming one would
+ * be telling a third party which record it holds. Asserted over everything that left rather than
+ * over one forbidden name, so a field nobody thought to forbid fails here too.
+ */
+test("nothing but the Cove id off the host object reaches the instance", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const carried = { id: 42, stashId: "9f3c", tvdbId: 551, name: "Some Studio", foreignId: "abc" };
+  await render(createElement(WhisparrStudioActions, { studio: carried }));
+
+  const leaked = Object.entries(carried)
+    .filter(([field]) => field !== "id")
+    .map(([, value]) => String(value))
+    .filter((value) =>
+      sent.some((one) => one.path.includes(value) || (one.body ?? "").includes(value)),
+    );
+
+  expect(leaked, "a host field other than the id reached the instance").toEqual([]);
+  expect(sent[0].path).toContain("/42/");
+});
+
 test("the performer control asks about a performer, on its own page", async () => {
   readAnswer = () => Promise.resolve(view({ kind: "performer" }));
 

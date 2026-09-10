@@ -12,7 +12,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { NO_PROVIDER_ID_FOR_ENTITY, THE_METADATA_SOURCE } from "../common/ui/copy";
-import { readEntityKind, type MissingEntityKind } from "./entityKindLogic";
+import type { WhisparrEntityKind } from "../wire/api";
+import { readEntityKind } from "./entityKindLogic";
 import { useMultiSelect } from "./hostComponents";
 import { MissingGrid } from "./MissingGrid";
 import { MissingPager } from "./MissingPager";
@@ -71,7 +72,7 @@ function MissingTabFor({
   coveId,
   includeSubStudios,
 }: {
-  kind: MissingEntityKind;
+  kind: WhisparrEntityKind;
   coveId: number;
   includeSubStudios: boolean;
 }) {
