@@ -1,10 +1,9 @@
 /**
  * The state vocabulary as the spec states it.
  *
- * Every glyph is asserted by CODE POINT rather than by appearance, because a lookalike substitution -
- * a hyphen-minus for the en dash, a bullet for the filled circle, a slashed zero for the circled
- * division slash - is invisible in a diff and in a review, and renders as something the spec does not
- * specify. The code points below were transcribed by hand from the spec's own legend.
+ * Every mark is asserted by the key it is named by, transcribed by hand from the spec's own legend.
+ * Which shape a key draws is the business of the component that resolves it, and the two are tested
+ * apart: what matters here is that no two states are named by the same mark.
  */
 import { describe, expect, it } from "vitest";
 
@@ -25,13 +24,13 @@ const STATES: readonly WhisparrEntityState[] = [
   "statusUnknown",
 ];
 
-/** The legend, transcribed by hand: each state's glyph as a Unicode scalar value. */
-const EXPECTED_CODE_POINT: Record<WhisparrEntityState, number> = {
-  monitored: 0x25cf, // BLACK CIRCLE
-  unmonitored: 0x25cb, // WHITE CIRCLE
-  notAdded: 0x2013, // EN DASH
-  excluded: 0x2298, // CIRCLED DIVISION SLASH
-  statusUnknown: 0x003f, // QUESTION MARK
+/** The legend, transcribed by hand: the mark each state is named by. */
+const EXPECTED_ICON_KEY: Record<WhisparrEntityState, string> = {
+  monitored: "bookmark",
+  unmonitored: "circle",
+  notAdded: "circleDashed",
+  excluded: "ban",
+  statusUnknown: "circleQuestion",
 };
 
 /** The legend's labels, transcribed by hand. */
@@ -44,7 +43,7 @@ const EXPECTED_LABEL: Record<WhisparrEntityState, string> = {
 };
 
 /** The marker the spec declares is not a state, so no entry may carry it. */
-const IN_LIBRARY_CODE_POINT = 0x25c6; // BLACK DIAMOND
+const IN_LIBRARY_ICON_KEY = "download";
 
 const PRESENT_AND_MONITORED: EntityStateInput = {
   excluded: false,
@@ -57,13 +56,9 @@ describe("the transcribed vocabulary", () => {
     expect(Object.keys(STATE_VOCABULARY).sort()).toEqual([...STATES].sort());
   });
 
-  it("gives every state the glyph the legend specifies, by code point", () => {
+  it("gives every state the mark the legend specifies", () => {
     for (const state of STATES) {
-      // Whole-string equality rather than a first-code-point read, so a lookalike followed by a
-      // variation selector is caught too.
-      expect(describeState(state).glyph, state).toBe(
-        String.fromCodePoint(EXPECTED_CODE_POINT[state]),
-      );
+      expect(describeState(state).iconKey, state).toBe(EXPECTED_ICON_KEY[state]);
     }
   });
 
@@ -73,29 +68,29 @@ describe("the transcribed vocabulary", () => {
     }
   });
 
-  it("gives every state a glyph and a label with something in them", () => {
+  it("gives every state a mark and a label with something in them", () => {
     for (const state of STATES) {
-      const { glyph, label } = describeState(state);
-      expect(glyph.length, state).toBeGreaterThanOrEqual(1);
+      const { iconKey, label } = describeState(state);
+      expect(iconKey.trim(), state).not.toBe("");
       expect(label.trim(), state).not.toBe("");
     }
   });
 
-  it("gives no two states the same glyph or the same label", () => {
-    expect(new Set(STATES.map((s) => describeState(s).glyph)).size).toBe(STATES.length);
+  it("gives no two states the same mark or the same label", () => {
+    expect(new Set(STATES.map((s) => describeState(s).iconKey)).size).toBe(STATES.length);
     expect(new Set(STATES.map((s) => describeState(s).label)).size).toBe(STATES.length);
   });
 
   it("still tells two states apart when they share a tint", () => {
     const sharedTint = STATES.filter((s) => describeState(s).variant === "gray");
     expect(sharedTint.length).toBeGreaterThan(1);
-    expect(new Set(sharedTint.map((s) => describeState(s).glyph)).size).toBe(sharedTint.length);
+    expect(new Set(sharedTint.map((s) => describeState(s).iconKey)).size).toBe(sharedTint.length);
     expect(new Set(sharedTint.map((s) => describeState(s).label)).size).toBe(sharedTint.length);
   });
 
   it("gives no state the in-library marker, which is not a state", () => {
     for (const state of STATES) {
-      expect(describeState(state).glyph.codePointAt(0), state).not.toBe(IN_LIBRARY_CODE_POINT);
+      expect(describeState(state).iconKey, state).not.toBe(IN_LIBRARY_ICON_KEY);
     }
   });
 });
@@ -131,8 +126,8 @@ describe("deriving a state", () => {
 });
 
 describe("a view that renames a state", () => {
-  it("keeps the glyph so both read as the same underlying fact", () => {
-    expect(renameState("monitored", "Wanted").glyph).toBe(describeState("monitored").glyph);
+  it("keeps the mark so both read as the same underlying fact", () => {
+    expect(renameState("monitored", "Wanted").iconKey).toBe(describeState("monitored").iconKey);
   });
 
   it("keeps the tint and takes the new label", () => {

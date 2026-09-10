@@ -21,6 +21,11 @@ import {
   WhisparrStudioCardBadge,
 } from "./library/WhisparrEntityCardBadge";
 import { WhisparrVideoCardBadge } from "./library/WhisparrVideoCardBadge";
+import {
+  WhisparrPerformerLibraryRow,
+  WhisparrStudioLibraryRow,
+  WhisparrVideoLibraryRow,
+} from "./library/LibraryStatusRow";
 import { WhisparrSceneTab } from "./scene/WhisparrSceneTab";
 import { sceneBatchSelected } from "./batch/whisparrBatchSelected";
 
@@ -38,6 +43,9 @@ const mod = defineExtension({
     WhisparrStudioCardBadge,
     WhisparrPerformerCardBadge,
     WhisparrVideoCardBadge,
+    WhisparrVideoLibraryRow,
+    WhisparrStudioLibraryRow,
+    WhisparrPerformerLibraryRow,
     WhisparrSceneTab,
   },
 });
