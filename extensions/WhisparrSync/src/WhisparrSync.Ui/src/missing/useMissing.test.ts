@@ -10,8 +10,9 @@
  * bundle.
  */
 import { test, expect, vi, afterEach } from "vitest";
-import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { act, createElement } from "react";
+
+import { render } from "../common/lib/testRender";
 
 vi.mock("@cove-extensions/ui-shared", () => ({
   // The real builder, because the address the browser asks for is what is under test.
@@ -46,23 +47,7 @@ const { DEFAULT_MISSING_VIEW } = await import("./missingUrlLogic");
 const FIRST_SCENE = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
 const SECOND_SCENE = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Polls `until` until it holds, so a render is waited for rather than a number of milliseconds. */
-async function settled(until: () => boolean, budgetMs = 2000): Promise<boolean> {
-  const deadline = Date.now() + budgetMs;
-  while (!until() && Date.now() < deadline) {
-    await sleep(5);
-  }
-  return until();
-}
-
-const teardowns: (() => void)[] = [];
 afterEach(() => {
-  while (teardowns.length > 0) teardowns.pop()?.();
   sent.length = 0;
 });
 
@@ -74,18 +59,18 @@ async function mount(coveId: number) {
     return null;
   }
 
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(createElement(Probe));
-  const mounted = await settled(() => latest !== null);
-  teardowns.push(() => {
-    root.unmount();
-    container.remove();
-  });
+  await render(createElement(Probe));
 
-  expect(mounted, "the hook never committed").toBe(true);
+  expect(latest, "the hook never committed").not.toBeNull();
   return latest as unknown as ReturnType<typeof useMissing>;
+}
+
+/** Calls a verb and lets everything it set off run, rather than waiting a number of milliseconds. */
+async function pressing(verb: () => void): Promise<void> {
+  await act(() => {
+    verb();
+    return Promise.resolve();
+  });
 }
 
 const posted = () => sent.filter((call) => call.method === "POST");
@@ -93,8 +78,9 @@ const posted = () => sent.filter((call) => call.method === "POST");
 test("the selection asks for the bulk route and carries exactly the ticked scenes", async () => {
   const missing = await mount(42);
 
-  missing.monitorSelection([FIRST_SCENE, SECOND_SCENE]);
-  expect(await settled(() => posted().length === 1)).toBe(true);
+  await pressing(() => {
+    missing.monitorSelection([FIRST_SCENE, SECOND_SCENE]);
+  });
 
   expect(posted()).toHaveLength(1);
   expect(posted()[0].path.endsWith("/entity/studio/42/missing/bulk-monitor")).toBe(true);
@@ -110,12 +96,13 @@ test("the selection asks for the bulk route and carries exactly the ticked scene
 test("nothing the tab sends reaches the whole-entity route", async () => {
   const missing = await mount(42);
 
-  missing.monitorSelection([FIRST_SCENE, SECOND_SCENE]);
-  missing.monitorScene(FIRST_SCENE);
-  missing.searchScene(FIRST_SCENE);
-  missing.refresh();
-  expect(await settled(() => posted().length === 3)).toBe(true);
+  await pressing(() => {
+    missing.monitorSelection([FIRST_SCENE, SECOND_SCENE]);
+    missing.monitorScene(FIRST_SCENE);
+    missing.searchScene(FIRST_SCENE);
+    missing.refresh();
+  });
 
-  expect(sent.length).toBeGreaterThan(0);
+  expect(posted()).toHaveLength(3);
   expect(sent.filter((call) => call.path.endsWith("add-all-missing"))).toEqual([]);
 });

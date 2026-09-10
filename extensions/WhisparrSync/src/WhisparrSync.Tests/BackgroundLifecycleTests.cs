@@ -27,13 +27,6 @@ namespace WhisparrSync.Tests;
 /// </remarks>
 public sealed class BackgroundLifecycleTests
 {
-    /// <summary>How long the worker is left running before it is asked to be still running.</summary>
-    /// <remarks>
-    /// Far below the worker's own wake period, so a pass means it is waiting rather than that the
-    /// window was too short to catch a wake.
-    /// </remarks>
-    private static readonly TimeSpan StillRunningWindow = TimeSpan.FromMilliseconds(250);
-
     /// <summary>The worker's own wake period, transcribed by hand from the floor it is built on.</summary>
     private static readonly TimeSpan WorkerPeriod =
         TimeSpan.FromSeconds(WhisparrSyncOptions.BackstopIntervalFloorSeconds);
@@ -48,8 +41,12 @@ public sealed class BackgroundLifecycleTests
     private static readonly TimeSpan DefaultInterval =
         TimeSpan.FromSeconds(WhisparrSyncOptions.DefaultBackstopIntervalSeconds);
 
-    /// <summary>Real time allowed for the worker's continuations between two clock advances.</summary>
-    private static readonly TimeSpan SettleWindow = TimeSpan.FromMilliseconds(100);
+    /// <summary>How long a signal is waited for before the case fails rather than hangs.</summary>
+    /// <remarks>
+    /// Never reached by a passing run: every wait below is for something the worker does as soon as
+    /// its continuations run, so the budget bounds a broken run instead of pacing a working one.
+    /// </remarks>
+    private static readonly TimeSpan SignalBudget = TimeSpan.FromSeconds(10);
 
     /// <summary>Where the driveable clock starts. Any instant; only the differences are read.</summary>
     private static readonly DateTimeOffset Start = new(2026, 8, 31, 9, 0, 0, TimeSpan.Zero);
@@ -57,12 +54,21 @@ public sealed class BackgroundLifecycleTests
     [Fact]
     public async Task TheWorkerKeepsRunningUntilItsTokenIsCancelled()
     {
+        var clock = new ManualTimeProvider(Start);
+        var pass = new BlockingPass(clock, blocking: false);
         var extension = WhisparrSyncFixture.Create();
-        await using var services = WorkerServices();
+        await using var services = WorkerServices(clock, pass, WatchedSeeded(EveryWake));
         using var stop = new CancellationTokenSource();
 
         var worker = extension.RunAsync(services, stop.Token);
-        await Task.Delay(StillRunningWindow, TestContext.Current.CancellationToken);
+        await clock.TimerCreatedAsync();
+
+        // Two wakes served rather than a window of real time waited out. The second pass is what says
+        // the worker went back round the loop instead of returning after the first.
+        clock.Advance(WorkerPeriod);
+        await pass.ReturnedAsync(1);
+        clock.Advance(WorkerPeriod);
+        await pass.ReturnedAsync(2);
 
         Assert.False(worker.IsCompleted, "the worker returned without being asked to stop");
         Assert.NotNull(ProbeOf(extension).WorkerStartedAtUtc);
@@ -148,33 +154,41 @@ public sealed class BackgroundLifecycleTests
     [Fact]
     public async Task AWakeArrivingWhileAPassRunsStartsNoSecondPass()
     {
-        var pass = new BlockingPass();
         var clock = new ManualTimeProvider(Start);
+        var pass = new BlockingPass(clock);
         var extension = WhisparrSyncFixture.Create();
-        await using var services = WorkerServices(clock, pass, EveryWake);
+        await using var services = WorkerServices(clock, pass, WatchedSeeded(EveryWake));
         using var stop = new CancellationTokenSource();
 
         var worker = extension.RunAsync(services, stop.Token);
-        await Settle();
+        await clock.TimerCreatedAsync();
 
         clock.Advance(WorkerPeriod);
-        await pass.StartedAsync();
+        await pass.StartedAsync(1);
 
+        // Three wakes while the pass is in flight. Nothing is waited for between them: the loop is
+        // inside the pass, so it cannot receive one until the pass returns.
         for (var wake = 0; wake < 3; wake++)
         {
             clock.Advance(WorkerPeriod);
-            await Settle();
         }
 
         Assert.Equal(1, pass.Started);
         Assert.Equal(1, pass.MostInFlightAtOnce);
 
         pass.Release();
-        await Settle();
+        await pass.ReturnedAsync(1);
 
-        // The wake that arrived mid-pass was skipped rather than queued: releasing the pass does not
-        // set off the ones that were dropped.
+        // The one wake the timer held is served after the pass returned, and never beside it.
+        await pass.StartedAsync(2);
         Assert.Equal(1, pass.MostInFlightAtOnce);
+        Assert.Equal([Start + WorkerPeriod, Start + (4 * WorkerPeriod)], pass.StartedAt);
+
+        // The two wakes over the one the timer held were dropped rather than queued: the next pass
+        // runs at the instant of the wake that follows, not at the instant a queued one would have.
+        clock.Advance(WorkerPeriod);
+        await pass.StartedAsync(3);
+        Assert.Equal(Start + (5 * WorkerPeriod), pass.StartedAt[2]);
 
         await stop.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
@@ -188,23 +202,25 @@ public sealed class BackgroundLifecycleTests
     [Fact]
     public async Task EachWakeRunsItsOwnPassOnceTheOneBeforeItReturned()
     {
-        var pass = new BlockingPass(blocking: false);
         var clock = new ManualTimeProvider(Start);
+        var pass = new BlockingPass(clock, blocking: false);
         var extension = WhisparrSyncFixture.Create();
-        await using var services = WorkerServices(clock, pass, EveryWake);
+        await using var services = WorkerServices(clock, pass, WatchedSeeded(EveryWake));
         using var stop = new CancellationTokenSource();
 
         var worker = extension.RunAsync(services, stop.Token);
-        await Settle();
+        await clock.TimerCreatedAsync();
 
-        for (var wake = 0; wake < 3; wake++)
+        for (var wake = 1; wake <= 3; wake++)
         {
             clock.Advance(WorkerPeriod);
-            await Settle();
+            await pass.ReturnedAsync(wake);
         }
 
-        Assert.Equal(3, pass.Started);
         Assert.Equal(1, pass.MostInFlightAtOnce);
+        Assert.Equal(
+            [Start + WorkerPeriod, Start + (2 * WorkerPeriod), Start + (3 * WorkerPeriod)],
+            pass.StartedAt);
 
         await stop.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
@@ -214,23 +230,28 @@ public sealed class BackgroundLifecycleTests
     [Fact]
     public async Task AnIntervalLongerThanTheWakePeriodSkipsTheWakesBetween()
     {
-        var pass = new BlockingPass(blocking: false);
         var clock = new ManualTimeProvider(Start);
+        var pass = new BlockingPass(clock, blocking: false);
+        var store = WatchedSeeded(EveryThirdWake);
         var extension = WhisparrSyncFixture.Create();
-        await using var services = WorkerServices(clock, pass, EveryThirdWake);
+        await using var services = WorkerServices(clock, pass, store);
         using var stop = new CancellationTokenSource();
 
         var worker = extension.RunAsync(services, stop.Token);
-        await Settle();
+        await clock.TimerCreatedAsync();
 
-        for (var wake = 0; wake < 4; wake++)
+        for (var wake = 1; wake <= 4; wake++)
         {
             clock.Advance(WorkerPeriod);
-            await Settle();
+            await store.ReadAsync(wake);
         }
 
-        // The first wake and the fourth. The two between them were inside the configured interval.
-        Assert.Equal(2, pass.Started);
+        await pass.ReturnedAsync(2);
+
+        // The first wake and the fourth. The two between them were inside the configured interval,
+        // which the instant each pass ran at reports directly: a pass on a skipped wake would carry
+        // that wake's own instant.
+        Assert.Equal([Start + WorkerPeriod, Start + (4 * WorkerPeriod)], pass.StartedAt);
 
         await stop.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
@@ -258,20 +279,21 @@ public sealed class BackgroundLifecycleTests
     [Fact]
     public async Task APassThatFailsUnexpectedlyLeavesTheWorkerRunning()
     {
-        var pass = new BlockingPass(blocking: false) { Throwing = true };
         var clock = new ManualTimeProvider(Start);
+        var pass = new BlockingPass(clock, blocking: false) { Throwing = true };
         var extension = WhisparrSyncFixture.Create();
-        await using var services = WorkerServices(clock, pass, EveryWake);
+        await using var services = WorkerServices(clock, pass, WatchedSeeded(EveryWake));
         using var stop = new CancellationTokenSource();
 
         var worker = extension.RunAsync(services, stop.Token);
-        await Settle();
+        await clock.TimerCreatedAsync();
 
         clock.Advance(WorkerPeriod);
-        await Settle();
+        await pass.ReturnedAsync(1);
         clock.Advance(WorkerPeriod);
-        await Settle();
+        await pass.ReturnedAsync(2);
 
+        // The second pass ran at all, so the first failure was contained rather than let out.
         Assert.Equal(2, pass.Started);
         Assert.False(worker.IsCompleted, "a failed pass ended the worker");
 
@@ -289,25 +311,30 @@ public sealed class BackgroundLifecycleTests
     [Fact]
     public async Task AFollowUpThatFailsUnexpectedlyLeavesTheWorkerRunning()
     {
-        var pass = new BlockingPass(blocking: false);
         var clock = new ManualTimeProvider(Start);
+        var pass = new BlockingPass(clock, blocking: false);
         var noted = new RecordingLibrary(reached: true, ["/data"]);
         var followUp = new FollowUpScanCoalescer(clock, NullLogger.Instance);
         var extension = WhisparrSyncFixture.Create();
-        await using var services = WorkerServices(clock, pass, EveryWake, followUp, library: null);
+        await using var services = WorkerServices(
+            clock, pass, WatchedSeeded(EveryWake), followUp, library: null);
         using var stop = new CancellationTokenSource();
 
         var worker = extension.RunAsync(services, stop.Token);
-        await Settle();
+        await clock.TimerCreatedAsync();
 
+        // The quiet period is below the wake period, so the first wake is the one the second advance
+        // delivers, and the batch has already fallen quiet by then.
         followUp.NoteImported("/data/scene.mp4", noted);
         clock.Advance(FollowUpScanCoalescer.QuietPeriod);
 
         clock.Advance(WorkerPeriod);
-        await Settle();
+        await pass.ReturnedAsync(1);
         clock.Advance(WorkerPeriod);
-        await Settle();
+        await pass.ReturnedAsync(2);
 
+        // The second wake's pass is the reading: a worker that ended on the first failure would leave
+        // the first pass's own record behind and look like a success.
         Assert.Equal(2, pass.Started);
         Assert.False(worker.IsCompleted, "a failed follow-up ended the worker");
 
@@ -327,33 +354,39 @@ public sealed class BackgroundLifecycleTests
     [Fact]
     public async Task AnIntervalReadThatFailsFallsBackToTheDefaultRatherThanEndingTheWorker()
     {
-        var pass = new BlockingPass(blocking: false);
         var clock = new ManualTimeProvider(Start);
+        var pass = new BlockingPass(clock, blocking: false);
+        var store = new WatchedStore(
+            new RaisingStore(() => new InvalidOperationException("the options blob could not be read")));
         var extension = WhisparrSyncFixture.Create();
         await using var services = WorkerServices(
             clock,
             pass,
-            EveryWake,
+            store,
             new FollowUpScanCoalescer(clock, NullLogger.Instance),
-            new RecordingLibrary(reached: true, ["/data"]),
-            new RaisingStore(() => new InvalidOperationException("the options blob could not be read")));
+            new RecordingLibrary(reached: true, ["/data"]));
         using var stop = new CancellationTokenSource();
 
         var worker = extension.RunAsync(services, stop.Token);
-        await Settle();
+        await clock.TimerCreatedAsync();
 
         // The first wake passes whatever the interval reads: nothing has run yet.
         clock.Advance(WorkerPeriod);
-        await Settle();
-        Assert.Equal(1, pass.Started);
+        await pass.ReturnedAsync(1);
 
+        // A wake the worker served and the gate held back. Awaited on its own read, so the advance
+        // below is a second wake rather than one the timer collapsed into this one.
         clock.Advance(WorkerPeriod);
-        await Settle();
-        Assert.Equal(1, pass.Started);
+        await store.ReadAsync(2);
 
         clock.Advance(DefaultInterval);
-        await Settle();
-        Assert.Equal(2, pass.Started);
+        await pass.ReturnedAsync(2);
+
+        // The second pass at the default interval's own cadence: a fallback that read as the floor
+        // would have run one at the wake between, carrying that wake's instant.
+        Assert.Equal(
+            [Start + WorkerPeriod, Start + (2 * WorkerPeriod) + DefaultInterval],
+            pass.StartedAt);
         Assert.False(worker.IsCompleted, "a failed interval read ended the worker");
 
         await stop.CancelAsync();
@@ -372,24 +405,23 @@ public sealed class BackgroundLifecycleTests
     [Fact]
     public async Task ACancellationArisingInsideAContainedCallStillEndsTheWorkerAsCancelled()
     {
-        var pass = new BlockingPass(blocking: false);
         var clock = new ManualTimeProvider(Start);
+        var pass = new BlockingPass(clock, blocking: false);
         var extension = WhisparrSyncFixture.Create();
         using var stop = new CancellationTokenSource();
         await using var services = WorkerServices(
             clock,
             pass,
-            EveryWake,
-            new FollowUpScanCoalescer(clock, NullLogger.Instance),
-            new RecordingLibrary(reached: true, ["/data"]),
             new RaisingStore(() =>
             {
                 stop.Cancel();
                 return new OperationCanceledException();
-            }));
+            }),
+            new FollowUpScanCoalescer(clock, NullLogger.Instance),
+            new RecordingLibrary(reached: true, ["/data"]));
 
         var worker = extension.RunAsync(services, stop.Token);
-        await Settle();
+        await clock.TimerCreatedAsync();
 
         clock.Advance(WorkerPeriod);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
@@ -417,31 +449,30 @@ public sealed class BackgroundLifecycleTests
     [Fact]
     public async Task ACancellationArisingWhileTheTokenIsLiveIsContainedRatherThanEndingTheWorker()
     {
-        var pass = new BlockingPass(blocking: false);
         var clock = new ManualTimeProvider(Start);
+        var pass = new BlockingPass(clock, blocking: false);
         var extension = WhisparrSyncFixture.Create();
         await using var services = WorkerServices(
             clock,
             pass,
-            EveryWake,
+            new RaisingStore(() => new TaskCanceledException()),
             new FollowUpScanCoalescer(clock, NullLogger.Instance),
-            new RecordingLibrary(reached: true, ["/data"]),
-            new RaisingStore(() => new TaskCanceledException()));
+            new RecordingLibrary(reached: true, ["/data"]));
         using var stop = new CancellationTokenSource();
 
         var worker = extension.RunAsync(services, stop.Token);
-        await Settle();
+        await clock.TimerCreatedAsync();
 
         clock.Advance(WorkerPeriod);
-        await Settle();
+        await pass.ReturnedAsync(1);
 
-        Assert.Equal(1, pass.Started);
         Assert.False(worker.IsCompleted, "a cancellation the host never asked for ended the worker");
 
         // The cadence the default interval sets, which is what the contained read fell back to.
         clock.Advance(DefaultInterval);
-        await Settle();
-        Assert.Equal(2, pass.Started);
+        await pass.ReturnedAsync(2);
+        Assert.Equal(
+            [Start + WorkerPeriod, Start + WorkerPeriod + DefaultInterval], pass.StartedAt);
 
         await stop.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
@@ -458,18 +489,22 @@ public sealed class BackgroundLifecycleTests
         var clock = new ManualTimeProvider(Start);
         var library = new RecordingLibrary(reached: true, ["/data"]);
         var followUp = new FollowUpScanCoalescer(clock, NullLogger.Instance);
+        var store = WatchedSeeded(EveryThirdWake);
         var extension = WhisparrSyncFixture.Create();
         await using var services = WorkerServices(
-            clock, new BlockingPass(blocking: false), EveryThirdWake, followUp, library);
+            clock, new BlockingPass(clock, blocking: false), store, followUp, library);
         using var stop = new CancellationTokenSource();
 
         var worker = extension.RunAsync(services, stop.Token);
-        await Settle();
+        await clock.TimerCreatedAsync();
 
         followUp.NoteImported("/data/scene.mp4", library);
         clock.Advance(FollowUpScanCoalescer.QuietPeriod);
         clock.Advance(WorkerPeriod);
-        await Settle();
+
+        // The follow-up runs before the interval read and is awaited inline, so the wake's read is
+        // the signal that the scan either happened or was skipped.
+        await store.ReadAsync(1);
 
         Assert.Equal(["/data/scene.mp4"], Assert.Single(library.Scans));
 
@@ -493,11 +528,11 @@ public sealed class BackgroundLifecycleTests
         var followUp = new FollowUpScanCoalescer(clock, NullLogger.Instance);
         var extension = WhisparrSyncFixture.Create();
         await using var services = WorkerServices(
-            clock, new BlockingPass(blocking: false), EveryWake, followUp, library);
+            clock, new BlockingPass(clock, blocking: false), WatchedSeeded(EveryWake), followUp, library);
         using var stop = new CancellationTokenSource();
 
         var worker = extension.RunAsync(services, stop.Token);
-        await Settle();
+        await clock.TimerCreatedAsync();
 
         // Noted with no wake between it and the stop, so the batch is still pending when the token
         // is cancelled.
@@ -522,15 +557,15 @@ public sealed class BackgroundLifecycleTests
 
     /// <summary>The worker's services, with a driveable clock and a pass a test can watch.</summary>
     private static ServiceProvider WorkerServices(
-        TimeProvider clock, IBackstopPass pass, int intervalSeconds)
+        TimeProvider clock, IBackstopPass pass, IExtensionStore store)
         => WorkerServices(
             clock,
             pass,
-            intervalSeconds,
+            store,
             new FollowUpScanCoalescer(clock, NullLogger.Instance),
             new RecordingLibrary(reached: true, ["/data"]));
 
-    /// <inheritdoc cref="WorkerServices(TimeProvider, IBackstopPass, int)"/>
+    /// <inheritdoc cref="WorkerServices(TimeProvider, IBackstopPass, IExtensionStore)"/>
     /// <remarks>
     /// A null library is registered as no library at all, which is what the resolve inside the
     /// follow-up meets on a host whose scan service this extension's container cannot produce.
@@ -538,12 +573,11 @@ public sealed class BackgroundLifecycleTests
     private static ServiceProvider WorkerServices(
         TimeProvider clock,
         IBackstopPass pass,
-        int intervalSeconds,
+        IExtensionStore store,
         FollowUpScanCoalescer followUp,
-        ICoveLibraryPort? library,
-        IExtensionStore? store = null)
+        ICoveLibraryPort? library)
     {
-        var options = new OptionsStore(store ?? SeededStore(intervalSeconds));
+        var options = new OptionsStore(store);
         var services = new ServiceCollection()
             .AddSingleton(clock)
             .AddSingleton(followUp)
@@ -558,6 +592,10 @@ public sealed class BackgroundLifecycleTests
         return services.BuildServiceProvider();
     }
 
+    /// <summary>A store holding one interval, watchable for the reads the worker makes of it.</summary>
+    private static WatchedStore WatchedSeeded(int intervalSeconds)
+        => new(SeededStore(intervalSeconds));
+
     private static FakeStore SeededStore(int intervalSeconds)
     {
         var store = new FakeStore();
@@ -570,13 +608,6 @@ public sealed class BackgroundLifecycleTests
 
         return store;
     }
-
-    /// <summary>Lets the worker's own continuations run before the next reading is taken.</summary>
-    /// <remarks>
-    /// The clock is driven from this thread while the loop awaits on another, so a reading taken
-    /// straight after an advance would be taken before the wake had been received.
-    /// </remarks>
-    private static Task Settle() => Task.Delay(SettleWindow, TestContext.Current.CancellationToken);
 
     private static HostConfigurationView ProbeOf(global::WhisparrSync.WhisparrSync extension)
         => ValueOf<HostConfigurationView>(
@@ -608,34 +639,119 @@ public sealed class BackgroundLifecycleTests
     }
 
     /// <summary>
+    /// A count of occurrences a test can await one of, rather than waiting out a window of real time.
+    /// </summary>
+    /// <remarks>
+    /// The signal for an occurrence that has not happened yet is made on demand, so a test may await
+    /// the third before the first has happened, and one already recorded answers straight away rather
+    /// than waiting for the next.
+    /// </remarks>
+    private sealed class Signals
+    {
+        private readonly Lock _gate = new();
+        private readonly List<TaskCompletionSource> _signals = [];
+        private int _count;
+
+        /// <summary>Records one occurrence.</summary>
+        public void Reach()
+        {
+            lock (_gate)
+            {
+                _count++;
+                SignalFor(_count).TrySetResult();
+            }
+        }
+
+        /// <summary>Returns once the <paramref name="nth"/> occurrence has been recorded.</summary>
+        public Task Reached(int nth)
+        {
+            lock (_gate)
+            {
+                return SignalFor(nth).Task
+                    .WaitAsync(SignalBudget, TestContext.Current.CancellationToken);
+            }
+        }
+
+        private TaskCompletionSource SignalFor(int nth)
+        {
+            while (_signals.Count < nth)
+            {
+                _signals.Add(new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+            }
+
+            return _signals[nth - 1];
+        }
+    }
+
+    /// <summary>
+    /// A store that signals each read of the options blob, which the loop makes once per wake.
+    /// </summary>
+    /// <remarks>
+    /// The signal is raised as the read begins rather than when it answers, so a store whose reads
+    /// raise is watchable the same way. The follow-up step runs before the read and is awaited inline,
+    /// so a signalled read is also a finished follow-up.
+    /// </remarks>
+    private sealed class WatchedStore(IExtensionStore inner) : IExtensionStore
+    {
+        private readonly Signals _reads = new();
+
+        /// <summary>Returns once the worker's <paramref name="nth"/> interval read has begun.</summary>
+        public Task ReadAsync(int nth) => _reads.Reached(nth);
+
+        public Task<string?> GetAsync(string key, CancellationToken ct = default)
+        {
+            _reads.Reach();
+            return inner.GetAsync(key, ct);
+        }
+
+        public Task SetAsync(string key, string value, CancellationToken ct = default)
+            => inner.SetAsync(key, value, ct);
+
+        public Task DeleteAsync(string key, CancellationToken ct = default)
+            => inner.DeleteAsync(key, ct);
+
+        public Task<Dictionary<string, string>> GetAllAsync(CancellationToken ct = default)
+            => inner.GetAllAsync(ct);
+    }
+
+    /// <summary>
     /// A pass a test starts, watches and releases.
     /// </summary>
     /// <remarks>
     /// It records the highest number of passes in flight at any one instant rather than a total. A
     /// second pass that began and ended between two readings would leave a total correct and the
     /// property it stands for broken.
+    /// <para>
+    /// The instant each pass began is read off the driveable clock, so a cadence is asserted as the
+    /// instants the passes ran at rather than as a count taken after a wait.
+    /// </para>
     /// </remarks>
-    private sealed class BlockingPass(bool blocking = true) : IBackstopPass
+    private sealed class BlockingPass(TimeProvider clock, bool blocking = true) : IBackstopPass
     {
         private readonly TaskCompletionSource _released = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly Signals _starts = new();
+        private readonly Signals _returns = new();
+        private readonly List<DateTimeOffset> _startedAt = [];
         private int _inFlight;
 
         /// <summary>Whether the pass ends by throwing.</summary>
         public bool Throwing { get; init; }
 
         /// <summary>How many passes have begun.</summary>
-        public int Started { get; private set; }
+        public int Started => _startedAt.Count;
+
+        /// <summary>The clock instant each pass began at, in order.</summary>
+        public List<DateTimeOffset> StartedAt => _startedAt;
 
         /// <summary>The most that were ever running at one instant.</summary>
         public int MostInFlightAtOnce { get; private set; }
 
         public async Task<BackstopPassResult> RunAsync(CancellationToken ct)
         {
-            Started++;
+            _startedAt.Add(clock.GetUtcNow());
             _inFlight++;
             MostInFlightAtOnce = Math.Max(MostInFlightAtOnce, _inFlight);
-            _entered.TrySetResult();
+            _starts.Reach();
 
             try
             {
@@ -654,11 +770,15 @@ public sealed class BackgroundLifecycleTests
             finally
             {
                 _inFlight--;
+                _returns.Reach();
             }
         }
 
-        /// <summary>Returns once a pass has begun.</summary>
-        public Task StartedAsync() => _entered.Task.WaitAsync(TestContext.Current.CancellationToken);
+        /// <summary>Returns once the <paramref name="nth"/> pass has begun.</summary>
+        public Task StartedAsync(int nth) => _starts.Reached(nth);
+
+        /// <summary>Returns once the <paramref name="nth"/> pass has returned, however it ended.</summary>
+        public Task ReturnedAsync(int nth) => _returns.Reached(nth);
 
         /// <summary>Lets the pass in flight return.</summary>
         public void Release() => _released.TrySetResult();
@@ -675,7 +795,18 @@ public sealed class BackgroundLifecycleTests
     {
         private readonly Lock _gate = new();
         private readonly List<ManualTimer> _timers = [];
+        private readonly Signals _created = new();
         private DateTimeOffset _now = start;
+
+        /// <summary>
+        /// Returns once the worker has created its own timer, which is the first instant a wake can
+        /// be delivered at all.
+        /// </summary>
+        /// <remarks>
+        /// A clock advanced before the timer exists moves the instant it is scheduled from, so the
+        /// wake is never delivered and the case waits on a pass that cannot run.
+        /// </remarks>
+        public Task TimerCreatedAsync() => _created.Reached(1);
 
         public override DateTimeOffset GetUtcNow()
         {
@@ -695,6 +826,7 @@ public sealed class BackgroundLifecycleTests
                 timer.Reschedule(_now, dueTime, period);
             }
 
+            _created.Reach();
             return timer;
         }
 

@@ -10,8 +10,8 @@
  */
 import { expect, test, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
 
+import { render } from "../common/lib/testRender";
 import type { WhisparrSyncGenerationSettingsView } from "../wire/api";
 import type { GenerationDraft, TransientTest } from "./connectLogic";
 import type { SaveState } from "./connectionStore";
@@ -44,19 +44,6 @@ vi.mock("@cove-extensions/ui-shared", async () => {
 });
 
 const { ConnectionSection } = await import("./ConnectionSection");
-
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-async function render(node: ReactNode): Promise<HTMLElement> {
-  const host = document.createElement("div");
-  document.body.append(host);
-  createRoot(host).render(node);
-  await sleep(20);
-  return host;
-}
 
 const NEVER_VERIFIED: WhisparrSyncGenerationSettingsView = {
   address: "http://whisparr:6969",
@@ -144,8 +131,9 @@ test("the key pill reports that a key is set without disclosing any of it", asyn
   const set = await render(section({ stored: NEVER_VERIFIED }));
   expect(set.textContent).toContain("Key is set");
 
-  // The only key value in scope anywhere on this page: the settings view has no member that could
-  // carry a stored one, so a leak could only come from the field's own draft.
+  // The only key value in scope anywhere on this page. That the response carries none is the
+  // server's own guarantee, asserted over the shipped projection in SettingsProjectionTests, so a
+  // leak here could only come from the field's own draft.
   const typed = "e2ewriteonly7c41b9a6d2f80e35a1c4";
   const withDraft = await render(
     section({ draft: { address: "http://whisparr:6969", apiKey: typed, keyCleared: false } }),
@@ -153,16 +141,4 @@ test("the key pill reports that a key is set without disclosing any of it", asyn
 
   expect(withDraft.textContent).not.toContain(typed);
   expect(withDraft.textContent).not.toContain(typed.slice(0, 4));
-});
-
-test("the settings view has no member that could carry a key", () => {
-  // Transcribed by hand from the C# record. A member added here would have to be accounted for
-  // before the write-only guarantee could still be claimed.
-  expect(Object.keys(NEVER_VERIFIED).sort()).toEqual([
-    "address",
-    "keyIsSet",
-    "lastReachableAtUtc",
-    "recordedVersion",
-    "versionVerifiedAtUtc",
-  ]);
 });

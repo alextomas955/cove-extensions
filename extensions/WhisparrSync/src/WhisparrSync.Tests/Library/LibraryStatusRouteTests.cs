@@ -45,22 +45,13 @@ public sealed class LibraryStatusRouteTests
     }
 
     /// <summary>A body this route cannot express is refused before anything is read.</summary>
-    /// <remarks>
-    /// The cap is one rendered page. A body over it is one no page of this surface can produce, and
-    /// an identifier below one names no Cove entity.
-    /// </remarks>
+    /// <remarks>An identifier below one names no Cove entity, and an empty body asks nothing.</remarks>
     [Fact]
     public async Task ABodyThisRouteCannotExpressIsRefused()
     {
         await using var host = await MonitorHost.CreateAsync();
 
-        string[] refused =
-        [
-            Asking(),
-            Asking(0),
-            Asking(-1),
-            Asking([.. Enumerable.Range(1, 41)]),
-        ];
+        string[] refused = [Asking(), Asking(0), Asking(-1)];
 
         foreach (var body in refused)
         {
@@ -69,6 +60,26 @@ public sealed class LibraryStatusRouteTests
         }
 
         Assert.Empty(host.Client.Acting);
+    }
+
+    /// <summary>A body carrying the most identifiers allowed is served, and one more is refused.</summary>
+    /// <remarks>
+    /// Both halves, because a refusal on its own holds for a route that refuses every page. The cap
+    /// is one rendered page: a body over it is one no page of this surface can produce, and the
+    /// browser splits a longer page across requests to it.
+    /// </remarks>
+    [Fact]
+    public async Task ABodyAtTheBoundIsServedAndOneOverItIsRefused()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+
+        var atTheBound = await host.PostLibraryStatusAsync(
+            "studio", Asking([.. Enumerable.Range(1, 40)]));
+        var overIt = await host.PostLibraryStatusAsync(
+            "studio", Asking([.. Enumerable.Range(1, 41)]));
+
+        Assert.Equal(HttpStatusCode.OK, atTheBound.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, overIt.StatusCode);
     }
 
     /// <summary>A kind segment naming nothing this route answers for is a bad request.</summary>
