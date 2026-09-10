@@ -6,9 +6,6 @@
  * A DOM is needed because both are about the rendered tree. A fixed mask id would have the second
  * instance overwrite the first's mask in the document, which is only observable once two are on the
  * page.
- *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is flushed by waiting rather than by wrapping.
  */
 import { test, expect } from "vitest";
 import { createElement, Fragment, type ReactNode } from "react";

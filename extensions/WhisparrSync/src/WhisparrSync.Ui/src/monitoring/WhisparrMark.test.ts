@@ -5,9 +5,6 @@
  * A DOM is needed because both properties are about the rendered tree: nothing at all before the read
  * answers is what keeps the wrong product's colour off the screen, and a mark contributing text would
  * put a second name on a control whose accessible name is the only name it has.
- *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
- * too), which has no `act`, so a render is flushed by waiting rather than by wrapping.
  */
 import { test, expect } from "vitest";
 import { createElement, type ReactNode } from "react";
