@@ -181,6 +181,9 @@ declare module "@cove/runtime/components" {
     confirmLabel: string;
     onConfirm: () => void;
     onCancel: () => void;
+    // Defaults to true in the host, which paints the confirm button bg-red-600. A call site
+    // confirming a non-destructive action must pass false; omitting it ships a red button.
+    destructive?: boolean;
   }) => never;
 
   export type KeyboardShortcutSurface =
