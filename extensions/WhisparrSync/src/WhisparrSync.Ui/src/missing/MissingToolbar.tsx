@@ -249,6 +249,10 @@ export function MissingToolbar({
           createPortal(
             <ConfirmDialog
               open
+              // The host defaults this to true and paints the confirm button red. This run marks
+              // scenes wanted and downloads nothing by itself, which is what the message says, so
+              // a red button would contradict its own sentence.
+              destructive={false}
               title={MONITOR_ALL_LABEL}
               confirmLabel={MONITOR_ALL_LABEL}
               message={monitorAllConfirmation(
