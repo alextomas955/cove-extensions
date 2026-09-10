@@ -153,6 +153,10 @@ public sealed class LibraryStatusPortTests
     /// An instance answering an empty list holds no entry, which is a different fact from an entry it
     /// holds and does not monitor.
     /// </summary>
+    /// <remarks>
+    /// The same answer establishes that it holds no file: an instance holding no entry has nothing to
+    /// hold a file for, so the absence is answered rather than assumed.
+    /// </remarks>
     [Fact]
     public async Task AnEmptyListIsAnAbsenceAndEstablishesNoFlag()
     {
@@ -160,7 +164,35 @@ public sealed class LibraryStatusPortTests
 
         var readings = await ReadScenesAsync(reading, Excluding(reading), SceneIdentities(1));
 
-        Assert.Equal(new LibraryCardReading(false, false, null), readings[1]);
+        Assert.Equal(new LibraryCardReading(false, false, null, false), readings[1]);
+    }
+
+    /// <summary>A scene the instance holds a file for carries that beside its monitored flag.</summary>
+    [Fact]
+    public async Task AHeldSceneWithAFileReadsAsInLibrary()
+    {
+        var reading = new RecordingSceneReading(status: 200, body: HeldWithAFile);
+
+        var readings = await ReadScenesAsync(reading, Excluding(reading), SceneIdentities(1));
+
+        Assert.Equal(new LibraryCardReading(false, true, true, true), readings[1]);
+    }
+
+    /// <summary>
+    /// A held scene whose answer carries no usable file flag establishes nothing about a file.
+    /// </summary>
+    /// <remarks>
+    /// Reported apart from a scene answered as having none. Reading an absent flag as false would
+    /// count the scene among the ones the instance holds nothing for, on a fact nothing answered.
+    /// </remarks>
+    [Fact]
+    public async Task AHeldSceneWithNoFileFlagEstablishesNothingAboutAFile()
+    {
+        var reading = new RecordingSceneReading(status: 200, body: HeldAndMonitored);
+
+        var readings = await ReadScenesAsync(reading, Excluding(reading), SceneIdentities(1));
+
+        Assert.Null(readings[1].InLibrary);
     }
 
     /// <summary>An answer nothing could be read from establishes neither member.</summary>
@@ -189,7 +221,7 @@ public sealed class LibraryStatusPortTests
         var readings = await ReadScenesAsync(
             reading, Excluding(reading, SceneIdentifier(1)), SceneIdentities(1));
 
-        Assert.Equal(new LibraryCardReading(true, false, null), readings[1]);
+        Assert.Equal(new LibraryCardReading(true, false, null, false), readings[1]);
     }
 
     /// <summary>
@@ -307,6 +339,8 @@ public sealed class LibraryStatusPortTests
 
     /// <summary>The per-scene route answers a list, of one row where the instance holds the scene.</summary>
     private static string HeldAndMonitored => """[{"id":9,"monitored":true}]""";
+
+    private static string HeldWithAFile => """[{"id":9,"monitored":true,"hasFile":true}]""";
 
     /// <summary>The identifier the scene named by <paramref name="coveId"/> is known by.</summary>
     private static string SceneIdentifier(int coveId) => $"scene-{coveId}";

@@ -59,6 +59,10 @@ const COULD_NOT_BE_READ =
 const NO_PLACE_FOR_A_BADGE =
   "This display mode has no place for a per-card status. Switch to the Grid display mode to see it.";
 
+/** What the row says its counts are over, transcribed by hand from the shipped sentence. */
+const COUNTS_ARE_FOR_THIS_PAGE =
+  "These counts are for the cards on this page, not for the whole library.";
+
 /** How many cards are seeded, which is more than one rendered window holds. */
 const SEEDED_CARDS = 45;
 
@@ -206,7 +210,7 @@ const cardFor = (page, name) => studioCards(page).filter({ hasText: name });
 /**
  * Every state chip inside a card's own extension box.
  *
- * The chip's label shares its element with an aria-hidden glyph, so the element carries both and an
+ * The chip's label shares its element with a drawn mark, so the element carries both and an
  * exact-text locator finds nothing. The shape is located here and the words are asserted off it.
  */
 const stateChips = (scope) => scope.locator(".card-extension span.rounded-full");
@@ -290,6 +294,12 @@ const videoCards = (page) => page.locator(".video-card");
 
 /** One scene's own card, found by the title it was seeded under. */
 const videoCardFor = (page, title) => videoCards(page).filter({ hasText: title });
+
+/**
+ * The row of counts under the toolbar, by the only thing that distinguishes it from the page's
+ * other live regions: the sentence it carries about what it counted.
+ */
+const statusRow = (page) => page.locator(`[role=status][title="${COUNTS_ARE_FOR_THIS_PAGE}"]`);
 
 /** The titles of the cards the videos grid holds right now, which is a window over the list. */
 const cardTitles = (page) => videoCards(page).locator(".card-title").allInnerTexts();
@@ -766,10 +776,29 @@ test.describe("library status", () => {
       const chips = await stateChips(page).all();
       for (const chip of chips) {
         await expect(
-          chip.locator("span[aria-hidden='true']"),
-          "a state chip carries no glyph, so it is distinguished by colour alone",
+          chip.locator("svg[aria-hidden='true']"),
+          "a state chip carries no mark, so it is distinguished by colour alone",
         ).toHaveCount(1);
       }
+
+      // The row under the toolbar names the states the badges below it draw. The slot name, the
+      // manifest's component name and the bundle's registered key are three strings across two
+      // repositories, and a page where any pair differs draws no row at all, with no error.
+      const row = statusRow(page);
+      await expect(row, "no row of counts is under the toolbar").toHaveCount(1, {
+        timeout: BADGE_BUDGET_MS,
+      });
+
+      // Read as counts rather than as a sentence: each is the count of cards on the page carrying
+      // that state, and the seeded page has one of each.
+      await expect(row, "the row does not count the monitored scene").toContainText(
+        /1\s*Monitored/,
+      );
+      await expect(row, "the row does not count the excluded scene").toContainText(/1\s*Excluded/);
+      await expect(
+        row,
+        "the row does not count the scene the instance holds no entry for",
+      ).toContainText(/1\s*not added on this page/);
 
       const missingComponent = consoleErrors.filter((line) =>
         /component not found|does not provide an export|SyntaxError/i.test(line),
@@ -778,6 +807,43 @@ test.describe("library status", () => {
         missingComponent,
         `a page reported a component the bundle does not register: ${missingComponent.join(" | ")}`,
       ).toEqual([]);
+    });
+  });
+
+  test("the row of counts appears with the badges and leaves with them", async ({
+    page,
+    baseUrl,
+    libraryHarness,
+  }) => {
+    test.setTimeout(900_000);
+
+    const coveApi = apiFor(libraryHarness);
+
+    await usingInstance(libraryHarness, coveApi, async (whisparr) => {
+      await seedScene(coveApi, whisparr, {
+        label: "Monitored scene",
+        onInstance: true,
+        monitored: true,
+      });
+
+      await openList(page, baseUrl, "/videos", videoCards(page), "the videos page");
+
+      // Nothing before the control is pressed. A row of zeroes on a page nobody asked about is a
+      // report over a read that never happened.
+      await expect(
+        statusRow(page),
+        "a row of counts was under the toolbar before the control was pressed",
+      ).toHaveCount(0);
+
+      await statusToggle(page).click();
+      await expect(statusRow(page), "no row appeared with the badges").toHaveCount(1, {
+        timeout: BADGE_BUDGET_MS,
+      });
+
+      await statusToggle(page).click();
+      await expect(statusRow(page), "the row outlived the badges it counts").toHaveCount(0, {
+        timeout: BADGE_BUDGET_MS,
+      });
     });
   });
 
@@ -989,12 +1055,15 @@ test.describe("library status", () => {
           "studio-card-footer",
           "studio-detail-actions",
           "studios-list-toolbar-end",
+          "studios-list-row",
         ].sort(),
       );
+      // The row goes with the card badges it counts. The studio badges are registered on both
+      // generations, so the studios row is too, and the pages with no badge have no row.
       expect(
         older.filter((slot) => slot.endsWith("-list-row")),
-        "a full-width row below a list toolbar is registered, so the dropped count row is not absent",
-      ).toEqual([]);
+        "a page with no card badge carries a row of counts over nothing",
+      ).toEqual(["studios-list-row"]);
 
       for (const [path, cards, where] of [
         ["/videos", videoCards(page), "the videos page"],
@@ -1048,8 +1117,10 @@ test.describe("library status", () => {
         [
           "performer-card-footer",
           "performers-list-toolbar-end",
+          "performers-list-row",
           "video-card-content",
           "videos-list-toolbar-end",
+          "videos-list-row",
         ].sort(),
       );
 

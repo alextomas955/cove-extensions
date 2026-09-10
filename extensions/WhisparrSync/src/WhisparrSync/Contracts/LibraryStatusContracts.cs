@@ -65,8 +65,9 @@ public sealed record LibraryStatusRequest(IReadOnlyList<int> CoveIds);
 
 /// <summary>What the connected instance holds for one card.</summary>
 /// <remarks>
-/// The three members are exactly what the browser's state derivation takes, so nothing is derived
-/// twice and the server never names the state a card draws.
+/// The first three members are exactly what the browser's state derivation takes, so nothing is
+/// derived twice and the server never names the state a card draws. The fourth is beside that axis
+/// rather than on it: a file is something a monitored card and an unmonitored card can each have.
 /// </remarks>
 /// <param name="Excluded">
 /// Whether the instance's user has excluded it. Always false on the studio and performer path: this
@@ -77,7 +78,13 @@ public sealed record LibraryStatusRequest(IReadOnlyList<int> CoveIds);
 /// Whether the instance holds an entry for the entity, or null where nothing was established.
 /// </param>
 /// <param name="Monitored">The instance's own flag, or null where nothing was established.</param>
-public sealed record LibraryCardReading(bool Excluded, bool? Present, bool? Monitored);
+/// <param name="InLibrary">
+/// Whether the instance holds a file for it, or null where nothing was established. Always null on
+/// the studio and performer path: a file is a fact about one scene, and no answer on that path
+/// carries one.
+/// </param>
+public sealed record LibraryCardReading(
+    bool Excluded, bool? Present, bool? Monitored, bool? InLibrary = null);
 
 /// <summary>One requested card's answer.</summary>
 /// <param name="CoveId">The card asked about.</param>

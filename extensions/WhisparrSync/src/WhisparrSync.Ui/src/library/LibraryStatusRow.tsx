@@ -1,0 +1,140 @@
+/**
+ * The full-width row under a list toolbar: how many cards on the page are in each state.
+ *
+ * It is the key to the badges below it. Each pill pairs a state's own glyph with the count of cards
+ * carrying it, so a reader who cannot name a badge finds it named once at the top of the page.
+ *
+ * It asks for nothing. Every figure comes from the answers the badges already hold, so the row
+ * appears with them, empties with them, and can never report a page the badges are not drawing.
+ *
+ * It states no reason of its own. Why a page could not be answered for is the toolbar control's one
+ * sentence, and a second copy of it here would be the same fact twice on one line of chrome.
+ */
+import type { ReactNode } from "react";
+import { Spinner, StatusPill } from "@cove-extensions/ui-shared";
+
+import {
+  CHECKING_WHISPARR,
+  LIBRARY_COUNTS_ARE_FOR_THIS_PAGE,
+  NOT_ADDED_ON_THIS_PAGE,
+  WHISPARR_STATUS_ROW,
+} from "../common/ui/copy";
+import { WhisparrLogo } from "../common/ui/WhisparrLogo";
+import { StateGlyph } from "../common/ui/StateGlyph";
+import {
+  describeState,
+  FILE_MARKER,
+  type WhisparrEntityState,
+} from "../common/ui/stateVocabularyLogic";
+import type { LibraryCardKind } from "../wire/api";
+import { useLibraryStatusOn } from "./libraryToggleStore";
+import { useLibraryTally } from "./useLibraryTally";
+
+/**
+ * The states always drawn as pills, in a fixed order.
+ *
+ * `notAdded` is absent because it is the trailing count on the right, where it names its own scope.
+ * `statusUnknown` is absent because it is drawn only where a card is in it, beside these.
+ */
+const PILL_ORDER: readonly WhisparrEntityState[] = ["monitored", "unmonitored", "excluded"];
+
+/**
+ * A state's pill.
+ *
+ * Drawn at a count of zero as well, because the row is the key to the glyphs on the cards below it
+ * and a key that drops the entries with nothing on this page is a key that changes as you page. The
+ * one exception is the unknown state, whose caller draws it only where a card is in it: it names no
+ * glyph a reader has to look up, and a zero for it on every page is a report of nothing.
+ */
+function StatePill({ state, count }: { state: WhisparrEntityState; count: number }) {
+  const description = describeState(state);
+  return (
+    <StatusPill
+      variant={description.variant}
+      shape="tag"
+      icon={<StateGlyph iconKey={description.iconKey} />}
+    >
+      <span className="font-semibold tabular-nums text-foreground">{count}</span>
+      <span className="text-secondary">{description.label}</span>
+    </StatusPill>
+  );
+}
+
+function LibraryStatusRow({ kind }: { kind: LibraryCardKind }) {
+  const on = useLibraryStatusOn();
+  const { tally, registered, answered } = useLibraryTally(kind, on);
+
+  // Nothing at all with the control off, on a display mode that mounts no card, and on a page every
+  // card of which this extension cannot speak for. In the last case the toolbar control carries the
+  // reason, and a row of zeroes beside it would be a second answer that contradicts it.
+  if (!on || registered === 0 || (answered > 0 && tally.counted === 0)) {
+    return null;
+  }
+
+  let body: ReactNode;
+  if (answered === 0) {
+    body = (
+      <span className="inline-flex items-center gap-2 text-xs text-secondary">
+        <Spinner />
+        {CHECKING_WHISPARR}
+      </span>
+    );
+  } else {
+    body = (
+      <span className="flex flex-1 flex-wrap items-center gap-2">
+        {PILL_ORDER.map((state) => (
+          <StatePill key={state} state={state} count={tally.states[state]} />
+        ))}
+        {/* Only where a card is in it: a page the instance answered nothing usable for must not read
+            as a page of zeroes, and a page it answered everything for owes the reader no entry. */}
+        {tally.states.statusUnknown === 0 ? null : (
+          <StatePill state="statusUnknown" count={tally.states.statusUnknown} />
+        )}
+        {/* Beside the states rather than among them: a file is something a monitored card and an
+            unmonitored card can each have, so it partitions nothing. */}
+        <StatusPill
+          variant={FILE_MARKER.variant}
+          shape="tag"
+          icon={<StateGlyph iconKey={FILE_MARKER.iconKey} />}
+        >
+          <span className="font-semibold tabular-nums text-foreground">{tally.inLibrary}</span>
+          <span className="text-secondary">{FILE_MARKER.label}</span>
+        </StatusPill>
+        <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted">
+          <span className="font-semibold tabular-nums">{tally.states.notAdded}</span>
+          {NOT_ADDED_ON_THIS_PAGE}
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      title={LIBRARY_COUNTS_ARE_FOR_THIS_PAGE}
+      className="mx-1 mt-1 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card/80 px-3 py-2"
+    >
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-accent">
+        <WhisparrLogo className="h-4 w-4" />
+        {WHISPARR_STATUS_ROW}
+      </span>
+      {body}
+    </div>
+  );
+}
+
+/** The row on the videos list. */
+export function WhisparrVideoLibraryRow() {
+  return <LibraryStatusRow kind="video" />;
+}
+
+/** The row on the studios list. */
+export function WhisparrStudioLibraryRow() {
+  return <LibraryStatusRow kind="studio" />;
+}
+
+/** The row on the performers list. */
+export function WhisparrPerformerLibraryRow() {
+  return <LibraryStatusRow kind="performer" />;
+}

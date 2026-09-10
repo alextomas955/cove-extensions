@@ -2,11 +2,11 @@
  * One entity state, rendered as the shared `StatusPill` with the vocabulary's glyph in its `icon`
  * slot - the prop exists so a status never rides on colour alone, which is what this chip needs.
  *
- * The glyph is hidden from assistive technology because the label beside it already carries the
- * meaning; the glyph is what distinguishes two states that share a tint on screen.
+ * The glyph takes the pill's own colour, so the mark and the tint cannot disagree about a state.
  */
 import { StatusPill } from "@cove-extensions/ui-shared";
 
+import { StateGlyph } from "./StateGlyph";
 import { describeState, renameState, type WhisparrEntityState } from "./stateVocabularyLogic";
 
 export function StateChip({
@@ -19,10 +19,7 @@ export function StateChip({
 }) {
   const description = label === undefined ? describeState(state) : renameState(state, label);
   return (
-    <StatusPill
-      variant={description.variant}
-      icon={<span aria-hidden="true">{description.glyph}</span>}
-    >
+    <StatusPill variant={description.variant} icon={<StateGlyph iconKey={description.iconKey} />}>
       {description.label}
     </StatusPill>
   );
