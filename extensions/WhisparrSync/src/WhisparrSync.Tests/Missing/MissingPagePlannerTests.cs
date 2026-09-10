@@ -395,6 +395,14 @@ public sealed class MissingPagePlannerTests
         public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
             Uri baseAddress, string apiKey, string remoteId, CancellationToken ct)
             => Task.FromResult(new WhisparrResponse(200, "application/json", "[]"));
+
+        public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
+            Uri baseAddress,
+            string apiKey,
+            IReadOnlyCollection<string> foreignIds,
+            CancellationToken ct)
+            => throw new InvalidOperationException(
+                "This surface asks about one scene at a time and never about a batch of them.");
     }
 
     private sealed class RecordingCatalogue(

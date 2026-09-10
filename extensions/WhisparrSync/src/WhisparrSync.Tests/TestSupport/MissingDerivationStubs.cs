@@ -198,4 +198,12 @@ internal sealed class StubSceneStatusReading(
             ? throw new HttpRequestException("The instance was not reached.")
             : Task.FromResult(new WhisparrResponse(200, "application/json", sceneAnswer));
     }
+
+    public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyCollection<string> foreignIds,
+        CancellationToken ct)
+        => throw new InvalidOperationException(
+            "This surface asks about one scene at a time and never about a batch of them.");
 }

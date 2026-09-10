@@ -69,6 +69,7 @@ public sealed partial class WhisparrSync
     private string SceneBatchRoute => RouteBase + "/scenes/batch";
     private string LibraryStatusRoute => RouteBase + "/library/{kind}/status";
     private string BulkMonitorRoute => RouteBase + "/entities/bulk-monitor";
+    private string SyncPreviewRoute => RouteBase + "/sync/preview";
     private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
 
     // Derived from the same builder the registered address is, so the route Whisparr is told to call
@@ -397,6 +398,30 @@ public sealed partial class WhisparrSync
              CancellationToken ct)
                 => SearchMissingSceneAsync(
                     kind, coveId, providerSceneId, principal, options, credentials, client, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The configure tier because it aims this extension's stored credential at a third party and
+        // reads the whole library to do it. It names nothing at all: what is counted is the reader's
+        // own library, so a caller can compose no set of its own here.
+        endpoints.MapPost(SyncPreviewRoute,
+            (ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             CancellationToken ct)
+                => EnqueueSyncPreviewAsync(
+                    principal, jobs, scopes, options, credentials, client, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The same tier for the read half, which answers what the count above left. Not a lesser
+        // tier than the start: it reports how much of the reader's library a third party holds, and
+        // that is the same fact whichever route answered it.
+        endpoints.MapGet(SyncPreviewRoute,
+            (ICurrentPrincipalAccessor principal, IJobService jobs, SyncPreviewCache counts,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             CancellationToken ct)
+                => ReadSyncPreviewAsync(
+                    principal, jobs, counts, options, credentials, client, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 

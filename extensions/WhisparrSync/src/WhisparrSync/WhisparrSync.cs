@@ -132,6 +132,10 @@ public sealed partial class WhisparrSync : FullExtensionBase
 
         // A delivery arrives per file, so a reading held per scope would be a reading taken per file.
         services.AddSingleton(services => new ReportedRootCache(services.GetRequiredService<TimeProvider>()));
+
+        // A singleton for a different reason: the count is taken by a background run and read by a
+        // later request, so a slot held per scope would be a slot the reader never sees.
+        services.AddSingleton(services => new SyncPreviewCache(services.GetRequiredService<TimeProvider>()));
         services.AddScoped<IImportPathPort, ImportPathPort>();
         services.AddScoped<IReportedRootPort>(services => new ReportedRootPort(
             services.GetRequiredService<IWhisparrClient>(),

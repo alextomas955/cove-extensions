@@ -162,6 +162,25 @@ const RENDERED_BY_THE_ALL_SCENES_CONFIRMATION = [
 const RENDERED_BY_THE_SEARCH_CONFIRMATION = ["SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK"];
 
 /**
+ * The sync section's own sentences: the count control's first-press name, the three count rows, what
+ * the skipped row means and what to do about it, and the section's reading, empty, failed and busy
+ * lines.
+ *
+ * The control's second name is the shared refresh verb, which another group already accounts for.
+ */
+const RENDERED_BY_THE_SYNC_SECTION = [
+  "SYNC_COUNT",
+  "SYNC_NOT_YET_IN_WHISPARR",
+  "SYNC_ALREADY_IN_WHISPARR",
+  "SYNC_SKIPPED_NO_ID",
+  "SYNC_SKIPPED_CANNOT_BE_REGISTERED",
+  "SYNC_COUNTING",
+  "SYNC_NOTHING_COUNTED_YET",
+  "SYNC_COUNT_DID_NOT_FINISH",
+  "SYNC_IS_COUNTING",
+];
+
+/**
  * The consequence the confirmation states before a whole catalogue is marked. Its own group, because
  * that confirmation is the one surface that states it.
  */
@@ -376,6 +395,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_BY_THE_ALL_SCENES_CONFIRMATION,
       ...RENDERED_BY_THE_SEARCH_CONFIRMATION,
       ...RENDERED_BY_THE_MONITOR_ALL_CONFIRMATION,
+      ...RENDERED_BY_THE_SYNC_SECTION,
     ];
 
     const orphans = CONSTANTS.filter(
@@ -404,6 +424,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_BY_THE_ALL_SCENES_CONFIRMATION,
       ...RENDERED_BY_THE_SEARCH_CONFIRMATION,
       ...RENDERED_BY_THE_MONITOR_ALL_CONFIRMATION,
+      ...RENDERED_BY_THE_SYNC_SECTION,
     ]) {
       expect(declared, name).toContain(name);
     }

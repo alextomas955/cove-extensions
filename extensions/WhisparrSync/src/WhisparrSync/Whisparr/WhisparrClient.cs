@@ -299,6 +299,12 @@ internal sealed class WhisparrClient(
     // own, which is what the removing route addresses; the foreign id is the scene's.
     private sealed record ExclusionRow(int Id, string? ForeignId);
 
+    private static readonly JsonSerializerOptions HeldSceneRowShape = new(JsonSerializerDefaults.Web);
+
+    // The two members of an answered entry this product reads. Declared with no others so a chunk's
+    // answer costs one small object per hit rather than the whole resource the instance sent.
+    private sealed record HeldSceneRow(string? StashId, string? ForeignId);
+
     public async Task<WhisparrResponse> ReadStatusAsync(
         Uri baseAddress,
         string apiKey,
@@ -781,6 +787,83 @@ internal sealed class WhisparrClient(
             ct).ConfigureAwait(false);
 
         return excluded;
+    }
+
+    // The batch counterpart of the single-scene read above, and the only member that asks about more
+    // than one scene at once. Each answered row is reduced to one question, so what this holds is the
+    // caller's own set and never the instance's. There is no row cap, for the reason the exclusion
+    // reduce has none.
+    //
+    // The body is a BARE JSON array of identifier strings, which the generated model expresses. An
+    // object naming the ids as a member is answered 400, measured against
+    // whisparr:v3-3.3.8-release.1097 on 2026-09-10.
+    public async Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyCollection<string> foreignIds,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(foreignIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+
+        // Keyed without regard to case, because an identifier is a hexadecimal uuid and the two
+        // sides spell one in whichever case each stored it. The caller's own spelling is what is
+        // answered, so nothing downstream has to match a spelling this read chose.
+        var asked = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in foreignIds)
+        {
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                asked[id] = id;
+            }
+        }
+
+        var held = new HashSet<string>(StringComparer.Ordinal);
+        if (asked.Count == 0)
+        {
+            return held;
+        }
+
+        List<string> wanted = [.. asked.Values];
+        var answered = await GeneratedReadAsync(
+                baseAddress,
+                apiKey,
+                api => api.Api<V3Api.IMovieApi>().CreateMovieListAsync(wanted, ct))
+            .ConfigureAwait(false);
+
+        // An answer this could not read is raised rather than reduced to an empty set. A caller
+        // comparing its library against this would otherwise report every scene it asked about as
+        // one the instance does not hold, which is the opposite of the truth.
+        if (answered.StatusCode is < 200 or > 299
+            || answered.Refusal is not MonitorRefusalKind.None)
+        {
+            throw new HttpRequestException(
+                "The instance did not answer which of the asked-about scenes it holds.");
+        }
+
+        List<HeldSceneRow?>? rows;
+        try
+        {
+            rows = JsonSerializer.Deserialize<List<HeldSceneRow?>>(answered.Body, HeldSceneRowShape);
+        }
+        catch (JsonException failure)
+        {
+            throw new HttpRequestException(
+                "The instance's answer could not be read as the entries it holds.", failure);
+        }
+
+        foreach (var row in rows ?? [])
+        {
+            // The identifier is read off the row's own stash id, falling back to its foreign id:
+            // both carry the same uuid and which one an instance fills in is its own affair.
+            var named = row?.StashId is { Length: > 0 } stashed ? stashed : row?.ForeignId;
+            if (named is { Length: > 0 } spelled && asked.TryGetValue(spelled, out var asAsked))
+            {
+                held.Add(asAsked);
+            }
+        }
+
+        return held;
     }
 
     public async Task<SceneExclusionLookup> FindSceneExclusionAsync(

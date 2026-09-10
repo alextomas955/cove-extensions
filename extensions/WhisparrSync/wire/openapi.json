@@ -1486,6 +1486,62 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/sync/preview": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncEnqueued"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncPreviewRead"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/job-status/{jobId}": {
       "get": {
         "tags": [
@@ -2858,6 +2914,96 @@
           "whisparrHasNoEntryForScene",
           "whisparrAlreadyHoldsThisScene",
           "whisparrIsNotMonitoringThisScene"
+        ]
+      },
+      "SyncEnqueued": {
+        "required": [
+          "jobId",
+          "refusal"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/SyncRefusalKind"
+          }
+        }
+      },
+      "SyncPreviewRead": {
+        "required": [
+          "view",
+          "refusal",
+          "syncRunning"
+        ],
+        "type": "object",
+        "properties": {
+          "view": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SyncPreviewView"
+              }
+            ]
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/SyncRefusalKind"
+          },
+          "syncRunning": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SyncPreviewView": {
+        "required": [
+          "notYetThere",
+          "alreadyThere",
+          "skipped",
+          "registers",
+          "countedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "notYetThere": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "alreadyThere": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "registers": {
+            "$ref": "#/components/schemas/SyncRegisters"
+          },
+          "countedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SyncRefusalKind": {
+        "enum": [
+          "none",
+          "noInstanceConnected",
+          "whisparrKeepsNoSceneRecords",
+          "countFirst",
+          "alreadyRunning"
+        ]
+      },
+      "SyncRegisters": {
+        "enum": [
+          "scenes",
+          "sites"
         ]
       },
       "UpgradeBehavior": {

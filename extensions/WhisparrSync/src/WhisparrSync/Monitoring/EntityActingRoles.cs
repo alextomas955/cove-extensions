@@ -220,6 +220,27 @@ public interface IWhisparrSceneStatusReading
     /// </remarks>
     Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
         Uri baseAddress, string apiKey, string remoteId, CancellationToken ct);
+
+    /// <summary>Which of <paramref name="foreignIds"/> the instance already holds an entry for.</summary>
+    /// <remarks>
+    /// The answer is the subset of the identifiers that were asked about, so what it carries is
+    /// bounded by the caller's own set whatever the instance holds. A caller reads its own scenes in
+    /// bounded batches and asks about one batch at a time.
+    /// <para>
+    /// An empty input answers an empty set with no request. There is no row cap: a cap would stop
+    /// part way and report the rest as absent, with nothing saying so.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="HttpRequestException">
+    /// No answer arrived, or the answer could not be read as the instance's own entries. Raised
+    /// rather than answered as an empty set, because a caller comparing its library against this
+    /// would otherwise report every scene it asked about as one the instance does not hold.
+    /// </exception>
+    Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyCollection<string> foreignIds,
+        CancellationToken ct);
 }
 
 /// <summary>Reads which of a set of scenes an instance's user has excluded.</summary>

@@ -787,3 +787,47 @@ export function connectVersionNotManagedSentence(
     ? `That instance is Whisparr ${found}, which this extension does not manage.`
     : `That instance is ${otherApplication} ${found}, not Whisparr.`;
 }
+
+/** What the count control is called before any result exists. */
+export const SYNC_COUNT = "Count what would sync";
+
+/** The three count rows, each naming its own noun so no number has a plural to disagree with. */
+export const SYNC_NOT_YET_IN_WHISPARR = "Not yet in Whisparr";
+
+/** @see SYNC_NOT_YET_IN_WHISPARR */
+export const SYNC_ALREADY_IN_WHISPARR = "Already in Whisparr";
+
+/** @see SYNC_NOT_YET_IN_WHISPARR */
+export const SYNC_SKIPPED_NO_ID = "Skipped, no metadata id";
+
+/**
+ * What the skipped row means, and what a reader can do about it.
+ *
+ * Beside the count rather than in place of them, because the figure alone reads as work lost and
+ * the remedy is the reason it is a count and never a list.
+ */
+export const SYNC_SKIPPED_CANNOT_BE_REGISTERED =
+  "A scene with no metadata id cannot be registered. Identify more of your library and count again.";
+
+/** While the count runs. */
+export const SYNC_COUNTING = "Counting what would sync.";
+
+/**
+ * Before any count.
+ *
+ * Not three zeros: a surface that has never counted is not a surface reporting that nothing would
+ * sync.
+ */
+export const SYNC_NOTHING_COUNTED_YET = "Nothing has been counted yet.";
+
+/**
+ * A count that did not finish, however it failed.
+ *
+ * One sentence for a failed run, a failed read of the result and a run the page can no longer find,
+ * because all three leave the reader with the same fact and the same next step.
+ */
+export const SYNC_COUNT_DID_NOT_FINISH =
+  "Cove could not finish counting what would sync. Nothing was changed; try again shortly.";
+
+/** Why the count control cannot be pressed while a count is in flight. */
+export const SYNC_IS_COUNTING = "Cove is counting what would sync.";

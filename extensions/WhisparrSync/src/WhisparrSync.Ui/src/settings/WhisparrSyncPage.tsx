@@ -1,14 +1,17 @@
 import { useNow } from "../common/lib/useNow";
+import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { ConnectionSection } from "./ConnectionSection";
 import { GenerationCards } from "./GenerationCards";
 import { ImportBanner } from "./ImportBanner";
 import { ImportBehaviorSection } from "./ImportBehaviorSection";
 import { ImportWebhookSection } from "./ImportWebhookSection";
+import { SyncLibrarySection } from "./SyncLibrarySection";
 import { isNoOpSave, testsStoredConnection, valuesForCard } from "./connectLogic";
 import { useConnection } from "./useConnection";
 import { useImportBanner } from "./useImportBanner";
 import { useImportBehavior } from "./useImportBehavior";
+import { useSyncLibrary } from "./useSyncLibrary";
 import { useRegistration } from "./useRegistration";
 
 /**
@@ -30,6 +33,7 @@ export function WhisparrSyncPage() {
   const registration = useRegistration();
   const banner = useImportBanner();
   const upgrade = useImportBehavior();
+  const sync = useSyncLibrary();
   const stored = valuesForCard(state.settings, state.card);
   const now = useNow();
 
@@ -99,6 +103,14 @@ export function WhisparrSyncPage() {
         saveError={upgrade.saveError}
         sharedReason={sharedReason}
         onChange={upgrade.choose}
+      />
+
+      <SyncLibrarySection
+        counts={sync.read?.view ?? null}
+        preview={deriveAsyncRegionState(sync.preview)}
+        counting={sync.counting}
+        now={now}
+        onCount={sync.count}
       />
     </div>
   );
