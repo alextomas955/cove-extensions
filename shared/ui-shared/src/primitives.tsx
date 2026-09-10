@@ -499,7 +499,10 @@ export function Toggle({
     <div>
       <label
         className={`flex items-center gap-2 text-sm ${disabled === true ? "text-muted" : "text-secondary"}`}
-        title={helper}
+        // The helper is already on screen as text below, so this title only ever restates it. While
+        // the switch is unavailable that restatement would win the hover over the reason a caller
+        // put on an ancestor, because the nearest titled ancestor is the one the pointer reads.
+        title={disabled === true ? undefined : helper}
       >
         <button
           type="button"
