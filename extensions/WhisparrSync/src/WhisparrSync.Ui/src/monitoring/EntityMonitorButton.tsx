@@ -212,6 +212,9 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
           createPortal(
             <ConfirmDialog
               open
+              // Red where the action cannot be undone and accent where it can, rather than the
+              // host's default of always red. The same predicate the message reads.
+              destructive={allScenesIsAOneWayDoor(view?.generation ?? null)}
               title={confirming.item.label}
               confirmLabel={confirming.item.label}
               message={allScenesConfirmation(1, allScenesIsAOneWayDoor(view?.generation ?? null))}
