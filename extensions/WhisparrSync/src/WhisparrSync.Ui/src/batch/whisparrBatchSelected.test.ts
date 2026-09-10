@@ -65,7 +65,7 @@ const {
   BATCH_SEARCH_IS_OVER_THE_BOUND,
   BULK_CANCEL,
   BULK_SELECTION_IS_OVER_THE_BOUND,
-  BULK_SELECTION_WAS_NOT_STARTED,
+  RUN_WAS_NOT_STARTED,
   MENU_ADD,
   MENU_EXCLUDE,
   MENU_MONITOR,
@@ -222,24 +222,24 @@ test("any other refusal states that the run was not started", async () => {
     '{"code":"SOMETHING_ELSE","message":"System.InvalidOperationException: at Whisparr.Api.V3"}',
   );
 
-  expect(stated).toContain(BULK_SELECTION_WAS_NOT_STARTED);
+  expect(stated).toContain(RUN_WAS_NOT_STARTED);
   expect(stated).not.toContain("System.InvalidOperationException");
 });
 
 test("a refusal whose body is not JSON states that the run was not started", async () => {
   const stated = await refusedWith(502, "<html>Bad Gateway</html>");
 
-  expect(stated).toContain(BULK_SELECTION_WAS_NOT_STARTED);
+  expect(stated).toContain(RUN_WAS_NOT_STARTED);
 });
 
 test("a refusal whose body names no code states that the run was not started", async () => {
   const stated = await refusedWith(400, '{"message":"no code here"}');
 
-  expect(stated).toContain(BULK_SELECTION_WAS_NOT_STARTED);
+  expect(stated).toContain(RUN_WAS_NOT_STARTED);
 });
 
 test("a refusal whose code is not a string states that the run was not started", async () => {
   const stated = await refusedWith(400, '{"code":429}');
 
-  expect(stated).toContain(BULK_SELECTION_WAS_NOT_STARTED);
+  expect(stated).toContain(RUN_WAS_NOT_STARTED);
 });

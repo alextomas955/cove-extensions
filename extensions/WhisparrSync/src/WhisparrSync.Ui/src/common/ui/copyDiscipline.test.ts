@@ -163,10 +163,14 @@ const RENDERED_BY_THE_SEARCH_CONFIRMATION = ["SEARCH_ALL_MONITORED_SPENDS_TRAFFI
 
 /**
  * The sync section's own sentences: the count control's first-press name, the three count rows, what
- * the skipped row means and what to do about it, and the section's reading, empty, failed and busy
- * lines.
+ * the skipped row means and what to do about it, the section's reading, empty, failed and busy
+ * lines, the sync control's name, the monitor choice's label, every reason the sync control gives,
+ * the line after the press, and the consequence its confirmation states.
  *
- * The control's second name is the shared refresh verb, which another group already accounts for.
+ * The control's second name is the shared refresh verb, the monitor choice's helper is the
+ * monitor-all confirmation's consequence, the no-connection reason is the connect surface's own
+ * sentence, and the refused enqueue reads the selection overlay's. Four other groups account for
+ * those.
  */
 const RENDERED_BY_THE_SYNC_SECTION = [
   "SYNC_COUNT",
@@ -178,6 +182,14 @@ const RENDERED_BY_THE_SYNC_SECTION = [
   "SYNC_NOTHING_COUNTED_YET",
   "SYNC_COUNT_DID_NOT_FINISH",
   "SYNC_IS_COUNTING",
+  "SYNC_LIBRARY",
+  "SYNC_ALSO_MONITOR",
+  "SYNC_NEEDS_A_COUNT_FIRST",
+  "SYNC_NOTHING_LEFT_TO_SYNC",
+  "SYNC_ALREADY_RUNNING",
+  "SYNC_IS_STARTING",
+  "SYNC_RUNS_IN_THE_JOB_DRAWER",
+  "SYNC_DOWNLOADS_NOTHING",
 ];
 
 /**
@@ -193,7 +205,7 @@ const RENDERED_BY_THE_MONITOR_ALL_CONFIRMATION = ["MONITOR_ALL_DOWNLOADS_NOTHING
 const RENDERED_BY_THE_BULK_OVERLAY = [
   "BULK_ACTIONS_COULD_NOT_BE_OFFERED",
   "BULK_SELECTION_IS_OVER_THE_BOUND",
-  "BULK_SELECTION_WAS_NOT_STARTED",
+  "RUN_WAS_NOT_STARTED",
   "BULK_CANCEL",
   "BULK_CLOSE",
 ];
