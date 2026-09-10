@@ -541,6 +541,17 @@ export function searchSceneName(title: string): string {
 }
 
 /**
+ * The name of the card link that opens one scene where its source shows it.
+ *
+ * The cover carries no text and the title carries only the title, so neither says that following it
+ * leaves Cove. The source is not named, because which source answered follows the connected
+ * generation and a name written here would be wrong on the other one.
+ */
+export function openSceneName(title: string): string {
+  return `Open ${title} at your metadata source`;
+}
+
+/**
  * A control's name while its own request is unanswered.
  *
  * The reason joins the name rather than riding beside it: a control with no text has nothing for a
