@@ -4,16 +4,34 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <!-- The single declared host floor, from which the SDK package version derives. It names the host
-         release the extensions are built and tested against, which is not necessarily the oldest one
-         that would work: raising it drops users below it, so it moves on purpose, never incidentally.
-
-         Declaration order is load-bearing and nothing guards it. MSBuild evaluates properties top to
-         bottom, so reversing these two lines expands $(CoveMinVersion) before it holds a value and every
-         Cove package reference silently takes an empty version. -->
+    <!-- The single declared host floor, from which an extension without its own manifest floor takes
+         its SDK package version. It names the host release the extensions are built and tested
+         against, which is not necessarily the oldest one that would work: raising it drops users
+         below it, so it moves on purpose, never incidentally. -->
     <CoveMinVersion Condition="'$(CoveMinVersion)' == ''">1.4.1</CoveMinVersion>
-    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">$(CoveMinVersion)</CoveSdkVersion>
+  </PropertyGroup>
 
+  <!--
+    The SDK version a project compiles against is the floor its own extension.json declares, and the
+    repo floor above only where no manifest sits beside the project. An extension using a host member
+    added after the repo floor would otherwise publish against an older SDK and fail to compile on the
+    clean-clone path, while its own advertised floor said it needed the newer host.
+
+    Read out of the manifest rather than restated here. A version written in both places agrees with
+    whichever side it was copied from and stops reporting the other, and validate-extension-repo.mjs
+    compares each manifest floor against $(CoveMinVersion) only, so it has no subject for the pair.
+
+    Only a project with a manifest beside it takes a Cove.Sdk PackageReference (Directory.Build.targets
+    excludes *.Tests), so a project resolving no manifest needs no version of its own.
+  -->
+  <PropertyGroup>
+    <ExtensionManifestPath>$(MSBuildProjectDirectory)\extension.json</ExtensionManifestPath>
+    <ExtensionDeclaredFloor Condition="Exists('$(ExtensionManifestPath)')">$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText($(ExtensionManifestPath))), '(?s)^.*&quot;minCoveVersion&quot;\s*:\s*&quot;([^&quot;]+)&quot;.*$', '$1'))</ExtensionDeclaredFloor>
+    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == '' AND '$(ExtensionDeclaredFloor)' != ''">$(ExtensionDeclaredFloor)</CoveSdkVersion>
+    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">$(CoveMinVersion)</CoveSdkVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <!-- Where a released Cove image comes from. Deliberately SEPARATE from $(CoveMinVersion) above:
          that one is the floor the extension advertises and validate-extension-repo.mjs compares
          extension.json's minCoveVersion to, while these name a moving upstream build. Editing
