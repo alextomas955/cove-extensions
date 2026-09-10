@@ -1,5 +1,5 @@
+using WhisparrSync.Contracts;
 using WhisparrSync.Missing;
-using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Tests.TestSupport;
 

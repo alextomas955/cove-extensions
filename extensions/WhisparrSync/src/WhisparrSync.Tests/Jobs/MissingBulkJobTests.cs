@@ -1,8 +1,8 @@
 using System.Reflection;
 using Cove.Core.Auth;
 using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Jobs;

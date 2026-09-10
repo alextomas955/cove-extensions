@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Cove.Extensions.Shared;
 using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Whisparr;
 

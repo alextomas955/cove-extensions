@@ -1,8 +1,7 @@
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
-using WhisparrSync.Whisparr;
 
-namespace WhisparrSync.Monitoring;
+namespace WhisparrSync.Whisparr;
 
 // The acting surface is split by entity kind and by verb, so a capability a generation cannot
 // honour is a role it holds no registration for rather than a check inside one wide role. One file

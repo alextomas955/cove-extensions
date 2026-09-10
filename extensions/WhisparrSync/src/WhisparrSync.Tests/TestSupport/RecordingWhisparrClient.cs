@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Scene;
 using WhisparrSync.Whisparr;
 

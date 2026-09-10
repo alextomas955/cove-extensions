@@ -3,7 +3,6 @@ using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
-using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Options;
 

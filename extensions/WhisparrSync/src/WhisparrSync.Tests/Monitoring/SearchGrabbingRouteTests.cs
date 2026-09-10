@@ -4,7 +4,6 @@ using System.Net.Http.Json;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using WhisparrSync.Contracts;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.Invariants;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;

@@ -1,8 +1,37 @@
 using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
-using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Contracts;
+
+/// <summary>How much of an entity's catalogue a monitor covers.</summary>
+/// <remarks>
+/// Whisparr's own two names, spelled the same way on both generations. The wire spelling is declared
+/// HERE, on the type. An equivalent converter in a serializer options collection would outrank this
+/// one rather than duplicate it, so a second declaration could drift and win in silence.
+/// </remarks>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
+public enum MonitorScope
+{
+    /// <summary>Future Scenes: monitor scenes that have not released yet.</summary>
+    FutureScenes,
+
+    /// <summary>All Scenes: monitor all scenes except specials.</summary>
+    AllScenes,
+}
+
+/// <summary>Which kind of entity a monitor names.</summary>
+/// <remarks>
+/// The two generations address these kinds in namespaces neither shares with the other, so the kind
+/// is carried beside an identifier rather than read out of one. The wire spelling is declared on the
+/// type.
+/// </remarks>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
+public enum WhisparrEntityKind
+{
+    Studio,
+    Performer,
+    Tag,
+}
 
 /// <summary>What a caller may say when it asks for an entity to be monitored.</summary>
 /// <remarks>

@@ -1,6 +1,7 @@
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 

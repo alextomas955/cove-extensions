@@ -1,6 +1,6 @@
-using WhisparrSync.Import;
+using WhisparrSync.Identity;
 
-namespace WhisparrSync.Tests.Import;
+namespace WhisparrSync.Tests.Identity;
 
 /// <summary>
 /// The host's endpoint rule, pinned.

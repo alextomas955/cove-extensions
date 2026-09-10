@@ -1,3 +1,4 @@
+using WhisparrSync.Identity;
 using WhisparrSync.Import;
 
 namespace WhisparrSync.Tests.TestSupport;

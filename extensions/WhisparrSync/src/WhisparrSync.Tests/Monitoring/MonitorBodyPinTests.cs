@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 

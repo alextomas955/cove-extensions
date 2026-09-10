@@ -1,5 +1,4 @@
 using WhisparrSync.Contracts;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Scene;
 
 namespace WhisparrSync.Whisparr;

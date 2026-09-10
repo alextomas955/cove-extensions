@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Library;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 

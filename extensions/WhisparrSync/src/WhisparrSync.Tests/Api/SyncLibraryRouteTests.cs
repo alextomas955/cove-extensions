@@ -5,9 +5,9 @@ using System.Text;
 using Cove.Core.Auth;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Scene;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Api;
 

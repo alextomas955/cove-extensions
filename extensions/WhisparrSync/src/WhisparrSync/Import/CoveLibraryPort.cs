@@ -2,6 +2,7 @@ using Cove.Core.Entities;
 using Cove.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using WhisparrSync.Identity;
 
 namespace WhisparrSync.Import;
 

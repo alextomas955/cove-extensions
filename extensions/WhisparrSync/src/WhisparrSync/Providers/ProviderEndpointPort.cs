@@ -1,6 +1,6 @@
 using Cove.Core.Interfaces;
 using WhisparrSync.Contracts;
-using WhisparrSync.Import;
+using WhisparrSync.Identity;
 using WhisparrSync.Options;
 
 namespace WhisparrSync.Providers;
