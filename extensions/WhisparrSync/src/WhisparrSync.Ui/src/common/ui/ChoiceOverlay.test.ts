@@ -6,19 +6,11 @@
  * anything but its own glyph and name, and which way out the reader is offered.
  */
 import { createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { test, expect, afterEach } from "vitest";
+import { test, expect } from "vitest";
 
+import { press, render } from "../lib/testRender";
 import { ChoiceOverlay, type ChoiceRow } from "./ChoiceOverlay";
 import { selectionMenuHeader } from "./copy";
-
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
 
 const GLYPH: ChoiceRow["icon"] = ({ className }) =>
   createElement("svg", { className, "data-glyph": "row" });
@@ -28,17 +20,12 @@ const ROWS: ChoiceRow[] = [
   { key: "second", label: "Second", icon: GLYPH },
 ];
 
-let root: Root | null = null;
-
 async function draw(
   rows: readonly ChoiceRow[],
   chosen: (row: ChoiceRow | null) => void,
   count = 1,
 ) {
-  const host = document.createElement("div");
-  document.body.append(host);
-  root = createRoot(host);
-  root.render(
+  await render(
     createElement(ChoiceOverlay<ChoiceRow>, {
       count,
       reason: rows.length === 0 ? "Nothing was sent." : null,
@@ -48,18 +35,11 @@ async function draw(
       onChoose: chosen,
     }),
   );
-  await sleep(COMMIT_MS);
 }
 
 function buttons(): HTMLButtonElement[] {
   return [...document.querySelectorAll("button")];
 }
-
-afterEach(() => {
-  root?.unmount();
-  root = null;
-  document.body.innerHTML = "";
-});
 
 test("draws a glyph and a name per row, and nothing else inside one", async () => {
   await draw(ROWS, () => undefined);
@@ -99,7 +79,7 @@ test("answers the chosen row", async () => {
   const answers: (ChoiceRow | null)[] = [];
   await draw(ROWS, (row) => answers.push(row));
 
-  buttons()[1].click();
+  await press(buttons()[1]);
 
   expect(answers).toEqual([ROWS[1]]);
 });
@@ -108,7 +88,7 @@ test("answers the absent value on the way out and on Escape", async () => {
   const answers: (ChoiceRow | null)[] = [];
   await draw(ROWS, (row) => answers.push(row));
 
-  buttons()[2].click();
+  await press(buttons()[2]);
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
 
   expect(answers).toEqual([null, null]);

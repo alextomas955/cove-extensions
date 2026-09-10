@@ -7,8 +7,9 @@
  * the trigger must not count as a click outside. A stand-in for it would assert the stand-in.
  */
 import { test, expect, afterEach } from "vitest";
-import { createElement, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+import { act, createElement, type ReactNode } from "react";
+
+import { render } from "../common/lib/testRender";
 
 import { EntityMonitorMenu } from "./EntityMonitorMenu";
 import { monitorMenu } from "./monitorMenuLogic";
@@ -21,14 +22,6 @@ import {
   SCOPE_FUTURE_SCENES,
 } from "../common/ui/copy";
 import type { EntityMonitoringView } from "../wire/api";
-
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
 
 /**
  * The name assistive technology composes from an element: its text in document order, minus every
@@ -78,25 +71,16 @@ afterEach(() => {
 async function mount(
   node: (trigger: { current: HTMLElement | null }) => ReactNode,
 ): Promise<Mounted> {
-  const container = document.createElement("div");
-  document.body.append(container);
-
-  // A real trigger in the document, because two of the properties under test are about events that
-  // start on it.
+  // A real trigger in the document before the render, because two of the properties under test are
+  // about events that start on it and the menu is handed a ref to it.
   const trigger = document.createElement("button");
   trigger.textContent = "trigger";
-  container.append(trigger);
-
-  const host = document.createElement("div");
-  container.append(host);
-  const root = createRoot(host);
-  root.render(node({ current: trigger }));
-  await sleep(COMMIT_MS);
-
+  document.body.append(trigger);
   teardowns.push(() => {
-    root.unmount();
-    container.remove();
+    trigger.remove();
   });
+
+  const container = await render(node({ current: trigger }));
 
   return {
     container,
@@ -523,8 +507,10 @@ test("the room the overlay is given never falls below a readable floor", async (
     configurable: true,
     writable: true,
   });
-  window.dispatchEvent(new Event("resize"));
-  await sleep(COMMIT_MS);
+  await act(() => {
+    window.dispatchEvent(new Event("resize"));
+    return Promise.resolve();
+  });
 
   const container = document.body.querySelector<HTMLElement>('[role="menu"]')!.parentElement!;
   const bound = Number.parseFloat(container.style.maxHeight);

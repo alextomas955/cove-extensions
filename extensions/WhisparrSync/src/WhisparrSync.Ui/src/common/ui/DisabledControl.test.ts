@@ -13,8 +13,8 @@
  */
 import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
 
+import { render } from "../lib/testRender";
 import { CAP_UNAVAILABLE_ON_THIS_GENERATION } from "./copy";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -30,14 +30,6 @@ vi.mock("@cove-extensions/ui-shared", async () => {
 });
 
 const { DisabledControl, OptionallyDisabled } = await import("./DisabledControl");
-
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
 
 const NAME = "Monitor";
 const REASON = CAP_UNAVAILABLE_ON_THIS_GENERATION;
@@ -58,24 +50,16 @@ function visibleText(element: Element): string {
     .join("");
 }
 
-async function render(node: ReactNode) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(node);
-  await sleep(COMMIT_MS);
+async function draw(node: ReactNode) {
+  const container = await render(node);
   return {
     container,
     button: container.querySelector("button"),
-    teardown: () => {
-      root.unmount();
-      container.remove();
-    },
   };
 }
 
 test("a disabled control announces its own name before the reason", async () => {
-  const view = await render(
+  const view = await draw(
     createElement(DisabledControl, {
       name: NAME,
       reason: REASON,
@@ -87,11 +71,10 @@ test("a disabled control announces its own name before the reason", async () => 
   expect(view.button).not.toBeNull();
   expect(view.button?.textContent).toMatch(new RegExp(`^${NAME}`));
   expect(view.button?.textContent).toContain(REASON);
-  view.teardown();
 });
 
 test("the reason reaches assistive technology as text, not only as a pointer attribute", async () => {
-  const view = await render(
+  const view = await draw(
     createElement(DisabledControl, {
       name: NAME,
       reason: REASON,
@@ -106,11 +89,10 @@ test("the reason reaches assistive technology as text, not only as a pointer att
   );
   expect(carriesText).toBe(true);
   expect(view.container.querySelector("[title]")?.getAttribute("title")).toBe(REASON);
-  view.teardown();
 });
 
 test("the reason is not drawn on screen beside every control", async () => {
-  const view = await render(
+  const view = await draw(
     createElement(DisabledControl, {
       name: NAME,
       reason: REASON,
@@ -124,22 +106,18 @@ test("the reason is not drawn on screen beside every control", async () => {
   );
   expect(carrier?.style.position).toBe("absolute");
   expect(carrier?.style.width).toBe("1px");
-  view.teardown();
 });
 
 test("an enabled control announces only its own name", async () => {
-  const view = await render(
-    createElement(DisabledControl, { name: NAME, onClick: () => undefined }),
-  );
+  const view = await draw(createElement(DisabledControl, { name: NAME, onClick: () => undefined }));
 
   expect(view.button?.disabled).toBe(false);
   expect(view.button?.textContent).toBe(NAME);
   expect(view.container.querySelector("[title]")).toBeNull();
-  view.teardown();
 });
 
 test("a control with an empty reason still announces its own name", async () => {
-  const view = await render(
+  const view = await draw(
     createElement(DisabledControl, {
       name: NAME,
       reason: "",
@@ -149,11 +127,10 @@ test("a control with an empty reason still announces its own name", async () => 
   );
 
   expect(view.button?.textContent).toMatch(new RegExp(`^${NAME}`));
-  view.teardown();
 });
 
 test("the name is what is drawn on screen and the reason alone is what hovers", async () => {
-  const view = await render(
+  const view = await draw(
     createElement(DisabledControl, {
       name: NAME,
       reason: REASON,
@@ -165,23 +142,19 @@ test("the name is what is drawn on screen and the reason alone is what hovers", 
   expect(view.button?.textContent).toBe(`${NAME}${REASON}`);
   expect(visibleText(view.button as Element)).toBe(NAME);
   expect(view.container.querySelector("[title]")?.getAttribute("title")).toBe(REASON);
-  view.teardown();
 });
 
 test("an optionally disabled control is enabled without a reason and disabled with one", async () => {
-  const available = await render(
+  const available = await draw(
     createElement(OptionallyDisabled, { name: NAME, reason: null, onClick: () => undefined }),
   );
 
   expect(available.button?.disabled).toBe(false);
   expect(available.button?.textContent).toBe(NAME);
-  available.teardown();
-
-  const unavailable = await render(
+  const unavailable = await draw(
     createElement(OptionallyDisabled, { name: NAME, reason: REASON, onClick: () => undefined }),
   );
 
   expect(unavailable.button?.disabled).toBe(true);
   expect(unavailable.button?.textContent).toBe(`${NAME}${REASON}`);
-  unavailable.teardown();
 });

@@ -9,10 +9,10 @@
  * The host's route builder and its authenticated request both stand in, because each resolves only inside a
  * consuming bundle.
  */
-import { createElement, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+import { act, createElement, type ReactNode } from "react";
 import { afterEach, expect, test, vi } from "vitest";
 
+import { render as renderRoot } from "../common/lib/testRender";
 import type { LibraryStatusView } from "../wire/api";
 
 vi.mock("@cove-extensions/ui-shared", () => ({
@@ -33,14 +33,6 @@ const { libraryStatusOn, toggleLibraryStatus } = await import("./libraryToggleSt
 const { HIDE_WHISPARR_STATUS, SHOW_WHISPARR_STATUS, WHISPARR_STATUS_COULD_NOT_BE_READ } =
   await import("../common/ui/copy");
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 const teardowns: (() => void)[] = [];
 
 afterEach(() => {
@@ -57,21 +49,23 @@ async function aBlankStudioCardOnScreen(): Promise<void> {
     rows: [{ coveId: 1, reading: null }],
     refusal: "instanceUnreachable",
   });
-  teardowns.push(requestCardStatus("studio", 1));
-  await sleep(COMMIT_MS);
+  await act(() => {
+    teardowns.push(requestCardStatus("studio", 1));
+    return Promise.resolve();
+  });
 }
 
 async function render(node: ReactNode): Promise<() => HTMLButtonElement | null> {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(node);
-  await sleep(COMMIT_MS);
-  teardowns.push(() => {
-    root.unmount();
-    container.remove();
-  });
+  const container = await renderRoot(node);
   return () => container.querySelector("button");
+}
+
+/** Flips the shared boolean the way the control does, and lets every surface redraw. */
+async function flip(): Promise<void> {
+  await act(() => {
+    toggleLibraryStatus();
+    return Promise.resolve();
+  });
 }
 
 test("an on control states the page's reason while a blank card of that kind is on screen", async () => {
@@ -97,8 +91,7 @@ test("an off control states no reason, however the read before it ended", async 
   // Asserted before the press, so the case cannot pass on a control that never held a reason.
   expect(button()?.getAttribute("aria-label")).toContain(WHISPARR_STATUS_COULD_NOT_BE_READ);
 
-  toggleLibraryStatus();
-  await sleep(COMMIT_MS);
+  await flip();
 
   expect(button()?.getAttribute("aria-pressed")).toBe("false");
   expect(
@@ -113,10 +106,8 @@ test("the reason comes back with a second press, while the blank card is still o
   toggleLibraryStatus();
   const button = await render(createElement(WhisparrLibraryToggle));
 
-  toggleLibraryStatus();
-  await sleep(COMMIT_MS);
-  toggleLibraryStatus();
-  await sleep(COMMIT_MS);
+  await flip();
+  await flip();
 
   expect(
     button()?.getAttribute("aria-label"),
