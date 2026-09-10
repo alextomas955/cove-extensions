@@ -68,8 +68,16 @@ const SEGMENT_CLASS =
 const SELECT_CLASS =
   "min-h-10 rounded-md border border-border/60 bg-input px-2.5 py-2 text-sm text-foreground shadow-inner focus:outline-none focus:border-accent sm:min-h-[30px] sm:px-2 sm:py-1 sm:text-xs";
 
-/** The same control with room for a leading glyph. */
-const ACTION_CLASS = `inline-flex items-center gap-1.5 ${SELECT_CLASS}`;
+/**
+ * Cove's `toolbarIconButtonClass`, widened for a label.
+ *
+ * An action reads no value, so it takes no fill of its own until hover. Cove writes that class for
+ * a square icon-only button, and its fixed minimum width, its centring and its square padding leave
+ * no room beside a word. Those give way to the horizontal padding and the text size the controls
+ * beside it carry; its colours, its border, its hover and its focus ring are Cove's own.
+ */
+const ACTION_CLASS =
+  "inline-flex min-h-10 items-center gap-1.5 rounded-md border border-transparent px-2.5 py-2 text-sm text-secondary hover:bg-card/80 hover:text-foreground focus:outline-none focus:border-accent sm:min-h-0 sm:px-2 sm:py-1.5 sm:text-xs";
 
 /**
  * The same control as the trigger of a menu, capped at Cove's own width for one.
