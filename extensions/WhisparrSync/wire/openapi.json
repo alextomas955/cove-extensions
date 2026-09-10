@@ -1542,6 +1542,51 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/sync/run": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SyncRunRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncEnqueued"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/job-status/{jobId}": {
       "get": {
         "tags": [
@@ -3005,6 +3050,17 @@
           "scenes",
           "sites"
         ]
+      },
+      "SyncRunRequest": {
+        "required": [
+          "alsoMonitor"
+        ],
+        "type": "object",
+        "properties": {
+          "alsoMonitor": {
+            "type": "boolean"
+          }
+        }
       },
       "UpgradeBehavior": {
         "enum": [
