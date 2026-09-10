@@ -9,10 +9,10 @@
  * The host's authenticated fetch and its shared primitives stand in, because each resolves only inside a
  * consuming bundle.
  */
-import { test, expect, vi, afterEach } from "vitest";
+import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
 
+import { render } from "../common/lib/testRender";
 import type { SceneDetailView } from "../wire/api";
 
 /** What each shared primitive this tab reaches for is handed. */
@@ -57,19 +57,6 @@ vi.mock("@cove-extensions/ui-shared/postAction", () => ({
 const { WhisparrSceneTab } = await import("./WhisparrSceneTab");
 const copy = await import("../common/ui/copy");
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
-const teardowns: (() => void)[] = [];
-afterEach(() => {
-  while (teardowns.length > 0) teardowns.pop()?.();
-});
-
 function view(overrides: Partial<SceneDetailView> = {}): SceneDetailView {
   return {
     refusal: "none",
@@ -86,17 +73,7 @@ function view(overrides: Partial<SceneDetailView> = {}): SceneDetailView {
 
 async function mount(answered: SceneDetailView): Promise<HTMLElement> {
   answer = Promise.resolve(answered);
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  root.render(createElement(WhisparrSceneTab, { entityId: 1 }));
-  await sleep(COMMIT_MS);
-
-  teardowns.push(() => {
-    root.unmount();
-    container.remove();
-  });
-  return container;
+  return render(createElement(WhisparrSceneTab, { entityId: 1 }));
 }
 
 /** The label of each fact row the block drew, in the order it drew them. */
