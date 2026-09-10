@@ -45,15 +45,20 @@ public sealed partial class WhisparrSync
             return new ForbiddenCode();
         }
 
-        // The cap is one rendered page, which is the same figure Cove's own list pages default their
-        // perPage to. Referenced rather than restated, so the two cannot drift.
         if (!TryReadCardKind(kind, out var card)
             || request is not { CoveIds.Count: > 0 }
-            || request.CoveIds.Count > MissingPerPage
             || request.CoveIds.Any(coveId => coveId < 1))
         {
             return TypedResults.BadRequest();
         }
+
+        // One rendered page, which is the same figure Cove's own list pages default their perPage
+        // to. Referenced rather than restated, so the two cannot drift. A body over it is answered
+        // as far as the page reaches and reports the remainder, so no caller has to hold this figure
+        // to send a request this route can answer.
+        var asked = request.CoveIds.Count > MissingPerPage
+            ? request.CoveIds.Take(MissingPerPage).ToArray()
+            : request.CoveIds;
 
         ArgumentNullException.ThrowIfNull(cards);
         ArgumentNullException.ThrowIfNull(sceneCards);
@@ -62,19 +67,24 @@ public sealed partial class WhisparrSync
             is not { } target)
         {
             return TypedResults.Ok(
-                new LibraryStatusView([], LibraryStatusRefusalKind.NoInstanceConnected));
+                new LibraryStatusView(card, [], LibraryStatusRefusalKind.NoInstanceConnected));
         }
 
         var answered = card == LibraryCardKind.Video
-            ? await ReadSceneCardsAsync(cards, sceneCards, target, request.CoveIds, ct)
+            ? await ReadSceneCardsAsync(cards, sceneCards, target, asked, ct)
                 .ConfigureAwait(false)
-            : await ReadEntityCardsAsync(cards, EntityKindOf(card), target, request.CoveIds, ct)
+            : await ReadEntityCardsAsync(cards, EntityKindOf(card), target, asked, ct)
                 .ConfigureAwait(false);
 
         return TypedResults.Ok(
             answered.Rows is not { } rows
-                ? new LibraryStatusView([], LibraryStatusRefusalKind.WhisparrCannotAnswerForThisKind)
-                : new LibraryStatusView(rows, RefusalOver(rows, answered.AnyReadDropped)));
+                ? new LibraryStatusView(
+                    card, [], LibraryStatusRefusalKind.WhisparrCannotAnswerForThisKind)
+                : new LibraryStatusView(
+                    card,
+                    rows,
+                    RefusalOver(rows, answered.AnyReadDropped),
+                    asked.Count != request.CoveIds.Count));
     }
 
     /// <summary>

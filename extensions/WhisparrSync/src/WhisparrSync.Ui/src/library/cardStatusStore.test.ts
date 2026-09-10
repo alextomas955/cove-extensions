@@ -56,8 +56,11 @@ afterEach(() => {
   releases = [];
 });
 
-function answering(view: LibraryStatusView): void {
-  requestJson.mockResolvedValue(view);
+/** One answer for every request. A view naming no remainder is the default, as most tests want. */
+function answering(
+  view: Partial<LibraryStatusView> & Pick<LibraryStatusView, "rows" | "refusal">,
+): void {
+  requestJson.mockResolvedValue({ kind: "studio", moreNotAnswered: false, ...view });
 }
 
 test("a card nobody registered has no reading, so the badges are silent until asked for", () => {
@@ -132,41 +135,6 @@ test("the page's own reason is readable with no card carrying one", async () => 
   unsubscribe();
 });
 
-test("a page holding more cards than one request may carry answers every one of them", async () => {
-  // A host page size above the route's bound, which is a size the list pages offer and remember.
-  const coveIds = Array.from({ length: 41 }, (_, index) => index + 100);
-  requestJson.mockImplementation((_path, options) => {
-    const sent = (JSON.parse((options as { body: string }).body) as { coveIds: number[] }).coveIds;
-    return Promise.resolve({
-      rows: sent.map((coveId) => ({
-        coveId,
-        reading: { excluded: false, present: true, monitored: true },
-      })),
-      refusal: "none",
-    });
-  });
-
-  for (const coveId of coveIds) register(coveId);
-  await settle();
-
-  expect(requestJson, "a page over the route's bound was sent as one body").toHaveBeenCalledTimes(
-    2,
-  );
-  for (let call = 0; call < 2; call++) {
-    expect(
-      idsSent(call).length,
-      "one request carried more than the route accepts",
-    ).toBeLessThanOrEqual(40);
-  }
-
-  // Every card, not a count: a bound applied by dropping identifiers would agree with a count of
-  // requests.
-  expect([...idsSent(0), ...idsSent(1)].sort()).toEqual([...coveIds].sort());
-  const silent = coveIds.filter((coveId) => readCardStatus("studio", coveId) === null);
-  expect(silent, "a card past the route's bound drew no badge").toEqual([]);
-  expect(cardStatusRefusal(), "a page whose every request answered stated a reason").toBe("none");
-});
-
 test("a request that never answered is stated on the page rather than left silent", async () => {
   requestJson.mockRejectedValue(new Error("the route refused the body"));
 
@@ -207,97 +175,6 @@ test("a retry that failed states its own reason rather than the one before it", 
   );
 });
 
-test("a page whose earlier request failed states that reason once a later one answers", async () => {
-  // A page over the route's bound, so the cards are asked about across two requests. The first one
-  // never answers and the second one does, which is the page that reads as answered while most of
-  // its cards drew nothing.
-  const coveIds = Array.from({ length: 41 }, (_, index) => index + 200);
-  let sent = 0;
-  requestJson.mockImplementation((_path, options) => {
-    sent += 1;
-    if (sent === 1) return Promise.reject(new Error("the route refused the body"));
-
-    const asked = (JSON.parse((options as { body: string }).body) as { coveIds: number[] }).coveIds;
-    return Promise.resolve({
-      rows: asked.map((coveId) => ({
-        coveId,
-        reading: { excluded: false, present: true, monitored: true },
-      })),
-      refusal: "none",
-    });
-  });
-
-  for (const coveId of coveIds) register(coveId);
-  await settle();
-
-  expect(requestJson).toHaveBeenCalledTimes(2);
-  for (const coveId of idsSent(1)) {
-    expect(
-      readCardStatus("studio", coveId),
-      "a card the answering request covered drew no badge",
-    ).not.toBeNull();
-  }
-  expect(
-    cardStatusRefusal(),
-    "the request that answered took away the reason the failed one established",
-  ).toBe("statusCouldNotBeRead");
-});
-
-test("a card that mounts while a page is still being read leaves the page's reason standing", async () => {
-  // A page over the route's bound whose first request never answers, and a card that mounts before
-  // the second request has answered. Cove mounts a card on a scroll, and the card is asked about on
-  // its own while the page it joined is still being read. The 40 cards of the failed request are
-  // still on screen drawing nothing, so the page still has its reason.
-  const coveIds = Array.from({ length: 41 }, (_, index) => index + 300);
-  let answerSecond = (): void => undefined;
-  const secondAnswers = new Promise<void>((resolve) => {
-    answerSecond = resolve;
-  });
-
-  let sent = 0;
-  requestJson.mockImplementation((_path, options) => {
-    sent += 1;
-    if (sent === 1) return Promise.reject(new Error("the route refused the body"));
-
-    const asked = (JSON.parse((options as { body: string }).body) as { coveIds: number[] }).coveIds;
-    const view: LibraryStatusView = {
-      rows: asked.map((coveId) => ({
-        coveId,
-        reading: { excluded: false, present: true, monitored: true },
-      })),
-      refusal: "none",
-    };
-    return sent === 2 ? secondAnswers.then(() => view) : Promise.resolve(view);
-  });
-
-  for (const coveId of coveIds) register(coveId);
-  await settle();
-  expect(cardStatusRefusal(), "the failed request established no reason to hold").toBe(
-    "statusCouldNotBeRead",
-  );
-
-  register(341);
-  await settle();
-  answerSecond();
-  await settle();
-
-  expect(requestJson, "the card that mounted was not asked about on its own").toHaveBeenCalledTimes(
-    3,
-  );
-  // The first 40 registered, written out rather than read back from the store, so a request that
-  // carried other cards fails here rather than agreeing with itself.
-  const failed = coveIds.slice(0, 40);
-  expect(idsSent(0)).toEqual(failed);
-  expect(
-    failed.filter((coveId) => readCardStatus("studio", coveId) !== null),
-    "a card the failed request covered drew a badge after all",
-  ).toEqual([]);
-  expect(
-    cardStatusRefusal(),
-    "the card that mounted mid-read took away the reason the page had established",
-  ).toBe("statusCouldNotBeRead");
-});
-
 test("a page whose cards all answered states no reason after a page that failed", async () => {
   requestJson.mockRejectedValue(new Error("nothing answered"));
   register(500);
@@ -319,18 +196,64 @@ test("a page whose cards all answered states no reason after a page that failed"
   expect(cardStatusRefusal(), "the new page carried the previous page's reason").toBe("none");
 });
 
+/**
+ * A page holding more cards than the route answers for in one go. The route answers a page and says
+ * there is more; the store asks again for what came back with no row. How many one page holds is the
+ * route's own figure and is never held here, so the fake below is what decides it.
+ */
+function truncatingAt(perPage: number, refusal: LibraryStatusView["refusal"] = "none") {
+  return (_path: string, options: unknown) => {
+    const asked = (JSON.parse((options as { body: string }).body) as { coveIds: number[] }).coveIds;
+    const answered = asked.slice(0, perPage);
+    const view: LibraryStatusView = {
+      kind: "studio",
+      rows: answered.map((coveId) => ({
+        coveId,
+        reading: { excluded: false, present: true, monitored: true },
+      })),
+      refusal,
+      moreNotAnswered: answered.length < asked.length,
+    };
+    return Promise.resolve(view);
+  };
+}
+
+test("a page holding more cards than one answer carries reaches every one of them", async () => {
+  // A host page size above what the route answers for, which is a size the list pages offer and
+  // remember.
+  const coveIds = Array.from({ length: 41 }, (_, index) => index + 100);
+  requestJson.mockImplementation(truncatingAt(40));
+
+  for (const coveId of coveIds) register(coveId);
+  await settle();
+
+  expect(
+    requestJson,
+    "the cards the route left unanswered were never asked about again",
+  ).toHaveBeenCalledTimes(2);
+
+  // The store sends what it holds and never a page of its own, so the first body carries all of
+  // them and the second only what came back with no row.
+  expect(idsSent(0)).toEqual(coveIds);
+  expect(idsSent(1)).toEqual([coveIds[40]]);
+
+  const silent = coveIds.filter((coveId) => readCardStatus("studio", coveId) === null);
+  expect(silent, "a card the route did not answer for first time round drew no badge").toEqual([]);
+  expect(cardStatusRefusal(), "a page whose every card answered stated a reason").toBe("none");
+});
+
 test("a reason the instance established is not displaced by a request that never answered", async () => {
   // One page, two requests, two reasons. The page states one sentence, and it is the first reason
   // established: the reason changing under the reader as later requests answer would say the page
   // had been read twice.
   const coveIds = Array.from({ length: 41 }, (_, index) => index + 600);
+  const first = truncatingAt(40, "instanceUnreachable");
   let sent = 0;
-  requestJson.mockImplementation(() => {
+  requestJson.mockImplementation((path, options) => {
     sent += 1;
-    if (sent > 1) return Promise.reject(new Error("the route refused the body"));
-
-    const view: LibraryStatusView = { rows: [], refusal: "instanceUnreachable" };
-    return Promise.resolve(view);
+    return sent === 1
+      ? first(path, options)
+      : Promise.reject(new Error("the route answered nothing"));
   });
 
   for (const coveId of coveIds) register(coveId);
@@ -340,4 +263,34 @@ test("a reason the instance established is not displaced by a request that never
   expect(cardStatusRefusal(), "the browser's own reason displaced the one the instance gave").toBe(
     "instanceUnreachable",
   );
+});
+
+test("a card that mounts while a failed page is still on screen leaves its reason standing", async () => {
+  // Cove mounts a card on a scroll, so a card is asked about on its own while the cards of a request
+  // that never answered are still on screen drawing nothing. The page still has its reason.
+  const coveIds = Array.from({ length: 41 }, (_, index) => index + 300);
+  requestJson.mockRejectedValue(new Error("the route answered nothing"));
+
+  for (const coveId of coveIds) register(coveId);
+  await settle();
+  expect(cardStatusRefusal(), "the failed request established no reason to hold").toBe(
+    "statusCouldNotBeRead",
+  );
+
+  requestJson.mockImplementation(truncatingAt(40));
+  register(341);
+  await settle();
+
+  expect(
+    readCardStatus("studio", 341),
+    "the card that mounted was not asked about on its own",
+  ).not.toBeNull();
+  expect(
+    coveIds.filter((coveId) => readCardStatus("studio", coveId) !== null),
+    "a card the failed request covered drew a badge after all",
+  ).toEqual([]);
+  expect(
+    cardStatusRefusal(),
+    "the card that mounted mid-read took away the reason the page had established",
+  ).toBe("statusCouldNotBeRead");
 });
