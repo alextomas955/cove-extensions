@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Missing;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Providers;
 using WhisparrSync.Whisparr;

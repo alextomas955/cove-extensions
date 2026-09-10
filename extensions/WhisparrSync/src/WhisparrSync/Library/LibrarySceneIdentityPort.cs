@@ -2,10 +2,8 @@ using System.Runtime.CompilerServices;
 using Cove.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 using WhisparrSync.Contracts;
+using WhisparrSync.Identity;
 using WhisparrSync.Options;
-
-using EndpointMatchGuard = WhisparrSync.Import.EndpointMatchGuard;
-using IdentityEndpoint = WhisparrSync.Import.IdentityEndpoint;
 
 namespace WhisparrSync.Library;
 

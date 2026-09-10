@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 

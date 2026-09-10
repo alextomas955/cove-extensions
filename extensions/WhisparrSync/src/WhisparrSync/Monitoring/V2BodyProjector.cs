@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Whisparr2.Net.Model;
 using WhisparrSync.Contracts;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 

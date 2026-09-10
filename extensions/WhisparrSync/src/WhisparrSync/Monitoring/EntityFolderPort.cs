@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Cove.Core.Entities;
 using Microsoft.EntityFrameworkCore;
+using WhisparrSync.Contracts;
 
 namespace WhisparrSync.Monitoring;
 

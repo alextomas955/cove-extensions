@@ -3,7 +3,6 @@ using Cove.Core.Interfaces;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Missing;
-using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Providers;
 using WhisparrSync.Tests.TestSupport;
