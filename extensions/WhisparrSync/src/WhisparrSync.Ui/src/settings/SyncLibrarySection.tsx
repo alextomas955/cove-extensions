@@ -6,23 +6,39 @@
  * No progress readout of any kind: Cove's job list is the progress surface, and a second one here
  * would be the one that goes stale. Nothing from a job-status read reaches this component.
  */
+import { useState } from "react";
+import { createPortal } from "react-dom";
 import { SectionCard, Spinner, StatusText } from "@cove-extensions/ui-shared";
 
 import type { SyncPreviewView } from "../wire/api";
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { OptionallyDisabled } from "../common/ui/DisabledControl";
+import { DisabledToggle } from "../common/ui/DisabledToggle";
 import {
+  MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF,
+  RUN_WAS_NOT_STARTED,
   SYNC_ALREADY_IN_WHISPARR,
+  SYNC_ALSO_MONITOR,
   SYNC_COUNTING,
   SYNC_COUNT_DID_NOT_FINISH,
+  SYNC_LIBRARY,
   SYNC_NOTHING_COUNTED_YET,
   SYNC_NOT_YET_IN_WHISPARR,
+  SYNC_RUNS_IN_THE_JOB_DRAWER,
   SYNC_SKIPPED_CANNOT_BE_REGISTERED,
   SYNC_SKIPPED_NO_ID,
 } from "../common/ui/copy";
 import type { AsyncRegionState } from "../common/ui/asyncRegionLogic";
+import { ConfirmDialog } from "./hostComponents";
 import { describeInstant } from "./relativeTimeLogic";
-import { countControl, groupThousands } from "./syncLibraryLogic";
+import {
+  countControl,
+  groupThousands,
+  monitorToggleReason,
+  syncConfirmation,
+  syncDisabledReason,
+  type SyncControlState,
+} from "./syncLibraryLogic";
 
 export interface SyncLibrarySectionProps {
   /** The counts held, or null when none are. */
@@ -34,6 +50,22 @@ export interface SyncLibrarySectionProps {
   /** The instant the page re-reads on an interval, which the counts' age is measured against. */
   now: number;
   onCount: () => void;
+  /** The page's own reason nothing here can act on the stored connection, or null. */
+  sharedReason: string | null;
+  /** Whether the read answered that no instance is connected. */
+  noConnection: boolean;
+  /** Whether a library sync is already in flight. */
+  syncRunning: boolean;
+  /** Whether the enqueue request itself is in flight. */
+  starting: boolean;
+  /** Whether a run was started, which is the whole of what this section says afterwards. */
+  started: boolean;
+  /** Whether the enqueue was refused, in which case nothing was changed. */
+  refused: boolean;
+  /** The monitor choice as it stands. */
+  monitorAlso: boolean;
+  onMonitorAlso: (checked: boolean) => void;
+  onSync: () => void;
 }
 
 export function SyncLibrarySection({
@@ -42,8 +74,28 @@ export function SyncLibrarySection({
   counting,
   now,
   onCount,
+  sharedReason,
+  noConnection,
+  syncRunning,
+  starting,
+  started,
+  refused,
+  monitorAlso,
+  onMonitorAlso,
+  onSync,
 }: SyncLibrarySectionProps) {
   const control = countControl(counting, counts !== null);
+  const [confirming, setConfirming] = useState(false);
+
+  const state: SyncControlState = {
+    sharedReason,
+    noConnection,
+    syncRunning,
+    starting,
+    counts,
+    monitorAlso,
+  };
+  const syncReason = syncDisabledReason(state);
 
   return (
     <SectionCard
@@ -74,6 +126,53 @@ export function SyncLibrarySection({
         />
         {counting ? <Spinner /> : null}
       </div>
+
+      <DisabledToggle
+        label={SYNC_ALSO_MONITOR}
+        helper={MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF}
+        checked={monitorAlso}
+        onChange={onMonitorAlso}
+        reason={monitorToggleReason(state)}
+      />
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-3">
+          <OptionallyDisabled
+            name={SYNC_LIBRARY}
+            variant="primary"
+            reason={syncReason}
+            onClick={() => {
+              setConfirming(true);
+            }}
+          />
+        </div>
+
+        {refused ? <StatusText kind="error">{RUN_WAS_NOT_STARTED}</StatusText> : null}
+        {started && !refused ? (
+          <StatusText kind="muted">{SYNC_RUNS_IN_THE_JOB_DRAWER}</StatusText>
+        ) : null}
+      </div>
+
+      {!confirming || counts === null
+        ? null
+        : // Portaled to the document, so no ancestor of this tab can become the containing block of a
+          // dialog that positions against the viewport and clip it to the settings column.
+          createPortal(
+            <ConfirmDialog
+              open
+              title={SYNC_LIBRARY}
+              confirmLabel={SYNC_LIBRARY}
+              message={syncConfirmation(counts, monitorAlso)}
+              onConfirm={() => {
+                setConfirming(false);
+                onSync();
+              }}
+              onCancel={() => {
+                setConfirming(false);
+              }}
+            />,
+            document.body,
+          )}
     </SectionCard>
   );
 }

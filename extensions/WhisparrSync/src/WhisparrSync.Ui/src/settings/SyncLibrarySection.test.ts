@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, createElement, type ReactNode } from "react";
 import { render as renderNode, press } from "../common/lib/testRender";
 
@@ -20,6 +20,11 @@ import type { AsyncRegionState } from "../common/ui/asyncRegionLogic";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
+  // The switch is the real primitive: whether a press can act rests on the native attribute it
+  // carries, which a stand-in would only imitate.
+  const shared = await vi.importActual<typeof import("@cove-extensions/ui-shared")>(
+    "@cove-extensions/ui-shared",
+  );
   return {
     SectionCard: (props: { title?: string; description?: string; children: ReactNode }) =>
       h("section", null, props.title, props.description, props.children),
@@ -27,9 +32,31 @@ vi.mock("@cove-extensions/ui-shared", async () => {
     Spinner: () => h("span", { "data-spinner": "true" }, "…"),
     Button: (props: { children: ReactNode; disabled?: boolean; onClick: () => void }) =>
       h("button", { disabled: props.disabled, onClick: props.onClick }, props.children),
+    Toggle: shared.Toggle,
     extensionApi: (id: string) => (path: string) => `/extensions/${id}/${path}`,
   };
 });
+
+vi.mock("./hostComponents", () => ({
+  ConfirmDialog: ({
+    title,
+    message,
+    confirmLabel,
+    onConfirm,
+    onCancel,
+  }: {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  }) =>
+    createElement("div", { role: "dialog", "aria-label": title }, [
+      createElement("p", { key: "message" }, message),
+      createElement("button", { key: "confirm", type: "button", onClick: onConfirm }, confirmLabel),
+      createElement("button", { key: "cancel", type: "button", onClick: onCancel }, "Cancel"),
+    ]),
+}));
 
 const requestJson = vi.fn<(path: string, init?: { method?: string }) => Promise<unknown>>();
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
@@ -55,6 +82,15 @@ function section(overrides: {
   preview?: AsyncRegionState;
   counting?: boolean;
   onCount?: () => void;
+  sharedReason?: string | null;
+  noConnection?: boolean;
+  syncRunning?: boolean;
+  starting?: boolean;
+  started?: boolean;
+  refused?: boolean;
+  monitorAlso?: boolean;
+  onMonitorAlso?: (checked: boolean) => void;
+  onSync?: () => void;
 }) {
   return createElement(SyncLibrarySection, {
     counts: overrides.counts ?? null,
@@ -62,6 +98,15 @@ function section(overrides: {
     counting: overrides.counting ?? false,
     now: NOW,
     onCount: overrides.onCount ?? (() => undefined),
+    sharedReason: overrides.sharedReason ?? null,
+    noConnection: overrides.noConnection ?? false,
+    syncRunning: overrides.syncRunning ?? false,
+    starting: overrides.starting ?? false,
+    started: overrides.started ?? false,
+    refused: overrides.refused ?? false,
+    monitorAlso: overrides.monitorAlso ?? false,
+    onMonitorAlso: overrides.onMonitorAlso ?? (() => undefined),
+    onSync: overrides.onSync ?? (() => undefined),
   });
 }
 
@@ -166,8 +211,35 @@ describe("the count control", () => {
   });
 });
 
+/** The four requests this surface can make, named by what they are for. */
+type Route = "readPreview" | "startCount" | "readJob" | "startRun";
+
+function routeOf(path: string, method: string): Route {
+  if (path.includes("job-status")) return "readJob";
+  if (path.endsWith("sync/run")) return "startRun";
+  return method === "POST" ? "startCount" : "readPreview";
+}
+
 describe("every way a count can fail leaves the same failed state", () => {
+  /**
+   * The server as these tests answer it, one route at a time. A route nothing was given for is
+   * refused, so a request the hook was not expected to make reddens the test that made it rather
+   * than reading as a silent success.
+   */
+  const answers = new Map<Route, () => Promise<unknown>>();
+
+  beforeEach(() => {
+    requestJson.mockImplementation((path, init) => {
+      const route = routeOf(path, init?.method ?? "GET");
+      const answer = answers.get(route);
+      return answer === undefined
+        ? Promise.reject(new Error(`nothing answers ${route}`))
+        : answer();
+    });
+  });
+
   afterEach(() => {
+    answers.clear();
     requestJson.mockReset();
     vi.useRealTimers();
   });
@@ -195,7 +267,7 @@ describe("every way a count can fail leaves the same failed state", () => {
   const noCounts: SyncPreviewRead = { view: null, refusal: "none", syncRunning: false };
 
   test("nothing is counted on mount: the read starts no run", async () => {
-    requestJson.mockResolvedValue(noCounts);
+    answers.set("readPreview", () => Promise.resolve(noCounts));
     const probe = await harness();
 
     expect(requestJson).toHaveBeenCalledOnce();
@@ -205,10 +277,12 @@ describe("every way a count can fail leaves the same failed state", () => {
   });
 
   test("a refused enqueue is a failed count", async () => {
-    requestJson.mockResolvedValueOnce(noCounts);
+    answers.set("readPreview", () => Promise.resolve(noCounts));
     const probe = await harness();
 
-    requestJson.mockResolvedValueOnce({ jobId: null, refusal: "noInstanceConnected" });
+    answers.set("startCount", () =>
+      Promise.resolve({ jobId: null, refusal: "noInstanceConnected" }),
+    );
     await act(() => {
       probe.read().count();
       return Promise.resolve();
@@ -220,17 +294,17 @@ describe("every way a count can fail leaves the same failed state", () => {
 
   test("a job that reports failed is a failed count", async () => {
     vi.useFakeTimers();
-    requestJson.mockResolvedValueOnce(noCounts);
+    answers.set("readPreview", () => Promise.resolve(noCounts));
     const probe = await harness();
 
-    requestJson.mockResolvedValueOnce({ jobId: "job-1", refusal: "none" });
+    answers.set("startCount", () => Promise.resolve({ jobId: "job-1", refusal: "none" }));
     await act(() => {
       probe.read().count();
       return Promise.resolve();
     });
     expect(probe.read().preview.reading).toBe(true);
 
-    requestJson.mockResolvedValueOnce({ id: "job-1", status: "failed" });
+    answers.set("readJob", () => Promise.resolve({ id: "job-1", status: "failed" }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1500);
     });
@@ -241,16 +315,16 @@ describe("every way a count can fail leaves the same failed state", () => {
 
   test("a job the server can no longer find is a failed count", async () => {
     vi.useFakeTimers();
-    requestJson.mockResolvedValueOnce(noCounts);
+    answers.set("readPreview", () => Promise.resolve(noCounts));
     const probe = await harness();
 
-    requestJson.mockResolvedValueOnce({ jobId: "job-2", refusal: "none" });
+    answers.set("startCount", () => Promise.resolve({ jobId: "job-2", refusal: "none" }));
     await act(() => {
       probe.read().count();
       return Promise.resolve();
     });
 
-    requestJson.mockRejectedValueOnce(new Error("404 not found"));
+    answers.set("readJob", () => Promise.reject(new Error("404 not found")));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1500);
     });
@@ -259,23 +333,25 @@ describe("every way a count can fail leaves the same failed state", () => {
     expect(probe.read().preview.failed).toBe(true);
   });
 
-  test("a completed job's counts are read once and the region carries content", async () => {
+  test("a completed job's counts reach the region as content", async () => {
     vi.useFakeTimers();
-    requestJson.mockResolvedValueOnce(noCounts);
+    answers.set("readPreview", () => Promise.resolve(noCounts));
     const probe = await harness();
 
-    requestJson.mockResolvedValueOnce({ jobId: "job-3", refusal: "none" });
+    answers.set("startCount", () => Promise.resolve({ jobId: "job-3", refusal: "none" }));
     await act(() => {
       probe.read().count();
       return Promise.resolve();
     });
 
-    requestJson.mockResolvedValueOnce({ id: "job-3", status: "completed" });
-    requestJson.mockResolvedValueOnce({
-      view: COUNTS,
-      refusal: "none",
-      syncRunning: false,
-    } satisfies SyncPreviewRead);
+    answers.set("readJob", () => Promise.resolve({ id: "job-3", status: "completed" }));
+    answers.set("readPreview", () =>
+      Promise.resolve({
+        view: COUNTS,
+        refusal: "none",
+        syncRunning: false,
+      } satisfies SyncPreviewRead),
+    );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1500);
     });
