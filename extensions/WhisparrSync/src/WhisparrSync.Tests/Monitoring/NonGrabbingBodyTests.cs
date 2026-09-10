@@ -303,6 +303,19 @@ internal static class ComposedAdds
                     V2Suppression),
             ],
 
+            // The presence-only add on the same generation, composed from the same resolved number
+            // its lookup answers with. It carries the same two suppression flags as the monitoring
+            // add and, unlike it, monitors nothing.
+            (WhisparrGeneration.V2, WhisparrCapability.RegisterOwnedSites) =>
+            [
+                new ComposedAdd(
+                    generation,
+                    WhisparrEntityKind.Studio,
+                    null,
+                    ComposedV2Body.Of(V2BodyProjector.RegisterSite(3372, "Vixen", "vixen", V2Defaults)),
+                    V2Suppression),
+            ],
+
             _ => throw new NotSupportedException(
                 $"{generation} holds {capability} and no composed add body for it is enumerated in "
                     + $"{nameof(ComposedAdds)}. Add the combination's body beside the others so the "
@@ -425,17 +438,18 @@ public sealed class NonGrabbingBodyTests
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
 
-        Assert.Equal(2, ComposedAdds.On(WhisparrGeneration.V2).Count);
+        Assert.Equal(3, ComposedAdds.On(WhisparrGeneration.V2).Count);
         Assert.Equal(
             [
                 WhisparrCapability.OutOfBandCallbackSecret,
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
+                WhisparrCapability.RegisterOwnedSites,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
 
-        Assert.Equal(6, ComposedAdds.All().Count);
+        Assert.Equal(7, ComposedAdds.All().Count);
 
         // The filter is on the verb class rather than on the registration, so a grabbing capability a
         // generation holds contributes no case to a list of bodies asserted non-grabbing. Which
