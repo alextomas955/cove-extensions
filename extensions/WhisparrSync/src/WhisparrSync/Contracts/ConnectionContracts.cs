@@ -78,6 +78,12 @@ public enum WhisparrCapability
 
     /// <summary>One scene can be excluded from what the instance takes, and the exclusion removed.</summary>
     ExcludeScene,
+
+    /// <summary>
+    /// A site the library's own scenes came from can be registered, monitoring nothing. Held by the
+    /// generation whose unit of presence is a site rather than a scene.
+    /// </summary>
+    RegisterOwnedSites,
 }
 
 /// <summary>
