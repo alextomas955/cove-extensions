@@ -29,6 +29,7 @@ const CARD: MissingCard = {
   title: "A scene the library does not hold",
   releaseDate: "2019-04-02",
   coverUrl: null,
+  sceneUrl: null,
   studioName: "Brazzers Exxtra",
   description: null,
   performers: [],
