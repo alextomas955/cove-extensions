@@ -8,12 +8,18 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 
-import type { MissingBulkEnqueued, MissingPageView, MissingSceneActionResult } from "../wire/api";
+import type {
+  MissingBulkEnqueued,
+  MissingFacetSearchView,
+  MissingPageView,
+  MissingSceneActionResult,
+} from "../wire/api";
 import { api } from "../common/lib/extension";
 import type { MissingEntityKind } from "./entityKindLogic";
 import { sceneActionIn, type CardVerb } from "./missingCardLogic";
 import { selectionOutcomeIn } from "./missingSelectionLogic";
 import type { MissingView } from "./missingUrlLogic";
+import type { FacetValueSearch } from "./useFacetValueLookup";
 import {
   createMissingStore,
   type MissingEntity,
@@ -40,6 +46,8 @@ export interface Missing {
    * force, which is what keeps the run's cost off the browser and its set equal to the grid's.
    */
   readonly monitorAll: () => void;
+  /** Asks for the values of one facet matching a fragment, reaching past the menus the page filled. */
+  readonly searchFacetValues: FacetValueSearch;
 }
 
 /**
@@ -77,6 +85,15 @@ function sceneRouteFor(entity: MissingEntity, providerSceneId: string, verb: Car
   return api(
     `entity/${entity.kind}/${String(entity.coveId)}/missing/` +
       `${encodeURIComponent(providerSceneId)}/${verb}`,
+  );
+}
+
+/** One facet's own read route, which names the entity and the facet and carries the fragment. */
+function facetValuesRouteFor(entity: MissingEntity, facetKey: string, fragment: string): string {
+  const query = new URLSearchParams({ q: fragment });
+  return api(
+    `entity/${entity.kind}/${String(entity.coveId)}/missing/facet/` +
+      `${encodeURIComponent(facetKey)}?${query.toString()}`,
   );
 }
 
@@ -207,5 +224,21 @@ export function useMissing(kind: MissingEntityKind, coveId: number, view: Missin
       });
   }, [store, kind, coveId, page, sort, q, filters]);
 
-  return { state, refresh, monitorScene, searchScene, monitorSelection, monitorAll };
+  const searchFacetValues = useCallback<FacetValueSearch>(
+    (facetKey, fragment) =>
+      requestJson<MissingFacetSearchView>(
+        facetValuesRouteFor({ kind, coveId }, facetKey, fragment),
+      ),
+    [kind, coveId],
+  );
+
+  return {
+    state,
+    refresh,
+    monitorScene,
+    searchScene,
+    monitorSelection,
+    monitorAll,
+    searchFacetValues,
+  };
 }
