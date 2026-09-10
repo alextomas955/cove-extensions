@@ -234,6 +234,7 @@ internal sealed class WhisparrClient(
         IWhisparrStudioActing,
         IWhisparrPerformerActing,
         IWhisparrMissingSceneActing,
+        IWhisparrSiteRegistrationActing,
         IWhisparrReflectOwnedActing,
         IWhisparrSearchGrabbing,
         IWhisparrSceneSearchGrabbing,
@@ -601,6 +602,33 @@ internal sealed class WhisparrClient(
             apiKey,
             api => api.Api<V2Api.ISeriesApi>().CreateSeriesAsync(
                 V2BodyProjector.AddStudio(site.EntityId, site.Title, site.TitleSlug, scope, defaults),
+                ct)).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The same two-step the monitoring add uses: the lookup resolves the stored identifier to the
+    /// number this generation names a site by, and the add carries that number. The body is the
+    /// presence-only one, so the catalogue the instance then reads for the site is wanted by nothing.
+    /// </remarks>
+    public async Task<WhisparrResponse> RegisterSiteAsync(
+        Uri baseAddress,
+        string apiKey,
+        string foreignId,
+        AddDefaults defaults,
+        CancellationToken ct)
+    {
+        var resolved = await ResolveSiteAsync(baseAddress, apiKey, foreignId, ct).ConfigureAwait(false);
+        if (resolved.Site is not { } site)
+        {
+            return resolved.Answer;
+        }
+
+        return await GeneratedV2ActAsync(
+            baseAddress,
+            apiKey,
+            api => api.Api<V2Api.ISeriesApi>().CreateSeriesAsync(
+                V2BodyProjector.RegisterSite(site.EntityId, site.Title, site.TitleSlug, defaults),
                 ct)).ConfigureAwait(false);
     }
 

@@ -86,6 +86,9 @@ internal static class OutboundSeam
             [nameof(IWhisparrPerformerActing.SetPerformerMonitoredAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrMissingSceneActing.AddSceneAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrMissingSceneActing.RefreshCatalogueAsync)] = WhisparrVerbClass.Act,
+            // An add, so it is never retried; non-grabbing, because the body it composes sets both
+            // of that generation's search flags false and monitors nothing.
+            [nameof(IWhisparrSiteRegistrationActing.RegisterSiteAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync)] = WhisparrVerbClass.Act,
@@ -114,6 +117,7 @@ internal static class OutboundSeam
         typeof(IWhisparrStudioActing),
         typeof(IWhisparrPerformerActing),
         typeof(IWhisparrMissingSceneActing),
+        typeof(IWhisparrSiteRegistrationActing),
         typeof(IWhisparrReflectOwnedActing),
         typeof(IWhisparrSearchGrabbing),
         typeof(IWhisparrSceneSearchGrabbing),
@@ -215,7 +219,7 @@ public sealed class SafetyInvariantTests
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public void TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall()
     {
-        Assert.Equal(10, OutboundSeam.SeamInterfaces.Count);
+        Assert.Equal(11, OutboundSeam.SeamInterfaces.Count);
 
         Assert.Equal(
             OutboundSeam.VerbClassByMember.Keys.Order().ToList(),

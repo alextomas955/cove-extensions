@@ -3080,7 +3080,8 @@
           "readSceneExclusions",
           "searchScene",
           "monitorScene",
-          "excludeScene"
+          "excludeScene",
+          "registerOwnedSites"
         ]
       },
       "WhisparrEntityKind": {
