@@ -21,12 +21,6 @@ export interface MissingFacetChoice {
   readonly label: string;
 }
 
-/** How many of how many values a menu is drawing. */
-export interface MissingFacetCounts {
-  readonly shown: number;
-  readonly reported: number;
-}
-
 /**
  * The shortest fragment carried to the provider.
  *
@@ -50,7 +44,6 @@ export type MissingFacetLookup =
   | {
       readonly state: "matched";
       readonly values: readonly MissingFacetChoice[];
-      readonly reportedValueCount: number;
     }
   | { readonly state: "notRead" };
 
@@ -62,18 +55,6 @@ export interface MissingFacetPanel {
   readonly rows: readonly MissingFacetRow[];
   /** What to state, or null where the rows speak for themselves. */
   readonly says: MissingFacetNotice | null;
-  /** What is drawn of what exists, or null where the rows are the whole of it. */
-  readonly bound: (MissingFacetCounts & { readonly ofMatches: boolean }) | null;
-}
-
-/**
- * Whether the menu carries fewer values than the provider reported.
- *
- * A provider reporting fewer than it served has measured nothing the reader needs, so that is not a
- * bound.
- */
-export function menuIsBounded(menu: MissingFacetMenu): boolean {
-  return menu.reportedValueCount > menu.values.length;
 }
 
 /**
@@ -132,7 +113,6 @@ export function facetLookupIn(answered: MissingFacetSearchView): MissingFacetLoo
       return {
         state: "matched",
         values: answered.values.map((value) => ({ value: value.value, label: value.label })),
-        reportedValueCount: answered.reportedValueCount,
       };
     case "notSearchable":
     case "fragmentTooShort":
@@ -149,13 +129,11 @@ export function facetLookupIn(answered: MissingFacetSearchView): MissingFacetLoo
  * does not match can still unpick it.
  *
  * @param rows the rows the menu was handed, carrying the value in force
- * @param bound what the menu carries of the provider's own list, or null where it carries all of it
  * @param query what the reader typed
  * @param lookup what asking the provider about `query` answered
  */
 export function facetPanelView(
   rows: readonly MissingFacetRow[],
-  bound: MissingFacetCounts | null,
   query: string,
   lookup: MissingFacetLookup,
 ): MissingFacetPanel {
@@ -169,10 +147,9 @@ export function facetPanelView(
       return {
         rows: withInForce(menuRowsMatching(rows, query), inForce),
         says: "asking",
-        bound: null,
       };
     case "notRead":
-      return { rows: withInForce([], inForce), says: "notRead", bound: null };
+      return { rows: withInForce([], inForce), says: "notRead" };
     case "matched": {
       const matched = lookup.values.map((value) => ({
         value: value.value,
@@ -182,10 +159,6 @@ export function facetPanelView(
       return {
         rows: withInForce(matched, inForce),
         says: matched.length === 0 ? "noneAtSource" : null,
-        bound:
-          lookup.reportedValueCount > matched.length
-            ? { shown: matched.length, reported: lookup.reportedValueCount, ofMatches: true }
-            : null,
       };
     }
     default: {
@@ -193,7 +166,6 @@ export function facetPanelView(
       return {
         rows: withInForce(narrowed, inForce),
         says: narrowed.length === 0 ? "noneHere" : null,
-        bound: bound === null ? null : { ...bound, ofMatches: false },
       };
     }
   }
