@@ -112,6 +112,11 @@
          pinned the mode (or the older UseLocalCoveSource spelling) said `none` on purpose. -->
     <Error Condition="'$(CoveSourceMode)' == 'none' AND '$(_CoveLocationWasExplicit)' == 'true' AND '$(_CoveModeWasPinned)' != 'true'"
            Text="A Cove location was supplied explicitly (resolved CoveRepoRoot='$(CoveRepoRootResolved)') but the resolved mode is 'none'. Refusing to fall back to the cove-absent branch, because a location was supplied on purpose and the fallback would not use it." />
+
+    <!-- An empty version resolves the newest Cove.Sdk on the feed, so the clean-clone build compiles
+         against a host nobody declared and reports success. Nothing else reports it. -->
+    <Error Condition="'$(CoveSourceMode)' != 'source' AND '$(CoveSdkVersion)' == '' AND !$(MSBuildProjectName.EndsWith('.Tests'))"
+           Text="CoveSdkVersion resolved empty for $(MSBuildProjectName), so its Cove.Sdk reference would take whatever version the feed offers. It derives from the minCoveVersion in '$(ExtensionManifestPath)', falling back to CoveMinVersion; one of the two is missing or unreadable." />
   </Target>
 
 </Project>
