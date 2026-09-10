@@ -58,6 +58,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
+                WhisparrCapability.RegisterOwnedSites,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);
     }
@@ -168,6 +169,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
+                WhisparrCapability.RegisterOwnedSites,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
         Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
@@ -194,6 +196,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
+                WhisparrCapability.RegisterOwnedSites,
             ],
             held);
         Assert.All(

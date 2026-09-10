@@ -155,6 +155,45 @@ public interface IWhisparrMissingSceneActing
         CancellationToken ct);
 }
 
+/// <summary>Registers a site the instance's catalogue does not hold, monitoring nothing.</summary>
+/// <remarks>
+/// Presence and nothing else, so the catalogue that arrives with the site is inert: the body is
+/// composed with the monitored flag off and no new-item rule, and a site's catalogue is a whole
+/// studio's worth of scenes. A monitoring add on this path would want every one of them.
+/// <para>
+/// Every acquisition-suppressing flag is composed here rather than passed in, so no caller can leave
+/// one out.
+/// </para>
+/// <para>
+/// Sent once and never re-issued: a second attempt after an answer that did not arrive would act
+/// twice.
+/// </para>
+/// <para>
+/// One generation registers this role and the other holds no registration for it. On the other,
+/// presence is a scene add and a site arrives as a side effect of one, so it has nothing to
+/// implement.
+/// </para>
+/// <para>
+/// Nothing declared here can make an instance download. The verbs that can are on the grabbing
+/// roles, each of which a caller has to obtain by name.
+/// </para>
+/// </remarks>
+public interface IWhisparrSiteRegistrationActing
+{
+    /// <summary>Registers the site <paramref name="foreignId"/> names, monitoring nothing.</summary>
+    /// <remarks>
+    /// The identifier is resolved to the instance's own numeric one before the add is composed,
+    /// because this generation names a site by a number of its own rather than by the identifier the
+    /// library holds.
+    /// </remarks>
+    Task<WhisparrResponse> RegisterSiteAsync(
+        Uri baseAddress,
+        string apiKey,
+        string foreignId,
+        AddDefaults defaults,
+        CancellationToken ct);
+}
+
 /// <summary>Tells an instance where files the library already holds are.</summary>
 /// <remarks>
 /// Transfers no file data. The instance is asked to link a file into place, which costs no second
