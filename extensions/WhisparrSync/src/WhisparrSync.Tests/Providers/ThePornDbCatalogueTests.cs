@@ -667,6 +667,49 @@ public sealed class ThePornDbCatalogueTests
         return config;
     }
 
+    /// <summary>
+    /// The scene route answers one row for the uuid Cove stores, and that row carries this
+    /// provider's own number. One read converts one to the other.
+    /// </summary>
+    /// <remarks>
+    /// The row is the committed page's own, which carries both identifiers as the provider served
+    /// them, wrapped the way the single-scene route wraps one row.
+    /// </remarks>
+    [Fact]
+    public async Task AStoredSceneIdentifierResolvesToTheProvidersOwnNumber()
+    {
+        var row = Response(PageFixture)["data"]!.AsArray()[0]!;
+        var storedId = row["id"]!.GetValue<string>();
+        var expected = row["_id"]!.GetValue<int>();
+        var (catalogue, handler) = CatalogueOver(SingleScene(row));
+
+        var resolved = await catalogue.ResolveNumericSceneIdAsync(storedId, TestCt);
+
+        Assert.Equal(expected, resolved);
+        Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+        Assert.EndsWith($"/scenes/{storedId}", handler.Requests[0].Path, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An answer carrying no number of its own resolves to nothing. Zero would be a number the
+    /// older generation would then look a row up by.
+    /// </summary>
+    [Fact]
+    public async Task AnAnswerCarryingNoNumberResolvesToNothing()
+    {
+        var row = Response(PageFixture)["data"]!.AsArray()[0]!.DeepClone();
+        var storedId = row["id"]!.GetValue<string>();
+        row.AsObject().Remove("_id");
+        var (catalogue, _) = CatalogueOver(SingleScene(row));
+
+        Assert.Null(await catalogue.ResolveNumericSceneIdAsync(storedId, TestCt));
+    }
+
+    /// <summary>One row of the scenes route, wrapped the way the single-scene route wraps it.</summary>
+    private static string SingleScene(JsonNode row)
+        => new JsonObject { ["data"] = row.DeepClone() }.ToJsonString();
+
     /// <summary>This source names no address for a scene, so a card from it is not a link.</summary>
     /// <remarks>
     /// The identifier this product reads and carries is the API's own, and nothing measured says it
