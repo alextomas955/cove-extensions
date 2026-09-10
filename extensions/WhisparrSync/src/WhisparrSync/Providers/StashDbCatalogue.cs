@@ -240,6 +240,16 @@ internal sealed class StashDbCatalogue
 
     /// <inheritdoc/>
     /// <remarks>
+    /// None, and no request is sent to establish it. This provider names a scene by its uuid and by
+    /// nothing else, so there is no number of its own to resolve to. It holds no
+    /// <see cref="IResolvesNumericSceneId"/> role either, so a caller is refused before reaching
+    /// this null.
+    /// </remarks>
+    public Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
+        => Task.FromResult<int?>(null);
+
+    /// <inheritdoc/>
+    /// <remarks>
     /// A studio and a tag are found exactly by the provider itself. A performer has no exact
     /// find-by-name, so its search result is filtered here and several exact matches answer as
     /// ambiguity rather than as whichever the provider happened to return first.

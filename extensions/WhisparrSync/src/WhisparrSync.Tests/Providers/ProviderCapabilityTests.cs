@@ -99,6 +99,53 @@ public sealed class ProviderCapabilityTests
     }
 
     /// <summary>
+    /// A scene's number is ThePornDB's alone. Its scene rows carry an <c>_id</c> beside the uuid
+    /// Cove stores; StashDB names a scene by its uuid and issues no number to resolve to, so the
+    /// resolution is refused there before any request.
+    /// </summary>
+    [Fact]
+    public void OnlyThePornDbResolvesASceneToANumber()
+    {
+        Assert.Contains(
+            ProviderCapability.ResolveNumericSceneId, ThePornDb().Capabilities.Held);
+        Assert.DoesNotContain(
+            ProviderCapability.ResolveNumericSceneId, StashDb().Capabilities.Held);
+
+        var refused = StashDb()
+            .Capabilities.Obtain<IResolvesNumericSceneId>()
+            .Match<ProviderCapabilityRefusal?>(_ => null, refusal => refusal);
+
+        Assert.Equal(ProviderCapability.ResolveNumericSceneId, refused!.Capability);
+        Assert.Equal("StashDB", refused.Provider);
+        Assert.NotNull(
+            ThePornDb()
+                .Capabilities.Obtain<IResolvesNumericSceneId>()
+                .Match<object?>(role => role, _ => null));
+    }
+
+    /// <summary>
+    /// The provider that issues no such number sends nothing to establish it. A request there would
+    /// spend the credential on a question its answer cannot carry.
+    /// </summary>
+    [Fact]
+    public async Task StashDbSendsNoRequestToResolveASceneToANumber()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "{}");
+        var catalogue = new StashDbCatalogue(
+            new HttpClient(handler),
+            new ProviderEndpointPort(Configured("https://stashdb.org/graphql")),
+            new OptionsStore(new FakeStore()),
+            new ProviderPacer(),
+            NullLogger.Instance);
+
+        var resolved = await catalogue.ResolveNumericSceneIdAsync(
+            "2846feb8-f7da-4312-a3a7-a32d32d3b865", TestContext.Current.CancellationToken);
+
+        Assert.Null(resolved);
+        Assert.Empty(handler.Requests);
+    }
+
+    /// <summary>
     /// Absence is the whole mechanism. A member asking whether a provider supports something would
     /// be a control the surface can render and then refuse.
     /// </summary>
@@ -128,6 +175,7 @@ public sealed class ProviderCapabilityTests
     [InlineData(typeof(IListsSubStudioFacet))]
     [InlineData(typeof(ISearchesTitles))]
     [InlineData(typeof(ILooksUpByName))]
+    [InlineData(typeof(IResolvesNumericSceneId))]
     public void EveryDeclaredRoleIsAnsweredByBothProviders(Type role)
     {
         foreach (var catalogue in (IProviderCatalogue[])[StashDb(), ThePornDb()])

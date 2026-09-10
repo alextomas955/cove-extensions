@@ -28,7 +28,8 @@ internal sealed class ThePornDbCatalogue
         IFiltersByYear,
         IListsTagFacet,
         ISearchesTitles,
-        ILooksUpByName
+        ILooksUpByName,
+        IResolvesNumericSceneId
 {
     /// <summary>The provider this catalogue names itself as.</summary>
     internal const string ProviderName = "ThePornDB";
@@ -198,6 +199,30 @@ internal sealed class ThePornDbCatalogue
 
         var answered = await AskAsync(resolved, ScenesRoute, scope, ct).ConfigureAwait(false);
         return answered is null ? null : Number(Meta(answered.Value), "total") ?? 0;
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The scene route answers one row for the uuid Cove stores, and that row carries this
+    /// provider's own <c>_id</c> beside it. Read through the same conversion a performer and a site
+    /// already use, over the scenes collection.
+    /// </remarks>
+    public async Task<int?> ResolveNumericSceneIdAsync(
+        string providerSceneId, CancellationToken ct)
+    {
+        var resolved = await ResolveProviderAsync(ct).ConfigureAwait(false);
+        if (resolved is null)
+        {
+            return null;
+        }
+
+        var numeric = await NumericIdAsync(resolved, ScenesRoute, providerSceneId, "_id", ct)
+            .ConfigureAwait(false);
+
+        return numeric is not null
+            && int.TryParse(numeric, NumberStyles.None, CultureInfo.InvariantCulture, out var id)
+                ? id
+                : null;
     }
 
     /// <inheritdoc/>
