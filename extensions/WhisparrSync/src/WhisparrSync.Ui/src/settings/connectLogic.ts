@@ -8,6 +8,7 @@
 import type {
   ConnectionFailureKind,
   ConnectionTestView,
+  WhisparrGeneration,
   WhisparrSyncGenerationSettingsView,
 } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
@@ -122,8 +123,8 @@ export function isAddressEdit(previous: string, next: string): boolean {
   return normaliseAddress(previous).toLowerCase() !== normaliseAddress(next).toLowerCase();
 }
 
-/** The two generations a card can show. Never null: a card always names one. */
-export type CardGeneration = "v3" | "v2";
+/** The generation a card shows. The wire type admits null; a card always names one. */
+export type CardGeneration = NonNullable<WhisparrGeneration>;
 
 /** Both cards, in the order the page draws them. */
 export const CARD_GENERATIONS: readonly CardGeneration[] = ["v3", "v2"];
