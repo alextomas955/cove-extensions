@@ -26,7 +26,7 @@ import {
 } from "../common/ui/copy";
 import { OFF_SCREEN } from "../common/ui/offScreen";
 import type { MissingFacetMenu as FacetMenuView, MissingPageView } from "../wire/api";
-import type { MissingEntityKind } from "./entityKindLogic";
+import type { WhisparrEntityKind } from "../wire/api";
 import { ConfirmDialog } from "./hostComponents";
 import { countLineParts } from "./missingCountLogic";
 import {
@@ -94,7 +94,7 @@ const SEARCH_ICON_CLASS = "absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 
 
 /** What the answered page tells the toolbar, once one has answered. */
 export interface MissingToolbarCatalogue {
-  readonly kind: MissingEntityKind;
+  readonly kind: WhisparrEntityKind;
   readonly view: MissingPageView;
 }
 

@@ -4,46 +4,15 @@
  * verified and a version verified against an instance that has since failed do not read the same,
  * that a pressed control is both announced busy and no longer pressable, and that no part of a key
  * reaches the page.
- *
- * The shared primitives stand in, because their `react` import resolves only inside a consuming bundle; each
- * stand-in reproduces the element the real one renders, which is what the assertions read.
  */
-import { expect, test, vi } from "vitest";
-import { createElement, type ReactNode } from "react";
+import { expect, test } from "vitest";
+import { createElement } from "react";
 
 import { render } from "../common/lib/testRender";
 import type { WhisparrSyncGenerationSettingsView } from "../wire/api";
+import { ConnectionSection } from "./ConnectionSection";
 import type { GenerationDraft, TransientTest } from "./connectLogic";
 import type { SaveState } from "./connectionStore";
-
-vi.mock("@cove-extensions/ui-shared", async () => {
-  const { createElement: h } = await import("react");
-  return {
-    INPUT_CLASS: "input",
-    Field: (props: { label: string; helper?: string; children: ReactNode }) =>
-      h("label", null, props.label, props.children, props.helper),
-    TextInput: (props: { value: string; placeholder?: string; onChange: (v: string) => void }) =>
-      h("input", {
-        type: "text",
-        value: props.value,
-        placeholder: props.placeholder,
-        onChange: () => undefined,
-      }),
-    Button: (props: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) =>
-      h(
-        "button",
-        { type: "button", disabled: props.disabled, onClick: props.onClick },
-        props.children,
-      ),
-    SectionCard: (props: { title?: string; description?: string; children: ReactNode }) =>
-      h("section", null, props.title, props.description, props.children),
-    StatusPill: (props: { children: ReactNode }) => h("span", null, props.children),
-    StatusText: (props: { children: ReactNode }) => h("span", null, props.children),
-    Spinner: () => h("span", null, "…"),
-  };
-});
-
-const { ConnectionSection } = await import("./ConnectionSection");
 
 const NEVER_VERIFIED: WhisparrSyncGenerationSettingsView = {
   address: "http://whisparr:6969",

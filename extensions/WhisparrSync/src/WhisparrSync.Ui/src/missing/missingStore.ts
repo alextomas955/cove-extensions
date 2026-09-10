@@ -11,13 +11,13 @@
 import type { MissingPageView, MissingSceneActionResult } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import { INITIAL_ASYNC_READ } from "../common/ui/asyncRegionLogic";
-import type { MissingEntityKind } from "./entityKindLogic";
+import type { WhisparrEntityKind } from "../wire/api";
 import { CARD_ACTION_AT_REST, type CardActionState, type CardVerb } from "./missingCardLogic";
 import { SELECTION_AT_REST, type SelectionOutcome } from "./missingSelectionLogic";
 
 /** Which entity a read was started for. */
 export interface MissingEntity {
-  readonly kind: MissingEntityKind;
+  readonly kind: WhisparrEntityKind;
   readonly coveId: number;
 }
 

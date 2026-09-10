@@ -16,7 +16,7 @@ import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { StateChip } from "../common/ui/StateChip";
 import { deriveState, type WhisparrEntityState } from "../common/ui/stateVocabularyLogic";
-import type { LibraryCardKind } from "./cardStatusStore";
+import type { LibraryCardKind } from "../wire/api";
 import { BADGE_STRIP_CLASS } from "./libraryClasses";
 import { useLibraryStatusOn } from "./libraryToggleStore";
 import { useCardStatus } from "./useCardStatus";
