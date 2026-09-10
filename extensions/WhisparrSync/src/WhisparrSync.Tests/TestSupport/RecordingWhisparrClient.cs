@@ -91,6 +91,7 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         IWhisparrStudioActing,
         IWhisparrPerformerActing,
         IWhisparrMissingSceneActing,
+        IWhisparrSiteRegistrationActing,
         IWhisparrReflectOwnedActing,
         IWhisparrSearchGrabbing,
         IWhisparrSceneSearchGrabbing,
@@ -350,6 +351,22 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             {
                 ForeignId = foreignId,
                 Defaults = defaults,
+            });
+
+    public Task<WhisparrResponse> RegisterSiteAsync(
+        Uri baseAddress,
+        string apiKey,
+        string foreignId,
+        AddDefaults defaults,
+        CancellationToken ct)
+        => RecordActing(
+            new ActingCall(nameof(RegisterSiteAsync), baseAddress, apiKey)
+            {
+                Kind = WhisparrEntityKind.Studio,
+                Generation = WhisparrGeneration.V2,
+                ForeignId = foreignId,
+                Defaults = defaults,
+                Monitored = false,
             });
 
     public Task<WhisparrResponse> RefreshCatalogueAsync(

@@ -109,6 +109,7 @@ public sealed class RefusalBeforeRequestTests
                 WhisparrCapability.SearchScene,
                 WhisparrCapability.MonitorScene,
                 WhisparrCapability.ExcludeScene,
+                WhisparrCapability.RegisterOwnedSites,
             ],
             Enum.GetValues<WhisparrCapability>());
         Assert.Equal(
@@ -132,6 +133,7 @@ public sealed class RefusalBeforeRequestTests
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
                 WhisparrCapability.SearchMonitored,
+                WhisparrCapability.RegisterOwnedSites,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);
     }

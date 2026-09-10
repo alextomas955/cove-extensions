@@ -124,6 +124,48 @@ internal static class V2BodyProjector
                 searchForCutoffUnmetEpisodes: search));
     }
 
+    /// <summary>Registers the entity <paramref name="entityId"/> names, monitoring nothing.</summary>
+    /// <remarks>
+    /// Presence only. The monitored flag is off, the new-item rule is none and the add-time monitor
+    /// covers none of the catalogue, so nothing the instance then reads for the entity is wanted.
+    /// A whole studio's catalogue arrives with it, and the alternative would want every scene in it.
+    /// <para>
+    /// Composed in this generation's own spellings. The other generation's suppression member is one
+    /// this generation discards without saying so, so a body carrying it would suppress nothing.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="defaults"/> names no usable quality profile. This generation refuses a zero
+    /// profile with a validation failure naming the property.
+    /// </exception>
+    internal static SeriesResource RegisterSite(
+        int entityId, string title, string titleSlug, AddDefaults defaults)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        ArgumentException.ThrowIfNullOrWhiteSpace(titleSlug);
+        ArgumentNullException.ThrowIfNull(defaults);
+        ArgumentException.ThrowIfNullOrWhiteSpace(defaults.RootFolderPath);
+        ArgumentOutOfRangeException.ThrowIfLessThan(defaults.QualityProfileId, 1);
+
+        const bool search = false;
+        return new SeriesResource(
+            tvdbId: entityId,
+            title: title,
+            titleSlug: titleSlug,
+            qualityProfileId: defaults.QualityProfileId,
+            rootFolderPath: defaults.RootFolderPath,
+            monitored: false,
+            monitorNewItems: NewItemMonitorTypes.None,
+            seriesType: SeriesTypes.Standard,
+            seasons: new List<SeasonResource>(),
+            tags: new List<int>(),
+            addOptions: new AddSeriesOptions(
+                monitor: MonitorTypes.None,
+                searchForMissingEpisodes: search,
+                searchForCutoffUnmetEpisodes: search));
+    }
+
     /// <summary>Sets only the monitored flag on the entity <paramref name="entityId"/> names.</summary>
     /// <remarks>
     /// Every member of the editor resource this leaves unset is omitted from the wire document, and an
