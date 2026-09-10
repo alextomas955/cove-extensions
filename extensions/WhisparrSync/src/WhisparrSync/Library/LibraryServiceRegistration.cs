@@ -31,6 +31,9 @@ internal static class LibraryServiceRegistration
         services.AddScoped<ILibraryCardIdentityPort>(resolved => new LibraryCardIdentityPort(
             resolved.GetRequiredService<DbContext>(),
             resolved.GetRequiredService<OptionsStore>()));
+        services.AddScoped<ILibrarySceneIdentityPort>(resolved => new LibrarySceneIdentityPort(
+            resolved.GetRequiredService<DbContext>(),
+            resolved.GetRequiredService<OptionsStore>()));
         return services;
     }
 }

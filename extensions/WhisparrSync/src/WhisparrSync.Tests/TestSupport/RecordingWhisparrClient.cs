@@ -113,6 +113,12 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     /// <summary>Which identifiers an exclusion read answers as excluded.</summary>
     public HashSet<string> Excluded { get; } = new(StringComparer.Ordinal);
 
+    /// <summary>The identifiers each batched presence read was asked about, in order.</summary>
+    public List<IReadOnlyCollection<string>> HeldSceneReads { get; } = [];
+
+    /// <summary>Which identifiers a batched presence read answers as already held.</summary>
+    public HashSet<string> HeldScenes { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>The scene each exclusion lookup named, in order.</summary>
     public List<string> ExclusionLookups { get; } = [];
 
@@ -456,6 +462,25 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         ExclusionReads.Add([.. providerSceneIds]);
         return Task.FromResult<IReadOnlySet<string>>(
             providerSceneIds.Where(Excluded.Contains).ToHashSet(StringComparer.Ordinal));
+    }
+
+    public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyCollection<string> foreignIds,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(foreignIds);
+        HeldSceneReads.Add([.. foreignIds]);
+        Verbs.Add(nameof(ReduceHeldScenesAsync));
+
+        if (Unreachable.Contains(nameof(ReduceHeldScenesAsync)))
+        {
+            throw new HttpRequestException("nothing answered");
+        }
+
+        return Task.FromResult<IReadOnlySet<string>>(
+            foreignIds.Where(HeldScenes.Contains).ToHashSet(StringComparer.Ordinal));
     }
 
     public Task<SceneExclusionLookup> FindSceneExclusionAsync(

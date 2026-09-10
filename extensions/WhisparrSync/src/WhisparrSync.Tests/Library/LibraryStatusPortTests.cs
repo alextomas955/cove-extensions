@@ -460,6 +460,14 @@ public sealed class LibraryStatusPortTests
                 : Task.FromResult(new WhisparrResponse(status, "application/json", body));
         }
 
+        public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
+            Uri baseAddress,
+            string apiKey,
+            IReadOnlyCollection<string> foreignIds,
+            CancellationToken ct)
+            => throw new InvalidOperationException(
+                "This surface asks about one scene at a time and never about a batch of them.");
+
         public Task<IReadOnlySet<string>> ReduceExclusionsAsync(
             Uri baseAddress,
             string apiKey,
