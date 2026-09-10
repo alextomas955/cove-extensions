@@ -34,8 +34,8 @@ export async function render(node: ReactNode): Promise<HTMLDivElement> {
   return container;
 }
 
-export async function press(button: Element | undefined): Promise<void> {
-  if (button === undefined) throw new Error("No control found to press");
+export async function press(button: Element | null | undefined): Promise<void> {
+  if (button === null || button === undefined) throw new Error("No control found to press");
   await act(() => {
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     return Promise.resolve();
