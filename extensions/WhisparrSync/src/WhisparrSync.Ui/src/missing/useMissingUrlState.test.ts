@@ -6,36 +6,28 @@
  * second instance would otherwise never learn that the first one wrote. The two instances here are
  * the toolbar and the tab shell in miniature.
  */
-import { afterEach, beforeEach, expect, test } from "vitest";
-import { createElement } from "react";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 import { MISSING_URL_KEYS, type MissingView } from "./missingUrlLogic";
 import { useMissingUrlState } from "./useMissingUrlState";
-
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
 
 type HookState = [MissingView, (view: MissingView) => void];
 
 interface Probe {
   /** What the last committed render saw. */
   view: () => MissingView;
-  /** The writer the last committed render was handed. */
-  write: (view: MissingView) => void;
+  /** The writer the last committed render was handed. Returns once every reader has redrawn. */
+  write: (view: MissingView) => Promise<void>;
   /** How many times this instance has rendered. */
   renders: () => number;
-  unmount: () => void;
+  unmount: () => Promise<void>;
 }
 
 const mounted: Root[] = [];
 
-function mount(): Probe {
+async function mount(): Promise<Probe> {
   let state: HookState | null = null;
   let renders = 0;
 
@@ -43,13 +35,16 @@ function mount(): Probe {
   document.body.append(host);
   const root = createRoot(host);
   mounted.push(root);
-  root.render(
-    createElement(function ProbeComponent() {
-      state = useMissingUrlState();
-      renders += 1;
-      return null;
-    }),
-  );
+  await act(() => {
+    root.render(
+      createElement(function ProbeComponent() {
+        state = useMissingUrlState();
+        renders += 1;
+        return null;
+      }),
+    );
+    return Promise.resolve();
+  });
 
   const committed = (): HookState => {
     if (state === null) {
@@ -60,36 +55,48 @@ function mount(): Probe {
 
   return {
     view: () => committed()[0],
-    write: (view) => {
-      committed()[1](view);
-    },
+    write: (view) =>
+      act(() => {
+        committed()[1](view);
+        return Promise.resolve();
+      }),
     renders: () => renders,
-    unmount: () => {
-      root.unmount();
-    },
+    unmount: () =>
+      act(() => {
+        root.unmount();
+        return Promise.resolve();
+      }),
   };
 }
 
+/** Fires a window event the way the browser does, and lets every reader redraw. */
+async function fire(event: Event): Promise<void> {
+  await act(() => {
+    window.dispatchEvent(event);
+    return Promise.resolve();
+  });
+}
+
 beforeEach(() => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   window.history.replaceState(null, "", "/studios/1");
 });
 
 afterEach(async () => {
-  for (const root of mounted.splice(0)) {
-    root.unmount();
-  }
-  await sleep(COMMIT_MS);
+  await act(() => {
+    for (const root of mounted.splice(0)) root.unmount();
+    return Promise.resolve();
+  });
+  vi.unstubAllGlobals();
 });
 
 test("a write through one instance reaches a second one mounted beside it", async () => {
-  const toolbar = mount();
-  const shell = mount();
-  await sleep(COMMIT_MS);
+  const toolbar = await mount();
+  const shell = await mount();
 
   expect(shell.view()).toEqual({ q: "", page: 1, sort: null, filters: {} });
 
-  toolbar.write({ q: "beach", page: 3, sort: "date_desc", filters: { year: "2019" } });
-  await sleep(COMMIT_MS);
+  await toolbar.write({ q: "beach", page: 3, sort: "date_desc", filters: { year: "2019" } });
 
   expect(shell.view()).toEqual({
     q: "beach",
@@ -102,50 +109,41 @@ test("a write through one instance reaches a second one mounted beside it", asyn
 });
 
 test("a write replaces rather than pushes, so the back button leaves the tab", async () => {
-  const toolbar = mount();
-  await sleep(COMMIT_MS);
+  const toolbar = await mount();
 
   const before = window.history.length;
-  toolbar.write({ q: "a", page: 1, sort: null, filters: {} });
-  toolbar.write({ q: "ab", page: 1, sort: null, filters: {} });
-  await sleep(COMMIT_MS);
+  await toolbar.write({ q: "a", page: 1, sort: null, filters: {} });
+  await toolbar.write({ q: "ab", page: 1, sort: null, filters: {} });
 
   expect(window.history.length).toBe(before);
 });
 
 test("an unmounted instance is no longer written to", async () => {
-  const staying = mount();
-  const leaving = mount();
-  await sleep(COMMIT_MS);
+  const staying = await mount();
+  const leaving = await mount();
 
   const before = leaving.renders();
-  leaving.unmount();
-  await sleep(COMMIT_MS);
-  staying.write({ q: "beach", page: 1, sort: null, filters: {} });
-  await sleep(COMMIT_MS);
+  await leaving.unmount();
+  await staying.write({ q: "beach", page: 1, sort: null, filters: {} });
 
   expect(leaving.renders()).toBe(before);
   expect(staying.view().q).toBe("beach");
 });
 
 test("a back-button navigation reaches a reader the same way a write does", async () => {
-  const shell = mount();
-  await sleep(COMMIT_MS);
+  const shell = await mount();
 
   window.history.replaceState(null, "", `/studios/1?${MISSING_URL_KEYS.q}=beach`);
-  window.dispatchEvent(new PopStateEvent("popstate"));
-  await sleep(COMMIT_MS);
+  await fire(new PopStateEvent("popstate"));
 
   expect(shell.view()).toEqual({ q: "beach", page: 1, sort: null, filters: {} });
 });
 
 test("the host's own location event reaches a reader too", async () => {
-  const shell = mount();
-  await sleep(COMMIT_MS);
+  const shell = await mount();
 
   window.history.replaceState(null, "", `/studios/1?${MISSING_URL_KEYS.page}=4`);
-  window.dispatchEvent(new Event("cove-locationchange"));
-  await sleep(COMMIT_MS);
+  await fire(new Event("cove-locationchange"));
 
   expect(shell.view()).toEqual({ q: "", page: 4, sort: null, filters: {} });
 });

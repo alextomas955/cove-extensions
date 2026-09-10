@@ -8,6 +8,9 @@
  * pressing one sends. The real mounter is used rather than a stand-in for the same reason.
  */
 import { test, expect, vi, afterEach } from "vitest";
+import { act } from "react";
+
+import { press as pressControl } from "../common/lib/testRender";
 import type { EntityMonitoringView, WhisparrCapability } from "../wire/api";
 
 vi.mock("@cove-extensions/ui-shared", () => ({
@@ -105,14 +108,6 @@ const {
   selectionMenuHeader,
 } = await import("../common/ui/copy");
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 const EVERY_CAPABILITY: WhisparrCapability[] = [
   "outOfBandCallbackSecret",
   "monitorStudio",
@@ -147,12 +142,12 @@ function labels(): string[] {
   return buttons().map((button) => button.textContent);
 }
 
-function press(label: string): void {
+async function press(label: string): Promise<void> {
   const button = buttons().find((candidate) => candidate.textContent === label);
   if (button === undefined) {
     throw new Error(`no button reads "${label}"; the overlay offers ${JSON.stringify(labels())}`);
   }
-  button.click();
+  await pressControl(button);
 }
 
 /**
@@ -165,9 +160,14 @@ async function open(
   entityType: string,
   entityIds: number[],
 ): Promise<{ running: Promise<unknown> }> {
-  const running = monitorSelected(null, { entityType, entityIds });
-  await sleep(COMMIT_MS);
-  return { running };
+  let started: Promise<unknown> | undefined;
+  await act(() => {
+    started = monitorSelected(null, { entityType, entityIds });
+    return Promise.resolve();
+  });
+
+  if (started === undefined) throw new Error("the handler never started");
+  return { running: started };
 }
 
 afterEach(() => {
@@ -184,22 +184,11 @@ const OVER_THE_BOUND = '{"code":"TOO_MANY_IDS","max":1000}';
 const A_REFUSAL_CARRYING_THE_INSTANCES_WORDS =
   '{"code":"SOMETHING_ELSE","message":"System.InvalidOperationException: at Whisparr.Api.V3"}';
 
-/**
- * Presses one offered row and waits for whatever it leads to to be on screen.
- *
- * The handler's own promise is deliberately not touched here: a refusal opens a second overlay, and
- * the handler does not settle until that overlay is answered too.
- */
-async function chosen(label: string): Promise<void> {
-  press(label);
-  await sleep(COMMIT_MS);
-}
-
 test("the read names the first selected entity, on the route the entity page uses", async () => {
   answering(viewOf());
 
   const { running } = await open("studios", [7, 8, 9]);
-  press(BULK_CANCEL);
+  await press(BULK_CANCEL);
   await running;
 
   expect(sent[0]).toEqual({
@@ -214,7 +203,7 @@ test("leaving without choosing returns the cancelled result and posts nothing", 
 
   const { running } = await open("studios", [7]);
   expect(document.body.textContent).toContain(selectionMenuHeader(1));
-  press(BULK_CANCEL);
+  await press(BULK_CANCEL);
 
   await expect(running).resolves.toEqual({ cancelled: true });
   expect(sent.filter((call) => call.method === "POST")).toEqual([]);
@@ -226,8 +215,8 @@ test("the chosen verb and scope reach the body", async () => {
   const { running } = await open("studios", [7, 8]);
   // The confirmation names the chosen row on its own confirm button, so the same label is pressed
   // twice: once to choose the row, once to stand by it.
-  await chosen(SCOPE_ALL_SCENES);
-  press(SCOPE_ALL_SCENES);
+  await press(SCOPE_ALL_SCENES);
+  await press(SCOPE_ALL_SCENES);
   await running;
 
   const posted = sent.find((call) => call.method === "POST");
@@ -244,7 +233,7 @@ test("unmonitoring sends its own verb and no scope", async () => {
   answering(viewOf());
 
   const { running } = await open("studios", [7]);
-  press(MENU_UNMONITOR);
+  await press(MENU_UNMONITOR);
   await running;
 
   const posted = sent.find((call) => call.method === "POST");
@@ -264,7 +253,7 @@ test("the posted body's keys are PascalCase", async () => {
   answering(viewOf());
 
   const { running } = await open("studios", [7]);
-  press(SCOPE_FUTURE_SCENES);
+  await press(SCOPE_FUTURE_SCENES);
   await running;
 
   const posted = sent.find((call) => call.method === "POST");
@@ -278,7 +267,7 @@ test("a failed capability read states the reason, offers nothing and posts nothi
 
   expect(document.body.textContent).toContain(BULK_ACTIONS_COULD_NOT_BE_OFFERED);
   expect(labels()).toEqual([BULK_CLOSE]);
-  press(BULK_CLOSE);
+  await press(BULK_CLOSE);
 
   await expect(running).resolves.toEqual({ cancelled: true });
   expect(sent.filter((call) => call.method === "POST")).toEqual([]);
@@ -291,7 +280,7 @@ test("a verb absent from the held list is not offered", async () => {
 
   expect(document.body.textContent).toContain(CAP_UNAVAILABLE_ON_THIS_GENERATION);
   expect(labels()).toEqual([BULK_CLOSE]);
-  press(BULK_CLOSE);
+  await press(BULK_CLOSE);
 
   await expect(running).resolves.toEqual({ cancelled: true });
   expect(sent.filter((call) => call.method === "POST")).toEqual([]);
@@ -314,7 +303,7 @@ test("offers the search row last and neither of the other two secondary actions"
     ACTION_SEARCH_ALL_MONITORED,
     BULK_CANCEL,
   ]);
-  press(BULK_CANCEL);
+  await press(BULK_CANCEL);
   await running;
 });
 
@@ -322,7 +311,6 @@ test("a selection type this product does not address opens nothing and posts not
   answering(viewOf());
 
   const running = monitorSelected(null, { entityType: "tags", entityIds: [7] });
-  await sleep(COMMIT_MS);
 
   await expect(running).resolves.toEqual({ cancelled: true });
   expect(sent).toEqual([]);
@@ -332,7 +320,6 @@ test("an empty selection opens nothing and posts nothing", async () => {
   answering(viewOf());
 
   const running = monitorSelected(null, { entityType: "studios", entityIds: [] });
-  await sleep(COMMIT_MS);
 
   await expect(running).resolves.toEqual({ cancelled: true });
   expect(sent).toEqual([]);
@@ -343,8 +330,8 @@ test("a selection over the route's bound resolves rather than rejecting", async 
   postAnswer = () => Promise.reject(new FakeApiError(400, OVER_THE_BOUND));
 
   const { running } = await open("studios", [7, 8]);
-  await chosen(SCOPE_FUTURE_SCENES);
-  press(BULK_CLOSE);
+  await press(SCOPE_FUTURE_SCENES);
+  await press(BULK_CLOSE);
 
   await expect(running).resolves.toEqual({ cancelled: true });
 });
@@ -354,11 +341,11 @@ test("a selection over the bound is refused in this product's own sentence", asy
   postAnswer = () => Promise.reject(new FakeApiError(400, OVER_THE_BOUND));
 
   const { running } = await open("studios", [7, 8]);
-  await chosen(SCOPE_FUTURE_SCENES);
+  await press(SCOPE_FUTURE_SCENES);
 
   expect(document.body.textContent).toContain(BULK_SELECTION_IS_OVER_THE_BOUND);
   expect(labels()).toEqual([BULK_CLOSE]);
-  press(BULK_CLOSE);
+  await press(BULK_CLOSE);
   await running;
 });
 
@@ -367,14 +354,14 @@ test("no part of the refusal body reaches the sentence the reader is shown", asy
   postAnswer = () => Promise.reject(new FakeApiError(500, A_REFUSAL_CARRYING_THE_INSTANCES_WORDS));
 
   const { running } = await open("studios", [7]);
-  await chosen(SCOPE_FUTURE_SCENES);
+  await press(SCOPE_FUTURE_SCENES);
 
   const shown = document.body.textContent;
   expect(shown).toContain(RUN_WAS_NOT_STARTED);
   for (const word of ["InvalidOperationException", "Whisparr.Api.V3", "SOMETHING_ELSE", "500"]) {
     expect(shown, word).not.toContain(word);
   }
-  press(BULK_CLOSE);
+  await press(BULK_CLOSE);
   await running;
 });
 
@@ -383,8 +370,8 @@ test("any other refusal of the whole gesture returns the cancelled result", asyn
   postAnswer = () => Promise.reject(new FakeApiError(500, A_REFUSAL_CARRYING_THE_INSTANCES_WORDS));
 
   const { running } = await open("studios", [7]);
-  await chosen(SCOPE_FUTURE_SCENES);
-  press(BULK_CLOSE);
+  await press(SCOPE_FUTURE_SCENES);
+  await press(BULK_CLOSE);
 
   await expect(running).resolves.toEqual({ cancelled: true });
 });
@@ -393,7 +380,7 @@ test("a selection the route accepts returns the success result and opens no seco
   answering(viewOf());
 
   const { running } = await open("studios", [7]);
-  await chosen(SCOPE_FUTURE_SCENES);
+  await press(SCOPE_FUTURE_SCENES);
 
   await expect(running).resolves.toEqual({});
   expect(document.body.textContent).toBe("");
@@ -403,13 +390,13 @@ test("choosing All Scenes posts nothing until the confirmation is answered", asy
   answering(viewOf());
 
   const { running } = await open("studios", [7, 8]);
-  await chosen(SCOPE_ALL_SCENES);
+  await press(SCOPE_ALL_SCENES);
 
   expect(document.body.textContent).toContain(ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
   expect(document.body.textContent).toContain("This covers 2 entities.");
   expect(sent.filter((call) => call.method === "POST")).toEqual([]);
 
-  press(SCOPE_ALL_SCENES);
+  await press(SCOPE_ALL_SCENES);
   await running;
   expect(sent.filter((call) => call.method === "POST")).toHaveLength(1);
 });
@@ -418,8 +405,8 @@ test("cancelling the All-Scenes confirmation posts nothing at all", async () => 
   answering(viewOf());
 
   const { running } = await open("studios", [7, 8]);
-  await chosen(SCOPE_ALL_SCENES);
-  press(BULK_CANCEL);
+  await press(SCOPE_ALL_SCENES);
+  await press(BULK_CANCEL);
 
   await expect(running).resolves.toEqual({ cancelled: true });
   expect(sent.filter((call) => call.method === "POST")).toEqual([]);
@@ -429,13 +416,13 @@ test("choosing the search posts nothing until the confirmation is answered", asy
   answering(viewOf());
 
   const { running } = await open("studios", [7, 8]);
-  await chosen(ACTION_SEARCH_ALL_MONITORED);
+  await press(ACTION_SEARCH_ALL_MONITORED);
 
   expect(document.body.textContent).toContain(SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK);
   expect(document.body.textContent).toContain("This covers 2 entities.");
   expect(sent.filter((call) => call.method === "POST")).toEqual([]);
 
-  press(ACTION_SEARCH_ALL_MONITORED);
+  await press(ACTION_SEARCH_ALL_MONITORED);
   await running;
 
   const posted = sent.find((call) => call.method === "POST");
@@ -451,8 +438,8 @@ test("cancelling the search confirmation posts nothing at all", async () => {
   answering(viewOf());
 
   const { running } = await open("studios", [7, 8]);
-  await chosen(ACTION_SEARCH_ALL_MONITORED);
-  press(BULK_CANCEL);
+  await press(ACTION_SEARCH_ALL_MONITORED);
+  await press(BULK_CANCEL);
 
   await expect(running).resolves.toEqual({ cancelled: true });
   expect(sent.filter((call) => call.method === "POST")).toEqual([]);
@@ -462,7 +449,7 @@ test("the narrower scope and the unmonitor row are posted with no confirmation a
   answering(viewOf());
 
   const { running } = await open("studios", [7]);
-  press(SCOPE_FUTURE_SCENES);
+  await press(SCOPE_FUTURE_SCENES);
   await running;
 
   expect(sent.filter((call) => call.method === "POST")).toHaveLength(1);
@@ -477,7 +464,7 @@ test("heads the panel with the product's name and the count, and draws no paragr
     selectionMenuHeader(3),
   );
   expect(document.querySelectorAll('[role="menu"] p')).toHaveLength(0);
-  press(BULK_CANCEL);
+  await press(BULK_CANCEL);
   await running;
 });
 
@@ -490,6 +477,6 @@ test("states a refusal over the selection it was refused for", async () => {
     selectionMenuHeader(3),
   );
   expect(document.body.textContent).toContain(BULK_ACTIONS_COULD_NOT_BE_OFFERED);
-  press(BULK_CLOSE);
+  await press(BULK_CLOSE);
   await running;
 });

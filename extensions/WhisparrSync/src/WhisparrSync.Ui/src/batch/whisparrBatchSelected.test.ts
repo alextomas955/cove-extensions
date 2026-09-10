@@ -8,6 +8,9 @@
  * refusal is stated in that same overlay rather than escaping to the host's own alert.
  */
 import { test, expect, vi, afterEach } from "vitest";
+import { act } from "react";
+
+import { press as pressControl } from "../common/lib/testRender";
 
 vi.mock("@cove-extensions/ui-shared", () => ({
   // The real builder, because the route the handler posts to is one of the things under test.
@@ -74,14 +77,6 @@ const {
   selectionMenuHeader,
 } = await import("../common/ui/copy");
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 const BATCH_ROUTE = "/extensions/com.alextomas955.whisparrsync/scenes/batch";
 
 function buttons(): HTMLButtonElement[] {
@@ -92,12 +87,12 @@ function labels(): string[] {
   return buttons().map((button) => button.textContent);
 }
 
-function press(label: string): void {
+async function press(label: string): Promise<void> {
   const button = buttons().find((candidate) => candidate.textContent === label);
   if (button === undefined) {
     throw new Error(`no button reads "${label}"; the overlay offers ${JSON.stringify(labels())}`);
   }
-  button.click();
+  await pressControl(button);
 }
 
 /**
@@ -110,15 +105,14 @@ async function open(
   entityType: string,
   entityIds: number[],
 ): Promise<{ running: Promise<unknown> }> {
-  const running = sceneBatchSelected(null, { entityType, entityIds });
-  await sleep(COMMIT_MS);
-  return { running };
-}
+  let started: Promise<unknown> | undefined;
+  await act(() => {
+    started = sceneBatchSelected(null, { entityType, entityIds });
+    return Promise.resolve();
+  });
 
-/** Presses one offered row and waits for whatever it leads to to be on screen. */
-async function chosen(label: string): Promise<void> {
-  press(label);
-  await sleep(COMMIT_MS);
+  if (started === undefined) throw new Error("the handler never started");
+  return { running: started };
 }
 
 /** Refuses the post with one answer, and returns what the reader was left reading. */
@@ -126,9 +120,9 @@ async function refusedWith(status: number, body: string): Promise<string> {
   postAnswer = () => Promise.reject(new FakeApiError(status, body));
 
   const { running } = await open("video", [1, 2]);
-  await chosen(SCENE_SEARCH);
+  await press(SCENE_SEARCH);
   const stated = document.body.textContent;
-  press("Close");
+  await press("Close");
   await expect(running).resolves.toEqual({ cancelled: true });
 
   return stated;
@@ -175,13 +169,13 @@ test("offers the five rows in their fixed order, headed by the count", async () 
   );
   expect(document.querySelectorAll('[role="menu"] p')).toHaveLength(0);
 
-  press(BULK_CANCEL);
+  await press(BULK_CANCEL);
   await running;
 });
 
 test("leaving without choosing answers cancelled and sends nothing", async () => {
   const { running } = await open("video", [1, 2]);
-  press(BULK_CANCEL);
+  await press(BULK_CANCEL);
 
   await expect(running).resolves.toEqual({ cancelled: true });
   expect(sent).toEqual([]);
@@ -189,7 +183,7 @@ test("leaving without choosing answers cancelled and sends nothing", async () =>
 
 test("a chosen row posts once, in the spelling the route binds", async () => {
   const { running } = await open("video", [7, 8]);
-  await chosen(MENU_EXCLUDE);
+  await press(MENU_EXCLUDE);
 
   await expect(running).resolves.toEqual({});
   expect(sent).toEqual([
