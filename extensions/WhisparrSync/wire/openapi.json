@@ -2253,6 +2253,12 @@
               "null",
               "boolean"
             ]
+          },
+          "inLibrary": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },

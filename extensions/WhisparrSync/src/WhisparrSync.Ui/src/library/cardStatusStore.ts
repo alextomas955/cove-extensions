@@ -24,8 +24,19 @@ const coalescers = new Map<LibraryCardKind, BatchCoalescer<LibraryCardReading>>(
 const refusals = new Map<LibraryCardKind, LibraryPageRefusal>();
 const listeners = new Set<() => void>();
 
+// What a reader subscribes over. A snapshot of the answers themselves is a fresh array on every
+// read, which a subscription cannot compare and so re-renders forever; a counter is stable between
+// changes and changes once per change.
+let version = 0;
+
 function emit(): void {
+  version++;
   for (const listener of listeners) listener();
+}
+
+/** How many times the answers have changed. Stable between changes, so a subscription can hold it. */
+export function cardStatusVersion(): number {
+  return version;
 }
 
 function recordRefusal(kind: LibraryCardKind, refusal: LibraryPageRefusal): void {
@@ -135,6 +146,21 @@ export function cardStatusRefusal(): LibraryPageRefusal {
     if (refusal !== "none") return refusal;
   }
   return "none";
+}
+
+/**
+ * What the instance holds for every card of `kind` still on screen, in no particular order.
+ *
+ * A null entry is a card the read answered nothing for. The array is what the cards themselves hold,
+ * so it shrinks as they unmount and a count taken from it describes the page in front of the reader.
+ */
+export function readAnsweredCardStatuses(kind: LibraryCardKind): (LibraryCardReading | null)[] {
+  return coalescers.get(kind)?.answered() ?? [];
+}
+
+/** How many cards of `kind` have registered an identifier. */
+export function registeredCardCountFor(kind: LibraryCardKind): number {
+  return coalescers.get(kind)?.registered() ?? 0;
 }
 
 /** How many cards have registered an identifier, across every kind. */

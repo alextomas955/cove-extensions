@@ -182,23 +182,34 @@ test("nothing on a settled card is dimmed", async () => {
   );
 });
 
-/** The status chip's glyph, label and tint, as one reading. */
+/**
+ * The status chip's mark, label and tint, as one reading.
+ *
+ * The mark is drawn rather than written, so it is read off the shape the chip rendered. Reading only
+ * the text would let two states that share a tint pass while drawing the same shape, which is the
+ * one thing the mark is there to prevent.
+ */
 function chip(container: Element) {
   const drawn = container.querySelector("[data-pill]");
-  return `${drawn?.getAttribute("data-pill") ?? "none"}:${drawn?.textContent ?? ""}`;
+  const mark = drawn?.querySelector("svg")?.getAttribute("class")?.split(" ")[1] ?? "no mark";
+  return `${drawn?.getAttribute("data-pill") ?? "none"}:${mark}:${drawn?.textContent ?? ""}`;
 }
 
-test("the status reads in the shared vocabulary, glyph and tint and all", async () => {
+test("the status reads in the shared vocabulary, mark and tint and all", async () => {
   const drawn: string[] = [];
   for (const state of ["notAdded", "unmonitored", "statusUnknown"] satisfies MissingSceneState[]) {
     drawn.push(chip(await mountCard({ state })));
   }
 
-  expect(drawn).toEqual(["gray:–Not added", "gray:○Unmonitored", "amber:?Status unknown"]);
+  expect(drawn).toEqual([
+    "gray:lucide-circle-dashed:Not added",
+    "gray:lucide-circle:Unmonitored",
+    "amber:lucide-circle-question-mark:Status unknown",
+  ]);
 });
 
-test("a monitored scene is called Wanted, under the vocabulary's own glyph and tint", async () => {
-  expect(chip(await mountCard({ state: "monitored" }))).toBe("green:●Wanted");
+test("a monitored scene is called Wanted, under the vocabulary's own mark and tint", async () => {
+  expect(chip(await mountCard({ state: "monitored" }))).toBe("green:lucide-bookmark:Wanted");
 });
 
 test("a refused press states the reason beneath the verbs, in the tone the reason carries", async () => {

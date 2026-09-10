@@ -188,13 +188,18 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
     /// <remarks>
     /// The per-scene route answers a held scene and an unheld one alike with a list, so a not-found
     /// and an empty list are both the instance stating an absence rather than declining to answer.
-    /// Any other unsuccessful answer, and any body this cannot read, establishes neither member.
+    /// Any other unsuccessful answer, and any body this cannot read, establishes no member.
+    /// <para>
+    /// An instance stating it holds no entry states, by the same answer, that it holds no file for
+    /// it. That is a fact the instance answered, not one derived in its absence, so the two absences
+    /// are reported alike.
+    /// </para>
     /// </remarks>
     private static LibraryCardReading SceneReading(WhisparrResponse answered, bool excluded)
     {
         if (answered.StatusCode == 404)
         {
-            return new LibraryCardReading(excluded, false, null);
+            return NotHeld(excluded);
         }
 
         if (answered.StatusCode is not (>= 200 and < 300))
@@ -218,16 +223,21 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
         }
 
         return held.Count == 0
-            ? new LibraryCardReading(excluded, false, null)
-            : new LibraryCardReading(excluded, true, MonitoredFlagOn(held[0]));
+            ? NotHeld(excluded)
+            : new LibraryCardReading(
+                excluded, true, FlagOn(held[0], "monitored"), FlagOn(held[0], "hasFile"));
     }
 
-    /// <summary>The row's own monitored flag, or null where it carries no usable one.</summary>
-    private static bool? MonitoredFlagOn(JsonNode? row)
+    /// <summary>The instance answered that it holds no entry, and so no file either.</summary>
+    private static LibraryCardReading NotHeld(bool excluded)
+        => new(excluded, false, null, false);
+
+    /// <summary>One of the row's own boolean flags, or null where it carries no usable one.</summary>
+    private static bool? FlagOn(JsonNode? row, string field)
         => row is JsonObject fields
-            && fields["monitored"] is JsonValue flag
-            && flag.TryGetValue<bool>(out var monitored)
-                ? monitored
+            && fields[field] is JsonValue flag
+            && flag.TryGetValue<bool>(out var value)
+                ? value
                 : null;
 
     /// <summary>Nothing was asked, so nothing is excluded.</summary>

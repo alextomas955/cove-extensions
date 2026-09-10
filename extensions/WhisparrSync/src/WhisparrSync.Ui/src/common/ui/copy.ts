@@ -22,6 +22,30 @@ export const SHOW_WHISPARR_STATUS = "Show Whisparr status";
 export const HIDE_WHISPARR_STATUS = "Hide Whisparr status";
 
 /**
+ * The row of counts under a list toolbar, named for what it counts.
+ *
+ * The product's own name, because the row sits among Cove's own chrome and nothing else on it says
+ * whose counts these are.
+ */
+export const WHISPARR_STATUS_ROW = "Whisparr";
+
+/**
+ * What the row's counts are over, stated on the row itself.
+ *
+ * The point of the sentence is the second half. A row of counts under a library's toolbar reads as
+ * a count of that library, and a reader who takes it that way acts on a number that describes forty
+ * cards.
+ */
+export const LIBRARY_COUNTS_ARE_FOR_THIS_PAGE =
+  "These counts are for the cards on this page, not for the whole library.";
+
+/** The trailing count on that row, which names its own scope because the pills beside it do not. */
+export const NOT_ADDED_ON_THIS_PAGE = "not added on this page";
+
+/** The row while its cards are still being read. */
+export const CHECKING_WHISPARR = "Checking Whisparr…";
+
+/**
  * Nothing could be reached, said once for the page on the control that asked.
  *
  * The second sentence is the point of the message. A page of cards that simply drew no badge would

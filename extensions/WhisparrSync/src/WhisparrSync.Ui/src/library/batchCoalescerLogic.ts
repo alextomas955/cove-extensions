@@ -32,6 +32,13 @@ export interface BatchCoalescer<V> {
   settled: (key: string) => boolean;
   /** How many keys are held right now. */
   registered: () => number;
+  /**
+   * Every answer for a key still held, in no particular order.
+   *
+   * Only the keys a card still holds, so what this returns leaves with the cards that asked for it
+   * and never describes a page that has been scrolled past.
+   */
+  answered: () => (V | null)[];
   subscribe: (listener: () => void) => () => void;
 }
 
@@ -131,6 +138,7 @@ export function createBatchCoalescer<V>(
     get: (key) => values.get(key) ?? null,
     settled: (key) => values.has(key),
     registered: () => holders.size,
+    answered: () => [...values].filter(([key]) => holders.has(key)).map(([, value]) => value),
 
     subscribe(listener) {
       listeners.add(listener);
