@@ -333,6 +333,9 @@ public sealed class LibraryStatusRouteTests
             WhisparrEntityKind kind, string name, IReadOnlyList<string> aliases, CancellationToken ct)
             => throw Reached();
 
+        public Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
+            => throw Reached();
+
         public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
             WhisparrEntityKind kind, string providerEntityId, CancellationToken ct) => throw Reached();
 

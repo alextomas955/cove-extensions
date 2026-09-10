@@ -311,6 +311,9 @@ public sealed class MissingQueryBindingTests
 
         public List<string> Fragments { get; } = [];
 
+        /// <summary>Every scene this was asked to resolve to a number, in order.</summary>
+        public List<string> Resolutions { get; } = [];
+
         public IReadOnlyList<ProviderFacetMenu> Menus { get; init; } = [];
 
         public IReadOnlyList<ProviderSortOption> Sorts { get; } =
@@ -345,6 +348,14 @@ public sealed class MissingQueryBindingTests
             IReadOnlyList<string> aliases,
             CancellationToken ct)
             => Task.FromResult(ProviderIdentityLookup.Unmatched);
+
+        // This stub names itself StashDB, which issues no number of its own for a scene, so the ask
+        // is recorded and answered null rather than answered with a number nothing measured.
+        public Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
+        {
+            Resolutions.Add(providerSceneId);
+            return Task.FromResult<int?>(null);
+        }
 
         public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
             WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
