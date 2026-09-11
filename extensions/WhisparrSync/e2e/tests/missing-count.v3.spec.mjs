@@ -206,10 +206,10 @@ test("the grid never blanks between reads, and the pager offers no page that rep
     "there is no catalogue to read for this studio, so no card may be drawn",
   ).toHaveCount(0);
 
-  if (providerSkip !== null) {
-    note(`every assertion over a page of cards did not run: ${providerSkip}`);
-    return;
-  }
+  // Reported as SKIPPED rather than returned from. Every assertion this test is named for is below
+  // this line and needs a catalogue this run cannot read, so a return here reports a pass over a
+  // page of cards that was never drawn.
+  test.skip(providerSkip !== null, `no catalogue can be read: ${providerSkip}`);
 
   const studio = await seedCoveStudio(coveApi, {
     name: `Brazzers Exxtra ${randomUUID().slice(0, 8)}`,
