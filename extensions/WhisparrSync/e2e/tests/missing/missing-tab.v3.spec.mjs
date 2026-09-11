@@ -29,7 +29,7 @@ import { startHarness } from "@cove-extensions/e2e/harness";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
 
-import { liftMetadataServers } from "../../../../../tests/e2e/lib/cove-providers.mjs";
+import { configureProviderStub, startProviderStub } from "../../lib/provider-stub.mjs";
 import {
   test as base,
   connectWhisparr,
@@ -125,41 +125,6 @@ async function visit(page, baseUrl, path, present, label) {
   );
 }
 
-/**
- * Configures the container's own Cove with this machine's StashDB credential.
- *
- * Read-only against the install, through the one sanctioned lift. Returns the reason it could not be
- * done, or null when it was: a machine with no install is the ordinary case off this desk, and it
- * narrows what this spec can assert rather than failing it.
- */
-async function configureStashDb(api) {
-  const lifted = liftMetadataServers({ names: ["stashdb"] });
-  if (lifted.skip !== null) return lifted.skip;
-
-  const server = lifted.servers[0];
-  if (typeof server?.apiKey !== "string" || server.apiKey.length === 0) {
-    return "this machine's Cove configuration carries no StashDB key";
-  }
-
-  const read = await api.get("/api/system/config");
-  if (read.status >= 300) {
-    return `GET /api/system/config answered ${String(read.status)}`;
-  }
-
-  const config = read.json;
-  config.scraping.metadataServers = [
-    {
-      endpoint: STASHDB_ENDPOINT,
-      apiKey: server.apiKey,
-      name: "stashdb",
-      maxRequestsPerMinute: server.maxRequestsPerMinute ?? 240,
-    },
-  ];
-
-  const saved = await api.put("/api/system/config", config);
-  return saved.status >= 300 ? `PUT /api/system/config answered ${String(saved.status)}` : null;
-}
-
 test("the bundle loads with the tab in it, and the tab renders on every page it registers for", async ({
   page,
   baseUrl,
@@ -188,6 +153,9 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
     network: missingHarness.container.getNetworkNames()[0],
     generations: ["v3"],
   });
+  const provider = await startProviderStub({
+    networkName: missingHarness.container.getNetworkNames()[0],
+  });
 
   try {
     const instance = whisparr.apiFor("v3");
@@ -199,7 +167,9 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
     );
     await connectWhisparr(coveApi, whisparr, "v3");
 
-    const providerSkip = await configureStashDb(coveApi);
+    // The catalogue is served on this network under the metadata service's own name, so the
+    // assertions over it run wherever this suite runs.
+    await configureProviderStub(coveApi);
 
     const studio = await seedCoveStudio(coveApi, {
       name: `Brazzers Exxtra ${randomUUID().slice(0, 8)}`,
@@ -282,24 +252,22 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
       `the browser reported a bundle-load failure, which is what a wrong host-symbol transcription produces: ${transcriptionFailures.join(" | ")}`,
     ).toEqual([]);
 
-    if (providerSkip === null) {
-      const first = cards(page).first();
-      await expect(
-        first,
-        "a provider was configured, so the catalogue should have answered with cards",
-      ).toBeVisible({ timeout: REGION_BUDGET_MS });
-      await expect(
-        first.getByText(new RegExp(PILL_WORDS.join("|"))),
-        "the first card carries no status pill in this product's own vocabulary",
-      ).toBeVisible();
-    } else {
-      // Named rather than silent: a reader of this run should know which assertion did not run and
-      // why, instead of reading a green run as covering more than it did.
-      test.info().annotations.push({
-        type: "skipped-assertion",
-        description: `the status-pill assertion did not run: ${providerSkip}`,
-      });
-    }
+    const first = cards(page).first();
+    await expect(
+      first,
+      "a catalogue was served, so the tab should have answered with cards",
+    ).toBeVisible({ timeout: REGION_BUDGET_MS });
+
+    // Read off the stub's own record: the cards are evidence about this product only if the page
+    // they came from is the one this spec served.
+    expect(
+      (await provider.asked()).filter((line) => line.includes("MissingPage")),
+      "the stub was never asked for a page, so the tab is drawing something this spec did not serve",
+    ).not.toEqual([]);
+    await expect(
+      first.getByText(new RegExp(PILL_WORDS.join("|"))),
+      "the first card carries no status pill in this product's own vocabulary",
+    ).toBeVisible();
 
     // LAST, and for the reason stated at the head of this file: the tab is what pulls the host
     // component module in, so the bundle has to still be intact after it mounted.
@@ -311,6 +279,6 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
       "the bundle after the tab mounted",
     );
   } finally {
-    await whisparr.stop();
+    await Promise.allSettled([whisparr.stop(), provider.stop()]);
   }
 });

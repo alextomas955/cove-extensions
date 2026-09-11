@@ -30,7 +30,7 @@ import { startHarness } from "@cove-extensions/e2e/harness";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
 
-import { liftMetadataServers } from "../../../../../tests/e2e/lib/cove-providers.mjs";
+import { configureProviderStub, startProviderStub } from "../../lib/provider-stub.mjs";
 import {
   test as base,
   connectWhisparr,
@@ -117,40 +117,6 @@ async function visit(page, baseUrl, path, present, label) {
   );
 }
 
-/**
- * Configures the container's own Cove with this machine's StashDB credential.
- *
- * Read-only against the install, through the one sanctioned lift. Returns the reason it could not be
- * done, or null when it was.
- */
-async function configureStashDb(api) {
-  const lifted = liftMetadataServers({ names: ["stashdb"] });
-  if (lifted.skip !== null) return lifted.skip;
-
-  const server = lifted.servers[0];
-  if (typeof server?.apiKey !== "string" || server.apiKey.length === 0) {
-    return "this machine's Cove configuration carries no StashDB key";
-  }
-
-  const read = await api.get("/api/system/config");
-  if (read.status >= 300) {
-    return `GET /api/system/config answered ${String(read.status)}`;
-  }
-
-  const config = read.json;
-  config.scraping.metadataServers = [
-    {
-      endpoint: STASHDB_ENDPOINT,
-      apiKey: server.apiKey,
-      name: "stashdb",
-      maxRequestsPerMinute: server.maxRequestsPerMinute ?? 240,
-    },
-  ];
-
-  const saved = await api.put("/api/system/config", config);
-  return saved.status >= 300 ? `PUT /api/system/config answered ${String(saved.status)}` : null;
-}
-
 /** One page of the catalogue, as the extension's own route answers it. */
 async function readMissingPage(api, kind, coveId) {
   const answered = await api.get(extensionRoute(`entity/${kind}/${String(coveId)}/missing`));
@@ -185,6 +151,9 @@ test("the two reasons a status is unknown are different answers, in a real host"
     consoleErrors.push(String(failure));
   });
 
+  const provider = await startProviderStub({
+    networkName: statusHarness.container.getNetworkNames()[0],
+  });
   const whisparr = await startWhisparr({
     network: statusHarness.container.getNetworkNames()[0],
     generations: ["v3", "v2"],
@@ -201,7 +170,9 @@ test("the two reasons a status is unknown are different answers, in a real host"
     );
     await connectWhisparr(coveApi, whisparr, "v3");
 
-    const providerSkip = await configureStashDb(coveApi);
+    // The catalogue is served on this network under the metadata service's own name, so every
+    // assertion below runs wherever this suite runs.
+    await configureProviderStub(coveApi);
 
     const studio = await seedCoveStudio(coveApi, {
       name: `Brazzers Exxtra ${randomUUID().slice(0, 8)}`,
@@ -247,12 +218,6 @@ test("the two reasons a status is unknown are different answers, in a real host"
       `a page reported a component the bundle does not register: ${missingComponent.join(" | ")}`,
     ).toEqual([]);
 
-    // Reported as SKIPPED rather than returned from. Everything below needs a catalogue this run
-    // cannot read, and a test that returns here still reports a pass: the run then says this file
-    // covered v2, the unknown-status readings and the stopped instance, none of
-    // which it reached. A skip says what it did not do, in the run's own count.
-    test.skip(providerSkip !== null, `no catalogue can be read: ${providerSkip}`);
-
     // A CONNECTED INSTANCE. The catalogue is read, the instance answers, and the page reports a
     // status it actually read.
     const connected = await readMissingPage(coveApi, "studio", studio.id);
@@ -260,6 +225,13 @@ test("the two reasons a status is unknown are different answers, in a real host"
       connected.cards.length,
       "a provider and an instance were both configured, so the catalogue should have answered with cards",
     ).toBeGreaterThan(0);
+
+    // Read off the stub's own record: the cards below are evidence about this product only if the
+    // page they came from is the one this spec served.
+    expect(
+      (await provider.asked()).filter((line) => line.includes("MissingPage")),
+      "the stub was never asked for a page, so the grid is drawing something this spec did not serve",
+    ).not.toEqual([]);
     expect(
       connected.statusIsPermanentlyAbsent,
       "a connected instance of this generation keeps per-scene records, so nothing about the status is permanent",
@@ -282,9 +254,15 @@ test("the two reasons a status is unknown are different answers, in a real host"
       "the first card carries no status pill in this product's own vocabulary",
     ).toBeVisible();
 
-    // WHISPARR V2. It identifies entities against the other metadata source, which this
-    // build ships no client for, so the page states a reason rather than reaching a catalogue. What
-    // is asserted here is that the tab is still present and still says something.
+    // WHISPARR V2. It identifies entities against the other metadata source, and this spec
+    // configures a server for one source only, so the read finds none on v2's domain and states that
+    // rather than reaching a catalogue. What is asserted is that the tab still says something.
+    //
+    // That is a statement about a Cove configured for one source, NOT about v2's catalogue. This
+    // product ships a client for that source and the Missing tab is registered on both, so v2's
+    // catalogue is a real surface with no coverage here. Serving it needs a second stub: that
+    // client reads a REST base it does not take from the configuration, so the stub has to answer
+    // over TLS under a name it holds a certificate for.
     await connectWhisparr(coveApi, whisparr, "v2");
     const older = await readMissingPage(coveApi, "studio", studio.id);
     expect(
@@ -294,7 +272,7 @@ test("the two reasons a status is unknown are different answers, in a real host"
     test.info().annotations.push({
       type: "narrowed-assertion",
       description:
-        "the permanent absence over a full grid is asserted in the backend suite: this generation identifies against a metadata source this build has no client for, so its page read states that no provider is configured before any status is reached.",
+        "v2's own catalogue is not read here: this spec configures a server for the other source only, so the read states that none is configured before any status is reached. The projection over a v2 catalogue is covered in the backend suite.",
     });
 
     // THE INSTANCE STOPPED. The catalogue still reads, so the grid is full; the instance answers
@@ -342,6 +320,6 @@ test("the two reasons a status is unknown are different answers, in a real host"
       `the instance answered nothing, so the first card should read "${UNKNOWN_PILL}"`,
     ).toBeVisible();
   } finally {
-    if (!whisparrStopped) await whisparr.stop();
+    await Promise.allSettled([whisparrStopped ? null : whisparr.stop(), provider.stop()]);
   }
 });
