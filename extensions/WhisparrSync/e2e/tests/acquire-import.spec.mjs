@@ -56,6 +56,12 @@ import {
 const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
 });
+const SPEC_BUDGET_MS = 1_800_000;
+
+// Configured for the file rather than set inside each test. A test body runs AFTER its fixtures are
+// built, so a budget raised there never covers the setup - and the setup here is a container stack,
+// which is the slowest part and the part that outruns the default when the machine is loaded.
+test.describe.configure({ timeout: SPEC_BUDGET_MS });
 
 /** Whisparr's root folder and the download directory, both on the shared volume. */
 const WHISPARR_ROOT = `${WHISPARR_DATA_MOUNT}/media`;
@@ -73,7 +79,6 @@ const COVE_ROOT = `${COVE_SHARED}/media`;
  */
 const COVE_ALIAS = "cove";
 
-const SPEC_BUDGET_MS = 1_800_000;
 const DOWNLOAD_BUDGET_MS = 180_000;
 const IMPORT_BUDGET_MS = 300_000;
 
@@ -95,8 +100,6 @@ async function videoFilePaths(api) {
 test("a grab downloads through a real engine, imports, and reaches Cove on Whisparr's own word", async ({
   isolatedHarness,
 }) => {
-  test.setTimeout(SPEC_BUDGET_MS);
-
   const api = createApiClient(
     () => isolatedHarness.baseUrl,
     () => isolatedHarness.token,
@@ -376,8 +379,6 @@ test("a grab downloads through a real engine, imports, and reaches Cove on Whisp
 test("the older generation's own delivery reaches Cove through the same chain", async ({
   isolatedHarness,
 }) => {
-  test.setTimeout(SPEC_BUDGET_MS);
-
   const api = createApiClient(
     () => isolatedHarness.baseUrl,
     () => isolatedHarness.token,
