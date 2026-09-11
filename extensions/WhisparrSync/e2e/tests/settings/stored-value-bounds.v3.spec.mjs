@@ -18,24 +18,19 @@ import {
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { addCoveLibraryRoot, placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
-import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
 import {
   CALLBACK_ROUTE,
-  CALLBACK_STATUS_ROUTE,
-  CAPTURED_DELIVERY,
   COVE_ROOT,
   DATA_ROUTE,
-  DISABLE_ROUTE,
-  ENABLE_ROUTE,
   OPTIONS_KEY,
   SECRET_HEADER,
-  SECRET_QUERY_PARAMETER,
   SETTINGS_ROUTE,
   USER_AGENT,
   WHISPARR_ROOT,
 } from "../../lib/contract.mjs";
+import { callbackSecret, deliveryNaming, restartWorker, videosIn } from "../../lib/steps.mjs";
 
 // A HAND-SET CEILING, not a measurement of what is stored today. A number derived from the current
 // size would agree with the code forever and report nothing.
@@ -70,21 +65,6 @@ const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
 });
 
-/**
- * The delivery a real instance sent, naming one file and one scene.
- *
- * The scene identifier is rewritten per delivery. The captured body carries one, and reusing it
- * would make every delivery a redelivery of the same scene, so twenty imports would be one item
- * re-pointed twenty times.
- */
-function deliveryNaming(reportedPath, size, sceneId) {
-  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY.v3, "utf8"));
-  body.movieFile.path = reportedPath;
-  body.movieFile.size = size;
-  body.movie.stashId = sceneId;
-  return body;
-}
-
 /** Points the extension at the fixture instance and stores its key. */
 async function configure(api, whisparr) {
   const saved = await api.put(SETTINGS_ROUTE, {
@@ -113,30 +93,6 @@ async function chooseUpgradeBehavior(api, behavior) {
   return saved.json?.upgradeBehavior;
 }
 
-/** This installation's own callback secret, read out of the address the page offers. */
-async function callbackSecret(api) {
-  const status = await api.get(CALLBACK_STATUS_ROUTE);
-  expect(status.status, `GET ${CALLBACK_STATUS_ROUTE} answered: ${status.text.slice(0, 300)}`).toBe(
-    200,
-  );
-
-  const secret = new URL(status.json.copyableAddress).searchParams.get(SECRET_QUERY_PARAMETER);
-  expect(secret, `the copyable address carried no ${SECRET_QUERY_PARAMETER}`).toBeTruthy();
-  return secret;
-}
-
-/**
- * Every video Cove holds.
- *
- * Each read carries its own query so it gets its own output-cache entry: the host caches briefly,
- * and two reads a moment apart would otherwise be one answer.
- */
-async function videosIn(api) {
-  const listed = await api.get(`/api/videos?perPage=200&_=${randomUUID()}`);
-  expect(listed.status, `GET /api/videos answered: ${listed.text.slice(0, 300)}`).toBe(200);
-  return listed.json?.items ?? [];
-}
-
 /** Everything the extension has stored, as Cove's own bulk route returns it. */
 async function storedData(api) {
   const stored = await api.get(`${DATA_ROUTE}?_=${randomUUID()}`);
@@ -154,16 +110,6 @@ async function readOptions(api) {
 async function writeOptions(api, change) {
   const written = await api.put(`${DATA_ROUTE}/${OPTIONS_KEY}`, JSON.stringify(change));
   expect(written.status, `PUT the options key answered: ${written.text.slice(0, 300)}`).toBe(200);
-}
-
-/** Stops and restarts the worker, so a pass runs against the settings just written. */
-async function restartWorker(api) {
-  const disabled = await api.post(DISABLE_ROUTE);
-  expect(disabled.status, `POST ${DISABLE_ROUTE} answered: ${disabled.text.slice(0, 300)}`).toBe(
-    200,
-  );
-  const enabled = await api.post(ENABLE_ROUTE);
-  expect(enabled.status, `POST ${ENABLE_ROUTE} answered: ${enabled.text.slice(0, 300)}`).toBe(200);
 }
 
 /** The longest array anywhere in `value`, however deeply nested. */
@@ -227,7 +173,7 @@ test("what the extension persists is one bounded key, after a run that exercised
     async function deliver(reportedPath, sceneId, why) {
       const delivered = await asWhisparr.post(
         CALLBACK_ROUTE,
-        deliveryNaming(reportedPath, fileSize, sceneId),
+        deliveryNaming("v3", { path: reportedPath, size: fileSize, remoteId: sceneId }),
       );
       // A diagnostic, not the evidence. A refused delivery surfacing later as a count that never
       // moved would name the wrong cause entirely.

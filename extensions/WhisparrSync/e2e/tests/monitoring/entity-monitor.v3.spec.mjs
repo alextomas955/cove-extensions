@@ -36,6 +36,7 @@ import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { randomUUID } from "node:crypto";
 import { SETTINGS_PAGE_PATH } from "../../lib/contract.mjs";
+import { visit } from "../../lib/steps.mjs";
 
 import {
   connectWhisparr,
@@ -105,8 +106,6 @@ const SEEDED_PERFORMERS = 1;
 
 // Each budget names the operation it bounds, so a failure says which one blew it rather than
 // reporting the whole test as a timeout naming nothing.
-const BUNDLE_BUDGET_MS = 60_000;
-const BUNDLE_ATTEMPTS = 3;
 const CONTROL_BUDGET_MS = 60_000;
 const READ_SETTLED_BUDGET_MS = 60_000;
 const GESTURE_BUDGET_MS = 60_000;
@@ -147,29 +146,6 @@ const monitoredControl = (page) =>
 
 /** Cove's own primary action on either detail page, which the slot has to render to the left of. */
 const hostEditButton = (page) => page.getByRole("button", { name: "Edit", exact: true });
-
-/**
- * Opens `path`, re-navigating while nothing the caller named has rendered.
- *
- * The host carries an unknown settings key only until it finishes loading extensions, then rewrites
- * the address to its first built-in tab; and it paints its own error boundary in place of a page
- * whose lazily-imported chunk failed to fetch, on the correct URL and indefinitely. Only a fresh
- * navigation recovers either, and the retry is bounded so a permanent failure is not turned into a
- * hung test.
- */
-async function visit(page, baseUrl, path, present, label) {
-  for (let attempt = 1; attempt <= BUNDLE_ATTEMPTS; attempt++) {
-    await page.goto(`${baseUrl}${path}`);
-    const rendered = await present
-      .waitFor({ state: "visible", timeout: BUNDLE_BUDGET_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (rendered) return;
-  }
-  throw new Error(
-    `${label}: nothing rendered at ${baseUrl}${path} across ${BUNDLE_ATTEMPTS} navigation(s) of ${BUNDLE_BUDGET_MS}ms each; the page is now at ${page.url()}`,
-  );
-}
 
 /** Asserts the extension's control renders in the hero action row, ahead of Cove's own Edit. */
 async function expectControlLeftOfEdit(page, where) {

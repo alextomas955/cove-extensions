@@ -19,13 +19,11 @@ import {
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
-import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
 import {
   CALLBACK_ROUTE,
   CALLBACK_STATUS_ROUTE,
-  CAPTURED_DELIVERY,
   COVE_ROOT,
   EXTENSION_ID,
   SECRET_HEADER,
@@ -34,6 +32,7 @@ import {
   USER_AGENT,
   WHISPARR_ROOT,
 } from "../../lib/contract.mjs";
+import { deliveryNaming, videoPathsIn } from "../../lib/steps.mjs";
 
 // The wire spellings of where a delivery carried its secret, transcribed from the enum the server
 // declares them on.
@@ -46,15 +45,6 @@ const IMPORT_BUDGET_MS = 120_000;
 const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
 });
-
-/** The delivery a real instance sent, naming one file and one scene. */
-function deliveryNaming(reportedPath, size, sceneId) {
-  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY.v3, "utf8"));
-  body.movieFile.path = reportedPath;
-  body.movieFile.size = size;
-  body.movie.stashId = sceneId;
-  return body;
-}
 
 /** Points the extension at the fixture instance and stores its key. */
 async function configure(api, whisparr) {
@@ -77,23 +67,6 @@ async function callbackStatus(api) {
     200,
   );
   return status.json;
-}
-
-/**
- * Every video Cove holds.
- *
- * Each read carries its own query so it gets its own output-cache entry: the host caches briefly,
- * and a read taken before a delivery and one taken after would otherwise be the same answer.
- */
-async function videoPathsIn(api) {
-  const listed = await api.get(`/api/videos?perPage=200&_=${randomUUID()}`);
-  expect(listed.status, `GET /api/videos answered: ${listed.text.slice(0, 300)}`).toBe(200);
-
-  const videos = listed.json?.items ?? [];
-  const held = await Promise.all(
-    videos.map((video) => api.get(`/api/videos/${video.id}?_=${randomUUID()}`)),
-  );
-  return held.flatMap((video) => (video.json?.files ?? []).map((file) => file.path));
 }
 
 test("the shared secret is the whole of the inbound authentication, in each position it is accepted", async ({
@@ -155,7 +128,7 @@ test("the shared secret is the whole of the inbound authentication, in each posi
       });
       await caller.post(
         `${CALLBACK_ROUTE}${query}`,
-        deliveryNaming(file.reportedPath, file.size, randomUUID()),
+        deliveryNaming("v3", { path: file.reportedPath, size: file.size, remoteId: randomUUID() }),
       );
     }
 

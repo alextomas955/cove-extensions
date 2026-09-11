@@ -23,6 +23,7 @@ import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr
 import { randomUUID } from "node:crypto";
 
 import { THEPORNDB_ENDPOINT } from "../../lib/contract.mjs";
+import { visit } from "../../lib/steps.mjs";
 
 import {
   test as base,
@@ -90,8 +91,6 @@ const BRAZZERS_EXXTRA = "39cee498-a9ac-4403-910a-1a0157ad22d8";
  * written for the other generation is one it cannot be named by.
  */
 
-const BUNDLE_BUDGET_MS = 60_000;
-const BUNDLE_ATTEMPTS = 3;
 const GRID_BUDGET_MS = 60_000;
 
 /** Long enough for the control's own colour transition to finish. */
@@ -218,27 +217,6 @@ const stateChips = (scope) => scope.locator(".card-extension span.rounded-full")
 
 /** The words a chip may read, as the element carries them: a glyph, then the label. */
 const STATE_CHIP_TEXT = new RegExp(`(${STATE_WORDS.join("|")})$`);
-
-/**
- * Opens `path`, re-navigating while nothing the caller named has rendered.
- *
- * The host paints its own error boundary in place of a page whose lazily-imported chunk failed to
- * fetch, on the correct URL and indefinitely. Only a fresh navigation recovers it, and the retry is
- * bounded so a permanent failure is not turned into a hung test.
- */
-async function visit(page, baseUrl, path, present, label) {
-  for (let attempt = 1; attempt <= BUNDLE_ATTEMPTS; attempt++) {
-    await page.goto(`${baseUrl}${path}`);
-    const rendered = await present
-      .waitFor({ state: "visible", timeout: BUNDLE_BUDGET_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (rendered) return;
-  }
-  throw new Error(
-    `${label}: nothing rendered at ${baseUrl}${path} across ${BUNDLE_ATTEMPTS} navigation(s) of ${BUNDLE_BUDGET_MS}ms each; the page is now at ${page.url()}`,
-  );
-}
 
 /** The Cove api client for one started harness. */
 function apiFor(harness) {

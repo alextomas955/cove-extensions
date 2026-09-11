@@ -18,6 +18,7 @@
 import { createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { randomUUID } from "node:crypto";
+import { visit } from "../../lib/steps.mjs";
 
 import {
   test as base,
@@ -96,8 +97,6 @@ const SORT_OPTIONS = [
   { value: "title", label: "Title" },
 ];
 
-const BUNDLE_BUDGET_MS = 60_000;
-const BUNDLE_ATTEMPTS = 3;
 const TAB_BUDGET_MS = 30_000;
 const SETTLE_BUDGET_MS = 30_000;
 
@@ -148,28 +147,6 @@ const sortControl = (page) => toolbar(page).getByRole("button", { name: /^Sort/ 
 // while claiming to be about a facet.
 const facetChip = (page) =>
   toolbar(page).getByRole("button", { name: new RegExp(`^${FACET_MENUS[0].label}`) });
-
-/**
- * Opens `path`, re-navigating while nothing the caller named has rendered.
- *
- * The host carries an unknown key only until it finishes loading extensions, then rewrites the
- * address to its first built-in tab, and it paints its own error boundary in place of a page whose
- * lazily-imported chunk failed to fetch. Only a fresh navigation recovers either, and the retry is
- * bounded so a permanent failure is not turned into a hung test.
- */
-async function visit(page, baseUrl, path, present, label) {
-  for (let attempt = 1; attempt <= BUNDLE_ATTEMPTS; attempt++) {
-    await page.goto(`${baseUrl}${path}`);
-    const rendered = await present
-      .waitFor({ state: "visible", timeout: BUNDLE_BUDGET_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (rendered) return;
-  }
-  throw new Error(
-    `${label}: nothing rendered at ${baseUrl}${path} across ${BUNDLE_ATTEMPTS} navigation(s) of ${BUNDLE_BUDGET_MS}ms each; the page is now at ${page.url()}`,
-  );
-}
 
 /** Opens the entity page and clicks into the catalogue tab. */
 async function openTheTab(page, baseUrl, path, where) {
