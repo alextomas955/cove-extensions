@@ -45,7 +45,11 @@
 // e2e in this repository is usually the Cove container dying rather than the page under test.
 import { test as base, createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
-import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
+import {
+  registerRootFolder,
+  startWhisparr,
+  WHISPARR_APP_USER,
+} from "@cove-extensions/e2e/whisparr";
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { seedVideo } from "@cove-extensions/e2e/seed-media";
 import { randomUUID } from "node:crypto";
@@ -69,7 +73,6 @@ import {
   STASHDB_ENDPOINT,
   whisparrAcquisitionSurface,
   whisparrActivity,
-  WHISPARR_ROOT,
   WHISPARR_SYNC_EXTENSION,
 } from "../lib/whisparr-sync-fixtures.mjs";
 
@@ -177,6 +180,23 @@ async function setHardLinks(instance, on) {
   }
 }
 
+/**
+ * The instance's own rows for the files it holds for one catalogue entry.
+ *
+ * A refused listing and an entry holding nothing are different facts. Read as an empty list the
+ * first reads as the second, and a wrong address would report the run linked nothing.
+ */
+async function movieFileRows(instance, movieId) {
+  const route = `/api/v3/moviefile?movieId=${String(movieId)}`;
+  const listed = await instance.get(route);
+  if (!Array.isArray(listed.json)) {
+    throw new Error(
+      `movieFileRows: ${route} answered ${String(listed.status)} with no list: ${String(listed.text).slice(0, 300)}`,
+    );
+  }
+  return listed.json;
+}
+
 /** How many commands whose name is `named` the instance holds right now. */
 async function commandCount(instance, named) {
   const { commandNames } = await whisparrActivity(instance);
@@ -260,9 +280,15 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
     () => secondaryHarness.token,
   );
 
+  // One filesystem, at one path on both sides. The linking verb hands the instance a folder the
+  // LIBRARY names, so an instance mounting Cove's volume anywhere else is handed a path it cannot
+  // read: it links nothing and the run still completes reporting no failure.
+  const whisparrRoot = `${secondaryHarness.sharedPath}/media`;
   const whisparr = await startWhisparr({
     network: secondaryHarness.container.getNetworkNames()[0],
     generations: ["v3"],
+    dataVolume: secondaryHarness.sharedVolume,
+    dataMount: secondaryHarness.sharedPath,
   });
 
   try {
@@ -271,7 +297,7 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
       whisparr.v3.container,
       instance,
       "v3",
-      WHISPARR_ROOT,
+      whisparrRoot,
     );
 
     // The bound on every never-searched claim below, read off the instance rather than assumed.
@@ -306,14 +332,29 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
       remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: quietForeignId }],
     });
 
+    // The catalogue entry the file has to land on. The instance attaches a file to an entry it
+    // already holds, so with no entry for this scene the linking run offers it a file it matches to
+    // nothing, and the run reports a clean pass having attached none.
+    const seededScene = await whisparr.seedEntity("v3", {
+      kind: "scene",
+      foreignId: sceneRemoteId,
+      title: `Cove E2E Secondary Scene ${run}`,
+      monitored: true,
+    });
+
     // A file the library owns, carrying this studio and one scene identity: the folder is what
     // reflect owned streams, and the identity is what add all missing offers. Both verbs then have
     // something to act on rather than an empty source, which would settle nothing.
+    //
+    // Inside the entry's OWN folder, which both containers reach at one path. That is what the
+    // instance reads the file's entry from, and it is what makes the run's work observable on the
+    // instance rather than only in the line the run reports about itself.
     const video = await seedVideo({
       container: secondaryHarness.container,
       baseUrl: secondaryHarness.baseUrl,
       token: secondaryHarness.token,
-      destName: `secondary-${run}.mp4`,
+      destDir: seededScene.path,
+      destName: `Cove E2E Secondary Scene ${run} 1080p WEBDL.mp4`,
     });
     const owned = await coveApi.put(`/api/videos/${String(video.id)}`, {
       studioId: heldStudio.id,
@@ -323,6 +364,12 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
       owned.status,
       `attaching the seeded video to the studio answered ${String(owned.status)}: ${String(owned.text).slice(0, 300)}`,
     ).toBeLessThan(300);
+
+    // The instance reads and links as its own user, and a copied file arrives owned by root.
+    await whisparr.v3.container.exec(
+      ["chown", "-R", WHISPARR_APP_USER, secondaryHarness.sharedPath],
+      { user: "root" },
+    );
 
     await connectWhisparr(coveApi, whisparr, "v3");
 
@@ -424,6 +471,14 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
 
     // ---- Reflect owned, acting. ----
     await setHardLinks(instance, true);
+
+    // The bound on the claim below, read off the instance rather than assumed. An entry already
+    // carrying a file would make its rows after the run indistinguishable from its rows before it.
+    expect(
+      await movieFileRows(instance, seededScene.id),
+      "the seeded scene already holds a file, so a file found after the run would prove nothing",
+    ).toEqual([]);
+
     const reflectOn = await pressSecondary(page, ACTION_REFLECT_OWNED, "reflect-owned");
     expect(
       reflectOn.body?.skipped ?? null,
@@ -438,6 +493,34 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
       reportedLine(reflectRun, /\d+ linked, \d+ refused/),
       `the reflect-owned run completed and reported no line saying what it linked. A run that reports nothing tells a reader neither what it attached nor that it attached nothing. The whole status was ${JSON.stringify(reflectRun)}`,
     ).toBeTruthy();
+
+    // What the run DID, read off the instance. The line above is the run's own account of itself and
+    // "0 linked, 0 refused" satisfies it, so on its own it passes a run that handed over nothing.
+    const {
+      settled: linked,
+      value: linkedFiles,
+      note: linkedNote,
+    } = await attemptUntil(
+      async (_signal, record) => {
+        const rows = await movieFileRows(instance, seededScene.id);
+        record(`${String(rows.length)} file row(s)`);
+        return rows.length > 0 ? { value: rows } : null;
+      },
+      {
+        timeoutMs: JOB_BUDGET_MS,
+        intervalMs: 1_000,
+        label: "the instance's own file rows for the seeded scene",
+      },
+    );
+    expect(
+      linked,
+      `the reflect-owned run reported "${String(reportedLine(reflectRun, /\d+ linked, \d+ refused/))}" and the instance holds no file for the scene the library named; its file rows last read ${linkedNote}`,
+    ).toBe(true);
+    const paths = linkedFiles.map((row) => String(row.relativePath ?? row.path));
+    expect(
+      paths.some((path) => path.includes(run)),
+      `the instance holds a file for the scene that is not the one the library named: ${paths.join(", ")}`,
+    ).toBe(true);
 
     // The menu is still open, which is the product's own rule rather than an accident: every row
     // disables until the state has been read back, so what a reader sees next is what the instance
