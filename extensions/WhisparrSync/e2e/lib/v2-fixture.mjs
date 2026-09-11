@@ -23,6 +23,7 @@ import {
 } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
 
+import { cleanupStack } from "./connected-fixture.mjs";
 import { seedV2Scene } from "./seed-scene.mjs";
 import { startMetadataStub } from "./metadata-stub.mjs";
 import {
@@ -52,23 +53,6 @@ export const WHISPARR_ROOT = `${SHARED_MOUNT}/media`;
 export const THEPORNDB_ENDPOINT = "https://theporndb.net/graphql";
 
 /**
- * Every capability this generation declares, in the spelling the wire carries.
- *
- * Transcribed by hand from the product's own table. The point is that it is SHORTER than the other
- * generation's and differs in both directions: two entries here appear on no other, and four the
- * other generation holds are absent. Derived from the product it would assert a list equals itself.
- */
-export const V2_CAPABILITIES = [
-  "outOfBandCallbackSecret",
-  "monitorStudio",
-  "reflectOwnedFiles",
-  "searchMonitored",
-  "monitorScene",
-  "registerOwnedSites",
-  "readSiteSceneRows",
-];
-
-/**
  * The budget one of these specs runs under.
  *
  * Configured per file rather than inside a test body. A body runs AFTER its fixtures are built, so a
@@ -88,39 +72,42 @@ export const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
 
   v2: async ({ isolatedHarness }, use) => {
-    const api = createApiClient(
-      () => isolatedHarness.baseUrl,
-      () => isolatedHarness.token,
-    );
-    const network = isolatedHarness.container.getNetworkNames()[0];
-
-    const run = randomUUID().slice(0, 8);
-    // Two sites the stub can answer for: the one the instance already holds, and one it does not,
-    // which is what a registration has to create.
-    const heldSiteId = Math.floor(Math.random() * 500_000) + 1;
-    const unheldSiteId = heldSiteId + 500_000;
-    const heldTitle = `Held ${run}`;
-    const unheldTitle = `Unheld ${run}`;
-
-    // Started before the instance: the element naming it is read from the config at startup and never
-    // again.
-    const metadata = await startMetadataStub({
-      networkName: network,
-      sites: [
-        { tvdbId: heldSiteId, title: heldTitle, titleSlug: String(heldSiteId) },
-        { tvdbId: unheldSiteId, title: unheldTitle, titleSlug: String(unheldSiteId) },
-      ],
-    });
-
-    const whisparr = await startWhisparr({
-      network,
-      generations: ["v2"],
-      dataVolume: isolatedHarness.sharedVolume,
-      dataMount: SHARED_MOUNT,
-      metadataUrl: metadata.urlFromWhisparr,
-    });
-
+    const cleanup = cleanupStack();
     try {
+      const api = createApiClient(
+        () => isolatedHarness.baseUrl,
+        () => isolatedHarness.token,
+      );
+      const network = isolatedHarness.container.getNetworkNames()[0];
+
+      const run = randomUUID().slice(0, 8);
+      // Two sites the stub can answer for: the one the instance already holds, and one it does not,
+      // which is what a registration has to create.
+      const heldSiteId = Math.floor(Math.random() * 500_000) + 1;
+      const unheldSiteId = heldSiteId + 500_000;
+      const heldTitle = `Held ${run}`;
+      const unheldTitle = `Unheld ${run}`;
+
+      // Started before the instance: the element naming it is read from the config at startup and
+      // never again.
+      const metadata = await startMetadataStub({
+        networkName: network,
+        sites: [
+          { tvdbId: heldSiteId, title: heldTitle, titleSlug: String(heldSiteId) },
+          { tvdbId: unheldSiteId, title: unheldTitle, titleSlug: String(unheldSiteId) },
+        ],
+      });
+      cleanup.push("the v2 metadata stub", () => metadata.stop());
+
+      const whisparr = await startWhisparr({
+        network,
+        generations: ["v2"],
+        dataVolume: isolatedHarness.sharedVolume,
+        dataMount: SHARED_MOUNT,
+        metadataUrl: metadata.urlFromWhisparr,
+      });
+      cleanup.push("the v2 instance", () => whisparr.stop());
+
       const whisparrApi = whisparr.apiFor("v2");
       await registerRootFolder(whisparr.v2.container, whisparrApi, "v2", WHISPARR_ROOT);
 
@@ -161,7 +148,7 @@ export const test = base.extend({
         run,
       });
     } finally {
-      await Promise.allSettled([whisparr.stop(), metadata.stop()]);
+      await cleanup.unwind();
     }
   },
 });
@@ -194,4 +181,5 @@ export async function commandNames(whisparrApi) {
 // The site read lives beside the fixture that owns a connected installation, because the shared
 // scenarios read the same row through it.
 export { siteRow } from "./connected-fixture.mjs";
+export { V2_CAPABILITIES } from "./capability-sets.mjs";
 export { expect, extensionRoute, seedCoveVideo } from "./whisparr-sync-fixtures.mjs";
