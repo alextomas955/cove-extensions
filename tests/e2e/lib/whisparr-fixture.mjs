@@ -54,6 +54,7 @@ export const WHISPARR_DATA_MOUNT = "/data";
  * reports success and attaches nothing, because the move fails after the decision to make it.
  */
 export { APP_USER as WHISPARR_APP_USER } from "./whisparr-images.mjs";
+export { SEEDED_EPISODE_TVDB_ID } from "./whisparr-seed.mjs";
 
 const aliasFor = (generation) => `whisparr-${generation}`;
 

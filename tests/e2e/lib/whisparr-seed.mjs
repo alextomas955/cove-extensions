@@ -14,6 +14,15 @@ import { APP_USER } from "./whisparr-images.mjs";
 // than choosing for itself, so the one database it may open is always named by its caller.
 const DATABASES = { v3: "/config/whisparr3.db", v2: "/config/whisparr2.db" };
 
+/**
+ * The identifier the seeded v2 episode carries, which that generation's history reports under
+ * `episode` and which this product reads a scene's identity from there.
+ *
+ * Transcribed from the seeder beside this file rather than read out of it: the two have to agree,
+ * and a value read from the thing it checks agrees with it forever.
+ */
+export const SEEDED_EPISODE_TVDB_ID = "4149372";
+
 // A committed file copied in, never a heredoc and never a string assembled in shell: a
 // heredoc-written script carries CRLF into every path it handles, and the failure then blames the
 // path.
