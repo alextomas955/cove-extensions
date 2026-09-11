@@ -23,7 +23,7 @@ namespace WhisparrSync.Tests.Jobs;
 /// </remarks>
 public sealed class SyncLibrarySitesTests
 {
-    /// <summary>The namespace the older generation identifies a site in.</summary>
+    /// <summary>The namespace v2 identifies a site in.</summary>
     private const string V2Endpoint = "https://theporndb.net/graphql";
 
     private const string FirstSite = "a30bc641-6afe-4c80-9c73-ecb68104a68d";
@@ -299,7 +299,7 @@ public sealed class SyncLibrarySitesTests
         };
 
     /// <summary>
-    /// A host on the older generation, whose instance either holds every site or holds none.
+    /// A host on v2, whose instance either holds every site or holds none.
     /// </summary>
     /// <remarks>
     /// The add is given an answer only where the instance holds nothing. A pass that composed one

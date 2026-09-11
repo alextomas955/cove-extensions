@@ -1,4 +1,4 @@
-// Monitoring a studio on the older generation, and the capability set the connection advertises.
+// Monitoring a studio on v2, and the capability set the connection advertises.
 //
 // The monitored flag is read off the instance's own site row, never off this product's answer. Both
 // directions are driven: a route writing a constant would pass either one alone.

@@ -34,10 +34,10 @@ namespace WhisparrSync.Tests.Monitoring;
 /// </remarks>
 public sealed class MonitorPathTests
 {
-    /// <summary>A stored identifier of the shape the older generation's source mints.</summary>
+    /// <summary>A stored identifier of the shape v2's source mints.</summary>
     private const string V2StoredIdentifier = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-    /// <summary>One site as the older generation's lookup answers with it.</summary>
+    /// <summary>One site as v2's lookup answers with it.</summary>
     private const string V2OneSite = """
         [{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen","year":2016}]
         """;
@@ -213,7 +213,7 @@ public sealed class MonitorPathTests
     }
 
     /// <summary>
-    /// The older generation is asked under the stored identifier exactly as the library holds it, and
+    /// Whisparr v2 is asked under the stored identifier exactly as the library holds it, and
     /// the entity is then added under the numeric identifier the lookup answered with.
     /// </summary>
     /// <remarks>
@@ -294,7 +294,7 @@ public sealed class MonitorPathTests
     }
 
     /// <summary>
-    /// Whether the older generation's instance holds the entity is read out of its own listing, and
+    /// Whether v2's instance holds the entity is read out of its own listing, and
     /// only the matched entry is carried onward.
     /// </summary>
     [Fact]
@@ -382,7 +382,7 @@ public sealed class MonitorPathTests
     }
 
     /// <summary>
-    /// An answer past the read bound on either of the older generation's two reads keeps its own
+    /// An answer past the read bound on either of v2's two reads keeps its own
     /// reason, rather than being parsed as an absence or as the instance refusing.
     /// </summary>
     /// <remarks>
@@ -418,7 +418,7 @@ public sealed class MonitorPathTests
     }
 
     /// <summary>
-    /// An entity the older generation's instance lists nowhere reads as not held, which is not a
+    /// An entity v2's instance lists nowhere reads as not held, which is not a
     /// refusal: it is the precondition for adding it.
     /// </summary>
     [Fact]
@@ -441,7 +441,7 @@ public sealed class MonitorPathTests
     }
 
     /// <summary>
-    /// However large an answer the older generation's listing gives, only the matched entry is
+    /// However large an answer v2's listing gives, only the matched entry is
     /// carried onward.
     /// </summary>
     /// <remarks>

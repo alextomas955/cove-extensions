@@ -1,4 +1,4 @@
-// A connected instance of the older generation, and what a spec reads its answers off.
+// A connected instance of v2, and what a spec reads its answers off.
 //
 // WHY THIS EXISTS. The product declares a capability set per generation and tells the browser which
 // one it is connected to. Seven entries belong to this generation, and two of them belong to no
@@ -78,7 +78,7 @@ export const V2_CAPABILITIES = [
 export const SPEC_BUDGET_MS = 900_000;
 
 /**
- * A connected instance of the older generation, with one site and one scene in its catalogue and the
+ * A connected instance of v2, with one site and one scene in its catalogue and the
  * studio in Cove's that names the site.
  *
  * Per test rather than shared. Each test below changes what the instance holds, and a shared stack

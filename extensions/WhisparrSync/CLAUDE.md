@@ -6,6 +6,21 @@ own machine, and nothing downloads that the user did not ask for.
 
 The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific to Whisparr Sync.
 
+## What v2 and v3 are
+
+Whisparr ships as two products built on different architectures, and this extension supports both.
+
+- **v2** keeps a series-and-episode catalogue. A site is a series, a scene is an episode under it,
+  and a delivery names its file under `episodeFile`.
+- **v3** keeps a movie catalogue. A scene is a movie, there is no series above it, and a delivery
+  names its file under `movieFile`.
+
+Neither replaces the other. Both are maintained, both are supported targets, and each holds
+capabilities the other does not. Do not describe either as older, newer, legacy or next-generation,
+in code, comments, tests, documentation or commit messages: the framing makes a gap on one of them
+read as acceptable, which is how this extension came to drive several shared capabilities on v3
+alone. Write `v2` and `v3`, or name the architecture.
+
 ## Identity and routing
 
 - `extension.json` is the only source of identity (id, name, version, description, host floor,
@@ -31,7 +46,7 @@ The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific
 
 - Whether a card badge exists on a generation is a manifest fact, not a branch inside a component.
   `GetUIManifest` omits the videos-view and performers-view registrations when the stored generation
-  is the older one, so the host renders no wrapper element for them. A component returning null
+  is v2, so the host renders no wrapper element for them. A component returning null
   leaves the host's in-card box behind, which is a different observable result.
 - `GetUIManifest` is synchronous and cannot read the store. Keep its generation available across
   host threads and current after options are loaded. A generation not established keeps every surface.
@@ -86,7 +101,7 @@ the directory recursively, so a new one needs no configuration.
 
 ### The generation suffix
 
-`*.v2.spec.mjs` starts an instance of the older generation and only that one, `*.v3.spec.mjs` the
+`*.v2.spec.mjs` starts an instance of v2 and only that one, `*.v3.spec.mjs` the
 newer. A spec with neither suffix runs for both, or needs no instance at all. The suffix is what
 makes a one-sided capability visible without opening the file: five capabilities are held by both
 generations, and a spec name is the only place that says which of them are driven on both.

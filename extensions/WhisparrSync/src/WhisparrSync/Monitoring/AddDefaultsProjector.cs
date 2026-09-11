@@ -24,7 +24,7 @@ internal sealed record AddDefaultsResolution(AddDefaults? Defaults, MonitorRefus
 /// the one the instance offers first.
 /// <para>
 /// An empty list of either is a stop taken BEFORE anything is sent. That is not belt and braces: the
-/// newer generation accepts a quality profile id of zero, echoes it back, and the entity then
+/// v3 accepts a quality profile id of zero, echoes it back, and the entity then
 /// monitors happily and can never acquire anything, so refusing here is the only guard there is.
 /// The same holds for a missing library root, which a fresh instance has: that generation's add then
 /// answers a conflict carrying a full stack trace, and a user's first monitor would show it.
