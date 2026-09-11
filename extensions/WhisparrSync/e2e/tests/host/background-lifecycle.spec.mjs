@@ -16,12 +16,8 @@ import {
   isolatedHarnessFixture,
 } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
+import { DISABLE_ROUTE, ENABLE_ROUTE, HOST_CONFIGURATION_ROUTE } from "../../lib/contract.mjs";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
-
-const EXTENSION_ID = "com.alextomas955.whisparrsync";
-const PROBE_PATH = `/api/extensions/${EXTENSION_ID}/host-configuration`;
-const DISABLE_PATH = `/api/extensions/${EXTENSION_ID}/disable`;
-const ENABLE_PATH = `/api/extensions/${EXTENSION_ID}/enable`;
 
 // The bound on the host's own stop. Far below the spec timeout, so a worker that ignored its token
 // fails here naming the stop rather than as a whole-test timeout naming nothing.
@@ -38,7 +34,7 @@ const test = base.extend({
 /** The probe as the owner reads it, once it answers with a body. */
 async function probeUntilAnswered(api, predicate, label) {
   const answered = await pollUntil(
-    () => api.get(PROBE_PATH),
+    () => api.get(HOST_CONFIGURATION_ROUTE),
     (probe) => probe.status === 200 && predicate(probe.json ?? {}),
     { timeoutMs: PROBE_BUDGET_MS, intervalMs: 500, label },
   );
@@ -69,24 +65,24 @@ test("the host starts the worker, and disabling the extension cancels it without
 
   const stopBegan = Date.now();
   const disabled = await api
-    .post(DISABLE_PATH, undefined, { signal: AbortSignal.timeout(STOP_BUDGET_MS) })
+    .post(DISABLE_ROUTE, undefined, { signal: AbortSignal.timeout(STOP_BUDGET_MS) })
     .catch((cause) => {
       throw new Error(
-        `POST ${DISABLE_PATH} did not answer within ${STOP_BUDGET_MS}ms. Cove blocks on the ` +
+        `POST ${DISABLE_ROUTE} did not answer within ${STOP_BUDGET_MS}ms. Cove blocks on the ` +
           "worker's task while stopping it, so a worker whose awaits do not take its cancellation " +
           `token hangs here (${cause?.message ?? cause}).`,
       );
     });
   const stopTookMs = Date.now() - stopBegan;
 
-  expect(disabled.status, `POST ${DISABLE_PATH} answered: ${disabled.text}`).toBe(200);
+  expect(disabled.status, `POST ${DISABLE_ROUTE} answered: ${disabled.text}`).toBe(200);
   expect(
     stopTookMs,
     `the host took ${stopTookMs}ms to stop the worker, against a budget of ${STOP_BUDGET_MS}ms`,
   ).toBeLessThan(STOP_BUDGET_MS);
 
-  const enabled = await api.post(ENABLE_PATH);
-  expect(enabled.status, `POST ${ENABLE_PATH} answered: ${enabled.text}`).toBe(200);
+  const enabled = await api.post(ENABLE_ROUTE);
+  expect(enabled.status, `POST ${ENABLE_ROUTE} answered: ${enabled.text}`).toBe(200);
 
   const afterStop = await probeUntilAnswered(
     api,

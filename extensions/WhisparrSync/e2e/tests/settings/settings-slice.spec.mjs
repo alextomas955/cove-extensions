@@ -17,10 +17,9 @@ import {
   isolatedHarnessFixture,
 } from "@cove-extensions/e2e";
 import { startWhisparr } from "@cove-extensions/e2e/whisparr";
+import { EXTENSION_ID, SETTINGS_ROUTE } from "../../lib/contract.mjs";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
 
-const EXTENSION_ID = "com.alextomas955.whisparrsync";
-const SETTINGS_PATH = `/api/extensions/${EXTENSION_ID}/settings`;
 const PANEL_PATH = "/settings/whisparr-sync";
 const STATUS_PATH = "/api/v3/system/status";
 
@@ -138,8 +137,8 @@ test("both generations are configured independently, and only a generation chang
     () => isolatedHarness.token,
   );
   const storedSettings = async () => {
-    const read = await owner.get(SETTINGS_PATH);
-    expect(read.status, `GET ${SETTINGS_PATH} answered: ${read.text.slice(0, 300)}`).toBe(200);
+    const read = await owner.get(SETTINGS_ROUTE);
+    expect(read.status, `GET ${SETTINGS_ROUTE} answered: ${read.text.slice(0, 300)}`).toBe(200);
     return read.json;
   };
 

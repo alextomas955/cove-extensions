@@ -13,8 +13,8 @@
 // Both generations run the same three legs against their own instance. Each generation's block starts
 // only its own container, so neither pays for the other's boot.
 import { test, expect } from "../../lib/whisparr-sync-fixtures.mjs";
+import { SETTINGS_PAGE_PATH } from "../../lib/contract.mjs";
 
-const SETTINGS_PATH = "/settings/whisparr-sync";
 const STATUS_PATH = "/api/v3/system/status";
 
 // The builds this extension's classifier pins were transcribed from. Hand-written here, so a moved
@@ -46,7 +46,7 @@ const ATTEMPTS = 3;
  * would be looking at.
  */
 async function openPanel(page, baseUrl, generation) {
-  const panelUrl = `${baseUrl}${SETTINGS_PATH}`;
+  const panelUrl = `${baseUrl}${SETTINGS_PAGE_PATH}`;
   const addressField = page.getByPlaceholder("http://whisparr:6969");
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     await page.goto(panelUrl);
