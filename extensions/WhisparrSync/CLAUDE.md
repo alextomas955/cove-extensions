@@ -77,7 +77,14 @@ obtains the role or is refused before any request leaves. There is no `Supports*
 version-mismatch throw. Bind a role to behavior that was measured against a real instance, not to a
 field the API documentation names.
 
-## An e2e spec is named for the generation it drives
+## Where an e2e spec lives, and what its name says
+
+`e2e/tests/` holds one directory per capability, named the way the C# folders and the UI slices are:
+`monitoring`, `missing`, `scene`, `library`, `import`, `settings`. `host` is the exception and holds
+the specs about the host contract rather than a capability of this extension. Playwright collects
+the directory recursively, so a new one needs no configuration.
+
+### The generation suffix
 
 `*.v2.spec.mjs` starts an instance of the older generation and only that one, `*.v3.spec.mjs` the
 newer. A spec with neither suffix runs for both, or needs no instance at all. The suffix is what
