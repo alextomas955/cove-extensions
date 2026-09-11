@@ -99,6 +99,7 @@ export async function startWhisparr({
   seedHistory: history = false,
   rootFolder,
   dataVolume,
+  metadataUrl,
 } = {}) {
   if (!network) {
     throw new Error(
@@ -110,7 +111,7 @@ export async function startWhisparr({
   // would pay that twice for containers that share nothing.
   const outcomes = await Promise.allSettled(
     generations.map((generation) =>
-      startGeneration(generation, { network, apiKey, startupTimeoutMs, dataVolume }),
+      startGeneration(generation, { network, apiKey, startupTimeoutMs, dataVolume, metadataUrl }),
     ),
   );
   const failure = outcomes.find((outcome) => outcome.status === "rejected");
@@ -389,7 +390,10 @@ function instanceHandle(container, generation, apiKey) {
   };
 }
 
-async function startGeneration(generation, { network, apiKey, startupTimeoutMs, dataVolume }) {
+async function startGeneration(
+  generation,
+  { network, apiKey, startupTimeoutMs, dataVolume, metadataUrl },
+) {
   const image = whisparrImage(generation);
 
   // Testcontainers stops and REMOVES a container whose wait strategy failed before start() rejects,
@@ -398,7 +402,7 @@ async function startGeneration(generation, { network, apiKey, startupTimeoutMs, 
   // wait timeout then names the wrong cause entirely.
   const logChunks = [];
 
-  let builder = withApiKeySeed(new GenericContainer(image), generation, apiKey)
+  let builder = withApiKeySeed(new GenericContainer(image), generation, apiKey, metadataUrl)
     .withNetworkMode(network)
     // An alias is scoped to the network; a container NAME is daemon-global and would collide the
     // moment two harnesses run at once.
@@ -457,14 +461,14 @@ function tailOf(logChunks) {
 // be handed a config file before it starts. They stay separate on purpose — the environment route
 // needs no copy, no file mode and no ordering, so unifying on the file route would buy symmetry and
 // pay for it in failure surface.
-function withApiKeySeed(builder, generation, apiKey) {
+function withApiKeySeed(builder, generation, apiKey, metadataUrl) {
   if (generation === "v3") {
     return builder.withEnvironment({ WHISPARR__AUTH__APIKEY: apiKey });
   }
   if (generation === "v2") {
     return builder.withCopyContentToContainer([
       {
-        content: buildConfigXml({ apiKey, port: WHISPARR_PORT }),
+        content: buildConfigXml({ apiKey, port: WHISPARR_PORT, metadataUrl }),
         target: "/config/config.xml",
         // The mode is the load-bearing field. Without it the file arrives root-owned, the image's
         // init does not chown a file it did not create, and the app exits on its first config write

@@ -96,8 +96,17 @@ export async function seedCovePerformer(api, { name, remoteIds = [] }) {
  *
  * @see seedCoveStudio
  */
-export async function seedCoveVideo(api, { title, remoteIds = [] }) {
-  return created(await api.post("/api/videos", { title, remoteIds }), "POST /api/videos");
+export async function seedCoveVideo(api, { title, remoteIds = [], studioId }) {
+  return created(
+    await api.post("/api/videos", {
+      title,
+      remoteIds,
+      // Omitted rather than sent as null, so a caller naming no studio leaves the field to the host
+      // rather than writing an absence over whatever it defaults to.
+      ...(studioId === undefined ? {} : { studioId }),
+    }),
+    "POST /api/videos",
+  );
 }
 
 function created(response, what) {
