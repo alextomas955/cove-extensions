@@ -9,6 +9,7 @@
 // Registering twice is what proves idempotency, and it is proven by COUNTING what Whisparr holds
 // rather than by trusting the extension's own report of what it did.
 import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
+import { whisparrFixtures } from "@cove-extensions/e2e/whisparr";
 import { WHISPARR_SYNC_EXTENSION } from "../lib/whisparr-sync-fixtures.mjs";
 
 const EXTENSION_ID = "com.alextomas955.whisparrsync";
@@ -33,6 +34,7 @@ const COVE_PORT = 5073;
 
 const test = base.extend({
   extension: [WHISPARR_SYNC_EXTENSION, { option: true }],
+  ...whisparrFixtures(),
 });
 
 test.use({ whisparrGenerations: ["v3", "v2"] });

@@ -2,6 +2,11 @@
 // network, each answering an API key this module minted. Opt-in: the shared compose file is
 // untouched, so a suite that never calls this pays neither the image pull nor the boot.
 //
+// Opt-in reaches as far as the module graph. Nothing in the shared fixtures module imports this one,
+// so an extension with no Whisparr in it does not load this file, Testcontainers' Whisparr wiring or
+// the catalogue seeders beneath it. An extension that wants the fixture spreads
+// `whisparrFixtures()` into its own `test.extend`.
+//
 // Built on Testcontainers like the harness itself, so its Ryuk sidecar reaps whatever this starts
 // even when the test process is killed rather than exiting.
 import { GenericContainer, Wait } from "testcontainers";
@@ -492,4 +497,47 @@ function withApiKeySeed(builder, generation, apiKey, metadataUrl, logLevel) {
     ]);
   }
   throw new Error(`startWhisparr: no API-key seed is wired for generation "${generation}".`);
+}
+
+/**
+ * The `whisparr` fixture and the option that decides what it starts, for an extension that wants
+ * them on its own `test`.
+ *
+ * Spread into `test.extend({ ... })`. Returned by a call rather than exported as an object, so two
+ * extensions extending their own test objects cannot share one mutable definition.
+ *
+ * `whisparrGenerations` is undefined by default and the fixture then starts nothing, so a spec in a
+ * suite that takes these fixtures still pays neither the image pull nor the boot until it names a
+ * generation.
+ *
+ * PER TEST, never per worker: two specs sharing one instance would share its notification list, and
+ * whether registering the same callback twice leaves one entry is asserted on that list.
+ *
+ * The stop is in a `finally` and the fixture is test-scoped, so it runs before the worker's harness
+ * goes away. The daemon refuses to remove a network a container still holds an endpoint on, which is
+ * the ordering this file documents above.
+ */
+export function whisparrFixtures() {
+  return {
+    whisparrGenerations: [undefined, { option: true }],
+
+    whisparr: [
+      async ({ harness, whisparrGenerations }, use) => {
+        if (whisparrGenerations === undefined) {
+          await use(undefined);
+          return;
+        }
+        const instances = await startWhisparr({
+          network: harness.container.getNetworkNames()[0],
+          generations: whisparrGenerations,
+        });
+        try {
+          await use(instances);
+        } finally {
+          await instances.stop();
+        }
+      },
+      { scope: "test" },
+    ],
+  };
 }
