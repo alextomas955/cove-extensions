@@ -79,6 +79,27 @@ const SEARCH_COMMAND = /search/i;
 // How many entities this spec puts in front of the host. Stated here and bounded at a handful: the
 // library it drives is the one it created, so a count read off a page would be a count of whatever
 // else happened to be there.
+/**
+ * Every capability this version declares, in the spelling the wire carries.
+ *
+ * Transcribed by hand from the product's own table, as its v2 counterpart is. The two differ in both
+ * directions: four entries here appear on no other, and two the other version holds are absent.
+ * Derived from the product it would assert a list equals itself.
+ */
+const V3_CAPABILITIES = [
+  "outOfBandCallbackSecret",
+  "monitorStudio",
+  "monitorPerformer",
+  "registerMissingScenes",
+  "reflectOwnedFiles",
+  "searchMonitored",
+  "readSceneStatus",
+  "readSceneExclusions",
+  "searchScene",
+  "monitorScene",
+  "excludeScene",
+];
+
 const SEEDED_STUDIOS = 2;
 const SEEDED_PERFORMERS = 1;
 
@@ -412,6 +433,15 @@ test("the control renders and works on both real detail pages, and the instance 
       reported.refusal,
       `the read reporting the studio monitored carries the refusal ${JSON.stringify(reported.refusal)}, so the server named a reason alongside a state it reports as applied`,
     ).toBe(MONITOR_REFUSAL_NONE);
+
+    // The whole list, so a capability gained or lost is reported here rather than by a control that
+    // quietly stops appearing. Its counterpart is asserted for the other version in
+    // studio-monitoring.v2, and the two lists differ in both directions.
+    expect(reported.generation, "the read names a version other than the connected one").toBe("v3");
+    expect(
+      [...reported.capabilities].sort(),
+      "the connection advertises another capability set",
+    ).toEqual([...V3_CAPABILITIES].sort());
 
     await expect(
       monitoredControl(page),

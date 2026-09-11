@@ -26,6 +26,7 @@ const DATA_PATH = `/api/extensions/${EXTENSION_ID}/data`;
 // Synthetic and authorises nothing: no instance is reached in this spec. Distinctive enough that a
 // substring search for it cannot match anything else the responses carry.
 const SAVED_KEY = "e2ewriteonly7c41b9a6d2f80e35a1c4";
+const V2_SAVED_KEY = "e2ewriteonlyv2b3d95f10a7c284e6d1";
 const SAVED_ADDRESS = "http://whisparr-v3-not-started:6969";
 
 const test = base.extend({
@@ -67,6 +68,43 @@ test("a saved key reaches neither the settings response nor the host's bulk data
     "the bulk data route returned nothing of this extension, so it is no evidence about the key",
   ).toContain(SAVED_ADDRESS);
   expect(bulk.text).not.toContain(SAVED_KEY);
+});
+
+test("the other version's key is write-only too, and is stored in its own slot", async ({
+  isolatedHarness,
+}) => {
+  const owner = createApiClient(
+    () => isolatedHarness.baseUrl,
+    () => isolatedHarness.token,
+  );
+
+  // The two keys are held in slots of their own, by a port that names the slot from the version. A
+  // rule proven on one slot is not proven on the other, and this costs no container to say.
+  const saved = await owner.put(SETTINGS_PATH, {
+    selectedGeneration: "v2",
+    v3: null,
+    v2: { address: SAVED_ADDRESS, keyWrite: "replace", apiKey: V2_SAVED_KEY },
+  });
+  expect(saved.status, `PUT ${SETTINGS_PATH} answered: ${saved.text}`).toBe(200);
+  expect(saved.json?.v2?.keyIsSet, "the save did not store the key at all").toBe(true);
+  expect(saved.text).not.toContain(V2_SAVED_KEY);
+
+  const read = await owner.get(SETTINGS_PATH);
+  expect(read.json?.v2?.address).toBe(SAVED_ADDRESS);
+  expect(read.json?.v2?.keyIsSet).toBe(true);
+  expect(read.text).not.toContain(V2_SAVED_KEY);
+
+  const bulk = await owner.get(DATA_PATH);
+  expect(bulk.status, `GET ${DATA_PATH} answered: ${bulk.text}`).toBe(200);
+  expect(
+    bulk.text,
+    "the bulk data route returned nothing of this extension, so it is no evidence about the key",
+  ).toContain(SAVED_ADDRESS);
+  expect(bulk.text).not.toContain(V2_SAVED_KEY);
+
+  // The slots are separate: storing one leaves the other where it was, which is what makes a
+  // connection to one version survive a switch to the other.
+  expect(read.json?.v3?.keyIsSet, "storing one version's key set the other version's").toBe(false);
 });
 
 test("a save carrying a blank key keeps the stored one", async ({ isolatedHarness }) => {
