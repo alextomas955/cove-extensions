@@ -20,18 +20,17 @@ import { placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { SEEDED_EPISODE_TVDB_ID, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
 
+import {
+  COVE_ROOT,
+  DATA_ROUTE,
+  DISABLE_ROUTE,
+  ENABLE_ROUTE,
+  OPTIONS_KEY,
+  SETTINGS_ROUTE,
+  THEPORNDB_ENDPOINT,
+  WHISPARR_ROOT,
+} from "../../lib/contract.mjs";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
-
-const EXTENSION_ID = "com.alextomas955.whisparrsync";
-const SETTINGS_PATH = `/api/extensions/${EXTENSION_ID}/settings`;
-const DATA_PATH = `/api/extensions/${EXTENSION_ID}/data`;
-const OPTIONS_KEY = "options";
-const DISABLE_PATH = `/api/extensions/${EXTENSION_ID}/disable`;
-const ENABLE_PATH = `/api/extensions/${EXTENSION_ID}/enable`;
-
-// The source this version identifies against, transcribed by hand. The product and the library have
-// to agree on it, and a test reading it from the product would agree with whatever the product says.
-const THEPORNDB_ENDPOINT = "https://theporndb.net/graphql";
 
 // What this version renders an import as. Transcribed rather than read off the instance: the walk
 // selects on this string, so a spec deriving it would select on whatever the walk selects on. The
@@ -39,8 +38,6 @@ const THEPORNDB_ENDPOINT = "https://theporndb.net/graphql";
 // from the seed rather than written down here.
 const IMPORTED_EVENT_TYPE = "downloadFolderImported";
 
-const WHISPARR_ROOT = "/whisparr-media";
-const COVE_ROOT = "/data";
 const SEEDED_ROWS = 3;
 
 // The floor this product clamps the interval to, so a pass follows a restart without a long wait.
@@ -54,13 +51,13 @@ const test = base.extend({
 });
 
 async function storedOptions(api) {
-  const held = await api.get(DATA_PATH);
-  expect(held.status, `GET ${DATA_PATH} answered: ${held.text.slice(0, 300)}`).toBe(200);
+  const held = await api.get(DATA_ROUTE);
+  expect(held.status, `GET ${DATA_ROUTE} answered: ${held.text.slice(0, 300)}`).toBe(200);
   return JSON.parse(held.json?.[OPTIONS_KEY] ?? "{}");
 }
 
 async function writeOptions(api, options) {
-  const saved = await api.put(`${DATA_PATH}/${OPTIONS_KEY}`, JSON.stringify(options));
+  const saved = await api.put(`${DATA_ROUTE}/${OPTIONS_KEY}`, JSON.stringify(options));
   expect(saved.status, `PUT the options key answered: ${saved.text.slice(0, 300)}`).toBe(200);
 }
 
@@ -72,12 +69,12 @@ async function videosIn(api) {
 
 /** Stops and starts the worker, which is what makes a pass run without waiting out an interval. */
 async function restartWorker(api) {
-  const disabled = await api.post(DISABLE_PATH);
-  expect(disabled.status, `POST ${DISABLE_PATH} answered: ${disabled.text.slice(0, 300)}`).toBe(
+  const disabled = await api.post(DISABLE_ROUTE);
+  expect(disabled.status, `POST ${DISABLE_ROUTE} answered: ${disabled.text.slice(0, 300)}`).toBe(
     200,
   );
-  const enabled = await api.post(ENABLE_PATH);
-  expect(enabled.status, `POST ${ENABLE_PATH} answered: ${enabled.text.slice(0, 300)}`).toBe(200);
+  const enabled = await api.post(ENABLE_ROUTE);
+  expect(enabled.status, `POST ${ENABLE_ROUTE} answered: ${enabled.text.slice(0, 300)}`).toBe(200);
 }
 
 const fileAt = (video, path) => (video.files ?? []).some((file) => file.path === path);
@@ -113,7 +110,7 @@ test("a v2 record the walk reads imports the file it names, under this version's
       `no seeded row rendered as ${IMPORTED_EVENT_TYPE}; the instance rendered ${JSON.stringify(whisparr.v2.history.eventTypeNames)}`,
     ).toBe(true);
 
-    const saved = await api.put(SETTINGS_PATH, {
+    const saved = await api.put(SETTINGS_ROUTE, {
       selectedGeneration: "v2",
       v3: null,
       v2: {

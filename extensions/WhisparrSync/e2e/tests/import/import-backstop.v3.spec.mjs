@@ -29,20 +29,16 @@ import { tailContainerLog } from "@cove-extensions/e2e/harness";
 import { placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
+import {
+  COVE_ROOT,
+  DATA_ROUTE,
+  DISABLE_ROUTE,
+  ENABLE_ROUTE,
+  OPTIONS_KEY,
+  SETTINGS_ROUTE,
+  WHISPARR_ROOT,
+} from "../../lib/contract.mjs";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
-
-const EXTENSION_ID = "com.alextomas955.whisparrsync";
-const SETTINGS_PATH = `/api/extensions/${EXTENSION_ID}/settings`;
-const DATA_PATH = `/api/extensions/${EXTENSION_ID}/data`;
-const OPTIONS_KEY = "options";
-const DISABLE_PATH = `/api/extensions/${EXTENSION_ID}/disable`;
-const ENABLE_PATH = `/api/extensions/${EXTENSION_ID}/enable`;
-
-// The root the fixture instance declares for itself, and the root Cove declares in the compose file.
-// Deliberately DIFFERENT strings naming the same content: neither system can be resolved to the
-// other by comparing them.
-const WHISPARR_ROOT = "/whisparr-media";
-const COVE_ROOT = "/data";
 
 // Transcribed by hand from the extension's own floor. A stored value below it is read as it, so this
 // is the fastest a pass can be driven.
@@ -80,7 +76,7 @@ const test = base.extend({
  * returns, so a read taken in that window is a state to poll through rather than a failure.
  */
 async function readOptions(api) {
-  const data = await api.get(DATA_PATH);
+  const data = await api.get(DATA_ROUTE);
   return data.status === 200 ? JSON.parse(data.json?.[OPTIONS_KEY] ?? "{}") : null;
 }
 
@@ -89,14 +85,14 @@ async function storedOptions(api) {
   const options = await readOptions(api);
   expect(
     options,
-    `GET ${DATA_PATH} did not answer with the extension's stored data`,
+    `GET ${DATA_ROUTE} did not answer with the extension's stored data`,
   ).not.toBeNull();
   return options;
 }
 
 /** Rewrites the stored options blob with `change` applied. */
 async function writeOptions(api, change) {
-  const written = await api.put(`${DATA_PATH}/${OPTIONS_KEY}`, JSON.stringify(change));
+  const written = await api.put(`${DATA_ROUTE}/${OPTIONS_KEY}`, JSON.stringify(change));
   expect(written.status, `PUT the options key answered: ${written.text.slice(0, 300)}`).toBe(200);
 }
 
@@ -160,12 +156,12 @@ async function instanceState(whisparrApi) {
 
 /** Stops and restarts the worker, so a pass runs against the settings just written. */
 async function restartWorker(api) {
-  const disabled = await api.post(DISABLE_PATH);
-  expect(disabled.status, `POST ${DISABLE_PATH} answered: ${disabled.text.slice(0, 300)}`).toBe(
+  const disabled = await api.post(DISABLE_ROUTE);
+  expect(disabled.status, `POST ${DISABLE_ROUTE} answered: ${disabled.text.slice(0, 300)}`).toBe(
     200,
   );
-  const enabled = await api.post(ENABLE_PATH);
-  expect(enabled.status, `POST ${ENABLE_PATH} answered: ${enabled.text.slice(0, 300)}`).toBe(200);
+  const enabled = await api.post(ENABLE_ROUTE);
+  expect(enabled.status, `POST ${ENABLE_ROUTE} answered: ${enabled.text.slice(0, 300)}`).toBe(200);
 }
 
 test("the first backstop pass records where history ends and imports nothing, and a later one imports", async ({
@@ -218,7 +214,7 @@ test("the first backstop pass records where history ends and imports nothing, an
       expectedTotal: PAST_ROWS,
     });
 
-    const saved = await api.put(SETTINGS_PATH, {
+    const saved = await api.put(SETTINGS_ROUTE, {
       selectedGeneration: "v3",
       v3: {
         address: whisparr.v3.internalBaseUrl,

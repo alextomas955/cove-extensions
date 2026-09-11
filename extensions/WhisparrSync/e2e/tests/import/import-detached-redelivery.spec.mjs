@@ -27,26 +27,26 @@ import { pollUntil } from "@cove-extensions/e2e/poll";
 import { placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
+import {
+  CALLBACK_ROUTE,
+  CALLBACK_STATUS_ROUTE,
+  CAPTURED_DELIVERY,
+  COVE_ROOT,
+  DATA_ROUTE,
+  DISABLE_ROUTE,
+  ENABLE_ROUTE,
+  EXTENSION_ID,
+  OPTIONS_KEY,
+  SECRET_HEADER,
+  SECRET_QUERY_PARAMETER,
+  SETTINGS_ROUTE,
+  USER_AGENT,
+  WHISPARR_ROOT,
+} from "../../lib/contract.mjs";
 
-const EXTENSION_ID = "com.alextomas955.whisparrsync";
-const SETTINGS_PATH = `/api/extensions/${EXTENSION_ID}/settings`;
-const CALLBACK_PATH = `/api/extensions/${EXTENSION_ID}/callback`;
-const CALLBACK_STATUS_PATH = `${CALLBACK_PATH}/status`;
 const BANNER_PATH = `/api/extensions/${EXTENSION_ID}/import/banner`;
-const DATA_PATH = `/api/extensions/${EXTENSION_ID}/data`;
-const OPTIONS_KEY = "options";
-const DISABLE_PATH = `/api/extensions/${EXTENSION_ID}/disable`;
-const ENABLE_PATH = `/api/extensions/${EXTENSION_ID}/enable`;
-
-// Transcribed by hand from the extension's own frozen constants.
-const SECRET_HEADER = "X-Cove-Whisparr-Sync-Secret";
-const SECRET_QUERY_PARAMETER = "s";
-
-// Transcribed by hand from the delivery the pinned build made.
-const V3_USER_AGENT = "Whisparr/3.3.8.1097 (alpine 3.23.5)";
 
 // Transcribed by hand from the extension's own floor. A stored value below it is read as it.
 const FLOOR_SECONDS = 30;
@@ -55,28 +55,11 @@ const FLOOR_SECONDS = 30;
 // extension's constant. The instance's own rendering is matched against it rather than read off it.
 const IMPORTED_EVENT_TYPE = "downloadFolderImported";
 
-// Deliberately different strings naming the same content: neither system can be resolved to the
-// other by comparing them.
-const WHISPARR_ROOT = "/whisparr-media";
-const COVE_ROOT = "/data";
-
 // How many rows the fixture seeds before anything else, spanning every event type it declares.
 const SEEDED_ROWS = 3;
 
 const IMPORT_BUDGET_MS = 120_000;
 const WATERMARK_BUDGET_MS = 240_000;
-
-const CAPTURED_DELIVERY = join(
-  import.meta.dirname,
-  "..",
-  "..",
-  "..",
-  "src",
-  "WhisparrSync.Tests",
-  "TestSupport",
-  "Fixtures",
-  "whisparr-v3-3.3.8.1097-webhook-import.json",
-);
 
 const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
@@ -90,7 +73,7 @@ const test = base.extend({
  * row nothing claims.
  */
 function deliveryNaming(reportedPath, size, { identified = true } = {}) {
-  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY, "utf8"));
+  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY.v3, "utf8"));
   body.movieFile.path = reportedPath;
   body.movieFile.size = size;
   if (!identified) {
@@ -100,8 +83,8 @@ function deliveryNaming(reportedPath, size, { identified = true } = {}) {
 }
 
 async function callbackSecret(api) {
-  const status = await api.get(CALLBACK_STATUS_PATH);
-  expect(status.status, `GET ${CALLBACK_STATUS_PATH} answered: ${status.text.slice(0, 300)}`).toBe(
+  const status = await api.get(CALLBACK_STATUS_ROUTE);
+  expect(status.status, `GET ${CALLBACK_STATUS_ROUTE} answered: ${status.text.slice(0, 300)}`).toBe(
     200,
   );
 
@@ -137,7 +120,7 @@ async function bannerRoots(api) {
 
 /** The extension's stored options blob, parsed, or null while the route is not answering. */
 async function readOptions(api) {
-  const data = await api.get(DATA_PATH);
+  const data = await api.get(DATA_ROUTE);
   return data.status === 200 ? JSON.parse(data.json?.[OPTIONS_KEY] ?? "{}") : null;
 }
 
@@ -145,24 +128,24 @@ async function storedOptions(api) {
   const options = await readOptions(api);
   expect(
     options,
-    `GET ${DATA_PATH} did not answer with the extension's stored data`,
+    `GET ${DATA_ROUTE} did not answer with the extension's stored data`,
   ).not.toBeNull();
   return options;
 }
 
 async function writeOptions(api, change) {
-  const written = await api.put(`${DATA_PATH}/${OPTIONS_KEY}`, JSON.stringify(change));
+  const written = await api.put(`${DATA_ROUTE}/${OPTIONS_KEY}`, JSON.stringify(change));
   expect(written.status, `PUT the options key answered: ${written.text.slice(0, 300)}`).toBe(200);
 }
 
 /** Stops and restarts the worker, so a pass runs against the settings just written. */
 async function restartWorker(api) {
-  const disabled = await api.post(DISABLE_PATH);
-  expect(disabled.status, `POST ${DISABLE_PATH} answered: ${disabled.text.slice(0, 300)}`).toBe(
+  const disabled = await api.post(DISABLE_ROUTE);
+  expect(disabled.status, `POST ${DISABLE_ROUTE} answered: ${disabled.text.slice(0, 300)}`).toBe(
     200,
   );
-  const enabled = await api.post(ENABLE_PATH);
-  expect(enabled.status, `POST ${ENABLE_PATH} answered: ${enabled.text.slice(0, 300)}`).toBe(200);
+  const enabled = await api.post(ENABLE_ROUTE);
+  expect(enabled.status, `POST ${ENABLE_ROUTE} answered: ${enabled.text.slice(0, 300)}`).toBe(200);
 }
 
 test("a redelivery naming a path the extension detached answers inside its contract, and the backstop over the same state keeps its place", async ({
@@ -209,7 +192,7 @@ test("a redelivery naming a path the extension detached answers inside its contr
       `no seeded row rendered as ${IMPORTED_EVENT_TYPE}; the instance rendered ${JSON.stringify(whisparr.v3.history.eventTypeNames)}`,
     ).toBe(true);
 
-    const saved = await api.put(SETTINGS_PATH, {
+    const saved = await api.put(SETTINGS_ROUTE, {
       selectedGeneration: "v3",
       v3: { address: whisparr.v3.internalBaseUrl, keyWrite: "replace", apiKey: whisparr.apiKey },
       v2: null,
@@ -218,7 +201,7 @@ test("a redelivery naming a path the extension detached answers inside its contr
 
     // Replace is what manufactures the detached row, so the whole spec is about a state only this
     // behaviour reaches.
-    const chosen = await api.put(SETTINGS_PATH, {
+    const chosen = await api.put(SETTINGS_ROUTE, {
       selectedGeneration: "v3",
       v3: null,
       v2: null,
@@ -231,11 +214,11 @@ test("a redelivery naming a path the extension detached answers inside its contr
 
     const secret = await callbackSecret(api);
     const asWhisparr = createApiClient(() => isolatedHarness.baseUrl, undefined, {
-      headers: { [SECRET_HEADER]: secret, "User-Agent": V3_USER_AGENT },
+      headers: { [SECRET_HEADER]: secret, "User-Agent": USER_AGENT.v3 },
     });
 
     const deliver = (file, options) =>
-      asWhisparr.post(CALLBACK_PATH, deliveryNaming(file.reportedPath, file.size, options));
+      asWhisparr.post(CALLBACK_ROUTE, deliveryNaming(file.reportedPath, file.size, options));
 
     expect(await videosIn(api), "Cove already held a video before the first delivery").toEqual([]);
 
