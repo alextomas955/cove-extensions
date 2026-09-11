@@ -89,7 +89,7 @@ const SCENE_BATCH_JOB_TYPE = `${OWN_JOB_PREFIX}scene-batch`;
 // The job entry's members a reader is shown in the drawer, which are the ones nothing may grow in.
 const READER_FACING_STRINGS = ["description", "subTask", "summary", "error"];
 
-// @see entity-monitor-bulk.spec.mjs - the same pattern, so this file names no verb that downloads.
+// @see entity-monitor-bulk.v3.spec.mjs - the same pattern, so this file names no verb that downloads.
 const SEARCH_COMMAND = /search/i;
 
 // How many scenes this spec puts in front of the host, stated rather than derived from a page.
