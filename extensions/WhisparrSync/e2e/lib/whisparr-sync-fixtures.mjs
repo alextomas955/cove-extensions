@@ -8,13 +8,18 @@
 // caller's own module URL, so moving it silently relocates every path it derives.
 import { test as baseTest } from "@cove-extensions/e2e";
 import { resolveExtensionPaths } from "@cove-extensions/e2e/resolve-extension";
+import { whisparrFixtures } from "@cove-extensions/e2e/whisparr";
 
 export const WHISPARR_SYNC_EXTENSION = resolveExtensionPaths(import.meta.url, {
   srcProject: "WhisparrSync",
 });
 
+// The Whisparr fixtures are taken here rather than offered by the shared harness. Nothing outside
+// this extension starts a Whisparr, and a fixture on the shared `test` would be loaded by every
+// extension's specs whether or not they have one.
 export const test = baseTest.extend({
   extension: [WHISPARR_SYNC_EXTENSION, { option: true }],
+  ...whisparrFixtures(),
 });
 
 export { expect } from "@cove-extensions/e2e";
