@@ -8,8 +8,8 @@
 // Deliberately a field's helper line rather than the connection result: this spec starts no Whisparr,
 // so it stays the cheap check that the bundle mounted at all. What the panel DOES is connect.spec.mjs.
 import { test, expect } from "../../lib/whisparr-sync-fixtures.mjs";
+import { SETTINGS_PAGE_PATH } from "../../lib/contract.mjs";
 
-const SETTINGS_PATH = "/settings/whisparr-sync";
 const PANEL_SENTENCE =
   "The address Cove itself reaches Whisparr on, including the scheme and port.";
 
@@ -22,7 +22,7 @@ const ATTEMPT_BUDGET_MS = 60_000;
 const ATTEMPTS = 3;
 
 test("the settings tab renders this extension's own panel", async ({ page, baseUrl }) => {
-  const panelUrl = `${baseUrl}${SETTINGS_PATH}`;
+  const panelUrl = `${baseUrl}${SETTINGS_PAGE_PATH}`;
   const helper = page.getByText(PANEL_SENTENCE, { exact: true });
 
   // The path is not one of the host's own routes. The host carries the unknown key only until it

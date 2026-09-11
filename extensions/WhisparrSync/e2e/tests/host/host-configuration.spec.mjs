@@ -13,14 +13,15 @@
 // instead of reporting each one separately against an instance that has no extension.
 import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
+import {
+  CALLBACK_REGISTER_ROUTE,
+  CALLBACK_STATUS_ROUTE,
+  CONNECTION_TEST_ROUTE,
+  EXTENSION_ID,
+  HOST_CONFIGURATION_ROUTE,
+  SETTINGS_ROUTE,
+} from "../../lib/contract.mjs";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
-
-const EXTENSION_ID = "com.alextomas955.whisparrsync";
-const PROBE_PATH = `/api/extensions/${EXTENSION_ID}/host-configuration`;
-const CONNECTION_TEST_PATH = `/api/extensions/${EXTENSION_ID}/connection/test`;
-const SETTINGS_PATH = `/api/extensions/${EXTENSION_ID}/settings`;
-const CALLBACK_REGISTER_PATH = `/api/extensions/${EXTENSION_ID}/callback/register`;
-const CALLBACK_STATUS_PATH = `/api/extensions/${EXTENSION_ID}/callback/status`;
 
 // A port nothing inside the Cove container listens on. Well-formed, so it passes the address check
 // and a request really is attempted, and refused at once rather than left to time out.
@@ -73,9 +74,11 @@ test("the extension installs into a live Cove and the host reports it enabled", 
 test("the probe answers a permitted caller with exactly its camelCase scalars", async ({
   authHarness,
 }) => {
-  const probe = await ownerClient(authHarness).get(PROBE_PATH);
+  const probe = await ownerClient(authHarness).get(HOST_CONFIGURATION_ROUTE);
 
-  expect(probe.status, `GET ${PROBE_PATH} as the owner answered: ${probe.text}`).toBe(200);
+  expect(probe.status, `GET ${HOST_CONFIGURATION_ROUTE} as the owner answered: ${probe.text}`).toBe(
+    200,
+  );
   expect(Object.keys(probe.json ?? {}).sort()).toEqual([
     "configurationResolved",
     "libraryRootCount",
@@ -100,9 +103,11 @@ test("the probe answers a permitted caller with exactly its camelCase scalars", 
 test("the probe reports whether each host service can be obtained inside the container", async ({
   authHarness,
 }) => {
-  const probe = await ownerClient(authHarness).get(PROBE_PATH);
+  const probe = await ownerClient(authHarness).get(HOST_CONFIGURATION_ROUTE);
 
-  expect(probe.status, `GET ${PROBE_PATH} as the owner answered: ${probe.text}`).toBe(200);
+  expect(probe.status, `GET ${HOST_CONFIGURATION_ROUTE} as the owner answered: ${probe.text}`).toBe(
+    200,
+  );
   expect(typeof probe.json.scanServiceResolved).toBe("boolean");
   expect(typeof probe.json.metadataServerServiceResolved).toBe("boolean");
 
@@ -124,8 +129,10 @@ test("the probe refuses an unauthenticated caller and discloses neither field", 
     "an anonymous read was not refused, so this instance is not enforcing authentication and nothing below is evidence",
   ).toBe(401);
 
-  const probe = await anonymous.get(PROBE_PATH);
-  expect(probe.ok, `GET ${PROBE_PATH} unauthenticated answered ${probe.status}`).toBe(false);
+  const probe = await anonymous.get(HOST_CONFIGURATION_ROUTE);
+  expect(probe.ok, `GET ${HOST_CONFIGURATION_ROUTE} unauthenticated answered ${probe.status}`).toBe(
+    false,
+  );
   expect(probe.text).not.toContain("configurationResolved");
   expect(probe.text).not.toContain("libraryRootCount");
 });
@@ -133,7 +140,7 @@ test("the probe refuses an unauthenticated caller and discloses neither field", 
 test("the connection test answers a caller holding the configure permission", async ({
   authHarness,
 }) => {
-  const answered = await ownerClient(authHarness).post(CONNECTION_TEST_PATH, {
+  const answered = await ownerClient(authHarness).post(CONNECTION_TEST_ROUTE, {
     address: DEAD_ADDRESS,
     apiKey: SOME_KEY,
   });
@@ -142,7 +149,7 @@ test("the connection test answers a caller holding the configure permission", as
   // never mounted. Nothing listens at the address, so the honest answer is that nothing answered.
   expect(
     answered.status,
-    `POST ${CONNECTION_TEST_PATH} as the owner answered: ${answered.text}`,
+    `POST ${CONNECTION_TEST_ROUTE} as the owner answered: ${answered.text}`,
   ).toBe(200);
   expect(answered.json?.kind).toBe("unreachable");
   // The response is a classified KIND and named values, never what answered.
@@ -182,10 +189,10 @@ test("the probe refuses an authenticated caller holding no read permission", asy
     200,
   );
 
-  const probe = await asRestricted.get(PROBE_PATH);
+  const probe = await asRestricted.get(HOST_CONFIGURATION_ROUTE);
   expect(
     probe.status,
-    `GET ${PROBE_PATH} as a caller holding nothing answered: ${probe.text}`,
+    `GET ${HOST_CONFIGURATION_ROUTE} as a caller holding nothing answered: ${probe.text}`,
   ).toBe(403);
   expect(probe.text).not.toContain("configurationResolved");
   expect(probe.text).not.toContain("libraryRootCount");
@@ -206,16 +213,19 @@ test("the connection test refuses an authenticated caller holding only the read 
 
   // The discriminating control: the same credential reaches the READ-tier route, so a refusal below
   // is about the gate rather than about the token.
-  const probe = await asReadOnly.get(PROBE_PATH);
-  expect(probe.status, `GET ${PROBE_PATH} as a read-tier caller answered: ${probe.text}`).toBe(200);
+  const probe = await asReadOnly.get(HOST_CONFIGURATION_ROUTE);
+  expect(
+    probe.status,
+    `GET ${HOST_CONFIGURATION_ROUTE} as a read-tier caller answered: ${probe.text}`,
+  ).toBe(200);
 
-  const refused = await asReadOnly.post(CONNECTION_TEST_PATH, {
+  const refused = await asReadOnly.post(CONNECTION_TEST_ROUTE, {
     address: DEAD_ADDRESS,
     apiKey: SOME_KEY,
   });
   expect(
     refused.status,
-    `POST ${CONNECTION_TEST_PATH} as a read-tier caller answered: ${refused.text}`,
+    `POST ${CONNECTION_TEST_ROUTE} as a read-tier caller answered: ${refused.text}`,
   ).toBe(403);
   expect(refused.json?.code).toBe("FORBIDDEN");
   expect(refused.text).not.toContain("kind");
@@ -237,29 +247,32 @@ test("the settings routes refuse an authenticated caller holding only the read t
 
   // The discriminating control: the same credential reaches the READ-tier route, so the refusals
   // below are about the gate rather than about the token.
-  const probe = await asReadOnly.get(PROBE_PATH);
-  expect(probe.status, `GET ${PROBE_PATH} as a read-tier caller answered: ${probe.text}`).toBe(200);
+  const probe = await asReadOnly.get(HOST_CONFIGURATION_ROUTE);
+  expect(
+    probe.status,
+    `GET ${HOST_CONFIGURATION_ROUTE} as a read-tier caller answered: ${probe.text}`,
+  ).toBe(200);
 
-  const read = await asReadOnly.get(SETTINGS_PATH);
-  expect(read.status, `GET ${SETTINGS_PATH} as a read-tier caller answered: ${read.text}`).toBe(
+  const read = await asReadOnly.get(SETTINGS_ROUTE);
+  expect(read.status, `GET ${SETTINGS_ROUTE} as a read-tier caller answered: ${read.text}`).toBe(
     403,
   );
   expect(read.json?.code).toBe("FORBIDDEN");
   expect(read.text).not.toContain("keyIsSet");
 
-  const write = await asReadOnly.put(SETTINGS_PATH, {
+  const write = await asReadOnly.put(SETTINGS_ROUTE, {
     selectedGeneration: "v3",
     v3: { address: DEAD_ADDRESS, keyWrite: "replace", apiKey: SOME_KEY },
     v2: null,
   });
-  expect(write.status, `PUT ${SETTINGS_PATH} as a read-tier caller answered: ${write.text}`).toBe(
+  expect(write.status, `PUT ${SETTINGS_ROUTE} as a read-tier caller answered: ${write.text}`).toBe(
     403,
   );
   expect(write.json?.code).toBe("FORBIDDEN");
 
   // The refused write changed nothing: the owner, who may read, still sees no key stored.
-  const owner = await ownerClient(authHarness).get(SETTINGS_PATH);
-  expect(owner.status, `GET ${SETTINGS_PATH} as the owner answered: ${owner.text}`).toBe(200);
+  const owner = await ownerClient(authHarness).get(SETTINGS_ROUTE);
+  expect(owner.status, `GET ${SETTINGS_ROUTE} as the owner answered: ${owner.text}`).toBe(200);
   expect(owner.json?.v3?.keyIsSet, "the refused write stored a key anyway").toBe(false);
 });
 
@@ -275,30 +288,33 @@ test("the callback routes refuse an authenticated caller holding only the read t
 
   // The discriminating control: the same credential reaches the READ-tier route, so the refusals
   // below are about the gate rather than about the token.
-  const probe = await asReadOnly.get(PROBE_PATH);
-  expect(probe.status, `GET ${PROBE_PATH} as a read-tier caller answered: ${probe.text}`).toBe(200);
+  const probe = await asReadOnly.get(HOST_CONFIGURATION_ROUTE);
+  expect(
+    probe.status,
+    `GET ${HOST_CONFIGURATION_ROUTE} as a read-tier caller answered: ${probe.text}`,
+  ).toBe(200);
 
-  const status = await asReadOnly.get(CALLBACK_STATUS_PATH);
+  const status = await asReadOnly.get(CALLBACK_STATUS_ROUTE);
   expect(
     status.status,
-    `GET ${CALLBACK_STATUS_PATH} as a read-tier caller answered: ${status.text}`,
+    `GET ${CALLBACK_STATUS_ROUTE} as a read-tier caller answered: ${status.text}`,
   ).toBe(403);
   expect(status.json?.code).toBe("FORBIDDEN");
   // The status view carries this installation's own secret in the address it offers, so a refusal
   // that leaked a body would hand the caller the one value the callback route authenticates on.
   expect(status.text).not.toContain("copyableAddress");
 
-  const registered = await asReadOnly.post(CALLBACK_REGISTER_PATH, { callbackAddress: null });
+  const registered = await asReadOnly.post(CALLBACK_REGISTER_ROUTE, { callbackAddress: null });
   expect(
     registered.status,
-    `POST ${CALLBACK_REGISTER_PATH} as a read-tier caller answered: ${registered.text}`,
+    `POST ${CALLBACK_REGISTER_ROUTE} as a read-tier caller answered: ${registered.text}`,
   ).toBe(403);
   expect(registered.json?.code).toBe("FORBIDDEN");
 
   // The refused registration reached nothing: the owner, who may read, still sees the status this
   // instance had before it - never checked, rather than a registration the refusal performed.
-  const owner = await ownerClient(authHarness).get(CALLBACK_STATUS_PATH);
-  expect(owner.status, `GET ${CALLBACK_STATUS_PATH} as the owner answered: ${owner.text}`).toBe(
+  const owner = await ownerClient(authHarness).get(CALLBACK_STATUS_ROUTE);
+  expect(owner.status, `GET ${CALLBACK_STATUS_ROUTE} as the owner answered: ${owner.text}`).toBe(
     200,
   );
   expect(owner.json?.status, "the refused registration was performed anyway").toBe("notCheckedYet");

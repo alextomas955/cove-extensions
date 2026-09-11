@@ -35,6 +35,7 @@ import { startHarness } from "@cove-extensions/e2e/harness";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { randomUUID } from "node:crypto";
+import { SETTINGS_PAGE_PATH } from "../../lib/contract.mjs";
 
 import {
   connectWhisparr,
@@ -56,7 +57,6 @@ import {
 // extension's NAME would not do: the host draws that from the manifest alone.
 const PANEL_SENTENCE =
   "The address Cove itself reaches Whisparr on, including the scheme and port.";
-const SETTINGS_PATH = "/settings/whisparr-sync";
 
 // Transcribed by hand from the extension's own copy module, never imported: a spec reading the same
 // constant the component renders would be asserting that a string equals itself.
@@ -287,7 +287,7 @@ test("the control renders and works on both real detail pages, and the instance 
     await visit(
       page,
       baseUrl,
-      SETTINGS_PATH,
+      SETTINGS_PAGE_PATH,
       page.getByText(PANEL_SENTENCE, { exact: true }),
       "the whole-bundle load",
     );

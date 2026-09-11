@@ -25,26 +25,27 @@ import { pollUntil } from "@cove-extensions/e2e/poll";
 import { placeVideoUnregistered, seedVideo } from "@cove-extensions/e2e/seed-media";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
+import {
+  CALLBACK_ROUTE,
+  CALLBACK_STATUS_ROUTE,
+  CAPTURED_DELIVERY,
+  COVE_ROOT,
+  DATA_ROUTE,
+  EXTENSION_ID,
+  SECRET_HEADER,
+  SECRET_QUERY_PARAMETER,
+  SETTINGS_ROUTE,
+  USER_AGENT,
+  WHISPARR_ROOT,
+} from "../../lib/contract.mjs";
 
-const EXTENSION_ID = "com.alextomas955.whisparrsync";
-const SETTINGS_PATH = `/api/extensions/${EXTENSION_ID}/settings`;
-const CALLBACK_PATH = `/api/extensions/${EXTENSION_ID}/callback`;
-const CALLBACK_STATUS_PATH = `${CALLBACK_PATH}/status`;
-const DATA_PATH = `/api/extensions/${EXTENSION_ID}/data`;
 const PANEL_PATH = "/settings/whisparr-sync";
 
 // What the panel's own banner read asks for. Matched as a tail rather than a whole address, because
 // the page reaches it through the host's own client and the origin is the browser's.
 const BANNER_ROUTE_TAIL = `/api/extensions/${EXTENSION_ID}/import/banner`;
-
-// Transcribed by hand from the extension's own frozen constants and from the delivery the pinned
-// build made. Written out rather than imported, so a rename on either side has to be made twice.
-const SECRET_HEADER = "X-Cove-Whisparr-Sync-Secret";
-const SECRET_QUERY_PARAMETER = "s";
-const V3_USER_AGENT = "Whisparr/3.3.8.1097 (alpine 3.23.5)";
 
 // Transcribed from the blob the backend serializes, which its own test pins.
 const REFUSALS = "ImportRefusals";
@@ -56,9 +57,7 @@ const BANNER_HEADING = "Cove can't find imported files";
 // Two roots the instance declares for itself, and the Cove root the harness declares. The Whisparr
 // spellings name content Cove reaches by another name, which is the deployment this surface exists
 // for.
-const WHISPARR_ROOT = "/whisparr-media";
 const WHISPARR_OTHER_ROOT = "/whisparr-elsewhere";
-const COVE_ROOT = "/data";
 
 // Named per operation, so a failure says which act blew its budget rather than which line.
 const ACT_TWO_REFUSAL_BUDGET_MS = 60_000;
@@ -76,18 +75,6 @@ const PANEL_ATTEMPTS = 3;
 // this covers is React committing, which every other wait in this file is far too long for.
 const RENDER_SETTLE_MS = 500;
 
-const CAPTURED_DELIVERY = join(
-  import.meta.dirname,
-  "..",
-  "..",
-  "..",
-  "src",
-  "WhisparrSync.Tests",
-  "TestSupport",
-  "Fixtures",
-  "whisparr-v3-3.3.8.1097-webhook-import.json",
-);
-
 const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
   baseUrl: async ({ isolatedHarness }, use) => {
@@ -97,7 +84,7 @@ const test = base.extend({
 
 /** The delivery a real instance sent, with only the file it names rewritten. */
 function deliveryNaming(reportedPath, size) {
-  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY, "utf8"));
+  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY.v3, "utf8"));
   body.movieFile.path = reportedPath;
   body.movieFile.size = size;
   return body;
@@ -105,7 +92,7 @@ function deliveryNaming(reportedPath, size) {
 
 /** Points the extension at the fixture instance and stores its key. */
 async function configure(api, whisparr) {
-  const saved = await api.put(SETTINGS_PATH, {
+  const saved = await api.put(SETTINGS_ROUTE, {
     selectedGeneration: "v3",
     v3: {
       address: whisparr.v3.internalBaseUrl,
@@ -119,8 +106,8 @@ async function configure(api, whisparr) {
 
 /** This installation's own callback secret, read out of the address the page offers. */
 async function callbackSecret(api) {
-  const status = await api.get(CALLBACK_STATUS_PATH);
-  expect(status.status, `GET ${CALLBACK_STATUS_PATH} answered: ${status.text.slice(0, 300)}`).toBe(
+  const status = await api.get(CALLBACK_STATUS_ROUTE);
+  expect(status.status, `GET ${CALLBACK_STATUS_ROUTE} answered: ${status.text.slice(0, 300)}`).toBe(
     200,
   );
 
@@ -131,8 +118,8 @@ async function callbackSecret(api) {
 
 /** The refusal aggregate the extension has stored, read through Cove's own bulk data route. */
 async function refusalsIn(api) {
-  const stored = await api.get(DATA_PATH);
-  expect(stored.status, `GET ${DATA_PATH} answered: ${stored.text.slice(0, 300)}`).toBe(200);
+  const stored = await api.get(DATA_ROUTE);
+  expect(stored.status, `GET ${DATA_ROUTE} answered: ${stored.text.slice(0, 300)}`).toBe(200);
 
   const options = stored.json?.options;
   return options ? (JSON.parse(options)[REFUSALS] ?? []) : [];
@@ -240,12 +227,12 @@ test("the banner names each failing root, bounds its list, and clears only the r
     // Its own client, carrying no Cove credential: Whisparr holds none, and the secret plus the agent
     // are the whole of what a real delivery presents.
     const asWhisparr = createApiClient(() => isolatedHarness.baseUrl, undefined, {
-      headers: { [SECRET_HEADER]: secret, "User-Agent": V3_USER_AGENT },
+      headers: { [SECRET_HEADER]: secret, "User-Agent": USER_AGENT.v3 },
     });
 
     /** Posts the captured body, naming `reportedPath`, as a real instance would. */
     const deliver = async (reportedPath, size) => {
-      const delivered = await asWhisparr.post(CALLBACK_PATH, deliveryNaming(reportedPath, size));
+      const delivered = await asWhisparr.post(CALLBACK_ROUTE, deliveryNaming(reportedPath, size));
       // A diagnostic, not the evidence: a refused delivery surfacing as a poll timeout would name the
       // wrong cause entirely.
       expect(

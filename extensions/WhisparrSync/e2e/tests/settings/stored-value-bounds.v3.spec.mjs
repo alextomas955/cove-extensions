@@ -19,21 +19,23 @@ import { pollUntil } from "@cove-extensions/e2e/poll";
 import { addCoveLibraryRoot, placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
-
-const EXTENSION_ID = "com.alextomas955.whisparrsync";
-const SETTINGS_PATH = `/api/extensions/${EXTENSION_ID}/settings`;
-const CALLBACK_PATH = `/api/extensions/${EXTENSION_ID}/callback`;
-const CALLBACK_STATUS_PATH = `${CALLBACK_PATH}/status`;
-const DATA_PATH = `/api/extensions/${EXTENSION_ID}/data`;
-const DISABLE_PATH = `/api/extensions/${EXTENSION_ID}/disable`;
-const ENABLE_PATH = `/api/extensions/${EXTENSION_ID}/enable`;
-
-// The one key this extension is expected to own. A second key is a finding rather than a detail: the
-// route above returns every one of them together.
-const OPTIONS_KEY = "options";
+import {
+  CALLBACK_ROUTE,
+  CALLBACK_STATUS_ROUTE,
+  CAPTURED_DELIVERY,
+  COVE_ROOT,
+  DATA_ROUTE,
+  DISABLE_ROUTE,
+  ENABLE_ROUTE,
+  OPTIONS_KEY,
+  SECRET_HEADER,
+  SECRET_QUERY_PARAMETER,
+  SETTINGS_ROUTE,
+  USER_AGENT,
+  WHISPARR_ROOT,
+} from "../../lib/contract.mjs";
 
 // A HAND-SET CEILING, not a measurement of what is stored today. A number derived from the current
 // size would agree with the code forever and report nothing.
@@ -44,12 +46,6 @@ const STORED_BYTES_CEILING = 8192;
 const GROWTH_SLACK_BYTES = 512;
 
 const FURTHER_IMPORTS = 20;
-
-// Transcribed by hand from the extension's own frozen constants and from the delivery the pinned
-// build made.
-const SECRET_HEADER = "X-Cove-Whisparr-Sync-Secret";
-const SECRET_QUERY_PARAMETER = "s";
-const V3_USER_AGENT = "Whisparr/3.3.8.1097 (alpine 3.23.5)";
 
 // Transcribed by hand from the extension's own floor. A stored value below it is read as it.
 const FLOOR_SECONDS = 30;
@@ -63,26 +59,12 @@ const SEEDED_ROWS = 3;
 
 // Two roots the instance declares for itself, and two the harness declares. The Whisparr spellings
 // name content Cove reaches by another name.
-const WHISPARR_ROOT = "/whisparr-media";
 const WHISPARR_OTHER_ROOT = "/whisparr-elsewhere";
-const COVE_ROOT = "/data";
 const COVE_ROOTS = ["/data", "/data2"];
 const NESTED_COVE_ROOT = "/data/nested";
 
 const PASS_BUDGET_MS = 240_000;
 const IMPORT_BUDGET_MS = 180_000;
-
-const CAPTURED_DELIVERY = join(
-  import.meta.dirname,
-  "..",
-  "..",
-  "..",
-  "src",
-  "WhisparrSync.Tests",
-  "TestSupport",
-  "Fixtures",
-  "whisparr-v3-3.3.8.1097-webhook-import.json",
-);
 
 const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
@@ -96,7 +78,7 @@ const test = base.extend({
  * re-pointed twenty times.
  */
 function deliveryNaming(reportedPath, size, sceneId) {
-  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY, "utf8"));
+  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY.v3, "utf8"));
   body.movieFile.path = reportedPath;
   body.movieFile.size = size;
   body.movie.stashId = sceneId;
@@ -105,7 +87,7 @@ function deliveryNaming(reportedPath, size, sceneId) {
 
 /** Points the extension at the fixture instance and stores its key. */
 async function configure(api, whisparr) {
-  const saved = await api.put(SETTINGS_PATH, {
+  const saved = await api.put(SETTINGS_ROUTE, {
     selectedGeneration: "v3",
     v3: {
       address: whisparr.v3.internalBaseUrl,
@@ -119,7 +101,7 @@ async function configure(api, whisparr) {
 
 /** Stores one upgrade behaviour, naming neither generation. */
 async function chooseUpgradeBehavior(api, behavior) {
-  const saved = await api.put(SETTINGS_PATH, {
+  const saved = await api.put(SETTINGS_ROUTE, {
     selectedGeneration: "v3",
     v3: null,
     v2: null,
@@ -133,8 +115,8 @@ async function chooseUpgradeBehavior(api, behavior) {
 
 /** This installation's own callback secret, read out of the address the page offers. */
 async function callbackSecret(api) {
-  const status = await api.get(CALLBACK_STATUS_PATH);
-  expect(status.status, `GET ${CALLBACK_STATUS_PATH} answered: ${status.text.slice(0, 300)}`).toBe(
+  const status = await api.get(CALLBACK_STATUS_ROUTE);
+  expect(status.status, `GET ${CALLBACK_STATUS_ROUTE} answered: ${status.text.slice(0, 300)}`).toBe(
     200,
   );
 
@@ -157,31 +139,31 @@ async function videosIn(api) {
 
 /** Everything the extension has stored, as Cove's own bulk route returns it. */
 async function storedData(api) {
-  const stored = await api.get(`${DATA_PATH}?_=${randomUUID()}`);
-  expect(stored.status, `GET ${DATA_PATH} answered: ${stored.text.slice(0, 300)}`).toBe(200);
+  const stored = await api.get(`${DATA_ROUTE}?_=${randomUUID()}`);
+  expect(stored.status, `GET ${DATA_ROUTE} answered: ${stored.text.slice(0, 300)}`).toBe(200);
   return stored;
 }
 
 /** The stored options blob, parsed, or null while the route is not answering. */
 async function readOptions(api) {
-  const data = await api.get(`${DATA_PATH}?_=${randomUUID()}`);
+  const data = await api.get(`${DATA_ROUTE}?_=${randomUUID()}`);
   return data.status === 200 ? JSON.parse(data.json?.[OPTIONS_KEY] ?? "{}") : null;
 }
 
 /** Rewrites the stored options blob with `change` applied. */
 async function writeOptions(api, change) {
-  const written = await api.put(`${DATA_PATH}/${OPTIONS_KEY}`, JSON.stringify(change));
+  const written = await api.put(`${DATA_ROUTE}/${OPTIONS_KEY}`, JSON.stringify(change));
   expect(written.status, `PUT the options key answered: ${written.text.slice(0, 300)}`).toBe(200);
 }
 
 /** Stops and restarts the worker, so a pass runs against the settings just written. */
 async function restartWorker(api) {
-  const disabled = await api.post(DISABLE_PATH);
-  expect(disabled.status, `POST ${DISABLE_PATH} answered: ${disabled.text.slice(0, 300)}`).toBe(
+  const disabled = await api.post(DISABLE_ROUTE);
+  expect(disabled.status, `POST ${DISABLE_ROUTE} answered: ${disabled.text.slice(0, 300)}`).toBe(
     200,
   );
-  const enabled = await api.post(ENABLE_PATH);
-  expect(enabled.status, `POST ${ENABLE_PATH} answered: ${enabled.text.slice(0, 300)}`).toBe(200);
+  const enabled = await api.post(ENABLE_ROUTE);
+  expect(enabled.status, `POST ${ENABLE_ROUTE} answered: ${enabled.text.slice(0, 300)}`).toBe(200);
 }
 
 /** The longest array anywhere in `value`, however deeply nested. */
@@ -229,7 +211,7 @@ test("what the extension persists is one bounded key, after a run that exercised
     // Its own client, carrying no Cove credential: the secret plus the agent are the whole of what a
     // real delivery presents.
     const asWhisparr = createApiClient(() => isolatedHarness.baseUrl, undefined, {
-      headers: { [SECRET_HEADER]: secret, "User-Agent": V3_USER_AGENT },
+      headers: { [SECRET_HEADER]: secret, "User-Agent": USER_AGENT.v3 },
     });
 
     /** Places one file under a Cove root and answers with what a delivery would report for it. */
@@ -244,7 +226,7 @@ test("what the extension persists is one bounded key, after a run that exercised
     /** Posts one delivery, as a real instance would. */
     async function deliver(reportedPath, sceneId, why) {
       const delivered = await asWhisparr.post(
-        CALLBACK_PATH,
+        CALLBACK_ROUTE,
         deliveryNaming(reportedPath, fileSize, sceneId),
       );
       // A diagnostic, not the evidence. A refused delivery surfacing later as a count that never

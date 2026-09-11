@@ -30,6 +30,7 @@ import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr
 import { randomUUID } from "node:crypto";
 
 import { configureProviderStub, startProviderStub } from "../../lib/provider-stub.mjs";
+import { SETTINGS_PAGE_PATH } from "../../lib/contract.mjs";
 import {
   test as base,
   connectWhisparr,
@@ -45,7 +46,6 @@ import {
 // ships, so reaching it means the whole bundle loaded and the host resolved its component map.
 const PANEL_SENTENCE =
   "The address Cove itself reaches Whisparr on, including the scheme and port.";
-const SETTINGS_PATH = "/settings/whisparr-sync";
 
 // The tab's label, transcribed by hand from the manifest that advertises it. A spec importing the
 // same constant the manifest declares would be asserting that a string equals itself.
@@ -187,7 +187,7 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
     await visit(
       page,
       baseUrl,
-      SETTINGS_PATH,
+      SETTINGS_PAGE_PATH,
       page.getByText(PANEL_SENTENCE, { exact: true }),
       "the whole-bundle load",
     );
@@ -274,7 +274,7 @@ test("the bundle loads with the tab in it, and the tab renders on every page it 
     await visit(
       page,
       baseUrl,
-      SETTINGS_PATH,
+      SETTINGS_PAGE_PATH,
       page.getByText(PANEL_SENTENCE, { exact: true }),
       "the bundle after the tab mounted",
     );

@@ -23,8 +23,8 @@ import {
 } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
+import { EXTENSION_ID } from "../../lib/contract.mjs";
 
-const EXTENSION_ID = "com.alextomas955.whisparrsync";
 const TABLE_NAME = "whisparrsync_credentials";
 const MIGRATION_NAME = "001_create_whisparrsync_credentials";
 
