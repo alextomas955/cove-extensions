@@ -61,7 +61,7 @@ const SEARCH_ALL_MONITORED = "Search all monitored";
 // only observable as a request that was never made.
 const BULK_ROUTE = extensionRoute("entities/bulk-monitor");
 
-// @see entity-monitor.spec.mjs — the same pattern, so this file names no verb that downloads.
+// @see entity-monitor.v3.spec.mjs — the same pattern, so this file names no verb that downloads.
 const SEARCH_COMMAND = /search/i;
 
 // The host's own job list, which an unrestricted account can read. The extension's status route

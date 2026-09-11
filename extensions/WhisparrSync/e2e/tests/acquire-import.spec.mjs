@@ -2,7 +2,7 @@
 // torrent engine downloads, Whisparr imports what it downloaded, Whisparr tells Cove on its own, and
 // Cove opens the file that message named.
 //
-// WHAT THE REST OF THE SUITE DOES INSTEAD. `import-webhook.spec.mjs` composes a delivery body itself
+// WHAT THE REST OF THE SUITE DOES INSTEAD. `import-webhook.v3.spec.mjs` composes a delivery body itself
 // and posts it. That proves what Cove does with a delivery; it cannot prove that Whisparr sends one,
 // that the body it sends is the body the extension reads, or that the path it names resolves to a
 // file Cove can open. Nothing here writes a delivery body or a torrent peer.
