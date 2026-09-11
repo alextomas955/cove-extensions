@@ -17,6 +17,9 @@ import { GenericContainer, Wait } from "testcontainers";
 
 const IMAGE = process.env.METADATA_STUB_IMAGE ?? "node:22-alpine";
 const ALIAS = "metadata-stub";
+
+const LINES = /\r?\n/;
+const ASKED = "ASKED";
 const PORT = 9797;
 
 /**
@@ -74,12 +77,34 @@ function row(site) {
   };
 }
 
+// A search answers a list; every other route answers the one entity. The instance deserialises the
+// two into different types, and an array where it wants an object is a 500 out of its own add.
+function isSearch(url) {
+  return url.includes('search') || url.includes('lookup');
+}
+
 const server = http.createServer((req, res) => {
-  const found = matching(req.url || '');
+  const url = req.url || '';
+  const found = matching(url).slice(0, 1).map(row);
+  // Every request, with what it was answered. A caller debugging a resolution that refused needs to
+  // know what the instance asked for and how many rows it got back, and neither is visible anywhere
+  // else once the instance has mapped the answer onto its own model.
+  console.log('ASKED ' + url + ' -> ' + found.length);
+
+  if (isSearch(url)) {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    // One row, or none. Never several: the caller's own correspondence between the identifier it
+    // holds and the entity acted on rests on there being exactly one answer.
+    return res.end(JSON.stringify(found));
+  }
+
+  if (found.length === 0) {
+    res.writeHead(404, { 'content-type': 'application/json' });
+    return res.end('{}');
+  }
+
   res.writeHead(200, { 'content-type': 'application/json' });
-  // One row, or none. Never several: the caller's own correspondence between the identifier it holds
-  // and the entity acted on rests on there being exactly one answer.
-  res.end(JSON.stringify(found.slice(0, 1).map(row)));
+  return res.end(JSON.stringify(found[0]));
 });
 server.listen(PORT, '0.0.0.0', () => console.log('metadata-stub serving ' + SITES.length + ' site(s) on ' + PORT));
 `;
@@ -87,15 +112,40 @@ server.listen(PORT, '0.0.0.0', () => console.log('metadata-stub serving ' + SITE
   const container = await new GenericContainer(IMAGE)
     .withNetworkMode(networkName)
     .withNetworkAliases(ALIAS)
-    .withExposedPorts(PORT)
+    // No published port. Only the instance talks to this, and it does so over the shared network by
+    // alias. Publishing one would spend a host port per test for nothing, and this suite runs its
+    // workers in parallel: the ports are the resource that runs out first.
     .withCommand(["node", "-e", script])
-    .withWaitStrategy(Wait.forListeningPorts())
+    // Waited on its own startup line, because the port-based strategy needs a published port and this
+    // container has none.
+    .withWaitStrategy(Wait.forLogMessage(/metadata-stub serving/))
     .withStartupTimeout(60_000)
     .start();
 
   return {
+    /**
+     * Every request the instance made, as the stub recorded it.
+     *
+     * The instance maps an answer onto its own model before anything else sees it, so what it asked
+     * for and how many rows it got back are visible nowhere else once it has.
+     */
+    async asked() {
+      const stream = await container.logs();
+      return new Promise((resolve) => {
+        let seen = "";
+        const answer = () => {
+          resolve(seen.split(LINES).filter((line) => line.includes(ASKED)));
+        };
+        stream.on("data", (chunk) => {
+          seen += String(chunk);
+        });
+        stream.on("end", answer);
+        // A log stream that stays open would never end on its own.
+        setTimeout(answer, 3000);
+      });
+    },
+
     urlFromWhisparr: `http://${ALIAS}:${PORT}/{route}`,
-    urlFromHost: `http://${container.getHost()}:${container.getMappedPort(PORT)}`,
     stop: () => container.stop(),
   };
 }
