@@ -10,7 +10,7 @@ namespace WhisparrSync.Tests.Monitoring;
 /// </summary>
 /// <remarks>
 /// The whole table is enumerated rather than sampled. More than one reason holding is ordinary: an
-/// entity with no metadata link, on the older generation, with nothing configured has all three, and
+/// entity with no metadata link, on v2, with nothing configured has all three, and
 /// the case nobody writes a test for is the one where the answer is decided by evaluation order
 /// instead of by a decision.
 /// <para>
@@ -127,7 +127,7 @@ public sealed class RefusalPrecedenceTests
     /// <remarks>
     /// Driven through the mapped route, so what is asserted is that the handler's own short-circuit
     /// order agrees with the stated precedence rather than that the pure function is self-consistent.
-    /// A performer on the older generation with nothing configured and no identity row holds all
+    /// A performer on v2 with nothing configured and no identity row holds all
     /// three reasons at once.
     /// </remarks>
     [Fact]
@@ -154,7 +154,7 @@ public sealed class RefusalPrecedenceTests
     /// </summary>
     /// <remarks>
     /// A connection IS configured here, so the pair under test is the second and third reasons. The
-    /// older generation holds no performer role, so the gap is a real one rather than a set built
+    /// v2 holds no performer role, so the gap is a real one rather than a set built
     /// holding nothing.
     /// </remarks>
     [Fact]

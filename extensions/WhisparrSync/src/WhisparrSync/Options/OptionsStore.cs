@@ -54,7 +54,7 @@ public sealed class OptionsStore(
     /// </summary>
     /// <remarks>
     /// A blob the model could not bind establishes nothing: its options are manufactured defaults,
-    /// and the default names the newer generation. Every writer of the blob is covered here,
+    /// and the default names v3. Every writer of the blob is covered here,
     /// including a caller that writes the store through the host's own extension-data route without
     /// reaching this extension's save.
     /// </remarks>

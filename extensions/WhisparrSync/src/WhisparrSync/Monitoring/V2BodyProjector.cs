@@ -7,10 +7,10 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 
-/// <summary>The bodies the older generation is sent, composed rather than assembled at a call site.</summary>
+/// <summary>The bodies v2 is sent, composed rather than assembled at a call site.</summary>
 /// <remarks>
 /// Pure. Every flag that suppresses acquisition is set here, from ONE local, so an edit cannot set one
-/// spelling and miss the other. This generation's pair is not the newer one's: a rule stated in the
+/// spelling and miss the other. v2's pair is not v3's: a rule stated in the
 /// newer spellings leaves every body composed here unguarded.
 /// <para>
 /// This generation addresses a studio as a series and its catalogue as years, which is why the wire
@@ -19,7 +19,7 @@ namespace WhisparrSync.Monitoring;
 /// </para>
 /// <para>
 /// A scope change on this generation is retroactive: re-applying a monitoring option rewrites the flag
-/// on every year the instance already holds, in both directions. On the newer generation the equivalent
+/// on every year the instance already holds, in both directions. On v3 the equivalent
 /// gates only what a later catalogue read adds. A reader who assumes the two behave alike will be
 /// wrong about one of them.
 /// </para>
@@ -96,7 +96,7 @@ internal static class V2BodyProjector
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="scope"/> is not a scope this product expresses, or <paramref name="defaults"/>
     /// names no usable quality profile. This generation refuses a zero profile with a validation
-    /// failure naming the property, and the newer one accepts it and then never acquires.
+    /// failure naming the property, and v3 accepts it and then never acquires.
     /// </exception>
     internal static SeriesResource AddStudio(
         int entityId, string title, string titleSlug, MonitorScope scope, AddDefaults defaults)
@@ -233,13 +233,13 @@ internal static class V2BodyProjector
         };
 }
 
-/// <summary>What one entity is called on the older generation, once its lookup has answered.</summary>
+/// <summary>What one entity is called on v2, once its lookup has answered.</summary>
 /// <param name="EntityId">The numeric identifier the lookup answered with.</param>
 /// <param name="Title">The name the lookup answered with.</param>
 /// <param name="TitleSlug">The slug the add is composed with.</param>
 internal sealed record V2Site(int EntityId, string Title, string TitleSlug);
 
-/// <summary>What an older-generation lookup answered.</summary>
+/// <summary>What an v2 lookup answered.</summary>
 internal enum V2LookupReading
 {
     /// <summary>Exactly one entity answered, and it is named.</summary>
@@ -260,7 +260,7 @@ internal enum V2LookupReading
 /// <param name="Reading">What the answer was.</param>
 internal sealed record V2SiteResolution(V2Site? Site, V2LookupReading Reading);
 
-/// <summary>What the older generation's lookup and listing answers mean.</summary>
+/// <summary>What v2's lookup and listing answers mean.</summary>
 /// <remarks>
 /// Pure. Read on the parsed shape and never on a status: this generation answers an identifier it does
 /// not know with a success and an empty list, and answers a body whose fields it dropped with a created

@@ -93,10 +93,10 @@ public sealed class GatewayRegistrationTests
 
         Assert.True(
             askedForByTheOlder > olderAfterFirst,
-            "the older generation reused a registration bound to the key that was replaced");
+            "v2 reused a registration bound to the key that was replaced");
         Assert.True(
             askedForByTheNewer > newerAfterFirst,
-            "the newer generation reused a registration bound to the key that was replaced");
+            "v3 reused a registration bound to the key that was replaced");
     }
 
     [Fact]

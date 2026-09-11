@@ -39,7 +39,7 @@ internal static class MonitoringProjector
 
     /// <summary>The one refusal to answer when more than one reason holds.</summary>
     /// <remarks>
-    /// More than one reason holds often: an entity with no metadata link, on the older generation,
+    /// More than one reason holds often: an entity with no metadata link, on v2,
     /// with nothing configured, has all three. A user reads ONE sentence, so which reason wins is a
     /// decision rather than an accident of the order the reads happen in, and it is stated here and
     /// nowhere else.
@@ -170,7 +170,7 @@ internal static class MonitoringProjector
     /// <summary>Whether the write <paramref name="answered"/> answered was accepted.</summary>
     /// <remarks>
     /// A refusal the answering seam read out of a parsed body wins, for the reason
-    /// <see cref="Classify"/> states: on the older generation an add is preceded by a lookup, so a
+    /// <see cref="Classify"/> states: on v2 an add is preceded by a lookup, so a
     /// lookup naming no entity refused before any write left and the status belongs to that read.
     /// </remarks>
     internal static MonitorRefusalKind Accepted(WhisparrResponse answered)
@@ -234,8 +234,8 @@ internal static class MonitoringProjector
     /// painting a state must paint none rather than fall back to a default.
     /// </para>
     /// <para>
-    /// Only the newer generation's studio read is read at all. The gate exists on that one resource
-    /// and on no other, so a performer expresses no scope, and the older generation's own read was
+    /// Only v3's studio read is read at all. The gate exists on that one resource
+    /// and on no other, so a performer expresses no scope, and v2's own read was
     /// never measured carrying one. Both answer null, as does an unmonitored entity, which has no
     /// scope in force to report.
     /// </para>

@@ -118,7 +118,7 @@ public sealed partial class WhisparrSync
 
     /// <summary>Adds one scene the connected instance does not hold.</summary>
     /// <remarks>
-    /// Composes the newer generation's scene add, whose acquisition-suppressing flag is set from the
+    /// Composes v3's scene add, whose acquisition-suppressing flag is set from the
     /// one constant every non-grabbing body reads. The instance is asked to look for nothing.
     /// <para>
     /// The instance's own row is read first, so a scene it already holds is answered rather than

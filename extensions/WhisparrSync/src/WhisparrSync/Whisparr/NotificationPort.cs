@@ -327,7 +327,7 @@ internal sealed class NotificationPort(IWhisparrClient client, ILogger log) : IW
 
     /// <summary>The named member as a string, or null when it is absent or is not one.</summary>
     /// <remarks>
-    /// The older generation publishes no contract, so a member's type is whatever it sent. Reading one
+    /// Whisparr v2 publishes no contract, so a member's type is whatever it sent. Reading one
     /// as a string it is not would throw rather than report a shape this code does not handle.
     /// </remarks>
     private static string? StringOf(JsonObject entry, string name)
@@ -342,7 +342,7 @@ internal sealed class NotificationPort(IWhisparrClient client, ILogger log) : IW
     /// The answer as a JSON array, or null when it was not one.
     /// </summary>
     /// <remarks>
-    /// Parsed shape rather than status. The older generation publishes no contract, so every fact
+    /// Parsed shape rather than status. Whisparr v2 publishes no contract, so every fact
     /// taken off it has to come from what it actually sent.
     /// </remarks>
     private static JsonArray? ParseArray(WhisparrResponse answered)

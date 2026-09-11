@@ -54,7 +54,7 @@ public sealed class RefusalBeforeRequestTests
     /// </summary>
     /// <remarks>
     /// Taken against a real generation gap rather than against a set built holding nothing: no route
-    /// on the older generation adds a catalogue item at all, so its set holds no missing-scene role and
+    /// on v2 adds a catalogue item at all, so its set holds no missing-scene role and
     /// the refusal under test is the one a user actually reaches. What is asserted is the property
     /// CAP-2 asks for: obtaining a role that is absent produces a refusal and nothing leaves.
     /// </remarks>

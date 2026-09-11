@@ -162,7 +162,7 @@ public static class GenerationCapabilities
     /// per-scene search entry either, for the same reason: a generation holding no scene has none to
     /// be searched for, and the entity search it does hold covers everything the entity monitors. No
     /// scene-exclusion write entry, because it keeps no scene exclusions to write to. It does hold
-    /// a site-registration entry, which the newer generation does not: here a site is the unit of
+    /// a site-registration entry, which v3 does not: here a site is the unit of
     /// presence, and there a site arrives as a side effect of a scene add.
     /// <para>
     /// It also holds the per-scene monitor entry and the site-row read. This generation does hold a
@@ -248,7 +248,7 @@ public static class GenerationCapabilities
 
                 break;
 
-            // No performer registration in either table. The older generation addresses no performer
+            // No performer registration in either table. Whisparr v2 addresses no performer
             // at all, so a caller obtains no role and has to state what happens instead.
             case WhisparrGeneration.V2:
                 registered[WhisparrCapability.OutOfBandCallbackSecret] = new V2BasicAuthSecretRegistration();

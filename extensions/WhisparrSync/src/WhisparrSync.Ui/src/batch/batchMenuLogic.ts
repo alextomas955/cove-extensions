@@ -2,7 +2,7 @@
  * What the videos selection bar offers over a selection of scenes.
  *
  * The rows are a constant rather than a derivation over what the connected instance can do. This
- * action reaches the manifest on the newer generation alone, so there is nothing to read before the
+ * action reaches the manifest on v3 alone, so there is nothing to read before the
  * overlay opens and no row that can turn out not to be offered.
  *
  * The order is the invariant this module holds: safest first, the only row that can download fourth,

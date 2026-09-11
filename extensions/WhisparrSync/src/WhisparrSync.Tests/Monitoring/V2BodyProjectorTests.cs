@@ -7,7 +7,7 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Tests.Monitoring;
 
 /// <summary>
-/// Every body the older generation is sent for a monitor, an unmonitor or a scope change, and the
+/// Every body v2 is sent for a monitor, an unmonitor or a scope change, and the
 /// reading of the lookup that names the entity those bodies are about.
 /// </summary>
 /// <remarks>
@@ -88,7 +88,7 @@ public sealed class V2BodyProjectorTests
     /// Both of this generation's suppression spellings are present as members and both are false.
     /// </summary>
     /// <remarks>
-    /// Presence is asserted apart from the value, and this generation's pair is not the newer one's:
+    /// Presence is asserted apart from the value, and v2's pair is not v3's:
     /// a rule stated in the newer spellings leaves every body here unguarded.
     /// </remarks>
     [Theory]
@@ -110,7 +110,7 @@ public sealed class V2BodyProjectorTests
             });
     }
 
-    /// <summary>The newer generation's spellings reach no body composed here.</summary>
+    /// <summary>Whisparr v3's spellings reach no body composed here.</summary>
     [Fact]
     public void NoAddCarriesTheOtherGenerationsSuppressionSpellings()
     {
@@ -151,7 +151,7 @@ public sealed class V2BodyProjectorTests
     /// No composed add names a quality profile the instance would never act on.
     /// </summary>
     /// <remarks>
-    /// This generation refuses a zero with a validation failure naming the property, and the newer one
+    /// This generation refuses a zero with a validation failure naming the property, and v3
     /// accepts it and echoes it back. The stop is this product's own so neither generation's behaviour
     /// is what the guarantee rests on.
     /// </remarks>

@@ -1,7 +1,7 @@
 // The scene tab on a video detail page, in a real containerized host.
 //
-// THREE TESTS, AND THE SECOND IS ABOUT AN ABSENCE. On the newer generation the tab states what the
-// instance holds, and its four controls are pressed against a real instance. On the older one the
+// THREE TESTS, AND THE SECOND IS ABOUT AN ABSENCE. On v3 the tab states what the
+// instance holds, and its four controls are pressed against a real instance. On v2 the
 // registration never reaches the manifest, so nothing Whisparr-shaped reaches the page: not the
 // control, and not a host wrapper left behind with nothing in it. Those are different DOM states
 // and only one of them is what is promised.
@@ -708,7 +708,7 @@ test.describe("scene tab", () => {
     }
   });
 
-  test("older generation draws no scene tab, and no wrapper for one either", async ({
+  test("v2 draws no scene tab, and no wrapper for one either", async ({
     page,
     baseUrl,
     sceneHarness,
@@ -740,7 +740,7 @@ test.describe("scene tab", () => {
       // registration does not.
       expect(
         await registeredVideoTabs(coveApi),
-        "the older generation registers a video-page tab, so a surface it has no meaning on reached the manifest the host served",
+        "v2 registers a video-page tab, so a surface it has no meaning on reached the manifest the host served",
       ).toEqual([]);
 
       await visit(
@@ -748,13 +748,13 @@ test.describe("scene tab", () => {
         baseUrl,
         `/video/${String(video.id)}`,
         hostDetailTabs(page),
-        "the video detail page on the older generation",
+        "the video detail page on v2",
       );
       await page.waitForTimeout(SETTLE_DWELL_MS);
 
       await expect(
         whisparrTab(page),
-        `the older generation drew a ${TAB_LABEL} tab on the video detail page, so the registration is not conditional on the stored generation`,
+        `v2 drew a ${TAB_LABEL} tab on the video detail page, so the registration is not conditional on the stored generation`,
       ).toHaveCount(0);
 
       await expect(
