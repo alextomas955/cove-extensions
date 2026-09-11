@@ -79,11 +79,14 @@ export async function dateSeededScene(container, generation, foreignId) {
  * Its own seeder because a scene is two rows on this generation and one on the other, and the shared
  * entity seeder is wired for the other. The site's identifier is the caller's so a spec can keep two
  * runs apart.
+ *
+ * `monitored` is the site's starting flag. A caller driving both monitoring directions seeds it off,
+ * so the first gesture is the one that turns it on.
  */
 export async function seedV2Scene(
   container,
   whisparrApi,
-  { siteId, siteTitle, rootFolderPath, sceneExternalId, sceneTitle },
+  { siteId, siteTitle, rootFolderPath, sceneExternalId, sceneTitle, monitored = true },
 ) {
   const profiles = await whisparrApi.get("/api/v3/qualityprofile");
   const profileId = (profiles.json ?? [])[0]?.id;
@@ -114,6 +117,8 @@ export async function seedV2Scene(
       sceneTitle,
       "--air-date",
       SCENE_RELEASE_DATE,
+      "--monitored",
+      monitored ? "true" : "false",
     ],
     { user: APP_USER },
   );
