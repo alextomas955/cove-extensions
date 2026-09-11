@@ -32,12 +32,11 @@ import { randomUUID } from "node:crypto";
 import {
   COVE_ROOT,
   DATA_ROUTE,
-  DISABLE_ROUTE,
-  ENABLE_ROUTE,
   OPTIONS_KEY,
   SETTINGS_ROUTE,
   WHISPARR_ROOT,
 } from "../../lib/contract.mjs";
+import { restartWorker, videoPathsIn, videosIn } from "../../lib/steps.mjs";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
 
 // Transcribed by hand from the extension's own floor. A stored value below it is read as it, so this
@@ -96,20 +95,6 @@ async function writeOptions(api, change) {
   expect(written.status, `PUT the options key answered: ${written.text.slice(0, 300)}`).toBe(200);
 }
 
-/** Every video Cove holds. */
-async function videosIn(api) {
-  const listed = await api.get("/api/videos?perPage=200");
-  expect(listed.status, `GET /api/videos answered: ${listed.text.slice(0, 300)}`).toBe(200);
-  return listed.json?.items ?? [];
-}
-
-/** The file path of every video Cove holds. */
-async function videoPathsIn(api) {
-  const videos = await videosIn(api);
-  const held = await Promise.all(videos.map((video) => api.get(`/api/videos/${video.id}`)));
-  return held.flatMap((video) => (video.json?.files ?? []).map((file) => file.path));
-}
-
 /**
  * One video as Cove holds it, with its files and its identity rows.
  *
@@ -152,16 +137,6 @@ async function instanceState(whisparrApi) {
     notifications: notifications.json?.length ?? 0,
     historyRecords: history.json?.totalRecords ?? 0,
   };
-}
-
-/** Stops and restarts the worker, so a pass runs against the settings just written. */
-async function restartWorker(api) {
-  const disabled = await api.post(DISABLE_ROUTE);
-  expect(disabled.status, `POST ${DISABLE_ROUTE} answered: ${disabled.text.slice(0, 300)}`).toBe(
-    200,
-  );
-  const enabled = await api.post(ENABLE_ROUTE);
-  expect(enabled.status, `POST ${ENABLE_ROUTE} answered: ${enabled.text.slice(0, 300)}`).toBe(200);
 }
 
 test("the first backstop pass records where history ends and imports nothing, and a later one imports", async ({

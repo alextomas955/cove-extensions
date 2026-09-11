@@ -1,0 +1,137 @@
+// The steps more than one spec takes to get a run into position.
+//
+// None of these asserts anything about this product. They open a page, read a secret back, list what
+// Cove holds, restart the worker: the arrangement a spec needs before its own assertions begin. A
+// copy of each in every spec that needs it drifts, and a drifted copy is a spec doing something
+// slightly different from the one beside it for no reason anybody chose.
+import { readFileSync } from "node:fs";
+
+import { expect } from "@cove-extensions/e2e";
+
+import {
+  CALLBACK_STATUS_ROUTE,
+  CAPTURED_DELIVERY,
+  DISABLE_ROUTE,
+  ENABLE_ROUTE,
+  SECRET_QUERY_PARAMETER,
+} from "./contract.mjs";
+
+/** How long one navigation is given to render what the caller named, and how many are tried. */
+const PAGE_BUDGET_MS = 60_000;
+const PAGE_ATTEMPTS = 3;
+
+/**
+ * Opens `path`, re-navigating while nothing the caller named has rendered.
+ *
+ * The host paints its own error boundary in place of a page whose lazily-imported chunk failed to
+ * fetch, on the correct URL and indefinitely. Only a fresh navigation recovers it, and the retry is
+ * bounded so a permanent failure is not turned into a hung test.
+ *
+ * @param {object} present - a locator for something the loaded page must draw
+ * @param {string} label - what the caller was opening, named in the failure
+ */
+export async function visit(
+  page,
+  baseUrl,
+  path,
+  present,
+  label,
+  { attempts = PAGE_ATTEMPTS, budgetMs = PAGE_BUDGET_MS } = {},
+) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    await page.goto(`${baseUrl}${path}`);
+    const rendered = await present
+      .waitFor({ state: "visible", timeout: budgetMs })
+      .then(() => true)
+      .catch(() => false);
+    if (rendered) return;
+  }
+  throw new Error(
+    `${label}: nothing rendered at ${baseUrl}${path} across ${String(attempts)} navigation(s) of ${String(budgetMs)}ms each; the page is now at ${page.url()}`,
+  );
+}
+
+/** This installation's own callback secret, read out of the address the page offers. */
+export async function callbackSecret(api) {
+  const status = await api.get(CALLBACK_STATUS_ROUTE);
+  expect(
+    status.status,
+    `GET ${CALLBACK_STATUS_ROUTE} answered: ${String(status.text).slice(0, 300)}`,
+  ).toBe(200);
+
+  const secret = new URL(status.json.copyableAddress).searchParams.get(SECRET_QUERY_PARAMETER);
+  expect(secret, `the copyable address carried no ${SECRET_QUERY_PARAMETER}`).toBeTruthy();
+  return secret;
+}
+
+/** Every video Cove holds. */
+export async function videosIn(api) {
+  const listed = await api.get("/api/videos?perPage=200");
+  expect(listed.status, `GET /api/videos answered: ${String(listed.text).slice(0, 300)}`).toBe(200);
+  return listed.json?.items ?? [];
+}
+
+/** The file path of every video Cove holds. */
+export async function videoPathsIn(api) {
+  const videos = await videosIn(api);
+  return videos.flatMap((video) => (video.files ?? []).map((file) => file.path).filter(Boolean));
+}
+
+/**
+ * Stops and starts the extension, which is how a spec makes the background worker run again without
+ * waiting out its interval.
+ */
+export async function restartWorker(api) {
+  const disabled = await api.post(DISABLE_ROUTE);
+  expect(
+    disabled.status,
+    `POST ${DISABLE_ROUTE} answered: ${String(disabled.text).slice(0, 300)}`,
+  ).toBe(200);
+  const enabled = await api.post(ENABLE_ROUTE);
+  expect(
+    enabled.status,
+    `POST ${ENABLE_ROUTE} answered: ${String(enabled.text).slice(0, 300)}`,
+  ).toBe(200);
+}
+
+/** Where each version carries the file it delivered, and where it carries that scene's identity. */
+const DELIVERY_SHAPE = {
+  v2: { file: "episodeFile", identity: (body) => body.episodes[0], member: "tvdbId" },
+  v3: { file: "movieFile", identity: (body) => body.movie, member: "stashId" },
+};
+
+/**
+ * The delivery a real instance of `version` sent, with only what the caller names rewritten.
+ *
+ * Every other member stays exactly what Whisparr delivers: a body assembled by hand would exercise a
+ * shape nothing sends, which is what the capture exists to prevent.
+ *
+ * `remoteId` replaces the identity the capture carries; `identified: false` removes it, which is how
+ * a spec reaches the candidate that names no scene.
+ */
+export function deliveryNaming(version, { path, size, remoteId, identified = true }) {
+  const shape = DELIVERY_SHAPE[version];
+  if (shape === undefined) {
+    throw new Error(
+      `deliveryNaming: no capture is declared for "${version}"; declared are ${Object.keys(DELIVERY_SHAPE).join(", ")}.`,
+    );
+  }
+
+  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY[version], "utf8"));
+  body[shape.file].path = path;
+  body[shape.file].size = size;
+
+  if (!identified) {
+    delete shape.identity(body)[shape.member];
+  } else if (remoteId !== undefined) {
+    shape.identity(body)[shape.member] = remoteId;
+  }
+  return body;
+}
+
+/** The identifier the captured delivery for `version` names, where that version carries it. */
+export function deliveredRemoteId(version) {
+  const shape = DELIVERY_SHAPE[version];
+  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY[version], "utf8"));
+  return String(shape.identity(body)[shape.member]);
+}

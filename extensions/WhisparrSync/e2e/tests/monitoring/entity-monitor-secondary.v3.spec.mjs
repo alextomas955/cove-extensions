@@ -58,6 +58,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { visit } from "../../lib/steps.mjs";
 
 import {
   ACTION_ADD_ALL_MISSING,
@@ -101,8 +102,6 @@ const SCOPE_FUTURE_SCENES_WIRE = "futureScenes";
 
 // Each budget names the operation it bounds, so a failure says which one blew it rather than
 // reporting the whole test as a timeout naming nothing.
-const PAGE_BUDGET_MS = 60_000;
-const PAGE_ATTEMPTS = 3;
 const CONTROL_BUDGET_MS = 60_000;
 const GESTURE_BUDGET_MS = 60_000;
 const JOB_BUDGET_MS = 120_000;
@@ -136,21 +135,6 @@ const monitoredControl = (page) =>
 
 /** The menu a monitored entity's control opens. */
 const monitoredMenu = (page) => page.getByRole("menu", { name: WHISPARR_MONITORED });
-
-/** Opens `path`, re-navigating while nothing the caller named has rendered. */
-async function visit(page, baseUrl, path, present, label) {
-  for (let attempt = 1; attempt <= PAGE_ATTEMPTS; attempt++) {
-    await page.goto(`${baseUrl}${path}`);
-    const rendered = await present
-      .waitFor({ state: "visible", timeout: PAGE_BUDGET_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (rendered) return;
-  }
-  throw new Error(
-    `${label}: nothing rendered at ${baseUrl}${path} across ${String(PAGE_ATTEMPTS)} navigation(s) of ${String(PAGE_BUDGET_MS)}ms each; the page is now at ${page.url()}`,
-  );
-}
 
 /**
  * Turns the instance's hard-link setting on or off.

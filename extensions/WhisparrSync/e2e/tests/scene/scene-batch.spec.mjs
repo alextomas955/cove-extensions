@@ -35,6 +35,7 @@ import { startHarness } from "@cove-extensions/e2e/harness";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { randomUUID } from "node:crypto";
+import { visit } from "../../lib/steps.mjs";
 
 import {
   test as base,
@@ -97,7 +98,6 @@ const SEEDED_SCENES = 2;
 
 // Each budget names the operation it bounds, so a failure says which one blew it.
 const PAGE_BUDGET_MS = 60_000;
-const PAGE_ATTEMPTS = 3;
 const BATCH_BUTTON_BUDGET_MS = 60_000;
 const ENQUEUE_BUDGET_MS = 60_000;
 const JOB_BUDGET_MS = 120_000;
@@ -176,21 +176,6 @@ async function registeredVideoBulkActions(api) {
         (entry.entityTypes ?? []).includes(VIDEOS_SELECTION_TYPE),
     )
     .map((entry) => entry.id);
-}
-
-/** Opens `path`, re-navigating while nothing the caller named has rendered. */
-async function visit(page, baseUrl, path, present, label) {
-  for (let attempt = 1; attempt <= PAGE_ATTEMPTS; attempt++) {
-    await page.goto(`${baseUrl}${path}`);
-    const rendered = await present
-      .waitFor({ state: "visible", timeout: PAGE_BUDGET_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (rendered) return;
-  }
-  throw new Error(
-    `${label}: nothing rendered at ${baseUrl}${path} across ${PAGE_ATTEMPTS} navigation(s) of ${PAGE_BUDGET_MS}ms each; the page is now at ${page.url()}`,
-  );
 }
 
 /**

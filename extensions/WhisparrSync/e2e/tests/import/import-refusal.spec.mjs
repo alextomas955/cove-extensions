@@ -17,21 +17,18 @@ import {
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { addCoveLibraryRoot, placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
-import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
 import {
   CALLBACK_ROUTE,
-  CALLBACK_STATUS_ROUTE,
-  CAPTURED_DELIVERY,
   COVE_ROOT,
   DATA_ROUTE,
   SECRET_HEADER,
-  SECRET_QUERY_PARAMETER,
   SETTINGS_ROUTE,
   USER_AGENT,
   WHISPARR_ROOT,
 } from "../../lib/contract.mjs";
+import { callbackSecret, deliveryNaming, videosIn } from "../../lib/steps.mjs";
 
 // Transcribed from the blob the backend serializes, which its own test pins: the member names are
 // PascalCase and the cause is camelCase.
@@ -53,14 +50,6 @@ const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
 });
 
-/** The delivery a real instance sent, with only the file it names rewritten. */
-function deliveryNaming(reportedPath, size) {
-  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY.v3, "utf8"));
-  body.movieFile.path = reportedPath;
-  body.movieFile.size = size;
-  return body;
-}
-
 /** Points the extension at the fixture instance and stores its key. */
 async function configure(api, whisparr) {
   const saved = await api.put(SETTINGS_ROUTE, {
@@ -73,25 +62,6 @@ async function configure(api, whisparr) {
     v2: null,
   });
   expect(saved.status, `saving settings failed: ${saved.text.slice(0, 300)}`).toBe(200);
-}
-
-/** This installation's own callback secret, read out of the address the page offers. */
-async function callbackSecret(api) {
-  const status = await api.get(CALLBACK_STATUS_ROUTE);
-  expect(status.status, `GET ${CALLBACK_STATUS_ROUTE} answered: ${status.text.slice(0, 300)}`).toBe(
-    200,
-  );
-
-  const secret = new URL(status.json.copyableAddress).searchParams.get(SECRET_QUERY_PARAMETER);
-  expect(secret, `the copyable address carried no ${SECRET_QUERY_PARAMETER}`).toBeTruthy();
-  return secret;
-}
-
-/** Every video Cove holds. */
-async function videosIn(api) {
-  const listed = await api.get("/api/videos?perPage=200");
-  expect(listed.status, `GET /api/videos answered: ${listed.text.slice(0, 300)}`).toBe(200);
-  return listed.json?.items ?? [];
 }
 
 /**
@@ -141,7 +111,10 @@ test("a reported file at no Cove root, and one at two, are each refused and coun
 
     /** Posts the captured body, naming `reportedPath`, as a real instance would. */
     const deliver = async (reportedPath, size) => {
-      const delivered = await asWhisparr.post(CALLBACK_ROUTE, deliveryNaming(reportedPath, size));
+      const delivered = await asWhisparr.post(
+        CALLBACK_ROUTE,
+        deliveryNaming("v3", { path: reportedPath, size: size }),
+      );
       // A diagnostic, not the evidence: a refused delivery surfacing as a poll timeout would name the
       // wrong cause entirely.
       expect(

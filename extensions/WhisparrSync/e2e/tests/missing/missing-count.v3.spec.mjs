@@ -24,6 +24,7 @@ import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr
 import { randomUUID } from "node:crypto";
 
 import { configureProviderStub, startProviderStub } from "../../lib/provider-stub.mjs";
+import { visit } from "../../lib/steps.mjs";
 import {
   test as base,
   connectWhisparr,
@@ -44,8 +45,6 @@ const READ_IS_STALE = "Cove couldn't check this just now. These are the last val
 // offer. The uuid is what Cove stores as its remote id.
 const BRAZZERS_EXXTRA = "39cee498-a9ac-4403-910a-1a0157ad22d8";
 
-const BUNDLE_BUDGET_MS = 60_000;
-const BUNDLE_ATTEMPTS = 3;
 const TAB_BUDGET_MS = 30_000;
 const REGION_BUDGET_MS = 90_000;
 
@@ -121,21 +120,6 @@ const countLine = (page) =>
 
 /** Any sentence the tab stated in place of a grid. */
 const statedReasons = (page) => page.locator("p").filter({ hasText: /\S/ });
-
-/** Opens `path`, re-navigating while nothing the caller named has rendered. */
-async function visit(page, baseUrl, path, present, label) {
-  for (let attempt = 1; attempt <= BUNDLE_ATTEMPTS; attempt++) {
-    await page.goto(`${baseUrl}${path}`);
-    const rendered = await present
-      .waitFor({ state: "visible", timeout: BUNDLE_BUDGET_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (rendered) return;
-  }
-  throw new Error(
-    `${label}: nothing rendered at ${baseUrl}${path} across ${BUNDLE_ATTEMPTS} navigation(s) of ${BUNDLE_BUDGET_MS}ms each; the page is now at ${page.url()}`,
-  );
-}
 
 function note(description) {
   test.info().annotations.push({ type: "skipped-assertion", description });

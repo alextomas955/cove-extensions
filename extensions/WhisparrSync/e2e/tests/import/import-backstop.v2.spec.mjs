@@ -23,13 +23,12 @@ import { randomUUID } from "node:crypto";
 import {
   COVE_ROOT,
   DATA_ROUTE,
-  DISABLE_ROUTE,
-  ENABLE_ROUTE,
   OPTIONS_KEY,
   SETTINGS_ROUTE,
   THEPORNDB_ENDPOINT,
   WHISPARR_ROOT,
 } from "../../lib/contract.mjs";
+import { restartWorker, videosIn } from "../../lib/steps.mjs";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
 
 // What this version renders an import as. Transcribed rather than read off the instance: the walk
@@ -59,22 +58,6 @@ async function storedOptions(api) {
 async function writeOptions(api, options) {
   const saved = await api.put(`${DATA_ROUTE}/${OPTIONS_KEY}`, JSON.stringify(options));
   expect(saved.status, `PUT the options key answered: ${saved.text.slice(0, 300)}`).toBe(200);
-}
-
-async function videosIn(api) {
-  const listed = await api.get("/api/videos?perPage=200");
-  expect(listed.status, `GET /api/videos answered: ${listed.text.slice(0, 300)}`).toBe(200);
-  return listed.json?.items ?? [];
-}
-
-/** Stops and starts the worker, which is what makes a pass run without waiting out an interval. */
-async function restartWorker(api) {
-  const disabled = await api.post(DISABLE_ROUTE);
-  expect(disabled.status, `POST ${DISABLE_ROUTE} answered: ${disabled.text.slice(0, 300)}`).toBe(
-    200,
-  );
-  const enabled = await api.post(ENABLE_ROUTE);
-  expect(enabled.status, `POST ${ENABLE_ROUTE} answered: ${enabled.text.slice(0, 300)}`).toBe(200);
 }
 
 const fileAt = (video, path) => (video.files ?? []).some((file) => file.path === path);
