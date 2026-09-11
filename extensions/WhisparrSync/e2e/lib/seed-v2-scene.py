@@ -25,7 +25,6 @@ import sqlite3
 SERIES_REQUIRED = {
     "Status": 0,
     "Images": "[]",
-    "Monitored": 1,
     "Runtime": 0,
     "UseSceneNumbering": 0,
     "OriginalLanguage": 1,
@@ -66,6 +65,9 @@ def main():
     # The date the search names. This generation searches a scene by its site and its date, so an
     # episode carrying neither produces no query at all.
     parser.add_argument("--air-date", required=True)
+    # What the site starts as. A caller driving both monitoring directions seeds it off, so the first
+    # gesture is the one that turns it on and neither direction is read off a flag it started at.
+    parser.add_argument("--monitored", default="true")
     args = parser.parse_args()
 
     connection = sqlite3.connect(args.db)
@@ -86,6 +88,7 @@ def main():
                 # the UTC one without checking it for null.
                 "FirstAired": args.air_date,
                 "LastAired": args.air_date,
+                "Monitored": 1 if args.monitored == "true" else 0,
                 **SERIES_REQUIRED,
             },
         )

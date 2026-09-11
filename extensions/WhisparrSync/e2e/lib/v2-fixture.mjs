@@ -165,12 +165,6 @@ export const test = base.extend({
     }
   },
 });
-/** The instance's own row for a site, which is where a monitored flag is really read. */
-export async function siteRow(whisparrApi, seriesId) {
-  const listed = await whisparrApi.get("/api/v3/series");
-  return (listed.json ?? []).find((one) => one.id === seriesId);
-}
-
 /** The instance's own rows for a site's scenes. */
 export async function sceneRows(whisparrApi, seriesId) {
   const listed = await whisparrApi.get(`/api/v3/episode?seriesId=${String(seriesId)}`);
@@ -197,4 +191,7 @@ export async function commandNames(whisparrApi) {
   return (listed.json ?? []).map((one) => one.name).filter(Boolean);
 }
 
+// The site read lives beside the fixture that owns a connected installation, because the shared
+// scenarios read the same row through it.
+export { siteRow } from "./connected-fixture.mjs";
 export { expect, extensionRoute, seedCoveVideo } from "./whisparr-sync-fixtures.mjs";
