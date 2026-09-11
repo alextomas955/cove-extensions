@@ -77,6 +77,25 @@ const COUNT_LINE = `That total is the scenes ${ANSWERED_SOURCE} lists for this s
 /** The range the answered page below covers, in the wording the bar states it in. */
 const RANGE_IN_THE_BAR = "1–40 of 272";
 
+// What an answered page offers the bar, in the shapes `wire/openapi.json` declares for
+// `MissingFacetMenu`, `MissingFacetValue` and `MissingSortOption`. Two of each: one row cannot be
+// stepped into from another, and one ordering cannot be changed to a different one.
+const FACET_MENUS = [
+  {
+    key: "performer",
+    label: "Performer",
+    values: [
+      { value: "first", label: "A performer" },
+      { value: "second", label: "Another performer" },
+    ],
+    reportedValueCount: 2,
+  },
+];
+const SORT_OPTIONS = [
+  { value: "releaseDate", label: "Release date" },
+  { value: "title", label: "Title" },
+];
+
 const BUNDLE_BUDGET_MS = 60_000;
 const BUNDLE_ATTEMPTS = 3;
 const TAB_BUDGET_MS = 30_000;
@@ -124,7 +143,11 @@ const toolbar = (page) => page.getByRole("toolbar", { name: TAB_LABEL });
  * leading name is off screen and is the half that does not change with the ordering.
  */
 const sortControl = (page) => toolbar(page).getByRole("button", { name: /^Sort/ });
-const facetChip = (page) => toolbar(page).locator('[aria-haspopup="menu"]');
+// By the facet's own label, not by the attribute that opens a menu: the ordering control carries
+// that attribute too and is drawn first, so a locator on the attribute alone opens the ordering menu
+// while claiming to be about a facet.
+const facetChip = (page) =>
+  toolbar(page).getByRole("button", { name: new RegExp(`^${FACET_MENUS[0].label}`) });
 
 /**
  * Opens `path`, re-navigating while nothing the caller named has rendered.
@@ -193,10 +216,6 @@ async function focusTreatment(locator) {
   return { blurred, focused: await read() };
 }
 
-function annotate(description) {
-  test.info().annotations.push({ type: "skipped-assertion", description });
-}
-
 test("the toolbar round-trips through the page URL, and its controls are reachable", async ({
   page,
   baseUrl,
@@ -215,8 +234,39 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
     remoteIds: [],
   });
 
+  // An answered page, so the toolbar draws the controls this test is about. Without one the ordering
+  // menu, the facet menu and the range are simply absent, and every assertion over them would read
+  // as passing while never running. The shape is the one `wire/openapi.json` declares for this
+  // response, which is emitted from the shipped endpoint registrations rather than written here.
+  let pageReadWasIntercepted = false;
+  await page.route(/\/missing\?/, async (route) => {
+    pageReadWasIntercepted = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(answeredPage({ facets: FACET_MENUS, sorts: SORT_OPTIONS })),
+    });
+  });
+  // The menu searches its own values through this route. Left unanswered, the rows it is asked to
+  // step into never arrive and the keyboard assertions below would be about an empty menu.
+  await page.route(/\/missing\/facet\//, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        values: FACET_MENUS[0].values,
+        reportedValueCount: FACET_MENUS[0].reportedValueCount,
+        outcome: "matched",
+      }),
+    });
+  });
+
   const studioPath = `/studio/${String(studio.id)}`;
   await openTheTab(page, baseUrl, studioPath, "the studio detail page");
+  expect(
+    pageReadWasIntercepted,
+    "the answered page never arrived, so every control below would be absent rather than asserted",
+  ).toBe(true);
 
   // 1. Typing settles and rewrites the address ONCE. A history entry per keystroke would leave the
   //    back button stepping through half-typed searches.
@@ -235,7 +285,6 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
   ).toBe(historyBefore);
 
   // 2. This tab's state travels under this tab's own keys, and under none of the host's.
-  const afterSearch = await tabState(page);
   const wholeAddress = await addressState(page);
   for (const key of LIST_URL_MANAGED_KEYS) {
     expect(
@@ -244,21 +293,25 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
     ).not.toBe(TYPED_SEARCH);
   }
 
-  const sortTriggers = await sortControl(page).count();
-  if (sortTriggers > 0) {
-    await sortControl(page).first().click();
-    await expect(page.getByRole("menu")).toBeVisible();
-    await page.getByRole("menuitemcheckbox").nth(1).click();
-    await expect
-      .poll(async () => (await tabState(page)).wsmSort, { timeout: SETTLE_BUDGET_MS })
-      .toBeTruthy();
-  } else {
-    annotate(
-      "the ordering assertions did not run: no page had answered into the toolbar, so it drew no ordering menu",
-    );
-  }
+  await expect(
+    sortControl(page),
+    "the answered page offered an ordering and the bar drew no control for it",
+  ).toHaveCount(1);
+  await sortControl(page).first().click();
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.getByRole("menuitemcheckbox").nth(1).click();
+  await expect
+    .poll(async () => (await tabState(page)).wsmSort, {
+      timeout: SETTLE_BUDGET_MS,
+      message: "choosing an ordering did not reach the address, so a shared link loses it",
+    })
+    .toBeTruthy();
 
   // 3. The address is the whole of what a shared link carries: reloading it restores the view.
+  //
+  // Read here rather than after the search alone, so what the reload is compared against is the
+  // whole view being shared - the search and the ordering chosen above.
+  const beforeSharing = await tabState(page);
   const shared = page.url();
   await visit(page, "", shared, hostDetailTabs(page), "the shared link");
   await missingTab(page).click();
@@ -269,12 +322,17 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
   expect(
     await tabState(page),
     "the reloaded address does not describe the view it was copied from",
-  ).toEqual(afterSearch);
+  ).toEqual(beforeSharing);
 
-  // 4. A facet change moves the number the bar states, not only the cards.
-  annotate(
-    "the range assertion did not run: the bar states a range only once a page has answered, and none had",
-  );
+  // 4. The bar states the answered page's own range, and states it once.
+  await expect(
+    toolbar(page).getByText(RANGE_IN_THE_BAR),
+    "the bar states no range for a page that answered with one",
+  ).toBeVisible();
+  await expect(
+    page.getByText(RANGE_IN_THE_BAR),
+    "the answered page's range is drawn more than once, or nowhere",
+  ).toHaveCount(1);
 
   // 5. The host deletes its own keys on a tab change, including the change back into this tab. This
   //    tab's prefixed keys are what survive that.
@@ -289,8 +347,11 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
 
   // 6. A menu meets Cove's keyboard bar: a menu role, a caret that lands in its search box, arrow-key
   //    roving focus into the rows, Escape closing it and returning focus to the control that opened it.
-  const facetTriggers = await facetChip(page).count();
-  if (facetTriggers > 0) {
+  await expect(
+    facetChip(page),
+    "the answered page offered a facet and the bar drew no menu for it",
+  ).toHaveCount(1);
+  {
     const trigger = facetChip(page).first();
     await trigger.click();
     const menu = page.getByRole("menu");
@@ -322,10 +383,6 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
     await expect(page.getByRole("menu")).toBeVisible();
     await page.mouse.click(5, 5);
     await expect(page.getByRole("menu")).toBeHidden();
-  } else {
-    annotate(
-      "the menu keyboard assertions did not run: no page had answered into the toolbar, so it drew no facet menu",
-    );
   }
 
   // 7. Every control shows where the keyboard is. `focus-visible:ring-*` is absent from the host
@@ -348,7 +405,7 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
  * It carries a card, because a page carrying none is an empty answer and the grid states that in
  * place of the count line this reads.
  */
-function answeredPage() {
+function answeredPage({ facets = [], sorts = [] } = {}) {
   return {
     cards: [
       {
@@ -373,8 +430,8 @@ function answeredPage() {
     rangeFrom: 1,
     rangeTo: 40,
     refusal: "none",
-    facets: [],
-    sorts: [],
+    facets,
+    sorts,
     sortInForce: null,
     statusWasRead: true,
     statusIsPermanentlyAbsent: false,
