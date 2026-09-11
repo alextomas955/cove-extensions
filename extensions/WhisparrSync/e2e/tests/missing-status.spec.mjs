@@ -247,15 +247,11 @@ test("the two reasons a status is unknown are different answers, in a real host"
       `a page reported a component the bundle does not register: ${missingComponent.join(" | ")}`,
     ).toEqual([]);
 
-    if (providerSkip !== null) {
-      // Named rather than silent: a reader of this run should know which assertions did not run and
-      // why, instead of reading a green run as covering more than it did.
-      test.info().annotations.push({
-        type: "skipped-assertion",
-        description: `the catalogue assertions did not run: ${providerSkip}`,
-      });
-      return;
-    }
+    // Reported as SKIPPED rather than returned from. Everything below needs a catalogue this run
+    // cannot read, and a test that returns here still reports a pass: the run then says this file
+    // covered the older generation, the unknown-status readings and the stopped instance, none of
+    // which it reached. A skip says what it did not do, in the run's own count.
+    test.skip(providerSkip !== null, `no catalogue can be read: ${providerSkip}`);
 
     // A CONNECTED INSTANCE. The catalogue is read, the instance answers, and the page reports a
     // status it actually read.
