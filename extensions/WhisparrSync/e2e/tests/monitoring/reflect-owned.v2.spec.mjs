@@ -9,7 +9,7 @@ import { WHISPARR_APP_USER } from "@cove-extensions/e2e/whisparr";
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { seedVideo } from "@cove-extensions/e2e/seed-media";
 
-import { SCENE_RELEASE_DATE } from "../../lib/acquire-pipeline.mjs";
+import { SCENE_RELEASE_DATE } from "../../lib/seed-scene.mjs";
 import {
   episodeFileRows,
   expect,
