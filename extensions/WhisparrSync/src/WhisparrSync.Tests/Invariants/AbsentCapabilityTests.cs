@@ -252,7 +252,7 @@ public sealed class AbsentCapabilityTests
                 .ToList());
     }
 
-    // The older generation reaches its entity through a lookup and then a listing, so the lookup has
+    // Whisparr v2 reaches its entity through a lookup and then a listing, so the lookup has
     // to resolve for the second request to happen at all. The answered entry carries the three members
     // the resolution reads, with the values the committed lookup fixture holds.
     // The site-row read raises where its answer is not a list of rows, so that one route answers a
@@ -327,7 +327,7 @@ public sealed class AbsentCapabilityTests
         await client.SearchMonitoredAsync(
             address, key, WhisparrGeneration.V3, WhisparrEntityKind.Studio, [4], ct);
 
-        // The scope change is driven on the older generation only. The newer one reads and replaces
+        // The scope change is driven on v2 only. v3 reads and replaces
         // the resource through the hand-composed date gate, whose route belongs to DeclaredRoutes.
         await client.ReadHistoryAsync(address, key, WhisparrGeneration.V2, 1, 10, ct);
         await client.ReadStudioAsync(address, key, WhisparrGeneration.V2, "studio-1", ct);

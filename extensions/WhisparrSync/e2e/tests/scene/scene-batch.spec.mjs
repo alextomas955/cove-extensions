@@ -1,8 +1,8 @@
 // The Whisparr button on the videos selection bar, in a real containerized host.
 //
-// TWO TESTS, AND THE SECOND IS ABOUT AN ABSENCE. On the newer generation the button opens this
+// TWO TESTS, AND THE SECOND IS ABOUT AN ABSENCE. On v3 the button opens this
 // extension's own overlay, one row starts a background run, and a refused row states its refusal
-// there and leaves the selection alone. On the older one the registration never reaches the
+// there and leaves the selection alone. On v2 the registration never reaches the
 // manifest, so nothing extension-shaped reaches the selection bar: not the button, and not the
 // host's own contributed-action button with nothing in it. Those are different DOM states and only
 // one of them is what is promised.
@@ -143,7 +143,7 @@ const chooserPanel = (page) =>
  *
  * The empty-versus-absent distinction in its selection-bar form. The host draws this button for a
  * registered bulk action whatever the extension declares, and draws nothing at all where no action
- * matched, so a non-zero count on the older generation is a surface that rendered rather than one
+ * matched, so a non-zero count on v2 is a surface that rendered rather than one
  * that is absent. Scoped inside the page's own main region, which the navigation is not.
  */
 const contributedSelectionButtons = (page) =>
@@ -161,7 +161,7 @@ const cardToggles = (page) => page.getByRole("button", { name: /^(Select|Deselec
  *
  * Narrowed to the videos bar rather than every bulk action, because the studio and performer
  * monitoring buttons are registered on BOTH generations and refuse in place there. Only the scene
- * selection's own button is absent on the older one.
+ * selection's own button is absent on v2.
  */
 async function registeredVideoBulkActions(api) {
   const manifest = await api.get("/api/extensions/manifest");
@@ -323,7 +323,7 @@ test.describe("scene batch", () => {
           "The host matches an action's declared entity types by literal membership against the spelling its bar passes, which is the SINGULAR for a video selection; a plural registration makes this button simply not appear, with no error anywhere.",
       ).toBeVisible({ timeout: BATCH_BUTTON_BUDGET_MS });
 
-      // The locator the older generation's absence is read through, proven here on the generation
+      // The locator v2's absence is read through, proven here on the generation
       // that draws it. A locator that matched nothing would report an absence on both.
       await expect(
         contributedSelectionButtons(page),
@@ -520,7 +520,7 @@ test.describe("scene batch", () => {
     }
   });
 
-  test("older generation draws no Whisparr button on the videos selection bar, and no wrapper for one either", async ({
+  test("v2 draws no Whisparr button on the videos selection bar, and no wrapper for one either", async ({
     page,
     baseUrl,
     batchHarness,
@@ -552,16 +552,16 @@ test.describe("scene batch", () => {
       // absent button and an absent registration are indistinguishable from the page alone.
       expect(
         await registeredVideoBulkActions(coveApi),
-        "the older generation registers a videos selection action, so a surface it has no meaning on reached the manifest the host served",
+        "v2 registers a videos selection action, so a surface it has no meaning on reached the manifest the host served",
       ).toEqual([]);
 
       await visit(page, baseUrl, "/videos", cardToggles(page).first(), "the videos page");
-      await selectFirstCards(page, 1, "the videos page on the older generation");
+      await selectFirstCards(page, 1, "the videos page on v2");
       await page.waitForTimeout(SETTLE_DWELL_MS);
 
       await expect(
         batchButton(page),
-        `the older generation drew a ${BATCH_BUTTON_LABEL} button on the videos selection bar, so the registration is not conditional on the stored generation`,
+        `v2 drew a ${BATCH_BUTTON_LABEL} button on the videos selection bar, so the registration is not conditional on the stored generation`,
       ).toHaveCount(0);
 
       await expect(

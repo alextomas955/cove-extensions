@@ -19,7 +19,7 @@ public sealed class ReflectOwnedPlannerTests
     private const string V3MediaManagementFixture = "whisparr-v3-3.3.8.1097-media-management.json";
     private const string V2MediaManagementFixture = "whisparr-v2-2.2.0.231-media-management.json";
 
-    /// <summary>A parsed row the newer generation matched to a scene it holds.</summary>
+    /// <summary>A parsed row v3 matched to a scene it holds.</summary>
     private const string V3MatchedRow = """
         {"id":1,"path":"/config/library/Vixen/scene.mp4","relativePath":"Vixen/scene.mp4",
          "folderName":"Vixen","name":"scene","size":10,
@@ -42,7 +42,7 @@ public sealed class ReflectOwnedPlannerTests
          "rejections":[{"reason":"Unknown Movie","type":"permanent"}]}
         """;
 
-    /// <summary>A parsed row the older generation matched to a series and its episodes.</summary>
+    /// <summary>A parsed row v2 matched to a series and its episodes.</summary>
     private const string V2MatchedRow = """
         {"id":1,"path":"/config/library/Vixen/scene.mp4","relativePath":"Vixen/scene.mp4",
          "folderName":"Vixen","name":"scene","size":10,

@@ -6,7 +6,7 @@ using Whisparr3.Net.Client;
 namespace WhisparrSync.Whisparr;
 
 /// <summary>
-/// The newer generation's request surface, obtained from the generated Whisparr 3 client.
+/// Whisparr v3's request surface, obtained from the generated Whisparr 3 client.
 /// </summary>
 /// <remarks>
 /// The generated client fixes its address and key at registration, and this extension's are settings

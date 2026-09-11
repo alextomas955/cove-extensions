@@ -31,7 +31,7 @@ public sealed class ScopeInForceTests
     /// <summary>The same studio, added without the gate, so the member is not there at all.</summary>
     private static string DateGateAbsent => ProbeFixtures.Read(DateGateAbsentFixture);
 
-    /// <summary>The spelling this library holds the older generation's identity rows under.</summary>
+    /// <summary>The spelling this library holds v2's identity rows under.</summary>
     private const string V2Endpoint = "theporndb.net/graphql";
 
     /// <summary>Bodies that report nothing at all about a scope.</summary>
@@ -97,7 +97,7 @@ public sealed class ScopeInForceTests
     }
 
     /// <summary>
-    /// The older generation reports no scope even for a body carrying the newer one's member: what
+    /// Whisparr v2 reports no scope even for a body carrying v3's member: what
     /// that generation answers a read with was never measured, so there is nothing to read.
     /// </summary>
     [Fact]
@@ -209,7 +209,7 @@ public sealed class ScopeInForceTests
     /// request asked for.
     /// </summary>
     /// <remarks>
-    /// The older generation reports no scope for a studio at all, so this is the reading a
+    /// Whisparr v2 reports no scope for a studio at all, so this is the reading a
     /// substitution most obviously breaks: null says the read carried none, and it is distinct from
     /// every particular scope.
     /// </remarks>

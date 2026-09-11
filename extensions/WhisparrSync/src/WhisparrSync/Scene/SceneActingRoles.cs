@@ -46,7 +46,7 @@ public interface IWhisparrSceneMonitorActing
 /// holding a write.
 /// <para>
 /// Narrow in the same way the other acting roles are: no member takes a caller-supplied route and
-/// none takes an HTTP verb. Only the newer generation registers it, so neither member takes a
+/// none takes an HTTP verb. Only v3 registers it, so neither member takes a
 /// generation, and the identifiers arrive already resolved off a stored identity row or off the
 /// instance's own exclusion list.
 /// </para>

@@ -348,7 +348,7 @@ test("an action already on its way disables every row and says what is being wai
 });
 
 /**
- * The armed menu of a studio on the older generation, with the capability set that generation
+ * The armed menu of a studio on v2, with the capability set that generation
  * actually holds: it registers no missing scene, so that one row is dimmed and two pressable rows
  * follow it.
  */
@@ -361,7 +361,7 @@ const V2_STUDIO_CAPABILITIES = [
 
 /**
  * A menu whose LAST row is dimmed, which needs a capability set no shipped generation answers with:
- * the older one holds the search and the newer one holds all three. Written out because the hook
+ * v2 holds the search and v3 holds all three. Written out because the hook
  * being asserted is shared, and a set the wire admits is a set it will be handed.
  */
 const NO_SEARCH_CAPABILITIES = ["monitorPerformer", "reflectOwnedFiles"] as const;

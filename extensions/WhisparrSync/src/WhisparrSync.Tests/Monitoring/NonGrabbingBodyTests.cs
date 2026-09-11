@@ -169,7 +169,7 @@ internal static class ComposedAdds
     /// <inheritdoc cref="TopLevelSuppression" path="/remarks"/>
     public const string SceneSuppression = "addOptions.searchForMovie";
 
-    /// <summary>The two flags the older generation's own add resource declares.</summary>
+    /// <summary>The two flags v2's own add resource declares.</summary>
     /// <remarks>
     /// Both, because that generation reads one for the back catalogue and one for the cutoff sweep,
     /// and a body setting either alone leaves the other at the instance's own default.
@@ -286,7 +286,7 @@ internal static class ComposedAdds
             // cases it decides between are identical on each.
             (_, WhisparrCapability.ReflectOwnedFiles) => [],
 
-            // The older generation addresses a studio as a series, and its add is composed from the
+            // Whisparr v2 addresses a studio as a series, and its add is composed from the
             // numeric identifier its own lookup answered with rather than from the one the library
             // holds. The identifiers below are what that lookup was measured answering.
             (WhisparrGeneration.V2, WhisparrCapability.MonitorStudio) =>
@@ -608,7 +608,7 @@ public sealed class NonGrabbingBodyTests
     [Fact]
     public void AScopeChangeOverwritesBothSuppressionSpellingsOnWhatTheInstanceHeld()
     {
-        // The two the newer generation's resources declare between them, which is what a resource
+        // The two v3's resources declare between them, which is what a resource
         // this product clones back out can be carrying.
         string[] paths = [ComposedAdds.TopLevelSuppression, ComposedAdds.SceneSuppression];
         var scopeChanges = ComposedAdds.EveryScopeChange();

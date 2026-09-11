@@ -277,8 +277,8 @@ public interface IWhisparrReflectOwnedActing
 
 /// <summary>Reads what an instance holds for one catalogue scene.</summary>
 /// <remarks>
-/// A read role, so nothing declared here changes an instance. Only the newer generation registers
-/// it: the older one answers a not-found on every per-scene route, so a caller obtains no role and
+/// A read role, so nothing declared here changes an instance. Only v3 registers
+/// it: v2 answers a not-found on every per-scene route, so a caller obtains no role and
 /// states what happens instead.
 /// <para>
 /// Narrow in the same way the acting roles are: neither member takes a route, a verb or a query key,
@@ -328,8 +328,8 @@ public interface IWhisparrSceneStatusReading
 
 /// <summary>Reads which of a set of scenes an instance's user has excluded.</summary>
 /// <remarks>
-/// A read role, so nothing declared here changes an instance. Only the newer generation registers
-/// it: the older one keeps no scene records at all and so keeps no scene exclusions, and a caller
+/// A read role, so nothing declared here changes an instance. Only v3 registers
+/// it: v2 keeps no scene records at all and so keeps no scene exclusions, and a caller
 /// obtains no role rather than a member answering an empty set that would read as nothing excluded.
 /// <para>
 /// The answer is the subset of the identifiers that were asked about, so what it carries is bounded

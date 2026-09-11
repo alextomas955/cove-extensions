@@ -7,7 +7,7 @@ using WhisparrSync.Tests.TestSupport;
 namespace WhisparrSync.Tests.Whisparr;
 
 /// <summary>
-/// The older generation's per-scene seams: the row read, the composed monitor body, and the
+/// Whisparr v2's per-scene seams: the row read, the composed monitor body, and the
 /// per-scene surface that is still refused there.
 /// </summary>
 /// <remarks>

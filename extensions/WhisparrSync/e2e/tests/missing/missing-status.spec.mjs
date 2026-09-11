@@ -16,7 +16,7 @@
 // - A CATALOGUE needs a metadata credential, lifted read-only from this machine's own Cove install.
 //   A machine with none is the ordinary case off this desk, and without one every page answers that
 //   no provider is configured.
-// - THE OLDER GENERATION identifies entities against the other metadata source, and this build ships
+// - WHISPARR V2 identifies entities against the other metadata source, and this build ships
 //   a client for one source only. A page read on that generation therefore answers that no provider
 //   is configured rather than reaching a catalogue, so the permanent absence over a full grid is
 //   asserted in the backend suite instead. What is asserted here is that the tab still renders and
@@ -249,7 +249,7 @@ test("the two reasons a status is unknown are different answers, in a real host"
 
     // Reported as SKIPPED rather than returned from. Everything below needs a catalogue this run
     // cannot read, and a test that returns here still reports a pass: the run then says this file
-    // covered the older generation, the unknown-status readings and the stopped instance, none of
+    // covered v2, the unknown-status readings and the stopped instance, none of
     // which it reached. A skip says what it did not do, in the run's own count.
     test.skip(providerSkip !== null, `no catalogue can be read: ${providerSkip}`);
 
@@ -282,14 +282,14 @@ test("the two reasons a status is unknown are different answers, in a real host"
       "the first card carries no status pill in this product's own vocabulary",
     ).toBeVisible();
 
-    // THE OLDER GENERATION. It identifies entities against the other metadata source, which this
+    // WHISPARR V2. It identifies entities against the other metadata source, which this
     // build ships no client for, so the page states a reason rather than reaching a catalogue. What
     // is asserted here is that the tab is still present and still says something.
     await connectWhisparr(coveApi, whisparr, "v2");
     const older = await readMissingPage(coveApi, "studio", studio.id);
     expect(
       older.refusal,
-      "the older generation answered no stated reason at all, so the tab would render a blank region",
+      "v2 answered no stated reason at all, so the tab would render a blank region",
     ).not.toBe("none");
     test.info().annotations.push({
       type: "narrowed-assertion",
@@ -298,7 +298,7 @@ test("the two reasons a status is unknown are different answers, in a real host"
     });
 
     // THE INSTANCE STOPPED. The catalogue still reads, so the grid is full; the instance answers
-    // nothing, so every card reads the same four words the older generation's would. The field
+    // nothing, so every card reads the same four words v2's would. The field
     // beside them is what says a retry could change this one.
     await connectWhisparr(coveApi, whisparr, "v3");
     await whisparr.stop();
