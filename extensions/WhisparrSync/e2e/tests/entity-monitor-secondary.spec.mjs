@@ -10,12 +10,14 @@
 // - Whether the notice a settled action leaves is VISIBLE. It renders through a portal because the
 //   host clips its entity hero, and a source reading cannot settle whether the escape works: only a
 //   rendered page has the hero's own geometry.
-// - Whether the row that downloads is reachable. It is asserted PRESSABLE and deliberately never
-//   pressed.
+// - Whether the row that downloads reaches the instance. It is pressed LAST, once every other
+//   assertion has been taken.
 //
-// NO SEARCH IS EXECUTED ANYWHERE IN THIS SPEC. The grabbing verb is proven reachable on its row and
-// in the emitted wire document, and its effect stays unmeasured by choice. The instance's own command
-// roster is read at the end over a named dwell to say so.
+// THE GRABBING VERB IS PRESSED, AND NOTHING CAN BE ACQUIRED BY IT. The instance is asserted to hold
+// no indexer and no download client before anything is pressed, so a search it starts has nowhere to
+// search and nothing to hand a transfer to. What the press is measured by is the instance's own
+// command roster: the only evidence the request reached it is the instance saying it was asked. Its
+// queue is read afterwards for the other half, that asking started no transfer.
 //
 // THE SENTENCES ARE IMPORTED FROM THE SHIPPED COPY MODULE, unlike in its two siblings, which
 // transcribe by hand. Those two assert that a rendered sentence reads a particular way, and reading
@@ -416,7 +418,7 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
       `arranging the studio as monitored answered ${String(monitored.status)} ${JSON.stringify(monitored.json)}`,
     ).toBe(true);
 
-    // ---- The three rows on the monitored studio, and the one that downloads left unpressed. ----
+    // ---- The three rows on the monitored studio. ----
     await visit(
       page,
       baseUrl,
@@ -442,9 +444,9 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
       ).toBeVisible();
     }
 
-    // The grabbing verb: PRESSABLE, and that is the whole of what is asserted about it here. A
-    // disabled row would mean the route it names is not reachable; a pressed one would spend a real
-    // instance's bandwidth, which no spec in this phase does.
+    // The grabbing verb, asserted pressable here and pressed at the end of this spec once every
+    // other assertion has been taken. A disabled row would mean the route it names is not reachable
+    // from the menu that offers it.
     await expect(
       monitoredMenu(page).getByRole("menuitem", { name: ACTION_SEARCH_ALL_MONITORED, exact: true }),
       `the "${ACTION_SEARCH_ALL_MONITORED}" row is disabled on a monitored studio, so the route this run mounted is not reachable from the menu that offers it`,
@@ -747,13 +749,65 @@ test("the three mounted verbs on a real monitored studio, and the notice a settl
       "the instance's scene catalogue shrank across add all missing, which registers and never removes",
     ).toBeGreaterThanOrEqual((Array.isArray(scenesBefore.json) ? scenesBefore.json : []).length);
 
-    // ---- The whole spec, and no search anywhere in it. ----
+    // ---- Search all monitored, the verb that reaches the instance's own queue. ----
+    //
+    // Pressed last, so every assertion above was taken on an instance nothing had asked to search.
+    // The bound first: the instance runs commands of its own accord, and a searching command already
+    // on its roster would make the one read after the press meaningless.
     await page.waitForTimeout(SETTLE_DWELL_MS);
-    const settled = await whisparrActivity(instance);
+    const beforeSearch = await whisparrActivity(instance);
     expect(
-      settled.commandNames.filter((name) => SEARCH_COMMAND.test(name)),
-      `the instance's command roster holds a searching command after a spec that presses two of the three verbs and never the third. The whole roster was ${JSON.stringify(settled.commandNames)}`,
+      beforeSearch.commandNames.filter((name) => SEARCH_COMMAND.test(name)),
+      `the instance's command roster already holds a searching command after two verbs that start none, so the press below could not be told apart from it. The whole roster was ${JSON.stringify(beforeSearch.commandNames)}`,
     ).toEqual([]);
+
+    const searched = await pressSecondary(
+      page,
+      ACTION_SEARCH_ALL_MONITORED,
+      "search-all-monitored",
+    );
+    expect(
+      searched.status,
+      `the search-all-monitored route answered ${String(searched.status)}: ${JSON.stringify(searched.body)}`,
+    ).toBeLessThan(400);
+    expect(
+      searched.body?.refusal ?? "none",
+      `the search was refused before it reached the instance: ${JSON.stringify(searched.body)}`,
+    ).toBe("none");
+
+    // Read off the instance's own roster. The route answers a monitoring view rather than a job, so
+    // its answer says nothing about whether the request arrived, and a route that wrote nothing would
+    // pass any assertion made against it.
+    const {
+      settled: asked,
+      value: searchRoster,
+      note: searchNote,
+    } = await attemptUntil(
+      async (_signal, record) => {
+        const { commandNames } = await whisparrActivity(instance);
+        const searches = commandNames.filter((name) => SEARCH_COMMAND.test(name));
+        record(`${String(searches.length)} searching command(s)`);
+        return searches.length > 0 ? { value: commandNames } : null;
+      },
+      {
+        timeoutMs: GESTURE_BUDGET_MS,
+        intervalMs: 1_000,
+        label: "the instance records a searching command",
+      },
+    );
+    expect(
+      asked,
+      `the instance was never asked to search after the row was pressed; its roster last read ${searchNote}`,
+    ).toBe(true);
+
+    // The other half, and the reason this press is safe to make at all: the instance has nowhere to
+    // search and nothing to hand a transfer to, so being asked starts none.
+    await page.waitForTimeout(SETTLE_DWELL_MS);
+    const afterSearch = await whisparrActivity(instance);
+    expect(
+      afterSearch.queueTotal,
+      `the instance's queue holds ${String(afterSearch.queueTotal)} record(s) after the search it was asked for, so a press this spec makes can acquire. Its roster was ${JSON.stringify(searchRoster)}`,
+    ).toBe(0);
   } finally {
     // Before the harness's own stop: the daemon refuses to remove a network a container still holds
     // an endpoint on, and that failure names neither this spec nor its cause.
