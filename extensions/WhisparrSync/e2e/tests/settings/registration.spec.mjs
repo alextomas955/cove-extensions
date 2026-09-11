@@ -10,10 +10,9 @@
 // rather than by trusting the extension's own report of what it did.
 import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { whisparrFixtures } from "@cove-extensions/e2e/whisparr";
+import { EXTENSION_ID, SETTINGS_ROUTE } from "../../lib/contract.mjs";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
 
-const EXTENSION_ID = "com.alextomas955.whisparrsync";
-const SETTINGS_PATH = `/api/extensions/${EXTENSION_ID}/settings`;
 const REGISTER_PATH = `/api/extensions/${EXTENSION_ID}/callback/register`;
 const STATUS_PATH = `/api/extensions/${EXTENSION_ID}/callback/status`;
 const NOTIFICATION_PATH = "/api/v3/notification";
@@ -80,7 +79,7 @@ async function configure(api, whisparr, generation) {
     keyWrite: "replace",
     apiKey: whisparr.apiKey,
   };
-  const saved = await api.put(SETTINGS_PATH, {
+  const saved = await api.put(SETTINGS_ROUTE, {
     selectedGeneration: generation,
     v3: generation === "v3" ? half : null,
     v2: generation === "v2" ? half : null,

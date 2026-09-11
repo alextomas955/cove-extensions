@@ -417,10 +417,6 @@ test("v2's own delivery reaches Cove through the same chain", async ({ isolatedH
       `the callback did not register: ${registered.status} ${registered.text?.slice(0, 300)}`,
     ).toBe("registered");
 
-    // Measured rather than assumed: this generation's notification does carry a header, so the secret
-    // travels out of band here exactly as it does on v3. Nothing is asserted about which
-    // position is used, because that is the instance's capability and not this product's promise.
-
     const sceneId = randomUUID();
     const seeded = await seedV2Scene(whisparr.v2.container, whisparrApi, {
       siteId: Math.floor(Math.random() * 1_000_000) + 1,
