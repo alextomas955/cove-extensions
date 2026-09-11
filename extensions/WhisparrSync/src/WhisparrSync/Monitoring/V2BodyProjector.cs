@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Whisparr2.Net.Model;
@@ -404,14 +405,30 @@ internal static class V2LookupProjector
         var title = site["title"] is JsonValue titled && titled.TryGetValue<string>(out var name)
             ? name
             : null;
-        var titleSlug = site["titleSlug"] is JsonValue slugged
-            && slugged.TryGetValue<string>(out var slug)
-                ? slug
-                : null;
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return null;
+        }
 
-        return string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(titleSlug)
-            ? null
-            : new V2Site(entityId, title, titleSlug);
+        // A slug the answer does not carry and a slug of the wrong type are different facts. The
+        // field is the instance's own, and a site it does not yet hold has no row to have set one on,
+        // so an absent slug is what every registration starts from: requiring one made a site
+        // resolvable only once it was already held, which is the opposite of what registering is for.
+        // A slug that IS there and is not a string says the answer is not the shape this reads, which
+        // is unreadable for the same reason a mistyped identifier is.
+        var carried = site["titleSlug"];
+        if (carried is not null && carried.GetValueKind() is not JsonValueKind.Null)
+        {
+            return carried is JsonValue slugged
+                && slugged.TryGetValue<string>(out var slug)
+                && !string.IsNullOrWhiteSpace(slug)
+                    ? new V2Site(entityId, title, slug)
+                    : null;
+        }
+
+        // Composed as the instance composes its own: every row it holds carries a slug equal to its
+        // identifier.
+        return new V2Site(entityId, title, entityId.ToString(CultureInfo.InvariantCulture));
     }
 
     private static JsonArray? AsArray(string? body)
