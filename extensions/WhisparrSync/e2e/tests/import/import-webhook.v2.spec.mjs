@@ -45,6 +45,10 @@ const SECRET_QUERY_PARAMETER = "s";
 // to read from this, so a spec sending another agent would be exercising a different branch.
 const V2_USER_AGENT = "Whisparr/2.2.0.231 (alpine 3.23.5)";
 
+// The source this version identifies against, transcribed by hand. The product and the library have
+// to agree on it, and a test reading it from the product would agree with whatever the product says.
+const THEPORNDB_ENDPOINT = "https://theporndb.net/graphql";
+
 // The root the fixture instance declares for itself, and the root Cove declares in the compose file.
 // They are deliberately DIFFERENT strings naming the same content, which is the deployment this
 // resolution exists for: neither system can be resolved to the other by comparing them.
@@ -72,6 +76,11 @@ const test = base.extend({
 /** The delivery a real instance sent, with only the file it names rewritten. */
 // `episodeFile`, which is v2's own member for the file. v3 carries
 // `movieFile`, and a body written with the wrong member is one the extension reads no path from.
+/** The identifier the captured delivery names, read where THIS version carries it. */
+function deliveredRemoteId() {
+  return String(JSON.parse(readFileSync(CAPTURED_DELIVERY, "utf8")).episodes[0].tvdbId);
+}
+
 function deliveryNaming(reportedPath, size) {
   const body = JSON.parse(readFileSync(CAPTURED_DELIVERY, "utf8"));
   body.episodeFile.path = reportedPath;
@@ -112,7 +121,7 @@ async function videosIn(api) {
   return listed.json?.items ?? [];
 }
 
-test("an v2 delivery registers the file this extension verified on disk", async ({
+test("a v2 delivery registers the file this extension verified on disk", async ({
   isolatedHarness,
 }) => {
   // A Cove pair, a Whisparr container and a real import between them. The default per-test budget
@@ -200,6 +209,14 @@ test("an v2 delivery registers the file this extension verified on disk", async 
       held.json.files?.map((file) => file.path),
       "the item Cove created is not at the path this extension verified",
     ).toEqual([covePath]);
+
+    // The identity, which is the second member the version decides. v2 carries it on the first
+    // episode of the delivery and v3 on its movie, so an item stamped here is evidence about v2's
+    // reading alone. The source it is stamped under is v2's own, not the other version's.
+    expect(
+      held.json.remoteIds,
+      "the imported item does not carry the identifier this version's delivery named",
+    ).toEqual([{ endpoint: THEPORNDB_ENDPOINT, remoteId: deliveredRemoteId() }]);
   } finally {
     // Before the harness's own, which the isolated fixture runs after this test: the daemon refuses
     // to remove a network a container still holds an endpoint on.

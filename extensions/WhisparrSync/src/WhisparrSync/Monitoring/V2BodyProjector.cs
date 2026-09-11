@@ -239,7 +239,7 @@ internal static class V2BodyProjector
 /// <param name="TitleSlug">The slug the add is composed with.</param>
 internal sealed record V2Site(int EntityId, string Title, string TitleSlug);
 
-/// <summary>What an v2 lookup answered.</summary>
+/// <summary>What a v2 lookup answered.</summary>
 internal enum V2LookupReading
 {
     /// <summary>Exactly one entity answered, and it is named.</summary>
