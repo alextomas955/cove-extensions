@@ -9,11 +9,11 @@ namespace WhisparrSync.Tests.Whisparr;
 /// actually answered.
 /// </summary>
 /// <remarks>
-/// The older generation publishes no API contract, so nothing about it may be generated and every
+/// Whisparr v2 publishes no API contract, so nothing about it may be generated and every
 /// fact is a hand-written expectation naming the build it came from. A pin computed from the module
 /// it checks agrees with itself forever and reports nothing.
 /// <para>
-/// No assertion about the older generation is written against an HTTP status code. That generation's
+/// No assertion about v2 is written against an HTTP status code. That generation's
 /// statuses are not a contract it publishes, and a status-only reading of it has already misreported
 /// once in this project: four documents were recorded as existing that do not.
 /// </para>

@@ -25,7 +25,7 @@ public sealed partial class WhisparrSync
 
     /// <summary>Marks one catalogue scene as wanted, without acquiring it.</summary>
     /// <remarks>
-    /// Composes the newer generation's scene add, whose acquisition-suppressing flag is set from the
+    /// Composes v3's scene add, whose acquisition-suppressing flag is set from the
     /// one constant every non-grabbing body reads. The instance is asked to look for nothing.
     /// </remarks>
     internal static async Task<Results<Ok<MissingSceneActionResult>, BadRequest, ForbiddenCode>>

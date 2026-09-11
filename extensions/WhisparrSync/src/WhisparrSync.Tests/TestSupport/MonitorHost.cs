@@ -33,7 +33,7 @@ namespace WhisparrSync.Tests.TestSupport;
 /// </remarks>
 internal sealed class MonitorHost : IAsyncDisposable
 {
-    /// <summary>An identifier a studio is stored under in the newer generation's namespace.</summary>
+    /// <summary>An identifier a studio is stored under in v3's namespace.</summary>
     public const string StudioRemoteIdValue = "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e";
 
     /// <summary>A second identifier in the same namespace, held by a performer rather than a studio.</summary>

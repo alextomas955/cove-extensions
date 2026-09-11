@@ -9,7 +9,7 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Tests.Monitoring;
 
 /// <summary>
-/// Every body the newer generation is sent for a monitor, an unmonitor, a scope change or a performer,
+/// Every body v3 is sent for a monitor, an unmonitor, a scope change or a performer,
 /// asserted on the composed object rather than through a client.
 /// </summary>
 /// <remarks>

@@ -40,7 +40,7 @@ internal static class BoundedText
 /// <para>
 /// Any spelling this does not recognise reads as the narrower scope, never the wider one: choosing
 /// the narrow scope wrongly costs one more gesture, and choosing the wide one wrongly marks a whole
-/// back catalogue wanted, which on the newer generation narrowing the scope again does not undo.
+/// back catalogue wanted, which on v3 narrowing the scope again does not undo.
 /// </para>
 /// <para>
 /// Temporary. Nothing has released from this repo, so once no stored blob anywhere can carry the

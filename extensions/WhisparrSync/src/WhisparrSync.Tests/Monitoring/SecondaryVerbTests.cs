@@ -107,7 +107,7 @@ public sealed class SecondaryVerbTests
     }
 
     /// <summary>
-    /// The catalogue refresh names an id ARRAY on the newer generation and a single SCALAR id on the
+    /// The catalogue refresh names an id ARRAY on v3 and a single SCALAR id on the
     /// older one, and neither spelling reaches the other generation.
     /// </summary>
     /// <remarks>
@@ -139,7 +139,7 @@ public sealed class SecondaryVerbTests
     }
 
     /// <summary>
-    /// The older generation holds no scene-registration capability, and a caller asking for that role
+    /// Whisparr v2 holds no scene-registration capability, and a caller asking for that role
     /// is told which capability was refused and on which generation.
     /// </summary>
     /// <remarks>
@@ -162,7 +162,7 @@ public sealed class SecondaryVerbTests
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
     }
 
-    /// <summary>The newer generation holds it and hands out the role the set was built with.</summary>
+    /// <summary>Whisparr v3 holds it and hands out the role the set was built with.</summary>
     [Fact]
     public void TheNewerGenerationHandsOutTheSceneRegistrationRole()
     {
@@ -322,7 +322,7 @@ public sealed class SecondaryVerbTests
     }
 
     /// <summary>
-    /// The newer generation's search names the studio command and the performer command, each with an
+    /// Whisparr v3's search names the studio command and the performer command, each with an
     /// id ARRAY, matching literals transcribed from that generation's own interface bundle.
     /// </summary>
     [Fact]
@@ -343,7 +343,7 @@ public sealed class SecondaryVerbTests
     }
 
     /// <summary>
-    /// The older generation's search names its own command with a SCALAR id, and no array form reaches
+    /// Whisparr v2's search names its own command with a SCALAR id, and no array form reaches
     /// it.
     /// </summary>
     [Fact]

@@ -3,7 +3,7 @@ using WhisparrSync.Connection;
 namespace WhisparrSync.Whisparr;
 
 /// <summary>
-/// The older generation's carrier: the Webhook connection's user and password fields, which that
+/// Whisparr v2's carrier: the Webhook connection's user and password fields, which that
 /// generation sends as an <c>Authorization: Basic</c> header on every delivery.
 /// </summary>
 /// <remarks>

@@ -27,7 +27,7 @@ test("a connection to nothing draws nothing either", async () => {
 
 test("each generation draws its own product's mark", async () => {
   // The two discs differ by their fill, which is the whole reason the mark tracks the generation:
-  // the newer product's disc is purple over near-black and the older one's is hot pink.
+  // v3's disc is purple over near-black and v2's is hot pink.
   const cases: { generation: "v3" | "v2"; disc: string }[] = [
     { generation: "v3", disc: "#241c1f" },
     { generation: "v2", disc: "#ff69b4" },
