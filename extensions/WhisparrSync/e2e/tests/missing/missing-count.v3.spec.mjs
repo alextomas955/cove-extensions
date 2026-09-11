@@ -23,7 +23,7 @@ import { startHarness } from "@cove-extensions/e2e/harness";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
 
-import { liftMetadataServers } from "../../../../../tests/e2e/lib/cove-providers.mjs";
+import { configureProviderStub, startProviderStub } from "../../lib/provider-stub.mjs";
 import {
   test as base,
   connectWhisparr,
@@ -69,6 +69,23 @@ const test = base.extend({
   baseUrl: async ({ countHarness }, use) => {
     await use(countHarness.baseUrl);
   },
+
+  // The catalogue this spec reads, served on the network under the service's own name. A fixture
+  // rather than a line in the test body, so it comes down with the stack even when an assertion
+  // throws.
+  provider: [
+    async ({ countHarness }, use) => {
+      const stub = await startProviderStub({
+        networkName: countHarness.container.getNetworkNames()[0],
+      });
+      try {
+        await use(stub);
+      } finally {
+        await stub.stop();
+      }
+    },
+    { scope: "test" },
+  ],
 
   whisparrV3: [
     async ({ countHarness }, use) => {
@@ -120,33 +137,6 @@ async function visit(page, baseUrl, path, present, label) {
   );
 }
 
-/** Configures the container's own Cove with this machine's StashDB credential. */
-async function configureStashDb(api) {
-  const lifted = liftMetadataServers({ names: ["stashdb"] });
-  if (lifted.skip !== null) return lifted.skip;
-
-  const server = lifted.servers[0];
-  if (typeof server?.apiKey !== "string" || server.apiKey.length === 0) {
-    return "this machine's Cove configuration carries no StashDB key";
-  }
-
-  const read = await api.get("/api/system/config");
-  if (read.status >= 300) return `GET /api/system/config answered ${String(read.status)}`;
-
-  const config = read.json;
-  config.scraping.metadataServers = [
-    {
-      endpoint: STASHDB_ENDPOINT,
-      apiKey: server.apiKey,
-      name: "stashdb",
-      maxRequestsPerMinute: server.maxRequestsPerMinute ?? 240,
-    },
-  ];
-
-  const saved = await api.put("/api/system/config", config);
-  return saved.status >= 300 ? `PUT /api/system/config answered ${String(saved.status)}` : null;
-}
-
 function note(description) {
   test.info().annotations.push({ type: "skipped-assertion", description });
 }
@@ -160,6 +150,7 @@ test("the grid never blanks between reads, and the pager offers no page that rep
   page,
   baseUrl,
   countHarness,
+  provider,
   whisparrV3,
 }) => {
   // A container pair, an extension install and a browser, well above the shared per-test budget.
@@ -170,7 +161,9 @@ test("the grid never blanks between reads, and the pager offers no page that rep
     () => countHarness.token,
   );
 
-  const providerSkip = await configureStashDb(coveApi);
+  // The catalogue comes from a stub answering to the service's own name on this network, so this
+  // spec reads a real captured page and needs no credential on the machine running it.
+  await configureProviderStub(coveApi);
 
   // The read establishes a status for each surviving card, so with nothing connected it answers a
   // whole-grid refusal rather than a catalogue.
@@ -206,11 +199,6 @@ test("the grid never blanks between reads, and the pager offers no page that rep
     "there is no catalogue to read for this studio, so no card may be drawn",
   ).toHaveCount(0);
 
-  // Reported as SKIPPED rather than returned from. Every assertion this test is named for is below
-  // this line and needs a catalogue this run cannot read, so a return here reports a pass over a
-  // page of cards that was never drawn.
-  test.skip(providerSkip !== null, `no catalogue can be read: ${providerSkip}`);
-
   const studio = await seedCoveStudio(coveApi, {
     name: `Brazzers Exxtra ${randomUUID().slice(0, 8)}`,
     remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: BRAZZERS_EXXTRA }],
@@ -228,6 +216,13 @@ test("the grid never blanks between reads, and the pager offers no page that rep
     cards(page).first(),
     "a provider was configured, so the catalogue should have answered with cards",
   ).toBeVisible({ timeout: REGION_BUDGET_MS });
+
+  // Read off the stub's own record. The cards on screen are evidence about this product only if the
+  // page they came from is the one this spec served.
+  expect(
+    (await provider.asked()).filter((line) => line.includes("MissingPage")),
+    "the stub was never asked for a page, so the grid is drawing something this spec did not serve",
+  ).not.toEqual([]);
 
   const firstPageTop = await firstCardTitle(page);
   const drawn = await cards(page).count();
@@ -264,12 +259,14 @@ test("the grid never blanks between reads, and the pager offers no page that rep
     await route.continue();
   });
 
+  // The catalogue this spec serves is a fixed size, so the pager has a page to turn to and the
+  // assertions below always run. They used to sit behind a count that could be zero, which is a
+  // guard that silently removes them whenever the answer is small.
   const next = page.getByRole("button", { name: "Next page" }).first();
-  if ((await next.count()) === 0) {
-    note("the page-change assertions did not run: the pager drew no next-page control");
-    await page.unroute(/\/missing\?/);
-    return;
-  }
+  await expect(
+    next,
+    "the served catalogue is larger than one page and the pager drew no next-page control",
+  ).toHaveCount(1);
 
   await next.click();
   await expect(
