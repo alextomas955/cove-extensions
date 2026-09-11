@@ -25,6 +25,7 @@ import { createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
+import { visit } from "../../lib/steps.mjs";
 
 import {
   test as base,
@@ -57,8 +58,6 @@ const searchName = (title) => `Search Whisparr for ${title}`;
 // alone and a match on it has to be a substring one.
 const WANTED = "Wanted";
 
-const BUNDLE_BUDGET_MS = 60_000;
-const BUNDLE_ATTEMPTS = 3;
 const TAB_BUDGET_MS = 30_000;
 const REGION_BUDGET_MS = 90_000;
 
@@ -153,21 +152,6 @@ function recordedPage(sceneList) {
     statusIsPermanentlyAbsent: false,
     providerName: "StashDB",
   };
-}
-
-/** Opens `path`, re-navigating while nothing the caller named has rendered. */
-async function visit(page, baseUrl, path, present, label) {
-  for (let attempt = 1; attempt <= BUNDLE_ATTEMPTS; attempt++) {
-    await page.goto(`${baseUrl}${path}`);
-    const rendered = await present
-      .waitFor({ state: "visible", timeout: BUNDLE_BUDGET_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (rendered) return;
-  }
-  throw new Error(
-    `${label}: nothing rendered at ${baseUrl}${path} across ${BUNDLE_ATTEMPTS} navigation(s) of ${BUNDLE_BUDGET_MS}ms each; the page is now at ${page.url()}`,
-  );
 }
 
 /** What the focused element is called, and whether it lies inside the card at `index`. */

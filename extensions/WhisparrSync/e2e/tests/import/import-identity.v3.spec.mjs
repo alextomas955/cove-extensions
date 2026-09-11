@@ -21,20 +21,17 @@ import {
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
-import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
 import {
   CALLBACK_ROUTE,
-  CALLBACK_STATUS_ROUTE,
-  CAPTURED_DELIVERY,
   COVE_ROOT,
   SECRET_HEADER,
-  SECRET_QUERY_PARAMETER,
   SETTINGS_ROUTE,
   USER_AGENT,
   WHISPARR_ROOT,
 } from "../../lib/contract.mjs";
+import { callbackSecret, deliveredRemoteId, deliveryNaming, videosIn } from "../../lib/steps.mjs";
 
 // Transcribed by hand from the extension's own constant for the source v3 identifies against. This
 // is what the stamp falls back to where the host is configured with no source, which it is here.
@@ -45,19 +42,6 @@ const IMPORT_BUDGET_MS = 120_000;
 const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
 });
-
-/** The captured delivery, with only the file it names rewritten. */
-function deliveryNaming(reportedPath, size) {
-  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY.v3, "utf8"));
-  body.movieFile.path = reportedPath;
-  body.movieFile.size = size;
-  return body;
-}
-
-/** The identifier the captured delivery carries. An INPUT: nothing here asserts against itself. */
-function deliveredRemoteId() {
-  return JSON.parse(readFileSync(CAPTURED_DELIVERY.v3, "utf8")).movie.stashId;
-}
 
 async function configure(api, whisparr) {
   const saved = await api.put(SETTINGS_ROUTE, {
@@ -70,23 +54,6 @@ async function configure(api, whisparr) {
     v2: null,
   });
   expect(saved.status, `saving settings failed: ${saved.text.slice(0, 300)}`).toBe(200);
-}
-
-async function callbackSecret(api) {
-  const status = await api.get(CALLBACK_STATUS_ROUTE);
-  expect(status.status, `GET ${CALLBACK_STATUS_ROUTE} answered: ${status.text.slice(0, 300)}`).toBe(
-    200,
-  );
-
-  const secret = new URL(status.json.copyableAddress).searchParams.get(SECRET_QUERY_PARAMETER);
-  expect(secret, `the copyable address carried no ${SECRET_QUERY_PARAMETER}`).toBeTruthy();
-  return secret;
-}
-
-async function videosIn(api) {
-  const listed = await api.get("/api/videos?perPage=200");
-  expect(listed.status, `GET /api/videos answered: ${listed.text.slice(0, 300)}`).toBe(200);
-  return listed.json?.items ?? [];
 }
 
 /**
@@ -158,7 +125,7 @@ test("a delivery stamps the scene's identity with no metadata source configured,
     const asWhisparr = createApiClient(() => isolatedHarness.baseUrl, undefined, {
       headers: { [SECRET_HEADER]: secret, "User-Agent": USER_AGENT.v3 },
     });
-    const body = deliveryNaming(`${WHISPARR_ROOT}/${tail}`, size);
+    const body = deliveryNaming("v3", { path: `${WHISPARR_ROOT}/${tail}`, size: size });
 
     const delivered = await asWhisparr.post(CALLBACK_ROUTE, body);
     expect(
@@ -185,7 +152,7 @@ test("a delivery stamps the scene's identity with no metadata source configured,
     expect(
       imported.remoteIds,
       "the item arrived without its identity, which is what this spec is for",
-    ).toEqual([{ endpoint: STASHDB_ENDPOINT, remoteId: deliveredRemoteId() }]);
+    ).toEqual([{ endpoint: STASHDB_ENDPOINT, remoteId: deliveredRemoteId("v3") }]);
 
     // A title the user sets between the two deliveries. It has to survive the second, which it can
     // only do while the scene is never enriched twice.
@@ -217,7 +184,7 @@ test("a delivery stamps the scene's identity with no metadata source configured,
     expect(
       afterwards.remoteIds,
       "the redelivery added a second identity row for one source",
-    ).toEqual([{ endpoint: STASHDB_ENDPOINT, remoteId: deliveredRemoteId() }]);
+    ).toEqual([{ endpoint: STASHDB_ENDPOINT, remoteId: deliveredRemoteId("v3") }]);
     expect(await videosIn(api), "the redelivery created a second item").toHaveLength(1);
   } finally {
     await whisparr.stop();
