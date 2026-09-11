@@ -77,6 +77,16 @@ obtains the role or is refused before any request leaves. There is no `Supports*
 version-mismatch throw. Bind a role to behavior that was measured against a real instance, not to a
 field the API documentation names.
 
+## An e2e spec is named for the generation it drives
+
+`*.v2.spec.mjs` starts an instance of the older generation and only that one, `*.v3.spec.mjs` the
+newer. A spec with neither suffix runs for both, or needs no instance at all. The suffix is what
+makes a one-sided capability visible without opening the file: five capabilities are held by both
+generations, and a spec name is the only place that says which of them are driven on both.
+
+A `*.v2` spec builds its instance from `e2e/lib/v2-fixture.mjs`, which seeds the site, the scene
+under it and the studio in Cove that names the site.
+
 ## Secrets
 
 The Whisparr API key and the callback secret live in a table this extension owns, never in the
