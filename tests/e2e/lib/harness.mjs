@@ -7,6 +7,15 @@
 // owns port resolution and health-check waiting.
 import { join } from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
+import { createSharedVolume } from "./shared-volume.mjs";
+
+/**
+ * Where the shared volume is mounted in the Cove container, and a Cove library path.
+ *
+ * Transcribed from docker-compose.yml rather than read out of it. A sibling container mounts the same
+ * volume at its own path, and only the two specs that do that have to agree on anything.
+ */
+const SHARED_PATH = "/shared";
 import { installViaContainerCopy } from "./install-extension.mjs";
 import { createApiClient } from "./apiClient.mjs";
 import { attemptUntil } from "./poll.mjs";
@@ -102,6 +111,11 @@ function highestDeclaredFloor() {
  * decides when it is absent.
  */
 export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS } = {}) {
+  // Created before compose, because the compose file declares it external and refuses to come up
+  // without it. Every harness gets one; only a spec that starts a sibling container mounts it
+  // anywhere else. See lib/shared-volume.mjs.
+  const sharedVolume = await createSharedVolume();
+
   let environment = new DockerComposeEnvironment(COMPOSE_DIR, COMPOSE_FILE)
     .withStartupTimeout(timeoutMs)
     // Keyed on container names (`<service>-<index>`, the same names getContainer takes below), never
@@ -110,10 +124,23 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     .withWaitStrategy("cove-1", Wait.forHealthCheck())
     .withWaitStrategy("db-1", Wait.forHealthCheck());
 
-  const composeEnv = { COVE_E2E_IMAGE: resolveCoveImage(image), ...env };
+  const composeEnv = {
+    COVE_E2E_IMAGE: resolveCoveImage(image),
+    COVE_E2E_SHARED_VOLUME: sharedVolume.name,
+    ...env,
+  };
   environment = environment.withEnvironment(composeEnv);
 
-  const started = await environment.up();
+  let started;
+  try {
+    started = await environment.up();
+  } catch (failure) {
+    // The volume outlives a failed bring-up otherwise, and nothing later in this call will run to
+    // remove it. The bring-up failure is the one worth raising, so a failure to clean up behind it
+    // does not displace it.
+    await sharedVolume.remove();
+    throw failure;
+  }
   const coveContainer = started.getContainer("cove-1");
   // Resolved eagerly, like the Cove container above, so a service name that no longer matches fails
   // at startup rather than part-way through whatever assertion first reached for it.
@@ -364,8 +391,27 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       return { token, userId, roleId, roleName, username, password };
     },
 
+    /**
+     * The Docker volume this instance mounts at `/shared`, which is also a Cove library path.
+     *
+     * Hand it to a sibling container's own mount so the two see one filesystem. Only a spec that
+     * needs that reaches for it.
+     */
+    get sharedVolume() {
+      return sharedVolume.name;
+    },
+
+    /** Where {@link sharedVolume} is mounted inside the Cove container. */
+    sharedPath: SHARED_PATH,
+
     async stop() {
-      await started.down({ removeVolumes: true });
+      // The containers first: Docker refuses to remove a volume while one still holds it, and
+      // `removeVolumes` covers only the volumes compose itself created.
+      try {
+        await started.down({ removeVolumes: true });
+      } finally {
+        await sharedVolume.remove();
+      }
     },
   };
 

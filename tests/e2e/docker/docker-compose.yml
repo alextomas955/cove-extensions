@@ -59,11 +59,17 @@ services:
       # /data2 is listed because the cross-device spec moves files there.
       COVE__CovePaths__0__Path: /data
       COVE__CovePaths__1__Path: /data2
+      # The third library path is the one another container can also write. See the `shared` volume
+      # below for why a spec needs that and why the other two cannot serve.
+      COVE__CovePaths__2__Path: /shared
       # Authentication is OFF by default, which is what every spec but the auth one runs against. A
       # spec needing a real credential flow opts in with
       # `startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } })`. The flip is instance-global, so it
       # belongs to an isolated harness and never to a worker-shared one.
       COVE__Auth__Enabled: "${COVE_E2E_AUTH_ENABLED:-false}"
+    volumes:
+      # Mounted unconditionally, and empty in almost every spec. See the top-level `volumes` block.
+      - shared:/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5073/health"]
       interval: 2s
@@ -94,3 +100,19 @@ services:
       # spec's first line runs, so the state under test is always the post-restart one. A spec that
       # writes into /data2 must therefore hand the mount over to itself first.
       - /data2
+
+volumes:
+  # The one mount another container in the same spec can also write, so a file Whisparr or a download
+  # client puts down is the same file Cove reads, at the same absolute path and on the same device.
+  # Whisparr imports a completed download by hardlink and a hardlink cannot cross a device, so two
+  # copies of a directory would not do.
+  #
+  # Declared external, and created by `startHarness` through `lib/shared-volume.mjs` rather than by
+  # compose. Compose would name it for the project and scope its life to the project, which is the
+  # wrong life: a sibling container joins it by name from outside the project entirely.
+  #
+  # Every harness gets one whether or not its spec mounts it anywhere else. A conditional mount would
+  # have to be a conditional service, and an empty volume costs nothing.
+  shared:
+    external: true
+    name: ${COVE_E2E_SHARED_VOLUME:?created by tests/e2e/lib/harness.mjs — this compose file creates no volume of its own, so a bare docker compose invocation must name one}
