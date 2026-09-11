@@ -32,6 +32,7 @@ import { createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
+import { visit } from "../../lib/steps.mjs";
 
 import {
   test as base,
@@ -99,8 +100,6 @@ const SEARCH_IS_WITH_WHISPARR = "Whisparr has the search.";
 
 // Each budget names the operation it bounds, so a failure says which one blew it rather than
 // reporting the whole test as a timeout naming nothing.
-const PAGE_BUDGET_MS = 60_000;
-const PAGE_ATTEMPTS = 3;
 const TAB_BUDGET_MS = 30_000;
 const REGION_BUDGET_MS = 90_000;
 
@@ -154,27 +153,6 @@ async function registeredVideoTabs(api) {
   return (manifest.json?.tabs ?? [])
     .filter((entry) => entry.extensionId === EXTENSION_ID && entry.pageType === "video")
     .map((entry) => entry.key);
-}
-
-/**
- * Opens `path`, re-navigating while nothing the caller named has rendered.
- *
- * The host paints its own error boundary in place of a page whose lazily-imported chunk failed to
- * fetch, on the correct URL and indefinitely. Only a fresh navigation recovers it, and the retry is
- * bounded so a permanent failure is not turned into a hung test.
- */
-async function visit(page, baseUrl, path, present, label) {
-  for (let attempt = 1; attempt <= PAGE_ATTEMPTS; attempt++) {
-    await page.goto(`${baseUrl}${path}`);
-    const rendered = await present
-      .waitFor({ state: "visible", timeout: PAGE_BUDGET_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (rendered) return;
-  }
-  throw new Error(
-    `${label}: nothing rendered at ${baseUrl}${path} across ${PAGE_ATTEMPTS} navigation(s) of ${PAGE_BUDGET_MS}ms each; the page is now at ${page.url()}`,
-  );
 }
 
 /**

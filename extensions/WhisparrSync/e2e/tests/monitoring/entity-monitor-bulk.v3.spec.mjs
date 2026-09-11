@@ -33,6 +33,7 @@ import { startHarness } from "@cove-extensions/e2e/harness";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { randomUUID } from "node:crypto";
+import { visit } from "../../lib/steps.mjs";
 
 import {
   connectWhisparr,
@@ -83,7 +84,6 @@ const SEEDED_PERFORMERS = 2;
 
 // Each budget names the operation it bounds, so a failure says which one blew it.
 const PAGE_BUDGET_MS = 60_000;
-const PAGE_ATTEMPTS = 3;
 const BULK_BUTTON_BUDGET_MS = 60_000;
 const ENQUEUE_BUDGET_MS = 60_000;
 const JOB_BUDGET_MS = 120_000;
@@ -123,21 +123,6 @@ const bulkButton = (page) => page.getByRole("button", { name: BULK_ACTION_LABEL,
 // is its accessible name.
 const chooserPanel = (page) =>
   page.getByRole("menu", { name: `Whisparr · ${SEEDED_STUDIOS} selected` });
-
-/** Opens `path`, re-navigating while the host has painted its own error boundary in place of it. */
-async function visit(page, baseUrl, path, present, label) {
-  for (let attempt = 1; attempt <= PAGE_ATTEMPTS; attempt++) {
-    await page.goto(`${baseUrl}${path}`);
-    const rendered = await present
-      .waitFor({ state: "visible", timeout: PAGE_BUDGET_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (rendered) return;
-  }
-  throw new Error(
-    `${label}: nothing rendered at ${baseUrl}${path} across ${PAGE_ATTEMPTS} navigation(s) of ${PAGE_BUDGET_MS}ms each; the page is now at ${page.url()}`,
-  );
-}
 
 /**
  * Every card's own selection toggle on an entity list page, in DOM order.

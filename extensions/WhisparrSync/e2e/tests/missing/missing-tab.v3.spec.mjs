@@ -31,6 +31,7 @@ import { randomUUID } from "node:crypto";
 
 import { configureProviderStub, startProviderStub } from "../../lib/provider-stub.mjs";
 import { SETTINGS_PAGE_PATH } from "../../lib/contract.mjs";
+import { visit } from "../../lib/steps.mjs";
 import {
   test as base,
   connectWhisparr,
@@ -61,8 +62,6 @@ const BRAZZERS_EXXTRA = "39cee498-a9ac-4403-910a-1a0157ad22d8";
 
 // Each budget names the operation it bounds, so a failure says which one blew it rather than
 // reporting the whole test as a timeout naming nothing.
-const BUNDLE_BUDGET_MS = 60_000;
-const BUNDLE_ATTEMPTS = 3;
 // The tab is served in the manifest the host already loaded, and it is drawn with the tab strip this
 // budget starts counting from, so it arrives in well under this on a cold container.
 const TAB_BUDGET_MS = 30_000;
@@ -101,29 +100,6 @@ const cards = (page) => page.locator("article").filter({ has: page.locator("img,
 
 /** Any sentence the tab stated in place of a grid. */
 const statedReasons = (page) => page.locator("p").filter({ hasText: /\S/ });
-
-/**
- * Opens `path`, re-navigating while nothing the caller named has rendered.
- *
- * The host carries an unknown settings key only until it finishes loading extensions, then rewrites
- * the address to its first built-in tab; and it paints its own error boundary in place of a page
- * whose lazily-imported chunk failed to fetch, on the correct URL and indefinitely. Only a fresh
- * navigation recovers either, and the retry is bounded so a permanent failure is not turned into a
- * hung test.
- */
-async function visit(page, baseUrl, path, present, label) {
-  for (let attempt = 1; attempt <= BUNDLE_ATTEMPTS; attempt++) {
-    await page.goto(`${baseUrl}${path}`);
-    const rendered = await present
-      .waitFor({ state: "visible", timeout: BUNDLE_BUDGET_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (rendered) return;
-  }
-  throw new Error(
-    `${label}: nothing rendered at ${baseUrl}${path} across ${BUNDLE_ATTEMPTS} navigation(s) of ${BUNDLE_BUDGET_MS}ms each; the page is now at ${page.url()}`,
-  );
-}
 
 test("the bundle loads with the tab in it, and the tab renders on every page it registers for", async ({
   page,
