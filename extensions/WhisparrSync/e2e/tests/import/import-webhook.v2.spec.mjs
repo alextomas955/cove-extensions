@@ -26,21 +26,18 @@ import {
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
-import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
 import {
   CALLBACK_ROUTE,
-  CALLBACK_STATUS_ROUTE,
-  CAPTURED_DELIVERY,
   COVE_ROOT,
   SECRET_HEADER,
-  SECRET_QUERY_PARAMETER,
   SETTINGS_ROUTE,
   THEPORNDB_ENDPOINT,
   USER_AGENT,
   WHISPARR_ROOT,
 } from "../../lib/contract.mjs";
+import { callbackSecret, deliveredRemoteId, deliveryNaming, videosIn } from "../../lib/steps.mjs";
 
 const IMPORT_BUDGET_MS = 120_000;
 
@@ -51,17 +48,6 @@ const test = base.extend({
 /** The delivery a real instance sent, with only the file it names rewritten. */
 // `episodeFile`, which is v2's own member for the file. v3 carries
 // `movieFile`, and a body written with the wrong member is one the extension reads no path from.
-/** The identifier the captured delivery names, read where THIS version carries it. */
-function deliveredRemoteId() {
-  return String(JSON.parse(readFileSync(CAPTURED_DELIVERY.v2, "utf8")).episodes[0].tvdbId);
-}
-
-function deliveryNaming(reportedPath, size) {
-  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY.v2, "utf8"));
-  body.episodeFile.path = reportedPath;
-  body.episodeFile.size = size;
-  return body;
-}
 
 /** Points the extension at the fixture instance and stores its key. */
 async function configure(api, whisparr) {
@@ -75,25 +61,6 @@ async function configure(api, whisparr) {
     },
   });
   expect(saved.status, `saving settings failed: ${saved.text.slice(0, 300)}`).toBe(200);
-}
-
-/** This installation's own callback secret, read out of the address the page offers. */
-async function callbackSecret(api) {
-  const status = await api.get(CALLBACK_STATUS_ROUTE);
-  expect(status.status, `GET ${CALLBACK_STATUS_ROUTE} answered: ${status.text.slice(0, 300)}`).toBe(
-    200,
-  );
-
-  const secret = new URL(status.json.copyableAddress).searchParams.get(SECRET_QUERY_PARAMETER);
-  expect(secret, `the copyable address carried no ${SECRET_QUERY_PARAMETER}`).toBeTruthy();
-  return secret;
-}
-
-/** Every video Cove holds, with the file paths it holds them at. */
-async function videosIn(api) {
-  const listed = await api.get("/api/videos?perPage=200");
-  expect(listed.status, `GET /api/videos answered: ${listed.text.slice(0, 300)}`).toBe(200);
-  return listed.json?.items ?? [];
 }
 
 test("a v2 delivery registers the file this extension verified on disk", async ({
@@ -150,7 +117,7 @@ test("a v2 delivery registers the file this extension verified on disk", async (
     });
     const delivered = await asWhisparr.post(
       CALLBACK_ROUTE,
-      deliveryNaming(`${WHISPARR_ROOT}/${tail}`, size),
+      deliveryNaming("v2", { path: `${WHISPARR_ROOT}/${tail}`, size: size }),
     );
 
     // A diagnostic, not the evidence. This spec's subject is what Cove holds afterwards, and a 200
@@ -191,7 +158,7 @@ test("a v2 delivery registers the file this extension verified on disk", async (
     expect(
       held.json.remoteIds,
       "the imported item does not carry the identifier this version's delivery named",
-    ).toEqual([{ endpoint: THEPORNDB_ENDPOINT, remoteId: deliveredRemoteId() }]);
+    ).toEqual([{ endpoint: THEPORNDB_ENDPOINT, remoteId: deliveredRemoteId("v2") }]);
   } finally {
     // Before the harness's own, which the isolated fixture runs after this test: the daemon refuses
     // to remove a network a container still holds an endpoint on.

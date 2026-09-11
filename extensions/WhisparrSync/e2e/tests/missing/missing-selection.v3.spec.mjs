@@ -24,6 +24,7 @@ import { createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
+import { visit } from "../../lib/steps.mjs";
 
 import {
   test as base,
@@ -57,8 +58,6 @@ const NO_INSTANCE_CONNECTED = "No Whisparr instance is connected";
 /** How many scenes the recorded page carries. One page's worth, which is what the route accepts. */
 const SCENES_ON_THE_PAGE = 12;
 
-const BUNDLE_BUDGET_MS = 60_000;
-const BUNDLE_ATTEMPTS = 3;
 const TAB_BUDGET_MS = 30_000;
 const REGION_BUDGET_MS = 90_000;
 
@@ -171,21 +170,6 @@ function recordedPage(count, { page: pageNumber = 1, lastPage = 1 } = {}) {
     statusWasRead: true,
     statusIsPermanentlyAbsent: false,
   };
-}
-
-/** Opens `path`, re-navigating while nothing the caller named has rendered. */
-async function visit(page, baseUrl, path, present, label) {
-  for (let attempt = 1; attempt <= BUNDLE_ATTEMPTS; attempt++) {
-    await page.goto(`${baseUrl}${path}`);
-    const rendered = await present
-      .waitFor({ state: "visible", timeout: BUNDLE_BUDGET_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (rendered) return;
-  }
-  throw new Error(
-    `${label}: nothing rendered at ${baseUrl}${path} across ${BUNDLE_ATTEMPTS} navigation(s) of ${BUNDLE_BUDGET_MS}ms each; the page is now at ${page.url()}`,
-  );
 }
 
 test("missing selection: ticking a page, its shortcuts, and the run a press starts", async ({

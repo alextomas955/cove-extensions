@@ -17,34 +17,23 @@ import {
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
-import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
 import {
   CALLBACK_ROUTE,
-  CALLBACK_STATUS_ROUTE,
-  CAPTURED_DELIVERY,
   COVE_ROOT,
   SECRET_HEADER,
-  SECRET_QUERY_PARAMETER,
   SETTINGS_ROUTE,
   USER_AGENT,
   WHISPARR_ROOT,
 } from "../../lib/contract.mjs";
+import { callbackSecret, deliveryNaming, videosIn } from "../../lib/steps.mjs";
 
 const IMPORT_BUDGET_MS = 120_000;
 
 const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
 });
-
-/** The captured delivery, with only the file it names rewritten. */
-function deliveryNaming(reportedPath, size) {
-  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY.v3, "utf8"));
-  body.movieFile.path = reportedPath;
-  body.movieFile.size = size;
-  return body;
-}
 
 async function configure(api, whisparr) {
   const saved = await api.put(SETTINGS_ROUTE, {
@@ -68,23 +57,6 @@ async function chooseUpgradeBehavior(api, behavior) {
     200,
   );
   return saved.json?.upgradeBehavior;
-}
-
-async function callbackSecret(api) {
-  const status = await api.get(CALLBACK_STATUS_ROUTE);
-  expect(status.status, `GET ${CALLBACK_STATUS_ROUTE} answered: ${status.text.slice(0, 300)}`).toBe(
-    200,
-  );
-
-  const secret = new URL(status.json.copyableAddress).searchParams.get(SECRET_QUERY_PARAMETER);
-  expect(secret, `the copyable address carried no ${SECRET_QUERY_PARAMETER}`).toBeTruthy();
-  return secret;
-}
-
-async function videosIn(api) {
-  const listed = await api.get("/api/videos?perPage=200");
-  expect(listed.status, `GET /api/videos answered: ${listed.text.slice(0, 300)}`).toBe(200);
-  return listed.json?.items ?? [];
 }
 
 /**
@@ -150,7 +122,7 @@ test("a redelivery naming a different file re-points the item, and neither behav
     const deliver = async (file, why) => {
       const answer = await asWhisparr.post(
         CALLBACK_ROUTE,
-        deliveryNaming(file.reportedPath, file.size),
+        deliveryNaming("v3", { path: file.reportedPath, size: file.size }),
       );
       expect(answer.status, `${why}: ${answer.text.slice(0, 300)}`).toBeLessThan(400);
     };

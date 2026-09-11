@@ -26,25 +26,20 @@ import {
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { startWhisparr } from "@cove-extensions/e2e/whisparr";
-import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
 import {
   CALLBACK_ROUTE,
-  CALLBACK_STATUS_ROUTE,
-  CAPTURED_DELIVERY,
   COVE_ROOT,
   DATA_ROUTE,
-  DISABLE_ROUTE,
-  ENABLE_ROUTE,
   EXTENSION_ID,
   OPTIONS_KEY,
   SECRET_HEADER,
-  SECRET_QUERY_PARAMETER,
   SETTINGS_ROUTE,
   USER_AGENT,
   WHISPARR_ROOT,
 } from "../../lib/contract.mjs";
+import { callbackSecret, deliveryNaming, restartWorker, videosIn } from "../../lib/steps.mjs";
 
 const BANNER_PATH = `/api/extensions/${EXTENSION_ID}/import/banner`;
 
@@ -64,40 +59,6 @@ const WATERMARK_BUDGET_MS = 240_000;
 const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
 });
-
-/**
- * The captured delivery, with only the file it names rewritten.
- *
- * `identified` drops the scene's own identifier, which an instance omits for a scene it holds no
- * stash id for. What the identifier decides here is whether the product can name an item for a file
- * row nothing claims.
- */
-function deliveryNaming(reportedPath, size, { identified = true } = {}) {
-  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY.v3, "utf8"));
-  body.movieFile.path = reportedPath;
-  body.movieFile.size = size;
-  if (!identified) {
-    delete body.movie.stashId;
-  }
-  return body;
-}
-
-async function callbackSecret(api) {
-  const status = await api.get(CALLBACK_STATUS_ROUTE);
-  expect(status.status, `GET ${CALLBACK_STATUS_ROUTE} answered: ${status.text.slice(0, 300)}`).toBe(
-    200,
-  );
-
-  const secret = new URL(status.json.copyableAddress).searchParams.get(SECRET_QUERY_PARAMETER);
-  expect(secret, `the copyable address carried no ${SECRET_QUERY_PARAMETER}`).toBeTruthy();
-  return secret;
-}
-
-async function videosIn(api) {
-  const listed = await api.get("/api/videos?perPage=200");
-  expect(listed.status, `GET /api/videos answered: ${listed.text.slice(0, 300)}`).toBe(200);
-  return listed.json?.items ?? [];
-}
 
 /**
  * One video as Cove holds it.
@@ -136,16 +97,6 @@ async function storedOptions(api) {
 async function writeOptions(api, change) {
   const written = await api.put(`${DATA_ROUTE}/${OPTIONS_KEY}`, JSON.stringify(change));
   expect(written.status, `PUT the options key answered: ${written.text.slice(0, 300)}`).toBe(200);
-}
-
-/** Stops and restarts the worker, so a pass runs against the settings just written. */
-async function restartWorker(api) {
-  const disabled = await api.post(DISABLE_ROUTE);
-  expect(disabled.status, `POST ${DISABLE_ROUTE} answered: ${disabled.text.slice(0, 300)}`).toBe(
-    200,
-  );
-  const enabled = await api.post(ENABLE_ROUTE);
-  expect(enabled.status, `POST ${ENABLE_ROUTE} answered: ${enabled.text.slice(0, 300)}`).toBe(200);
 }
 
 test("a redelivery naming a path the extension detached answers inside its contract, and the backstop over the same state keeps its place", async ({
@@ -218,7 +169,10 @@ test("a redelivery naming a path the extension detached answers inside its contr
     });
 
     const deliver = (file, options) =>
-      asWhisparr.post(CALLBACK_ROUTE, deliveryNaming(file.reportedPath, file.size, options));
+      asWhisparr.post(
+        CALLBACK_ROUTE,
+        deliveryNaming("v3", { path: file.reportedPath, size: file.size, remoteId: options }),
+      );
 
     expect(await videosIn(api), "Cove already held a video before the first delivery").toEqual([]);
 
