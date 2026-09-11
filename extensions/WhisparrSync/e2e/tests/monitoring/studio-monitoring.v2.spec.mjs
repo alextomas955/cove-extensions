@@ -59,3 +59,44 @@ test("it monitors a studio, and says what else it can do", async ({ v2 }) => {
   const after = (await api.get(monitoringRoute)).json;
   expect(after?.monitored, "the product reports a state the instance does not hold").toBe(true);
 });
+
+test("it adds a studio the instance does not hold, and monitors what it added", async ({ v2 }) => {
+  const { api, whisparrApi, unheldStudio, unheldSiteId } = v2;
+
+  // The path a reader meets first, and the one nothing drove: every other monitoring spec seeds the
+  // entity into the instance before pressing, so all of them take the already-held branch. Pressing
+  // on an entity the instance holds nothing for is what makes the product add it.
+  const before = (await whisparrApi.get("/api/v3/series")).json ?? [];
+  expect(
+    before.filter((one) => one.tvdbId === unheldSiteId),
+    "the instance already holds the studio this test is about",
+  ).toEqual([]);
+
+  const pressed = await api.post(
+    extensionRoute(`entity/studio/${String(unheldStudio.id)}/monitor`),
+    {},
+  );
+  expect(pressed.status, `monitor was refused: ${pressed.text?.slice(0, 300)}`).toBeLessThan(400);
+  expect(
+    pressed.json?.refusal ?? "none",
+    `the press named a reason rather than acting: ${pressed.text?.slice(0, 300)}`,
+  ).toBe("none");
+
+  // The instance's own catalogue. A route that answered 200 having added nothing would pass every
+  // assertion made against its answer.
+  const added = await pollUntil(
+    async () => (await whisparrApi.get("/api/v3/series")).json ?? [],
+    (rows) => rows.some((one) => one.tvdbId === unheldSiteId),
+    {
+      timeoutMs: 180_000,
+      intervalMs: 2000,
+      label: "the instance holds the studio the press added",
+    },
+  );
+
+  const created = added.find((one) => one.tvdbId === unheldSiteId);
+  expect(
+    created?.monitored,
+    "the press added the studio and left it unmonitored, so the reader pressed monitor and got a row that wants nothing",
+  ).toBe(true);
+});
