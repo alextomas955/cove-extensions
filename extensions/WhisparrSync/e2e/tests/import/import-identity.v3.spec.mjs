@@ -22,42 +22,25 @@ import { pollUntil } from "@cove-extensions/e2e/poll";
 import { placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
-
-const EXTENSION_ID = "com.alextomas955.whisparrsync";
-const SETTINGS_PATH = `/api/extensions/${EXTENSION_ID}/settings`;
-const CALLBACK_PATH = `/api/extensions/${EXTENSION_ID}/callback`;
-const CALLBACK_STATUS_PATH = `${CALLBACK_PATH}/status`;
-
-// Transcribed by hand from the extension's own frozen constants.
-const SECRET_HEADER = "X-Cove-Whisparr-Sync-Secret";
-const SECRET_QUERY_PARAMETER = "s";
-
-// Transcribed by hand from the delivery the pinned build made.
-const V3_USER_AGENT = "Whisparr/3.3.8.1097 (alpine 3.23.5)";
+import {
+  CALLBACK_ROUTE,
+  CALLBACK_STATUS_ROUTE,
+  CAPTURED_DELIVERY,
+  COVE_ROOT,
+  SECRET_HEADER,
+  SECRET_QUERY_PARAMETER,
+  SETTINGS_ROUTE,
+  USER_AGENT,
+  WHISPARR_ROOT,
+} from "../../lib/contract.mjs";
 
 // Transcribed by hand from the extension's own constant for the source v3 identifies against. This
 // is what the stamp falls back to where the host is configured with no source, which it is here.
 const STASHDB_ENDPOINT = "https://stashdb.org/graphql";
 
-const WHISPARR_ROOT = "/whisparr-media";
-const COVE_ROOT = "/data";
-
 const IMPORT_BUDGET_MS = 120_000;
-
-const CAPTURED_DELIVERY = join(
-  import.meta.dirname,
-  "..",
-  "..",
-  "..",
-  "src",
-  "WhisparrSync.Tests",
-  "TestSupport",
-  "Fixtures",
-  "whisparr-v3-3.3.8.1097-webhook-import.json",
-);
 
 const test = base.extend({
   isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
@@ -65,7 +48,7 @@ const test = base.extend({
 
 /** The captured delivery, with only the file it names rewritten. */
 function deliveryNaming(reportedPath, size) {
-  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY, "utf8"));
+  const body = JSON.parse(readFileSync(CAPTURED_DELIVERY.v3, "utf8"));
   body.movieFile.path = reportedPath;
   body.movieFile.size = size;
   return body;
@@ -73,11 +56,11 @@ function deliveryNaming(reportedPath, size) {
 
 /** The identifier the captured delivery carries. An INPUT: nothing here asserts against itself. */
 function deliveredRemoteId() {
-  return JSON.parse(readFileSync(CAPTURED_DELIVERY, "utf8")).movie.stashId;
+  return JSON.parse(readFileSync(CAPTURED_DELIVERY.v3, "utf8")).movie.stashId;
 }
 
 async function configure(api, whisparr) {
-  const saved = await api.put(SETTINGS_PATH, {
+  const saved = await api.put(SETTINGS_ROUTE, {
     selectedGeneration: "v3",
     v3: {
       address: whisparr.v3.internalBaseUrl,
@@ -90,8 +73,8 @@ async function configure(api, whisparr) {
 }
 
 async function callbackSecret(api) {
-  const status = await api.get(CALLBACK_STATUS_PATH);
-  expect(status.status, `GET ${CALLBACK_STATUS_PATH} answered: ${status.text.slice(0, 300)}`).toBe(
+  const status = await api.get(CALLBACK_STATUS_ROUTE);
+  expect(status.status, `GET ${CALLBACK_STATUS_ROUTE} answered: ${status.text.slice(0, 300)}`).toBe(
     200,
   );
 
@@ -173,11 +156,11 @@ test("a delivery stamps the scene's identity with no metadata source configured,
     ).toBe(true);
 
     const asWhisparr = createApiClient(() => isolatedHarness.baseUrl, undefined, {
-      headers: { [SECRET_HEADER]: secret, "User-Agent": V3_USER_AGENT },
+      headers: { [SECRET_HEADER]: secret, "User-Agent": USER_AGENT.v3 },
     });
     const body = deliveryNaming(`${WHISPARR_ROOT}/${tail}`, size);
 
-    const delivered = await asWhisparr.post(CALLBACK_PATH, body);
+    const delivered = await asWhisparr.post(CALLBACK_ROUTE, body);
     expect(
       delivered.status,
       `the callback refused the delivery, so nothing below is about the ingest: ${delivered.text.slice(0, 300)}`,
@@ -221,7 +204,7 @@ test("a delivery stamps the scene's identity with no metadata source configured,
       "the title the user set never took, so the redelivery is not the subject",
     ).toBe(chosenTitle);
 
-    const redelivered = await asWhisparr.post(CALLBACK_PATH, body);
+    const redelivered = await asWhisparr.post(CALLBACK_ROUTE, body);
     expect(
       redelivered.status,
       `the redelivery was refused: ${redelivered.text.slice(0, 300)}`,

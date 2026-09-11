@@ -22,6 +22,8 @@ import { startHarness } from "@cove-extensions/e2e/harness";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
 
+import { THEPORNDB_ENDPOINT } from "../../lib/contract.mjs";
+
 import {
   test as base,
   connectWhisparr,
@@ -87,7 +89,6 @@ const BRAZZERS_EXXTRA = "39cee498-a9ac-4403-910a-1a0157ad22d8";
  * A studio v2 can be asked about carries its id under this spelling, so a row
  * written for the other generation is one it cannot be named by.
  */
-const THEPORNDB_ENDPOINT = "https://theporndb.net/graphql";
 
 const BUNDLE_BUDGET_MS = 60_000;
 const BUNDLE_ATTEMPTS = 3;
