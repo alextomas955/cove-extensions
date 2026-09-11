@@ -110,7 +110,7 @@ public sealed class SyncLibraryRouteTests
     }
 
     /// <summary>
-    /// The older generation is aimed at its own pass rather than refused, from the roles the target
+    /// Whisparr v2 is aimed at its own pass rather than refused, from the roles the target
     /// obtains rather than from a version check.
     /// </summary>
     /// <remarks>

@@ -91,7 +91,7 @@ async function readWebhookSchema(api) {
 }
 
 /**
- * Whether the older generation sends an authorization header when its user and password are set.
+ * Whether v2 sends an authorization header when its user and password are set.
  *
  * The registration echoes the fields back on save whatever the build does with them, so the answer is
  * taken from the inbound request the listener captured and from nowhere else.
@@ -242,7 +242,7 @@ async function measurePassthrough(harness, { authEnabled }) {
 /**
  * The verdict the two halves support.
  *
- * Both must be yes for a secret to travel out of band on the older generation. Either answering no
+ * Both must be yes for a secret to travel out of band on v2. Either answering no
  * selects D-10's stated fallback, and an unestablished half is `inconclusive` rather than the no it
  * resembles.
  */

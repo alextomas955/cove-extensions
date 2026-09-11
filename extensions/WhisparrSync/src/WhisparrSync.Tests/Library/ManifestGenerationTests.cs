@@ -30,7 +30,7 @@ namespace WhisparrSync.Tests.Library;
 public sealed class ManifestGenerationTests
 {
     /// <summary>
-    /// The surfaces the older generation has no meaning for: it publishes no per-scene identity and
+    /// The surfaces v2 has no meaning for: it publishes no per-scene identity and
     /// holds no performer entity.
     /// </summary>
     private static readonly string[] VideosViewSlots =
@@ -120,7 +120,7 @@ public sealed class ManifestGenerationTests
 
     /// <summary>
     /// A store nothing has written to is a generation not established, which keeps every surface: a
-    /// user who has not configured the extension yet is not a user on the older generation.
+    /// user who has not configured the extension yet is not a user on v2.
     /// </summary>
     [Fact]
     public async Task AGenerationNeverStoredRegistersEverySurface()
@@ -167,8 +167,8 @@ public sealed class ManifestGenerationTests
     /// </summary>
     /// <remarks>
     /// The load answers such a blob with manufactured defaults, and the default names the newer
-    /// generation. Publishing that would register every newer-generation surface on an instance the
-    /// blob names as the older one, with full confidence and on a value no user configured.
+    /// generation. Publishing that would register every v3 surface on an instance the
+    /// blob names as v2, with full confidence and on a value no user configured.
     /// <para>
     /// Observed through the callback the extension's own store factory hands in, which is the only
     /// reader of the published value a test can stand beside.
@@ -186,7 +186,7 @@ public sealed class ManifestGenerationTests
         Assert.Equal([null], published);
     }
 
-    /// <summary>A store nothing has written to establishes the default, which is the newer one.</summary>
+    /// <summary>A store nothing has written to establishes the default, which is v3.</summary>
     /// <remarks>
     /// Its defaults are the answer, so it is not the same case as a blob that failed to bind. This is
     /// the input the never-stored manifest case runs on, named here so the two are not confused.

@@ -28,7 +28,7 @@ public sealed class SceneRefusalPrecedenceTests
     private const string Search = "search";
 
     /// <summary>
-    /// The source the older generation identifies against, which the newer one reads as another
+    /// The source v2 identifies against, which v3 reads as another
     /// namespace.
     /// </summary>
     private const string OtherEndpoint = "theporndb.net/graphql";
@@ -88,7 +88,7 @@ public sealed class SceneRefusalPrecedenceTests
 
     /// <summary>An absent capability outranks the no-entry step beneath it.</summary>
     /// <remarks>
-    /// The older generation keeps no scene records, so it registers neither the read nor the grab.
+    /// Whisparr v2 keeps no scene records, so it registers neither the read nor the grab.
     /// The scene carries an identity in that generation's own namespace, so the step above this one
     /// does not apply.
     /// </remarks>

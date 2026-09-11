@@ -3,7 +3,7 @@ using WhisparrSync.Connection;
 namespace WhisparrSync.Whisparr;
 
 /// <summary>
-/// The newer generation's carrier: a custom request header, set through the Webhook connection's
+/// Whisparr v3's carrier: a custom request header, set through the Webhook connection's
 /// list-of-headers settings field.
 /// </summary>
 /// <remarks>

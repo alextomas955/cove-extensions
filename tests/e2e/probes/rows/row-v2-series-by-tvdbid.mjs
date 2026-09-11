@@ -2,7 +2,7 @@
 // parameter and answers with its whole catalogue anyway.
 //
 // This generation publishes no contract, so the question cannot be read off a document (GAP-2). It
-// also cannot be inferred from the newer generation's: this phase already measured one query-shaped
+// also cannot be inferred from v3's: this phase already measured one query-shaped
 // trap on this exact build, where `tpdb:<uuid>` answers 200 with an empty array while a bare uuid
 // resolves, so the more-correct-looking form failed with no error at all. A parameter that is simply
 // ignored is the same failure wearing different clothes, and it is the one a consumer cannot see: the

@@ -586,7 +586,7 @@ public sealed partial class WhisparrSync
     /// </para>
     /// <para>
     /// The manifest is rebuilt on every aggregation and reads the generation the extension last
-    /// stored, so the videos-view registrations are absent on the older generation and no surface
+    /// stored, so the videos-view registrations are absent on v2 and no surface
     /// renders empty there. The browser fetches the manifest, so a generation change takes effect on
     /// the next page load.
     /// </para>
@@ -594,8 +594,8 @@ public sealed partial class WhisparrSync
     /// The studio and performer bulk actions stay registered on both generations: an action's
     /// PRESENCE is a manifest fact and a verb's AVAILABILITY is a runtime one, enforced in the
     /// handler and again at the route. The scene selection action departs from that principle and is
-    /// registered on the newer generation alone, because no verb it offers reaches anything on the
-    /// older one. The reader on the older generation therefore meets a studio or performer selection
+    /// registered on v3 alone, because no verb it offers reaches anything on the
+    /// older one. The reader on v2 therefore meets a studio or performer selection
     /// that offers a Whisparr button explaining itself, and a scene selection that offers no button
     /// at all.
     /// </para>
@@ -677,7 +677,7 @@ public sealed partial class WhisparrSync
                 suppressSuccessAlert: true)
             .WithJsBundle("index.mjs");
 
-        // The older generation publishes no per-scene identity and holds no performer entity, so
+        // Whisparr v2 publishes no per-scene identity and holds no performer entity, so
         // these surfaces have no meaning there and are hidden by omission. The full-width row below
         // a list toolbar goes with the badges it counts, so it is registered wherever they are.
         //
@@ -728,7 +728,7 @@ public sealed partial class WhisparrSync
         return manifest.Build();
     }
 
-    /// <summary>Whether the stored generation is positively the older one.</summary>
+    /// <summary>Whether the stored generation is positively v2.</summary>
     /// <remarks>
     /// False for anything else, a generation nothing established included, so a store that could not
     /// be read and a blob the model could not bind both keep every surface.
@@ -1242,7 +1242,7 @@ public sealed partial class WhisparrSync
     /// The order is the monitor route's own, and every step of it is a stop taken before anything
     /// is created. Identity first, so an entity the connected generation cannot name is refused
     /// with no outbound request. Then the scene-registration role, whose ABSENCE is the whole of
-    /// the older generation's refusal - no route there adds a catalogue item, so the role is not
+    /// v2's refusal - no route there adds a catalogue item, so the role is not
     /// registered and nothing here compares a generation. Then the entity itself, because an
     /// instance that does not hold it has no catalogue to add to. Then the profile and the root,
     /// each empty answer a stop taken before the first scene is composed.

@@ -77,7 +77,7 @@ public sealed record WhisparrResponse(int StatusCode, string? ContentType, strin
 {
     /// <summary>Why no entity was named, where a seam read that out of a parsed body.</summary>
     /// <remarks>
-    /// The older generation resolves an identifier through a lookup that states its answer in the
+    /// Whisparr v2 resolves an identifier through a lookup that states its answer in the
     /// body and not in the status: an identifier its own source does not know is answered with a
     /// success and an empty list. A seam reading that meaning states it here, so a caller classifies
     /// the fact rather than a status this product would otherwise have had to invent, and the two
@@ -259,7 +259,7 @@ internal sealed class WhisparrClient(
     internal const string ExclusionsPath = "api/v3/exclusions";
 
     // The one status this product composes rather than receives, and the only one anywhere in it.
-    // The older generation answers "do you hold this entity" through no single route, so that reading
+    // Whisparr v2 answers "do you hold this entity" through no single route, so that reading
     // is assembled from a lookup and a listing and reported in the spelling a caller already
     // classifies. Named rather than written inline so a reader is not left to infer that an instance
     // sent it.
@@ -473,9 +473,9 @@ internal sealed class WhisparrClient(
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
 
-    // On the newer generation a field-scoped patch, whose body carries only what changes: a
+    // On v3 a field-scoped patch, whose body carries only what changes: a
     // whole-resource replace would write back a resource read a moment earlier, dropping whatever
-    // the read did not answer with. On the older one the flag travels on a list of exactly one row
+    // the read did not answer with. On v2 the flag travels on a list of exactly one row
     // id, which is the only shape that route takes.
     public Task<WhisparrResponse> SetSceneMonitoredAsync(
         Uri baseAddress,
@@ -610,7 +610,7 @@ internal sealed class WhisparrClient(
             .ConfigureAwait(false);
     }
 
-    /// <summary>Whether the older generation's instance holds the entity named by an identifier.</summary>
+    /// <summary>Whether v2's instance holds the entity named by an identifier.</summary>
     /// <remarks>
     /// Two reads, because this generation answers the question through no single route: its lookup
     /// resolves the identifier to an entity and carries no instance-side id until that entity has been
@@ -691,7 +691,7 @@ internal sealed class WhisparrClient(
                 ct)).ConfigureAwait(false);
     }
 
-    /// <summary>The entity an identifier names on the older generation, or the answer standing for it.</summary>
+    /// <summary>The entity an identifier names on v2, or the answer standing for it.</summary>
     /// <remarks>
     /// The answer never echoes the term, so exactly one result is what the correspondence rests on. A
     /// second result is refused rather than picked from, because nothing in the answer says which of
@@ -1086,8 +1086,8 @@ internal sealed class WhisparrClient(
     // whose invocation is recorded on its own. Its verb class has no retry entry, so an attempt whose
     // answer did not arrive is reported rather than re-issued: a second search is a second download.
     //
-    // How many commands the ids become is the generation's, not the caller's. The newer one's command
-    // names an id array and carries every id in one; the older one's names a single scalar id, so
+    // How many commands the ids become is the generation's, not the caller's. v3's command
+    // names an id array and carries every id in one; v2's names a single scalar id, so
     // there it is one command per entity and the first answer that was not accepted is the one
     // reported. Either way each entity is searched once.
     public async Task<WhisparrResponse> SearchMonitoredAsync(
@@ -1264,8 +1264,8 @@ internal sealed class WhisparrClient(
         }
     }
 
-    // The read class through the older generation's generated client, re-issued on the same failure
-    // and for the same reason the newer generation's is.
+    // The read class through v2's generated client, re-issued on the same failure
+    // and for the same reason v3's is.
     private async Task<WhisparrResponse> GeneratedV2ReadAsync<TResponse>(
         Uri baseAddress,
         string apiKey,
@@ -1289,7 +1289,7 @@ internal sealed class WhisparrClient(
         return await GeneratedV2SendAsync(target, call).ConfigureAwait(false);
     }
 
-    // Sent once, for the reason the newer generation's acting send is: a request whose answer did not
+    // Sent once, for the reason v3's acting send is: a request whose answer did not
     // arrive is not the same as one that says nothing happened.
     private Task<WhisparrResponse> GeneratedV2ActAsync<TResponse>(
         Uri baseAddress,

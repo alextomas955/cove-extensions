@@ -372,17 +372,15 @@ test("a grab downloads through a real engine, imports, and reaches Cove on Whisp
   }
 });
 
-test("the older generation's own delivery reaches Cove through the same chain", async ({
-  isolatedHarness,
-}) => {
+test("v2's own delivery reaches Cove through the same chain", async ({ isolatedHarness }) => {
   const api = createApiClient(
     () => isolatedHarness.baseUrl,
     () => isolatedHarness.token,
   );
   const network = isolatedHarness.container.getNetworkNames()[0];
 
-  // The older generation's catalogue is shaped differently and so is its delivery: the file rides
-  // under `episodeFile` where the newer one carries `movieFile`. The extension reads the member its
+  // Whisparr v2's catalogue is shaped differently and so is its delivery: the file rides
+  // under `episodeFile` where v3 carries `movieFile`. The extension reads the member its
   // connected generation uses, and only a real delivery from this one exercises that branch.
   const whisparr = await startWhisparr({
     network,
@@ -420,7 +418,7 @@ test("the older generation's own delivery reaches Cove through the same chain", 
     ).toBe("registered");
 
     // Measured rather than assumed: this generation's notification does carry a header, so the secret
-    // travels out of band here exactly as it does on the newer one. Nothing is asserted about which
+    // travels out of band here exactly as it does on v3. Nothing is asserted about which
     // position is used, because that is the instance's capability and not this product's promise.
 
     const sceneId = randomUUID();
@@ -448,7 +446,7 @@ test("the older generation's own delivery reaches Cove through the same chain", 
       "Cove already held a video before anything was downloaded",
     ).toEqual([]);
 
-    // The same interactive pick as the newer generation, addressed by the entity this one holds.
+    // The same interactive pick as v3, addressed by the entity this one holds.
     const releases = await pollUntil(
       async () => (await whisparrApi.get(`/api/v3/release?episodeId=${seeded.episodeId}`)).json,
       (rows) => Array.isArray(rows) && rows.length > 0,

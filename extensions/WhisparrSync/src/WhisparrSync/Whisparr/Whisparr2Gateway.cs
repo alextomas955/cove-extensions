@@ -6,7 +6,7 @@ using Whisparr2.Net.Client;
 namespace WhisparrSync.Whisparr;
 
 /// <summary>
-/// The older generation's request surface, obtained from the generated Whisparr 2 client.
+/// Whisparr v2's request surface, obtained from the generated Whisparr 2 client.
 /// </summary>
 /// <remarks>
 /// The two generations' packages declare unrelated <c>IApiResponse</c> interfaces with no common base

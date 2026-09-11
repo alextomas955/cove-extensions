@@ -19,13 +19,13 @@ namespace WhisparrSync.Tests.Library;
 /// </remarks>
 public sealed class LibraryStatusRouteTests
 {
-    /// <summary>An identifier a scene is stored under in the newer generation's namespace.</summary>
+    /// <summary>An identifier a scene is stored under in v3's namespace.</summary>
     private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
 
     /// <summary>The per-scene route answers a list, of one row where the instance holds the scene.</summary>
     private const string HeldAndMonitored = """[{"id":9,"monitored":true}]""";
 
-    /// <summary>The spelling this library holds the older generation's identity rows under.</summary>
+    /// <summary>The spelling this library holds v2's identity rows under.</summary>
     private const string V2Endpoint = "theporndb.net/graphql";
 
     private const string V2RemoteId = "5f7c1d90-2a3b-4c6d-8e91-0b2f4a6d8c13";

@@ -16,10 +16,10 @@ The tab has three sections. Each generation keeps its own connection, so every s
 Two cards, one per generation. Each shows what is stored for that generation and nothing from the
 other.
 
-| Card               | What it is                                                 |
-| ------------------ | ---------------------------------------------------------- |
-| Whisparr v3 (Eros) | The newer generation. The generation a fresh install uses. |
-| Whisparr v2        | The older generation.                                      |
+| Card               | What it is                                        |
+| ------------------ | ------------------------------------------------- |
+| Whisparr v3 (Eros) | Whisparr v3. The generation a fresh install uses. |
+| Whisparr v2        | Whisparr v2.                                      |
 
 A card is marked **In use** when it is the generation Cove acts on, and **Editing** when it is the
 one the **Connection** section below is showing. The two differ from the moment you press **Switch**

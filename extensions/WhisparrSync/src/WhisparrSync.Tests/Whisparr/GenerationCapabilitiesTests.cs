@@ -69,7 +69,7 @@ public sealed class GenerationCapabilitiesTests
     /// caller has to catch to learn what happened.
     /// </summary>
     /// <remarks>
-    /// Taken through a real generation gap: no route on the older generation adds a catalogue item at
+    /// Taken through a real generation gap: no route on v2 adds a catalogue item at
     /// all, so its set holds no scene-registration role. A generation whose capability list is empty
     /// would be a generation nothing manages, so the refusal is asserted where a user actually meets
     /// one.
@@ -91,7 +91,7 @@ public sealed class GenerationCapabilitiesTests
     }
 
     /// <summary>
-    /// The older generation addresses no performer at all, so it holds no performer capability and a
+    /// Whisparr v2 addresses no performer at all, so it holds no performer capability and a
     /// caller asking for that role is told which capability was refused and on which generation.
     /// </summary>
     /// <remarks>
@@ -117,7 +117,7 @@ public sealed class GenerationCapabilitiesTests
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
     }
 
-    /// <summary>The newer generation holds the performer capability and hands out the role.</summary>
+    /// <summary>Whisparr v3 holds the performer capability and hands out the role.</summary>
     [Fact]
     public void TheNewerGenerationHoldsThePerformerCapabilityAndHandsOutTheRole()
     {
@@ -145,7 +145,7 @@ public sealed class GenerationCapabilitiesTests
         => Assert.Throws<InvalidOperationException>(
             () => GenerationCapabilities.For(WhisparrGeneration.V3).Obtain<IWhisparrStudioActing>());
 
-    /// <summary>The capability table is per generation, and the newer one holds strictly more.</summary>
+    /// <summary>The capability table is per generation, and the two differ in both directions.</summary>
     [Fact]
     public void EachGenerationsCapabilitiesAreWrittenDownPerGeneration()
     {
@@ -179,7 +179,7 @@ public sealed class GenerationCapabilitiesTests
     }
 
     /// <summary>
-    /// The older generation holds exactly what it can honour, and every capability it cannot is absent
+    /// Whisparr v2 holds exactly what it can honour, and every capability it cannot is absent
     /// from its table rather than present and refusing when it is called.
     /// </summary>
     /// <remarks>
@@ -218,7 +218,7 @@ public sealed class GenerationCapabilitiesTests
     }
 
     /// <summary>
-    /// The older generation obtains no per-scene search role, and the newer one does.
+    /// Whisparr v2 obtains no per-scene search role, and v3 does.
     /// </summary>
     /// <remarks>
     /// Read through the capability table rather than through a check inside the role: a member that
@@ -255,7 +255,7 @@ public sealed class GenerationCapabilitiesTests
             .Match<IWhisparrSceneSearchGrabbing?>(held => held, _ => null);
 
     /// <summary>
-    /// The older generation refuses the missing-scene role by name, because no route on it adds a
+    /// Whisparr v2 refuses the missing-scene role by name, because no route on it adds a
     /// catalogue item at all.
     /// </summary>
     /// <remarks>
@@ -279,7 +279,7 @@ public sealed class GenerationCapabilitiesTests
     }
 
     /// <summary>
-    /// The older generation hands out the studio-acting role, and the role it hands out is the one the
+    /// Whisparr v2 hands out the studio-acting role, and the role it hands out is the one the
     /// set was built with.
     /// </summary>
     [Fact]
@@ -330,7 +330,7 @@ public sealed class GenerationCapabilitiesTests
         }
     }
 
-    /// <summary>The newer generation sets one field, a list of headers, carrying this product's own.</summary>
+    /// <summary>Whisparr v3 sets one field, a list of headers, carrying this product's own.</summary>
     [Fact]
     public void TheV3RoleCarriesTheSecretAsACustomHeader()
     {
@@ -344,7 +344,7 @@ public sealed class GenerationCapabilitiesTests
             JsonSerializer.Serialize(field.Value, HostJsonOptions));
     }
 
-    /// <summary>The older generation sets two fields, and the secret is the PASSWORD half.</summary>
+    /// <summary>Whisparr v2 sets two fields, and the secret is the PASSWORD half.</summary>
     /// <remarks>
     /// That the instance then sends them as an authorization header, and that Cove delivers one to a
     /// route declaring the anonymous convention, are both measured on the fixture rather than

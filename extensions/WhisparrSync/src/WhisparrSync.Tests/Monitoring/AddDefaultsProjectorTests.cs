@@ -29,7 +29,7 @@ public sealed class AddDefaultsProjectorTests
     /// <summary>Two profiles in id order, so an id-ordering bug would go unseen against it.</summary>
     private const string SortedProfiles = """[{"id":1,"name":"HD-1080p"},{"id":4,"name":"Any"}]""";
 
-    /// <summary>One profile whose id is the value the newer generation accepts and cannot use.</summary>
+    /// <summary>One profile whose id is the value v3 accepts and cannot use.</summary>
     private const string ZeroFirstProfile = """[{"id":0,"name":"Any"},{"id":4,"name":"HD-1080p"}]""";
 
     /// <summary>
@@ -59,7 +59,7 @@ public sealed class AddDefaultsProjectorTests
 
     /// <summary>An instance offering no library root composes nothing.</summary>
     /// <remarks>
-    /// A fresh instance is exactly this case, and the newer generation's add then answers a conflict
+    /// A fresh instance is exactly this case, and v3's add then answers a conflict
     /// carrying a full stack trace, so this stop is the difference between a sentence and that.
     /// </remarks>
     [Fact]
@@ -134,7 +134,7 @@ public sealed class AddDefaultsProjectorTests
     /// </summary>
     /// <remarks>
     /// Stated as an invariant over the shapes rather than as one example, because the value is
-    /// accepted and echoed back by the newer generation: an entity stored with it monitors and can
+    /// accepted and echoed back by v3: an entity stored with it monitors and can
     /// never acquire anything, so there is no answer from the instance that reveals the mistake.
     /// </remarks>
     [Theory]

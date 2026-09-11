@@ -22,7 +22,7 @@ namespace WhisparrSync.Tests.Monitoring;
 /// shape or on the content of a document.
 /// </para>
 /// <para>
-/// The older generation publishes no contract at all, so every shape it answers with is a hand
+/// Whisparr v2 publishes no contract at all, so every shape it answers with is a hand
 /// transcription that survives only here: the ledger these were taken from is local and unversioned.
 /// </para>
 /// <para>
@@ -66,7 +66,7 @@ public sealed class MonitorBodyPinTests
     private const string V2ImportModesFixture = "whisparr-v2-2.2.0.231-import-modes.json";
     private const string V2CommandsFixture = "whisparr-v2-2.2.0.231-command-payloads.json";
 
-    /// <summary>The identifier the entity that was added is named by on the newer generation.</summary>
+    /// <summary>The identifier the entity that was added is named by on v3.</summary>
     private const string StudioForeignId = "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e";
 
     /// <summary>The identifier the scene that was registered twice is named by.</summary>
@@ -75,7 +75,7 @@ public sealed class MonitorBodyPinTests
     /// <summary>The identifier the registration control used, which no provider lists.</summary>
     private const string UnknownSceneForeignId = "00000000-0000-4000-8000-000000000000";
 
-    /// <summary>The numeric identifier the older generation's lookup answered for one entity.</summary>
+    /// <summary>The numeric identifier v2's lookup answered for one entity.</summary>
     private const int SiteEntityId = 3372;
 
     private static readonly AddDefaults Defaults = new(4, "/config/library");
@@ -83,7 +83,7 @@ public sealed class MonitorBodyPinTests
     private static readonly DateTimeOffset Now = new(2026, 9, 2, 0, 0, 0, TimeSpan.Zero);
 
     /// <summary>
-    /// The newer generation answers an add missing either of its two NOT NULL columns with a raw
+    /// Whisparr v3 answers an add missing either of its two NOT NULL columns with a raw
     /// database message and a stack trace, so a composed add always carries both.
     /// </summary>
     /// <remarks>
@@ -245,7 +245,7 @@ public sealed class MonitorBodyPinTests
     }
 
     /// <summary>
-    /// A plain read of the newer generation's studio resource reports the date gate when one was
+    /// A plain read of v3's studio resource reports the date gate when one was
     /// set and omits the member entirely when none was, so the read distinguishes the two scopes.
     /// </summary>
     /// <remarks>
@@ -279,7 +279,7 @@ public sealed class MonitorBodyPinTests
     }
 
     /// <summary>
-    /// The newer generation accepts a quality profile it can never act on and echoes it back, so the
+    /// Whisparr v3 accepts a quality profile it can never act on and echoes it back, so the
     /// stop is this product's own.
     /// </summary>
     /// <remarks>
@@ -315,7 +315,7 @@ public sealed class MonitorBodyPinTests
     }
 
     /// <summary>
-    /// The newer generation's editor route leaves every field the request does not name exactly as it
+    /// Whisparr v3's editor route leaves every field the request does not name exactly as it
     /// was, which is what makes a two-key flag flip safe.
     /// </summary>
     /// <remarks>
@@ -395,7 +395,7 @@ public sealed class MonitorBodyPinTests
     }
 
     /// <summary>
-    /// The older generation's lookup answers a list that names each entity by a field it misnames, and
+    /// Whisparr v2's lookup answers a list that names each entity by a field it misnames, and
     /// never echoes the term it was asked under.
     /// </summary>
     /// <remarks>
@@ -433,7 +433,7 @@ public sealed class MonitorBodyPinTests
     }
 
     /// <summary>
-    /// A term the older generation's source does not know is answered with a success and an empty
+    /// A term v2's source does not know is answered with a success and an empty
     /// list, so nothing about the answer says the request was wrong.
     /// </summary>
     /// <remarks>
@@ -504,11 +504,11 @@ public sealed class MonitorBodyPinTests
     }
 
     /// <summary>
-    /// The older generation refuses both a zero quality profile and a library root it has not been
+    /// Whisparr v2 refuses both a zero quality profile and a library root it has not been
     /// given, and names each by property and by validator.
     /// </summary>
     /// <remarks>
-    /// Claimed of build 2.2.0.231. The newer generation accepts both, so neither generation's own
+    /// Claimed of build 2.2.0.231. Whisparr v3 accepts both, so neither generation's own
     /// behaviour is what the product's guarantee rests on: the profile is stopped before it is sent,
     /// and the root is read from the instance rather than chosen.
     /// </remarks>
@@ -527,7 +527,7 @@ public sealed class MonitorBodyPinTests
     }
 
     /// <summary>
-    /// The older generation's editor route leaves every field the request does not name exactly as it
+    /// Whisparr v2's editor route leaves every field the request does not name exactly as it
     /// was, including the flag on every one of the entity's catalogue years.
     /// </summary>
     /// <remarks>
@@ -548,7 +548,7 @@ public sealed class MonitorBodyPinTests
     }
 
     /// <summary>
-    /// The entity's catalogue is divided into YEARS on the older generation, whatever its own wire
+    /// The entity's catalogue is divided into YEARS on v2, whatever its own wire
     /// field is called.
     /// </summary>
     /// <remarks>
@@ -567,7 +567,7 @@ public sealed class MonitorBodyPinTests
     }
 
     /// <summary>
-    /// The scope route on the older generation refuses a request with no body, so naming the verb is
+    /// The scope route on v2 refuses a request with no body, so naming the verb is
     /// not enough to probe it and the body is what makes it work.
     /// </summary>
     /// <remarks>Claimed of build 2.2.0.231, from the answer a bodyless request produced.</remarks>
@@ -641,7 +641,7 @@ public sealed class MonitorBodyPinTests
     }
 
     /// <summary>
-    /// The older generation offers eleven monitor options, four of which it renders to a user as the
+    /// Whisparr v2 offers eleven monitor options, four of which it renders to a user as the
     /// key rather than a sentence, and this product composes two of the eleven.
     /// </summary>
     /// <remarks>

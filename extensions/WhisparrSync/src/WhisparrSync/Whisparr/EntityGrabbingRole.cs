@@ -45,7 +45,7 @@ public interface IWhisparrSearchGrabbing
 
 /// <summary>Asks an instance to look for one catalogue scene it holds.</summary>
 /// <remarks>
-/// Only the newer generation registers it: the older one keeps no scene records at all, so a caller
+/// Only v3 registers it: v2 keeps no scene records at all, so a caller
 /// obtains no role and states what happens instead rather than reaching a member that would refuse
 /// once it was called.
 /// </remarks>

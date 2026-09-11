@@ -1,8 +1,8 @@
-// One authenticated delivery from the OLDER generation becomes one real Cove library item.
+// One authenticated delivery from WHISPARR V2 becomes one real Cove library item.
 //
-// Its v3 sibling drives the same chain on the newer generation. Both are here because the two
+// Its v3 sibling drives the same chain on v3. Both are here because the two
 // generations do not deliver the same document: this one names the file under `episodeFile` where
-// the newer one names it under `movieFile`, and which member is read is decided from the user agent
+// v3 names it under `movieFile`, and which member is read is decided from the user agent
 // the instance sends. A spec on one generation therefore says nothing about the other.
 //
 // Every assertion is on the COVE side. The callback's own status says the request was well formed
@@ -70,7 +70,7 @@ const test = base.extend({
 });
 
 /** The delivery a real instance sent, with only the file it names rewritten. */
-// `episodeFile`, which is this generation's own member for the file. The newer one carries
+// `episodeFile`, which is v2's own member for the file. v3 carries
 // `movieFile`, and a body written with the wrong member is one the extension reads no path from.
 function deliveryNaming(reportedPath, size) {
   const body = JSON.parse(readFileSync(CAPTURED_DELIVERY, "utf8"));
@@ -112,7 +112,7 @@ async function videosIn(api) {
   return listed.json?.items ?? [];
 }
 
-test("an older-generation delivery registers the file this extension verified on disk", async ({
+test("an v2 delivery registers the file this extension verified on disk", async ({
   isolatedHarness,
 }) => {
   // A Cove pair, a Whisparr container and a real import between them. The default per-test budget

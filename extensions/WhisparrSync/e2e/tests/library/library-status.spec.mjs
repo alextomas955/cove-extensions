@@ -84,7 +84,7 @@ const BRAZZERS_EXXTRA = "39cee498-a9ac-4403-910a-1a0157ad22d8";
  * The source the v2 generation identifies entities against, transcribed by hand the same way as its
  * sibling.
  *
- * A studio the older generation can be asked about carries its id under this spelling, so a row
+ * A studio v2 can be asked about carries its id under this spelling, so a row
  * written for the other generation is one it cannot be named by.
  */
 const THEPORNDB_ENDPOINT = "https://theporndb.net/graphql";
@@ -1021,7 +1021,7 @@ test.describe("library status", () => {
     });
   });
 
-  test("the videos and performers surfaces are absent on the older generation, and return when it is switched away from", async ({
+  test("the videos and performers surfaces are absent on v2, and return when it is switched away from", async ({
     page,
     baseUrl,
     libraryHarness,
@@ -1048,7 +1048,7 @@ test.describe("library status", () => {
       const older = await registeredSlots(coveApi);
       expect(
         older.sort(),
-        "the older generation registers a videos-view slot, so a surface it has no meaning for is on the page",
+        "v2 registers a videos-view slot, so a surface it has no meaning for is on the page",
       ).toEqual(
         [
           "performer-detail-actions",
@@ -1071,13 +1071,12 @@ test.describe("library status", () => {
       ]) {
         await openListWithoutTheControl(page, baseUrl, path, cards, where);
 
-        await expect(
-          statusToggle(page),
-          `${where}: the older generation drew a Whisparr status control`,
-        ).toHaveCount(0);
+        await expect(statusToggle(page), `${where}: v2 drew a Whisparr status control`).toHaveCount(
+          0,
+        );
         await expect(
           cardExtensionBoxes(page),
-          `${where}: the older generation drew the host's in-card extension box, so a surface renders empty rather than being absent`,
+          `${where}: v2 drew the host's in-card extension box, so a surface renders empty rather than being absent`,
         ).toHaveCount(0);
       }
 
@@ -1096,7 +1095,7 @@ test.describe("library status", () => {
       // whatever the component inside it returns.
       await expect(
         cardExtensionBoxes(cardFor(page, studio.name)),
-        "the older generation drew no in-card extension box on a studio card, so the studio surfaces went with the videos ones",
+        "v2 drew no in-card extension box on a studio card, so the studio surfaces went with the videos ones",
       ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
 
       test.info().annotations.push({

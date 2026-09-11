@@ -7,7 +7,7 @@ using WhisparrSync.Tests.TestSupport;
 namespace WhisparrSync.Tests.Monitoring;
 
 /// <summary>
-/// Which refusal a reader is told when the older generation's lookup names no entity, at the routes
+/// Which refusal a reader is told when v2's lookup names no entity, at the routes
 /// a reader reaches rather than against the helper that maps it.
 /// </summary>
 /// <remarks>
@@ -23,7 +23,7 @@ namespace WhisparrSync.Tests.Monitoring;
 /// </remarks>
 public sealed class V2LookupRefusalTests
 {
-    /// <summary>The spelling this library holds the older generation's identity rows under.</summary>
+    /// <summary>The spelling this library holds v2's identity rows under.</summary>
     private const string V2Endpoint = "theporndb.net/graphql";
 
     private const string V2RemoteId = "5f7c1d90-2a3b-4c6d-8e91-0b2f4a6d8c13";

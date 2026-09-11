@@ -18,7 +18,7 @@ namespace WhisparrSync.Tests.Monitoring;
 /// </remarks>
 public sealed class EntitySceneIdentityPortTests
 {
-    /// <summary>The standard spelling of the source the newer generation identifies against.</summary>
+    /// <summary>The standard spelling of the source v3 identifies against.</summary>
     /// <remarks>
     /// A different spelling from the one <see cref="MonitorHost.StoredEndpoint"/> stores, and
     /// deliberately: the two name one source under the host's own rule.

@@ -32,7 +32,7 @@ public sealed class MissingAbstentionTests
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     /// <summary>
-    /// The older generation keeps no per-scene records, so the gap is permanent and the whole
+    /// Whisparr v2 keeps no per-scene records, so the gap is permanent and the whole
     /// catalogue still renders.
     /// </summary>
     [Fact]

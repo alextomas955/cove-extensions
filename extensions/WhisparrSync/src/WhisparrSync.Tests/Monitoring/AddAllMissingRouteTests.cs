@@ -67,7 +67,7 @@ public sealed class AddAllMissingRouteTests
     }
 
     /// <summary>
-    /// The older generation refuses because it registers no role, not because anything compared a
+    /// Whisparr v2 refuses because it registers no role, not because anything compared a
     /// version.
     /// </summary>
     /// <remarks>

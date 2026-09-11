@@ -692,7 +692,7 @@ public sealed class ThePornDbCatalogueTests
 
     /// <summary>
     /// An answer carrying no number of its own resolves to nothing. Zero would be a number the
-    /// older generation would then look a row up by.
+    /// v2 would then look a row up by.
     /// </summary>
     [Fact]
     public async Task AnAnswerCarryingNoNumberResolvesToNothing()

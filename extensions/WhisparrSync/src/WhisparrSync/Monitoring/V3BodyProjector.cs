@@ -7,7 +7,7 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 
-/// <summary>The bodies the newer generation is sent, composed rather than assembled at a call site.</summary>
+/// <summary>The bodies v3 is sent, composed rather than assembled at a call site.</summary>
 /// <remarks>
 /// Pure. Every flag that suppresses acquisition is set here, from ONE constant, so an edit cannot
 /// set one and miss another. Each resource an add can name declares exactly one such flag and they

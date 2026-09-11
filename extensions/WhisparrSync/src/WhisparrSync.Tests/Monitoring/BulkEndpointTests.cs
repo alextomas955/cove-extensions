@@ -226,7 +226,7 @@ public sealed class BulkEndpointTests
     /// reaches the entities after it.
     /// </summary>
     /// <remarks>
-    /// The older generation addresses no performer at all, so it holds no role to act through. The
+    /// Whisparr v2 addresses no performer at all, so it holds no role to act through. The
     /// button is a manifest fact and is registered whatever the generation is; the availability is a
     /// runtime one, and this is where it is answered.
     /// </remarks>

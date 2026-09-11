@@ -7,7 +7,7 @@
  * a selection-bar handler owns no React tree, which is what the imperative mounter was written for.
  *
  * Nothing is read before the overlay opens. The rows are the same five whenever this handler can be
- * reached at all, because the action reaches the manifest on the newer generation alone.
+ * reached at all, because the action reaches the manifest on v3 alone.
  *
  * Leaving without choosing, and every refusal, answer the cancelled result. That is what makes the
  * host suppress its own toast, and the host never clears the selection, so a refused gesture leaves
