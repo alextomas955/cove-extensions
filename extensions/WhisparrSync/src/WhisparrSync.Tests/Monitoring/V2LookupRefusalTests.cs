@@ -34,6 +34,19 @@ public sealed class V2LookupRefusalTests
     /// <summary>One entity, readable, as this generation names one.</summary>
     private const string OneSite = """[{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen"}]""";
 
+    /// <summary>
+    /// One entity as the instance answers it for a site it does not yet hold.
+    /// </summary>
+    /// <remarks>
+    /// Transcribed from what a real instance sent for an unheld site. It carries no slug, because the
+    /// slug is the instance's own field and it has no row to have set one on. A held site's answer
+    /// carries one.
+    /// </remarks>
+    private const string OneUnheldSite = """[{"tvdbId":3372,"title":"Vixen","network":"Vixen"}]""";
+
+    /// <summary>The listing, holding no entry for the identifier the lookup named.</summary>
+    private const string NoHeldSeries = "[]";
+
     /// <summary>Two entities, with nothing in the answer saying which was meant.</summary>
     private const string TwoSites =
         """[{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen"},{"tvdbId":3373,"title":"Vixen 2","titleSlug":"vixen-2"}]""";
@@ -232,5 +245,27 @@ public sealed class V2LookupRefusalTests
 
         Assert.DoesNotContain("administrator", carried, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("44e8", carried, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A site the instance does not hold resolves, and is read as one it does not hold.
+    /// </summary>
+    /// <remarks>
+    /// The case every registration is made of. The lookup answer for an unheld site carries no slug,
+    /// and requiring one made such a site resolvable only once it was already held: a library run then
+    /// refused every site it was meant to register and reported a site it could not read.
+    /// </remarks>
+    [Fact]
+    public async Task ASiteTheInstanceDoesNotHoldResolvesAndReadsAsAbsent()
+    {
+        var (host, studioId) = await V2StudioAsync(
+            (HttpStatusCode.OK, OneUnheldSite),
+            (HttpStatusCode.OK, NoHeldSeries));
+        await using var owned = host;
+
+        var view = await host.ReadMonitoringAsync(studioId);
+
+        Assert.Equal(MonitorRefusalKind.None, view.Refusal);
+        Assert.False(view.Present);
     }
 }
