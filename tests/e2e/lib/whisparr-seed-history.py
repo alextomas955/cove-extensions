@@ -28,6 +28,10 @@ QUALITY = json.dumps({"quality": 7, "revision": {"version": 1, "real": 0, "isRep
 # an instance that already has a past must attach to the rows the first one created, and both
 # tables refuse a duplicate.
 SEEDED_SCENE_ID = "cove-e2e-seeded-scene"
+# The identifier the seeded episode carries, which a v2 history record reports under `episode`.
+# Fixed rather than random: a caller asserts what an import stamped against this value.
+SEEDED_EPISODE_TVDB_ID = 4149372
+
 SEEDED_SITE_SLUG = "cove-e2e-seeded-site"
 
 LANGUAGES = json.dumps([1])
@@ -147,6 +151,10 @@ def seed_v2(connection, count, per_row=None, event_types=EVENT_TYPES):
             "Monitored": 1,
             "Title": "Cove E2E Seeded Episode",
             "EpisodeFileId": 0,
+            # The identifier a reader of this generation's history takes a scene's identity from. A
+            # row carrying zero here reads as carrying none, so a seed leaving it out cannot be used
+            # to assert what an import stamped.
+            "TvdbId": SEEDED_EPISODE_TVDB_ID,
         },
     )
     return insert_history(
