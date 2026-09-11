@@ -61,7 +61,7 @@ const READ_BACK_TIMEOUT_MS = 30_000;
  * @param {{apiKey: string, port: number}} options
  * @returns {string}
  */
-export function buildConfigXml({ apiKey, port }) {
+export function buildConfigXml({ apiKey, port, metadataUrl }) {
   if (!apiKey) {
     throw new Error(
       "buildConfigXml: no apiKey given; a config carrying none leaves the app minting its own, which no caller can present.",
@@ -70,6 +70,15 @@ export function buildConfigXml({ apiKey, port }) {
   if (!port) {
     throw new Error("buildConfigXml: no port given.");
   }
+  // Neither generation calls a metadata source directly: every lookup goes through a hosted service
+  // of the vendor's, named by this one element as a template carrying a {route} token the app
+  // substitutes. It is read at startup only, so it is written here rather than patched afterwards.
+  const metadata =
+    metadataUrl === undefined
+      ? ""
+      : `  <WhisparrMetadata>${metadataUrl}</WhisparrMetadata>
+`;
+
   return `<Config>
   <ApiKey>${apiKey}</ApiKey>
   <AuthenticationMethod>None</AuthenticationMethod>
@@ -78,7 +87,7 @@ export function buildConfigXml({ apiKey, port }) {
   <BindAddress>*</BindAddress>
   <LogLevel>info</LogLevel>
   <AnalyticsEnabled>False</AnalyticsEnabled>
-</Config>
+${metadata}</Config>
 `;
 }
 
