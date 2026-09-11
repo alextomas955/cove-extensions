@@ -26,21 +26,17 @@
 // indexer answering, the engine downloading, Whisparr importing, or Cove opening.
 import { createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
 import {
-  addCoveLibraryRoot,
   registerRootFolder,
   startWhisparr,
   WHISPARR_APP_USER,
   WHISPARR_DATA_MOUNT,
 } from "@cove-extensions/e2e/whisparr";
 import { pollUntil } from "@cove-extensions/e2e/poll";
+import { addCoveLibraryRoot } from "@cove-extensions/e2e/seed-media";
 import { randomUUID } from "node:crypto";
 
-import {
-  dateSeededScene,
-  provisionAcquirePipeline,
-  SCENE_SITE,
-  seedV2Scene,
-} from "../../lib/acquire-pipeline.mjs";
+import { provisionAcquirePipeline } from "../../lib/acquire-pipeline.mjs";
+import { dateSeededScene, SCENE_SITE, seedV2Scene } from "../../lib/seed-scene.mjs";
 import { startFakeIndexer } from "../../lib/fake-indexer.mjs";
 import { startQBittorrent } from "../../lib/qbittorrent-container.mjs";
 import {

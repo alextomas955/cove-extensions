@@ -15,12 +15,8 @@ import {
   isolatedHarnessFixture,
 } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
-import { placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
-import {
-  addCoveLibraryRoot,
-  registerRootFolder,
-  startWhisparr,
-} from "@cove-extensions/e2e/whisparr";
+import { addCoveLibraryRoot, placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
+import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";

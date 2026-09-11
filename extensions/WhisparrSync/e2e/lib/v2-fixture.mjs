@@ -23,7 +23,7 @@ import {
 } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
 
-import { seedV2Scene } from "./acquire-pipeline.mjs";
+import { seedV2Scene } from "./seed-scene.mjs";
 import { startMetadataStub } from "./metadata-stub.mjs";
 import {
   test as base,
