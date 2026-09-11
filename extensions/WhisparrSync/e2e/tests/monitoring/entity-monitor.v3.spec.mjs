@@ -32,6 +32,7 @@
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { randomUUID } from "node:crypto";
 
+import { V3_CAPABILITIES } from "../../lib/capability-sets.mjs";
 import { SETTINGS_PAGE_PATH } from "../../lib/contract.mjs";
 import { visit } from "../../lib/steps.mjs";
 import {
@@ -72,27 +73,6 @@ const MONITOR_REFUSAL_NONE = "none";
 // A pattern rather than the three command names, so this file names no verb that downloads and the
 // source check over it stays at zero.
 const SEARCH_COMMAND = /search/i;
-
-/**
- * Every capability this version declares, in the spelling the wire carries.
- *
- * Transcribed by hand from the product's own table, as its v2 counterpart is. The two differ in both
- * directions: four entries here appear on no other, and two the other version holds are absent.
- * Derived from the product it would assert a list equals itself.
- */
-const V3_CAPABILITIES = [
-  "outOfBandCallbackSecret",
-  "monitorStudio",
-  "monitorPerformer",
-  "registerMissingScenes",
-  "reflectOwnedFiles",
-  "searchMonitored",
-  "readSceneStatus",
-  "readSceneExclusions",
-  "searchScene",
-  "monitorScene",
-  "excludeScene",
-];
 
 // How many entities this spec puts in front of the host. Stated here and bounded at a handful: the
 // library it drives is the one it created, so a count read off a page would be a count of whatever
