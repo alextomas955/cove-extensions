@@ -123,3 +123,67 @@ export async function placeVideoUnregistered({
 
   return destPath;
 }
+
+// Cove's own, not an instance's: the one route that declares which paths Cove treats as a library.
+const COVE_CONFIG_PATH = "/api/system/config";
+
+/**
+ * Declares `path` as one more Cove library root on the running instance, and answers with the roots
+ * Cove reports afterwards.
+ *
+ * Cove takes its library roots from its configuration, so an arrangement where one root sits inside
+ * another — which is what makes a single reported file resolvable under two of them — cannot be
+ * expressed by placing files. This reads the whole configuration, appends one path and writes it
+ * back, deriving the new entry's shape from an entry Cove itself returned rather than naming its
+ * fields here.
+ *
+ * `expectedRoots` are the roots the caller knows the instance declares. A principal that may not read
+ * the configuration is served the library paths REDACTED, and writing those back would replace the
+ * instance's real roots with the redaction marker — so this refuses before the write unless it can
+ * see every root it was told to expect.
+ *
+ * @param {{get: Function, put: Function}} api - a client for the Cove instance, carrying its token
+ * @param {string} path - the container path to declare
+ * @param {string[]} expectedRoots - roots that must appear in the read, or the write is refused
+ * @returns {Promise<string[]>} every library root Cove declares afterwards
+ */
+export async function addCoveLibraryRoot(api, path, expectedRoots) {
+  const read = await api.get(COVE_CONFIG_PATH);
+  if (!read.ok) {
+    throw new Error(
+      `addCoveLibraryRoot: GET ${COVE_CONFIG_PATH} answered ${read.status}: ${read.text?.slice(0, 300)}`,
+    );
+  }
+
+  const entries = read.json?.covePaths ?? [];
+  const declared = entries.map((entry) => entry.path);
+  const missing = expectedRoots.filter((root) => !declared.includes(root));
+  if (missing.length > 0) {
+    throw new Error(
+      `addCoveLibraryRoot: refusing to write. ${COVE_CONFIG_PATH} reported [${declared.join(", ")}], which is missing ${missing.join(", ")} — writing that back would replace the instance's library roots.`,
+    );
+  }
+
+  if (declared.includes(path)) return declared;
+
+  const saved = await api.put(COVE_CONFIG_PATH, {
+    ...read.json,
+    covePaths: [...entries, { ...entries[0], path }],
+  });
+  if (!saved.ok) {
+    throw new Error(
+      `addCoveLibraryRoot: PUT ${COVE_CONFIG_PATH} answered ${saved.status}: ${saved.text?.slice(0, 300)}`,
+    );
+  }
+
+  // Read back off the instance rather than trusting the write: a configuration that did not take is
+  // a spec asserting a branch the extension never entered.
+  const after = await api.get(COVE_CONFIG_PATH);
+  const roots = (after.json?.covePaths ?? []).map((entry) => entry.path);
+  if (!roots.includes(path)) {
+    throw new Error(
+      `addCoveLibraryRoot: after the write ${COVE_CONFIG_PATH} reports [${roots.join(", ")}], without ${path}.`,
+    );
+  }
+  return roots;
+}

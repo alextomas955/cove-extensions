@@ -1,6 +1,7 @@
-// The containment rule that decides whether an instance's reported library root is one the host can
-// resolve. It touches no network and no container, because the rule is a string comparison: a path
-// the host has no root for does not match whether or not a file exists anywhere.
+// `libraryRootsContaining`, the rule in whisparr-fixture.mjs that decides whether an instance's
+// reported library root is one the host can resolve. It touches no network and no container,
+// because the rule is a string comparison: a path the host has no root for does not match whether
+// or not a file exists anywhere.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { libraryRootsContaining } from "./whisparr-fixture.mjs";
