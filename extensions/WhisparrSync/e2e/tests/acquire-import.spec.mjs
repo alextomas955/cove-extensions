@@ -35,7 +35,12 @@ import {
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { randomUUID } from "node:crypto";
 
-import { dateSeededScene, provisionAcquirePipeline } from "../lib/acquire-pipeline.mjs";
+import {
+  dateSeededScene,
+  provisionAcquirePipeline,
+  SCENE_SITE,
+  seedV2Scene,
+} from "../lib/acquire-pipeline.mjs";
 import { startFakeIndexer } from "../lib/fake-indexer.mjs";
 import { startQBittorrent } from "../lib/qbittorrent-container.mjs";
 import {
@@ -297,6 +302,15 @@ test("a grab downloads through a real engine, imports, and reaches Cove on Whisp
       expect(held[0], "Cove registered a file other than the one Whisparr imported").toBe(
         expectedCovePath,
       );
+
+      // Tied to the delivery, not merely to the file being there. Cove scans its own library paths,
+      // so a video at that path is on its own consistent with a scan having found it and no
+      // notification ever arriving. This is the extension recording that one presented its secret.
+      const delivered = await api.get(extensionRoute("callback/status"));
+      expect(
+        delivered.json?.lastEventSecretPosition,
+        "no delivery ever reached the extension, so the file was registered by something else",
+      ).not.toBeNull();
     } catch (failure) {
       // Which half broke. The callback status says whether a delivery ever arrived, which tells a
       // notification Whisparr never sent from one Cove received and could not act on.
@@ -352,6 +366,166 @@ test("a grab downloads through a real engine, imports, and reaches Cove on Whisp
 
       const raw = await api.get("/api/videos?perPage=100");
       console.error("ACQUIRE DIAGNOSTIC videos raw:", raw.status, raw.text?.slice(0, 400));
+      throw failure;
+    }
+  } finally {
+    await Promise.allSettled([fakeIndexer?.stop(), qbit?.stop(), whisparr.stop()]);
+  }
+});
+
+test("the older generation's own delivery reaches Cove through the same chain", async ({
+  isolatedHarness,
+}) => {
+  test.setTimeout(SPEC_BUDGET_MS);
+
+  const api = createApiClient(
+    () => isolatedHarness.baseUrl,
+    () => isolatedHarness.token,
+  );
+  const network = isolatedHarness.container.getNetworkNames()[0];
+
+  // The older generation's catalogue is shaped differently and so is its delivery: the file rides
+  // under `episodeFile` where the newer one carries `movieFile`. The extension reads the member its
+  // connected generation uses, and only a real delivery from this one exercises that branch.
+  const whisparr = await startWhisparr({
+    network,
+    generations: ["v2"],
+    dataVolume: isolatedHarness.sharedVolume,
+  });
+  let fakeIndexer;
+  let qbit;
+
+  try {
+    const whisparrApi = whisparr.apiFor("v2");
+    await registerRootFolder(whisparr.v2.container, whisparrApi, "v2", WHISPARR_ROOT);
+    await whisparr.v2.container.exec(["mkdir", "-p", WHISPARR_DOWNLOADS], { user: "root" });
+
+    [fakeIndexer, qbit] = await Promise.all([
+      startFakeIndexer({ networkName: network }),
+      startQBittorrent({
+        networkName: network,
+        dataVolume: isolatedHarness.sharedVolume,
+        dataMount: WHISPARR_DATA_MOUNT,
+        downloadDir: WHISPARR_DOWNLOADS,
+      }),
+    ]);
+    await provisionAcquirePipeline({ whisparrApi, fakeIndexer, qbit });
+
+    await addCoveLibraryRoot(api, COVE_ROOT, ["/data", "/data2", COVE_SHARED]);
+    await connectWhisparr(api, whisparr, "v2");
+
+    const registered = await api.post(extensionRoute("callback/register"), {
+      callbackAddress: `http://${COVE_ALIAS}:5073`,
+    });
+    expect(
+      registered.json?.status,
+      `the callback did not register: ${registered.status} ${registered.text?.slice(0, 300)}`,
+    ).toBe("registered");
+
+    // Measured rather than assumed: this generation's notification does carry a header, so the secret
+    // travels out of band here exactly as it does on the newer one. Nothing is asserted about which
+    // position is used, because that is the instance's capability and not this product's promise.
+
+    const sceneId = randomUUID();
+    const seeded = await seedV2Scene(whisparr.v2.container, whisparrApi, {
+      siteId: Math.floor(Math.random() * 1_000_000) + 1,
+      siteTitle: SCENE_SITE,
+      rootFolderPath: WHISPARR_ROOT,
+      sceneExternalId: sceneId,
+      sceneTitle: `Acquire ${sceneId.slice(0, 8)}`,
+    });
+
+    const series = await pollUntil(
+      async () => (await whisparrApi.get("/api/v3/series")).json,
+      (rows) => (rows ?? []).some((one) => one.id === seeded.seriesId),
+      { timeoutMs: 60_000, label: "the seeded site is a series the instance lists" },
+    ).then((rows) => rows.find((one) => one.id === seeded.seriesId));
+
+    await whisparr.v2.container.exec(["mkdir", "-p", series.path], { user: "root" });
+    await whisparr.v2.container.exec(["chown", "-R", WHISPARR_APP_USER, WHISPARR_DATA_MOUNT], {
+      user: "root",
+    });
+
+    expect(
+      await videoFilePaths(api),
+      "Cove already held a video before anything was downloaded",
+    ).toEqual([]);
+
+    // The same interactive pick as the newer generation, addressed by the entity this one holds.
+    const releases = await pollUntil(
+      async () => (await whisparrApi.get(`/api/v3/release?episodeId=${seeded.episodeId}`)).json,
+      (rows) => Array.isArray(rows) && rows.length > 0,
+      { timeoutMs: 120_000, label: "the indexer answers with a release for the scene" },
+    );
+    const grabbed = await whisparrApi.post("/api/v3/release", {
+      ...releases[0],
+      episodeId: seeded.episodeId,
+      seriesId: seeded.seriesId,
+    });
+    expect(grabbed.status, `the grab was refused: ${grabbed.text?.slice(0, 400)}`).toBeLessThan(
+      400,
+    );
+
+    await pollUntil(
+      () => qbit.torrents(),
+      (torrents) => torrents.length > 0 && torrents[0].progress === 1,
+      {
+        timeoutMs: DOWNLOAD_BUDGET_MS,
+        intervalMs: 2000,
+        label: "qBittorrent completes the download",
+      },
+    );
+
+    let importedPath;
+    try {
+      importedPath = await pollUntil(
+        async () => (await whisparrApi.get(`/api/v3/episodefile?seriesId=${seeded.seriesId}`)).json,
+        (files) => (files ?? []).length > 0,
+        {
+          timeoutMs: IMPORT_BUDGET_MS,
+          intervalMs: 2000,
+          label: "the instance imports the completed download and attaches the file",
+        },
+      ).then((files) => files[0]?.path);
+    } catch (failure) {
+      const queue = await whisparrApi.get("/api/v3/queue?pageSize=20");
+      console.error("ACQUIRE V2 DIAGNOSTIC queue:", queue.text?.slice(0, 900));
+      throw failure;
+    }
+
+    const expectedCovePath = importedPath.replace(WHISPARR_DATA_MOUNT, COVE_SHARED);
+
+    try {
+      const held = await pollUntil(
+        () => videoFilePaths(api),
+        (paths) => paths.length > 0,
+        {
+          timeoutMs: IMPORT_BUDGET_MS,
+          intervalMs: 2000,
+          label: "Cove holds a video for the file the instance imported",
+        },
+      );
+      expect(held.length, `Cove holds more than the one imported file: ${held.join(", ")}`).toBe(1);
+      expect(held[0], "Cove registered a file other than the one the instance imported").toBe(
+        expectedCovePath,
+      );
+
+      // Tied to the delivery, not merely to the file being there. Cove scans its own library paths,
+      // so a video at that path is on its own consistent with a scan having found it and no
+      // notification ever arriving. This is the extension recording that one presented its secret.
+      const delivered = await api.get(extensionRoute("callback/status"));
+      expect(
+        delivered.json?.lastEventSecretPosition,
+        "no delivery ever reached the extension, so the file was registered by something else",
+      ).not.toBeNull();
+    } catch (failure) {
+      const coveLog = await isolatedHarness.container.exec([
+        "sh",
+        "-c",
+        "grep -hE 'WhisparrSync.WhisparrSync' /config/logs/*.log 2>/dev/null | tail -n 15",
+      ]);
+      console.error("ACQUIRE V2 DIAGNOSTIC cove log:", coveLog.output.trim().slice(0, 1500));
+      console.error("ACQUIRE V2 DIAGNOSTIC imported path:", importedPath);
       throw failure;
     }
   } finally {
