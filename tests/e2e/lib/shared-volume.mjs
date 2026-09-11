@@ -30,6 +30,14 @@ const LABEL = "org.cove-extensions.e2e.shared-volume";
  */
 export async function createSharedVolume() {
   const client = await getContainerRuntimeClient();
+
+  // Testcontainers' own reaper removes what Testcontainers created, and this volume is not one of
+  // those: it is created through the Docker connection directly, so a run killed between creating it
+  // and removing it leaves it behind with nothing to collect it. Sweeping here is what makes that
+  // self-healing. Once per process, because every harness in a run would otherwise re-list every
+  // volume on the machine.
+  await sweepOnce();
+
   const name = `cove-e2e-shared-${randomUUID()}`;
 
   await client.container.dockerode.createVolume({
@@ -53,13 +61,33 @@ export async function createSharedVolume() {
   };
 }
 
+/** The one sweep a process makes, shared by every harness it starts. */
+let swept;
+
+function sweepOnce() {
+  // A failure to sweep is not a reason to fail the run that asked: the worst it leaves is the state
+  // that was already there.
+  swept ??= sweepSharedVolumes().catch(() => 0);
+  return swept;
+}
+
 /**
- * Removes every volume this module created that is not attached to anything.
+ * How old a volume must be before a sweep will take it.
  *
- * For a run killed between creating a volume and removing it. Docker refuses to remove a volume a
- * container still holds, so this cannot take one a live test is using.
+ * Being unattached is NOT enough. A volume is unattached for the moment between its creation and the
+ * container that mounts it starting, and the suite runs its workers in parallel: a sweep that took
+ * every unattached one deleted volumes other workers had just created, and their bring-up then failed
+ * with the volume not found. Comfortably longer than the longest spec, so nothing live is in range.
  */
-export async function sweepSharedVolumes() {
+const SWEEPABLE_AFTER_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Removes the volumes this module created that are old enough to be certainly orphaned.
+ *
+ * For a run killed between creating a volume and removing it. Docker refuses to remove one a
+ * container still holds, and the age bound covers the window before it holds it.
+ */
+export async function sweepSharedVolumes(now = Date.now()) {
   const client = await getContainerRuntimeClient();
   const listed = await client.container.dockerode.listVolumes({
     filters: { label: [`${LABEL}=true`] },
@@ -67,6 +95,11 @@ export async function sweepSharedVolumes() {
 
   let removed = 0;
   for (const volume of listed.Volumes ?? []) {
+    const createdAt = Date.parse(volume.CreatedAt ?? "");
+    if (Number.isNaN(createdAt) || now - createdAt < SWEEPABLE_AFTER_MS) {
+      continue;
+    }
+
     try {
       await client.container.dockerode.getVolume(volume.Name).remove();
       removed += 1;

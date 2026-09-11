@@ -61,7 +61,7 @@ const READ_BACK_TIMEOUT_MS = 30_000;
  * @param {{apiKey: string, port: number}} options
  * @returns {string}
  */
-export function buildConfigXml({ apiKey, port, metadataUrl }) {
+export function buildConfigXml({ apiKey, port, metadataUrl, logLevel = "info" }) {
   if (!apiKey) {
     throw new Error(
       "buildConfigXml: no apiKey given; a config carrying none leaves the app minting its own, which no caller can present.",
@@ -85,7 +85,7 @@ export function buildConfigXml({ apiKey, port, metadataUrl }) {
   <AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>
   <Port>${port}</Port>
   <BindAddress>*</BindAddress>
-  <LogLevel>info</LogLevel>
+  <LogLevel>${logLevel}</LogLevel>
   <AnalyticsEnabled>False</AnalyticsEnabled>
 ${metadata}</Config>
 `;

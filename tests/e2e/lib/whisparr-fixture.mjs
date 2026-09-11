@@ -99,7 +99,9 @@ export async function startWhisparr({
   seedHistory: history = false,
   rootFolder,
   dataVolume,
+  dataMount = WHISPARR_DATA_MOUNT,
   metadataUrl,
+  logLevel,
 } = {}) {
   if (!network) {
     throw new Error(
@@ -111,7 +113,15 @@ export async function startWhisparr({
   // would pay that twice for containers that share nothing.
   const outcomes = await Promise.allSettled(
     generations.map((generation) =>
-      startGeneration(generation, { network, apiKey, startupTimeoutMs, dataVolume, metadataUrl }),
+      startGeneration(generation, {
+        network,
+        apiKey,
+        startupTimeoutMs,
+        dataVolume,
+        dataMount,
+        metadataUrl,
+        logLevel,
+      }),
     ),
   );
   const failure = outcomes.find((outcome) => outcome.status === "rejected");
@@ -392,7 +402,7 @@ function instanceHandle(container, generation, apiKey) {
 
 async function startGeneration(
   generation,
-  { network, apiKey, startupTimeoutMs, dataVolume, metadataUrl },
+  { network, apiKey, startupTimeoutMs, dataVolume, dataMount, metadataUrl, logLevel },
 ) {
   const image = whisparrImage(generation);
 
@@ -402,7 +412,13 @@ async function startGeneration(
   // wait timeout then names the wrong cause entirely.
   const logChunks = [];
 
-  let builder = withApiKeySeed(new GenericContainer(image), generation, apiKey, metadataUrl)
+  let builder = withApiKeySeed(
+    new GenericContainer(image),
+    generation,
+    apiKey,
+    metadataUrl,
+    logLevel,
+  )
     .withNetworkMode(network)
     // An alias is scoped to the network; a container NAME is daemon-global and would collide the
     // moment two harnesses run at once.
@@ -430,9 +446,7 @@ async function startGeneration(
     // Docker reads a bind source that is not an absolute path as a volume name, which is how a
     // container joins a volume another one already holds. The path is this product's own root folder
     // convention, and the Cove container mounts the same volume at a path of its own.
-    builder = builder.withBindMounts([
-      { source: dataVolume, target: WHISPARR_DATA_MOUNT, mode: "rw" },
-    ]);
+    builder = builder.withBindMounts([{ source: dataVolume, target: dataMount, mode: "rw" }]);
   }
 
   try {
@@ -461,14 +475,14 @@ function tailOf(logChunks) {
 // be handed a config file before it starts. They stay separate on purpose — the environment route
 // needs no copy, no file mode and no ordering, so unifying on the file route would buy symmetry and
 // pay for it in failure surface.
-function withApiKeySeed(builder, generation, apiKey, metadataUrl) {
+function withApiKeySeed(builder, generation, apiKey, metadataUrl, logLevel) {
   if (generation === "v3") {
     return builder.withEnvironment({ WHISPARR__AUTH__APIKEY: apiKey });
   }
   if (generation === "v2") {
     return builder.withCopyContentToContainer([
       {
-        content: buildConfigXml({ apiKey, port: WHISPARR_PORT, metadataUrl }),
+        content: buildConfigXml({ apiKey, port: WHISPARR_PORT, metadataUrl, logLevel }),
         target: "/config/config.xml",
         // The mode is the load-bearing field. Without it the file arrives root-owned, the image's
         // init does not chown a file it did not create, and the app exits on its first config write
