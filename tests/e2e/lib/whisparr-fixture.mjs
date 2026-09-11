@@ -33,6 +33,24 @@ const STARTUP_LOG_LINES = 60;
  */
 export const FIXTURE_API_KEY = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
+/**
+ * Where a `dataVolume` is mounted inside a Whisparr container.
+ *
+ * Its own path rather than the Cove container's, because the two mount the same volume and each
+ * reads it under the convention of the product running there. What crosses between them is the
+ * volume, not the path, and the extension already maps a reported Whisparr path onto a Cove library
+ * root - which is the mapping these specs exist to exercise.
+ */
+export const WHISPARR_DATA_MOUNT = "/data";
+
+/**
+ * The user the app runs as, for a caller handing it a directory to write into.
+ *
+ * Re-exported rather than restated. A spec that guesses this and guesses wrong gets an import that
+ * reports success and attaches nothing, because the move fails after the decision to make it.
+ */
+export { APP_USER as WHISPARR_APP_USER } from "./whisparr-images.mjs";
+
 const aliasFor = (generation) => `whisparr-${generation}`;
 
 /**
@@ -80,6 +98,7 @@ export async function startWhisparr({
   startupTimeoutMs = DEFAULT_STARTUP_TIMEOUT_MS,
   seedHistory: history = false,
   rootFolder,
+  dataVolume,
 } = {}) {
   if (!network) {
     throw new Error(
@@ -91,7 +110,7 @@ export async function startWhisparr({
   // would pay that twice for containers that share nothing.
   const outcomes = await Promise.allSettled(
     generations.map((generation) =>
-      startGeneration(generation, { network, apiKey, startupTimeoutMs }),
+      startGeneration(generation, { network, apiKey, startupTimeoutMs, dataVolume }),
     ),
   );
   const failure = outcomes.find((outcome) => outcome.status === "rejected");
@@ -370,7 +389,7 @@ function instanceHandle(container, generation, apiKey) {
   };
 }
 
-async function startGeneration(generation, { network, apiKey, startupTimeoutMs }) {
+async function startGeneration(generation, { network, apiKey, startupTimeoutMs, dataVolume }) {
   const image = whisparrImage(generation);
 
   // Testcontainers stops and REMOVES a container whose wait strategy failed before start() rejects,
@@ -379,7 +398,7 @@ async function startGeneration(generation, { network, apiKey, startupTimeoutMs }
   // wait timeout then names the wrong cause entirely.
   const logChunks = [];
 
-  const builder = withApiKeySeed(new GenericContainer(image), generation, apiKey)
+  let builder = withApiKeySeed(new GenericContainer(image), generation, apiKey)
     .withNetworkMode(network)
     // An alias is scoped to the network; a container NAME is daemon-global and would collide the
     // moment two harnesses run at once.
@@ -402,6 +421,15 @@ async function startGeneration(generation, { network, apiKey, startupTimeoutMs }
         .forStatusCode(200),
     )
     .withStartupTimeout(startupTimeoutMs);
+
+  if (dataVolume !== undefined) {
+    // Docker reads a bind source that is not an absolute path as a volume name, which is how a
+    // container joins a volume another one already holds. The path is this product's own root folder
+    // convention, and the Cove container mounts the same volume at a path of its own.
+    builder = builder.withBindMounts([
+      { source: dataVolume, target: WHISPARR_DATA_MOUNT, mode: "rw" },
+    ]);
+  }
 
   try {
     return await builder.start();
