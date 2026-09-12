@@ -460,9 +460,8 @@ test.describe("scene batch", () => {
     ).toEqual([]);
   });
 
-  // Its own block, so this execution starts the older generation's container and not the
-  // newer one's.
-  test.describe("the older generation", () => {
+  // Its own block, so this execution starts the v2 container and not the v3 one.
+  test.describe("connected to v2", () => {
     test.use({ generation: "v2" });
 
     test("v2 draws no Whisparr button on the videos selection bar, and no wrapper for one either", async ({
@@ -475,7 +474,7 @@ test.describe("scene batch", () => {
       // No entry on the instance and none needed. Nothing is asked of it on this generation, and a
       // seeded entry would make an absent button look like a button with nothing to say.
       await seedCoveVideo(coveApi, {
-        title: `Older ${randomUUID().slice(0, 8)}`,
+        title: `V2 ${randomUUID().slice(0, 8)}`,
         remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: randomUUID() }],
       });
 

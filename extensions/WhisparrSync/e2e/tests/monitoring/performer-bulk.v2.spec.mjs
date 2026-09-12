@@ -1,11 +1,10 @@
 // The bulk button on the performers selection bar when the connected generation holds no performer
 // at all, in a real host.
 //
-// THIS IS NOT A TEST OF PERFORMER MONITORING. The older generation has no performer entity, so there
-// is nothing here to monitor and no assertion below claims anything was. What is under test is the
-// button that appears anyway: the action is registered unconditionally, unlike the performer slots
-// beside it, so on this connection a reader can press a control for a kind the connection cannot
-// address. A control in that position is meant to say why, and this spec is the evidence that it
+// THIS IS NOT A TEST OF PERFORMER MONITORING. v2 has no performer entity, so there is nothing here
+// to monitor and no assertion below claims anything was. What is under test is the button that
+// appears anyway: the action is registered unconditionally, unlike the performer slots beside it,
+// so on this connection a reader can press a control for a kind the connection cannot address. A control in that position is meant to say why, and this spec is the evidence that it
 // does and that pressing it reaches the instance with nothing.
 //
 // WHY THE BUTTON IS THERE AT ALL. The card badges, the toolbar toggle and the list row are all
@@ -60,7 +59,7 @@ const chooserPanel = (page) =>
  */
 const cardToggles = (page) => page.getByRole("button", { name: /^(Select|Deselect) item$/ });
 
-test("the performers bulk button states why the older generation cannot address that kind, and reaches the instance with nothing", async ({
+test("the performers bulk button states why v2 cannot address that kind, and reaches the instance with nothing", async ({
   page,
   baseUrl,
   connected,
