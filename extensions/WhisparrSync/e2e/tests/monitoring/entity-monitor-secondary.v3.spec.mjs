@@ -1,11 +1,11 @@
-// The verb only the newer generation holds, and the rows a monitored entity offers, driven from a
-// real studio page against a real instance.
+// The verb only v3 holds, and the rows a monitored entity offers, driven from a real studio page
+// against a real instance.
 //
 // WHY THIS FILE IS GENERATION-SPECIFIC. Registering the missing scenes of a studio is a capability
-// the product's own table gives to this generation alone, so there is no same gesture on the older
-// one to pair it with. Its two former neighbours - handing the instance a file the library owns, and
-// asking it to search what an entity monitors - are held by both, and each is now one shared
-// scenario pressed on both generations.
+// the product's own table gives to this generation alone, so there is no same gesture on v2 to pair
+// it with. Its two former neighbours - handing the instance a file the library owns, and asking it
+// to search what an entity monitors - are held by both, and each is now one shared scenario pressed
+// on both generations.
 //
 // WHAT IS LEFT HERE THAT NO OTHER TIER REACHES:
 //

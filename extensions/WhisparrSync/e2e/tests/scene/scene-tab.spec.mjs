@@ -638,9 +638,8 @@ test.describe("scene tab", () => {
     ).toEqual([]);
   });
 
-  // Its own block, so this execution starts the older generation's container and not the
-  // newer one's.
-  test.describe("the older generation", () => {
+  // Its own block, so this execution starts the v2 container and not the v3 one.
+  test.describe("connected to v2", () => {
     test.use({ generation: "v2" });
 
     test("v2 draws no scene tab, and no wrapper for one either", async ({
@@ -653,7 +652,7 @@ test.describe("scene tab", () => {
       // No entry on the instance and none needed. Nothing is asked of it on this generation, and a
       // seeded entry would make an absent tab look like a tab with nothing to say.
       const video = await seedCoveVideo(coveApi, {
-        title: `Older ${randomUUID().slice(0, 8)}`,
+        title: `V2 ${randomUUID().slice(0, 8)}`,
         remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: randomUUID() }],
       });
 

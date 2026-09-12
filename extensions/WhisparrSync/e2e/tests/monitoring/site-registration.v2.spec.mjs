@@ -1,4 +1,4 @@
-// Registering a site the older instance does not hold, which no other generation can do.
+// Registering a site the v2 instance does not hold, which no other generation can do.
 //
 // A site is the unit of presence on this generation, so a library run registers sites rather than
 // scenes. What is asserted is the instance's own catalogue afterwards, and that the registration is
