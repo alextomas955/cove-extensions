@@ -10,6 +10,13 @@ import {
   SYNC_IS_STARTING,
   SYNC_NEEDS_A_COUNT_FIRST,
   SYNC_NOTHING_LEFT_TO_SYNC,
+  SYNC_REGISTERS_THE_SCENES_YOU_OWN,
+  SYNC_REGISTERS_THE_STUDIOS_YOU_OWN,
+  SYNC_SITE_DOWNLOADS_NOTHING,
+  SYNC_SITE_NEEDS_A_COUNT_FIRST,
+  SYNC_SITE_NOTHING_LEFT_TO_SYNC,
+  SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED,
+  SYNC_SKIPPED_CANNOT_BE_REGISTERED,
 } from "../common/ui/copy";
 import {
   countControl,
@@ -17,9 +24,13 @@ import {
   monitorToggleReason,
   syncConfirmation,
   syncDisabledReason,
+  syncSentences,
   type SyncControlState,
   type SyncCounts,
 } from "./syncLibraryLogic";
+
+const SCENES = syncSentences("scenes");
+const SITES = syncSentences("sites");
 
 describe("a count reads the same wherever it is rendered", () => {
   // Hand-transcribed. An expectation computed from the module would agree with whatever grouping
@@ -71,20 +82,21 @@ const PRESSABLE: SyncControlState = {
   starting: false,
   counts: LIBRARY,
   monitorAlso: false,
+  sentences: SCENES,
 };
 
 describe("the confirmation names the figures and the consequence", () => {
   // Every expectation below is transcribed by hand. One composed from the module's own clauses would
   // agree with whatever the module produced.
   it("names what it covers and what it skips, and that it monitors nothing", () => {
-    expect(syncConfirmation(LIBRARY, false)).toBe(
+    expect(syncConfirmation(LIBRARY, false, SCENES)).toBe(
       "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that carry no metadata id. " +
         "It monitors nothing. Registering a scene in Whisparr downloads nothing.",
     );
   });
 
   it("names what monitoring does, and what it does not do by itself", () => {
-    expect(syncConfirmation(LIBRARY, true)).toBe(
+    expect(syncConfirmation(LIBRARY, true, SCENES)).toBe(
       "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that carry no metadata id. " +
         "It also marks each of them monitored. Marking a scene wanted downloads nothing by itself. " +
         "Registering a scene in Whisparr downloads nothing.",
@@ -92,14 +104,14 @@ describe("the confirmation names the figures and the consequence", () => {
   });
 
   it("reads as one scene at one, and drops the skip clause where nothing is skipped", () => {
-    expect(syncConfirmation(ONE_SCENE, false)).toBe(
+    expect(syncConfirmation(ONE_SCENE, false, SCENES)).toBe(
       "This offers the 1 scene you own to Whisparr. It monitors nothing. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
   });
 
   it("agrees with a single skipped scene", () => {
-    expect(syncConfirmation({ notYetThere: 4, alreadyThere: 0, skipped: 1 }, false)).toBe(
+    expect(syncConfirmation({ notYetThere: 4, alreadyThere: 0, skipped: 1 }, false, SCENES)).toBe(
       "This offers all 4 scenes you own to Whisparr, and skips 1 that carries no metadata id. " +
         "It monitors nothing. Registering a scene in Whisparr downloads nothing.",
     );
@@ -110,15 +122,94 @@ describe("the confirmation names the figures and the consequence", () => {
    * of sizes states the property once and this is the one clause that has to hold at each of them.
    */
   it("says registering downloads nothing where nothing is offered", () => {
-    expect(syncConfirmation(NOTHING, false)).toContain(SYNC_DOWNLOADS_NOTHING);
+    expect(syncConfirmation(NOTHING, false, SCENES)).toContain(SYNC_DOWNLOADS_NOTHING);
   });
 
   it("says registering downloads nothing at one scene", () => {
-    expect(syncConfirmation(ONE_SCENE, true)).toContain(SYNC_DOWNLOADS_NOTHING);
+    expect(syncConfirmation(ONE_SCENE, true, SCENES)).toContain(SYNC_DOWNLOADS_NOTHING);
   });
 
   it("says registering downloads nothing at library scale", () => {
-    expect(syncConfirmation(LIBRARY, true)).toContain(SYNC_DOWNLOADS_NOTHING);
+    expect(syncConfirmation(LIBRARY, true, SCENES)).toContain(SYNC_DOWNLOADS_NOTHING);
+  });
+
+  it("names no figure to offer where nothing was counted", () => {
+    expect(syncConfirmation(NOTHING, false, SCENES)).toBe(
+      "This offers all 0 scenes you own to Whisparr. It monitors nothing. " +
+        "Registering a scene in Whisparr downloads nothing.",
+    );
+  });
+});
+
+const STUDIOS: SyncCounts = { notYetThere: 405, alreadyThere: 7, skipped: 12 };
+const ONE_STUDIO: SyncCounts = { notYetThere: 1, alreadyThere: 0, skipped: 0 };
+
+describe("the confirmation reads in studios where the run registers studios", () => {
+  // Transcribed by hand, as the scene set's own pins are.
+  it("names what it covers and what it skips, and that it monitors nothing", () => {
+    expect(syncConfirmation(STUDIOS, false, SITES)).toBe(
+      "This offers all 412 studios in your library to Whisparr, and skips 12 that carry no " +
+        "metadata id. It monitors nothing. Registering a studio in Whisparr downloads nothing.",
+    );
+  });
+
+  /**
+   * The one clause in this set that names a scene, because a scene is what monitoring marks here:
+   * the studios are registered, and the scenes the reader owns on them are what carries the flag.
+   */
+  it("names the scenes monitoring reaches on those studios", () => {
+    expect(syncConfirmation(STUDIOS, true, SITES)).toBe(
+      "This offers all 412 studios in your library to Whisparr, and skips 12 that carry no " +
+        "metadata id. It also marks the scenes you own on them monitored. Marking a scene wanted " +
+        "downloads nothing by itself. Registering a studio in Whisparr downloads nothing.",
+    );
+  });
+
+  it("reads as one studio at one, and drops the skip clause where nothing is skipped", () => {
+    expect(syncConfirmation(ONE_STUDIO, false, SITES)).toBe(
+      "This offers the 1 studio in your library to Whisparr. It monitors nothing. " +
+        "Registering a studio in Whisparr downloads nothing.",
+    );
+  });
+
+  it("names no figure to offer where nothing was counted", () => {
+    expect(syncConfirmation(NOTHING, false, SITES)).toBe(
+      "This offers all 0 studios in your library to Whisparr. It monitors nothing. " +
+        "Registering a studio in Whisparr downloads nothing.",
+    );
+  });
+
+  it("says registering downloads nothing where nothing is offered", () => {
+    expect(syncConfirmation(NOTHING, false, SITES)).toContain(SYNC_SITE_DOWNLOADS_NOTHING);
+  });
+
+  it("says registering downloads nothing at one studio", () => {
+    expect(syncConfirmation(ONE_STUDIO, true, SITES)).toContain(SYNC_SITE_DOWNLOADS_NOTHING);
+  });
+
+  it("says registering downloads nothing at library scale", () => {
+    expect(syncConfirmation(STUDIOS, true, SITES)).toContain(SYNC_SITE_DOWNLOADS_NOTHING);
+  });
+});
+
+describe("the set is chosen by what the read says the run registers", () => {
+  it("states studios where the read says sites", () => {
+    expect(syncSentences("sites").description).toBe(SYNC_REGISTERS_THE_STUDIOS_YOU_OWN);
+    expect(syncSentences("sites").skippedRemedy).toBe(SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED);
+    expect(syncSentences("sites").needsACountFirst).toBe(SYNC_SITE_NEEDS_A_COUNT_FIRST);
+    expect(syncSentences("sites").nothingLeftToSync).toBe(SYNC_SITE_NOTHING_LEFT_TO_SYNC);
+  });
+
+  it("states scenes where the read says scenes", () => {
+    expect(syncSentences("scenes").description).toBe(SYNC_REGISTERS_THE_SCENES_YOU_OWN);
+    expect(syncSentences("scenes").skippedRemedy).toBe(SYNC_SKIPPED_CANNOT_BE_REGISTERED);
+    expect(syncSentences("scenes").needsACountFirst).toBe(SYNC_NEEDS_A_COUNT_FIRST);
+    expect(syncSentences("scenes").nothingLeftToSync).toBe(SYNC_NOTHING_LEFT_TO_SYNC);
+  });
+
+  /** Before any read has answered there is nothing to choose on, and the scene set stands. */
+  it("states scenes before any read has answered", () => {
+    expect(syncSentences(null)).toEqual(syncSentences("scenes"));
   });
 });
 
@@ -174,6 +265,15 @@ describe("the sync control states one reason at a time", () => {
 
   it("has work to do on the same library with monitoring on", () => {
     expect(syncDisabledReason({ ...PRESSABLE, counts: FULLY_HELD, monitorAlso: true })).toBeNull();
+  });
+
+  it("states its reasons in studios where the run registers studios", () => {
+    expect(syncDisabledReason({ ...PRESSABLE, sentences: SITES, counts: null })).toBe(
+      SYNC_SITE_NEEDS_A_COUNT_FIRST,
+    );
+    expect(syncDisabledReason({ ...PRESSABLE, sentences: SITES, counts: FULLY_HELD })).toBe(
+      SYNC_SITE_NOTHING_LEFT_TO_SYNC,
+    );
   });
 });
 

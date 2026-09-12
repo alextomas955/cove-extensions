@@ -8,12 +8,26 @@ import {
   CONNECT_NOT_CONFIGURED,
   MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF,
   SYNC_ALREADY_RUNNING,
+  SYNC_ALSO_MONITORS_EACH,
   SYNC_COUNT,
   SYNC_DOWNLOADS_NOTHING,
   SYNC_IS_COUNTING,
   SYNC_IS_STARTING,
+  SYNC_MONITORS_NOTHING,
   SYNC_NEEDS_A_COUNT_FIRST,
   SYNC_NOTHING_LEFT_TO_SYNC,
+  SYNC_OFFERS_ONE_SCENE,
+  SYNC_OFFERS_ONE_SITE,
+  SYNC_REGISTERS_THE_SCENES_YOU_OWN,
+  SYNC_REGISTERS_THE_STUDIOS_YOU_OWN,
+  SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM,
+  SYNC_SITE_DOWNLOADS_NOTHING,
+  SYNC_SITE_NEEDS_A_COUNT_FIRST,
+  SYNC_SITE_NOTHING_LEFT_TO_SYNC,
+  SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED,
+  SYNC_SKIPPED_CANNOT_BE_REGISTERED,
+  syncOffersScenes,
+  syncOffersSites,
 } from "../common/ui/copy";
 
 /**
@@ -33,6 +47,71 @@ export function groupThousands(n: number): string {
     grouped += digits[i];
   }
   return n < 0 ? `-${grouped}` : grouped;
+}
+
+/**
+ * Every sentence the sync section states in the noun of whatever the run registers.
+ *
+ * A resolved set rather than a flag: the section renders the strings it is given, so there is one
+ * place the noun is chosen and no second place that can disagree with it.
+ */
+export interface SyncSentences {
+  /** What the card offers, stated under its title. */
+  readonly description: string;
+  /** What the skipped count means, and what a reader can do about it. */
+  readonly skippedRemedy: string;
+  /** Why the sync control cannot be pressed before a count exists. */
+  readonly needsACountFirst: string;
+  /** Why there is nothing left for the run to register. Claims nothing about monitoring. */
+  readonly nothingLeftToSync: string;
+  /** The clause the confirmation ends on at every size. */
+  readonly downloadsNothing: string;
+  /** What the confirmation covers where the run offers one. */
+  readonly offersOne: string;
+  /** What it covers at any other size, given the figure already grouped. */
+  readonly offersMany: (grouped: string) => string;
+  /** What the monitor choice adds to the run, with the choice on. */
+  readonly alsoMonitors: string;
+}
+
+const SCENE_SENTENCES: SyncSentences = {
+  description: SYNC_REGISTERS_THE_SCENES_YOU_OWN,
+  skippedRemedy: SYNC_SKIPPED_CANNOT_BE_REGISTERED,
+  needsACountFirst: SYNC_NEEDS_A_COUNT_FIRST,
+  nothingLeftToSync: SYNC_NOTHING_LEFT_TO_SYNC,
+  downloadsNothing: SYNC_DOWNLOADS_NOTHING,
+  offersOne: SYNC_OFFERS_ONE_SCENE,
+  offersMany: syncOffersScenes,
+  alsoMonitors: SYNC_ALSO_MONITORS_EACH,
+};
+
+const SITE_SENTENCES: SyncSentences = {
+  description: SYNC_REGISTERS_THE_STUDIOS_YOU_OWN,
+  skippedRemedy: SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED,
+  needsACountFirst: SYNC_SITE_NEEDS_A_COUNT_FIRST,
+  nothingLeftToSync: SYNC_SITE_NOTHING_LEFT_TO_SYNC,
+  downloadsNothing: SYNC_SITE_DOWNLOADS_NOTHING,
+  offersOne: SYNC_OFFERS_ONE_SITE,
+  offersMany: syncOffersSites,
+  alsoMonitors: SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM,
+};
+
+/**
+ * What a run registers, as the preview read answers it.
+ *
+ * Declared here rather than imported from the wire module, so this module stays free of every other
+ * module. The read's own value satisfies it.
+ */
+export type SyncRegisters = "scenes" | "sites";
+
+/**
+ * The sentences to state, chosen from the read's own value.
+ *
+ * @param registers what the preview read said the run registers, or null before any read has
+ *   answered - which leaves the scene set standing, since nothing yet says otherwise
+ */
+export function syncSentences(registers: SyncRegisters | null): SyncSentences {
+  return registers === "sites" ? SITE_SENTENCES : SCENE_SENTENCES;
 }
 
 /** What the count control is called, and why it cannot be pressed. */
@@ -60,8 +139,9 @@ export function countControl(counting: boolean, hasResult: boolean): CountContro
 }
 
 /**
- * The three counts a preview answers with, structurally: the identified scenes the instance does not
- * hold, the ones it does, and the ones carrying no metadata id.
+ * The three counts a preview answers with, structurally: the identified entries the instance does
+ * not hold, the ones it does, and the ones carrying no metadata id. What an entry is follows what
+ * the run registers there.
  *
  * Declared here rather than imported from the wire module, so this module stays free of every other
  * module. The read's own view satisfies it.
@@ -86,9 +166,11 @@ export interface SyncControlState {
   readonly counts: SyncCounts | null;
   /** The monitor choice as it stands, which reason 6 below depends on. */
   readonly monitorAlso: boolean;
+  /** The sentences to state, in the noun of whatever the run registers. */
+  readonly sentences: SyncSentences;
 }
 
-/** How many scenes the run offers: every scene the reader owns that carries a metadata id. */
+/** How many entries the run offers: every one in the reader's library that carries a metadata id. */
 function offered(counts: SyncCounts): number {
   return counts.notYetThere + counts.alreadyThere;
 }
@@ -102,13 +184,15 @@ function offered(counts: SyncCounts): number {
  *
  * @param counts the three figures the preview answered with
  * @param monitorAlso the monitor choice as it stands at the press
+ * @param sentences the set to compose from, which decides the noun every clause is stated in
  */
-export function syncConfirmation(counts: SyncCounts, monitorAlso: boolean): string {
+export function syncConfirmation(
+  counts: SyncCounts,
+  monitorAlso: boolean,
+  sentences: SyncSentences,
+): string {
   const count = offered(counts);
-  const covers =
-    count === 1
-      ? "This offers the 1 scene you own to Whisparr"
-      : `This offers all ${groupThousands(count)} scenes you own to Whisparr`;
+  const covers = count === 1 ? sentences.offersOne : sentences.offersMany(groupThousands(count));
 
   const skips =
     counts.skipped === 0
@@ -118,10 +202,10 @@ export function syncConfirmation(counts: SyncCounts, monitorAlso: boolean): stri
         : `, and skips ${groupThousands(counts.skipped)} that carry no metadata id`;
 
   const monitoring = monitorAlso
-    ? `It also marks each of them monitored. ${MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF}`
-    : "It monitors nothing.";
+    ? `${sentences.alsoMonitors} ${MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF}`
+    : SYNC_MONITORS_NOTHING;
 
-  return `${covers}${skips}. ${monitoring} ${SYNC_DOWNLOADS_NOTHING}`;
+  return `${covers}${skips}. ${monitoring} ${sentences.downloadsNothing}`;
 }
 
 /**
@@ -140,8 +224,9 @@ export function syncDisabledReason(state: SyncControlState): string | null {
   if (state.noConnection) return CONNECT_NOT_CONFIGURED;
   if (state.syncRunning) return SYNC_ALREADY_RUNNING;
   if (state.starting) return SYNC_IS_STARTING;
-  if (state.counts === null) return SYNC_NEEDS_A_COUNT_FIRST;
-  if (!state.monitorAlso && state.counts.notYetThere === 0) return SYNC_NOTHING_LEFT_TO_SYNC;
+  if (state.counts === null) return state.sentences.needsACountFirst;
+  if (!state.monitorAlso && state.counts.notYetThere === 0)
+    return state.sentences.nothingLeftToSync;
   return null;
 }
 
@@ -149,8 +234,8 @@ export function syncDisabledReason(state: SyncControlState): string | null {
  * The one reason the monitor choice cannot be made, or null.
  *
  * A run in flight is the only thing the choice could contradict: it is read at press time, so
- * nothing else about the page's state makes it unavailable. It carries no version refusal - the
- * choice is honoured on both generations.
+ * nothing else about the page's state makes it unavailable. It carries no refusal for a capability
+ * gap - the choice is honoured whatever the run registers.
  */
 export function monitorToggleReason(state: SyncControlState): string | null {
   if (state.syncRunning) return SYNC_ALREADY_RUNNING;

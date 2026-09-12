@@ -25,7 +25,6 @@ import {
   SYNC_NOTHING_COUNTED_YET,
   SYNC_NOT_YET_IN_WHISPARR,
   SYNC_RUNS_IN_THE_JOB_DRAWER,
-  SYNC_SKIPPED_CANNOT_BE_REGISTERED,
   SYNC_SKIPPED_NO_ID,
 } from "../common/ui/copy";
 import type { AsyncRegionState } from "../common/ui/asyncRegionLogic";
@@ -38,6 +37,7 @@ import {
   syncConfirmation,
   syncDisabledReason,
   type SyncControlState,
+  type SyncSentences,
 } from "./syncLibraryLogic";
 
 export interface SyncLibrarySectionProps {
@@ -64,6 +64,8 @@ export interface SyncLibrarySectionProps {
   refused: boolean;
   /** The monitor choice as it stands. */
   monitorAlso: boolean;
+  /** The sentences to state, resolved by the caller from what the read says the run registers. */
+  sentences: SyncSentences;
   onMonitorAlso: (checked: boolean) => void;
   onSync: () => void;
 }
@@ -81,6 +83,7 @@ export function SyncLibrarySection({
   started,
   refused,
   monitorAlso,
+  sentences,
   onMonitorAlso,
   onSync,
 }: SyncLibrarySectionProps) {
@@ -94,14 +97,12 @@ export function SyncLibrarySection({
     starting,
     counts,
     monitorAlso,
+    sentences,
   };
   const syncReason = syncDisabledReason(state);
 
   return (
-    <SectionCard
-      title="Sync your library to Whisparr"
-      description="Register the scenes you already own, so Whisparr knows about them."
-    >
+    <SectionCard title="Sync your library to Whisparr" description={sentences.description}>
       <div className="space-y-2" aria-busy={counting}>
         <AsyncRegion
           state={preview}
@@ -111,7 +112,11 @@ export function SyncLibrarySection({
               <StatusText kind="muted">{SYNC_COUNTING}</StatusText>
             </div>
           }
-          content={counts === null ? null : <Counts counts={counts} now={now} />}
+          content={
+            counts === null ? null : (
+              <Counts counts={counts} now={now} remedy={sentences.skippedRemedy} />
+            )
+          }
           empty={<StatusText kind="muted">{SYNC_NOTHING_COUNTED_YET}</StatusText>}
           failed={<StatusText kind="error">{SYNC_COUNT_DID_NOT_FINISH}</StatusText>}
         />
@@ -166,7 +171,7 @@ export function SyncLibrarySection({
               destructive={false}
               title={SYNC_LIBRARY}
               confirmLabel={SYNC_LIBRARY}
-              message={syncConfirmation(counts, monitorAlso)}
+              message={syncConfirmation(counts, monitorAlso, sentences)}
               onConfirm={() => {
                 setConfirming(false);
                 onSync();
@@ -188,7 +193,7 @@ export function SyncLibrarySection({
  * the label and its number in the value, so no row has a plural to disagree with and a zero still
  * renders its own label.
  */
-function Counts({ counts, now }: { counts: SyncPreviewView; now: number }) {
+function Counts({ counts, now, remedy }: { counts: SyncPreviewView; now: number; remedy: string }) {
   const age = describeInstant(counts.countedAt, now);
 
   return (
@@ -198,9 +203,7 @@ function Counts({ counts, now }: { counts: SyncPreviewView; now: number }) {
       <CountRow label={SYNC_SKIPPED_NO_ID} value={counts.skipped} />
 
       <StatusText kind="muted">
-        {age === null
-          ? SYNC_SKIPPED_CANNOT_BE_REGISTERED
-          : `Counted ${age.text}. ${SYNC_SKIPPED_CANNOT_BE_REGISTERED}`}
+        {age === null ? remedy : `Counted ${age.text}. ${remedy}`}
       </StatusText>
     </div>
   );
