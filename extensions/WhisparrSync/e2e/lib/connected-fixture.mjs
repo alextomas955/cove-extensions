@@ -289,17 +289,33 @@ async function standInForProviders(names, { api, isolatedCove, cleanup }) {
  * library owns needs ONE filesystem reachable at ONE path from both containers: an instance mounting
  * Cove's volume anywhere else is handed a path it cannot read, links nothing, and the run still
  * completes reporting no failure.
+ *
+ * A spec measuring what the extension does with a path the instance REPORTED needs the opposite:
+ * one filesystem reachable at two different paths, so a reported path that resolved by accident is
+ * distinguishable from one the extension re-rooted. `instanceMount` is that second path, and
+ * mounting the volume there roots the catalogue under it.
  */
-const mediaFor = (ownedMedia, isolatedCove) =>
-  ownedMedia
-    ? {
-        start: {
-          rootFolder: `${isolatedCove.sharedPath}/media`,
-          dataVolume: isolatedCove.sharedVolume,
-          dataMount: isolatedCove.sharedPath,
-        },
-      }
-    : { start: { rootFolder: WHISPARR_ROOT } };
+function mediaFor({ ownedMedia, instanceMount }, isolatedCove) {
+  if (ownedMedia) {
+    return {
+      start: {
+        rootFolder: `${isolatedCove.sharedPath}/media`,
+        dataVolume: isolatedCove.sharedVolume,
+        dataMount: isolatedCove.sharedPath,
+      },
+    };
+  }
+  if (instanceMount !== null) {
+    return {
+      start: {
+        rootFolder: `${instanceMount}/media`,
+        dataVolume: isolatedCove.sharedVolume,
+        dataMount: instanceMount,
+      },
+    };
+  }
+  return { start: { rootFolder: WHISPARR_ROOT } };
+}
 
 export const test = base.extend({
   generation: ["v3", { option: true }],
@@ -307,6 +323,10 @@ export const test = base.extend({
   // Off by default: only a spec driving a verb over a file the library owns needs the volume, and
   // the mount is not free for the specs that do not.
   ownedMedia: [false, { option: true }],
+
+  // The path the instance mounts the library's own volume at, for a spec whose subject is the
+  // re-rooting of a reported path. Null leaves the instance its own catalogue root and no volume.
+  instanceMount: [null, { option: true }],
 
   // Empty by default: a spec that reads no catalogue pays for no stub. Named as a list because the
   // element Cove holds is the whole server list, so every wanted source is registered in one call.
@@ -336,7 +356,10 @@ export const test = base.extend({
    * Separate from `isolatedCove` so a spec needing only the installation names that one and pays for
    * no instance: Playwright builds fixtures lazily, by name.
    */
-  connected: async ({ isolatedCove, api, generation, ownedMedia, providers }, use) => {
+  connected: async (
+    { isolatedCove, api, generation, ownedMedia, instanceMount, providers },
+    use,
+  ) => {
     const seeder = SEEDERS[generation];
     if (seeder === undefined) {
       throw new Error(`connected: no seeder is written for the generation "${generation}".`);
@@ -352,7 +375,7 @@ export const test = base.extend({
         network: isolatedCove.container.getNetworkNames()[0],
         run,
         cleanup,
-        media: mediaFor(ownedMedia, isolatedCove),
+        media: mediaFor({ ownedMedia, instanceMount }, isolatedCove),
       });
       const instance = seeded.whisparr.apiFor(generation);
 
