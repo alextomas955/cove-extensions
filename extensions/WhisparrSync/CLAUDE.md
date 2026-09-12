@@ -101,16 +101,30 @@ the directory recursively, so a new one needs no configuration.
 
 ### What a spec's filename says
 
-A name is a coverage claim, not a fixture choice. Every spec starts something. The suffix answers
-one question: which generations is this capability driven on.
+A name is a coverage claim, not a fixture choice. The suffix answers one question: which generations
+is this capability driven on.
 
-| Name                             | What it claims                                                                                                                                                                                                                    |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `*.shared.spec.mjs`              | A capability both generations hold, driven on both. One scenario body, collected once per generation, each execution starting only its own instance. The body holds no branch on the generation.                                  |
-| `*.v2.spec.mjs`, `*.v3.spec.mjs` | A capability that generation holds alone, or its own refusal. Only that generation's instance starts.                                                                                                                             |
-| `*.ui.spec.mjs`                  | The browser driven against answers the spec supplies itself. No instance starts.                                                                                                                                                  |
-| `generation-switch.spec.mjs`     | The connected generation changes inside the test.                                                                                                                                                                                 |
-| no suffix                        | No per-generation capability claim: the host contract, a spec that needs no instance, and the connection, the notification it registers and the acquire chain, which are the same product behaviour whichever generation answers. |
+| Name                             | What it claims                                                                                                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `*.shared.spec.mjs`              | A capability both generations hold, driven on both. One scenario body, collected once per generation, each execution starting only its own instance. The body holds no branch on the generation. |
+| `*.v2.spec.mjs`, `*.v3.spec.mjs` | A capability that generation holds alone, or its own refusal. That generation is the whole subject of the file, and only its instance starts.                                                    |
+| `*.ui.spec.mjs`                  | The browser driven against answers the spec supplies itself. No instance starts.                                                                                                                 |
+| `generation-switch.spec.mjs`     | The connected generation changes inside the test.                                                                                                                                                |
+| no suffix                        | No per-generation capability claim. Whichever instances the spec connects are a fixture choice, so the name states nothing about generations.                                                    |
+
+An unsuffixed spec still names a generation for one of four reasons, and none of them claims a
+capability:
+
+- It connects no instance at all: the host contract, the panel mounting, and a settings write that
+  reaches no instance.
+- It drives both because the behaviour is the same whichever generation answers. The connection, the
+  notification it registers and the acquire chain are one product behaviour each, so each runs once
+  per generation and still claims nothing per generation.
+- It connects one generation so a browser surface has something to render, and the surface is the
+  subject. A nested block may connect the other generation to show the host draws the same surface
+  there, which is a control on the assertion beside it rather than a claim of its own.
+- It connects both at once because the subject is how the two relate on one installation: that the
+  credential slots are independent, or that the same read reaches different distances.
 
 A spec that connects an instance resolves `e2e/lib/connected-fixture.mjs`. It owns one Cove
 installation per test, addresses it from both the browser and the API client, and starts the one
