@@ -4,6 +4,17 @@
 // Everything goes through Whisparr's own /api/v3. The indexer and download-client hosts are the
 // container aliases, which is what Whisparr can reach over the shared network — never a mapped host
 // port, and never host.docker.internal.
+//
+// It also seeds the catalogue entry a grab lands on. A scene is one row on one generation and two
+// on the other, and each addresses a release search by a different entity, so the seeding is a
+// table here rather than a branch in the spec that grabs.
+import { randomUUID } from "node:crypto";
+
+import { pollUntil } from "@cove-extensions/e2e/poll";
+
+import { dateSeededScene, SCENE_SITE, seedV2Scene } from "./seed-scene.mjs";
+
+const CATALOGUE_BUDGET_MS = 60_000;
 
 /**
  * Posts a schema-derived configuration, filling the named fields.
@@ -118,4 +129,86 @@ export async function provisionAcquirePipeline({ whisparrApi, fakeIndexer, qbit 
   await relaxQualityGates(whisparrApi);
 
   return { indexerId: indexer.id, downloadClientId: client.id };
+}
+
+/**
+ * How each generation is given one scene an indexer can answer for, and how a release for it is
+ * asked for and grabbed.
+ *
+ * Seeded into the instance's datastore rather than added through its API: an add resolves the
+ * foreign id against a hosted metadata service, which a sealed run does not reach.
+ */
+const ACQUIRABLE = {
+  async v3({ whisparr, rootFolder, run }) {
+    const instance = whisparr.apiFor("v3");
+    const remoteId = randomUUID();
+    await whisparr.seedEntity("v3", {
+      kind: "scene",
+      foreignId: remoteId,
+      title: `Acquire ${run}`,
+      rootFolderPath: rootFolder,
+      monitored: true,
+    });
+
+    // The two facts this generation searches by. Without them the interactive search answers an
+    // empty list having asked no indexer anything, which reads exactly like an indexer that is not
+    // working.
+    await dateSeededScene(whisparr.v3.container, "v3", remoteId);
+
+    const rows = await pollUntil(
+      async () => (await instance.get("/api/v3/movie")).json,
+      (movies) => (movies ?? []).some((one) => one.foreignId === remoteId),
+      { timeoutMs: CATALOGUE_BUDGET_MS, label: "the seeded scene is a row the instance lists" },
+    );
+    const movie = rows.find((one) => one.foreignId === remoteId);
+    return {
+      entryId: movie.id,
+      folder: movie.path,
+      releaseQuery: `movieId=${String(movie.id)}`,
+      // The whole release resource back with the entity named on it. The controller parses the
+      // title to find one when none is given, and refuses a release whose title it cannot map.
+      // Naming it is what the interactive search does when a person picks a row.
+      grabFields: { movieId: movie.id },
+    };
+  },
+
+  async v2({ whisparr, rootFolder, run }) {
+    const instance = whisparr.apiFor("v2");
+    const seeded = await seedV2Scene(whisparr.v2.container, instance, {
+      siteId: Math.floor(Math.random() * 1_000_000) + 1,
+      siteTitle: SCENE_SITE,
+      rootFolderPath: rootFolder,
+      sceneExternalId: randomUUID(),
+      sceneTitle: `Acquire ${run}`,
+    });
+
+    const rows = await pollUntil(
+      async () => (await instance.get("/api/v3/series")).json,
+      (sites) => (sites ?? []).some((one) => one.id === seeded.seriesId),
+      { timeoutMs: CATALOGUE_BUDGET_MS, label: "the seeded site is a row the instance lists" },
+    );
+    const site = rows.find((one) => one.id === seeded.seriesId);
+    return {
+      entryId: seeded.seriesId,
+      folder: site.path,
+      releaseQuery: `episodeId=${String(seeded.episodeId)}`,
+      grabFields: { episodeId: seeded.episodeId, seriesId: seeded.seriesId },
+    };
+  },
+};
+
+/**
+ * Seeds one scene this generation's indexer query can answer for.
+ *
+ * @param {{ generation: "v2"|"v3", whisparr: object, rootFolder: string, run: string }} options
+ * @returns {Promise<{ entryId: number, folder: string, releaseQuery: string, grabFields: object }>}
+ */
+export async function seedAcquirableScene({ generation, whisparr, rootFolder, run }) {
+  const seed = ACQUIRABLE[generation];
+  if (seed === undefined) {
+    throw new Error(
+      `seedAcquirableScene: no seed is written for the generation "${generation}"; written are ${Object.keys(ACQUIRABLE).join(", ")}.`,
+    );
+  }
+  return seed({ whisparr, rootFolder, run });
 }
