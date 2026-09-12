@@ -5,7 +5,7 @@
 // to monitor and no assertion below claims anything was. What is under test is the button that
 // appears anyway: the action is registered unconditionally, unlike the performer slots beside it,
 // so on this connection a reader can press a control for a kind the connection cannot address. A control in that position is meant to say why, and this spec is the evidence that it
-// does and that pressing it reaches the instance with nothing.
+// does and that pressing it changes nothing the instance holds.
 //
 // WHY THE BUTTON IS THERE AT ALL. The card badges, the toolbar toggle and the list row are all
 // registered behind the generation gate and are genuinely absent here. The two bulk actions are
@@ -15,11 +15,19 @@
 // would look the same from the browser as one that sent nothing. The instance's own rows are the
 // only place the difference is visible.
 //
+// WHAT NOTHING-CHANGED MEANS HERE, EXACTLY. What the instance monitors, and whether it was asked to
+// search. Not its whole state: it runs scheduled commands of its own and its rows carry sync
+// timestamps that move with them, so a comparison of the whole roster or the whole row goes red on
+// the instance's own work rather than on anything this page did. The claim is that the panel changed
+// nothing it could have changed, which is a reading of the catalogue and says nothing about whether
+// a request left the browser.
+//
 // IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
 import { randomUUID } from "node:crypto";
 
 import {
   expect,
+  searching,
   seedCovePerformer,
   SETTLE_DWELL_MS,
   SPEC_BUDGET_MS,
@@ -59,7 +67,16 @@ const chooserPanel = (page) =>
  */
 const cardToggles = (page) => page.getByRole("button", { name: /^(Select|Deselect) item$/ });
 
-test("the performers bulk button states why v2 cannot address that kind, and reaches the instance with nothing", async ({
+/**
+ * What each of the instance's own rows is monitored as.
+ *
+ * The monitored flag alone, because that is what the verb the panel offers would change. The rest of
+ * a row carries the instance's own sync timestamps, which move on their own.
+ */
+const monitoredRows = (rows) =>
+  rows.map((row) => ({ id: row.id, monitored: row.monitored })).sort((a, b) => a.id - b.id);
+
+test("the performers bulk button states why v2 cannot address that kind, and changes nothing the instance holds", async ({
   page,
   baseUrl,
   connected,
@@ -74,6 +91,7 @@ test("the performers bulk button states why v2 cannot address that kind, and rea
   }
 
   const before = await whisparrActivity(instance);
+  const askedToSearch = new Set(searching(before.commandNames));
   const seriesBefore = await instance.get("/api/v3/series");
   expect(
     seriesBefore.status,
@@ -125,12 +143,20 @@ test("the performers bulk button states why v2 cannot address that kind, and rea
 
   const after = await whisparrActivity(instance);
   expect(
-    after,
-    `the instance's command roster moved after a panel that offered nothing. Before: ${JSON.stringify(before)}`,
-  ).toEqual(before);
+    searching(after.commandNames).filter((name) => !askedToSearch.has(name)),
+    `a panel that offered nothing asked the instance to search. Its whole roster was ${JSON.stringify(after.commandNames)}, and before the panel opened it was ${JSON.stringify(before.commandNames)}`,
+  ).toEqual([]);
+  expect(
+    after.queueTotal,
+    `the instance's queue total moved from ${String(before.queueTotal)} to ${String(after.queueTotal)} across a panel that offered nothing`,
+  ).toBe(before.queueTotal);
   const seriesAfter = await instance.get("/api/v3/series");
   expect(
-    seriesAfter.json,
-    "the instance's own rows moved after a panel that offered nothing",
-  ).toEqual(seriesBefore.json);
+    seriesAfter.status,
+    `GET the instance's own rows answered ${String(seriesAfter.status)} after the panel, so what they now say is unread`,
+  ).toBe(200);
+  expect(
+    monitoredRows(seriesAfter.json),
+    "a panel that offered nothing changed what the instance monitors",
+  ).toEqual(monitoredRows(seriesBefore.json));
 });
