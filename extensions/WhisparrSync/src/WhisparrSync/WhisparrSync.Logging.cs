@@ -272,6 +272,33 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] a library count could not be finished ({Failure}); no count was held")]
     internal static partial void SyncCountDidNotFinish(ILogger logger, string failure);
 
+    // A metadata provider that stopped answering part way through one site's scenes. Contained so
+    // the rest of the library is still offered, and reported once per site rather than once per
+    // scene: the same fact repeated per scene would fill the log, and the run's own ending states
+    // how many scenes it could not address. The classification and nothing else, for the reason the
+    // contained catalogue read states.
+    [LoggerMessage(
+        EventId = 2127, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] scene numbers could not be read from the metadata provider ({Failure}); those scenes were not monitored and the run went on")]
+    internal static partial void SceneNumbersUnreadable(ILogger logger, string failure);
+
+    // A site's own scene rows that could not be read. The read raises rather than answering an empty
+    // map, because an empty map claims the site holds a row for none of them, so the scenes asked
+    // about are counted as unresolved here. Reported once per site for the reason above.
+    [LoggerMessage(
+        EventId = 2128, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a site's own scene rows could not be read ({Failure}); those scenes were counted as unresolved and the run went on")]
+    internal static partial void SiteSceneRowsUnreadable(ILogger logger, string failure);
+
+    // A run asked to monitor against a metadata provider that issues no scene number at all. The
+    // sites are still registered, and nothing per scene is attempted: without a number there is
+    // nothing to address a row by. Said once per run, because it is a fact about the configuration
+    // rather than about any one scene.
+    [LoggerMessage(
+        EventId = 2129, Level = LogLevel.Information,
+        Message = "[WhisparrSync] the connected metadata provider issues no scene number this Whisparr names scenes by, so the run registered its sites and monitored nothing")]
+    internal static partial void NoSceneNumberingToMonitorBy(ILogger logger);
+
     // A write dropped because the blob it would have been built on could not be read, so the fold ran
     // on defaults. The stored configuration is what survives; the update the caller asked for is
     // lost, and the writers that reach this run with nobody watching.
