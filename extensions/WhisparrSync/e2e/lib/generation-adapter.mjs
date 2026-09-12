@@ -58,15 +58,18 @@ const GENERATIONS = {
 
     ownedFileRows: (api, entryId) => listRows(api, `/api/v3/moviefile?movieId=${String(entryId)}`),
 
+    // The entry's own account of what it holds is the size it reports on disk. This build's
+    // catalogue resource carries no held-a-file flag, and a size it reports is a read of the file
+    // rather than of the row that points at one.
     async ownedEntryHoldsFile(api, entryId) {
       const route = `/api/v3/movie/${String(entryId)}`;
       const read = await api.get(route);
-      if (typeof read.json?.hasFile !== "boolean") {
+      if (!Number.isInteger(read.json?.sizeOnDisk)) {
         throw new Error(
-          `generation adapter: ${route} answered ${String(read.status)} with no catalogue entry: ${String(read.text).slice(0, 300)}`,
+          `generation adapter: ${route} answered ${String(read.status)} with no catalogue entry reporting a size: ${String(read.text).slice(0, 300)}`,
         );
       }
-      return read.json.hasFile;
+      return read.json.sizeOnDisk > 0;
     },
 
     async declaredSceneIdentifier(api) {

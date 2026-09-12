@@ -158,20 +158,6 @@ export async function sceneRows(whisparrApi, seriesId) {
   return listed.json ?? [];
 }
 
-/** The instance's own rows for the files it holds under a site. */
-export async function episodeFileRows(whisparrApi, seriesId) {
-  const route = `/api/v3/episodefile?seriesId=${String(seriesId)}`;
-  const listed = await whisparrApi.get(route);
-  // A refused listing and a site holding nothing are different facts. Read as an empty list, the
-  // first reads as the second and a wrong route below would report the instance linked nothing.
-  if (!Array.isArray(listed.json)) {
-    throw new Error(
-      `episodeFileRows: ${route} answered ${listed.status} with no list: ${listed.text?.slice(0, 300)}`,
-    );
-  }
-  return listed.json;
-}
-
 // The site read lives beside the fixture that owns a connected installation, because the shared
 // scenarios read the same row through it.
 export { siteRow } from "./connected-fixture.mjs";
