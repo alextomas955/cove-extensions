@@ -10,7 +10,9 @@
 //
 // WHY EVERY READER REFUSES. A refused listing and an instance holding nothing are different facts.
 // Read as empty data the first reads as the second, and a scenario then reports that the walk
-// imported nothing when what really happened is that it never saw a page.
+// imported nothing when what really happened is that it never saw a page. So every reader takes the
+// STATUS as well as the shape: a refusal carrying a plausible body - 503 with `[]`, 503 with a
+// well-formed page - is the case a shape check alone admits.
 import { STASHDB_ENDPOINT, THEPORNDB_ENDPOINT } from "./contract.mjs";
 import { deliveredRemoteId } from "./steps.mjs";
 import { whisparrActivity } from "./whisparr-sync-fixtures.mjs";
@@ -23,7 +25,7 @@ const IMPORTED_EVENT_TYPE = "downloadFolderImported";
 
 async function listRows(api, route) {
   const answered = await api.get(route);
-  if (!Array.isArray(answered.json)) {
+  if (answered.status !== 200 || !Array.isArray(answered.json)) {
     throw new Error(
       `generation adapter: ${route} answered ${String(answered.status)} with no list: ${String(answered.text).slice(0, 300)}`,
     );
@@ -34,7 +36,11 @@ async function listRows(api, route) {
 async function historyPage(api, pageSize) {
   const route = `/api/v3/history?page=1&pageSize=${String(pageSize)}&sortKey=date&sortDirection=descending`;
   const answered = await api.get(route);
-  if (!Array.isArray(answered.json?.records) || !Number.isInteger(answered.json?.totalRecords)) {
+  if (
+    answered.status !== 200 ||
+    !Array.isArray(answered.json?.records) ||
+    !Number.isInteger(answered.json?.totalRecords)
+  ) {
     throw new Error(
       `generation adapter: ${route} answered ${String(answered.status)} with no history page: ${String(answered.text).slice(0, 300)}`,
     );
@@ -64,7 +70,7 @@ const GENERATIONS = {
     async ownedEntryHoldsFile(api, entryId) {
       const route = `/api/v3/movie/${String(entryId)}`;
       const read = await api.get(route);
-      if (!Number.isInteger(read.json?.sizeOnDisk)) {
+      if (read.status !== 200 || !Number.isInteger(read.json?.sizeOnDisk)) {
         throw new Error(
           `generation adapter: ${route} answered ${String(read.status)} with no catalogue entry reporting a size: ${String(read.text).slice(0, 300)}`,
         );
