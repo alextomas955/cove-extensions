@@ -99,15 +99,26 @@ field the API documentation names.
 the specs about the host contract rather than a capability of this extension. Playwright collects
 the directory recursively, so a new one needs no configuration.
 
-### The generation suffix
+### What a spec's filename says
 
-`*.v2.spec.mjs` starts an instance of v2 and only that one, `*.v3.spec.mjs` the
-newer. A spec with neither suffix runs for both, or needs no instance at all. The suffix is what
-makes a one-sided capability visible without opening the file: five capabilities are held by both
-generations, and a spec name is the only place that says which of them are driven on both.
+A name is a coverage claim, not a fixture choice. Every spec starts something. The suffix answers
+one question: which generations is this capability driven on.
 
-A `*.v2` spec builds its instance from `e2e/lib/v2-fixture.mjs`, which seeds the site, the scene
-under it and the studio in Cove that names the site.
+| Name                             | What it claims                                                                                                                                                                                                                    |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `*.shared.spec.mjs`              | A capability both generations hold, driven on both. One scenario body, collected once per generation, each execution starting only its own instance. The body holds no branch on the generation.                                  |
+| `*.v2.spec.mjs`, `*.v3.spec.mjs` | A capability that generation holds alone, or its own refusal. Only that generation's instance starts.                                                                                                                             |
+| `*.ui.spec.mjs`                  | The browser driven against answers the spec supplies itself. No instance starts.                                                                                                                                                  |
+| `generation-switch.spec.mjs`     | The connected generation changes inside the test.                                                                                                                                                                                 |
+| no suffix                        | No per-generation capability claim: the host contract, a spec that needs no instance, and the connection, the notification it registers and the acquire chain, which are the same product behaviour whichever generation answers. |
+
+A spec that connects an instance resolves `e2e/lib/connected-fixture.mjs`. It owns one Cove
+installation per test, addresses it from both the browser and the API client, and starts the one
+instance its `generation` option names. What the two generations spell differently, and the reads a
+scenario uses to check them, live in `e2e/lib/generation-adapter.mjs`.
+
+`e2e/lib/v2-fixture.mjs` remains for the `*.v2` specs that need its seeded site, the scene under it
+and the studio in Cove that names the site.
 
 ## Secrets
 
