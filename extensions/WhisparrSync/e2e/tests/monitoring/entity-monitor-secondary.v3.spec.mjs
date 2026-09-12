@@ -45,6 +45,7 @@ import {
 import {
   expect,
   extensionRoute,
+  searching,
   seedCoveVideo,
   SETTLE_DWELL_MS,
   SPEC_BUDGET_MS,
@@ -190,6 +191,15 @@ test("the rows a monitored studio offers, and the verb that registers what the l
     `arranging the studio as monitored answered ${String(monitored.status)} ${JSON.stringify(monitored.json)}`,
   ).toBe(true);
 
+  // Monitoring an entity is not asking for its back catalogue, and this is also the bound the
+  // registering verb is measured against further down: with the roster carrying no searching command
+  // here, one carrying any afterwards was put there by that verb.
+  const arranged = await whisparrActivity(instance);
+  expect(
+    searching(arranged.commandNames),
+    `the monitor gesture asked the instance to search. Its whole roster was ${JSON.stringify(arranged.commandNames)}`,
+  ).toEqual([]);
+
   // ---- The three rows on the monitored studio. ----
   await visit(
     page,
@@ -254,8 +264,15 @@ test("the rows a monitored studio offers, and the verb that registers what the l
   ).toBeTruthy();
 
   // The load-bearing half: registering a scene is not acquiring one. Whatever the instance did with
-  // the offer, it queued no transfer.
+  // the offer, it was never asked to search and it queued no transfer. The roster is the half that
+  // holds on this fixture: it has no indexer, so a search it was wrongly asked for enqueues nothing
+  // and the queue alone reads the same either way.
+  await page.waitForTimeout(SETTLE_DWELL_MS);
   const after = await whisparrActivity(instance);
+  expect(
+    searching(after.commandNames),
+    `the registering verb asked the instance to search. Registering what the library holds is not asking for it, and the whole roster was ${JSON.stringify(after.commandNames)}`,
+  ).toEqual([]);
   expect(
     after.queueTotal,
     `the instance's queue holds ${String(after.queueTotal)} record(s) after the registering verb, so registering a scene started a transfer`,
