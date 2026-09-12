@@ -45,6 +45,19 @@ const CAPTURED_PAGE = join(
 export const STASHDB_STUB_ENDPOINT = `http://${STASHDB_HOST}/graphql`;
 
 /**
+ * The host's metadata-server entry naming this stub.
+ *
+ * The key is a literal: this product refuses a server carrying none, and the stub reads it for
+ * nothing.
+ */
+export const STASHDB_STUB_SERVER = {
+  endpoint: STASHDB_STUB_ENDPOINT,
+  apiKey: "stub-key-not-a-credential",
+  name: "stashdb",
+  maxRequestsPerMinute: 6000,
+};
+
+/**
  * Starts the stub on `networkName` under the service's own name.
  *
  * @param {{networkName: string}} options
@@ -87,26 +100,20 @@ export async function startProviderStub({ networkName }) {
 }
 
 /**
- * Points the running Cove at the stub, replacing whatever metadata servers it declares.
+ * Points the running Cove at `servers`, replacing whatever metadata servers it declares.
  *
- * The key is a literal: this product refuses a server carrying none, and the stub reads it for
- * nothing. Answers the configuration that was written, so a caller can assert it took.
+ * Every wanted server is written in ONE call, because the element is the whole list: a second call
+ * naming one server takes the first one away. Answers the configuration that was written, so a
+ * caller can assert it took.
  */
-export async function configureProviderStub(api) {
+export async function configureProviderStub(api, servers = [STASHDB_STUB_SERVER]) {
   const read = await api.get("/api/system/config");
   if (read.status >= 300) {
     throw new Error(`configureProviderStub: GET /api/system/config answered ${read.status}`);
   }
 
   const config = read.json;
-  config.scraping.metadataServers = [
-    {
-      endpoint: STASHDB_STUB_ENDPOINT,
-      apiKey: "stub-key-not-a-credential",
-      name: "stashdb",
-      maxRequestsPerMinute: 6000,
-    },
-  ];
+  config.scraping.metadataServers = [...servers];
 
   const saved = await api.put("/api/system/config", config);
   if (saved.status >= 300) {

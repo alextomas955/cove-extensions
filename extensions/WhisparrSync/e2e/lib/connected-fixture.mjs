@@ -21,6 +21,8 @@ import { startWhisparr, WHISPARR_APP_USER } from "@cove-extensions/e2e/whisparr"
 
 import { adapterFor } from "./generation-adapter.mjs";
 import { startMetadataStub } from "./metadata-stub.mjs";
+import { configureProviderStub, startProviderStub, STASHDB_STUB_SERVER } from "./provider-stub.mjs";
+import { startThePornDbStub, THEPORNDB_STUB_SERVER } from "./theporndb-stub.mjs";
 import { SCENE_RELEASE_DATE, seedV2Scene } from "./seed-scene.mjs";
 import {
   connectWhisparr,
@@ -240,6 +242,46 @@ const SEEDERS = {
 };
 
 /**
+ * The metadata services a spec can have stood in for, by the name each is registered under.
+ *
+ * One entry per source rather than one stub serving both: the host resolves a server to a source on
+ * its registrable domain, so a single container answering to two names would be two servers of one
+ * source and the product would read only the first.
+ */
+const PROVIDER_STUBS = {
+  stashdb: { start: startProviderStub, server: STASHDB_STUB_SERVER },
+  theporndb: { start: startThePornDbStub, server: THEPORNDB_STUB_SERVER },
+};
+
+/**
+ * Starts each named stub on the installation's network and registers all of them with Cove at once.
+ *
+ * One registration call for the whole set, because the element Cove holds is the whole list and a
+ * second call naming one server takes the others away.
+ */
+async function standInForProviders(names, { api, isolatedCove, cleanup }) {
+  const started = {};
+  for (const name of names) {
+    const declared = PROVIDER_STUBS[name];
+    if (declared === undefined) {
+      throw new Error(
+        `connected: no provider stub is written for "${name}"; written stubs are ${Object.keys(PROVIDER_STUBS).join(", ")}.`,
+      );
+    }
+    started[name] = await declared.start({
+      networkName: isolatedCove.container.getNetworkNames()[0],
+    });
+    cleanup.push(`the ${name} provider stub`, () => started[name].stop());
+  }
+
+  await configureProviderStub(
+    api,
+    names.map((name) => PROVIDER_STUBS[name].server),
+  );
+  return started;
+}
+
+/**
  * Where the instance's catalogue is rooted, and whether the library's own volume is under it.
  *
  * A spec that only reads the instance's rows needs no volume, and mounting one would cost every
@@ -266,6 +308,10 @@ export const test = base.extend({
   // the mount is not free for the specs that do not.
   ownedMedia: [false, { option: true }],
 
+  // Empty by default: a spec that reads no catalogue pays for no stub. Named as a list because the
+  // element Cove holds is the whole server list, so every wanted source is registered in one call.
+  providers: [[], { option: true }],
+
   isolatedCove: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
 
   baseUrl: async ({ isolatedCove }, use) => {
@@ -290,7 +336,7 @@ export const test = base.extend({
    * Separate from `isolatedCove` so a spec needing only the installation names that one and pays for
    * no instance: Playwright builds fixtures lazily, by name.
    */
-  connected: async ({ isolatedCove, api, generation, ownedMedia }, use) => {
+  connected: async ({ isolatedCove, api, generation, ownedMedia, providers }, use) => {
     const seeder = SEEDERS[generation];
     if (seeder === undefined) {
       throw new Error(`connected: no seeder is written for the generation "${generation}".`);
@@ -299,6 +345,8 @@ export const test = base.extend({
     const cleanup = cleanupStack();
     try {
       const run = randomUUID().slice(0, 8);
+      // Before the connection, so the extension's first read already resolves the source.
+      const provider = await standInForProviders(providers, { api, isolatedCove, cleanup });
       const adapter = adapterFor(generation);
       const seeded = await seeder.seedInstance({
         network: isolatedCove.container.getNetworkNames()[0],
@@ -325,6 +373,7 @@ export const test = base.extend({
         generation,
         instance,
         owned,
+        provider,
         remoteId: seeded.remoteId,
         run,
         studio,

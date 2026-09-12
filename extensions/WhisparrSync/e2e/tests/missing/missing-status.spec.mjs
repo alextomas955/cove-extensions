@@ -10,39 +10,39 @@
 // through the host, because a pill's four words are the same string for two of the cases and the
 // field beside them is what tells them apart.
 //
-// WHAT IS CONDITIONAL, AND WHY. Two things narrow what can be asserted here, and each names itself
-// in an annotation rather than passing silently:
+// WHAT EACH GENERATION'S READ REACHES. Both sources are stood in for by a container answering to
+// that source's own name on this installation's network, so this spec needs no credential on the
+// machine running it. The two reach different distances, and the difference is a property of the
+// product rather than of the stubs:
 //
-// - A CATALOGUE needs a metadata credential, lifted read-only from this machine's own Cove install.
-//   A machine with none is the ordinary case off this desk, and without one every page answers that
-//   no provider is configured.
-// - WHISPARR V2 identifies entities against the other metadata source, and this build ships
-//   a client for one source only. A page read on that generation therefore answers that no provider
-//   is configured rather than reaching a catalogue, so the permanent absence over a full grid is
-//   asserted in the backend suite instead. What is asserted here is that the tab still renders and
-//   still states a reason.
+// - THE NEWER GENERATION posts its catalogue query to the resolved identity endpoint, so the stub
+//   standing in for that source IS the catalogue, and the cards below come from it.
+// - THE OLDER GENERATION resolves the same way and then reads its catalogue over REST from a
+//   compiled-in address, so registering its source decides only whether a provider is found. That is
+//   the difference asserted at the older-generation arm below: registered, the read names the
+//   provider and states it could not be reached; unregistered, it states that none is configured.
+//   The catalogue itself is out of reach of any stub this suite starts.
 //
 // IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
-import { createApiClient } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
 
-import { configureProviderStub, startProviderStub } from "../../lib/provider-stub.mjs";
-import { visit } from "../../lib/steps.mjs";
+import { startWhisparr } from "@cove-extensions/e2e/whisparr";
+
 import {
-  test as base,
+  cleanupStack,
   connectWhisparr,
   expect,
   extensionRoute,
   seedCovePerformer,
   seedCoveStudio,
+  SPEC_BUDGET_MS,
   STASHDB_ENDPOINT,
-  WHISPARR_ROOT,
-  WHISPARR_SYNC_EXTENSION,
-} from "../../lib/whisparr-sync-fixtures.mjs";
+  test,
+  THEPORNDB_ENDPOINT,
+} from "../../lib/connected-fixture.mjs";
+import { visit } from "../../lib/steps.mjs";
 
 // The tab's label and the four pill words, transcribed by hand from the shipped vocabulary. A spec
 // importing the constants the product declares would be asserting that a string equals itself.
@@ -59,27 +59,8 @@ const BRAZZERS_EXXTRA = "39cee498-a9ac-4403-910a-1a0157ad22d8";
 const TAB_BUDGET_MS = 30_000;
 const REGION_BUDGET_MS = 90_000;
 
-const test = base.extend({
-  statusHarness: [
-    async ({}, use) => {
-      const harness = await startHarness();
-      try {
-        harness.owner = await harness.bootstrapOwner();
-        await harness.installExtension(WHISPARR_SYNC_EXTENSION);
-        await use(harness);
-      } finally {
-        await harness.stop();
-      }
-    },
-    { scope: "test" },
-  ],
-
-  // Read through the handle AFTER the install. The install restarts the container, which re-mints
-  // the token and can republish the instance on a different host port.
-  baseUrl: async ({ statusHarness }, use) => {
-    await use(statusHarness.baseUrl);
-  },
-});
+test.describe.configure({ timeout: SPEC_BUDGET_MS });
+test.use({ generation: "v3", providers: ["stashdb", "theporndb"] });
 
 /** The tab, by the only name the host draws it under. */
 const missingTab = (page) => page.getByRole("tab", { name: TAB_LABEL }).first();
@@ -106,16 +87,10 @@ async function readMissingPage(api, kind, coveId) {
 test("the two reasons a status is unknown are different answers, in a real host", async ({
   page,
   baseUrl,
-  statusHarness,
+  isolatedCove,
+  connected,
 }) => {
-  // Two container pairs, an extension install, a browser and a real instance. Well above the shared
-  // per-test budget, and deliberately its own number rather than a raised default for every spec.
-  test.setTimeout(900_000);
-
-  const coveApi = createApiClient(
-    () => statusHarness.baseUrl,
-    () => statusHarness.token,
-  );
+  const { api: coveApi, provider, whisparr } = connected;
 
   // Everything the browser reported, so a bundle-load throw is named by this spec rather than left
   // as a blank region someone has to go and explain.
@@ -127,28 +102,16 @@ test("the two reasons a status is unknown are different answers, in a real host"
     consoleErrors.push(String(failure));
   });
 
-  const provider = await startProviderStub({
-    networkName: statusHarness.container.getNetworkNames()[0],
-  });
-  const whisparr = await startWhisparr({
-    network: statusHarness.container.getNetworkNames()[0],
-    generations: ["v3", "v2"],
-  });
-
-  let whisparrStopped = false;
+  const cleanup = cleanupStack();
+  let newerStopped = false;
   try {
-    const instance = whisparr.apiFor("v3");
-    whisparr.v3.rootFolder = await registerRootFolder(
-      whisparr.v3.container,
-      instance,
-      "v3",
-      WHISPARR_ROOT,
-    );
-    await connectWhisparr(coveApi, whisparr, "v3");
-
-    // The catalogue is served on this network under the metadata service's own name, so every
-    // assertion below runs wherever this suite runs.
-    await configureProviderStub(coveApi);
+    // The other generation, started here rather than by the fixture: the fixture connects one, and
+    // what this spec compares is two connections against one installation.
+    const older = await startWhisparr({
+      network: isolatedCove.container.getNetworkNames()[0],
+      generations: ["v2"],
+    });
+    cleanup.push("the older instance", () => older.stop());
 
     const studio = await seedCoveStudio(coveApi, {
       name: `Brazzers Exxtra ${randomUUID().slice(0, 8)}`,
@@ -196,20 +159,20 @@ test("the two reasons a status is unknown are different answers, in a real host"
 
     // A CONNECTED INSTANCE. The catalogue is read, the instance answers, and the page reports a
     // status it actually read.
-    const connected = await readMissingPage(coveApi, "studio", studio.id);
+    const connectedPage = await readMissingPage(coveApi, "studio", studio.id);
     expect(
-      connected.cards.length,
+      connectedPage.cards.length,
       "a provider and an instance were both configured, so the catalogue should have answered with cards",
     ).toBeGreaterThan(0);
 
     // Read off the stub's own record: the cards below are evidence about this product only if the
     // page they came from is the one this spec served.
     expect(
-      (await provider.asked()).filter((line) => line.includes("MissingPage")),
+      (await provider.stashdb.asked()).filter((line) => line.includes("MissingPage")),
       "the stub was never asked for a page, so the grid is drawing something this spec did not serve",
     ).not.toEqual([]);
     expect(
-      connected.statusIsPermanentlyAbsent,
+      connectedPage.statusIsPermanentlyAbsent,
       "a connected instance of this generation keeps per-scene records, so nothing about the status is permanent",
     ).toBe(false);
 
@@ -230,39 +193,45 @@ test("the two reasons a status is unknown are different answers, in a real host"
       "the first card carries no status pill in this product's own vocabulary",
     ).toBeVisible();
 
-    // WHISPARR V2. It identifies entities against the other metadata source, and this spec
-    // configures a server for one source only, so the read finds none on v2's domain and states that
-    // rather than reaching a catalogue. What is asserted is that the tab still says something.
-    //
-    // That is a statement about a Cove configured for one source, NOT about v2's catalogue. This
-    // product ships a client for that source and the Missing tab is registered on both, so v2's
-    // catalogue is a real surface with no coverage here. Serving it needs a second stub: that
-    // client reads a REST base it does not take from the configuration, so the stub has to answer
-    // over TLS under a name it holds a certificate for.
-    await connectWhisparr(coveApi, whisparr, "v2");
-    const older = await readMissingPage(coveApi, "studio", studio.id);
+    // THE OLDER GENERATION. Its source is registered here like the other one, so the read resolves a
+    // provider and gets past the gate that answers when none is. What it then reaches is the limit
+    // stated at the head of this file, and the stub's own log below is the evidence for it.
+    await connectWhisparr(coveApi, older, "v2");
+    const olderStudio = await seedCoveStudio(coveApi, {
+      name: `Older ${randomUUID().slice(0, 8)}`,
+      remoteIds: [{ endpoint: THEPORNDB_ENDPOINT, remoteId: String(Date.now()) }],
+    });
+    const olderPage = await readMissingPage(coveApi, "studio", olderStudio.id);
     expect(
-      older.refusal,
-      "v2 answered no stated reason at all, so the tab would render a blank region",
+      olderPage.refusal,
+      "the older generation answered no stated reason at all, so the tab would render a blank region",
     ).not.toBe("none");
+    expect(
+      olderPage.refusal,
+      "the older generation's read did not resolve the source registered for it: it states that none is configured, which is the answer this stub exists to move past",
+    ).toBe("providerUnreachable");
+    expect(
+      await provider.theporndb.asked(),
+      "the stub standing in for the older generation's source WAS asked, so the catalogue read now consults the configuration and this spec's account of what it reaches is out of date",
+    ).toEqual([]);
     test.info().annotations.push({
       type: "narrowed-assertion",
       description:
-        "v2's own catalogue is not read here: this spec configures a server for the other source only, so the read states that none is configured before any status is reached. The projection over a v2 catalogue is covered in the backend suite.",
+        "the older generation's catalogue is not read here, and no stub can serve it: its client builds every request against a compiled-in address on the open internet and never consults the configuration. What is asserted is that the source resolves and the unreachable catalogue is stated as such. The projection over that catalogue is covered in the backend suite.",
     });
 
     // THE INSTANCE STOPPED. The catalogue still reads, so the grid is full; the instance answers
-    // nothing, so every card reads the same four words v2's would. The field
+    // nothing, so every card reads the same four words the older generation's would. The field
     // beside them is what says a retry could change this one.
     await connectWhisparr(coveApi, whisparr, "v3");
     await whisparr.stop();
-    whisparrStopped = true;
+    newerStopped = true;
 
     const unreachable = await readMissingPage(coveApi, "studio", studio.id);
     expect(
       unreachable.cards.length,
       "the provider answered, so the catalogue below the notice is still complete",
-    ).toBe(connected.cards.length);
+    ).toBe(connectedPage.cards.length);
     expect(
       unreachable.statusWasRead,
       "the instance was stopped, so no status can have been read",
@@ -296,6 +265,12 @@ test("the two reasons a status is unknown are different answers, in a real host"
       `the instance answered nothing, so the first card should read "${UNKNOWN_PILL}"`,
     ).toBeVisible();
   } finally {
-    await Promise.allSettled([whisparrStopped ? null : whisparr.stop(), provider.stop()]);
+    // Stopping the newer instance is part of what this spec drives, and the fixture registered a
+    // stop for it too. Withdrawing that one keeps the unwind from reporting a container it cannot
+    // find, which would read as a teardown fault on a passing run.
+    if (newerStopped) {
+      whisparr.stop = async () => {};
+    }
+    await cleanup.unwind();
   }
 });
