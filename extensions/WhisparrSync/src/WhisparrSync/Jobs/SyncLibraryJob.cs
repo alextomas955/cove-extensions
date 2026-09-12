@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Library;
 using WhisparrSync.Monitoring;
-using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Jobs;
 
@@ -35,12 +34,19 @@ public sealed record SyncLibraryBatch(bool AlsoMonitor);
 /// Marks one offered scene wanted, or null where the reader did not ask for it or the generation
 /// registers no per-scene monitor.
 /// </param>
+/// <param name="MonitorSiteScenes">
+/// Marks the scenes the reader owns on one registered site wanted, or null where the reader did not
+/// ask for it, the generation registers no per-scene monitor, or the connected metadata provider
+/// issues no number to address a scene by.
+/// </param>
 internal sealed record SyncLibraryAiming(
     WhisparrGeneration Generation,
     SyncRegisters Registers,
     Func<string, CancellationToken, Task<SyncRegistration>>? RegisterScene,
     Func<LibrarySiteIdentity, CancellationToken, Task<SyncRegistration>>? RegisterSite,
-    Func<string, SyncRegistration, CancellationToken, Task<WhisparrResponse?>>? Monitor);
+    Func<string, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>? Monitor,
+    Func<LibrarySiteIdentity, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>?
+        MonitorSiteScenes = null);
 
 /// <summary>
 /// The library run's id, its (de)serialization onto the host's string-only parameter map, and the
@@ -143,14 +149,15 @@ public static class SyncLibraryJob
                     progress,
                     ct).ConfigureAwait(false),
 
-                // Nothing monitors a site here. What the reader owns on a site is its scenes, and
-                // reaching one of those is a per-scene verb this pass does not obtain.
+                // Nothing monitors the site itself. What the reader owns on a site is its scenes, so
+                // the monitor slot here marks those rather than the site, and it is null unless the
+                // reader asked and every role that pass needs was obtained.
                 SyncRegisters.Sites => await SyncLibraryPlanner.RunAsync<LibrarySiteIdentity>(
                     aimed.Registers,
                     runCt => identities.SiteIdentities(aimed.Generation, runCt),
                     site => site.RemoteId,
                     Supplied(aimed.RegisterSite, aimed.Registers),
-                    monitor: null,
+                    aimed.MonitorSiteScenes,
                     progress,
                     ct).ConfigureAwait(false),
 

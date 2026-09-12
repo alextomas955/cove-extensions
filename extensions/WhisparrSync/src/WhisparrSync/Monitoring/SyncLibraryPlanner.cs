@@ -29,6 +29,54 @@ internal sealed record SyncRegistration(
             MonitoringProjector.EntityIdIn(answered?.Body));
 }
 
+/// <summary>What marking one registered entry's scenes wanted did, counted in scenes.</summary>
+/// <remarks>
+/// Counts and nothing else, for the reason the run's own result states. One entry the run registers
+/// can carry any number of scenes - a site carries a whole studio's - so a member listing them would
+/// grow with the library.
+/// <para>
+/// The three failures are counted apart because they are different facts a reader acts on
+/// differently: a scene the metadata provider names no number for is one this product cannot address
+/// at all, a scene the instance holds no row for is one the instance has never seen, and a refusal is
+/// the instance declining to set a flag on a row it does hold.
+/// </para>
+/// </remarks>
+/// <param name="Monitored">How many scenes were marked wanted.</param>
+/// <param name="Unnumbered">
+/// How many carried no number the metadata provider would answer, so nothing could address them.
+/// </param>
+/// <param name="Unresolved">How many the instance holds no row for, or would not answer about.</param>
+/// <param name="Refused">How many the instance declined to flag.</param>
+internal readonly record struct SceneMonitorTally(
+    int Monitored, int Unnumbered, int Unresolved, int Refused)
+{
+    /// <summary>Nothing counted at all.</summary>
+    internal static SceneMonitorTally Nothing => default;
+
+    /// <summary>One scene, classified from what the instance answered.</summary>
+    /// <remarks>
+    /// An answer nothing could be read out of counts as refused. Reporting a flag as set that was not
+    /// leaves a reader believing the instance is watching for a scene it is not.
+    /// </remarks>
+    internal static SceneMonitorTally For(WhisparrResponse? answer)
+        => answer is not null
+            && answer.Refusal is MonitorRefusalKind.None
+            && MonitoringProjector.AcceptedStatus(answer.StatusCode) is MonitorRefusalKind.None
+                ? new SceneMonitorTally(1, 0, 0, 0)
+                : new SceneMonitorTally(0, 0, 0, 1);
+
+    /// <summary>How many scenes were not marked wanted, however they failed.</summary>
+    internal int NotMonitored => Unnumbered + Unresolved + Refused;
+
+    /// <summary>This tally and <paramref name="other"/> added together.</summary>
+    internal SceneMonitorTally Plus(SceneMonitorTally other)
+        => new(
+            Monitored + other.Monitored,
+            Unnumbered + other.Unnumbered,
+            Unresolved + other.Unresolved,
+            Refused + other.Refused);
+}
+
 /// <summary>How a run over the whole library's identifiers ended.</summary>
 internal enum SyncLibraryRunOutcome
 {
@@ -53,10 +101,22 @@ internal enum SyncLibraryRunOutcome
 /// <param name="Registered">How many entries the instance's catalogue did not already hold.</param>
 /// <param name="AlreadyHeld">How many it already held, which is not a failure.</param>
 /// <param name="Refused">How many it would not take.</param>
-/// <param name="Monitored">How many were marked wanted, which is zero unless monitoring was on.</param>
+/// <param name="Monitored">
+/// How many SCENES were marked wanted, which is zero unless monitoring was on. Counted in scenes on
+/// both passes: what a reader owns on a site is its scenes, so a site's registration and the scenes
+/// marked under it are different nouns and the summary states each as what it is.
+/// </param>
 /// <param name="MonitorRefused">
-/// How many could not be marked wanted. Counted apart from <paramref name="Refused"/> because they
-/// are different facts: a scene the instance holds and will not flag is not a scene it declined.
+/// How many scenes the instance declined to flag. Counted apart from <paramref name="Refused"/>
+/// because they are different facts: a scene the instance holds and will not flag is not a scene it
+/// declined.
+/// </param>
+/// <param name="Unnumbered">
+/// How many scenes carried no number the metadata provider would answer, so nothing could address
+/// them on the instance.
+/// </param>
+/// <param name="Unresolved">
+/// How many scenes the instance holds no row for, or would not answer about.
 /// </param>
 /// <param name="Offered">How many identifiers the run reached.</param>
 internal sealed record SyncLibraryRun(
@@ -66,6 +126,8 @@ internal sealed record SyncLibraryRun(
     int Refused,
     int Monitored,
     int MonitorRefused,
+    int Unnumbered,
+    int Unresolved,
     int Offered);
 
 /// <summary>
@@ -137,10 +199,14 @@ internal static class SyncLibraryPlanner
     /// Offers one entry, answering what it established and whatever the instance said.
     /// </param>
     /// <param name="monitor">
-    /// Marks one entry wanted, or null where monitoring is off. Called for an entry the instance
-    /// already held as well as for one just registered: the choice means monitor what I own, not
-    /// monitor what I just added. It is handed the offer's own answer, so the instance's numeric id
-    /// costs no further request.
+    /// Marks one entry's scenes wanted and answers what that did, or null where monitoring is off.
+    /// Called for an entry the instance already held as well as for one just registered: the choice
+    /// means monitor what I own, not monitor what I just added. It is handed the offer's own answer,
+    /// so the instance's numeric id costs no further request.
+    /// <para>
+    /// It answers a tally rather than one response because one entry can carry any number of scenes.
+    /// On the pass whose entry IS a scene the tally is that one scene.
+    /// </para>
     /// </param>
     /// <param name="progress">The host's own progress, which the units are reported on.</param>
     /// <param name="ct">Cancelled when the host stops the job.</param>
@@ -150,7 +216,7 @@ internal static class SyncLibraryPlanner
         Func<CancellationToken, IAsyncEnumerable<TIdentity>> identities,
         Func<TIdentity, string> named,
         Func<TIdentity, CancellationToken, Task<SyncRegistration>> register,
-        Func<TIdentity, SyncRegistration, CancellationToken, Task<WhisparrResponse?>>? monitor,
+        Func<TIdentity, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>? monitor,
         IJobProgress progress,
         CancellationToken ct)
     {
@@ -162,8 +228,7 @@ internal static class SyncLibraryPlanner
         var registered = 0;
         var alreadyHeld = 0;
         var refused = 0;
-        var monitored = 0;
-        var monitorRefused = 0;
+        var monitoring = SceneMonitorTally.Nothing;
         var offered = 0;
 
         try
@@ -214,14 +279,8 @@ internal static class SyncLibraryPlanner
                 // to set a flag on.
                 if (monitor is not null && registration is not SceneRegistration.Refused)
                 {
-                    if (Accepted(await monitor(identity, answered, ct).ConfigureAwait(false)))
-                    {
-                        monitored++;
-                    }
-                    else
-                    {
-                        monitorRefused++;
-                    }
+                    monitoring = monitoring.Plus(
+                        await monitor(identity, answered, ct).ConfigureAwait(false));
                 }
 
                 unit.Complete(OutcomeFor(registration), line);
@@ -232,31 +291,23 @@ internal static class SyncLibraryPlanner
             // Cancelled rather than failed: what was registered before the stop is in the instance's
             // catalogue and there is nothing to undo.
             return Ending(
-                new SyncLibraryRun(
-                    SyncLibraryRunOutcome.Cancelled,
-                    registered,
-                    alreadyHeld,
-                    refused,
-                    monitored,
-                    monitorRefused,
-                    offered),
-                monitor is not null,
-                registers,
-                progress);
+                Ended(SyncLibraryRunOutcome.Cancelled), monitor is not null, registers, progress);
         }
 
         return Ending(
-            new SyncLibraryRun(
-                SyncLibraryRunOutcome.Completed,
+            Ended(SyncLibraryRunOutcome.Completed), monitor is not null, registers, progress);
+
+        SyncLibraryRun Ended(SyncLibraryRunOutcome outcome)
+            => new(
+                outcome,
                 registered,
                 alreadyHeld,
                 refused,
-                monitored,
-                monitorRefused,
-                offered),
-            monitor is not null,
-            registers,
-            progress);
+                monitoring.Monitored,
+                monitoring.Refused,
+                monitoring.Unnumbered,
+                monitoring.Unresolved,
+                offered);
     }
 
     /// <summary>The one line a reader sees while the run works.</summary>
@@ -300,7 +351,7 @@ internal static class SyncLibraryPlanner
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{run.Registered:N0} {Plural(registers)} registered, {run.AlreadyHeld:N0} already in "
-                + $"Whisparr, {run.Refused:N0} refused{Monitoring(run, monitoring)}{ending}.");
+                + $"Whisparr, {run.Refused:N0} refused{Monitoring(run, monitoring, registers)}{ending}.");
     }
 
     /// <summary>What one entry the run registers is called.</summary>
@@ -327,7 +378,7 @@ internal static class SyncLibraryPlanner
 
     /// <summary>A run that reached no identifier at all.</summary>
     internal static SyncLibraryRun Nothing { get; } =
-        new(SyncLibraryRunOutcome.NothingToRegister, 0, 0, 0, 0, 0, 0);
+        new(SyncLibraryRunOutcome.NothingToRegister, 0, 0, 0, 0, 0, 0, 0, 0);
 
     /// <summary>Sets <paramref name="run"/>'s own summary as the last progress call, and answers it.</summary>
     private static SyncLibraryRun Ending(
@@ -338,29 +389,42 @@ internal static class SyncLibraryPlanner
     }
 
     /// <summary>What the summary says about monitoring, or nothing where it was off.</summary>
-    private static string Monitoring(SyncLibraryRun run, bool monitoring)
+    /// <remarks>
+    /// What was monitored is scenes on both passes. Where the run registers scenes the noun is
+    /// already the one every other figure in the sentence is stated in, so it is left implicit; where
+    /// it registers sites it is stated, because a bare figure between two counts of sites would read
+    /// as a third one.
+    /// <para>
+    /// The figure that could not be monitored covers every way a scene was not flagged - no number to
+    /// address it by, no row on the instance, and the instance declining - because a reader is being
+    /// told how many of their own scenes are not being watched for.
+    /// </para>
+    /// </remarks>
+    private static string Monitoring(SyncLibraryRun run, bool monitoring, SyncRegisters registers)
     {
         if (!monitoring)
         {
             return string.Empty;
         }
 
-        var couldNot = run.MonitorRefused == 0
+        var notMonitored = run.MonitorRefused + run.Unnumbered + run.Unresolved;
+        var couldNot = notMonitored == 0
             ? string.Empty
-            : string.Create(CultureInfo.InvariantCulture, $", {run.MonitorRefused:N0} not monitored");
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $", {notMonitored:N0}{Scenes(notMonitored, registers)} not monitored");
 
-        return string.Create(CultureInfo.InvariantCulture, $", {run.Monitored:N0} monitored{couldNot}");
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $", {run.Monitored:N0}{Scenes(run.Monitored, registers)} monitored{couldNot}");
     }
 
-    /// <summary>Whether <paramref name="answer"/> is the instance having set the flag.</summary>
-    /// <remarks>
-    /// An answer nothing could be read out of counts as not monitored. Reporting a flag as set that
-    /// was not leaves a reader believing the instance is watching for a scene it is not.
-    /// </remarks>
-    private static bool Accepted(WhisparrResponse? answer)
-        => answer is not null
-            && answer.Refusal is MonitorRefusalKind.None
-            && MonitoringProjector.AcceptedStatus(answer.StatusCode) is MonitorRefusalKind.None;
+    /// <summary>The noun a monitoring figure is stated in, or nothing where it is already implicit.</summary>
+    private static string Scenes(int counted, SyncRegisters registers) => registers switch
+    {
+        SyncRegisters.Scenes => string.Empty,
+        _ => counted == 1 ? " scene" : " scenes",
+    };
 
     /// <summary>The host outcome one scene's unit is completed under.</summary>
     /// <remarks>
