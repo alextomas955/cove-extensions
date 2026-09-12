@@ -1,4 +1,4 @@
-// A stand-in for the metadata service the older generation identifies entities against.
+// A stand-in for the metadata service v2 identifies entities against.
 //
 // WHY IT IS NEEDED. This product refuses to read anything for an entity whose source the host names
 // no server for, and a server carrying no key is the same refusal. A suite that registered the real
