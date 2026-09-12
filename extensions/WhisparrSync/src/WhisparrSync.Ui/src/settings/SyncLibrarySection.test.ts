@@ -27,6 +27,7 @@ import {
   SYNC_SKIPPED_NO_ID,
 } from "../common/ui/copy";
 import { deriveAsyncRegionState, type AsyncRegionState } from "../common/ui/asyncRegionLogic";
+import { syncSentences } from "./syncLibraryLogic";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
@@ -115,6 +116,8 @@ function section(overrides: {
     started: overrides.started ?? false,
     refused: overrides.refused ?? false,
     monitorAlso: overrides.monitorAlso ?? false,
+    // Resolved from the counts the render is given, the one way the page resolves it.
+    sentences: syncSentences(overrides.counts?.registers ?? null),
     onMonitorAlso: overrides.onMonitorAlso ?? (() => undefined),
     onSync: overrides.onSync ?? (() => undefined),
   });
@@ -692,6 +695,7 @@ describe("nothing the host says about the run reaches a reader", () => {
         started: sync.started,
         refused: sync.refused,
         monitorAlso: sync.monitorAlso,
+        sentences: syncSentences(sync.read?.view?.registers ?? null),
         onMonitorAlso: sync.chooseMonitorAlso,
         onSync: sync.sync,
       });

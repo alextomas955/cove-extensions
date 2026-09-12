@@ -8,6 +8,7 @@ import { ImportBehaviorSection } from "./ImportBehaviorSection";
 import { ImportWebhookSection } from "./ImportWebhookSection";
 import { SyncLibrarySection } from "./SyncLibrarySection";
 import { isNoOpSave, testsStoredConnection, valuesForCard } from "./connectLogic";
+import { syncSentences } from "./syncLibraryLogic";
 import { useConnection } from "./useConnection";
 import { useImportBanner } from "./useImportBanner";
 import { useImportBehavior } from "./useImportBehavior";
@@ -118,6 +119,7 @@ export function WhisparrSyncPage() {
         started={sync.started}
         refused={sync.refused}
         monitorAlso={sync.monitorAlso}
+        sentences={syncSentences(sync.read?.view?.registers ?? null)}
         onMonitorAlso={sync.chooseMonitorAlso}
         onSync={sync.sync}
       />

@@ -277,3 +277,98 @@ describe("the bound the over-the-bound sentence names is the server's own", () =
     );
   });
 });
+
+/**
+ * Every sentence the sync section renders, by the answer it got when each was walked against what a
+ * run does on the connection it is stated to.
+ *
+ * A run registers the scenes a reader owns, or the studios their library covers, and where the
+ * monitor choice is on it marks scenes either way. So a sentence naming a scene where studios are
+ * what gets registered is one defect this accounts for, and a sentence saying a studio is monitored
+ * is the other. A `SYNC_` constant in none of the three lists reddens the suite below, which is what
+ * makes a new sentence get the same walk.
+ */
+const RENDERED_BY_THE_SYNC_SECTION = {
+  /** Names what the run registers, so it has one declaration per noun: the scene one, then the studio one. */
+  pairedByWhatTheRunRegisters: [
+    ["SYNC_REGISTERS_THE_SCENES_YOU_OWN", "SYNC_REGISTERS_THE_STUDIOS_YOU_OWN"],
+    ["SYNC_SKIPPED_CANNOT_BE_REGISTERED", "SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED"],
+    ["SYNC_NEEDS_A_COUNT_FIRST", "SYNC_SITE_NEEDS_A_COUNT_FIRST"],
+    ["SYNC_NOTHING_LEFT_TO_SYNC", "SYNC_SITE_NOTHING_LEFT_TO_SYNC"],
+    ["SYNC_DOWNLOADS_NOTHING", "SYNC_SITE_DOWNLOADS_NOTHING"],
+    ["SYNC_OFFERS_ONE_SCENE", "SYNC_OFFERS_ONE_SITE"],
+  ],
+
+  /** Names what monitoring reaches, which is a scene whatever the run registers. */
+  namesWhatMonitoringReaches: [
+    "MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF",
+    "SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM",
+  ],
+
+  /** Names neither noun, so one declaration serves whatever the run registers. */
+  namesNeitherNoun: [
+    "SYNC_COUNT",
+    "SYNC_NOT_YET_IN_WHISPARR",
+    "SYNC_ALREADY_IN_WHISPARR",
+    "SYNC_SKIPPED_NO_ID",
+    "SYNC_COUNTING",
+    "SYNC_NOTHING_COUNTED_YET",
+    "SYNC_COUNT_DID_NOT_FINISH",
+    "SYNC_IS_COUNTING",
+    "SYNC_LIBRARY",
+    "SYNC_ALSO_MONITOR",
+    "SYNC_ALREADY_RUNNING",
+    "SYNC_IS_STARTING",
+    "SYNC_RUNS_IN_THE_JOB_DRAWER",
+    "SYNC_ALSO_MONITORS_EACH",
+    "SYNC_MONITORS_NOTHING",
+  ],
+};
+
+const ACCOUNTED_FOR = [
+  ...RENDERED_BY_THE_SYNC_SECTION.pairedByWhatTheRunRegisters.flat(),
+  ...RENDERED_BY_THE_SYNC_SECTION.namesWhatMonitoringReaches,
+  ...RENDERED_BY_THE_SYNC_SECTION.namesNeitherNoun,
+];
+
+function sentenceOf(name: string): string {
+  const found = CONSTANTS.find(([declared]) => declared === name);
+  if (found === undefined) throw new Error(`copy.ts declares no string constant ${name}`);
+  return found[1];
+}
+
+describe("every sentence the sync section renders was walked for the noun it names", () => {
+  it("accounts for each of them exactly once", () => {
+    const declared = CONSTANTS.map(([name]) => name).filter((name) => name.startsWith("SYNC_"));
+
+    expect([...declared].sort()).toEqual(
+      [...ACCOUNTED_FOR.filter((name) => name.startsWith("SYNC_"))].sort(),
+    );
+    expect(new Set(ACCOUNTED_FOR).size).toBe(ACCOUNTED_FOR.length);
+  });
+
+  it("names both nouns in every pair, one apiece", () => {
+    for (const [scene, studio] of RENDERED_BY_THE_SYNC_SECTION.pairedByWhatTheRunRegisters) {
+      expect(contains(sentenceOf(scene), "scene"), `${scene} names no scene`).toBe(true);
+      expect(contains(sentenceOf(scene), "studio"), `${scene} names a studio`).toBe(false);
+      expect(contains(sentenceOf(studio), "studio"), `${studio} names no studio`).toBe(true);
+      expect(contains(sentenceOf(studio), "scene"), `${studio} names a scene`).toBe(false);
+    }
+  });
+
+  it("names a scene wherever it says what monitoring reaches", () => {
+    for (const name of RENDERED_BY_THE_SYNC_SECTION.namesWhatMonitoringReaches) {
+      expect(contains(sentenceOf(name), "scene"), `${name} names no scene`).toBe(true);
+      expect(contains(sentenceOf(name), "studio"), `${name} says a studio is monitored`).toBe(
+        false,
+      );
+    }
+  });
+
+  it("names neither noun in the sentences one declaration serves both ways", () => {
+    for (const name of RENDERED_BY_THE_SYNC_SECTION.namesNeitherNoun) {
+      expect(contains(sentenceOf(name), "scene"), `${name} names a scene`).toBe(false);
+      expect(contains(sentenceOf(name), "studio"), `${name} names a studio`).toBe(false);
+    }
+  });
+});

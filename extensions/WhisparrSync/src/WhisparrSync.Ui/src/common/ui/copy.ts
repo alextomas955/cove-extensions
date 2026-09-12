@@ -833,6 +833,14 @@ export const SYNC_SKIPPED_NO_ID = "Skipped, no metadata id";
 export const SYNC_SKIPPED_CANNOT_BE_REGISTERED =
   "A scene with no metadata id cannot be registered. Identify more of your library and count again.";
 
+/**
+ * The same, where the run registers the studios a library covers rather than its scenes.
+ *
+ * @see SYNC_SKIPPED_CANNOT_BE_REGISTERED
+ */
+export const SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED =
+  "A studio with no metadata id cannot be registered. Identify more of your library and count again.";
+
 /** While the count runs. */
 export const SYNC_COUNTING = "Counting what would sync.";
 
@@ -859,12 +867,32 @@ export const SYNC_IS_COUNTING = "Cove is counting what would sync.";
 /** What the sync control is called, and the words its confirmation is titled with. */
 export const SYNC_LIBRARY = "Sync library to Whisparr";
 
+/** What the sync card offers, stated under its title. */
+export const SYNC_REGISTERS_THE_SCENES_YOU_OWN =
+  "Register the scenes you already own, so Whisparr knows about them.";
+
+/**
+ * The same, where the run registers the studios a library covers rather than its scenes.
+ *
+ * @see SYNC_REGISTERS_THE_SCENES_YOU_OWN
+ */
+export const SYNC_REGISTERS_THE_STUDIOS_YOU_OWN =
+  "Register the studios in your library, so Whisparr knows about them.";
+
 /** The monitor choice, made at press time rather than stored. */
 export const SYNC_ALSO_MONITOR = "Also monitor what it syncs";
 
 /** Why the sync control cannot be pressed before a count exists. */
 export const SYNC_NEEDS_A_COUNT_FIRST =
   "Count what would sync first, so this can say how many scenes it will offer.";
+
+/**
+ * The same, where the run registers the studios a library covers rather than its scenes.
+ *
+ * @see SYNC_NEEDS_A_COUNT_FIRST
+ */
+export const SYNC_SITE_NEEDS_A_COUNT_FIRST =
+  "Count what would sync first, so this can say how many studios it will offer.";
 
 /**
  * Why there is nothing for the sync control to do.
@@ -875,6 +903,17 @@ export const SYNC_NEEDS_A_COUNT_FIRST =
  */
 export const SYNC_NOTHING_LEFT_TO_SYNC =
   "Whisparr already holds every scene in your library that carries a metadata id.";
+
+/**
+ * The same, where the run registers the studios a library covers rather than its scenes.
+ *
+ * A claim about what is left to register and about nothing else. Monitoring still has work here,
+ * which is why this reason is stated only while the monitor choice is off.
+ *
+ * @see SYNC_NOTHING_LEFT_TO_SYNC
+ */
+export const SYNC_SITE_NOTHING_LEFT_TO_SYNC =
+  "Whisparr already holds every studio in your library that carries a metadata id.";
 
 /** Why nothing on the sync side can act while a run is in flight. Points at the progress surface. */
 export const SYNC_ALREADY_RUNNING =
@@ -899,3 +938,52 @@ export const SYNC_RUNS_IN_THE_JOB_DRAWER =
  * thing that says it is not.
  */
 export const SYNC_DOWNLOADS_NOTHING = "Registering a scene in Whisparr downloads nothing.";
+
+/**
+ * The same, where the run registers the studios a library covers rather than its scenes.
+ *
+ * @see SYNC_DOWNLOADS_NOTHING
+ */
+export const SYNC_SITE_DOWNLOADS_NOTHING = "Registering a studio in Whisparr downloads nothing.";
+
+/** What the confirmation covers where the run offers one scene. */
+export const SYNC_OFFERS_ONE_SCENE = "This offers the 1 scene you own to Whisparr";
+
+/**
+ * The same, where the run registers the studios a library covers rather than its scenes.
+ *
+ * @see SYNC_OFFERS_ONE_SCENE
+ */
+export const SYNC_OFFERS_ONE_SITE = "This offers the 1 studio in your library to Whisparr";
+
+/**
+ * What the confirmation covers at any size but one.
+ *
+ * @param grouped the figure, already grouped, so this module stays free of a number format
+ */
+export function syncOffersScenes(grouped: string): string {
+  return `This offers all ${grouped} scenes you own to Whisparr`;
+}
+
+/**
+ * The same, where the run registers the studios a library covers rather than its scenes.
+ *
+ * @param grouped the figure, already grouped
+ * @see syncOffersScenes
+ */
+export function syncOffersSites(grouped: string): string {
+  return `This offers all ${grouped} studios in your library to Whisparr`;
+}
+
+/** What the monitor choice adds to the run, where the run registers scenes. */
+export const SYNC_ALSO_MONITORS_EACH = "It also marks each of them monitored.";
+
+/**
+ * What the monitor choice adds to the run where it registers studios: the scenes the reader owns on
+ * each of them, which is what gets marked there rather than the studios themselves.
+ */
+export const SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM =
+  "It also marks the scenes you own on them monitored.";
+
+/** What the run does about monitoring with the choice off, whatever it registers. */
+export const SYNC_MONITORS_NOTHING = "It monitors nothing.";
