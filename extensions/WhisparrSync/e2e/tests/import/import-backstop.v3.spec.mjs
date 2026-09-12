@@ -2,9 +2,9 @@
 //
 // What a pass does - the first records where history ends and imports nothing, a later one imports
 // what arrived after the mark - is asserted on both generations by import-backstop.shared.spec.mjs.
-// The act here has no equivalent on the older generation: it turns on the library holding ONE item
-// per scene rather than one per file, and that generation carries a scene as an episode of a site,
-// so there is no second arrival at a new path to make.
+// The act here has no equivalent on v2: it turns on the library holding ONE item per scene rather
+// than one per file, and v2 carries a scene as an episode of a site, so there is no second arrival
+// at a new path to make.
 //
 // The passes below the last one are the arrangement rather than the subject. The claim is that the
 // second arrival joins the item that exists rather than standing up a second one beside it. The wait

@@ -200,9 +200,9 @@ test("the videos and performers surfaces are absent on v2, and return when it is
     // The registration is what removes the surface, so the set the page was built from is read
     // before the page is. The host renders no element at all for its full-width row slot, so that
     // one is only assertable here.
-    const older = await registeredSlots(coveApi);
+    const onV2 = await registeredSlots(coveApi);
     expect(
-      older.sort(),
+      onV2.sort(),
       "v2 registers a videos-view slot, so a surface it has no meaning for is on the page",
     ).toEqual(
       [
@@ -216,7 +216,7 @@ test("the videos and performers surfaces are absent on v2, and return when it is
     // The row goes with the card badges it counts. The studio badges are registered on both
     // generations, so the studios row is too, and the pages with no badge have no row.
     expect(
-      older.filter((slot) => slot.endsWith("-list-row")),
+      onV2.filter((slot) => slot.endsWith("-list-row")),
       "a page with no card badge carries a row of counts over nothing",
     ).toEqual(["studios-list-row"]);
 
@@ -238,7 +238,7 @@ test("the videos and performers surfaces are absent on v2, and return when it is
     // The studios page keeps both on this generation: a studio monitors as a series matched by
     // ThePornDB there, so its id is written under that source.
     const studio = await seedCoveStudio(coveApi, {
-      name: `Older ${randomUUID().slice(0, 8)}`,
+      name: `V2 ${randomUUID().slice(0, 8)}`,
       remoteIds: [{ endpoint: THEPORNDB_ENDPOINT, remoteId: randomUUID() }],
     });
 
@@ -263,9 +263,9 @@ test("the videos and performers surfaces are absent on v2, and return when it is
     // is the mechanism the whole gate depends on.
     await connectWhisparr(coveApi, whisparr, "v3");
 
-    const newer = await registeredSlots(coveApi);
+    const onV3 = await registeredSlots(coveApi);
     expect(
-      newer.filter((slot) => !older.includes(slot)).sort(),
+      onV3.filter((slot) => !onV2.includes(slot)).sort(),
       "switching the connection back changed no registration, so the manifest is not re-read",
     ).toEqual(
       [

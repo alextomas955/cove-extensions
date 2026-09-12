@@ -15,13 +15,13 @@
 // machine running it. The two reach different distances, and the difference is a property of the
 // product rather than of the stubs:
 //
-// - THE NEWER GENERATION posts its catalogue query to the resolved identity endpoint, so the stub
-//   standing in for that source IS the catalogue, and the cards below come from it.
-// - THE OLDER GENERATION resolves the same way and then reads its catalogue over REST from a
-//   compiled-in address, so registering its source decides only whether a provider is found. That is
-//   the difference asserted at the older-generation arm below: registered, the read names the
-//   provider and states it could not be reached; unregistered, it states that none is configured.
-//   The catalogue itself is out of reach of any stub this suite starts.
+// - V3 posts its catalogue query to the resolved identity endpoint, so the stub standing in for
+//   that source IS the catalogue, and the cards below come from it.
+// - V2 resolves the same way and then reads its catalogue over REST from a compiled-in address, so
+//   registering its source decides only whether a provider is found. That is the difference
+//   asserted at the v2 arm below: registered, the read names the provider and states it could not
+//   be reached; unregistered, it states that none is configured. The catalogue itself is out of
+//   reach of any stub this suite starts.
 //
 // IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
@@ -103,15 +103,15 @@ test("the two reasons a status is unknown are different answers, in a real host"
   });
 
   const cleanup = cleanupStack();
-  let newerStopped = false;
+  let v3Stopped = false;
   try {
     // The other generation, started here rather than by the fixture: the fixture connects one, and
     // what this spec compares is two connections against one installation.
-    const older = await startWhisparr({
+    const v2Instance = await startWhisparr({
       network: isolatedCove.container.getNetworkNames()[0],
       generations: ["v2"],
     });
-    cleanup.push("the older instance", () => older.stop());
+    cleanup.push("the v2 instance", () => v2Instance.stop());
 
     const studio = await seedCoveStudio(coveApi, {
       name: `Brazzers Exxtra ${randomUUID().slice(0, 8)}`,
@@ -193,39 +193,39 @@ test("the two reasons a status is unknown are different answers, in a real host"
       "the first card carries no status pill in this product's own vocabulary",
     ).toBeVisible();
 
-    // THE OLDER GENERATION. Its source is registered here like the other one, so the read resolves a
-    // provider and gets past the gate that answers when none is. What it then reaches is the limit
-    // stated at the head of this file, and the stub's own log below is the evidence for it.
-    await connectWhisparr(coveApi, older, "v2");
-    const olderStudio = await seedCoveStudio(coveApi, {
-      name: `Older ${randomUUID().slice(0, 8)}`,
+    // V2. Its source is registered here like the other one, so the read resolves a provider and
+    // gets past the gate that answers when none is. What it then reaches is the limit stated at the
+    // head of this file, and the stub's own log below is the evidence for it.
+    await connectWhisparr(coveApi, v2Instance, "v2");
+    const v2Studio = await seedCoveStudio(coveApi, {
+      name: `V2 ${randomUUID().slice(0, 8)}`,
       remoteIds: [{ endpoint: THEPORNDB_ENDPOINT, remoteId: String(Date.now()) }],
     });
-    const olderPage = await readMissingPage(coveApi, "studio", olderStudio.id);
+    const v2Page = await readMissingPage(coveApi, "studio", v2Studio.id);
     expect(
-      olderPage.refusal,
-      "the older generation answered no stated reason at all, so the tab would render a blank region",
+      v2Page.refusal,
+      "v2 answered no stated reason at all, so the tab would render a blank region",
     ).not.toBe("none");
     expect(
-      olderPage.refusal,
-      "the older generation's read did not resolve the source registered for it: it states that none is configured, which is the answer this stub exists to move past",
+      v2Page.refusal,
+      "v2's read did not resolve the source registered for it: it states that none is configured, which is the answer this stub exists to move past",
     ).toBe("providerUnreachable");
     expect(
       await provider.theporndb.asked(),
-      "the stub standing in for the older generation's source WAS asked, so the catalogue read now consults the configuration and this spec's account of what it reaches is out of date",
+      "the stub standing in for v2's source WAS asked, so the catalogue read now consults the configuration and this spec's account of what it reaches is out of date",
     ).toEqual([]);
     test.info().annotations.push({
       type: "narrowed-assertion",
       description:
-        "the older generation's catalogue is not read here, and no stub can serve it: its client builds every request against a compiled-in address on the open internet and never consults the configuration. What is asserted is that the source resolves and the unreachable catalogue is stated as such. The projection over that catalogue is covered in the backend suite.",
+        "v2's catalogue is not read here, and no stub can serve it: its client builds every request against a compiled-in address on the open internet and never consults the configuration. What is asserted is that the source resolves and the unreachable catalogue is stated as such. The projection over that catalogue is covered in the backend suite.",
     });
 
     // THE INSTANCE STOPPED. The catalogue still reads, so the grid is full; the instance answers
-    // nothing, so every card reads the same four words the older generation's would. The field
+    // nothing, so every card reads the same four words v2's would. The field
     // beside them is what says a retry could change this one.
     await connectWhisparr(coveApi, whisparr, "v3");
     await whisparr.stop();
-    newerStopped = true;
+    v3Stopped = true;
 
     const unreachable = await readMissingPage(coveApi, "studio", studio.id);
     expect(
@@ -265,10 +265,10 @@ test("the two reasons a status is unknown are different answers, in a real host"
       `the instance answered nothing, so the first card should read "${UNKNOWN_PILL}"`,
     ).toBeVisible();
   } finally {
-    // Stopping the newer instance is part of what this spec drives, and the fixture registered a
+    // Stopping the v3 instance is part of what this spec drives, and the fixture registered a
     // stop for it too. Withdrawing that one keeps the unwind from reporting a container it cannot
     // find, which would read as a teardown fault on a passing run.
-    if (newerStopped) {
+    if (v3Stopped) {
       whisparr.stop = async () => {};
     }
     await cleanup.unwind();

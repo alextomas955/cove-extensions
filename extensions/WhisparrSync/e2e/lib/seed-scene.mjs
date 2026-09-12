@@ -2,8 +2,8 @@
 //
 // The datastore rather than the add route, for the reason the shared entity seeder gives: an add
 // resolves its identifier against the vendor's metadata service, which is a third party no sealed
-// run controls. The two generations keep different catalogues - a movie row on the newer, a series
-// and an episode under it on the older - so each has its own seeder here.
+// run controls. The two generations keep different catalogues - a movie row on v3, a series and an
+// episode under it on v2 - so each has its own seeder here.
 //
 // A committed Python file is copied in and run, never a script assembled in the shell: a heredoc
 // carries CRLF into every path it handles, and the failure then blames the path.

@@ -2,10 +2,10 @@
 //
 // WHY THIS EXISTS. The product declares a capability set per generation and tells the browser which
 // one it is connected to. Seven entries belong to this generation, and two of them belong to no
-// other, so nothing else in this suite can reach them. The rest of the suite pins the newer
-// generation and mostly asserts that surfaces are ABSENT on this one, which proves the gate and
-// proves nothing about the surfaces that are present. Every `*.v2.spec.mjs` beside this drives one
-// of those capabilities through this fixture.
+// other, so nothing else in this suite can reach them. The rest of the suite pins v3 and mostly
+// asserts that surfaces are ABSENT on this one, which proves the gate and proves nothing about the
+// surfaces that are present. Every `*.v2.spec.mjs` beside this drives one of those capabilities
+// through this fixture.
 //
 // WHAT A SPEC ASSERTS ON. The instance's own rows and its own command queue, never this product's
 // return code. A route that answered 200 and wrote nothing would pass any assertion made against its
