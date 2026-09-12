@@ -4,6 +4,7 @@
 // Cove holds, restart the worker: the arrangement a spec needs before its own assertions begin. A
 // copy of each in every spec that needs it drifts, and a drifted copy is a spec doing something
 // slightly different from the one beside it for no reason anybody chose.
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { expect } from "@cove-extensions/e2e";
@@ -11,8 +12,10 @@ import { expect } from "@cove-extensions/e2e";
 import {
   CALLBACK_STATUS_ROUTE,
   CAPTURED_DELIVERY,
+  DATA_ROUTE,
   DISABLE_ROUTE,
   ENABLE_ROUTE,
+  OPTIONS_KEY,
   SECRET_QUERY_PARAMETER,
 } from "./contract.mjs";
 
@@ -75,6 +78,47 @@ export async function videosIn(api) {
 export async function videoPathsIn(api) {
   const videos = await videosIn(api);
   return videos.flatMap((video) => (video.files ?? []).map((file) => file.path).filter(Boolean));
+}
+
+/**
+ * One video as Cove holds it, with its files and its identity rows.
+ *
+ * Each read carries its own query so it gets its own output-cache entry: the host caches this route
+ * briefly, and two reads a moment apart would otherwise be one answer.
+ */
+export async function videoDetail(api, id) {
+  const held = await api.get(`/api/videos/${String(id)}?_=${randomUUID()}`);
+  expect(held.status, `GET /api/videos/${String(id)} answered: ${held.text.slice(0, 300)}`).toBe(
+    200,
+  );
+  return held.json;
+}
+
+/**
+ * The extension's stored options blob, parsed, or null while the route is not answering.
+ *
+ * Re-enabling the extension republishes its endpoints a moment after the request that asked for it
+ * returns, so a read taken in that window is a state to poll through rather than a failure.
+ */
+export async function readOptions(api) {
+  const data = await api.get(DATA_ROUTE);
+  return data.status === 200 ? JSON.parse(data.json?.[OPTIONS_KEY] ?? "{}") : null;
+}
+
+/** The stored options blob, insisting the route answers. */
+export async function storedOptions(api) {
+  const options = await readOptions(api);
+  expect(
+    options,
+    `GET ${DATA_ROUTE} did not answer with the extension's stored data`,
+  ).not.toBeNull();
+  return options;
+}
+
+/** Rewrites the stored options blob with `change` applied. */
+export async function writeOptions(api, change) {
+  const written = await api.put(`${DATA_ROUTE}/${OPTIONS_KEY}`, JSON.stringify(change));
+  expect(written.status, `PUT the options key answered: ${written.text.slice(0, 300)}`).toBe(200);
 }
 
 /**
