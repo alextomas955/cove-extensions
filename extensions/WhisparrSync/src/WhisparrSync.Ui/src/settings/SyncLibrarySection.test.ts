@@ -23,6 +23,10 @@ import {
   SYNC_IS_COUNTING,
   SYNC_NOTHING_COUNTED_YET,
   SYNC_NOT_YET_IN_WHISPARR,
+  SYNC_REGISTERS_THE_SCENES_YOU_OWN,
+  SYNC_REGISTERS_THE_STUDIOS_YOU_OWN,
+  SYNC_SITE_NOTHING_LEFT_TO_SYNC,
+  SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED,
   SYNC_SKIPPED_CANNOT_BE_REGISTERED,
   SYNC_SKIPPED_NO_ID,
 } from "../common/ui/copy";
@@ -717,5 +721,76 @@ describe("nothing the host says about the run reaches a reader", () => {
     for (const fragment of [HOST_SAID.summary, HOST_SAID.subTask, String(HOST_SAID.progress)]) {
       expect(shown).not.toContain(fragment);
     }
+  });
+});
+
+describe("the section reads in the noun the run registers", () => {
+  test("a read answering sites states the studio sentences and none of the scene ones", async () => {
+    const host = await renderNode(
+      section({ counts: COUNTS_ON_THE_OTHER_GENERATION, preview: CONTENT }),
+    );
+
+    expect(host.textContent).toContain(SYNC_REGISTERS_THE_STUDIOS_YOU_OWN);
+    expect(host.textContent).toContain(SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED);
+    expect(host.textContent).not.toContain(SYNC_REGISTERS_THE_SCENES_YOU_OWN);
+    expect(host.textContent).not.toContain(SYNC_SKIPPED_CANNOT_BE_REGISTERED);
+  });
+
+  test("a read answering scenes states the scene sentences and none of the studio ones", async () => {
+    const host = await renderNode(section({ counts: COUNTS, preview: CONTENT }));
+
+    expect(host.textContent).toContain(SYNC_REGISTERS_THE_SCENES_YOU_OWN);
+    expect(host.textContent).toContain(SYNC_SKIPPED_CANNOT_BE_REGISTERED);
+    expect(host.textContent).not.toContain(SYNC_REGISTERS_THE_STUDIOS_YOU_OWN);
+    expect(host.textContent).not.toContain(SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED);
+  });
+
+  test("a fully held library says in studios that there is nothing left", async () => {
+    const host = await renderNode(
+      section({
+        counts: { ...COUNTS_ON_THE_OTHER_GENERATION, notYetThere: 0, alreadyThere: 412 },
+        preview: CONTENT,
+      }),
+    );
+
+    expect(syncButton(host).textContent).toContain(SYNC_SITE_NOTHING_LEFT_TO_SYNC);
+    expect(syncButton(host).textContent).not.toContain(SYNC_NOTHING_LEFT_TO_SYNC);
+  });
+
+  test("the confirmation opened on a sites read carries the studio prose", async () => {
+    const host = await renderNode(
+      section({
+        counts: COUNTS_ON_THE_OTHER_GENERATION,
+        preview: CONTENT,
+        monitorAlso: true,
+      }),
+    );
+
+    await press(syncButton(host));
+
+    const opened = dialog();
+    expect(opened?.textContent).toContain(
+      "This offers all 5,898 studios in your library to Whisparr",
+    );
+    expect(opened?.textContent).toContain("It also marks the scenes you own on them monitored.");
+    expect(opened?.textContent).toContain("Registering a studio in Whisparr downloads nothing.");
+    expect(opened?.textContent).not.toContain("scenes you own to Whisparr");
+  });
+
+  test("the three count rows carry the same labels whichever the read answers", async () => {
+    const scenes = await renderNode(section({ counts: COUNTS, preview: CONTENT }));
+    const sites = await renderNode(
+      section({ counts: COUNTS_ON_THE_OTHER_GENERATION, preview: CONTENT }),
+    );
+
+    // Each row puts its noun in the value it states, so one label set serves either read.
+    expect(countRows(sites).map((row) => row.label)).toEqual(
+      countRows(scenes).map((row) => row.label),
+    );
+    expect(countRows(sites).map((row) => row.label)).toEqual([
+      SYNC_NOT_YET_IN_WHISPARR,
+      SYNC_ALREADY_IN_WHISPARR,
+      SYNC_SKIPPED_NO_ID,
+    ]);
   });
 });
