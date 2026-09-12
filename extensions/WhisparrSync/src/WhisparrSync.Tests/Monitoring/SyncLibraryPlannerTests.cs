@@ -446,13 +446,20 @@ public sealed class SyncLibraryPlannerTests
             return Task.FromResult(SyncRegistration.Offered(answers(identity)));
         }
 
-        public Task<WhisparrResponse?> MonitorAsync(
+        /// <summary>
+        /// One scene marked wanted, answered as the tally one scene makes.
+        /// </summary>
+        /// <remarks>
+        /// The run counts in scenes on both passes, so the monitor slot answers a tally rather than
+        /// one response. On this pass an entry IS a scene, so the tally is always one scene.
+        /// </remarks>
+        public Task<SceneMonitorTally> MonitorAsync(
             string identity, SyncRegistration offered, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             MonitorAsked.Add(identity);
             MonitorHandedStatus.Add(offered.Answer?.StatusCode);
-            return Task.FromResult(MonitorAnswers?.Invoke(identity));
+            return Task.FromResult(SceneMonitorTally.For(MonitorAnswers?.Invoke(identity)));
         }
     }
 
