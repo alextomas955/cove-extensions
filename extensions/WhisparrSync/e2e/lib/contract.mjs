@@ -64,6 +64,13 @@ export const USER_AGENT = {
 export const STASHDB_ENDPOINT = "https://stashdb.org/graphql";
 export const THEPORNDB_ENDPOINT = "https://theporndb.net/graphql";
 
+/**
+ * The floor this product clamps the backstop interval to, so a pass follows a restart without a
+ * long wait. Transcribed from `WhisparrSyncOptions.BackstopIntervalFloorSeconds`; a stored value
+ * below it is read as it.
+ */
+export const BACKSTOP_INTERVAL_FLOOR_SECONDS = 30;
+
 /** The library root a seeded Whisparr entity is registered under, where a spec needs no volume. */
 export const WHISPARR_ROOT = "/whisparr-media";
 

@@ -18,14 +18,13 @@ import { randomUUID } from "node:crypto";
 import { createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
 import { startWhisparr } from "@cove-extensions/e2e/whisparr";
 
+import { adapterFor } from "./generation-adapter.mjs";
 import { startMetadataStub } from "./metadata-stub.mjs";
 import { seedV2Scene } from "./seed-scene.mjs";
 import {
   connectWhisparr,
   seedCoveStudio,
-  STASHDB_ENDPOINT,
   test as base,
-  THEPORNDB_ENDPOINT,
   WHISPARR_ROOT,
   WHISPARR_SYNC_EXTENSION,
   whisparrEntity,
@@ -82,17 +81,16 @@ export async function siteRow(whisparrApi, seriesId) {
 const studioTitle = (run) => `Cove E2E Studio ${run}`;
 
 /**
- * What each generation calls a studio, and how it is put in front of the extension.
+ * How each generation's instance is brought up and its catalogue put in front of the extension.
  *
- * An adapter starts the instance and seeds its catalogue, and hands back the identity Cove has to
+ * A seeder starts the instance and seeds its catalogue, and hands back the identity Cove has to
  * carry plus the read that answers what the instance now holds. It never presses anything: the
  * gesture under test belongs to the spec, and evidence read off a route this product owns would
- * hold against a route that answered and wrote nothing.
+ * hold against a route that answered and wrote nothing. The spellings and state reads the two
+ * generations differ over live in generation-adapter.mjs, exposed below as `adapter`.
  */
-const ADAPTERS = {
+const SEEDERS = {
   v3: {
-    identityEndpoint: STASHDB_ENDPOINT,
-
     async seedInstance({ network, run, cleanup }) {
       const whisparr = await startWhisparr({
         network,
@@ -118,8 +116,6 @@ const ADAPTERS = {
   },
 
   v2: {
-    identityEndpoint: THEPORNDB_ENDPOINT,
-
     async seedInstance({ network, run, cleanup }) {
       const siteId = Math.floor(Math.random() * 500_000) + 1;
 
@@ -186,15 +182,16 @@ export const test = base.extend({
    * no instance: Playwright builds fixtures lazily, by name.
    */
   connected: async ({ isolatedCove, api, generation }, use) => {
-    const adapter = ADAPTERS[generation];
-    if (adapter === undefined) {
-      throw new Error(`connected: no adapter is written for the generation "${generation}".`);
+    const seeder = SEEDERS[generation];
+    if (seeder === undefined) {
+      throw new Error(`connected: no seeder is written for the generation "${generation}".`);
     }
 
     const cleanup = cleanupStack();
     try {
       const run = randomUUID().slice(0, 8);
-      const seeded = await adapter.seedInstance({
+      const adapter = adapterFor(generation);
+      const seeded = await seeder.seedInstance({
         network: isolatedCove.container.getNetworkNames()[0],
         run,
         cleanup,
@@ -210,6 +207,7 @@ export const test = base.extend({
       await connectWhisparr(api, seeded.whisparr, generation);
 
       await use({
+        adapter,
         api,
         generation,
         instance,
