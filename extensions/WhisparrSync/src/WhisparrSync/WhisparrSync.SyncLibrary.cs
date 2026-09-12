@@ -414,7 +414,7 @@ public sealed partial class WhisparrSync
     /// null the run registers its sites and makes no provider read and no row read at all, so the
     /// whole cost of monitoring is paid only where it was asked for.
     /// <para>
-    /// The provider's resolving role is obtained ONCE HERE rather than once per scene. A provider
+    /// The provider's resolving role is obtained once here rather than once per scene. A provider
     /// that issues no such number would otherwise be asked again for every scene in the library and
     /// refused every time, and the one line saying why nothing was monitored would be written per
     /// scene instead of per run.
