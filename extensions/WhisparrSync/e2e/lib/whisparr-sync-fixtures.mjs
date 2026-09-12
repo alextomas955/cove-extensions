@@ -112,6 +112,18 @@ function created(response, what) {
 }
 
 /**
+ * What a started search looks like on the roster, on both generations.
+ *
+ * A pattern rather than the command names, so a spec asserting on it names no verb that downloads.
+ * Written here rather than in each spec that reads a roster: a spec that copied it would be free to
+ * copy it slightly differently, and the two would then disagree about what a search is.
+ */
+const SEARCH_COMMAND = /search/i;
+
+/** Every command the instance has been asked to run whose name says it searches. */
+export const searching = (roster) => roster.filter((name) => SEARCH_COMMAND.test(name));
+
+/**
  * The command roster and the queue total, which is the observable form of a started search.
  *
  * Both are read from the instance itself. The roster is never expected to be EMPTY: the instance
