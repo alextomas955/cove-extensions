@@ -28,28 +28,23 @@
 // NO SEARCH IS EXECUTED ANYWHERE IN THIS SPEC.
 //
 // IF THIS SPEC GOES RED, read the job log for a container-not-running line before debugging the UI.
-import { test as base, createApiClient } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { attemptUntil } from "@cove-extensions/e2e/poll";
-import { randomUUID } from "node:crypto";
-import { visit } from "../../lib/steps.mjs";
 
 import {
-  connectWhisparr,
   expect,
   EXTENSION_ID,
   extensionRoute,
   seedCovePerformer,
   seedCoveStudio,
   SETTLE_DWELL_MS,
+  SPEC_BUDGET_MS,
   STASHDB_ENDPOINT,
+  test,
   whisparrAcquisitionSurface,
   whisparrActivity,
   whisparrEntity,
-  WHISPARR_ROOT,
-  WHISPARR_SYNC_EXTENSION,
-} from "../../lib/whisparr-sync-fixtures.mjs";
+} from "../../lib/connected-fixture.mjs";
+import { visit } from "../../lib/steps.mjs";
 
 // Transcribed by hand from the extension's own registration and copy module, never imported.
 const BULK_ACTION_LABEL = "Whisparr";
@@ -96,27 +91,8 @@ const CANCEL_DWELL_MS = 5_000;
 // missing control.
 const ROW_BUDGET_MS = 20_000;
 
-const test = base.extend({
-  bulkHarness: [
-    async ({}, use) => {
-      const harness = await startHarness();
-      try {
-        harness.owner = await harness.bootstrapOwner();
-        await harness.installExtension(WHISPARR_SYNC_EXTENSION);
-        await use(harness);
-      } finally {
-        await harness.stop();
-      }
-    },
-    { scope: "test" },
-  ],
-
-  // The `page` fixture resolves its address through `baseUrl`, so without this override the browser
-  // would drive the worker-shared instance while every API assertion addressed this one.
-  baseUrl: async ({ bulkHarness }, use) => {
-    await use(bulkHarness.baseUrl);
-  },
-});
+test.describe.configure({ timeout: SPEC_BUDGET_MS });
+test.use({ generation: "v3" });
 
 const bulkButton = (page) => page.getByRole("button", { name: BULK_ACTION_LABEL, exact: true });
 // The panel heads itself with the product's name and the count of what is selected, and that header
@@ -169,14 +145,9 @@ async function selectFirstCards(page, count, where) {
 test("both bulk buttons appear in the real host, one gesture monitors two real studios, and cancelling sends nothing", async ({
   page,
   baseUrl,
-  bulkHarness,
+  connected,
 }) => {
-  test.setTimeout(900_000);
-
-  const coveApi = createApiClient(
-    () => bulkHarness.baseUrl,
-    () => bulkHarness.token,
-  );
+  const { api: coveApi, instance, run, whisparr } = connected;
 
   // Every alert the host raises, so the cancel path can assert none was raised. Registered before
   // anything is driven: a dialog Playwright auto-dismissed before this ran would go unrecorded.
@@ -194,248 +165,232 @@ test("both bulk buttons appear in the real host, one gesture monitors two real s
     }
   });
 
-  const whisparr = await startWhisparr({
-    network: bulkHarness.container.getNetworkNames()[0],
-    generations: ["v3"],
+  expect(
+    await whisparrAcquisitionSurface(instance),
+    "the fixture instance has an indexer or a download client, so no never-searched claim may be taken against it",
+  ).toEqual({ indexers: 0, downloadClients: 0 });
+
+  // The fixture's own studio is one of the two, and this spec seeds the second. A third studio
+  // would put a third card on the page the selection below counts.
+  const studioForeignIds = [connected.remoteId, `cove-e2e-bulk-studio-b-${run}`];
+  await whisparr.seedEntity("v3", {
+    kind: "studio",
+    foreignId: studioForeignIds[1],
+    title: `Cove E2E Bulk Studio ${run}`,
+  });
+  await seedCoveStudio(coveApi, {
+    name: `Bulk Studio ${run}`,
+    remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: studioForeignIds[1] }],
   });
 
-  try {
-    const instance = whisparr.apiFor("v3");
-    whisparr.v3.rootFolder = await registerRootFolder(
-      whisparr.v3.container,
-      instance,
-      "v3",
-      WHISPARR_ROOT,
-    );
-
+  for (const foreignId of studioForeignIds) {
+    const held = await whisparrEntity(instance, "studio", foreignId);
     expect(
-      await whisparrAcquisitionSurface(instance),
-      "the fixture instance has an indexer or a download client, so no never-searched claim may be taken against it",
-    ).toEqual({ indexers: 0, downloadClients: 0 });
-
-    const run = randomUUID().slice(0, 8);
-    const studioForeignIds = [`cove-e2e-bulk-studio-a-${run}`, `cove-e2e-bulk-studio-b-${run}`];
-    const performerForeignIds = [
-      `cove-e2e-bulk-performer-a-${run}`,
-      `cove-e2e-bulk-performer-b-${run}`,
-    ];
-
-    for (const [index, foreignId] of studioForeignIds.entries()) {
-      const seeded = await whisparr.seedEntity("v3", {
-        kind: "studio",
-        foreignId,
-        title: `Cove E2E Bulk Studio ${String(index)} ${run}`,
-      });
-      expect(
-        seeded.monitored,
-        `the seeded studio ${foreignId} arrived already monitored, so a monitored reading after the gesture would prove nothing`,
-      ).toBe(false);
-      await seedCoveStudio(coveApi, {
-        name: `Bulk Studio ${String(index)} ${run}`,
-        remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: foreignId }],
-      });
-    }
-
-    for (const [index, foreignId] of performerForeignIds.entries()) {
-      await whisparr.seedEntity("v3", {
-        kind: "performer",
-        foreignId,
-        title: `Cove E2E Bulk Performer ${String(index)} ${run}`,
-      });
-      await seedCovePerformer(coveApi, {
-        name: `Bulk Performer ${String(index)} ${run}`,
-        remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: foreignId }],
-      });
-    }
-
-    await connectWhisparr(coveApi, whisparr, "v3");
-
-    // The studios selection bar. This is the assertion the whole spec exists for: the host matched
-    // the raw plural the bar passes against the string this extension registered.
-    await visit(page, baseUrl, "/studios", cardToggles(page).first(), "the studios page");
-    await selectFirstCards(page, SEEDED_STUDIOS, "the studios page");
-    await expect(
-      bulkButton(page),
-      `the studios selection bar carries no "${BULK_ACTION_LABEL}" button within ${BULK_BUTTON_BUDGET_MS}ms. ` +
-        "The host matches an action's declared entity types by literal membership against the spelling its bar passes, which is the RAW PLURAL for a studio selection; a singular registration makes this button simply not appear, with no error anywhere.",
-    ).toBeVisible({ timeout: BULK_BUTTON_BUDGET_MS });
-
-    // The cancel path, taken FIRST so the assertion that nothing was sent is made before this spec
-    // has sent anything at all.
-    await bulkButton(page).click();
-    await expect(
-      chooserPanel(page),
-      "the bulk button opened no chooser, so there was nothing to cancel",
-    ).toBeVisible();
-    await chooserPanel(page)
-      .getByRole("menuitem", { name: BULK_CANCEL, exact: true })
-      .click({ timeout: ROW_BUDGET_MS });
-    await expect(chooserPanel(page), "cancelling did not close the chooser").toBeHidden();
-    await page.waitForTimeout(CANCEL_DWELL_MS);
-    expect(
-      bulkRequests,
-      "cancelling the chooser still reached the bulk route, so leaving without choosing enqueues work nobody asked for",
-    ).toEqual([]);
-    expect(
-      alerts,
-      "cancelling the chooser raised a host alert. (Note this discriminates little on its own: these actions declare suppressSuccessAlert, so the success path raises none either.)",
-    ).toEqual([]);
-
-    // The gesture itself, on the same selection.
-    await bulkButton(page).click();
-    await expect(chooserPanel(page), "the bulk button did not reopen its chooser").toBeVisible();
-    await expect(
-      chooserPanel(page).getByRole("menuitem", { name: UNMONITOR, exact: true }),
-      "the chooser offers no unmonitor verb, so it is not reading the connected generation's capabilities",
-    ).toBeVisible();
-    // Present and never pressed. It is the one row here that makes the instance download, and this
-    // spec asserts below that no searching command reached the instance at all.
-    await expect(
-      chooserPanel(page).getByRole("menuitem", { name: SEARCH_ALL_MONITORED, exact: true }),
-      "the chooser offers no search verb, so the selection bar is not offering what the entity menu carries out",
-    ).toBeVisible();
-    // One glyph and one name per row, and no paragraph anywhere inside the panel.
-    expect(
-      await chooserPanel(page).locator("p").count(),
-      "the chooser draws a paragraph, so a row states prose the panel is no longer meant to carry",
-    ).toBe(0);
-    expect(
-      await chooserPanel(page).getByRole("menuitem").count(),
-      "the chooser offers a row count this build does not draw",
-    ).toBe(5);
-
-    const enqueued = page.waitForResponse(
-      (response) => new URL(response.url()).pathname === BULK_ROUTE,
-      { timeout: ENQUEUE_BUDGET_MS },
-    );
-    await chooserPanel(page)
-      .getByRole("menuitem", { name: SCOPE_FUTURE_SCENES, exact: true })
-      .click({ timeout: ROW_BUDGET_MS });
-    const response = await enqueued;
-    expect(
-      response.status(),
-      `the bulk route answered ${response.status()} rather than enqueueing`,
-    ).toBeLessThan(400);
-    const jobId = (await response.json())?.jobId;
-    expect(
-      jobId,
-      "the bulk route answered without a job id, so nothing below could watch it",
-    ).toBeTruthy();
-    expect(
-      bulkRequests,
-      `the one gesture reached the bulk route ${String(bulkRequests.length)} time(s), so a selection enqueued more than one run`,
-    ).toEqual(["POST"]);
-
-    // Polled through the extension's OWN status route, which is what a scoped account can watch: the
-    // host gates its own job route on unrestricted read.
-    const {
-      settled,
-      value: finished,
-      note,
-    } = await attemptUntil(
-      async (_signal, record) => {
-        const status = await coveApi.get(extensionRoute(`job-status/${String(jobId)}`));
-        record(`${status.status} with state ${status.json?.status ?? "absent"}`);
-        return status.json?.status === "completed" ? { value: status.json } : null;
-      },
-      { timeoutMs: JOB_BUDGET_MS, intervalMs: 1_000, label: "bulk monitor job" },
-    );
-    expect(
-      settled,
-      `the bulk job never reported itself complete within ${JOB_BUDGET_MS}ms; its status route last answered ${note}`,
-    ).toBe(true);
-    expect(
-      finished.entitiesApplied,
-      `the job reported ${JSON.stringify(finished)}, so it did not apply the gesture to both selected studios`,
-    ).toBe(SEEDED_STUDIOS);
-
-    // The instance's own answer for both, which is the assertion the container is here for.
-    for (const foreignId of studioForeignIds) {
-      const held = await whisparrEntity(instance, "studio", foreignId);
-      expect(
-        held?.monitored,
-        `after the bulk gesture the instance reports ${foreignId} as ${JSON.stringify(held?.monitored)}`,
-      ).toBe(true);
-    }
-
-    // 53-18's correction, taken against the instance rather than against the answer. A run reports
-    // applied from a READ of each entity, so the count it reports and the count the instance holds
-    // are the same number or the read-back is not happening.
-    const monitoredOnTheInstance = await Promise.all(
-      studioForeignIds.map(async (foreignId) =>
-        (await whisparrEntity(instance, "studio", foreignId))?.monitored === true ? 1 : 0,
-      ),
-    ).then((flags) => flags.reduce((total, flag) => total + flag, 0));
-    expect(
-      finished.entitiesApplied,
-      `the job reported ${String(finished.entitiesApplied)} applied and the instance holds ${String(monitoredOnTheInstance)} of the ${String(SEEDED_STUDIOS)} selected studios monitored, so the reported count is not a read of what the instance does`,
-    ).toBe(monitoredOnTheInstance);
-
-    // ONE job for the whole selection, and the per-entity linking inside it. Enqueuing one linking
-    // run per entity was the measured alternative, and a selection of a thousand entities is exactly
-    // where that difference stops being cosmetic.
-    const ownJobs = await Promise.all([coveApi.get(HOST_JOBS), coveApi.get(HOST_JOB_HISTORY)]).then(
-      (answers) =>
-        answers
-          .flatMap((answer) => (Array.isArray(answer.json) ? answer.json : []))
-          .filter((job) => String(job.type ?? "").startsWith(OWN_JOB_PREFIX)),
-    );
-    expect(
-      ownJobs.filter((job) => job.type === BULK_JOB_TYPE).length,
-      `the one gesture over ${String(SEEDED_STUDIOS)} studios produced ${String(ownJobs.filter((job) => job.type === BULK_JOB_TYPE).length)} bulk job(s). The extension's whole job list was ${JSON.stringify(ownJobs.map((job) => job.type))}`,
-    ).toBe(1);
-    expect(
-      ownJobs.filter((job) => job.type === REFLECT_OWNED_JOB_TYPE),
-      `the selection enqueued a separate reflect-owned run per entity rather than doing that work inside its one job. The extension's whole job list was ${JSON.stringify(ownJobs.map((job) => job.type))}`,
-    ).toEqual([]);
-
-    // What the run reports, taken on the members it owns rather than on its own sentence.
-    //
-    // THE COMPOSED LINE DOES NOT REACH A READER, AND THAT IS A DEFECT THIS SPEC RECORDS RATHER THAN
-    // PINS. The extension writes its own summary through the final progress report - "N applied, M
-    // refused." followed by a separate linking clause, which is the shape 53-18 chose so the
-    // per-entity linking is reported apart from the monitor outcomes. The host overwrites it: every
-    // unit tally recomputes `Summary` as its own "N of M units succeeded" and then mirrors that onto
-    // `SubTask`, so a job that reports units - which this one must, because the browser reads the
-    // per-entity counts off them - can never keep a sentence of its own. The reflect-owned and
-    // add-all-missing runs are unaffected and their lines are asserted in the sibling spec, because
-    // neither reports units. Asserting the absence here would read as coverage of a decision nobody
-    // took, so what is asserted is the counts, and the line is left named in the SUMMARY.
-    expect(
-      {
-        total: finished.entitiesTotal,
-        applied: finished.entitiesApplied,
-        refused: finished.entitiesRefused,
-        passedOver: finished.entitiesPassedOver,
-      },
-      `the bulk run reported ${JSON.stringify(finished)}, which does not account for every selected studio: a reader is told a total that its own parts do not add up to`,
-    ).toEqual({
-      total: SEEDED_STUDIOS,
-      applied: SEEDED_STUDIOS,
-      refused: 0,
-      passedOver: 0,
-    });
-
-    // And nothing acquisitive was started by a gesture that touched two entities at once, watched
-    // over the same named window its sibling uses rather than read the moment the poll returned. The
-    // poll's own interval is a delay the run happened to have, not a window anyone chose, and an
-    // absence bounded by an accident passes on a broken instance as readily as on a correct one.
-    await page.waitForTimeout(SETTLE_DWELL_MS);
-    const after = await whisparrActivity(instance);
-    expect(
-      after.commandNames.filter((name) => SEARCH_COMMAND.test(name)),
-      `the instance's command roster holds a searching command after the bulk gesture. The whole roster was ${JSON.stringify(after.commandNames)}`,
-    ).toEqual([]);
-
-    // The performers selection bar. Its own registration, and the second half of the raw-plural
-    // fact: the two are registered separately because the host allows one permission per action.
-    await visit(page, baseUrl, "/performers", cardToggles(page).first(), "the performers page");
-    await selectFirstCards(page, SEEDED_PERFORMERS, "the performers page");
-    await expect(
-      bulkButton(page),
-      `the performers selection bar carries no "${BULK_ACTION_LABEL}" button within ${BULK_BUTTON_BUDGET_MS}ms; the host matched no action against the spelling its bar passes for a performer selection.`,
-    ).toBeVisible({ timeout: BULK_BUTTON_BUDGET_MS });
-  } finally {
-    await whisparr.stop();
+      held?.monitored,
+      `the seeded studio ${foreignId} arrived already monitored, so a monitored reading after the gesture would prove nothing`,
+    ).toBe(false);
   }
+
+  const performerForeignIds = [
+    `cove-e2e-bulk-performer-a-${run}`,
+    `cove-e2e-bulk-performer-b-${run}`,
+  ];
+
+  for (const [index, foreignId] of performerForeignIds.entries()) {
+    await whisparr.seedEntity("v3", {
+      kind: "performer",
+      foreignId,
+      title: `Cove E2E Bulk Performer ${String(index)} ${run}`,
+    });
+    await seedCovePerformer(coveApi, {
+      name: `Bulk Performer ${String(index)} ${run}`,
+      remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: foreignId }],
+    });
+  }
+
+  // The studios selection bar. This is the assertion the whole spec exists for: the host matched
+  // the raw plural the bar passes against the string this extension registered.
+  await visit(page, baseUrl, "/studios", cardToggles(page).first(), "the studios page");
+  await selectFirstCards(page, SEEDED_STUDIOS, "the studios page");
+  await expect(
+    bulkButton(page),
+    `the studios selection bar carries no "${BULK_ACTION_LABEL}" button within ${BULK_BUTTON_BUDGET_MS}ms. ` +
+      "The host matches an action's declared entity types by literal membership against the spelling its bar passes, which is the RAW PLURAL for a studio selection; a singular registration makes this button simply not appear, with no error anywhere.",
+  ).toBeVisible({ timeout: BULK_BUTTON_BUDGET_MS });
+
+  // The cancel path, taken FIRST so the assertion that nothing was sent is made before this spec
+  // has sent anything at all.
+  await bulkButton(page).click();
+  await expect(
+    chooserPanel(page),
+    "the bulk button opened no chooser, so there was nothing to cancel",
+  ).toBeVisible();
+  await chooserPanel(page)
+    .getByRole("menuitem", { name: BULK_CANCEL, exact: true })
+    .click({ timeout: ROW_BUDGET_MS });
+  await expect(chooserPanel(page), "cancelling did not close the chooser").toBeHidden();
+  await page.waitForTimeout(CANCEL_DWELL_MS);
+  expect(
+    bulkRequests,
+    "cancelling the chooser still reached the bulk route, so leaving without choosing enqueues work nobody asked for",
+  ).toEqual([]);
+  expect(
+    alerts,
+    "cancelling the chooser raised a host alert. (Note this discriminates little on its own: these actions declare suppressSuccessAlert, so the success path raises none either.)",
+  ).toEqual([]);
+
+  // The gesture itself, on the same selection.
+  await bulkButton(page).click();
+  await expect(chooserPanel(page), "the bulk button did not reopen its chooser").toBeVisible();
+  await expect(
+    chooserPanel(page).getByRole("menuitem", { name: UNMONITOR, exact: true }),
+    "the chooser offers no unmonitor verb, so it is not reading the connected generation's capabilities",
+  ).toBeVisible();
+  // Present and never pressed. It is the one row here that makes the instance download, and this
+  // spec asserts below that no searching command reached the instance at all.
+  await expect(
+    chooserPanel(page).getByRole("menuitem", { name: SEARCH_ALL_MONITORED, exact: true }),
+    "the chooser offers no search verb, so the selection bar is not offering what the entity menu carries out",
+  ).toBeVisible();
+  // One glyph and one name per row, and no paragraph anywhere inside the panel.
+  expect(
+    await chooserPanel(page).locator("p").count(),
+    "the chooser draws a paragraph, so a row states prose the panel is no longer meant to carry",
+  ).toBe(0);
+  expect(
+    await chooserPanel(page).getByRole("menuitem").count(),
+    "the chooser offers a row count this build does not draw",
+  ).toBe(5);
+
+  const enqueued = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === BULK_ROUTE,
+    { timeout: ENQUEUE_BUDGET_MS },
+  );
+  await chooserPanel(page)
+    .getByRole("menuitem", { name: SCOPE_FUTURE_SCENES, exact: true })
+    .click({ timeout: ROW_BUDGET_MS });
+  const response = await enqueued;
+  expect(
+    response.status(),
+    `the bulk route answered ${response.status()} rather than enqueueing`,
+  ).toBeLessThan(400);
+  const jobId = (await response.json())?.jobId;
+  expect(
+    jobId,
+    "the bulk route answered without a job id, so nothing below could watch it",
+  ).toBeTruthy();
+  expect(
+    bulkRequests,
+    `the one gesture reached the bulk route ${String(bulkRequests.length)} time(s), so a selection enqueued more than one run`,
+  ).toEqual(["POST"]);
+
+  // Polled through the extension's OWN status route, which is what a scoped account can watch: the
+  // host gates its own job route on unrestricted read.
+  const {
+    settled,
+    value: finished,
+    note,
+  } = await attemptUntil(
+    async (_signal, record) => {
+      const status = await coveApi.get(extensionRoute(`job-status/${String(jobId)}`));
+      record(`${status.status} with state ${status.json?.status ?? "absent"}`);
+      return status.json?.status === "completed" ? { value: status.json } : null;
+    },
+    { timeoutMs: JOB_BUDGET_MS, intervalMs: 1_000, label: "bulk monitor job" },
+  );
+  expect(
+    settled,
+    `the bulk job never reported itself complete within ${JOB_BUDGET_MS}ms; its status route last answered ${note}`,
+  ).toBe(true);
+  expect(
+    finished.entitiesApplied,
+    `the job reported ${JSON.stringify(finished)}, so it did not apply the gesture to both selected studios`,
+  ).toBe(SEEDED_STUDIOS);
+
+  // The instance's own answer for both, which is the assertion the container is here for.
+  for (const foreignId of studioForeignIds) {
+    const held = await whisparrEntity(instance, "studio", foreignId);
+    expect(
+      held?.monitored,
+      `after the bulk gesture the instance reports ${foreignId} as ${JSON.stringify(held?.monitored)}`,
+    ).toBe(true);
+  }
+
+  // 53-18's correction, taken against the instance rather than against the answer. A run reports
+  // applied from a READ of each entity, so the count it reports and the count the instance holds
+  // are the same number or the read-back is not happening.
+  const monitoredOnTheInstance = await Promise.all(
+    studioForeignIds.map(async (foreignId) =>
+      (await whisparrEntity(instance, "studio", foreignId))?.monitored === true ? 1 : 0,
+    ),
+  ).then((flags) => flags.reduce((total, flag) => total + flag, 0));
+  expect(
+    finished.entitiesApplied,
+    `the job reported ${String(finished.entitiesApplied)} applied and the instance holds ${String(monitoredOnTheInstance)} of the ${String(SEEDED_STUDIOS)} selected studios monitored, so the reported count is not a read of what the instance does`,
+  ).toBe(monitoredOnTheInstance);
+
+  // ONE job for the whole selection, and the per-entity linking inside it. Enqueuing one linking
+  // run per entity was the measured alternative, and a selection of a thousand entities is exactly
+  // where that difference stops being cosmetic.
+  const ownJobs = await Promise.all([coveApi.get(HOST_JOBS), coveApi.get(HOST_JOB_HISTORY)]).then(
+    (answers) =>
+      answers
+        .flatMap((answer) => (Array.isArray(answer.json) ? answer.json : []))
+        .filter((job) => String(job.type ?? "").startsWith(OWN_JOB_PREFIX)),
+  );
+  expect(
+    ownJobs.filter((job) => job.type === BULK_JOB_TYPE).length,
+    `the one gesture over ${String(SEEDED_STUDIOS)} studios produced ${String(ownJobs.filter((job) => job.type === BULK_JOB_TYPE).length)} bulk job(s). The extension's whole job list was ${JSON.stringify(ownJobs.map((job) => job.type))}`,
+  ).toBe(1);
+  expect(
+    ownJobs.filter((job) => job.type === REFLECT_OWNED_JOB_TYPE),
+    `the selection enqueued a separate reflect-owned run per entity rather than doing that work inside its one job. The extension's whole job list was ${JSON.stringify(ownJobs.map((job) => job.type))}`,
+  ).toEqual([]);
+
+  // What the run reports, taken on the members it owns rather than on its own sentence.
+  //
+  // THE COMPOSED LINE DOES NOT REACH A READER, AND THAT IS A DEFECT THIS SPEC RECORDS RATHER THAN
+  // PINS. The extension writes its own summary through the final progress report - "N applied, M
+  // refused." followed by a separate linking clause, which is the shape 53-18 chose so the
+  // per-entity linking is reported apart from the monitor outcomes. The host overwrites it: every
+  // unit tally recomputes `Summary` as its own "N of M units succeeded" and then mirrors that onto
+  // `SubTask`, so a job that reports units - which this one must, because the browser reads the
+  // per-entity counts off them - can never keep a sentence of its own. The reflect-owned and
+  // add-all-missing runs are unaffected and their lines are asserted in the sibling spec, because
+  // neither reports units. Asserting the absence here would read as coverage of a decision nobody
+  // took, so what is asserted is the counts, and the line is left named in the SUMMARY.
+  expect(
+    {
+      total: finished.entitiesTotal,
+      applied: finished.entitiesApplied,
+      refused: finished.entitiesRefused,
+      passedOver: finished.entitiesPassedOver,
+    },
+    `the bulk run reported ${JSON.stringify(finished)}, which does not account for every selected studio: a reader is told a total that its own parts do not add up to`,
+  ).toEqual({
+    total: SEEDED_STUDIOS,
+    applied: SEEDED_STUDIOS,
+    refused: 0,
+    passedOver: 0,
+  });
+
+  // And nothing acquisitive was started by a gesture that touched two entities at once, watched
+  // over the same named window its sibling uses rather than read the moment the poll returned. The
+  // poll's own interval is a delay the run happened to have, not a window anyone chose, and an
+  // absence bounded by an accident passes on a broken instance as readily as on a correct one.
+  await page.waitForTimeout(SETTLE_DWELL_MS);
+  const after = await whisparrActivity(instance);
+  expect(
+    after.commandNames.filter((name) => SEARCH_COMMAND.test(name)),
+    `the instance's command roster holds a searching command after the bulk gesture. The whole roster was ${JSON.stringify(after.commandNames)}`,
+  ).toEqual([]);
+
+  // The performers selection bar. Its own registration, and the second half of the raw-plural
+  // fact: the two are registered separately because the host allows one permission per action.
+  await visit(page, baseUrl, "/performers", cardToggles(page).first(), "the performers page");
+  await selectFirstCards(page, SEEDED_PERFORMERS, "the performers page");
+  await expect(
+    bulkButton(page),
+    `the performers selection bar carries no "${BULK_ACTION_LABEL}" button within ${BULK_BUTTON_BUDGET_MS}ms; the host matched no action against the spelling its bar passes for a performer selection.`,
+  ).toBeVisible({ timeout: BULK_BUTTON_BUDGET_MS });
 });
