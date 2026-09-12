@@ -1,5 +1,10 @@
-// An imported scene carries its identity even where Cove has no metadata source configured at all,
-// and a title the user set afterwards survives a redelivery of that same scene.
+// A redelivery of a scene Cove already holds leaves a user's title and the item's one identity row
+// alone, where Cove has no metadata source configured at all.
+//
+// That an imported item carries its identity at all is asserted on both generations by
+// import-webhook.shared.spec.mjs. What is left here is the second delivery, which that scenario does
+// not make: the first delivery below is the arrangement, and the reads taken between the two are
+// what the redelivery is compared against.
 //
 // Every assertion is on the COVE side, read back through Cove's own video API. The callback's status
 // is checked only so a refused delivery surfaces as itself rather than as a poll timeout.
@@ -76,7 +81,7 @@ async function configuredMetadataSources(api) {
   return config.json?.scraping?.metadataServers ?? [];
 }
 
-test("a delivery stamps the scene's identity with no metadata source configured, and a redelivery leaves a user's title alone", async ({
+test("a redelivery leaves a user's title and the item's one identity row alone, with no metadata source configured", async ({
   isolatedHarness,
 }) => {
   test.setTimeout(600_000);
@@ -145,13 +150,12 @@ test("a delivery stamps the scene's identity with no metadata source configured,
     expect(registered, "the delivery produced more than one item").toHaveLength(1);
 
     const imported = await videoDetail(api, registered[0].id);
-    expect(
-      imported.files?.map((file) => file.path),
-      "the item Cove created is not at the path this extension verified",
-    ).toEqual([covePath]);
+
+    // Read before the redelivery rather than asserted for its own sake: without it a second identity
+    // row added by the redelivery would be indistinguishable from one the first delivery wrote.
     expect(
       imported.remoteIds,
-      "the item arrived without its identity, which is what this spec is for",
+      "the item arrived without its identity, so the redelivery below is not the subject",
     ).toEqual([{ endpoint: STASHDB_ENDPOINT, remoteId: deliveredRemoteId("v3") }]);
 
     // A title the user sets between the two deliveries. It has to survive the second, which it can
