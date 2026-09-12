@@ -232,6 +232,11 @@ public sealed partial class SettingsProjectionTests
                 // A library count that could not be finished, given the same classification and for
                 // the same reason.
                 "SyncCountDidNotFinish.failure",
+                // The two reads a library run monitors through, each given the same classification
+                // for the same reason. Neither can name the site or the scene: both are stored
+                // library identifiers.
+                "SceneNumbersUnreadable.failure",
+                "SiteSceneRowsUnreadable.failure",
             }.Order(),
             LogTemplates()
                 .SelectMany(template => template.GetParameters(), (template, parameter) => (template, parameter))
