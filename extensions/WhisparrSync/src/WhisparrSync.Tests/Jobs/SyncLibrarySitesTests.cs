@@ -7,6 +7,7 @@ using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Library;
 using WhisparrSync.Monitoring;
+using WhisparrSync.Scene;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
@@ -30,6 +31,33 @@ public sealed class SyncLibrarySitesTests
 
     private const string SecondSite = "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e";
 
+    private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
+
+    private const string SecondScene = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
+
+    /// <summary>The number the metadata provider issues for each scene, as this generation names it.</summary>
+    private static readonly Dictionary<string, int> SceneNumbers = new(StringComparer.Ordinal)
+    {
+        [FirstScene] = 1363738,
+        [SecondScene] = 1363739,
+    };
+
+    /// <summary>
+    /// The instance's own row identifier for each scene, which is not the number above.
+    /// </summary>
+    /// <remarks>
+    /// Held apart on purpose: a pass that set the flag by the provider's number rather than by the
+    /// row the instance answered would pass against one shared value.
+    /// </remarks>
+    private static readonly Dictionary<string, int> SceneRows = new(StringComparer.Ordinal)
+    {
+        [FirstScene] = 77,
+        [SecondScene] = 88,
+    };
+
+    /// <summary>A provider holding an answer for nothing at all, so any resolution faults the run.</summary>
+    private static readonly Dictionary<string, int?> NoAnswers = new(StringComparer.Ordinal);
+
     /// <summary>The instance's own numeric id for a site it took, as its add's answer names it.</summary>
     private const int RegisteredSiteId = 11;
 
@@ -49,7 +77,7 @@ public sealed class SyncLibrarySitesTests
     /// call is made at all.
     /// </summary>
     /// <remarks>
-    /// Scoped to the toggle being OFF on purpose. With it on, what the reader owns on a site is its
+    /// Scoped to the toggle being off on purpose. With it on, what the reader owns on a site is its
     /// scenes, and marking those is a separate capability this pass does not obtain - so a case
     /// asserting that no monitor call is ever made would be a case that has to be deleted once it is.
     /// <para>
@@ -264,6 +292,98 @@ public sealed class SyncLibrarySitesTests
         Assert.NotNull(startedRun.JobId);
     }
 
+    /// <summary>
+    /// With the monitor toggle off, nothing reads a scene number and nothing sets a flag.
+    /// </summary>
+    /// <remarks>
+    /// Over a library that would otherwise produce many of both, and proved by both doubles refusing
+    /// a call they were not given rather than by a zero count: the provider throws on an identifier
+    /// it holds no answer for, and the recording client throws on a verb it was given no answer for,
+    /// so either call faults the run instead of passing unnoticed.
+    /// </remarks>
+    [Fact]
+    public async Task WithTheToggleOffNoSceneNumberIsReadAndNoFlagIsSet()
+    {
+        var provider = new RecordingProviderCatalogue(NoAnswers);
+        await using var host = await SiteHost(held: false, provider);
+        await SeedSiteAsync(host, FirstSite, FirstScene);
+        await SeedSiteAsync(host, SecondSite, SecondScene);
+
+        var progress = await RunAsync(host, alsoMonitor: false);
+
+        Assert.Empty(provider.Resolved);
+        Assert.DoesNotContain(nameof(IWhisparrSiteSceneReading.ReduceSiteSceneRowsAsync), host.Client.Verbs);
+        Assert.DoesNotContain(nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync), host.Client.Verbs);
+        Assert.Empty(host.Client.UnexpectedCalls);
+        Assert.Contains("2 sites registered", Assert.Single(progress.Summaries), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// With the toggle on, every scene the reader owns on a registered site is flagged, including one
+    /// on a site the instance already held.
+    /// </summary>
+    /// <remarks>
+    /// That last one is the difference between marking what was just registered and marking what the
+    /// reader owns, which is what the requirement asks for: on a second press most of the library is
+    /// on sites a previous run registered.
+    /// </remarks>
+    [Fact]
+    public async Task WithTheToggleOnEveryOwnedSceneIsFlaggedIncludingOnASiteAlreadyHeld()
+    {
+        var provider = ProviderNaming(FirstScene, SecondScene);
+        await using var host = await MonitoringHost(provider);
+        await SeedSiteAsync(host, FirstSite, FirstScene);
+        await SeedSiteAsync(host, SecondSite, SecondScene);
+
+        var progress = await RunAsync(host, alsoMonitor: true);
+
+        Assert.Equal(
+            new[] { FirstScene, SecondScene }.Order(),
+            provider.Resolved.Order());
+        Assert.Equal([RegisteredSiteId, HeldSiteId], host.Client.SiteSceneReads.Select(read => read.SiteId));
+        Assert.Equal(
+            new[] { RowFor(FirstScene), RowFor(SecondScene) }.Order(),
+            Verb(host, nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync))
+                .Select(call => call.EntityId!.Value)
+                .Order());
+        Assert.All(
+            Verb(host, nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync)),
+            call => Assert.True(call.Monitored));
+
+        var summary = Assert.Single(progress.Summaries);
+        Assert.Contains("1 already in Whisparr", summary, StringComparison.Ordinal);
+        Assert.Contains("2 scenes monitored", summary, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Where the connected provider issues no scene number, the sites are still registered and
+    /// nothing per scene is read at all.
+    /// </summary>
+    /// <remarks>
+    /// The role is obtained once per run rather than once per scene, so the count of provider calls
+    /// is zero whatever the library holds rather than one refusal per scene.
+    /// </remarks>
+    [Fact]
+    public async Task WhereTheProviderIssuesNoSceneNumberTheSitesAreStillRegisteredAndNothingIsRead()
+    {
+        var provider = new RecordingProviderCatalogue(NoAnswers, resolves: false);
+        await using var host = await SiteHost(held: false, provider);
+        await SeedSiteAsync(host, FirstSite, FirstScene);
+        await SeedSiteAsync(host, SecondSite, SecondScene);
+
+        await RunAsync(host, alsoMonitor: true);
+
+        Assert.Equal(
+            new[] { FirstSite, SecondSite }.Order(),
+            Verb(host, nameof(IWhisparrSiteRegistrationActing.RegisterSiteAsync))
+                .Select(call => call.ForeignId!)
+                .Order());
+        Assert.Empty(provider.Resolved);
+        Assert.DoesNotContain(nameof(IWhisparrSiteSceneReading.ReduceSiteSceneRowsAsync), host.Client.Verbs);
+        Assert.DoesNotContain(nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync), host.Client.Verbs);
+        Assert.Empty(host.Client.UnexpectedCalls);
+    }
+
     private static List<LibrarySiteIdentity> Sites(int count)
         => [.. Enumerable.Range(1, count).Select(
             n => new LibrarySiteIdentity(n, $"{n:x8}-0000-4000-8000-000000000000"))];
@@ -306,9 +426,11 @@ public sealed class SyncLibrarySitesTests
     /// against an instance that already holds the site reaches a verb this client was given no answer
     /// for, and the client refuses it.
     /// </remarks>
-    private static async Task<MonitorHost> SiteHost(bool held)
+    private static async Task<MonitorHost> SiteHost(
+        bool held, RecordingProviderCatalogue? provider = null)
     {
-        var host = await MonitorHost.CreateAsync(generation: WhisparrGeneration.V2);
+        var host = await MonitorHost.CreateAsync(
+            generation: WhisparrGeneration.V2, catalogue: provider);
         host.Client.Answering(
             nameof(IWhisparrStudioActing.ReadStudioAsync),
             held ? MonitorHost.Json(200, HeldRow) : MonitorHost.Json(404, string.Empty));
@@ -323,12 +445,64 @@ public sealed class SyncLibrarySitesTests
         return host;
     }
 
+    /// <summary>
+    /// A host whose instance holds the second site the run reaches and not the first, and which
+    /// answers the scene rows and the flag.
+    /// </summary>
+    /// <remarks>
+    /// Two answers are queued for the presence read, so one site is registered by this run and the
+    /// other was already there. Which library studio each is depends on the order the identifier
+    /// stream yields them, so every assertion reads the instance's own site ids rather than assuming
+    /// one.
+    /// </remarks>
+    private static async Task<MonitorHost> MonitoringHost(RecordingProviderCatalogue provider)
+    {
+        var host = await MonitorHost.CreateAsync(
+            generation: WhisparrGeneration.V2, catalogue: provider);
+
+        host.Client
+            .Answering(
+                nameof(IWhisparrStudioActing.ReadStudioAsync),
+                MonitorHost.Json(404, string.Empty),
+                MonitorHost.Json(200, HeldRow))
+            .Answering(
+                nameof(IWhisparrSiteRegistrationActing.RegisterSiteAsync),
+                MonitorHost.Json(201, RegisteredRow))
+            .Answering(
+                nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync),
+                MonitorHost.Json(202, "{}"));
+
+        foreach (var (scene, number) in SceneNumbers)
+        {
+            host.Client.SiteSceneRowIds[number] = SceneRows[scene];
+        }
+
+        return host;
+    }
+
+    /// <summary>A provider naming a number for each of <paramref name="scenes"/> and nothing else.</summary>
+    private static RecordingProviderCatalogue ProviderNaming(params string[] scenes)
+        => new(scenes.ToDictionary(
+            scene => scene, scene => (int?)SceneNumbers[scene], StringComparer.Ordinal));
+
+    /// <summary>The instance's own row identifier for <paramref name="scene"/>.</summary>
+    private static int RowFor(string scene) => SceneRows[scene];
+
+    /// <summary>Seeds one studio the library identifies, holding one scene it identifies.</summary>
+    private static async Task SeedSiteAsync(MonitorHost host, string site, string scene)
+    {
+        var studioId = await host.SeedStudioAsync(V2Endpoint, site);
+        await host.SeedStudioSceneAsync(studioId, V2Endpoint, scene);
+    }
+
     private static IEnumerable<ActingCall> Verb(MonitorHost host, string verb)
         => host.Client.Acting.Where(call => call.Verb == verb);
 
-    private static async Task<RecordingJobProgress> RunAsync(MonitorHost host)
+    private static async Task<RecordingJobProgress> RunAsync(
+        MonitorHost host, bool alsoMonitor = false)
     {
-        await PostAsync<SyncEnqueued>(host, "sync/run");
+        await PostAsync<SyncEnqueued>(
+            host, "sync/run", alsoMonitor ? """{"alsoMonitor":true}""" : "{}");
         var progress = new RecordingJobProgress();
         await host.RunEnqueuedBatchAsync(progress);
         return progress;
@@ -342,17 +516,14 @@ public sealed class SyncLibrarySitesTests
         return (await answered.Content.ReadFromJsonAsync<SyncPreviewRead>(TestCt))!;
     }
 
-    /// <summary>
-    /// Posts <paramref name="route"/> with the monitor toggle left unnamed, which reads as off.
-    /// </summary>
+    /// <summary>Posts <paramref name="body"/> to <paramref name="route"/>.</summary>
     /// <remarks>
-    /// Every case here is scoped to the toggle being off, so it is absent from the body rather than
-    /// spelled false: a caller naming nothing monitors nothing, which is the same request a reader
-    /// with the switch off makes.
+    /// The default body names the monitor toggle not at all, which reads as off: a caller naming
+    /// nothing monitors nothing, which is the same request a reader with the switch off makes.
     /// </remarks>
-    private static async Task<T> PostAsync<T>(MonitorHost host, string route)
+    private static async Task<T> PostAsync<T>(MonitorHost host, string route, string body = "{}")
     {
-        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
 
         var answered = await host.Http.PostAsync(
             "/api/extensions/" + host.ExtensionId + "/" + route, content, TestCt);
