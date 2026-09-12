@@ -41,7 +41,7 @@ internal sealed record SiteSceneMonitorPorts(
 /// <see cref="ChunkSize"/>, asked about in one read and dropped. Nothing else here outlives one
 /// scene, and nothing grows with the library.
 /// <para>
-/// NOTHING BOUNDS HOW MANY SCENES THE PASS RESOLVES. Every scene the reader owns on the site is read,
+/// Nothing bounds how many scenes the pass resolves. Every scene the reader owns on the site is read,
 /// however many there are. A ceiling would leave part of the library unmonitored and report a total
 /// that reads exactly like a complete one. What is bounded is how many reads are outstanding at a
 /// time, which is <see cref="SyncPreviewJob.SitePresenceReadsInFlight"/> and is why every read here
@@ -65,7 +65,7 @@ internal static class SiteSceneMonitorPass
     /// memory at a time. 500 reads a site the size of the one measured on 2026-09-10 - 412 scenes -
     /// in a single read, while holding half a kilobyte of integers.
     /// <para>
-    /// It is NOT a ceiling on how many scenes the pass reaches. A site carrying more scenes than this
+    /// It is not a ceiling on how many scenes the pass reaches. A site carrying more scenes than this
     /// is read in as many chunks as it takes.
     /// </para>
     /// </remarks>

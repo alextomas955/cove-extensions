@@ -114,9 +114,17 @@ public sealed class SyncLibraryPlannerTests
         Assert.Single(progress.Summaries);
     }
 
-    /// <summary>Nothing a reader sees while the run works, or when it ends, counts anything else.</summary>
+    /// <summary>
+    /// Nothing a reader sees while the run works, or when it ends, counts anything but scenes and
+    /// sites.
+    /// </summary>
+    /// <remarks>
+    /// Both passes, because the site pass states a figure in each noun: what it registered is sites
+    /// and what it monitored under them is scenes. Whichever pass ran, no figure is stated in a word
+    /// a reader could take for either.
+    /// </remarks>
     [Fact]
-    public async Task NothingARunSaysCountsAnythingButScenes()
+    public async Task NothingARunSaysCountsAnythingButScenesAndSites()
     {
         var (_, progress, _) = await RunOver(
             [FirstScene, SecondScene, ThirdScene],
@@ -139,6 +147,38 @@ public sealed class SyncLibraryPlannerTests
 
         Assert.Contains("Scene 3 of 3", said);
         Assert.Contains("scenes registered", progress.Summaries[0], StringComparison.Ordinal);
+
+        var sites = new RecordingJobProgress();
+        await SyncLibraryPlanner.RunAsync(
+            SyncRegisters.Sites,
+            ct => Streamed([FirstScene, SecondScene], ct),
+            identity => identity,
+            new Instance(_ => Accepted).RegisterAsync,
+            (_, _, _) => Task.FromResult(new SceneMonitorTally(2, 1, 0, 0)),
+            sites,
+            TestCt);
+
+        var overSites = sites.Units
+            .Select(reported => reported.Message)
+            .Concat(sites.Summaries)
+            .ToList();
+
+        Assert.Equal(3, overSites.Count);
+        foreach (var line in overSites)
+        {
+            Assert.NotNull(line);
+            foreach (var forbidden in ForbiddenFragments)
+            {
+                Assert.DoesNotContain(forbidden, line, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        Assert.Contains("Site 2 of 2", overSites);
+        Assert.Contains(
+            "2 sites registered, 0 already in Whisparr, 0 refused, 4 scenes monitored, "
+                + "2 scenes not monitored.",
+            sites.Summaries[0],
+            StringComparison.Ordinal);
     }
 
     /// <summary>Every unit is disposed as well as completed.</summary>

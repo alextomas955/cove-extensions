@@ -102,7 +102,7 @@ internal enum SyncLibraryRunOutcome
 /// <param name="AlreadyHeld">How many it already held, which is not a failure.</param>
 /// <param name="Refused">How many it would not take.</param>
 /// <param name="Monitored">
-/// How many SCENES were marked wanted, which is zero unless monitoring was on. Counted in scenes on
+/// How many scenes were marked wanted, which is zero unless monitoring was on. Counted in scenes on
 /// both passes: what a reader owns on a site is its scenes, so a site's registration and the scenes
 /// marked under it are different nouns and the summary states each as what it is.
 /// </param>
