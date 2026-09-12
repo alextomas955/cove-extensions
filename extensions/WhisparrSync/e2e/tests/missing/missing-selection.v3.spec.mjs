@@ -11,7 +11,8 @@
 // page, so a range selection and a select-all count mean the same thing on every run. Intercepting
 // the extension's own route keeps that seam inside this file; the shipped bundle carries no test
 // hook. The host, the extension bundle, the tab and the bulk route are the real ones, and the run
-// this spec starts is enqueued by the real server.
+// this spec starts is enqueued by the real server. The file keeps its unsuffixed name for that
+// reason: the run below is started against a real instance.
 //
 // WHAT THIS SPEC DOES NOT ASSERT. Cove's own pagination controls carry no focus utility of any
 // kind, so no case here focuses one and reads a ring off it. That is the host's to change, and a red
@@ -20,22 +21,17 @@
 // IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
-import { createApiClient } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
-import { visit } from "../../lib/steps.mjs";
 
 import {
-  test as base,
-  connectWhisparr,
   EXTENSION_ID,
   expect,
   seedCoveStudio,
+  SPEC_BUDGET_MS,
   STASHDB_ENDPOINT,
-  WHISPARR_ROOT,
-  WHISPARR_SYNC_EXTENSION,
-} from "../../lib/whisparr-sync-fixtures.mjs";
+  test,
+} from "../../lib/connected-fixture.mjs";
+import { visit } from "../../lib/steps.mjs";
 
 const TAB_LABEL = "Missing";
 
@@ -61,48 +57,8 @@ const SCENES_ON_THE_PAGE = 12;
 const TAB_BUDGET_MS = 30_000;
 const REGION_BUDGET_MS = 90_000;
 
-const test = base.extend({
-  selectionHarness: [
-    async ({}, use) => {
-      const harness = await startHarness();
-      try {
-        harness.owner = await harness.bootstrapOwner();
-        await harness.installExtension(WHISPARR_SYNC_EXTENSION);
-        await use(harness);
-      } finally {
-        await harness.stop();
-      }
-    },
-    { scope: "test" },
-  ],
-
-  // Read through the handle AFTER the install, which restarts the container and can republish it on
-  // a different host port.
-  baseUrl: async ({ selectionHarness }, use) => {
-    await use(selectionHarness.baseUrl);
-  },
-
-  whisparrV3: [
-    async ({ selectionHarness }, use) => {
-      const whisparr = await startWhisparr({
-        network: selectionHarness.container.getNetworkNames()[0],
-        generations: ["v3"],
-      });
-      try {
-        whisparr.v3.rootFolder = await registerRootFolder(
-          whisparr.v3.container,
-          whisparr.apiFor("v3"),
-          "v3",
-          WHISPARR_ROOT,
-        );
-        await use(whisparr);
-      } finally {
-        await whisparr.stop();
-      }
-    },
-    { scope: "test" },
-  ],
-});
+test.describe.configure({ timeout: SPEC_BUDGET_MS });
+test.use({ generation: "v3" });
 
 const missingTab = (page) => page.getByRole("tab", { name: TAB_LABEL }).first();
 const hostDetailTabs = (page) => page.getByRole("tablist").first();
@@ -175,17 +131,10 @@ function recordedPage(count, { page: pageNumber = 1, lastPage = 1 } = {}) {
 test("missing selection: ticking a page, its shortcuts, and the run a press starts", async ({
   page,
   baseUrl,
-  selectionHarness,
-  whisparrV3,
+  connected,
 }) => {
-  // A container pair, an extension install and a browser, well above the shared per-test budget.
-  test.setTimeout(900_000);
-
-  const coveApi = createApiClient(
-    () => selectionHarness.baseUrl,
-    () => selectionHarness.token,
-  );
-  await connectWhisparr(coveApi, whisparrV3, "v3");
+  // The fixture holds the connected instance the run started below is enqueued against.
+  const { api: coveApi } = connected;
 
   const studio = await seedCoveStudio(coveApi, {
     name: `Selection studio ${randomUUID().slice(0, 8)}`,

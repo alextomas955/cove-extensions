@@ -10,7 +10,8 @@
 // title, and the scenes have to be the same on every run for a focus walk to mean anything.
 // Intercepting the extension's own route keeps that seam inside this file: the shipped bundle
 // carries no test hook, and the host, the extension bundle, the tab and the verb routes are all the
-// real ones.
+// real ones. The file keeps its unsuffixed name for that reason: the instance behind it is a real
+// one, and one of the presses below reaches it.
 //
 // WHICH PRESSES REACH THE INSTANCE. The Search case does: a scene the connected Whisparr holds no
 // entry for is an answer only the server can give, and it is the one this spec drives end to end.
@@ -21,21 +22,16 @@
 // IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
-import { createApiClient } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
-import { visit } from "../../lib/steps.mjs";
 
 import {
-  test as base,
-  connectWhisparr,
   expect,
   seedCoveStudio,
+  SPEC_BUDGET_MS,
   STASHDB_ENDPOINT,
-  WHISPARR_ROOT,
-  WHISPARR_SYNC_EXTENSION,
-} from "../../lib/whisparr-sync-fixtures.mjs";
+  test,
+} from "../../lib/connected-fixture.mjs";
+import { visit } from "../../lib/steps.mjs";
 
 const TAB_LABEL = "Missing";
 
@@ -68,48 +64,8 @@ const MAX_TAB_PRESSES = 400;
 const HOSTILE_TITLE = `Ω${"the quick brown fox jumps over the lazy dog ".repeat(12)}`.slice(0, 500);
 const HOSTILE_STUDIO = "Å".repeat(200);
 
-const test = base.extend({
-  cardHarness: [
-    async ({}, use) => {
-      const harness = await startHarness();
-      try {
-        harness.owner = await harness.bootstrapOwner();
-        await harness.installExtension(WHISPARR_SYNC_EXTENSION);
-        await use(harness);
-      } finally {
-        await harness.stop();
-      }
-    },
-    { scope: "test" },
-  ],
-
-  // Read through the handle AFTER the install, which restarts the container and can republish it on
-  // a different host port.
-  baseUrl: async ({ cardHarness }, use) => {
-    await use(cardHarness.baseUrl);
-  },
-
-  whisparrV3: [
-    async ({ cardHarness }, use) => {
-      const whisparr = await startWhisparr({
-        network: cardHarness.container.getNetworkNames()[0],
-        generations: ["v3"],
-      });
-      try {
-        whisparr.v3.rootFolder = await registerRootFolder(
-          whisparr.v3.container,
-          whisparr.apiFor("v3"),
-          "v3",
-          WHISPARR_ROOT,
-        );
-        await use(whisparr);
-      } finally {
-        await whisparr.stop();
-      }
-    },
-    { scope: "test" },
-  ],
-});
+test.describe.configure({ timeout: SPEC_BUDGET_MS });
+test.use({ generation: "v3" });
 
 const missingTab = (page) => page.getByRole("tab", { name: TAB_LABEL }).first();
 const hostDetailTabs = (page) => page.getByRole("tablist").first();
@@ -171,17 +127,10 @@ async function focusedStop(page, index) {
 test("missing card: the three controls, the keyboard walk through them and what each paints", async ({
   page,
   baseUrl,
-  cardHarness,
-  whisparrV3,
+  connected,
 }) => {
-  // A container pair, an extension install and a browser, well above the shared per-test budget.
-  test.setTimeout(900_000);
-
-  const coveApi = createApiClient(
-    () => cardHarness.baseUrl,
-    () => cardHarness.token,
-  );
-  await connectWhisparr(coveApi, whisparrV3, "v3");
+  // The fixture holds the connected instance the Search case below reaches.
+  const { api: coveApi } = connected;
 
   const studio = await seedCoveStudio(coveApi, {
     name: `Card studio ${randomUUID().slice(0, 8)}`,
