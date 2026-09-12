@@ -14,31 +14,27 @@
 // so the describe title below is what selects this file's tests. Every test added here goes inside
 // the same block.
 //
+// WHAT IS NOT HERE. Switching the connected generation lives in generation-switch.spec.mjs beside
+// this file. The connected generation is a global setting, so a test that changes it cannot share an
+// installation with these.
+//
 // IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
-import { createApiClient } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
 
-import { THEPORNDB_ENDPOINT } from "../../lib/contract.mjs";
-import { visit } from "../../lib/steps.mjs";
-
 import {
-  test as base,
-  connectWhisparr,
   expect,
-  EXTENSION_ID,
   extensionRoute,
   seedCovePerformer,
   seedCoveStudio,
   seedCoveVideo,
   SETTLE_DWELL_MS,
+  SPEC_BUDGET_MS,
   STASHDB_ENDPOINT,
-  WHISPARR_ROOT,
-  WHISPARR_SYNC_EXTENSION,
-} from "../../lib/whisparr-sync-fixtures.mjs";
+  test,
+} from "../../lib/connected-fixture.mjs";
+import { visit } from "../../lib/steps.mjs";
 
 /** The control's two names, transcribed by hand from the shipped sentences. */
 const SHOW_STATUS = "Show Whisparr status";
@@ -83,41 +79,14 @@ const STATE_WORDS = ["Monitored", "Unmonitored", "Not added", "Excluded", "Statu
 /** A real StashDB studio id. The library stores it, and the extension names the instance by it. */
 const BRAZZERS_EXXTRA = "39cee498-a9ac-4403-910a-1a0157ad22d8";
 
-/**
- * The source the v2 generation identifies entities against, transcribed by hand the same way as its
- * sibling.
- *
- * A studio v2 can be asked about carries its id under this spelling, so a row
- * written for the other generation is one it cannot be named by.
- */
-
 const GRID_BUDGET_MS = 60_000;
 
 /** Long enough for the control's own colour transition to finish. */
 const COLOUR_SETTLE_MS = 10_000;
 const BADGE_BUDGET_MS = 90_000;
 
-const test = base.extend({
-  libraryHarness: [
-    async ({}, use) => {
-      const harness = await startHarness();
-      try {
-        harness.owner = await harness.bootstrapOwner();
-        await harness.installExtension(WHISPARR_SYNC_EXTENSION);
-        await use(harness);
-      } finally {
-        await harness.stop();
-      }
-    },
-    { scope: "test" },
-  ],
-
-  // Read through the handle AFTER the install. The install restarts the container, which re-mints
-  // the token and can republish the instance on a different host port.
-  baseUrl: async ({ libraryHarness }, use) => {
-    await use(libraryHarness.baseUrl);
-  },
-});
+test.describe.configure({ timeout: SPEC_BUDGET_MS });
+test.use({ generation: "v3" });
 
 /**
  * The control, by the only name it has, in either state.
@@ -127,15 +96,6 @@ const test = base.extend({
  */
 const statusToggle = (page) =>
   page.getByRole("button", { name: new RegExp(`^(${SHOW_STATUS}|${HIDE_STATUS})`) });
-
-/**
- * The host's own in-card extension box, which it renders only where something registers for that
- * card's slot.
- *
- * This extension is the only one installed, so a count of zero over a page of cards is the
- * registration being absent and not a component drawing nothing.
- */
-const cardExtensionBoxes = (scope) => scope.locator(".card-extension");
 
 /** The badge's own strip, which is the element the host clips. */
 const badgeStrip = (scope) => scope.locator(".card-extension > div");
@@ -218,14 +178,6 @@ const stateChips = (scope) => scope.locator(".card-extension span.rounded-full")
 /** The words a chip may read, as the element carries them: a glyph, then the label. */
 const STATE_CHIP_TEXT = new RegExp(`(${STATE_WORDS.join("|")})$`);
 
-/** The Cove api client for one started harness. */
-function apiFor(harness) {
-  return createApiClient(
-    () => harness.baseUrl,
-    () => harness.token,
-  );
-}
-
 /** One studio the connected instance can be asked about, and one it cannot. */
 async function seedTwoStudios(api) {
   return {
@@ -238,26 +190,6 @@ async function seedTwoStudios(api) {
       remoteIds: [],
     }),
   };
-}
-
-/** Starts one instance, points the extension at it, runs `body`, and stops it either way. */
-async function usingInstance(harness, api, body) {
-  const whisparr = await startWhisparr({
-    network: harness.container.getNetworkNames()[0],
-    generations: ["v3"],
-  });
-  try {
-    whisparr.v3.rootFolder = await registerRootFolder(
-      whisparr.v3.container,
-      whisparr.apiFor("v3"),
-      "v3",
-      WHISPARR_ROOT,
-    );
-    await connectWhisparr(api, whisparr, "v3");
-    await body(whisparr);
-  } finally {
-    await whisparr.stop();
-  }
 }
 
 /** Opens the studios grid and waits for the cards and the control to be on screen. */
@@ -320,60 +252,6 @@ async function seedScene(coveApi, whisparr, { label, onInstance, monitored = fal
   return { ...video, title, remoteId };
 }
 
-/**
- * Starts both generations, runs `body`, and stops them either way.
- *
- * Both in one run: what is measured is the difference between two connections, and a run that
- * started one of them only would compare a generation with itself.
- */
-async function usingBothGenerations(harness, api, body) {
-  const whisparr = await startWhisparr({
-    network: harness.container.getNetworkNames()[0],
-    generations: ["v3", "v2"],
-  });
-  try {
-    whisparr.v3.rootFolder = await registerRootFolder(
-      whisparr.v3.container,
-      whisparr.apiFor("v3"),
-      "v3",
-      WHISPARR_ROOT,
-    );
-    await connectWhisparr(api, whisparr, "v2");
-    await body(whisparr);
-  } finally {
-    await whisparr.stop();
-  }
-}
-
-/**
- * Opens a list page in its default grid display mode with its cards on screen, expecting no control
- * of this extension's.
- *
- * Held apart from `openList`, which waits for the control: a page the control is absent from is what
- * this asks about, so waiting for it would time out before anything was read.
- */
-async function openListWithoutTheControl(page, baseUrl, path, cards, where) {
-  await visit(page, baseUrl, path, cards.first(), where);
-  await page.waitForTimeout(SETTLE_DWELL_MS);
-}
-
-/**
- * Every slot this extension registers in the manifest the browser is served.
- *
- * The DOM cannot report a slot the host renders no element for at all, which is the host's own
- * full-width row below a list toolbar, so that one is read from the registration the page was built
- * from.
- */
-async function registeredSlots(api) {
-  const manifest = await api.get("/api/extensions/manifest");
-  expect(manifest.status, `GET the extension manifest answered ${String(manifest.status)}`).toBe(
-    200,
-  );
-  return (manifest.json?.slots ?? [])
-    .filter((entry) => entry.extensionId === EXTENSION_ID)
-    .map((entry) => entry.slot);
-}
-
 /** Puts one identifier on the instance's own exclusion list, through the route that keeps it. */
 async function excludeOnInstance(whisparr, remoteId, title) {
   const added = await whisparr.apiFor("v3").post("/api/v3/exclusions", {
@@ -388,12 +266,8 @@ async function excludeOnInstance(whisparr, remoteId, title) {
 }
 
 test.describe("library status", () => {
-  test("studio status behind the pill", async ({ page, baseUrl, libraryHarness }) => {
-    // A container pair, an extension install, a browser and a real instance. Well above the shared
-    // per-test budget, and deliberately its own number rather than a raised default for every spec.
-    test.setTimeout(900_000);
-
-    const coveApi = apiFor(libraryHarness);
+  test("studio status behind the pill", async ({ page, baseUrl, connected }) => {
+    const { api: coveApi } = connected;
 
     // Everything the browser reported, so a bundle-load throw is named by this spec rather than left
     // as a card that simply drew nothing.
@@ -405,60 +279,55 @@ test.describe("library status", () => {
       consoleErrors.push(String(failure));
     });
 
-    await usingInstance(libraryHarness, coveApi, async () => {
-      const { identified, unidentified } = await seedTwoStudios(coveApi);
+    const { identified, unidentified } = await seedTwoStudios(coveApi);
 
-      await openStudios(page, baseUrl);
-      await expect(
-        cardFor(page, identified.name),
-        "the studios grid drew no card for the seeded studio",
-      ).toBeVisible({ timeout: GRID_BUDGET_MS });
+    await openStudios(page, baseUrl);
+    await expect(
+      cardFor(page, identified.name),
+      "the studios grid drew no card for the seeded studio",
+    ).toBeVisible({ timeout: GRID_BUDGET_MS });
 
-      // Off by default. A card with the control off is what a card with no extension registered
-      // looks like, so nothing in the vocabulary may be on the page yet.
-      await expect(
-        stateChips(page),
-        "a state chip was on screen before the control was pressed",
-      ).toHaveCount(0);
+    // Off by default. A card with the control off is what a card with no extension registered
+    // looks like, so nothing in the vocabulary may be on the page yet.
+    await expect(
+      stateChips(page),
+      "a state chip was on screen before the control was pressed",
+    ).toHaveCount(0);
 
-      await statusToggle(page).click();
+    await statusToggle(page).click();
 
-      const chip = stateChips(cardFor(page, identified.name));
-      await expect(
-        chip,
-        "the identified studio's card carries no state chip, or carries more than one",
-      ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
-      await expect(
-        chip,
-        "the chip reads something outside this product's own five-state vocabulary",
-      ).toHaveText(STATE_CHIP_TEXT);
+    const chip = stateChips(cardFor(page, identified.name));
+    await expect(
+      chip,
+      "the identified studio's card carries no state chip, or carries more than one",
+    ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
+    await expect(
+      chip,
+      "the chip reads something outside this product's own five-state vocabulary",
+    ).toHaveText(STATE_CHIP_TEXT);
 
-      // An absence watched for a fixed dwell. A chip that has not rendered yet is otherwise
-      // indistinguishable from one that never will.
-      await page.waitForTimeout(SETTLE_DWELL_MS);
-      await expect(
-        stateChips(cardFor(page, unidentified.name)),
-        "a studio Cove holds no usable link for was given a state anyway",
-      ).toHaveCount(0);
+    // An absence watched for a fixed dwell. A chip that has not rendered yet is otherwise
+    // indistinguishable from one that never will.
+    await page.waitForTimeout(SETTLE_DWELL_MS);
+    await expect(
+      stateChips(cardFor(page, unidentified.name)),
+      "a studio Cove holds no usable link for was given a state anyway",
+    ).toHaveCount(0);
 
-      const missingComponent = consoleErrors.filter((line) =>
-        /component not found|does not provide an export|SyntaxError/i.test(line),
-      );
-      expect(
-        missingComponent,
-        `a page reported a component the bundle does not register: ${missingComponent.join(" | ")}`,
-      ).toEqual([]);
-    });
+    const missingComponent = consoleErrors.filter((line) =>
+      /component not found|does not provide an export|SyntaxError/i.test(line),
+    );
+    expect(
+      missingComponent,
+      `a page reported a component the bundle does not register: ${missingComponent.join(" | ")}`,
+    ).toEqual([]);
   });
 
   test("the control changes colour, and one press costs one request", async ({
     page,
     baseUrl,
-    libraryHarness,
+    api: coveApi,
   }) => {
-    test.setTimeout(900_000);
-
-    const coveApi = apiFor(libraryHarness);
     const requests = watchRequests(page);
 
     // No instance is started. What is measured here is the control's own appearance and what one
@@ -516,15 +385,7 @@ test.describe("library status", () => {
     ).toBe(0);
   });
 
-  test("nothing answered, so no card claims anything", async ({
-    page,
-    baseUrl,
-    libraryHarness,
-  }) => {
-    test.setTimeout(900_000);
-
-    const coveApi = apiFor(libraryHarness);
-
+  test("nothing answered, so no card claims anything", async ({ page, baseUrl, api: coveApi }) => {
     // An address nothing answers, which is a different fact from nothing being configured: the
     // extension has an instance to ask and gets no answer.
     await connectNothing(coveApi);
@@ -561,97 +422,87 @@ test.describe("library status", () => {
   test("reading a status changes nothing and reaches no provider", async ({
     page,
     baseUrl,
-    libraryHarness,
+    connected,
   }) => {
-    test.setTimeout(900_000);
-
-    const coveApi = apiFor(libraryHarness);
+    const { api: coveApi } = connected;
     const requests = watchRequests(page);
 
-    await usingInstance(libraryHarness, coveApi, async () => {
-      const { identified } = await seedTwoStudios(coveApi);
-      const before = await readMonitoring(coveApi, identified.id);
+    const { identified } = await seedTwoStudios(coveApi);
+    const before = await readMonitoring(coveApi, identified.id);
 
-      await openStudios(page, baseUrl);
-      await statusToggle(page).click();
-      await expect(stateChips(cardFor(page, identified.name))).toHaveCount(1, {
-        timeout: BADGE_BUDGET_MS,
-      });
-      await page.waitForTimeout(SETTLE_DWELL_MS);
-
-      const asked = requests.toStatusRoute();
-      expect(asked.length).toBeGreaterThan(0);
-      expect(
-        asked.filter((request) => request.method !== "POST"),
-        "a status read used a method other than the one the route declares",
-      ).toEqual([]);
-
-      expect(
-        await readMonitoring(coveApi, identified.id),
-        "showing the status moved what the instance holds for the studio",
-      ).toEqual(before);
-
-      expect(requests.toProviders(), "showing the status reached a metadata provider").toEqual([]);
+    await openStudios(page, baseUrl);
+    await statusToggle(page).click();
+    await expect(stateChips(cardFor(page, identified.name))).toHaveCount(1, {
+      timeout: BADGE_BUDGET_MS,
     });
+    await page.waitForTimeout(SETTLE_DWELL_MS);
+
+    const asked = requests.toStatusRoute();
+    expect(asked.length).toBeGreaterThan(0);
+    expect(
+      asked.filter((request) => request.method !== "POST"),
+      "a status read used a method other than the one the route declares",
+    ).toEqual([]);
+
+    expect(
+      await readMonitoring(coveApi, identified.id),
+      "showing the status moved what the instance holds for the studio",
+    ).toEqual(before);
+
+    expect(requests.toProviders(), "showing the status reached a metadata provider").toEqual([]);
   });
 
   test("only the grid display mode has a place for a badge", async ({
     page,
     baseUrl,
-    libraryHarness,
+    connected,
   }) => {
-    test.setTimeout(900_000);
+    const { api: coveApi } = connected;
 
-    const coveApi = apiFor(libraryHarness);
+    const { identified } = await seedTwoStudios(coveApi);
 
-    await usingInstance(libraryHarness, coveApi, async () => {
-      const { identified } = await seedTwoStudios(coveApi);
-
-      await openStudios(page, baseUrl);
-      await statusToggle(page).click();
-      await expect(stateChips(cardFor(page, identified.name))).toHaveCount(1, {
-        timeout: BADGE_BUDGET_MS,
-      });
-
-      // Driven through the controls the page draws rather than trusted from this repository's own
-      // reading of the host source. The card slot is mounted in the grid branch only.
-      for (const mode of ["List", "Tagger"]) {
-        await page.getByRole("button", { name: mode, exact: true }).click();
-        await expect(
-          badgeStrip(page),
-          `a badge rendered in the ${mode} display mode, where the host mounts no card slot`,
-        ).toHaveCount(0);
-        await expect(
-          statusToggle(page),
-          `the control is absent in the ${mode} display mode`,
-        ).toBeVisible();
-
-        // Pressed and visibly on with nothing on screen is the same defect class as a dimmed
-        // control with nothing to hear, so the control says why.
-        const spoken = `${HIDE_STATUS}. ${NO_PLACE_FOR_A_BADGE}`;
-        await expect(
-          statusToggle(page),
-          `the control states no reason in the ${mode} display mode, where no badge can appear`,
-        ).toHaveAttribute("aria-label", spoken, { timeout: COLOUR_SETTLE_MS });
-        await expect(statusToggle(page)).toHaveAttribute("title", spoken);
-      }
-
-      await page.getByRole("button", { name: "Grid", exact: true }).click();
-      await expect(
-        stateChips(cardFor(page, identified.name)),
-        "switching back to the grid did not bring the badge back without a second press",
-      ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
-
-      // Back in a mode that draws them, the disclosure is gone: it is a fact about the display mode
-      // and not a state the control latches.
-      await expect(statusToggle(page)).toHaveAttribute("aria-label", HIDE_STATUS);
+    await openStudios(page, baseUrl);
+    await statusToggle(page).click();
+    await expect(stateChips(cardFor(page, identified.name))).toHaveCount(1, {
+      timeout: BADGE_BUDGET_MS,
     });
+
+    // Driven through the controls the page draws rather than trusted from this repository's own
+    // reading of the host source. The card slot is mounted in the grid branch only.
+    for (const mode of ["List", "Tagger"]) {
+      await page.getByRole("button", { name: mode, exact: true }).click();
+      await expect(
+        badgeStrip(page),
+        `a badge rendered in the ${mode} display mode, where the host mounts no card slot`,
+      ).toHaveCount(0);
+      await expect(
+        statusToggle(page),
+        `the control is absent in the ${mode} display mode`,
+      ).toBeVisible();
+
+      // Pressed and visibly on with nothing on screen is the same defect class as a dimmed
+      // control with nothing to hear, so the control says why.
+      const spoken = `${HIDE_STATUS}. ${NO_PLACE_FOR_A_BADGE}`;
+      await expect(
+        statusToggle(page),
+        `the control states no reason in the ${mode} display mode, where no badge can appear`,
+      ).toHaveAttribute("aria-label", spoken, { timeout: COLOUR_SETTLE_MS });
+      await expect(statusToggle(page)).toHaveAttribute("title", spoken);
+    }
+
+    await page.getByRole("button", { name: "Grid", exact: true }).click();
+    await expect(
+      stateChips(cardFor(page, identified.name)),
+      "switching back to the grid did not bring the badge back without a second press",
+    ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
+
+    // Back in a mode that draws them, the disclosure is gone: it is a fact about the display mode
+    // and not a state the control latches.
+    await expect(statusToggle(page)).toHaveAttribute("aria-label", HIDE_STATUS);
   });
 
-  test("scene status behind the pill", async ({ page, baseUrl, libraryHarness }) => {
-    test.setTimeout(900_000);
-
-    const coveApi = apiFor(libraryHarness);
+  test("scene status behind the pill", async ({ page, baseUrl, connected }) => {
+    const { api: coveApi, whisparr } = connected;
 
     const consoleErrors = [];
     page.on("console", (message) => {
@@ -661,179 +512,168 @@ test.describe("library status", () => {
       consoleErrors.push(String(failure));
     });
 
-    await usingInstance(libraryHarness, coveApi, async (whisparr) => {
-      const monitored = await seedScene(coveApi, whisparr, {
-        label: "Monitored scene",
-        onInstance: true,
-        monitored: true,
-      });
-      const unheld = await seedScene(coveApi, whisparr, {
-        label: "Unheld scene",
-        onInstance: false,
-      });
-      const excluded = await seedScene(coveApi, whisparr, {
-        label: "Excluded scene",
-        onInstance: false,
-      });
-      await excludeOnInstance(whisparr, excluded.remoteId, excluded.title);
-
-      // No identity row at all, which is a card the extension cannot speak for rather than one the
-      // instance holds nothing for.
-      const unidentified = await seedCoveVideo(coveApi, {
-        title: `Unidentified scene ${randomUUID().slice(0, 8)}`,
-      });
-
-      await openList(page, baseUrl, "/videos", videoCards(page), "the videos page");
-      await expect(
-        stateChips(page),
-        "a state chip was on screen before the control was pressed",
-      ).toHaveCount(0);
-
-      await statusToggle(page).click();
-
-      // The instance holds this one and monitors it, so the card carries the state that says so.
-      const monitoredChip = stateChips(videoCardFor(page, monitored.title));
-      await expect(
-        monitoredChip,
-        "the monitored scene's card carries no state chip, or carries more than one",
-      ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
-      await expect(monitoredChip).toHaveText(/Monitored$/);
-
-      await expect(
-        stateChips(videoCardFor(page, unheld.title)),
-        "the scene the instance holds no entry for reads as something else",
-      ).toHaveText(/Not added$/, { timeout: BADGE_BUDGET_MS });
-
-      // Exclusion is asked before a state is derived, so a scene that is both excluded and unheld
-      // reads as excluded. Both halves are asserted: the state it takes, and the one it must not.
-      const excludedChip = stateChips(videoCardFor(page, excluded.title));
-      await expect(excludedChip, "the excluded scene does not read as excluded").toHaveText(
-        /Excluded$/,
-        { timeout: BADGE_BUDGET_MS },
-      );
-      await expect(
-        excludedChip,
-        "the excluded scene reads as one the instance was never offered",
-      ).not.toHaveText(/Not added$/);
-
-      // An absence watched for a fixed dwell. A chip that has not rendered yet is otherwise
-      // indistinguishable from one that never will.
-      await page.waitForTimeout(SETTLE_DWELL_MS);
-      const silent = videoCardFor(page, unidentified.title);
-      await expect(
-        stateChips(silent),
-        "a scene Cove holds no usable link for was given a state anyway",
-      ).toHaveCount(0);
-      // The host draws its own entry wrapper for any registered slot, so the assertion is that the
-      // wrapper holds nothing rather than that it is absent.
-      await expect(
-        badgeStrip(silent),
-        "a scene Cove holds no usable link for drew a badge element anyway",
-      ).toBeEmpty();
-
-      // Otherwise unchanged. A card that lost its own title, or drew the host's error boundary in
-      // place of its body, is a worse outcome than a wrong state.
-      await expect(
-        silent.locator(".card-title"),
-        "the unidentified scene's card lost its own title",
-      ).toHaveText(unidentified.title);
-      await expect(
-        silent.locator(".card-body"),
-        "the unidentified scene's card lost its own body",
-      ).toBeVisible();
-
-      // The partial page, stated as one fact: resolved and unresolved cards coexist, and nothing
-      // that failed to resolve is reported as an absence the instance stated.
-      const drawn = await stateChips(page).count();
-      expect(drawn, "no scene card on the page carries a state at all").toBeGreaterThan(0);
-      expect(
-        drawn,
-        "every card on the page carries a state, so the unresolved case is not on it",
-      ).toBeLessThan(await videoCards(page).count());
-
-      // No state on the page rides on colour: each chip carries its own mark beside its label.
-      const chips = await stateChips(page).all();
-      for (const chip of chips) {
-        await expect(
-          chip.locator("svg[aria-hidden='true']"),
-          "a state chip carries no mark, so it is distinguished by colour alone",
-        ).toHaveCount(1);
-      }
-
-      // The row under the toolbar names the states the badges below it draw. The slot name, the
-      // manifest's component name and the bundle's registered key are three strings across two
-      // repositories, and a page where any pair differs draws no row at all, with no error.
-      const row = statusRow(page);
-      await expect(row, "no row of counts is under the toolbar").toHaveCount(1, {
-        timeout: BADGE_BUDGET_MS,
-      });
-
-      // Read as counts rather than as a sentence: each is the count of cards on the page carrying
-      // that state, and the seeded page has one of each.
-      await expect(row, "the row does not count the monitored scene").toContainText(
-        /1\s*Monitored/,
-      );
-      await expect(row, "the row does not count the excluded scene").toContainText(/1\s*Excluded/);
-      await expect(
-        row,
-        "the row does not count the scene the instance holds no entry for",
-      ).toContainText(/1\s*not added on this page/);
-
-      const missingComponent = consoleErrors.filter((line) =>
-        /component not found|does not provide an export|SyntaxError/i.test(line),
-      );
-      expect(
-        missingComponent,
-        `a page reported a component the bundle does not register: ${missingComponent.join(" | ")}`,
-      ).toEqual([]);
+    const monitored = await seedScene(coveApi, whisparr, {
+      label: "Monitored scene",
+      onInstance: true,
+      monitored: true,
     });
+    const unheld = await seedScene(coveApi, whisparr, {
+      label: "Unheld scene",
+      onInstance: false,
+    });
+    const excluded = await seedScene(coveApi, whisparr, {
+      label: "Excluded scene",
+      onInstance: false,
+    });
+    await excludeOnInstance(whisparr, excluded.remoteId, excluded.title);
+
+    // No identity row at all, which is a card the extension cannot speak for rather than one the
+    // instance holds nothing for.
+    const unidentified = await seedCoveVideo(coveApi, {
+      title: `Unidentified scene ${randomUUID().slice(0, 8)}`,
+    });
+
+    await openList(page, baseUrl, "/videos", videoCards(page), "the videos page");
+    await expect(
+      stateChips(page),
+      "a state chip was on screen before the control was pressed",
+    ).toHaveCount(0);
+
+    await statusToggle(page).click();
+
+    // The instance holds this one and monitors it, so the card carries the state that says so.
+    const monitoredChip = stateChips(videoCardFor(page, monitored.title));
+    await expect(
+      monitoredChip,
+      "the monitored scene's card carries no state chip, or carries more than one",
+    ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
+    await expect(monitoredChip).toHaveText(/Monitored$/);
+
+    await expect(
+      stateChips(videoCardFor(page, unheld.title)),
+      "the scene the instance holds no entry for reads as something else",
+    ).toHaveText(/Not added$/, { timeout: BADGE_BUDGET_MS });
+
+    // Exclusion is asked before a state is derived, so a scene that is both excluded and unheld
+    // reads as excluded. Both halves are asserted: the state it takes, and the one it must not.
+    const excludedChip = stateChips(videoCardFor(page, excluded.title));
+    await expect(excludedChip, "the excluded scene does not read as excluded").toHaveText(
+      /Excluded$/,
+      { timeout: BADGE_BUDGET_MS },
+    );
+    await expect(
+      excludedChip,
+      "the excluded scene reads as one the instance was never offered",
+    ).not.toHaveText(/Not added$/);
+
+    // An absence watched for a fixed dwell. A chip that has not rendered yet is otherwise
+    // indistinguishable from one that never will.
+    await page.waitForTimeout(SETTLE_DWELL_MS);
+    const silent = videoCardFor(page, unidentified.title);
+    await expect(
+      stateChips(silent),
+      "a scene Cove holds no usable link for was given a state anyway",
+    ).toHaveCount(0);
+    // The host draws its own entry wrapper for any registered slot, so the assertion is that the
+    // wrapper holds nothing rather than that it is absent.
+    await expect(
+      badgeStrip(silent),
+      "a scene Cove holds no usable link for drew a badge element anyway",
+    ).toBeEmpty();
+
+    // Otherwise unchanged. A card that lost its own title, or drew the host's error boundary in
+    // place of its body, is a worse outcome than a wrong state.
+    await expect(
+      silent.locator(".card-title"),
+      "the unidentified scene's card lost its own title",
+    ).toHaveText(unidentified.title);
+    await expect(
+      silent.locator(".card-body"),
+      "the unidentified scene's card lost its own body",
+    ).toBeVisible();
+
+    // The partial page, stated as one fact: resolved and unresolved cards coexist, and nothing
+    // that failed to resolve is reported as an absence the instance stated.
+    const drawn = await stateChips(page).count();
+    expect(drawn, "no scene card on the page carries a state at all").toBeGreaterThan(0);
+    expect(
+      drawn,
+      "every card on the page carries a state, so the unresolved case is not on it",
+    ).toBeLessThan(await videoCards(page).count());
+
+    // No state on the page rides on colour: each chip carries its own mark beside its label.
+    const chips = await stateChips(page).all();
+    for (const chip of chips) {
+      await expect(
+        chip.locator("svg[aria-hidden='true']"),
+        "a state chip carries no mark, so it is distinguished by colour alone",
+      ).toHaveCount(1);
+    }
+
+    // The row under the toolbar names the states the badges below it draw. The slot name, the
+    // manifest's component name and the bundle's registered key are three strings across two
+    // repositories, and a page where any pair differs draws no row at all, with no error.
+    const row = statusRow(page);
+    await expect(row, "no row of counts is under the toolbar").toHaveCount(1, {
+      timeout: BADGE_BUDGET_MS,
+    });
+
+    // Read as counts rather than as a sentence: each is the count of cards on the page carrying
+    // that state, and the seeded page has one of each.
+    await expect(row, "the row does not count the monitored scene").toContainText(/1\s*Monitored/);
+    await expect(row, "the row does not count the excluded scene").toContainText(/1\s*Excluded/);
+    await expect(
+      row,
+      "the row does not count the scene the instance holds no entry for",
+    ).toContainText(/1\s*not added on this page/);
+
+    const missingComponent = consoleErrors.filter((line) =>
+      /component not found|does not provide an export|SyntaxError/i.test(line),
+    );
+    expect(
+      missingComponent,
+      `a page reported a component the bundle does not register: ${missingComponent.join(" | ")}`,
+    ).toEqual([]);
   });
 
   test("the row of counts appears with the badges and leaves with them", async ({
     page,
     baseUrl,
-    libraryHarness,
+    connected,
   }) => {
-    test.setTimeout(900_000);
+    const { api: coveApi, whisparr } = connected;
 
-    const coveApi = apiFor(libraryHarness);
+    await seedScene(coveApi, whisparr, {
+      label: "Monitored scene",
+      onInstance: true,
+      monitored: true,
+    });
 
-    await usingInstance(libraryHarness, coveApi, async (whisparr) => {
-      await seedScene(coveApi, whisparr, {
-        label: "Monitored scene",
-        onInstance: true,
-        monitored: true,
-      });
+    await openList(page, baseUrl, "/videos", videoCards(page), "the videos page");
 
-      await openList(page, baseUrl, "/videos", videoCards(page), "the videos page");
+    // Nothing before the control is pressed. A row of zeroes on a page nobody asked about is a
+    // report over a read that never happened.
+    await expect(
+      statusRow(page),
+      "a row of counts was under the toolbar before the control was pressed",
+    ).toHaveCount(0);
 
-      // Nothing before the control is pressed. A row of zeroes on a page nobody asked about is a
-      // report over a read that never happened.
-      await expect(
-        statusRow(page),
-        "a row of counts was under the toolbar before the control was pressed",
-      ).toHaveCount(0);
+    await statusToggle(page).click();
+    await expect(statusRow(page), "no row appeared with the badges").toHaveCount(1, {
+      timeout: BADGE_BUDGET_MS,
+    });
 
-      await statusToggle(page).click();
-      await expect(statusRow(page), "no row appeared with the badges").toHaveCount(1, {
-        timeout: BADGE_BUDGET_MS,
-      });
-
-      await statusToggle(page).click();
-      await expect(statusRow(page), "the row outlived the badges it counts").toHaveCount(0, {
-        timeout: BADGE_BUDGET_MS,
-      });
+    await statusToggle(page).click();
+    await expect(statusRow(page), "the row outlived the badges it counts").toHaveCount(0, {
+      timeout: BADGE_BUDGET_MS,
     });
   });
 
   test("a rendered window of scene cards folds into one request", async ({
     page,
     baseUrl,
-    libraryHarness,
+    api: coveApi,
   }) => {
-    test.setTimeout(900_000);
-
-    const coveApi = apiFor(libraryHarness);
     const requests = watchRequests(page);
 
     // No instance is started. What is measured is what the page costs on the network, which does not
@@ -917,203 +757,78 @@ test.describe("library status", () => {
   test("performer cards carry the same badge from the same request", async ({
     page,
     baseUrl,
-    libraryHarness,
+    connected,
   }) => {
-    test.setTimeout(900_000);
-
-    const coveApi = apiFor(libraryHarness);
+    const { api: coveApi, whisparr } = connected;
     const requests = watchRequests(page);
 
-    await usingInstance(libraryHarness, coveApi, async (whisparr) => {
-      const foreignId = randomUUID();
-      await whisparr.seedEntity("v3", {
-        kind: "performer",
-        foreignId,
-        title: `Whisparr Performer ${foreignId.slice(0, 8)}`,
-        monitored: true,
-      });
-      const performer = await seedCovePerformer(coveApi, {
-        name: `Performer ${foreignId.slice(0, 8)}`,
-        remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: foreignId }],
-      });
-
-      await openList(page, baseUrl, "/performers", studioCards(page), "the performers page");
-      await statusToggle(page).click();
-
-      const chip = stateChips(cardFor(page, performer.name));
-      await expect(
-        chip,
-        "the performer's card carries no state chip, or carries more than one",
-      ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
-      await expect(
-        chip,
-        "the performer's chip reads something outside this product's own five-state vocabulary",
-      ).toHaveText(STATE_CHIP_TEXT);
-
-      await page.waitForTimeout(SETTLE_DWELL_MS);
-      expect(
-        requests.toPerformerStatusRoute().length,
-        "a page of performer cards did not fold into one request",
-      ).toBe(1);
+    const foreignId = randomUUID();
+    await whisparr.seedEntity("v3", {
+      kind: "performer",
+      foreignId,
+      title: `Whisparr Performer ${foreignId.slice(0, 8)}`,
+      monitored: true,
     });
+    const performer = await seedCovePerformer(coveApi, {
+      name: `Performer ${foreignId.slice(0, 8)}`,
+      remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: foreignId }],
+    });
+
+    await openList(page, baseUrl, "/performers", studioCards(page), "the performers page");
+    await statusToggle(page).click();
+
+    const chip = stateChips(cardFor(page, performer.name));
+    await expect(
+      chip,
+      "the performer's card carries no state chip, or carries more than one",
+    ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
+    await expect(
+      chip,
+      "the performer's chip reads something outside this product's own five-state vocabulary",
+    ).toHaveText(STATE_CHIP_TEXT);
+
+    await page.waitForTimeout(SETTLE_DWELL_MS);
+    expect(
+      requests.toPerformerStatusRoute().length,
+      "a page of performer cards did not fold into one request",
+    ).toBe(1);
   });
 
   test("the badge strip stays one row inside the host's clipped box", async ({
     page,
     baseUrl,
-    libraryHarness,
+    connected,
   }) => {
-    test.setTimeout(900_000);
+    const { api: coveApi } = connected;
 
-    const coveApi = apiFor(libraryHarness);
+    const { identified } = await seedTwoStudios(coveApi);
 
-    await usingInstance(libraryHarness, coveApi, async () => {
-      const { identified } = await seedTwoStudios(coveApi);
+    await openStudios(page, baseUrl);
 
-      await openStudios(page, baseUrl);
-
-      // The narrowest card the host supports. Its own default is wider, so a strip that only fits
-      // there would wrap on a reader's own setting and disappear below the clip with no error.
-      await page.evaluate(() => {
-        document.documentElement.style.setProperty("--card-min-width", "240px");
-      });
-
-      await statusToggle(page).click();
-      const card = cardFor(page, identified.name);
-      await expect(stateChips(card)).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
-
-      const strip = await badgeStrip(card).boundingBox();
-      const chip = await stateChips(card).boundingBox();
-
-      // The host clips its in-card box at 96px with paint containment, so a second row is not a
-      // layout defect anyone sees: it simply vanishes.
-      expect(
-        strip.height,
-        "the badge strip is taller than the box the host clips it at",
-      ).toBeLessThan(96);
-
-      // One row, measured as the strip being no taller than one chip plus its own padding.
-      expect(
-        strip.height,
-        "the badge strip is taller than one chip and its padding, so it wrapped",
-      ).toBeLessThanOrEqual(chip.height + 13);
+    // The narrowest card the host supports. Its own default is wider, so a strip that only fits
+    // there would wrap on a reader's own setting and disappear below the clip with no error.
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--card-min-width", "240px");
     });
-  });
 
-  test("the videos and performers surfaces are absent on v2, and return when it is switched away from", async ({
-    page,
-    baseUrl,
-    libraryHarness,
-  }) => {
-    test.setTimeout(900_000);
+    await statusToggle(page).click();
+    const card = cardFor(page, identified.name);
+    await expect(stateChips(card)).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
 
-    const coveApi = apiFor(libraryHarness);
+    const strip = await badgeStrip(card).boundingBox();
+    const chip = await stateChips(card).boundingBox();
 
-    await usingBothGenerations(libraryHarness, coveApi, async (whisparr) => {
-      const video = await seedScene(coveApi, whisparr, {
-        label: "Switched",
-        onInstance: true,
-        monitored: true,
-      });
-      const performerId = randomUUID();
-      await seedCovePerformer(coveApi, {
-        name: `Performer ${performerId.slice(0, 8)}`,
-        remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: performerId }],
-      });
+    // The host clips its in-card box at 96px with paint containment, so a second row is not a
+    // layout defect anyone sees: it simply vanishes.
+    expect(
+      strip.height,
+      "the badge strip is taller than the box the host clips it at",
+    ).toBeLessThan(96);
 
-      // The registration is what removes the surface, so the set the page was built from is read
-      // before the page is. The host renders no element at all for its full-width row slot, so that
-      // one is only assertable here.
-      const older = await registeredSlots(coveApi);
-      expect(
-        older.sort(),
-        "v2 registers a videos-view slot, so a surface it has no meaning for is on the page",
-      ).toEqual(
-        [
-          "performer-detail-actions",
-          "studio-card-footer",
-          "studio-detail-actions",
-          "studios-list-toolbar-end",
-          "studios-list-row",
-        ].sort(),
-      );
-      // The row goes with the card badges it counts. The studio badges are registered on both
-      // generations, so the studios row is too, and the pages with no badge have no row.
-      expect(
-        older.filter((slot) => slot.endsWith("-list-row")),
-        "a page with no card badge carries a row of counts over nothing",
-      ).toEqual(["studios-list-row"]);
-
-      for (const [path, cards, where] of [
-        ["/videos", videoCards(page), "the videos page"],
-        ["/performers", studioCards(page), "the performers page"],
-      ]) {
-        await openListWithoutTheControl(page, baseUrl, path, cards, where);
-
-        await expect(statusToggle(page), `${where}: v2 drew a Whisparr status control`).toHaveCount(
-          0,
-        );
-        await expect(
-          cardExtensionBoxes(page),
-          `${where}: v2 drew the host's in-card extension box, so a surface renders empty rather than being absent`,
-        ).toHaveCount(0);
-      }
-
-      // The studios page keeps both on this generation: a studio monitors as a series matched by
-      // ThePornDB there, so its id is written under that source.
-      const studio = await seedCoveStudio(coveApi, {
-        name: `Older ${randomUUID().slice(0, 8)}`,
-        remoteIds: [{ endpoint: THEPORNDB_ENDPOINT, remoteId: randomUUID() }],
-      });
-
-      await openStudios(page, baseUrl);
-      await statusToggle(page).click();
-
-      // The registration mounted, which is the same fact read as an absence above and the reason
-      // the two pages differ on one connection. The host draws this box for a registered card slot
-      // whatever the component inside it returns.
-      await expect(
-        cardExtensionBoxes(cardFor(page, studio.name)),
-        "v2 drew no in-card extension box on a studio card, so the studio surfaces went with the videos ones",
-      ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
-
-      test.info().annotations.push({
-        type: "narrowed-assertion",
-        description:
-          "the studio card's own state chip is not asserted on this generation: its read resolves the stored identifier through the vendor's metadata service before it reaches the instance, which no container run can reach, so a read that established nothing draws nothing by design. What is asserted here is that the studio slots are registered and mounted on this generation, which is the half the generation gate decides.",
-      });
-
-      // Switched back and reloaded. The browser fetches the manifest and nothing pushes it, so this
-      // is the mechanism the whole gate depends on.
-      await connectWhisparr(coveApi, whisparr, "v3");
-
-      const newer = await registeredSlots(coveApi);
-      expect(
-        newer.filter((slot) => !older.includes(slot)).sort(),
-        "switching the connection back changed no registration, so the manifest is not re-read",
-      ).toEqual(
-        [
-          "performer-card-footer",
-          "performers-list-toolbar-end",
-          "performers-list-row",
-          "video-card-content",
-          "videos-list-toolbar-end",
-          "videos-list-row",
-        ].sort(),
-      );
-
-      await openList(page, baseUrl, "/videos", videoCards(page), "the videos page");
-      await statusToggle(page).click();
-
-      const videoChip = stateChips(videoCardFor(page, video.title));
-      await expect(
-        videoChip,
-        "the videos surfaces did not return after the connection was switched back and the page reloaded",
-      ).toHaveCount(1, { timeout: BADGE_BUDGET_MS });
-      await expect(
-        videoChip,
-        "the scene's chip reads something outside this product's own five-state vocabulary",
-      ).toHaveText(STATE_CHIP_TEXT);
-    });
+    // One row, measured as the strip being no taller than one chip plus its own padding.
+    expect(
+      strip.height,
+      "the badge strip is taller than one chip and its padding, so it wrapped",
+    ).toBeLessThanOrEqual(chip.height + 13);
   });
 });
