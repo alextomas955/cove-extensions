@@ -203,6 +203,9 @@ internal sealed class MonitorHost : IAsyncDisposable
         // A case whose subject is a route reaching no provider passes one that throws on every
         // member, so a reach is a failure rather than an answer nobody looked at.
         var provider = catalogue ?? new InertProviderCatalogue();
+        // Registered as the seam as well as handed to the page planner, because a library run
+        // resolves it out of its own elevated scope rather than taking it as an argument.
+        builder.Services.AddSingleton(provider);
         builder.Services.AddSingleton(
             new MissingPagePlanner(
                 new MissingIdentityResolver(

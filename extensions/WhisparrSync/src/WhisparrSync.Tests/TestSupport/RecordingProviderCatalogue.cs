@@ -1,0 +1,102 @@
+using WhisparrSync.Contracts;
+using WhisparrSync.Providers;
+
+namespace WhisparrSync.Tests.TestSupport;
+
+/// <summary>
+/// A metadata provider answering a configured number per scene identifier, recording every call in
+/// order and refusing one it was not configured for.
+/// </summary>
+/// <remarks>
+/// A double answering a number for anything would let a pass that asked about the wrong scene pass,
+/// so an identifier this was not given an answer for throws rather than answering null. Null is an
+/// answer here and is configured explicitly: it is the provider naming no number for a scene it does
+/// know about.
+/// <para>
+/// Whether it holds the resolving role at all is chosen per case, because that absence is what the
+/// run reads to decide whether to monitor anything. It is expressed as the capability set of a real
+/// provider rather than as a flag, so a case cannot ask for a combination no provider has.
+/// </para>
+/// <para>
+/// Every other member of the seam throws. Nothing on this path reads a catalogue page, and a member
+/// that answered an empty one would let a pass reaching the wrong seam look like one that found
+/// nothing.
+/// </para>
+/// </remarks>
+internal sealed class RecordingProviderCatalogue : IProviderCatalogue, IResolvesNumericSceneId
+{
+    private readonly Dictionary<string, int?> _numbers;
+
+    /// <summary>
+    /// A provider answering <paramref name="numbers"/>, holding the resolving role where
+    /// <paramref name="resolves"/> says so.
+    /// </summary>
+    internal RecordingProviderCatalogue(
+        IReadOnlyDictionary<string, int?> numbers, bool resolves = true)
+    {
+        ArgumentNullException.ThrowIfNull(numbers);
+        _numbers = new Dictionary<string, int?>(numbers, StringComparer.Ordinal);
+        Capabilities = resolves
+            ? ProviderCapabilities.ForThePornDb(this)
+            : ProviderCapabilities.ForStashDb(this);
+    }
+
+    /// <summary>Every scene identifier this was asked to resolve, in order.</summary>
+    public List<string> Resolved { get; } = [];
+
+    /// <summary>Whether a resolution reaches the provider at all.</summary>
+    /// <remarks>
+    /// Set for a case whose subject is a provider that stopped answering part way through a site.
+    /// The call is still recorded, because what the pass asked about is the fact under test.
+    /// </remarks>
+    public bool Unreachable { get; set; }
+
+    public ProviderCapabilitySet Capabilities { get; }
+
+    public IReadOnlyList<ProviderSortOption> Sorts => throw Unasked(nameof(Sorts));
+
+    public string DefaultSort => throw Unasked(nameof(DefaultSort));
+
+    public Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
+    {
+        Resolved.Add(providerSceneId);
+
+        if (Unreachable)
+        {
+            throw new HttpRequestException("nothing answered");
+        }
+
+        return _numbers.TryGetValue(providerSceneId, out var number)
+            ? Task.FromResult(number)
+            : throw new InvalidOperationException(
+                $"Unexpected scene resolution: {providerSceneId}. Configure its answer explicitly.");
+    }
+
+    public string? SceneAddress(string providerSceneId) => throw Unasked(nameof(SceneAddress));
+
+    public Task<ProviderCatalogueAnswer> ReadPageAsync(
+        ProviderCatalogueRequest request, CancellationToken ct)
+        => throw Unasked(nameof(ReadPageAsync));
+
+    public Task<int?> ReadCatalogueSizeAsync(ProviderCatalogueRequest request, CancellationToken ct)
+        => throw Unasked(nameof(ReadCatalogueSizeAsync));
+
+    public Task<ProviderIdentityLookup> LookUpByNameAsync(
+        WhisparrEntityKind kind, string name, IReadOnlyList<string> aliases, CancellationToken ct)
+        => throw Unasked(nameof(LookUpByNameAsync));
+
+    public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
+        WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
+        => throw Unasked(nameof(ListFacetMenusAsync));
+
+    public Task<ProviderFacetSearch> SearchFacetValuesAsync(
+        WhisparrEntityKind kind,
+        string providerEntityId,
+        string facetKey,
+        string fragment,
+        CancellationToken ct)
+        => throw Unasked(nameof(SearchFacetValuesAsync));
+
+    private static InvalidOperationException Unasked(string member)
+        => new($"Unexpected provider call: {member}. Nothing on this path reads it.");
+}
