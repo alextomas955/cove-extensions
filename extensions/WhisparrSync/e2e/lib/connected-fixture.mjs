@@ -415,6 +415,7 @@ export {
   expect,
   EXTENSION_ID,
   extensionRoute,
+  searching,
   seedCovePerformer,
   seedCoveStudio,
   seedCoveVideo,
