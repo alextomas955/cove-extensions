@@ -390,6 +390,139 @@ public sealed class AbsentCapabilityTests
         Assert.Empty(MembersTakingAVerbOrARouteOn(typeof(ThePornDbCatalogue)));
     }
 
+    /// <summary>
+    /// Every place in this extension that can name the library run's job type, transcribed by hand
+    /// with what each one does with it.
+    /// </summary>
+    /// <remarks>
+    /// Two entries and no more. The route handler is the only one that enqueues, and the in-flight
+    /// derivation reads the host's job list for a run already started. Transcribed rather than
+    /// gathered, for the reason every registry in this group is: a gathered set agrees with itself
+    /// however many places acquired the ability to start a run.
+    /// </remarks>
+    private static readonly string[] NamingTheLibraryRun =
+    [
+        "WhisparrSync.EnqueueSyncRunAsync",
+        "WhisparrSync.SyncRunInFlight",
+    ];
+
+    /// <summary>
+    /// Nothing but the run route can start a library run: no background pass, no timer, no schedule
+    /// and nothing on the import path names the job type at all.
+    /// </summary>
+    /// <remarks>
+    /// Enumerated off the compiled call sites rather than driven. An absence driven as a scenario
+    /// agrees with itself whatever the code does, because a run nobody placed leaves an empty log
+    /// either way; a call site the assembly declares is a fact that survives the scenario nobody
+    /// wrote.
+    /// <para>
+    /// The type is a const folded into every use site, so a second enqueue anywhere in this
+    /// extension appears here as a third method whichever surface added it. The background worker's
+    /// own members, the import slice and every job registration are covered by that one equality
+    /// rather than by a list naming them, which would leave whatever it did not name uncovered.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryMutationIsOriginTagged)]
+    public void NothingButTheRunRouteCanStartALibraryRun()
+        => Assert.Equal(
+            NamingTheLibraryRun.Order(StringComparer.Ordinal).ToList(),
+            MembersNaming(global::WhisparrSync.Jobs.SyncLibraryJob.JobId)
+                .Order(StringComparer.Ordinal)
+                .ToList());
+
+    /// <summary>
+    /// Every member this extension declares whose body loads <paramref name="literal"/>, named by the
+    /// member a reader wrote rather than by the one the compiler emitted.
+    /// </summary>
+    /// <remarks>
+    /// A body is scanned for the string-load opcode and the four-byte token after it is resolved
+    /// against the declaring module. A token that resolves to something else, or to nothing, is not
+    /// this literal and is skipped, so a byte that only looks like the opcode contributes nothing.
+    /// <para>
+    /// An async body and a lambda are compiled onto members named after the one they came from, and
+    /// both spellings carry that name between angle brackets. Reporting the emitted name would make
+    /// the assertion about compiler output rather than about which member a reader can see.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<string> MembersNaming(string literal)
+        => typeof(IWhisparrClient).Assembly
+            .GetTypes()
+            .SelectMany(type => type
+                .GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public
+                    | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
+                .Cast<MethodBase>()
+                .Concat(type.GetConstructors(BindingFlags.Instance | BindingFlags.Static
+                    | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)))
+            .Where(member => Loads(member, literal))
+            .Select(WrittenName)
+            .Distinct(StringComparer.Ordinal);
+
+    /// <summary>The string-load opcode, and the width of the metadata token that follows it.</summary>
+    private const byte LoadString = 0x72;
+
+    private const int TokenWidth = 4;
+
+    private static bool Loads(MethodBase member, string literal)
+    {
+        if (member.GetMethodBody()?.GetILAsByteArray() is not { } il || member.Module is not { } module)
+        {
+            return false;
+        }
+
+        for (var at = 0; at + TokenWidth < il.Length; at++)
+        {
+            if (il[at] != LoadString)
+            {
+                continue;
+            }
+
+            string? loaded;
+            try
+            {
+                loaded = module.ResolveString(BitConverter.ToInt32(il, at + 1));
+            }
+#pragma warning disable CA1031 // A token this is not a string token raises, and says nothing either way.
+            catch (Exception)
+            {
+                continue;
+            }
+#pragma warning restore CA1031
+
+            if (string.Equals(loaded, literal, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>The member a reader wrote, that <paramref name="member"/> was emitted for.</summary>
+    private static string WrittenName(MethodBase member)
+    {
+        var owner = member.DeclaringType!;
+        while (owner.DeclaringType is not null
+            && owner.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
+        {
+            owner = owner.DeclaringType;
+        }
+
+        var written = EmittedFor(member.Name)
+            ?? EmittedFor(member.DeclaringType!.Name)
+            ?? member.Name;
+
+        return $"{owner.Name}.{written}";
+    }
+
+    /// <summary>The member name between the angle brackets of <paramref name="emitted"/>, or null.</summary>
+    private static string? EmittedFor(string emitted)
+    {
+        var opened = emitted.IndexOf('<', StringComparison.Ordinal);
+        var closed = emitted.IndexOf('>', StringComparison.Ordinal);
+        return opened == 0 && closed > 1 ? emitted[1..closed] : null;
+    }
+
     /// <summary>The relative routes the outbound client declares, read off its own constants.</summary>
     private static IEnumerable<string> RoutesDeclaredByTheClient()
         => typeof(WhisparrClient)

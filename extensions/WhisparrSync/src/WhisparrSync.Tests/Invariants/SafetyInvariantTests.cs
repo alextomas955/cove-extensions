@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Builder;
@@ -10,6 +11,7 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Missing;
+using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Providers;
 using WhisparrSync.Scene;
@@ -529,6 +531,186 @@ public sealed class SafetyInvariantTests
         // The second delivery derived its answer rather than remembering the first's.
         Assert.True(ingest.Paths.Operations.Count > probesAfterTheFirst);
     }
+
+    /// <summary>
+    /// Neither pass a library run makes registers through anything but a non-grabbing add.
+    /// </summary>
+    /// <remarks>
+    /// The pass set is asserted exactly, so a third pass added later reaches this rather than
+    /// travelling under an enumeration written for two. Each pass's own body is composed here and
+    /// read for its generation's suppressing flags and for every grabbing command name, because a
+    /// run reaching a whole library is the one gesture whose acquisition cost would be the size of
+    /// the library.
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryAddIsNonGrabbing)]
+    public void NeitherPassALibraryRunMakesRegistersThroughAnythingButANonGrabbingAdd()
+    {
+        Assert.Equal([SyncRegisters.Scenes, SyncRegisters.Sites], Enum.GetValues<SyncRegisters>());
+
+        Assert.Equal(
+            [WhisparrVerbClass.Act, WhisparrVerbClass.Act],
+            new[]
+            {
+                nameof(IWhisparrMissingSceneActing.AddSceneAsync),
+                nameof(IWhisparrSiteRegistrationActing.RegisterSiteAsync),
+            }.Select(member => OutboundSeam.VerbClassByMember[member]));
+
+        Assert.All(
+            RegisteringBodies(),
+            registering =>
+            {
+                Assert.Equal(
+                    registering.Suppression.Select(_ => (bool?)false).ToArray(),
+                    registering.Suppression
+                        .Select(path => ComposedAdds.At(registering.Body, path)?.GetValue<bool>())
+                        .ToArray());
+
+                Assert.All(
+                    ComposedAdds.GrabbingCommandNames,
+                    name => Assert.DoesNotContain(
+                        name, registering.Body.ToJsonString(), StringComparison.Ordinal));
+            });
+    }
+
+    /// <summary>
+    /// Offering one library a second time composes the same request for each identifier and
+    /// registers nothing, because the instance answers the second offer as one it already holds.
+    /// </summary>
+    /// <remarks>
+    /// Two halves, and each is needed. The composition is compared as text so a re-run is proved to
+    /// send what the first run sent rather than a second variant of it; the run is then driven twice
+    /// against an instance that answers a repeated offer with its own already-held document, so what
+    /// the counts report is the classification the shipped code makes of a real answer.
+    /// <para>
+    /// The already-held count is the load-bearing one. A second offer counted as registered would be
+    /// a duplicate this product created and then reported as work.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryMutationIsOriginTagged)]
+    public async Task OfferingTheSameLibraryTwiceComposesTheSameRequestAndRegistersNothingAgain()
+    {
+        Assert.Equal(
+            ComposedBody.Of(V3BodyProjector.AddScene(SyncScene, SyncDefaults)).ToJsonString(),
+            ComposedBody.Of(V3BodyProjector.AddScene(SyncScene, SyncDefaults)).ToJsonString());
+
+        var held = new HashSet<string>(StringComparer.Ordinal);
+        var offered = new List<string>();
+
+        async Task<SyncLibraryRun> RunOnceAsync()
+            => await SyncLibraryPlanner.RunAsync(
+                SyncRegisters.Scenes,
+                Streamed,
+                identity => identity,
+                (identity, _) =>
+                {
+                    offered.Add(identity);
+                    return Task.FromResult(SyncRegistration.Offered(
+                        held.Add(identity) ? SceneAccepted : SceneAlreadyHeld));
+                },
+                monitor: null,
+                new RecordingJobProgress(),
+                TestCt);
+
+        var first = await RunOnceAsync();
+        var second = await RunOnceAsync();
+
+        Assert.Equal(OfferedLibrary.Length, first.Registered);
+        Assert.Equal(0, first.AlreadyHeld);
+
+        Assert.Equal(0, second.Registered);
+        Assert.Equal(OfferedLibrary.Length, second.AlreadyHeld);
+        Assert.Equal(0, second.Refused);
+        Assert.Equal(0, second.Monitored);
+
+        Assert.Equal([.. OfferedLibrary, .. OfferedLibrary], offered);
+    }
+
+    /// <summary>
+    /// Nothing a count answers with and nothing either run reports carries a member whose size
+    /// depends on the library.
+    /// </summary>
+    /// <remarks>
+    /// Asserted on the declared shapes rather than on what one run put in them, which is the
+    /// stronger claim: a run observed at one library size says nothing about the next one. Every one
+    /// of these travels to a reader whole, and a library reaches millions of files.
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
+    public void NeitherTheCountAnswerNorEitherRunsResultCarriesAMemberThatGrowsWithTheLibrary()
+        => Assert.All(
+            new[]
+            {
+                typeof(SyncPreviewView),
+                typeof(SyncPreviewRead),
+                typeof(SyncEnqueued),
+                typeof(SyncLibraryRun),
+                typeof(SceneMonitorTally),
+            },
+            shape => Assert.Empty(
+                shape.GetProperties()
+                    .Where(property => property.PropertyType != typeof(string)
+                        && typeof(System.Collections.IEnumerable)
+                            .IsAssignableFrom(property.PropertyType))
+                    .Select(property => $"{shape.Name}.{property.Name}")));
+
+    /// <summary>A scene the library holds, and two more, for the run driven over three.</summary>
+    private const string SyncScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
+
+    /// <inheritdoc cref="SyncScene"/>
+    private const string SecondSyncScene = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
+
+    /// <inheritdoc cref="SyncScene"/>
+    private const string ThirdSyncScene = "7b1e4d90-2c3a-4f81-95d6-0a8b7c6e5f43";
+
+    /// <summary>The library both runs walk, in the order the stream yields it.</summary>
+    private static readonly string[] OfferedLibrary = [SyncScene, SecondSyncScene, ThirdSyncScene];
+
+    /// <summary>
+    /// <see cref="OfferedLibrary"/>, streamed the way the run's own identifier port hands it over.
+    /// </summary>
+    private static async IAsyncEnumerable<string> Streamed(
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        foreach (var identity in OfferedLibrary)
+        {
+            ct.ThrowIfCancellationRequested();
+            yield return identity;
+            await Task.Yield();
+        }
+    }
+
+    /// <summary>The instance-side values a registering body is composed with.</summary>
+    private static AddDefaults SyncDefaults => new(4, "/config/library");
+
+    /// <summary>The same, for the generation that refuses a profile the other one accepts.</summary>
+    private static AddDefaults SyncV2Defaults => new(1, "/config/library");
+
+    /// <summary>What one instance answered a scene it took, and one it already held.</summary>
+    private static WhisparrResponse SceneAccepted
+        => RecordingWhisparrClient.Json(
+            201, ProbeFixtures.Read("whisparr-v3-3.3.8.1097-scene-add-accepted.json"));
+
+    /// <inheritdoc cref="SceneAccepted"/>
+    private static WhisparrResponse SceneAlreadyHeld
+        => RecordingWhisparrClient.Json(
+            400, ProbeFixtures.Read("whisparr-v3-3.3.8.1097-scene-add-already-held.json"));
+
+    /// <summary>The body each pass registers an entry through, with the flags its resource declares.</summary>
+    /// <remarks>
+    /// The v2 identifiers are the ones that generation's own lookup was measured answering, because
+    /// its add is composed from the number the lookup returned rather than from the one the library
+    /// holds.
+    /// </remarks>
+    private static IReadOnlyList<(JsonObject Body, IReadOnlyList<string> Suppression)>
+        RegisteringBodies() =>
+        [
+            (ComposedBody.Of(V3BodyProjector.AddScene(SyncScene, SyncDefaults)),
+                [ComposedAdds.SceneSuppression]),
+            (ComposedV2Body.Of(V2BodyProjector.RegisterSite(3372, "Vixen", "vixen", SyncV2Defaults)),
+                ComposedAdds.V2Suppression),
+        ];
 
     /// <summary>A class the retry table does not list.</summary>
     /// <remarks>
