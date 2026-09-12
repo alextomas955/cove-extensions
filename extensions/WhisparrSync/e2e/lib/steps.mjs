@@ -7,7 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-import { expect } from "@cove-extensions/e2e";
+import { createApiClient, expect } from "@cove-extensions/e2e";
 
 import {
   CALLBACK_STATUS_ROUTE,
@@ -16,8 +16,37 @@ import {
   DISABLE_ROUTE,
   ENABLE_ROUTE,
   OPTIONS_KEY,
+  SECRET_HEADER,
   SECRET_QUERY_PARAMETER,
+  USER_AGENT,
 } from "./contract.mjs";
+
+/**
+ * A client presenting what a delivering instance presents and nothing more: this generation's agent,
+ * the shared secret where one is given, and no Cove credential - Whisparr holds none.
+ *
+ * The address is read through a getter rather than captured, for the reason createApiClient
+ * documents: a restart re-mints the token and can republish the container on a different host port.
+ *
+ * @param {() => string} baseUrl
+ * @param {"v2"|"v3"} generation
+ * @param {{secret?: string, headers?: Record<string, string>}} presenting
+ */
+export function whisparrCaller(baseUrl, generation, { secret, headers = {} } = {}) {
+  const agent = USER_AGENT[generation];
+  if (agent === undefined) {
+    throw new Error(
+      `whisparrCaller: no agent is transcribed for "${generation}"; transcribed are ${Object.keys(USER_AGENT).join(", ")}.`,
+    );
+  }
+  return createApiClient(baseUrl, undefined, {
+    headers: {
+      "User-Agent": agent,
+      ...(secret === undefined ? {} : { [SECRET_HEADER]: secret }),
+      ...headers,
+    },
+  });
+}
 
 /** How long one navigation is given to render what the caller named, and how many are tried. */
 const PAGE_BUDGET_MS = 60_000;
@@ -114,6 +143,18 @@ export async function storedOptions(api) {
   ).not.toBeNull();
   return options;
 }
+
+// The member the backend serializes its refusal aggregate under. PascalCase, matching the C# record,
+// and pinned by the backend's own test.
+const REFUSALS = "ImportRefusals";
+
+/** The refusal aggregate the extension has stored, read through Cove's own bulk data route. */
+export async function importRefusals(api) {
+  return (await storedOptions(api))[REFUSALS] ?? [];
+}
+
+/** One root's stored refusal line, or undefined while that root has none. */
+export const refusalLineFor = (refusals, root) => refusals.find((entry) => entry.Root === root);
 
 /** Rewrites the stored options blob with `change` applied. */
 export async function writeOptions(api, change) {
