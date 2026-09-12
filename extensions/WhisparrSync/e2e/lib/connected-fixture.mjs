@@ -325,6 +325,7 @@ export const test = base.extend({
         generation,
         instance,
         owned,
+        remoteId: seeded.remoteId,
         run,
         studio,
         studioName,
@@ -340,6 +341,7 @@ export const test = base.extend({
 export {
   connectWhisparr,
   expect,
+  EXTENSION_ID,
   extensionRoute,
   seedCovePerformer,
   seedCoveStudio,
