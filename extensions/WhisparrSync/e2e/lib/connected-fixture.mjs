@@ -16,14 +16,16 @@
 import { randomUUID } from "node:crypto";
 
 import { createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
-import { startWhisparr } from "@cove-extensions/e2e/whisparr";
+import { seedVideo } from "@cove-extensions/e2e/seed-media";
+import { startWhisparr, WHISPARR_APP_USER } from "@cove-extensions/e2e/whisparr";
 
 import { adapterFor } from "./generation-adapter.mjs";
 import { startMetadataStub } from "./metadata-stub.mjs";
-import { seedV2Scene } from "./seed-scene.mjs";
+import { SCENE_RELEASE_DATE, seedV2Scene } from "./seed-scene.mjs";
 import {
   connectWhisparr,
   seedCoveStudio,
+  STASHDB_ENDPOINT,
   test as base,
   WHISPARR_ROOT,
   WHISPARR_SYNC_EXTENSION,
@@ -81,6 +83,48 @@ export async function siteRow(whisparrApi, seriesId) {
 const studioTitle = (run) => `Cove E2E Studio ${run}`;
 
 /**
+ * Registers one file with Cove inside a folder the instance also reaches, and puts it under the
+ * studio.
+ *
+ * Registered rather than merely placed on disk: a verb that hands the instance what the library owns
+ * reads the folders of the video FILES an entity holds, so a file the host does not know about
+ * leaves it with no folder to offer and it hands over nothing while reporting no failure.
+ *
+ * The chown is the instance's own: it reads and links as its user, and a file Cove placed arrives
+ * owned by root.
+ */
+async function ownFile({
+  api,
+  isolatedCove,
+  instanceContainer,
+  studio,
+  destDir,
+  destName,
+  identity,
+}) {
+  const video = await seedVideo({
+    container: isolatedCove.container,
+    baseUrl: isolatedCove.baseUrl,
+    token: isolatedCove.token,
+    destDir,
+    destName,
+  });
+  const owned = await api.put(`/api/videos/${String(video.id)}`, {
+    studioId: studio.id,
+    ...(identity === undefined ? {} : { remoteIds: [identity] }),
+  });
+  if (owned.status >= 300) {
+    throw new Error(
+      `ownFile: putting the seeded video under the studio answered ${String(owned.status)}: ${String(owned.text).slice(0, 300)}`,
+    );
+  }
+  await instanceContainer.exec(["chown", "-R", WHISPARR_APP_USER, isolatedCove.sharedPath], {
+    user: "root",
+  });
+  return video;
+}
+
+/**
  * How each generation's instance is brought up and its catalogue put in front of the extension.
  *
  * A seeder starts the instance and seeds its catalogue, and hands back the identity Cove has to
@@ -91,11 +135,11 @@ const studioTitle = (run) => `Cove E2E Studio ${run}`;
  */
 const SEEDERS = {
   v3: {
-    async seedInstance({ network, run, cleanup }) {
+    async seedInstance({ network, run, cleanup, media }) {
       const whisparr = await startWhisparr({
         network,
         generations: ["v3"],
-        rootFolder: WHISPARR_ROOT,
+        ...media.start,
       });
       cleanup.push("the v3 instance", () => whisparr.stop());
 
@@ -111,12 +155,35 @@ const SEEDERS = {
         remoteId: foreignId,
         monitored: async (instance) =>
           (await whisparrEntity(instance, "studio", foreignId))?.monitored,
+
+        // The catalogue entry the file has to land on. The instance attaches a file to an entry it
+        // already holds, so with none for this scene it matches the file to nothing and reports a
+        // clean pass having attached none.
+        async ownMedia({ api, isolatedCove, studio }) {
+          const sceneRemoteId = `cove-e2e-owned-scene-${run}`;
+          const scene = await whisparr.seedEntity("v3", {
+            kind: "scene",
+            foreignId: sceneRemoteId,
+            title: `Cove E2E Owned Scene ${run}`,
+            monitored: true,
+          });
+          await ownFile({
+            api,
+            isolatedCove,
+            instanceContainer: whisparr.v3.container,
+            studio,
+            destDir: scene.path,
+            destName: `Cove E2E Owned Scene ${run} 1080p WEBDL.mp4`,
+            identity: { endpoint: STASHDB_ENDPOINT, remoteId: sceneRemoteId },
+          });
+          return { entryId: scene.id, folder: scene.path };
+        },
       };
     },
   },
 
   v2: {
-    async seedInstance({ network, run, cleanup }) {
+    async seedInstance({ network, run, cleanup, media }) {
       const siteId = Math.floor(Math.random() * 500_000) + 1;
 
       // Started before the instance: the element naming it is read out of the config at startup and
@@ -131,8 +198,8 @@ const SEEDERS = {
       const whisparr = await startWhisparr({
         network,
         generations: ["v2"],
-        rootFolder: WHISPARR_ROOT,
         metadataUrl: metadata.urlFromWhisparr,
+        ...media.start,
       });
       cleanup.push("the v2 instance", () => whisparr.stop());
 
@@ -149,13 +216,55 @@ const SEEDERS = {
         whisparr,
         remoteId: String(siteId),
         monitored: async (instance) => (await siteRow(instance, seeded.seriesId))?.monitored,
+
+        // Under the site's own folder, and named in the shape this generation parses a release in -
+        // "Site - Date - Title" with a quality the parse recognises. A name it cannot parse lists as
+        // a row matched to nothing, which this product excludes, and the run then reports a clean
+        // pass that attached nothing.
+        async ownMedia({ api, isolatedCove, studio }) {
+          const instance = whisparr.apiFor("v2");
+          const site = await siteRow(instance, seeded.seriesId);
+          await ownFile({
+            api,
+            isolatedCove,
+            instanceContainer: whisparr.v2.container,
+            studio,
+            destDir: site.path,
+            destName: `${site.title} - ${SCENE_RELEASE_DATE} - Owned ${run} 1080p WEBDL.mp4`,
+          });
+          return { entryId: seeded.seriesId, folder: site.path };
+        },
       };
     },
   },
 };
 
+/**
+ * Where the instance's catalogue is rooted, and whether the library's own volume is under it.
+ *
+ * A spec that only reads the instance's rows needs no volume, and mounting one would cost every
+ * such spec a bind mount it never touches. A spec driving a verb that hands the instance a file the
+ * library owns needs ONE filesystem reachable at ONE path from both containers: an instance mounting
+ * Cove's volume anywhere else is handed a path it cannot read, links nothing, and the run still
+ * completes reporting no failure.
+ */
+const mediaFor = (ownedMedia, isolatedCove) =>
+  ownedMedia
+    ? {
+        start: {
+          rootFolder: `${isolatedCove.sharedPath}/media`,
+          dataVolume: isolatedCove.sharedVolume,
+          dataMount: isolatedCove.sharedPath,
+        },
+      }
+    : { start: { rootFolder: WHISPARR_ROOT } };
+
 export const test = base.extend({
   generation: ["v3", { option: true }],
+
+  // Off by default: only a spec driving a verb over a file the library owns needs the volume, and
+  // the mount is not free for the specs that do not.
+  ownedMedia: [false, { option: true }],
 
   isolatedCove: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
 
@@ -181,7 +290,7 @@ export const test = base.extend({
    * Separate from `isolatedCove` so a spec needing only the installation names that one and pays for
    * no instance: Playwright builds fixtures lazily, by name.
    */
-  connected: async ({ isolatedCove, api, generation }, use) => {
+  connected: async ({ isolatedCove, api, generation, ownedMedia }, use) => {
     const seeder = SEEDERS[generation];
     if (seeder === undefined) {
       throw new Error(`connected: no seeder is written for the generation "${generation}".`);
@@ -195,6 +304,7 @@ export const test = base.extend({
         network: isolatedCove.container.getNetworkNames()[0],
         run,
         cleanup,
+        media: mediaFor(ownedMedia, isolatedCove),
       });
       const instance = seeded.whisparr.apiFor(generation);
 
@@ -204,6 +314,9 @@ export const test = base.extend({
         remoteIds: [{ endpoint: adapter.identityEndpoint, remoteId: seeded.remoteId }],
       });
 
+      // Before the connection, so the extension's first read of the library already sees it.
+      const owned = ownedMedia ? await seeded.ownMedia({ api, isolatedCove, studio }) : null;
+
       await connectWhisparr(api, seeded.whisparr, generation);
 
       await use({
@@ -211,6 +324,7 @@ export const test = base.extend({
         api,
         generation,
         instance,
+        owned,
         run,
         studio,
         studioName,
