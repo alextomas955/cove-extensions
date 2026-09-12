@@ -172,12 +172,6 @@ export async function episodeFileRows(whisparrApi, seriesId) {
   return listed.json;
 }
 
-/** Every command the instance has been asked to run, newest first. */
-export async function commandNames(whisparrApi) {
-  const listed = await whisparrApi.get("/api/v3/command");
-  return (listed.json ?? []).map((one) => one.name).filter(Boolean);
-}
-
 // The site read lives beside the fixture that owns a connected installation, because the shared
 // scenarios read the same row through it.
 export { siteRow } from "./connected-fixture.mjs";
