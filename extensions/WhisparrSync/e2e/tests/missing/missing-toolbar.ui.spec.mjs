@@ -4,9 +4,13 @@
 // `.tsx`, so every claim about typing, focus, keyboard and the address bar is unproven until a real
 // browser makes it. This spec is where those claims are settled.
 //
-// WHAT IT NEEDS. A Cove container and an installed extension, and nothing else: the search field and
-// Refresh are drawn before any page has answered, so no Whisparr instance and no provider credential
-// are involved.
+// WHY THE `.ui` SUFFIX. Every control below is driven against responses this file serves itself, so
+// the suffix is what tells a reader this spec from one that drives a real instance. Without it the
+// filename claims coverage the file does not hold, and only opening it says otherwise.
+//
+// WHAT IT NEEDS. One Cove installation and an installed extension, and nothing else: the search
+// field and Refresh are drawn before any page has answered, so no Whisparr instance and no provider
+// credential are involved.
 //
 // WHAT SKIPS, AND WHY. Three assertions need a control that only exists once a catalogue page has
 // answered into the toolbar - the ordering menu, the facet menus and the count line beneath them.
@@ -15,17 +19,10 @@
 // IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
-import { createApiClient } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
 import { randomUUID } from "node:crypto";
-import { visit } from "../../lib/steps.mjs";
 
-import {
-  test as base,
-  expect,
-  seedCoveStudio,
-  WHISPARR_SYNC_EXTENSION,
-} from "../../lib/whisparr-sync-fixtures.mjs";
+import { expect, seedCoveStudio, SPEC_BUDGET_MS, test } from "../../lib/connected-fixture.mjs";
+import { visit } from "../../lib/steps.mjs";
 
 /** The tab's label, transcribed by hand from the manifest that advertises it. */
 const TAB_LABEL = "Missing";
@@ -100,27 +97,9 @@ const SORT_OPTIONS = [
 const TAB_BUDGET_MS = 30_000;
 const SETTLE_BUDGET_MS = 30_000;
 
-const test = base.extend({
-  toolbarHarness: [
-    async ({}, use) => {
-      const harness = await startHarness();
-      try {
-        harness.owner = await harness.bootstrapOwner();
-        await harness.installExtension(WHISPARR_SYNC_EXTENSION);
-        await use(harness);
-      } finally {
-        await harness.stop();
-      }
-    },
-    { scope: "test" },
-  ],
-
-  // Read through the handle AFTER the install. The install restarts the container, which re-mints
-  // the token and can republish the instance on a different host port.
-  baseUrl: async ({ toolbarHarness }, use) => {
-    await use(toolbarHarness.baseUrl);
-  },
-});
+// The installation and nothing else. `connected` is never named below, and Playwright builds
+// fixtures by name, so no Whisparr container is started for this file.
+test.describe.configure({ timeout: SPEC_BUDGET_MS });
 
 const missingTab = (page) => page.getByRole("tab", { name: TAB_LABEL }).first();
 const hostDetailTabs = (page) => page.getByRole("tablist").first();
@@ -196,17 +175,9 @@ async function focusTreatment(locator) {
 test("the toolbar round-trips through the page URL, and its controls are reachable", async ({
   page,
   baseUrl,
-  toolbarHarness,
+  api,
 }) => {
-  // A container pair, an extension install and a browser. Well above the shared per-test budget.
-  test.setTimeout(600_000);
-
-  const coveApi = createApiClient(
-    () => toolbarHarness.baseUrl,
-    () => toolbarHarness.token,
-  );
-
-  const studio = await seedCoveStudio(coveApi, {
+  const studio = await seedCoveStudio(api, {
     name: `Studio ${randomUUID().slice(0, 8)}`,
     remoteIds: [],
   });
@@ -416,25 +387,14 @@ function answeredPage({ facets = [], sorts = [] } = {}) {
   };
 }
 
-test("an answered page decides the source a sentence names", async ({
-  page,
-  baseUrl,
-  toolbarHarness,
-}) => {
-  // A container pair, an extension install and a browser. Well above the shared per-test budget.
-  test.setTimeout(600_000);
-
-  const coveApi = createApiClient(
-    () => toolbarHarness.baseUrl,
-    () => toolbarHarness.token,
-  );
-  const studio = await seedCoveStudio(coveApi, {
+test("an answered page decides the source a sentence names", async ({ page, baseUrl, api }) => {
+  const studio = await seedCoveStudio(api, {
     name: `Studio ${randomUUID().slice(0, 8)}`,
     remoteIds: [],
   });
 
   // The page read is answered here, because the count line is not drawn until one has answered and
-  // this harness connects no instance and holds no provider credential.
+  // this installation has no instance connected and holds no provider credential.
   let pageReadWasIntercepted = false;
   await page.route(/\/missing\?/, async (route) => {
     pageReadWasIntercepted = true;
