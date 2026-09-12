@@ -30,26 +30,21 @@
 // IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
-import { createApiClient } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { attemptUntil } from "@cove-extensions/e2e/poll";
 import { randomUUID } from "node:crypto";
-import { visit } from "../../lib/steps.mjs";
 
 import {
-  test as base,
-  connectWhisparr,
   expect,
   EXTENSION_ID,
   extensionRoute,
   seedCoveVideo,
   SETTLE_DWELL_MS,
+  SPEC_BUDGET_MS,
   STASHDB_ENDPOINT,
+  test,
   whisparrActivity,
-  WHISPARR_ROOT,
-  WHISPARR_SYNC_EXTENSION,
-} from "../../lib/whisparr-sync-fixtures.mjs";
+} from "../../lib/connected-fixture.mjs";
+import { visit } from "../../lib/steps.mjs";
 
 // The button's label, transcribed by hand from the registration that declares it. A spec importing
 // the same constant would be asserting that a string equals itself.
@@ -110,27 +105,8 @@ const CANCEL_DWELL_MS = 5_000;
 // missing control.
 const ROW_BUDGET_MS = 20_000;
 
-const test = base.extend({
-  batchHarness: [
-    async ({}, use) => {
-      const harness = await startHarness();
-      try {
-        harness.owner = await harness.bootstrapOwner();
-        await harness.installExtension(WHISPARR_SYNC_EXTENSION);
-        await use(harness);
-      } finally {
-        await harness.stop();
-      }
-    },
-    { scope: "test" },
-  ],
-
-  // Read through the handle AFTER the install. The install restarts the container, which re-mints
-  // the token and can republish the instance on a different host port.
-  baseUrl: async ({ batchHarness }, use) => {
-    await use(batchHarness.baseUrl);
-  },
-});
+test.describe.configure({ timeout: SPEC_BUDGET_MS });
+test.use({ generation: "v3" });
 
 const batchButton = (page) => page.getByRole("button", { name: BATCH_BUTTON_LABEL, exact: true });
 // The panel heads itself with the product's name and the count of what is selected, and that header
@@ -249,16 +225,11 @@ test.describe("scene batch", () => {
   test("five rows in one fixed order, one background run, and a refusal that keeps the selection", async ({
     page,
     baseUrl,
-    batchHarness,
+    connected,
   }) => {
     // A container pair, an extension install, a browser and a real instance. Well above the shared
     // per-test budget, and deliberately its own number rather than a raised default for every spec.
-    test.setTimeout(900_000);
-
-    const coveApi = createApiClient(
-      () => batchHarness.baseUrl,
-      () => batchHarness.token,
-    );
+    const { api: coveApi, whisparr } = connected;
 
     // Every alert the host raises, so the refusal path can assert none was raised. Registered before
     // anything is driven: a dialog Playwright auto-dismissed before this ran would go unrecorded.
@@ -276,254 +247,230 @@ test.describe("scene batch", () => {
       }
     });
 
-    const whisparr = await startWhisparr({
-      network: batchHarness.container.getNetworkNames()[0],
-      generations: ["v3"],
+    const instance = whisparr.apiFor("v3");
+
+    const run = randomUUID().slice(0, 8);
+    const videos = [];
+    for (let index = 0; index < SEEDED_SCENES; index++) {
+      videos.push(await seedScene(coveApi, whisparr, index, run));
+    }
+
+    await visit(page, baseUrl, "/videos", cardToggles(page).first(), "the videos page");
+    await selectFirstCards(page, SEEDED_SCENES, "the videos page");
+
+    // The assertion the whole spec exists for: the host matched the singular spelling its videos
+    // bar passes against the string this extension registered.
+    await expect(
+      batchButton(page),
+      `the videos selection bar carries no "${BATCH_BUTTON_LABEL}" button within ${String(BATCH_BUTTON_BUDGET_MS)}ms. ` +
+        "The host matches an action's declared entity types by literal membership against the spelling its bar passes, which is the SINGULAR for a video selection; a plural registration makes this button simply not appear, with no error anywhere.",
+    ).toBeVisible({ timeout: BATCH_BUTTON_BUDGET_MS });
+
+    // The locator v2's absence is read through, proven here on the generation
+    // that draws it. A locator that matched nothing would report an absence on both.
+    await expect(
+      contributedSelectionButtons(page),
+      "the host drew no contributed selection button on the generation that registers one, so the absence asserted on the other generation would prove nothing",
+    ).toHaveCount(1);
+
+    // The rows, read as an ordered list of the names they announce.
+    await batchButton(page).click();
+    await expect(
+      chooserPanel(page),
+      "the Whisparr button opened no chooser, so nothing below is about the rows",
+    ).toBeVisible();
+    const offered = await chooserPanel(page)
+      .getByRole("menuitem")
+      .evaluateAll((rows) => rows.map((row) => row.textContent?.trim()));
+    expect(
+      offered,
+      "the overlay does not offer the five rows in the order it promises: safest first, the only row that can download fourth, and the row that changes what Whisparr accepts in future last",
+    ).toEqual([...BATCH_ROW_LABELS, BULK_CANCEL]);
+
+    // One glyph and one name per row, and no paragraph anywhere inside the panel.
+    expect(
+      await chooserPanel(page).locator("p").count(),
+      "the chooser draws a paragraph, so a row states prose the panel is no longer meant to carry",
+    ).toBe(0);
+
+    // The cancel path, taken FIRST so the assertion that nothing was sent is made before this spec
+    // has sent anything at all.
+    await chooserPanel(page)
+      .getByRole("menuitem", { name: BULK_CANCEL, exact: true })
+      .click({ timeout: ROW_BUDGET_MS });
+    await expect(chooserPanel(page), "cancelling did not close the chooser").toBeHidden();
+    await page.waitForTimeout(CANCEL_DWELL_MS);
+    expect(
+      batchRequests,
+      "cancelling the chooser still reached the batch route, so leaving without choosing enqueues work nobody asked for",
+    ).toEqual([]);
+    expect(
+      await selectedCount(page),
+      "cancelling the chooser cleared the selection, so a reader who changed their mind has to make it again",
+    ).toBe(SEEDED_SCENES);
+
+    // The gesture itself, on the same selection.
+    //
+    // THE MONITOR ROW, and the reason is what the harness can seed. A scene's entry is written
+    // into the instance's own datastore, because adding one through its API resolves the
+    // identifier against the vendor's metadata service; so every scene this spec puts in front of
+    // the host is already held, and Add over a held scene is correctly refused with nothing sent.
+    // Monitor is the row whose effect this harness can both cause and read back off the instance.
+    await batchButton(page).click();
+    await expect(
+      chooserPanel(page),
+      "the Whisparr button did not reopen its chooser",
+    ).toBeVisible();
+    const enqueued = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === BATCH_ROUTE,
+      { timeout: ENQUEUE_BUDGET_MS },
+    );
+    await chooserPanel(page)
+      .getByRole("menuitem", { name: MONITOR, exact: true })
+      .click({ timeout: ROW_BUDGET_MS });
+    const response = await enqueued;
+    expect(
+      response.status(),
+      `the batch route answered ${String(response.status())} rather than enqueueing`,
+    ).toBeLessThan(400);
+    expect(
+      batchRequests,
+      `the one gesture reached the batch route ${String(batchRequests.length)} time(s), so a selection enqueued more than one run`,
+    ).toEqual(["POST"]);
+
+    // Cove's own job drawer, which is where this extension says the answer appears.
+    //
+    // THE COUNTS ARE THE ENTRY'S OWN TALLIES, NOT A SENTENCE. Cove recomputes a unit-reporting
+    // job's summary from those tallies and mirrors it onto the sub-task, so this extension's
+    // composed line never reaches the drawer and hunting it here would be waiting for a string
+    // the host has already overwritten. The tallies are what a reader is shown.
+    const {
+      settled,
+      value: entry,
+      note,
+    } = await attemptUntil(
+      async (_signal, record) => {
+        const jobs = await ownJobs(coveApi);
+        record(JSON.stringify(jobs));
+        const batch = jobs.filter((job) => job.type === SCENE_BATCH_JOB_TYPE);
+        const reported = batch.find((job) => job.status === "completed");
+        return reported === undefined ? null : { value: { batch, reported } };
+      },
+      { timeoutMs: JOB_BUDGET_MS, intervalMs: 1_000, label: "scene batch job" },
+    );
+    expect(
+      settled,
+      `no scene batch run completed in the host's job drawer within ${String(JOB_BUDGET_MS)}ms; the drawer last held ${note}`,
+    ).toBe(true);
+    expect(
+      entry.batch.length,
+      `the one gesture over ${String(SEEDED_SCENES)} scenes produced ${String(entry.batch.length)} run(s) in the drawer`,
+    ).toBe(1);
+
+    expect(
+      {
+        total: entry.reported.unitsTotal,
+        succeeded: entry.reported.unitsSucceeded,
+        failed: entry.reported.unitsFailed,
+        skipped: entry.reported.unitsSkipped,
+      },
+      `the run reported ${JSON.stringify(entry.reported)}, so the gesture did not reach every selected scene`,
+    ).toEqual({ total: SEEDED_SCENES, succeeded: SEEDED_SCENES, failed: 0, skipped: 0 });
+
+    // NOTHING THE READER IS SHOWN GROWS WITH THE SELECTION, asserted on the whole of the
+    // extension's own line and on the absence of the scenes' own names.
+    //
+    // A Cove id is not what is looked for here: an id of a digit or two is a substring of the
+    // selected count, of the run's own timestamps and of its id, so a substring hunt for one
+    // reports a line that names nothing. A seeded title is unambiguous, and a line that listed
+    // what a run did would carry them.
+    expect(
+      entry.reported.description,
+      "the run's description is not the fixed sentence this extension composes, so what a reader is shown is derived from the selection itself",
+    ).toBe(`[Whisparr Sync] Scenes, ${String(SEEDED_SCENES)} selected`);
+    for (const video of videos) {
+      const naming = READER_FACING_STRINGS.filter((key) =>
+        String(entry.reported[key] ?? "").includes(video.title),
+      );
+      expect(
+        naming,
+        `the drawer entry names the scene "${video.title}" in ${naming.join(", ")}, so what it reports grows with the selection`,
+      ).toEqual([]);
+    }
+
+    // What the instance holds, which is the assertion the container is here for. A count read off
+    // the run's own answer agrees with itself whether or not anything reached Whisparr.
+    for (const video of videos) {
+      expect(
+        await monitoredOnInstance(instance, video.remoteId),
+        `after the batch gesture the instance does not report the scene behind Cove video ${String(video.id)} as monitored, so the run's count is not a read of what Whisparr does`,
+      ).toBe(true);
+    }
+
+    // The refusal, against the answer the route itself gives above the search row's bound. See the
+    // header: the bound is 100 scenes and this harness seeds two, so the selection that reaches it
+    // cannot be made by clicking.
+    await page.route(`**${BATCH_ROUTE}`, async (route) => {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: OVER_THE_SEARCH_BOUND,
+      });
     });
 
-    try {
-      const instance = whisparr.apiFor("v3");
-      whisparr.v3.rootFolder = await registerRootFolder(
-        whisparr.v3.container,
-        instance,
-        "v3",
-        WHISPARR_ROOT,
-      );
-      await connectWhisparr(coveApi, whisparr, "v3");
+    await batchButton(page).click();
+    await expect(
+      chooserPanel(page),
+      "the Whisparr button did not reopen its chooser",
+    ).toBeVisible();
+    await chooserPanel(page)
+      .getByRole("menuitem", { name: SEARCH, exact: true })
+      .click({ timeout: ROW_BUDGET_MS });
 
-      const run = randomUUID().slice(0, 8);
-      const videos = [];
-      for (let index = 0; index < SEEDED_SCENES; index++) {
-        videos.push(await seedScene(coveApi, whisparr, index, run));
-      }
+    // The same overlay, reopened with the sentence and no row to choose.
+    await expect(
+      page.getByText(SEARCH_IS_OVER_THE_BOUND, { exact: false }),
+      "the refused row did not state the limit that applied in the overlay it was chosen in, so the outcome reached the reader somewhere else or nowhere",
+    ).toBeVisible({ timeout: ENQUEUE_BUDGET_MS });
+    await expect(
+      page.getByText(SELECTION_IS_OVER_THE_OTHER_BOUND, { exact: false }),
+      "the refusal names the other four rows' bound, so a reader refused at 100 is told about 1000",
+    ).toHaveCount(0);
+    expect(
+      alerts,
+      `the refusal reached the host's own alert, which shows the answer's raw text: ${JSON.stringify(alerts)}`,
+    ).toEqual([]);
 
-      await visit(page, baseUrl, "/videos", cardToggles(page).first(), "the videos page");
-      await selectFirstCards(page, SEEDED_SCENES, "the videos page");
+    await page
+      .getByRole("menuitem", { name: BULK_CLOSE, exact: true })
+      .click({ timeout: ROW_BUDGET_MS });
+    expect(
+      await selectedCount(page),
+      "the refusal cleared the selection, so a reader told to select fewer has nothing left to select fewer of",
+    ).toBe(SEEDED_SCENES);
 
-      // The assertion the whole spec exists for: the host matched the singular spelling its videos
-      // bar passes against the string this extension registered.
-      await expect(
-        batchButton(page),
-        `the videos selection bar carries no "${BATCH_BUTTON_LABEL}" button within ${String(BATCH_BUTTON_BUDGET_MS)}ms. ` +
-          "The host matches an action's declared entity types by literal membership against the spelling its bar passes, which is the SINGULAR for a video selection; a plural registration makes this button simply not appear, with no error anywhere.",
-      ).toBeVisible({ timeout: BATCH_BUTTON_BUDGET_MS });
-
-      // The locator v2's absence is read through, proven here on the generation
-      // that draws it. A locator that matched nothing would report an absence on both.
-      await expect(
-        contributedSelectionButtons(page),
-        "the host drew no contributed selection button on the generation that registers one, so the absence asserted on the other generation would prove nothing",
-      ).toHaveCount(1);
-
-      // The rows, read as an ordered list of the names they announce.
-      await batchButton(page).click();
-      await expect(
-        chooserPanel(page),
-        "the Whisparr button opened no chooser, so nothing below is about the rows",
-      ).toBeVisible();
-      const offered = await chooserPanel(page)
-        .getByRole("menuitem")
-        .evaluateAll((rows) => rows.map((row) => row.textContent?.trim()));
-      expect(
-        offered,
-        "the overlay does not offer the five rows in the order it promises: safest first, the only row that can download fourth, and the row that changes what Whisparr accepts in future last",
-      ).toEqual([...BATCH_ROW_LABELS, BULK_CANCEL]);
-
-      // One glyph and one name per row, and no paragraph anywhere inside the panel.
-      expect(
-        await chooserPanel(page).locator("p").count(),
-        "the chooser draws a paragraph, so a row states prose the panel is no longer meant to carry",
-      ).toBe(0);
-
-      // The cancel path, taken FIRST so the assertion that nothing was sent is made before this spec
-      // has sent anything at all.
-      await chooserPanel(page)
-        .getByRole("menuitem", { name: BULK_CANCEL, exact: true })
-        .click({ timeout: ROW_BUDGET_MS });
-      await expect(chooserPanel(page), "cancelling did not close the chooser").toBeHidden();
-      await page.waitForTimeout(CANCEL_DWELL_MS);
-      expect(
-        batchRequests,
-        "cancelling the chooser still reached the batch route, so leaving without choosing enqueues work nobody asked for",
-      ).toEqual([]);
-      expect(
-        await selectedCount(page),
-        "cancelling the chooser cleared the selection, so a reader who changed their mind has to make it again",
-      ).toBe(SEEDED_SCENES);
-
-      // The gesture itself, on the same selection.
-      //
-      // THE MONITOR ROW, and the reason is what the harness can seed. A scene's entry is written
-      // into the instance's own datastore, because adding one through its API resolves the
-      // identifier against the vendor's metadata service; so every scene this spec puts in front of
-      // the host is already held, and Add over a held scene is correctly refused with nothing sent.
-      // Monitor is the row whose effect this harness can both cause and read back off the instance.
-      await batchButton(page).click();
-      await expect(
-        chooserPanel(page),
-        "the Whisparr button did not reopen its chooser",
-      ).toBeVisible();
-      const enqueued = page.waitForResponse(
-        (response) => new URL(response.url()).pathname === BATCH_ROUTE,
-        { timeout: ENQUEUE_BUDGET_MS },
-      );
-      await chooserPanel(page)
-        .getByRole("menuitem", { name: MONITOR, exact: true })
-        .click({ timeout: ROW_BUDGET_MS });
-      const response = await enqueued;
-      expect(
-        response.status(),
-        `the batch route answered ${String(response.status())} rather than enqueueing`,
-      ).toBeLessThan(400);
-      expect(
-        batchRequests,
-        `the one gesture reached the batch route ${String(batchRequests.length)} time(s), so a selection enqueued more than one run`,
-      ).toEqual(["POST"]);
-
-      // Cove's own job drawer, which is where this extension says the answer appears.
-      //
-      // THE COUNTS ARE THE ENTRY'S OWN TALLIES, NOT A SENTENCE. Cove recomputes a unit-reporting
-      // job's summary from those tallies and mirrors it onto the sub-task, so this extension's
-      // composed line never reaches the drawer and hunting it here would be waiting for a string
-      // the host has already overwritten. The tallies are what a reader is shown.
-      const {
-        settled,
-        value: entry,
-        note,
-      } = await attemptUntil(
-        async (_signal, record) => {
-          const jobs = await ownJobs(coveApi);
-          record(JSON.stringify(jobs));
-          const batch = jobs.filter((job) => job.type === SCENE_BATCH_JOB_TYPE);
-          const reported = batch.find((job) => job.status === "completed");
-          return reported === undefined ? null : { value: { batch, reported } };
-        },
-        { timeoutMs: JOB_BUDGET_MS, intervalMs: 1_000, label: "scene batch job" },
-      );
-      expect(
-        settled,
-        `no scene batch run completed in the host's job drawer within ${String(JOB_BUDGET_MS)}ms; the drawer last held ${note}`,
-      ).toBe(true);
-      expect(
-        entry.batch.length,
-        `the one gesture over ${String(SEEDED_SCENES)} scenes produced ${String(entry.batch.length)} run(s) in the drawer`,
-      ).toBe(1);
-
-      expect(
-        {
-          total: entry.reported.unitsTotal,
-          succeeded: entry.reported.unitsSucceeded,
-          failed: entry.reported.unitsFailed,
-          skipped: entry.reported.unitsSkipped,
-        },
-        `the run reported ${JSON.stringify(entry.reported)}, so the gesture did not reach every selected scene`,
-      ).toEqual({ total: SEEDED_SCENES, succeeded: SEEDED_SCENES, failed: 0, skipped: 0 });
-
-      // NOTHING THE READER IS SHOWN GROWS WITH THE SELECTION, asserted on the whole of the
-      // extension's own line and on the absence of the scenes' own names.
-      //
-      // A Cove id is not what is looked for here: an id of a digit or two is a substring of the
-      // selected count, of the run's own timestamps and of its id, so a substring hunt for one
-      // reports a line that names nothing. A seeded title is unambiguous, and a line that listed
-      // what a run did would carry them.
-      expect(
-        entry.reported.description,
-        "the run's description is not the fixed sentence this extension composes, so what a reader is shown is derived from the selection itself",
-      ).toBe(`[Whisparr Sync] Scenes, ${String(SEEDED_SCENES)} selected`);
-      for (const video of videos) {
-        const naming = READER_FACING_STRINGS.filter((key) =>
-          String(entry.reported[key] ?? "").includes(video.title),
-        );
-        expect(
-          naming,
-          `the drawer entry names the scene "${video.title}" in ${naming.join(", ")}, so what it reports grows with the selection`,
-        ).toEqual([]);
-      }
-
-      // What the instance holds, which is the assertion the container is here for. A count read off
-      // the run's own answer agrees with itself whether or not anything reached Whisparr.
-      for (const video of videos) {
-        expect(
-          await monitoredOnInstance(instance, video.remoteId),
-          `after the batch gesture the instance does not report the scene behind Cove video ${String(video.id)} as monitored, so the run's count is not a read of what Whisparr does`,
-        ).toBe(true);
-      }
-
-      // The refusal, against the answer the route itself gives above the search row's bound. See the
-      // header: the bound is 100 scenes and this harness seeds two, so the selection that reaches it
-      // cannot be made by clicking.
-      await page.route(`**${BATCH_ROUTE}`, async (route) => {
-        await route.fulfill({
-          status: 400,
-          contentType: "application/json",
-          body: OVER_THE_SEARCH_BOUND,
-        });
-      });
-
-      await batchButton(page).click();
-      await expect(
-        chooserPanel(page),
-        "the Whisparr button did not reopen its chooser",
-      ).toBeVisible();
-      await chooserPanel(page)
-        .getByRole("menuitem", { name: SEARCH, exact: true })
-        .click({ timeout: ROW_BUDGET_MS });
-
-      // The same overlay, reopened with the sentence and no row to choose.
-      await expect(
-        page.getByText(SEARCH_IS_OVER_THE_BOUND, { exact: false }),
-        "the refused row did not state the limit that applied in the overlay it was chosen in, so the outcome reached the reader somewhere else or nowhere",
-      ).toBeVisible({ timeout: ENQUEUE_BUDGET_MS });
-      await expect(
-        page.getByText(SELECTION_IS_OVER_THE_OTHER_BOUND, { exact: false }),
-        "the refusal names the other four rows' bound, so a reader refused at 100 is told about 1000",
-      ).toHaveCount(0);
-      expect(
-        alerts,
-        `the refusal reached the host's own alert, which shows the answer's raw text: ${JSON.stringify(alerts)}`,
-      ).toEqual([]);
-
-      await page
-        .getByRole("menuitem", { name: BULK_CLOSE, exact: true })
-        .click({ timeout: ROW_BUDGET_MS });
-      expect(
-        await selectedCount(page),
-        "the refusal cleared the selection, so a reader told to select fewer has nothing left to select fewer of",
-      ).toBe(SEEDED_SCENES);
-
-      // And nothing acquisitive was started by any of it, watched over the same named window its
-      // siblings use rather than read the moment the last assertion returned.
-      await page.unroute(`**${BATCH_ROUTE}`);
-      await page.waitForTimeout(SETTLE_DWELL_MS);
-      const after = await whisparrActivity(instance);
-      expect(
-        after.commandNames.filter((name) => SEARCH_COMMAND.test(name)),
-        `the instance's command roster holds a searching command after this spec ran. The whole roster was ${JSON.stringify(after.commandNames)}`,
-      ).toEqual([]);
-    } finally {
-      await whisparr.stop();
-    }
+    // And nothing acquisitive was started by any of it, watched over the same named window its
+    // siblings use rather than read the moment the last assertion returned.
+    await page.unroute(`**${BATCH_ROUTE}`);
+    await page.waitForTimeout(SETTLE_DWELL_MS);
+    const after = await whisparrActivity(instance);
+    expect(
+      after.commandNames.filter((name) => SEARCH_COMMAND.test(name)),
+      `the instance's command roster holds a searching command after this spec ran. The whole roster was ${JSON.stringify(after.commandNames)}`,
+    ).toEqual([]);
   });
 
-  test("v2 draws no Whisparr button on the videos selection bar, and no wrapper for one either", async ({
-    page,
-    baseUrl,
-    batchHarness,
-  }) => {
-    test.setTimeout(900_000);
+  // Its own block, so this execution starts the older generation's container and not the
+  // newer one's.
+  test.describe("the older generation", () => {
+    test.use({ generation: "v2" });
 
-    const coveApi = createApiClient(
-      () => batchHarness.baseUrl,
-      () => batchHarness.token,
-    );
-
-    const whisparr = await startWhisparr({
-      network: batchHarness.container.getNetworkNames()[0],
-      generations: ["v2"],
-    });
-
-    try {
-      await connectWhisparr(coveApi, whisparr, "v2");
+    test("v2 draws no Whisparr button on the videos selection bar, and no wrapper for one either", async ({
+      page,
+      baseUrl,
+      connected,
+    }) => {
+      const { api: coveApi } = connected;
 
       // No entry on the instance and none needed. Nothing is asked of it on this generation, and a
       // seeded entry would make an absent button look like a button with nothing to say.
@@ -553,8 +500,6 @@ test.describe("scene batch", () => {
         contributedSelectionButtons(page),
         "the host drew its own button for a contributed selection action, so this surface renders empty rather than being absent",
       ).toHaveCount(0);
-    } finally {
-      await whisparr.stop();
-    }
+    });
   });
 });

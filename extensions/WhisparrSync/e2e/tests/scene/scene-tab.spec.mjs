@@ -28,24 +28,19 @@
 // IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
-import { createApiClient } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
-import { visit } from "../../lib/steps.mjs";
 
 import {
-  test as base,
-  connectWhisparr,
   expect,
   EXTENSION_ID,
   seedCoveVideo,
   SETTLE_DWELL_MS,
+  SPEC_BUDGET_MS,
   STASHDB_ENDPOINT,
+  test,
   whisparrActivity,
-  WHISPARR_ROOT,
-  WHISPARR_SYNC_EXTENSION,
-} from "../../lib/whisparr-sync-fixtures.mjs";
+} from "../../lib/connected-fixture.mjs";
+import { visit } from "../../lib/steps.mjs";
 
 // The tab's label, transcribed by hand from the manifest that advertises it. A spec importing the
 // same constant the manifest declares would be asserting that a string equals itself.
@@ -103,27 +98,8 @@ const SEARCH_IS_WITH_WHISPARR = "Whisparr has the search.";
 const TAB_BUDGET_MS = 30_000;
 const REGION_BUDGET_MS = 90_000;
 
-const test = base.extend({
-  sceneHarness: [
-    async ({}, use) => {
-      const harness = await startHarness();
-      try {
-        harness.owner = await harness.bootstrapOwner();
-        await harness.installExtension(WHISPARR_SYNC_EXTENSION);
-        await use(harness);
-      } finally {
-        await harness.stop();
-      }
-    },
-    { scope: "test" },
-  ],
-
-  // Read through the handle AFTER the install. The install restarts the container, which re-mints
-  // the token and can republish the instance on a different host port.
-  baseUrl: async ({ sceneHarness }, use) => {
-    await use(sceneHarness.baseUrl);
-  },
-});
+test.describe.configure({ timeout: SPEC_BUDGET_MS });
+test.use({ generation: "v3" });
 
 /** The tab, by the only name the host draws it under. */
 const whisparrTab = (page) => page.getByRole("tab", { name: TAB_LABEL, exact: true }).first();
@@ -538,15 +514,8 @@ function differingPaths(before, after, path = "") {
 }
 
 test.describe("scene tab", () => {
-  test("states the state Whisparr holds for the scene", async ({ page, baseUrl, sceneHarness }) => {
-    // A container pair, an extension install, a browser and a real instance. Well above the shared
-    // per-test budget, and deliberately its own number rather than a raised default for every spec.
-    test.setTimeout(900_000);
-
-    const coveApi = createApiClient(
-      () => sceneHarness.baseUrl,
-      () => sceneHarness.token,
-    );
+  test("states the state Whisparr holds for the scene", async ({ page, baseUrl, connected }) => {
+    const { api: coveApi, whisparr } = connected;
 
     // Everything the browser reported, so a bundle-load throw is named by this spec rather than
     // left as a blank region someone has to go and explain.
@@ -558,153 +527,128 @@ test.describe("scene tab", () => {
       consoleErrors.push(String(failure));
     });
 
-    const whisparr = await startWhisparr({
-      network: sceneHarness.container.getNetworkNames()[0],
-      generations: ["v3"],
-    });
+    const scene = await seedScene(coveApi, whisparr, { label: "Held", monitored: true });
 
-    try {
-      whisparr.v3.rootFolder = await registerRootFolder(
-        whisparr.v3.container,
-        whisparr.apiFor("v3"),
-        "v3",
-        WHISPARR_ROOT,
-      );
-      await connectWhisparr(coveApi, whisparr, "v3");
-
-      const scene = await seedScene(coveApi, whisparr, { label: "Held", monitored: true });
-
-      await visit(
-        page,
-        baseUrl,
-        `/video/${String(scene.id)}`,
-        hostDetailTabs(page),
-        "the video detail page",
-      );
-
-      // The host wires its own tab list per page type and adds the extension tabs the manifest
-      // declares, so an absent tab here is this extension's registration rather than the host's
-      // reach.
-      await expect(
-        whisparrTab(page),
-        `the video detail page: the host drew its own detail tabs and no ${TAB_LABEL} tab, so this extension's tab registration did not reach the manifest the host served.`,
-      ).toBeVisible({ timeout: TAB_BUDGET_MS });
-
-      await whisparrTab(page).click();
-
-      await expect(
-        sceneHeader(page),
-        "the tab mounted and drew no header. A blank region is what a wrong component-map key looks like: it resolves to nothing, renders nothing and reports nothing.",
-      ).toBeVisible({ timeout: REGION_BUDGET_MS });
-
-      await expect(
-        stateChip(page),
-        `the tab drew no state chip reading "${scene.statedAs}", which is what the instance itself answered for the seeded scene`,
-      ).toHaveText(new RegExp(`${scene.statedAs}$`), { timeout: REGION_BUDGET_MS });
-
-      // A LONG NAME THE INSTANCE SUPPLIED, IN THE SAME CONTAINER. Its own test would need a second
-      // Cove, a second install, a second browser and a second Whisparr for one page read, which is
-      // the cost the five-case test below is batched to avoid.
-      //
-      // MEASURED, NOT INSPECTED. The value element carries `truncate` and a `title`, and neither
-      // says whether the text overflows its own box or whether the block grew to fit it. Both are
-      // layout reads: text wider than its box, and a block no wider than the column it sits in and
-      // no wider than the same block with a short value.
-      expect(
-        [LONG_PROFILE_NAME.length, LONG_CUTOFF_GROUP_NAME.length].every(
-          (length) => length >= LONG_NAME_FLOOR,
-        ),
-        `the names driven here are ${String(LONG_PROFILE_NAME.length)} and ${String(LONG_CUTOFF_GROUP_NAME.length)} characters, under the ${String(LONG_NAME_FLOOR)} this measurement needs to be about truncation at all`,
-      ).toBe(true);
-
-      // ONE SCENE, READ TWICE. The profile is renamed between the two readings rather than a second
-      // scene being seeded under a second profile: the width of the host's content column follows
-      // the page it is on, so two pages cannot tell a block widened by a value from a block sitting
-      // in a wider column. Same video, same tab, same two viewports, and the instance's answer is
-      // the only thing that differs.
-      const instance = whisparr.apiFor("v3");
-      const profileId = await seedProfile(instance, {
-        profileName: SHORT_PROFILE_NAME,
-        groupName: SHORT_CUTOFF_GROUP_NAME,
-      });
-      const measured = await seedScene(coveApi, whisparr, {
-        label: "Named",
-        monitored: true,
-        qualityProfileId: profileId,
-      });
-      const measuredPath = `/video/${String(measured.id)}`;
-
-      const short = await factBlockOnPage(
-        page,
-        baseUrl,
-        measuredPath,
-        SHORT_PROFILE_NAME,
-        "the fact block with the short names",
-      );
-      expectShortNamesFit(short.wide, "at 1280");
-      expectShortNamesFit(short.narrow, "at 360");
-
-      await renameProfile(instance, profileId, {
-        profileName: LONG_PROFILE_NAME,
-        groupName: LONG_CUTOFF_GROUP_NAME,
-      });
-      const long = await factBlockOnPage(
-        page,
-        baseUrl,
-        measuredPath,
-        LONG_PROFILE_NAME,
-        "the fact block with the long names",
-      );
-
-      expectLongNamesTruncate(long.wide, short.wide, "at 1280");
-      expectLongNamesTruncate(long.narrow, short.narrow, "at 360");
-
-      // The Quality row's own value is out of a reader's reach: it is the name of the file's
-      // quality, and the instance's quality vocabulary is fixed. Asserted so a build that made it
-      // unbounded is not left measured by a value that no longer bounds it.
-      const vocabulary = await instance.get("/api/v3/qualitydefinition");
-      const longestQualityName = (vocabulary.json ?? [])
-        .map((definition) => definition.quality?.name ?? "")
-        .reduce((longest, name) => (name.length > longest.length ? name : longest), "");
-      expect(
-        longestQualityName.length,
-        `the instance's longest quality name is now "${longestQualityName}" at ${String(longestQualityName.length)} characters, so the Quality row can carry a name this measurement never drove through it`,
-      ).toBeLessThan(LONG_NAME_FLOOR);
-
-      // Does NOT depend on the tab rendering. A wrong export name throws an ESM SyntaxError at
-      // bundle load, and the host loads every extension bundle under one promise, so that one throw
-      // takes down every extension surface on the page with no build failure anywhere.
-      const loadFailures = consoleErrors.filter((line) =>
-        /SyntaxError|component not found|does not provide an export/i.test(line),
-      );
-      expect(
-        loadFailures,
-        `the browser reported a bundle-load failure: ${loadFailures.join(" | ")}`,
-      ).toEqual([]);
-    } finally {
-      await whisparr.stop();
-    }
-  });
-
-  test("v2 draws no scene tab, and no wrapper for one either", async ({
-    page,
-    baseUrl,
-    sceneHarness,
-  }) => {
-    test.setTimeout(900_000);
-
-    const coveApi = createApiClient(
-      () => sceneHarness.baseUrl,
-      () => sceneHarness.token,
+    await visit(
+      page,
+      baseUrl,
+      `/video/${String(scene.id)}`,
+      hostDetailTabs(page),
+      "the video detail page",
     );
 
-    const whisparr = await startWhisparr({
-      network: sceneHarness.container.getNetworkNames()[0],
-      generations: ["v2"],
-    });
+    // The host wires its own tab list per page type and adds the extension tabs the manifest
+    // declares, so an absent tab here is this extension's registration rather than the host's
+    // reach.
+    await expect(
+      whisparrTab(page),
+      `the video detail page: the host drew its own detail tabs and no ${TAB_LABEL} tab, so this extension's tab registration did not reach the manifest the host served.`,
+    ).toBeVisible({ timeout: TAB_BUDGET_MS });
 
-    try {
-      await connectWhisparr(coveApi, whisparr, "v2");
+    await whisparrTab(page).click();
+
+    await expect(
+      sceneHeader(page),
+      "the tab mounted and drew no header. A blank region is what a wrong component-map key looks like: it resolves to nothing, renders nothing and reports nothing.",
+    ).toBeVisible({ timeout: REGION_BUDGET_MS });
+
+    await expect(
+      stateChip(page),
+      `the tab drew no state chip reading "${scene.statedAs}", which is what the instance itself answered for the seeded scene`,
+    ).toHaveText(new RegExp(`${scene.statedAs}$`), { timeout: REGION_BUDGET_MS });
+
+    // A LONG NAME THE INSTANCE SUPPLIED, IN THE SAME CONTAINER. Its own test would need a second
+    // Cove, a second install, a second browser and a second Whisparr for one page read, which is
+    // the cost the five-case test below is batched to avoid.
+    //
+    // MEASURED, NOT INSPECTED. The value element carries `truncate` and a `title`, and neither
+    // says whether the text overflows its own box or whether the block grew to fit it. Both are
+    // layout reads: text wider than its box, and a block no wider than the column it sits in and
+    // no wider than the same block with a short value.
+    expect(
+      [LONG_PROFILE_NAME.length, LONG_CUTOFF_GROUP_NAME.length].every(
+        (length) => length >= LONG_NAME_FLOOR,
+      ),
+      `the names driven here are ${String(LONG_PROFILE_NAME.length)} and ${String(LONG_CUTOFF_GROUP_NAME.length)} characters, under the ${String(LONG_NAME_FLOOR)} this measurement needs to be about truncation at all`,
+    ).toBe(true);
+
+    // ONE SCENE, READ TWICE. The profile is renamed between the two readings rather than a second
+    // scene being seeded under a second profile: the width of the host's content column follows
+    // the page it is on, so two pages cannot tell a block widened by a value from a block sitting
+    // in a wider column. Same video, same tab, same two viewports, and the instance's answer is
+    // the only thing that differs.
+    const instance = whisparr.apiFor("v3");
+    const profileId = await seedProfile(instance, {
+      profileName: SHORT_PROFILE_NAME,
+      groupName: SHORT_CUTOFF_GROUP_NAME,
+    });
+    const measured = await seedScene(coveApi, whisparr, {
+      label: "Named",
+      monitored: true,
+      qualityProfileId: profileId,
+    });
+    const measuredPath = `/video/${String(measured.id)}`;
+
+    const short = await factBlockOnPage(
+      page,
+      baseUrl,
+      measuredPath,
+      SHORT_PROFILE_NAME,
+      "the fact block with the short names",
+    );
+    expectShortNamesFit(short.wide, "at 1280");
+    expectShortNamesFit(short.narrow, "at 360");
+
+    await renameProfile(instance, profileId, {
+      profileName: LONG_PROFILE_NAME,
+      groupName: LONG_CUTOFF_GROUP_NAME,
+    });
+    const long = await factBlockOnPage(
+      page,
+      baseUrl,
+      measuredPath,
+      LONG_PROFILE_NAME,
+      "the fact block with the long names",
+    );
+
+    expectLongNamesTruncate(long.wide, short.wide, "at 1280");
+    expectLongNamesTruncate(long.narrow, short.narrow, "at 360");
+
+    // The Quality row's own value is out of a reader's reach: it is the name of the file's
+    // quality, and the instance's quality vocabulary is fixed. Asserted so a build that made it
+    // unbounded is not left measured by a value that no longer bounds it.
+    const vocabulary = await instance.get("/api/v3/qualitydefinition");
+    const longestQualityName = (vocabulary.json ?? [])
+      .map((definition) => definition.quality?.name ?? "")
+      .reduce((longest, name) => (name.length > longest.length ? name : longest), "");
+    expect(
+      longestQualityName.length,
+      `the instance's longest quality name is now "${longestQualityName}" at ${String(longestQualityName.length)} characters, so the Quality row can carry a name this measurement never drove through it`,
+    ).toBeLessThan(LONG_NAME_FLOOR);
+
+    // Does NOT depend on the tab rendering. A wrong export name throws an ESM SyntaxError at
+    // bundle load, and the host loads every extension bundle under one promise, so that one throw
+    // takes down every extension surface on the page with no build failure anywhere.
+    const loadFailures = consoleErrors.filter((line) =>
+      /SyntaxError|component not found|does not provide an export/i.test(line),
+    );
+    expect(
+      loadFailures,
+      `the browser reported a bundle-load failure: ${loadFailures.join(" | ")}`,
+    ).toEqual([]);
+  });
+
+  // Its own block, so this execution starts the older generation's container and not the
+  // newer one's.
+  test.describe("the older generation", () => {
+    test.use({ generation: "v2" });
+
+    test("v2 draws no scene tab, and no wrapper for one either", async ({
+      page,
+      baseUrl,
+      connected,
+    }) => {
+      const { api: coveApi } = connected;
 
       // No entry on the instance and none needed. Nothing is asked of it on this generation, and a
       // seeded entry would make an absent tab look like a tab with nothing to say.
@@ -739,9 +683,7 @@ test.describe("scene tab", () => {
         unresolvedExtensionComponent(page),
         "the host drew its placeholder for a contributed tab it could not resolve, so a tab surface renders empty rather than being absent",
       ).toHaveCount(0);
-    } finally {
-      await whisparr.stop();
-    }
+    });
   });
 
   // FIVE CASES IN ONE TEST, and the reason is cost rather than convenience. Each case needs a Cove
@@ -756,14 +698,9 @@ test.describe("scene tab", () => {
   test("controls: add, monitor, search now and exclude, driven against the instance", async ({
     page,
     baseUrl,
-    sceneHarness,
+    connected,
   }) => {
-    test.setTimeout(900_000);
-
-    const coveApi = createApiClient(
-      () => sceneHarness.baseUrl,
-      () => sceneHarness.token,
-    );
+    const { api: coveApi, whisparr } = connected;
 
     // Registered before the first press. No control on this tab asks for confirmation, so a dialog
     // opening at all is the failure; dismissing it keeps the run from hanging on the way to saying
@@ -774,163 +711,147 @@ test.describe("scene tab", () => {
       await dialog.dismiss();
     });
 
-    const whisparr = await startWhisparr({
-      network: sceneHarness.container.getNetworkNames()[0],
-      generations: ["v3"],
+    const instance = whisparr.apiFor("v3");
+
+    // CASE 1. Add, on a scene the instance holds no entry for. The Cove video carries an identity
+    // row and the instance carries nothing for it, which is the only state the add control is
+    // offered in.
+    const absentRemoteId = randomUUID();
+    const absent = await seedCoveVideo(coveApi, {
+      title: `Absent ${absentRemoteId.slice(0, 8)}`,
+      remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: absentRemoteId }],
     });
 
-    try {
-      whisparr.v3.rootFolder = await registerRootFolder(
-        whisparr.v3.container,
-        whisparr.apiFor("v3"),
-        "v3",
-        WHISPARR_ROOT,
-      );
-      await connectWhisparr(coveApi, whisparr, "v3");
-      const instance = whisparr.apiFor("v3");
+    await visit(
+      page,
+      baseUrl,
+      `/video/${String(absent.id)}`,
+      hostDetailTabs(page),
+      "the video detail page for a scene the instance does not hold",
+    );
+    await expect(whisparrTab(page)).toBeVisible({ timeout: TAB_BUDGET_MS });
+    await whisparrTab(page).click();
+    await expect(sceneHeader(page)).toBeVisible({
+      timeout: REGION_BUDGET_MS,
+    });
 
-      // CASE 1. Add, on a scene the instance holds no entry for. The Cove video carries an identity
-      // row and the instance carries nothing for it, which is the only state the add control is
-      // offered in.
-      const absentRemoteId = randomUUID();
-      const absent = await seedCoveVideo(coveApi, {
-        title: `Absent ${absentRemoteId.slice(0, 8)}`,
-        remoteIds: [{ endpoint: STASHDB_ENDPOINT, remoteId: absentRemoteId }],
-      });
-
-      await visit(
-        page,
-        baseUrl,
-        `/video/${String(absent.id)}`,
-        hostDetailTabs(page),
-        "the video detail page for a scene the instance does not hold",
-      );
-      await expect(whisparrTab(page)).toBeVisible({ timeout: TAB_BUDGET_MS });
-      await whisparrTab(page).click();
-      await expect(sceneHeader(page)).toBeVisible({
-        timeout: REGION_BUDGET_MS,
-      });
-
-      // The three controls this state stops each announce their own name first and their reason
-      // after it. A control whose name was lost still carries its reason, so the reason alone
-      // proves nothing.
-      for (const label of [MONITOR, SEARCH]) {
-        await expect(
-          sceneControl(page, label),
-          `${label} is unavailable on a scene the instance does not hold and did not announce itself by name`,
-        ).toBeDisabled();
-      }
-      await expect(sceneControl(page, ADD)).toBeEnabled();
-
-      // An enabled control announces its own name and nothing after it, so an exact match finds
-      // it. A control carrying a reason it is not disabled for would fail this and pass the
-      // anchored match above.
-      for (const label of [ADD, EXCLUDE]) {
-        await expect(
-          page.getByRole("button", { name: label, exact: true }),
-          `${label} is available and announces something beyond its own name`,
-        ).toBeEnabled();
-      }
-
-      await sceneControl(page, ADD).click();
-      await chipAgreesWithInstance(page, instance, absentRemoteId, "after Add");
-
-      // CASE 2. Monitor, on a scene the instance holds and is not monitoring. The instance's answer
-      // before the press is recorded, so the assertion is that the press moved it rather than that
-      // it landed on a value this test named.
-      const held = await seedScene(coveApi, whisparr, { label: "Held", monitored: false });
-      await visit(
-        page,
-        baseUrl,
-        `/video/${String(held.id)}`,
-        hostDetailTabs(page),
-        "the video detail page for a scene the instance holds",
-      );
-      await expect(whisparrTab(page)).toBeVisible({ timeout: TAB_BUDGET_MS });
-      await whisparrTab(page).click();
-      await chipAgreesWithInstance(page, instance, held.remoteId, "before Monitor");
-
-      const beforeMonitor = await stateOnInstance(instance, held.remoteId);
-      // The whole resource, not the flag. The composed body carries one member and a unit test pins
-      // that; what the instance does with the members the body leaves out is a fact about the
-      // instance, and only a read of everything it holds before and after can report it.
-      const resourceBefore = await sceneResource(instance, held.remoteId, "before Monitor");
-      await sceneControl(page, MONITOR).click();
-      await expect(sceneControl(page, STOP_MONITORING)).toBeVisible({
-        timeout: REGION_BUDGET_MS,
-      });
-      const afterMonitor = await chipAgreesWithInstance(
-        page,
-        instance,
-        held.remoteId,
-        "after Monitor",
-      );
-      expect(
-        afterMonitor,
-        "the instance answers the same state before and after the press, so nothing reached it",
-      ).not.toBe(beforeMonitor);
-
-      const resourceAfter = await sceneResource(instance, held.remoteId, "after Monitor");
-      const moved = differingPaths(resourceBefore, resourceAfter);
-      expect(
-        moved,
-        `the press moved ${moved.join(", ")} on the instance. Setting the monitored flag is meant to leave every other field the instance holds exactly as it was.`,
-      ).toEqual(["monitored"]);
-
-      // CASE 3. Search now, on the monitored scene. The tab is asserted to state that the instance
-      // holds the command, and nothing about a file, a queue or a download: confirming receipt is
-      // all the read behind that sentence establishes.
-      await sceneControl(page, SEARCH).click();
+    // The three controls this state stops each announce their own name first and their reason
+    // after it. A control whose name was lost still carries its reason, so the reason alone
+    // proves nothing.
+    for (const label of [MONITOR, SEARCH]) {
       await expect(
-        page.getByText(SEARCH_IS_WITH_WHISPARR, { exact: false }),
-        "the tab said nothing after a search, so a reader has no way to know the instance took it",
-      ).toBeVisible({ timeout: REGION_BUDGET_MS });
-
-      const activity = await whisparrActivity(instance);
-      expect(
-        activity.commandNames.some((name) => /search/i.test(name)),
-        `the instance's own command roster names no search after the press: ${activity.commandNames.join(", ")}`,
-      ).toBe(true);
-
-      // CASE 4. Exclude, and CASE 5, its return leg. One control with two labels, so a reader who
-      // excludes the wrong scene fixes it where they broke it.
-      await sceneControl(page, EXCLUDE).click();
-      await expect(
-        sceneControl(page, REMOVE_EXCLUSION),
-        "the exclusion control kept its adding label, so the tab offers no way back from the press",
-      ).toBeVisible({ timeout: REGION_BUDGET_MS });
-      const afterExclude = await chipAgreesWithInstance(
-        page,
-        instance,
-        held.remoteId,
-        "after Exclude",
-      );
-      expect(afterExclude).not.toBe(afterMonitor);
-
-      await sceneControl(page, REMOVE_EXCLUSION).click();
-      await expect(
-        sceneControl(page, EXCLUDE),
-        "the control did not return to its adding label, so the toggle only goes one way",
-      ).toBeVisible({ timeout: REGION_BUDGET_MS });
-      const afterReturn = await chipAgreesWithInstance(
-        page,
-        instance,
-        held.remoteId,
-        "after Remove exclusion",
-      );
-      expect(afterReturn, "removing the exclusion left the scene reading as excluded").not.toBe(
-        afterExclude,
-      );
-
-      // Watched for as long as an absence is watched for anywhere here: a dialog that has not been
-      // raised yet is indistinguishable from one that never will be.
-      await page.waitForTimeout(SETTLE_DWELL_MS);
-      expect(
-        dialogs,
-        `a native browser dialog opened during a press: ${dialogs.join(", ")}. No control on this tab asks for confirmation.`,
-      ).toEqual([]);
-    } finally {
-      await whisparr.stop();
+        sceneControl(page, label),
+        `${label} is unavailable on a scene the instance does not hold and did not announce itself by name`,
+      ).toBeDisabled();
     }
+    await expect(sceneControl(page, ADD)).toBeEnabled();
+
+    // An enabled control announces its own name and nothing after it, so an exact match finds
+    // it. A control carrying a reason it is not disabled for would fail this and pass the
+    // anchored match above.
+    for (const label of [ADD, EXCLUDE]) {
+      await expect(
+        page.getByRole("button", { name: label, exact: true }),
+        `${label} is available and announces something beyond its own name`,
+      ).toBeEnabled();
+    }
+
+    await sceneControl(page, ADD).click();
+    await chipAgreesWithInstance(page, instance, absentRemoteId, "after Add");
+
+    // CASE 2. Monitor, on a scene the instance holds and is not monitoring. The instance's answer
+    // before the press is recorded, so the assertion is that the press moved it rather than that
+    // it landed on a value this test named.
+    const held = await seedScene(coveApi, whisparr, { label: "Held", monitored: false });
+    await visit(
+      page,
+      baseUrl,
+      `/video/${String(held.id)}`,
+      hostDetailTabs(page),
+      "the video detail page for a scene the instance holds",
+    );
+    await expect(whisparrTab(page)).toBeVisible({ timeout: TAB_BUDGET_MS });
+    await whisparrTab(page).click();
+    await chipAgreesWithInstance(page, instance, held.remoteId, "before Monitor");
+
+    const beforeMonitor = await stateOnInstance(instance, held.remoteId);
+    // The whole resource, not the flag. The composed body carries one member and a unit test pins
+    // that; what the instance does with the members the body leaves out is a fact about the
+    // instance, and only a read of everything it holds before and after can report it.
+    const resourceBefore = await sceneResource(instance, held.remoteId, "before Monitor");
+    await sceneControl(page, MONITOR).click();
+    await expect(sceneControl(page, STOP_MONITORING)).toBeVisible({
+      timeout: REGION_BUDGET_MS,
+    });
+    const afterMonitor = await chipAgreesWithInstance(
+      page,
+      instance,
+      held.remoteId,
+      "after Monitor",
+    );
+    expect(
+      afterMonitor,
+      "the instance answers the same state before and after the press, so nothing reached it",
+    ).not.toBe(beforeMonitor);
+
+    const resourceAfter = await sceneResource(instance, held.remoteId, "after Monitor");
+    const moved = differingPaths(resourceBefore, resourceAfter);
+    expect(
+      moved,
+      `the press moved ${moved.join(", ")} on the instance. Setting the monitored flag is meant to leave every other field the instance holds exactly as it was.`,
+    ).toEqual(["monitored"]);
+
+    // CASE 3. Search now, on the monitored scene. The tab is asserted to state that the instance
+    // holds the command, and nothing about a file, a queue or a download: confirming receipt is
+    // all the read behind that sentence establishes.
+    await sceneControl(page, SEARCH).click();
+    await expect(
+      page.getByText(SEARCH_IS_WITH_WHISPARR, { exact: false }),
+      "the tab said nothing after a search, so a reader has no way to know the instance took it",
+    ).toBeVisible({ timeout: REGION_BUDGET_MS });
+
+    const activity = await whisparrActivity(instance);
+    expect(
+      activity.commandNames.some((name) => /search/i.test(name)),
+      `the instance's own command roster names no search after the press: ${activity.commandNames.join(", ")}`,
+    ).toBe(true);
+
+    // CASE 4. Exclude, and CASE 5, its return leg. One control with two labels, so a reader who
+    // excludes the wrong scene fixes it where they broke it.
+    await sceneControl(page, EXCLUDE).click();
+    await expect(
+      sceneControl(page, REMOVE_EXCLUSION),
+      "the exclusion control kept its adding label, so the tab offers no way back from the press",
+    ).toBeVisible({ timeout: REGION_BUDGET_MS });
+    const afterExclude = await chipAgreesWithInstance(
+      page,
+      instance,
+      held.remoteId,
+      "after Exclude",
+    );
+    expect(afterExclude).not.toBe(afterMonitor);
+
+    await sceneControl(page, REMOVE_EXCLUSION).click();
+    await expect(
+      sceneControl(page, EXCLUDE),
+      "the control did not return to its adding label, so the toggle only goes one way",
+    ).toBeVisible({ timeout: REGION_BUDGET_MS });
+    const afterReturn = await chipAgreesWithInstance(
+      page,
+      instance,
+      held.remoteId,
+      "after Remove exclusion",
+    );
+    expect(afterReturn, "removing the exclusion left the scene reading as excluded").not.toBe(
+      afterExclude,
+    );
+
+    // Watched for as long as an absence is watched for anywhere here: a dialog that has not been
+    // raised yet is indistinguishable from one that never will be.
+    await page.waitForTimeout(SETTLE_DWELL_MS);
+    expect(
+      dialogs,
+      `a native browser dialog opened during a press: ${dialogs.join(", ")}. No control on this tab asks for confirmation.`,
+    ).toEqual([]);
   });
 });
