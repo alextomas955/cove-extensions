@@ -11,6 +11,7 @@ using WhisparrSync.Library;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
+using WhisparrSync.Providers;
 using WhisparrSync.Scene;
 using WhisparrSync.Whisparr;
 using CoreJobProgress = Cove.Core.Interfaces.IJobProgress;
@@ -320,7 +321,8 @@ public sealed partial class WhisparrSync
                             SyncRegisters.Sites,
                             RegisterScene: null,
                             registerSite,
-                            Monitor: null)
+                            Monitor: null,
+                            ComposeSiteSceneMonitor(services, batch, target))
                         : null,
 
                 _ => null,
@@ -402,6 +404,70 @@ public sealed partial class WhisparrSync
             siteCt);
     }
 
+    /// <summary>
+    /// How the scenes a reader owns on one registered site are marked wanted, or null where nothing
+    /// marks them.
+    /// </summary>
+    /// <remarks>
+    /// Null unless the reader asked, the generation registers both the row read and the per-scene
+    /// monitor, and the connected metadata provider issues a number to address a scene by. With it
+    /// null the run registers its sites and makes no provider read and no row read at all, so the
+    /// whole cost of monitoring is paid only where it was asked for.
+    /// <para>
+    /// The provider's resolving role is obtained ONCE HERE rather than once per scene. A provider
+    /// that issues no such number would otherwise be asked again for every scene in the library and
+    /// refused every time, and the one line saying why nothing was monitored would be written per
+    /// scene instead of per run.
+    /// </para>
+    /// <para>
+    /// Every role is obtained by name and none is chosen by comparing a version. The scene stream is
+    /// resolved out of the run's own elevated services, because Cove's per-principal query filters
+    /// answer an anonymous reader with zero rows and no error - which here would monitor nothing
+    /// while reporting a library that holds nothing.
+    /// </para>
+    /// </remarks>
+    private Func<LibrarySiteIdentity, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>?
+        ComposeSiteSceneMonitor(
+            IServiceProvider services, SyncLibraryBatch batch, MonitoringTarget target)
+    {
+        if (!batch.AlsoMonitor
+            || target.Capabilities.Obtain<IWhisparrSceneMonitorActing>()
+                .Match<IWhisparrSceneMonitorActing?>(held => held, _ => null) is not { } monitoring
+            || target.Capabilities.Obtain<IWhisparrSiteSceneReading>()
+                .Match<IWhisparrSiteSceneReading?>(held => held, _ => null) is not { } rows)
+        {
+            return null;
+        }
+
+        var catalogue = services.GetRequiredService<IProviderCatalogue>();
+        if (!catalogue.Capabilities.Obtain<IResolvesNumericSceneId>().Match(_ => true, _ => false))
+        {
+            WhisparrSyncLog.NoSceneNumberingToMonitorBy(_log);
+            return null;
+        }
+
+        var scenes = services.GetRequiredService<IEntitySceneIdentityPort>();
+
+        var ports = new SiteSceneMonitorPorts(
+            (studioId, ct) => scenes.SceneIdentitiesFor(
+                WhisparrEntityKind.Studio, studioId, target.Generation, ct),
+            catalogue.ResolveNumericSceneIdAsync,
+            (siteId, numbers, ct) => rows.ReduceSiteSceneRowsAsync(
+                target.BaseAddress, target.ApiKey, siteId, numbers, ct),
+            (rowId, ct) => ContainedAsync(
+                () => monitoring.SetSceneMonitoredAsync(
+                    target.BaseAddress, target.ApiKey, target.Generation, rowId, monitored: true, ct),
+                target,
+                _log,
+                ct));
+
+        // A site the instance named no id for is a site nothing can reach the scenes under. Its own
+        // registration is already counted as refused, and no scene under it is claimed either way.
+        return (site, registered, ct) => registered.InstanceId is { } siteId
+            ? SiteSceneMonitorPass.MonitorAsync(ports, site, siteId, _log, ct)
+            : Task.FromResult(SceneMonitorTally.Nothing);
+    }
+
     /// <summary>How one offered scene is marked wanted, or null where nothing marks one.</summary>
     /// <remarks>
     /// Null unless the reader asked and the generation registers a per-scene monitor, so the older
@@ -411,7 +477,7 @@ public sealed partial class WhisparrSync
     /// there is no parallel loop here and no second request in flight.
     /// </para>
     /// </remarks>
-    private Func<string, SyncRegistration, CancellationToken, Task<WhisparrResponse?>>? MonitorFor(
+    private Func<string, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>? MonitorFor(
         SyncLibraryBatch batch, MonitoringTarget target)
     {
         if (!batch.AlsoMonitor
@@ -424,8 +490,10 @@ public sealed partial class WhisparrSync
         var reading = target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
             .Match<IWhisparrSceneStatusReading?>(held => held, _ => null);
 
-        return (identity, offered, ct) =>
-            MonitorOfferedSceneAsync(target, monitoring, reading, identity, offered, ct);
+        // One scene, so the tally this pass answers is that one scene either way.
+        return async (identity, offered, ct) => SceneMonitorTally.For(
+            await MonitorOfferedSceneAsync(target, monitoring, reading, identity, offered, ct)
+                .ConfigureAwait(false));
     }
 
     /// <summary>Marks one scene the instance now holds wanted.</summary>
