@@ -18,22 +18,17 @@
 // IF THIS SPEC GOES RED, read the run log for a container-not-running line before debugging the UI.
 // A red end-to-end run in this repository is usually the Cove container dying rather than the page
 // under test.
-import { createApiClient } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
 
-import { configureProviderStub, startProviderStub } from "../../lib/provider-stub.mjs";
-import { visit } from "../../lib/steps.mjs";
 import {
   test as base,
-  connectWhisparr,
   expect,
   seedCoveStudio,
+  SPEC_BUDGET_MS,
   STASHDB_ENDPOINT,
-  WHISPARR_ROOT,
-  WHISPARR_SYNC_EXTENSION,
-} from "../../lib/whisparr-sync-fixtures.mjs";
+} from "../../lib/connected-fixture.mjs";
+import { configureProviderStub, startProviderStub } from "../../lib/provider-stub.mjs";
+import { visit } from "../../lib/steps.mjs";
 
 const TAB_LABEL = "Missing";
 
@@ -48,34 +43,14 @@ const BRAZZERS_EXXTRA = "39cee498-a9ac-4403-910a-1a0157ad22d8";
 const TAB_BUDGET_MS = 30_000;
 const REGION_BUDGET_MS = 90_000;
 
+// The catalogue this spec reads, served on the installation's own network under the service's own
+// name. A fixture rather than a line in the test body, so it comes down with the stack even when an
+// assertion throws.
 const test = base.extend({
-  countHarness: [
-    async ({}, use) => {
-      const harness = await startHarness();
-      try {
-        harness.owner = await harness.bootstrapOwner();
-        await harness.installExtension(WHISPARR_SYNC_EXTENSION);
-        await use(harness);
-      } finally {
-        await harness.stop();
-      }
-    },
-    { scope: "test" },
-  ],
-
-  // Read through the handle AFTER the install, which restarts the container and can republish it on
-  // a different host port.
-  baseUrl: async ({ countHarness }, use) => {
-    await use(countHarness.baseUrl);
-  },
-
-  // The catalogue this spec reads, served on the network under the service's own name. A fixture
-  // rather than a line in the test body, so it comes down with the stack even when an assertion
-  // throws.
   provider: [
-    async ({ countHarness }, use) => {
+    async ({ isolatedCove }, use) => {
       const stub = await startProviderStub({
-        networkName: countHarness.container.getNetworkNames()[0],
+        networkName: isolatedCove.container.getNetworkNames()[0],
       });
       try {
         await use(stub);
@@ -85,28 +60,10 @@ const test = base.extend({
     },
     { scope: "test" },
   ],
-
-  whisparrV3: [
-    async ({ countHarness }, use) => {
-      const whisparr = await startWhisparr({
-        network: countHarness.container.getNetworkNames()[0],
-        generations: ["v3"],
-      });
-      try {
-        whisparr.v3.rootFolder = await registerRootFolder(
-          whisparr.v3.container,
-          whisparr.apiFor("v3"),
-          "v3",
-          WHISPARR_ROOT,
-        );
-        await use(whisparr);
-      } finally {
-        await whisparr.stop();
-      }
-    },
-    { scope: "test" },
-  ],
 });
+
+test.describe.configure({ timeout: SPEC_BUDGET_MS });
+test.use({ generation: "v3" });
 
 const missingTab = (page) => page.getByRole("tab", { name: TAB_LABEL }).first();
 const hostDetailTabs = (page) => page.getByRole("tablist").first();
@@ -133,25 +90,16 @@ async function firstCardTitle(page) {
 test("the grid never blanks between reads, and the pager offers no page that repeats another", async ({
   page,
   baseUrl,
-  countHarness,
+  connected,
   provider,
-  whisparrV3,
 }) => {
-  // A container pair, an extension install and a browser, well above the shared per-test budget.
-  test.setTimeout(900_000);
-
-  const coveApi = createApiClient(
-    () => countHarness.baseUrl,
-    () => countHarness.token,
-  );
+  // The fixture holds the instance the read establishes a status against: with nothing connected the
+  // route answers a whole-grid refusal rather than a catalogue.
+  const { api: coveApi } = connected;
 
   // The catalogue comes from a stub answering to the service's own name on this network, so this
   // spec reads a real captured page and needs no credential on the machine running it.
   await configureProviderStub(coveApi);
-
-  // The read establishes a status for each surviving card, so with nothing connected it answers a
-  // whole-grid refusal rather than a catalogue.
-  await connectWhisparr(coveApi, whisparrV3, "v3");
 
   // An entity the provider issued no identifier for. Some reason is stated whether or not a
   // credential is available, so this assertion is the one that never skips. Which reason it is
