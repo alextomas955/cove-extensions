@@ -124,6 +124,24 @@ const SEARCH_COMMAND = /search/i;
 export const searching = (roster) => roster.filter((name) => SEARCH_COMMAND.test(name));
 
 /**
+ * One read off the instance, refused rather than answered with a substitute.
+ *
+ * The status as well as the shape. A refusal and an instance holding nothing are different facts,
+ * and a substitute makes the first read as the second: every never-searched claim in this folder
+ * rests on a roster, and a roster substituted for a refusal is empty of searching commands however
+ * the gesture behaved.
+ */
+async function instanceRead(api, route, expected, holds) {
+  const answered = await api.get(route);
+  if (answered.status !== 200 || !holds(answered.json)) {
+    throw new Error(
+      `whisparr instance: ${route} answered ${String(answered.status)} with no ${expected}: ${String(answered.text).slice(0, 300)}`,
+    );
+  }
+  return answered.json;
+}
+
+/**
  * The command roster and the queue total, which is the observable form of a started search.
  *
  * Both are read from the instance itself. The roster is never expected to be EMPTY: the instance
@@ -131,13 +149,13 @@ export const searching = (roster) => roster.filter((name) => SEARCH_COMMAND.test
  * command whose name says it searches.
  */
 export async function whisparrActivity(api) {
-  const commands = await api.get("/api/v3/command");
-  const queue = await api.get("/api/v3/queue");
+  const commands = await instanceRead(api, "/api/v3/command", "roster", Array.isArray);
+  const queue = await instanceRead(api, "/api/v3/queue", "queue", (json) =>
+    Number.isInteger(json?.totalRecords),
+  );
   return {
-    commandNames: (Array.isArray(commands.json) ? commands.json : []).map(
-      (command) => command.name,
-    ),
-    queueTotal: queue.json?.totalRecords ?? null,
+    commandNames: commands.map((command) => command.name),
+    queueTotal: queue.totalRecords,
   };
 }
 
@@ -149,12 +167,9 @@ export async function whisparrActivity(api) {
  * no assertion in either spec would notice.
  */
 export async function whisparrAcquisitionSurface(api) {
-  const indexers = await api.get("/api/v3/indexer");
-  const downloadClients = await api.get("/api/v3/downloadclient");
-  return {
-    indexers: Array.isArray(indexers.json) ? indexers.json.length : null,
-    downloadClients: Array.isArray(downloadClients.json) ? downloadClients.json.length : null,
-  };
+  const indexers = await instanceRead(api, "/api/v3/indexer", "list", Array.isArray);
+  const clients = await instanceRead(api, "/api/v3/downloadclient", "list", Array.isArray);
+  return { indexers: indexers.length, downloadClients: clients.length };
 }
 
 /** One entity as the instance holds it right now, or null where it holds none. */
