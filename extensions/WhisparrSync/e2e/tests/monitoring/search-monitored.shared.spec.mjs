@@ -14,8 +14,11 @@
 // WHAT THE EVIDENCE IS. The instance's own command roster, never this product's answer. The route
 // answers a monitoring view rather than a job, so its answer says nothing about whether the request
 // arrived, and a route that wrote nothing would pass an assertion made against its reply. The roster
-// is never expected to be empty - the instance runs scheduled tasks of its own - so the bound is
-// taken first and what is asserted is a searching command that was not there before.
+// is never expected to be empty - the instance runs scheduled tasks of its own - so the roster is
+// bounded twice and what is asserted is a searching command that was not there before. The first
+// bound is the precondition that the instance had not been asked to search at all. The second is
+// taken immediately before the row is pressed, so the command asserted after it is attributable to
+// that press rather than to the monitor gesture it takes to reach the row.
 //
 // THE SENTENCES ARE IMPORTED FROM THE SHIPPED COPY MODULE, because here they are LOCATORS: which
 // row to press. A locator built from a hand-copied literal stops finding its row the day the row is
@@ -36,16 +39,13 @@ import {
 } from "../../../src/WhisparrSync.Ui/src/common/ui/copy.ts";
 import {
   expect,
+  searching,
   SETTLE_DWELL_MS,
   SPEC_BUDGET_MS,
   test,
   whisparrAcquisitionSurface,
 } from "../../lib/connected-fixture.mjs";
 import { visit } from "../../lib/steps.mjs";
-
-// A command whose name carries this is the observable form of a started search on both generations.
-// A pattern rather than the command names, so this file names no verb that downloads.
-const SEARCH_COMMAND = /search/i;
 
 // Each budget names the operation it bounds, so a failure says which one blew it rather than
 // reporting the whole test as a timeout naming nothing.
@@ -58,9 +58,6 @@ const notMonitoredControl = (page) =>
   page.getByRole("button", { name: new RegExp(`^${WHISPARR_NOT_MONITORED}`) }).first();
 
 const monitoredMenu = (page) => page.getByRole("menu", { name: WHISPARR_MONITORED });
-
-/** Every command the instance has been asked to run whose name says it searches. */
-const searching = (roster) => roster.filter((name) => SEARCH_COMMAND.test(name));
 
 for (const generation of ["v3", "v2"]) {
   test.describe(`Whisparr ${generation}`, () => {
@@ -81,8 +78,8 @@ for (const generation of ["v3", "v2"]) {
         "the fixture instance has an indexer or a download client, so a search started here could acquire something and this press may not be made",
       ).toEqual({ indexers: 0, downloadClients: 0 });
 
-      // The other bound. The instance runs commands of its own accord, so a searching command
-      // already on the roster would make the one read after the press meaningless.
+      // The precondition the press is made against: nothing has asked this instance to search yet,
+      // so no part of this scenario runs against a roster that was already acquisitive.
       const before = await adapter.activity(instance);
       expect(
         searching(before.commandNames),
@@ -126,6 +123,13 @@ for (const generation of ["v3", "v2"]) {
         row,
         `the "${ACTION_SEARCH_ALL_MONITORED}" row is not pressable on a monitored studio, so the route it names is not reachable from the menu that offers it`,
       ).toBeEnabled();
+
+      // The bound that makes what follows attributable to the press. Everything between the
+      // precondition and here is arrangement - a monitor gesture, and this generation may answer one
+      // by searching - so a command already on the roster at this instant is not this row's.
+      const beforePress = await adapter.activity(instance);
+      const arranged = new Set(searching(beforePress.commandNames));
+
       await row.click();
 
       const {
@@ -135,18 +139,19 @@ for (const generation of ["v3", "v2"]) {
       } = await attemptUntil(
         async (_signal, record) => {
           const { commandNames } = await adapter.activity(instance);
-          record(`${String(searching(commandNames).length)} searching command(s)`);
-          return searching(commandNames).length > 0 ? { value: commandNames } : null;
+          const started = searching(commandNames).filter((name) => !arranged.has(name));
+          record(`${String(started.length)} searching command(s) the arrangement did not leave`);
+          return started.length > 0 ? { value: commandNames } : null;
         },
         {
           timeoutMs: GESTURE_BUDGET_MS,
           intervalMs: 1_000,
-          label: "the instance records a searching command",
+          label: "the instance records a searching command the press could have started",
         },
       );
       expect(
         asked,
-        `the instance was never asked to search after the row was pressed; its roster last read ${note}`,
+        `the instance recorded no searching command that the press put there; the arrangement had already left ${JSON.stringify([...arranged])} and the roster last read ${note}`,
       ).toBe(true);
 
       // The other half, and the reason this press is safe to make at all: the instance has nowhere
