@@ -13,6 +13,7 @@
 // imported nothing when what really happened is that it never saw a page.
 import { STASHDB_ENDPOINT, THEPORNDB_ENDPOINT } from "./contract.mjs";
 import { deliveredRemoteId } from "./steps.mjs";
+import { whisparrActivity } from "./whisparr-sync-fixtures.mjs";
 
 // What both generations render an import as. Transcribed rather than read off the instance: the walk
 // selects on this string, so a reader deriving it would select on whatever the walk selects on. The
@@ -55,6 +56,19 @@ const GENERATIONS = {
     identityEndpoint: STASHDB_ENDPOINT,
     storedKey: "V3",
 
+    ownedFileRows: (api, entryId) => listRows(api, `/api/v3/moviefile?movieId=${String(entryId)}`),
+
+    async ownedEntryHoldsFile(api, entryId) {
+      const route = `/api/v3/movie/${String(entryId)}`;
+      const read = await api.get(route);
+      if (typeof read.json?.hasFile !== "boolean") {
+        throw new Error(
+          `generation adapter: ${route} answered ${String(read.status)} with no catalogue entry: ${String(read.text).slice(0, 300)}`,
+        );
+      }
+      return read.json.hasFile;
+    },
+
     async declaredSceneIdentifier(api) {
       const movies = await listRows(api, "/api/v3/movie");
       return oneIdentifier(
@@ -68,6 +82,16 @@ const GENERATIONS = {
   v2: {
     identityEndpoint: THEPORNDB_ENDPOINT,
     storedKey: "V2",
+
+    ownedFileRows: (api, entryId) =>
+      listRows(api, `/api/v3/episodefile?seriesId=${String(entryId)}`),
+
+    // A scene is an episode of a site here, so the entry a file attaches to is one of the rows the
+    // site holds rather than the site itself.
+    async ownedEntryHoldsFile(api, entryId) {
+      const episodes = await listRows(api, `/api/v3/episode?seriesId=${String(entryId)}`);
+      return episodes.some((episode) => episode.hasFile === true);
+    },
 
     // This generation carries a scene as an episode of a site, so the identifier is one level down
     // from the row a catalogue listing answers with.
@@ -131,6 +155,26 @@ export function adapterFor(generation) {
       }
       return id;
     },
+
+    /** The instance's own file rows for the catalogue entry an owned file lands on. */
+    ownedFileRows: (api, entryId) => own.ownedFileRows(api, entryId),
+
+    /**
+     * Whether the catalogue entry itself reads as holding a file.
+     *
+     * A separate fact from the file rows: a file can be registered and attached to nothing, which
+     * leaves the entry still reading as one the instance holds no file for.
+     */
+    ownedEntryHoldsFile: (api, entryId) => own.ownedEntryHoldsFile(api, entryId),
+
+    /**
+     * The instance's own command roster and queue total.
+     *
+     * The same read on both generations, kept here so a shared scenario has one place it reads the
+     * instance's state from rather than two. The roster is never expected to be empty: the instance
+     * runs scheduled tasks of its own, so what an assertion turns on is which commands are on it.
+     */
+    activity: (api) => whisparrActivity(api),
 
     /** The history records the instance answers with, newest first. */
     historyRows: async (api, { pageSize = 50 } = {}) => (await historyPage(api, pageSize)).records,
