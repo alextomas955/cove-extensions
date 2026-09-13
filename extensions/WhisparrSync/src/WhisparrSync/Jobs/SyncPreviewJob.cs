@@ -14,24 +14,35 @@ namespace WhisparrSync.Jobs;
 /// before that.
 /// <para>
 /// Which count runs follows from <paramref name="Registers"/>, and the read that count needs is the
-/// one supplied. The two are not interchangeable: one generation answers about a batch of scenes in
-/// one request and the other answers about one site per request, because it offers no batched
-/// lookup at all.
+/// one supplied. The two are not interchangeable: one asks a batch of scene identifiers and the
+/// other a batch of stored studio identifiers, and a generation registers one of the two.
 /// </para>
 /// </remarks>
 /// <param name="Generation">Whose namespace the library's own identifiers are read under.</param>
 /// <param name="Registers">What a run against this instance would register in it.</param>
 /// <param name="Held">Which of one batch of scene identifiers the instance already holds.</param>
-/// <param name="SitePresence">
-/// Whether the instance holds the site one identifier names. Raises rather than answering false
-/// where the read could not be answered, because a false would put the site in the not-yet-there
-/// column on the strength of nothing.
+/// <param name="HeldSites">
+/// Which of one batch of stored studio identifiers the instance already holds a site for, and which
+/// of them the metadata source names no site for. Raises rather than answering a short reading where
+/// nothing could be established, because an identifier absent from both sets lands in the
+/// not-yet-there column on the strength of nothing.
 /// </param>
 internal sealed record SyncPreviewAiming(
     WhisparrGeneration Generation,
     SyncRegisters Registers,
     Func<IReadOnlyCollection<string>, CancellationToken, Task<IReadOnlySet<string>>>? Held,
-    Func<string, CancellationToken, Task<bool>>? SitePresence);
+    Func<IReadOnlyCollection<string>, CancellationToken, Task<SiteBatchReading>>? HeldSites);
+
+/// <summary>What one batch of stored studio identifiers was answered with.</summary>
+/// <remarks>
+/// The two sets are disjoint, and neither is the whole batch: an identifier in neither is one the
+/// metadata source numbered and the instance holds no site for.
+/// </remarks>
+/// <param name="Held">Those the instance already holds a site for.</param>
+/// <param name="NamesNone">Those the metadata source names no site for.</param>
+internal sealed record SiteBatchReading(
+    IReadOnlySet<string> Held,
+    IReadOnlySet<string> NamesNone);
 
 /// <summary>
 /// The count job's id, the batch size its comparison asks in, and the pass one count goes through.
@@ -62,19 +73,39 @@ public static class SyncPreviewJob
     /// </remarks>
     internal const int MeasuredBytesPerHit = 2370;
 
-    /// <summary>How many site presence reads are in flight at once.</summary>
+    /// <summary>How many of one site's own scene reads are in flight at once.</summary>
     /// <remarks>
-    /// A pacing bound and not a ceiling on how many reads are issued. The site count reads every
-    /// site the library yields, however many that is; what this bounds is how many of those reads
-    /// are outstanding at any moment, and it is one because the instance's own request queue is the
+    /// A pacing bound and not a ceiling on how many reads are issued. Every scene the reader owns on
+    /// the site is read, however many that is; what this bounds is how many of those reads are
+    /// outstanding at any moment, and it is one because the instance's own request queue is the
     /// shared resource - the same reason the library run keeps one request in flight.
     /// <para>
-    /// Raising it costs the instance rather than costing the answer. A bound on the NUMBER of reads
-    /// would cost the answer: it would report a short already-there and not-yet-there pair with
-    /// nothing saying so.
+    /// Raising it costs the instance rather than costing the answer. A bound on how many reads are
+    /// issued would cost the answer: it would leave part of the library unmonitored and report a
+    /// total that reads exactly like a complete one.
     /// </para>
     /// </remarks>
-    internal const int SitePresenceReadsInFlight = 1;
+    internal const int SiteSceneReadsInFlight = 1;
+
+    /// <summary>How many metadata resolves one site comparison keeps outstanding.</summary>
+    /// <remarks>
+    /// A pacing bound and not a ceiling on how many resolves are issued, the way the batch size's
+    /// neighbours are. Every studio the library yields is resolved; what this bounds is how many of
+    /// those are waiting on the metadata source at any moment.
+    /// <para>
+    /// Measured against a 525-studio library on 2026-09-13: at four, 522 resolved and none was
+    /// rate-limited; at eight, 144 of the 525 were rejected.
+    /// </para>
+    /// <para>
+    /// It is not a second rate bound. <see cref="Providers.ProviderPacer"/> already holds the rate
+    /// to the host's own metadata-server setting, which is stricter than the rate four callers
+    /// reach. What the pacer does not bound is how many callers wait: past its queue depth a caller
+    /// is refused immediately rather than queued, and that arrives here as a source that was not
+    /// reached, which ends the count. A whole batch resolved at once would lose part of itself that
+    /// way.
+    /// </para>
+    /// </remarks>
+    internal const int MetadataResolvesInFlight = 4;
 
     /// <summary>
     /// Counts the library's identified scenes against what the instance holds, inside ONE scope
@@ -158,14 +189,12 @@ public static class SyncPreviewJob
     /// Counts every site the library's studios name against what the instance holds.
     /// </summary>
     /// <remarks>
-    /// One request per site, because this generation offers no batched lookup at all. Nothing caps
-    /// how many are issued: the whole stream is read however many studios the reader owns, and a cap
-    /// would answer a short already-there and not-yet-there pair that reads exactly like a complete
-    /// one. What is bounded is how many reads are in flight, which is
-    /// <see cref="SitePresenceReadsInFlight"/> and is why the reads are awaited one at a time here.
+    /// Nothing caps how many batches are asked: the whole stream is read however many studios the
+    /// reader owns, and a cap would answer a short already-there and not-yet-there pair that reads
+    /// exactly like a complete one.
     /// <para>
-    /// Nothing per site is held. One identifier is alive at a time and the three answers are
-    /// integers.
+    /// Nothing per site is held. One batch of identifiers is alive at a time and the three answers
+    /// are integers.
     /// </para>
     /// </remarks>
     private static async Task<SyncPreviewView> CompareSitesAsync(
@@ -174,10 +203,10 @@ public static class SyncPreviewJob
         ILogger log,
         CancellationToken ct)
     {
-        if (aimed.SitePresence is not { } presence)
+        if (aimed.HeldSites is not { } heldSites)
         {
             throw new InvalidOperationException(
-                "A site count was aimed with no way to ask whether a site is held.");
+                "A site count was aimed with no way to ask which sites are held.");
         }
 
         var notYetThere = 0;
@@ -190,11 +219,12 @@ public static class SyncPreviewJob
                 .WithCancellation(ct)
                 .ConfigureAwait(false))
             {
-                if (await presence(site.RemoteId, ct).ConfigureAwait(false))
+                var answered = await heldSites([site.RemoteId], ct).ConfigureAwait(false);
+                if (answered.Held.Contains(site.RemoteId))
                 {
                     alreadyThere++;
                 }
-                else
+                else if (!answered.NamesNone.Contains(site.RemoteId))
                 {
                     notYetThere++;
                 }
