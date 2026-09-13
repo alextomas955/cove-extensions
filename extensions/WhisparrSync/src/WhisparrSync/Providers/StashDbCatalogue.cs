@@ -248,6 +248,11 @@ internal sealed class StashDbCatalogue
         => Task.FromResult<int?>(null);
 
     /// <inheritdoc/>
+    public Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
+        string providerSiteId, CancellationToken ct)
+        => Task.FromResult(ProviderSiteNumber.NotReached);
+
+    /// <inheritdoc/>
     /// <remarks>
     /// A studio and a tag are found exactly by the provider itself. A performer has no exact
     /// find-by-name, so its search result is filtered here and several exact matches answer as

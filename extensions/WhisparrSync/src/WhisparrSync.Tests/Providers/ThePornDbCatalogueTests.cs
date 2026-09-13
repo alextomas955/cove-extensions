@@ -627,6 +627,11 @@ public sealed class ThePornDbCatalogueTests
             .DeepClone()
             .ToJsonString();
 
+    /// <summary>The number the recorded site read carried, as the provider issued it.</summary>
+    private static int RecordedSiteNumber()
+        => JsonNode.Parse(ProbeFixtures.Read(LookupFixture))!["cases"]!["siteByUuid"]!["response"]!
+            ["data"]!["id"]!.GetValue<int>();
+
     private static ProviderCatalogueRequest TagPage(
         int perPage = 40, IReadOnlyDictionary<string, string>? filters = null)
         => new(
@@ -703,6 +708,121 @@ public sealed class ThePornDbCatalogueTests
         var (catalogue, _) = CatalogueOver(SingleScene(row));
 
         Assert.Null(await catalogue.ResolveNumericSceneIdAsync(storedId, TestCt));
+    }
+
+    /// <summary>
+    /// The site route answers one row for the uuid Cove stores, and that row carries this provider's
+    /// own number. One read converts one to the other.
+    /// </summary>
+    /// <remarks>
+    /// The row is a recording of a live read, so the number asserted is the number the provider
+    /// really issued rather than one written to suit the client.
+    /// </remarks>
+    [Fact]
+    public async Task AStoredSiteIdentifierResolvesToTheProvidersOwnNumber()
+    {
+        var (catalogue, handler) = CatalogueOver(HttpStatusCode.OK, RecordedSite());
+
+        var resolved = await catalogue.ResolveNumericSiteIdAsync(StudioUuid, TestCt);
+
+        Assert.Equal(RecordedSiteNumber(), resolved.Number);
+        Assert.True(resolved.WasReached);
+        Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+        Assert.EndsWith($"/sites/{StudioUuid}", handler.Requests[0].Path, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The provider stating it names no such site is its own answer, and a second attempt would only
+    /// collect it again.
+    /// </summary>
+    [Fact]
+    public async Task ASiteTheProviderNamesNoneForIsStatedAsThat()
+    {
+        var (catalogue, handler) = CatalogueOver(HttpStatusCode.NotFound, "{}");
+
+        var resolved = await catalogue.ResolveNumericSiteIdAsync(StudioUuid, TestCt);
+
+        Assert.Equal(ProviderSiteNumber.NamesNone, resolved);
+        Assert.Single(handler.Requests);
+    }
+
+    /// <summary>
+    /// A read that never arrived establishes nothing about the site, so it is a different answer
+    /// from the provider naming none. Counted together, a site nothing is known about would be
+    /// reported as one the provider has no number for.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    public async Task AReadThatNeverArrivedIsHeldApartFromASiteTheProviderNamesNoneFor(
+        HttpStatusCode status)
+    {
+        var (catalogue, _) = CatalogueOver(status, "{}");
+
+        var resolved = await catalogue.ResolveNumericSiteIdAsync(StudioUuid, TestCt);
+
+        Assert.Equal(ProviderSiteNumber.NotReached, resolved);
+        Assert.NotEqual(ProviderSiteNumber.NamesNone, resolved);
+        Assert.False(resolved.WasReached);
+    }
+
+    /// <summary>A connection that drops part way through the body reached no answer either.</summary>
+    [Fact]
+    public async Task AConnectionThatFailsResolvesToAReadThatNeverArrived()
+    {
+        var (catalogue, _) = CatalogueOver(
+            BodyRecordingHandler.AnsweringWithABodyThatStopsPartWay());
+
+        Assert.Equal(
+            ProviderSiteNumber.NotReached,
+            await catalogue.ResolveNumericSiteIdAsync(StudioUuid, TestCt));
+    }
+
+    /// <summary>
+    /// A rate limiter is not the provider answering about the site, so the read is issued again and
+    /// the second answer is the one that settles it.
+    /// </summary>
+    [Fact]
+    public async Task ARateLimitedReadIsIssuedAgainAndTheSecondAnswerSettlesIt()
+    {
+        var (catalogue, handler) = CatalogueOver(
+            BodyRecordingHandler.AnsweringInTurn(
+                (HttpStatusCode.TooManyRequests, "{}"), (HttpStatusCode.OK, RecordedSite())));
+
+        var resolved = await catalogue.ResolveNumericSiteIdAsync(StudioUuid, TestCt);
+
+        Assert.Equal(RecordedSiteNumber(), resolved.Number);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    /// <summary>A rate limiter on every attempt still establishes nothing about the site.</summary>
+    [Fact]
+    public async Task ARateLimitedReadOnEveryAttemptIsStillAReadThatNeverArrived()
+    {
+        var (catalogue, handler) = CatalogueOver(HttpStatusCode.TooManyRequests, "{}");
+
+        var resolved = await catalogue.ResolveNumericSiteIdAsync(StudioUuid, TestCt);
+
+        Assert.Equal(ProviderSiteNumber.NotReached, resolved);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    /// <summary>
+    /// A success carrying no number this generation can address a row by establishes nothing about
+    /// the site. Zero is no identifier on this provider, so it is not a number to carry across.
+    /// </summary>
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"data\":{}}")]
+    [InlineData("{\"data\":{\"id\":0}}")]
+    public async Task AnAnswerCarryingNoUsableNumberIsAReadThatEstablishedNothing(string answered)
+    {
+        var (catalogue, _) = CatalogueOver(HttpStatusCode.OK, answered);
+
+        Assert.Equal(
+            ProviderSiteNumber.NotReached,
+            await catalogue.ResolveNumericSiteIdAsync(StudioUuid, TestCt));
     }
 
     /// <summary>One row of the scenes route, wrapped the way the single-scene route wraps it.</summary>

@@ -69,6 +69,10 @@ internal sealed class RecordingProviderCatalogue : IProviderCatalogue, IResolves
                 $"Unexpected scene resolution: {providerSceneId}. Configure its answer explicitly.");
     }
 
+    public Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
+        string providerSiteId, CancellationToken ct)
+        => throw Unasked(nameof(ResolveNumericSiteIdAsync));
+
     public string? SceneAddress(string providerSceneId) => throw Unasked(nameof(SceneAddress));
 
     public Task<ProviderCatalogueAnswer> ReadPageAsync(
