@@ -299,6 +299,100 @@ public sealed class SyncPreviewJobTests
                 studios, new SiteNumbers(NumbersFor(studios)), instance, stopping.Token));
     }
 
+    /// <summary>
+    /// A studio the metadata source names no site for is counted with the studios carrying no
+    /// identifier, and in neither other count.
+    /// </summary>
+    /// <remarks>
+    /// Not a hypothetical column: some of the library's studios answer nothing at the metadata
+    /// source. Counted as not yet there, each would be offered for registration and the run could
+    /// compose no add for it.
+    /// </remarks>
+    [Fact]
+    public async Task AStudioTheSourceNamesNoSiteForIsCountedWithThoseCarryingNoIdentifier()
+    {
+        var studios = Studios(3);
+        var numbers = NumbersFor(studios);
+        numbers[Identity(2)] = WhisparrSiteNumber.NamesNone;
+        var instance = new HeldSites([NumberOf(1)]);
+
+        var counted = await RunSitesAsync(studios, new SiteNumbers(numbers), instance, TestCt);
+
+        Assert.NotNull(counted);
+        Assert.Equal(1, counted.AlreadyThere);
+        Assert.Equal(1, counted.NotYetThere);
+        Assert.Equal(UnidentifiedStudios + 1, counted.Skipped);
+    }
+
+    /// <summary>
+    /// The studios the source names no site for are reported once with how many they were.
+    /// </summary>
+    [Fact]
+    public async Task TheStudiosTheSourceNamesNoSiteForAreReportedOnceWithHowManyTheyWere()
+    {
+        var studios = Studios(3);
+        var numbers = NumbersFor(studios);
+        numbers[Identity(1)] = WhisparrSiteNumber.NamesNone;
+        numbers[Identity(3)] = WhisparrSiteNumber.NamesNone;
+        var recorded = new RecordingLogger(NamesNoSiteEventId);
+
+        await RunSitesAsync(
+            studios, new SiteNumbers(numbers), new HeldSites([]), TestCt, log: recorded);
+
+        Assert.Contains("2 of the library's studios", Assert.Single(recorded.Lines), StringComparison.Ordinal);
+    }
+
+    /// <summary>The scene comparison's third count is what the library answers and nothing else.</summary>
+    [Fact]
+    public async Task TheSceneComparisonsThirdCountIsUnchanged()
+    {
+        var identifiers = Identifiers(4);
+
+        var counted = await RunAsync(identifiers, new HeldScenes(identifiers.Take(1)));
+
+        Assert.NotNull(counted);
+        Assert.Equal(UnidentifiedScenes, counted.Skipped);
+    }
+
+    /// <summary>
+    /// A read that timed out inside either comparison leaves no count held and is reported as a
+    /// count that did not finish.
+    /// </summary>
+    /// <remarks>
+    /// A timeout arrives in the shape a host stop does, so it reaches neither containment unless
+    /// it is named. Walked past, it would leave a count short by a whole batch and reading exactly
+    /// like a complete one.
+    /// </remarks>
+    [Theory]
+    [InlineData(SyncRegisters.Sites)]
+    [InlineData(SyncRegisters.Scenes)]
+    public async Task AReadThatTimedOutLeavesNoCountAndSaysTheCountDidNotFinish(SyncRegisters registers)
+    {
+        var cache = new SyncPreviewCache(TimeProvider.System);
+        var recorded = new RecordingLogger(CountDidNotFinishEventId);
+        var timedOut = new TaskCanceledException("the read timed out");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => RunEitherAsync(registers, timedOut, cache, recorded));
+
+        Assert.Single(recorded.Lines);
+        Assert.Null(cache.Held(WhisparrGeneration.V2));
+        Assert.Null(cache.Held(WhisparrGeneration.V3));
+    }
+
+    /// <summary>A host stop inside either comparison propagates as a stop.</summary>
+    [Theory]
+    [InlineData(SyncRegisters.Sites)]
+    [InlineData(SyncRegisters.Scenes)]
+    public async Task AHostStopInsideEitherComparisonPropagatesAsAStop(SyncRegisters registers)
+    {
+        using var stopping = new CancellationTokenSource();
+        var cache = new SyncPreviewCache(TimeProvider.System);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => RunEitherAsync(registers, null, cache, NullLogger.Instance, stopping));
+    }
+
     private static readonly Uri Instance = new("http://whisparr-v3:6969");
 
     private const string Key = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
@@ -309,6 +403,13 @@ public sealed class SyncPreviewJobTests
 
     /// <summary>How many studios the library carries no identifier at all for.</summary>
     private const int UnidentifiedStudios = 7;
+
+    /// <summary>How many scenes the library carries no identifier at all for.</summary>
+    private const int UnidentifiedScenes = 7;
+
+    private const int NamesNoSiteEventId = 2129;
+
+    private const int CountDidNotFinishEventId = 2126;
 
     private static List<string> Identifiers(int count)
         => [.. Enumerable.Range(1, count).Select(Identity)];
@@ -331,6 +432,61 @@ public sealed class SyncPreviewJobTests
             studio => studio.RemoteId,
             studio => WhisparrSiteNumber.Numbered(NumberOf(studio.StudioId)),
             StringComparer.Ordinal);
+
+    /// <summary>
+    /// One count of either kind, whose read either answers nothing or raises
+    /// <paramref name="failure"/>.
+    /// </summary>
+    /// <remarks>
+    /// Seeded past the batch size so a stop signalled on the first batch is met by the walk rather
+    /// than by the end of the library.
+    /// </remarks>
+    private static Task<SyncPreviewView?> RunEitherAsync(
+        SyncRegisters registers,
+        Exception? failure,
+        SyncPreviewCache cache,
+        ILogger log,
+        CancellationTokenSource? stopping = null)
+    {
+        var seeded = SyncPreviewJob.ChunkSize + 2;
+        var provider = Scopes(
+            registers == SyncRegisters.Sites
+                ? StubLibraryIdentities.OfSites(Studios(seeded), UnidentifiedStudios)
+                : StubLibraryIdentities.OfScenes(Identifiers(seeded), UnidentifiedScenes),
+            cache);
+
+        Task<IReadOnlySet<string>> HeldAsync(
+            IReadOnlyCollection<string> asked, CancellationToken batchCt)
+        {
+            stopping?.Cancel();
+            return failure is null
+                ? Task.FromResult<IReadOnlySet<string>>(new HashSet<string>(StringComparer.Ordinal))
+                : Task.FromException<IReadOnlySet<string>>(failure);
+        }
+
+        Task<SiteBatchReading> HeldSitesAsync(
+            IReadOnlyCollection<string> asked, CancellationToken batchCt)
+        {
+            stopping?.Cancel();
+            return failure is null
+                ? Task.FromResult(
+                    new SiteBatchReading(
+                        new HashSet<string>(StringComparer.Ordinal),
+                        new HashSet<string>(StringComparer.Ordinal)))
+                : Task.FromException<SiteBatchReading>(failure);
+        }
+
+        return SyncPreviewJob.RunAsync(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            (_, _) => Task.FromResult<SyncPreviewAiming?>(
+                registers == SyncRegisters.Sites
+                    ? new SyncPreviewAiming(
+                        WhisparrGeneration.V2, registers, Held: null, HeldSitesAsync)
+                    : new SyncPreviewAiming(
+                        WhisparrGeneration.V3, registers, HeldAsync, HeldSites: null)),
+            log,
+            stopping?.Token ?? TestCt);
+    }
 
     private static Task<SyncPreviewView?> RunSitesAsync(
         IReadOnlyList<LibrarySiteIdentity> studios,
@@ -361,7 +517,7 @@ public sealed class SyncPreviewJobTests
         IReadOnlyList<string> identifiers, HeldScenes instance, SyncPreviewCache? cache = null)
     {
         var provider = Scopes(
-            StubLibraryIdentities.OfScenes(identifiers, unidentified: 7),
+            StubLibraryIdentities.OfScenes(identifiers, UnidentifiedScenes),
             cache ?? new SyncPreviewCache(TimeProvider.System));
 
         return SyncPreviewJob.RunAsync(
@@ -382,6 +538,32 @@ public sealed class SyncPreviewJobTests
             .AddSingleton(identities)
             .AddSingleton(cache)
             .BuildServiceProvider();
+
+    /// <summary>Keeps one event id's lines, as a sink would write them.</summary>
+    private sealed class RecordingLogger(int kept) : ILogger
+    {
+        public List<string> Lines { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            ArgumentNullException.ThrowIfNull(formatter);
+
+            if (eventId.Id == kept)
+            {
+                Lines.Add(formatter(state, exception));
+            }
+        }
+    }
 
     /// <summary>What an instance holds, recording every batch it was asked about.</summary>
     private sealed class HeldScenes(IEnumerable<string> held, int? failOnCall = null)
