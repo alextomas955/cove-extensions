@@ -56,7 +56,12 @@ public enum SyncRefusalKind
 /// <summary>What one count found, and when it found it.</summary>
 /// <param name="NotYetThere">How many identified scenes the instance does not hold.</param>
 /// <param name="AlreadyThere">How many identified scenes it already holds.</param>
-/// <param name="Skipped">How many scenes carry no identifier the instance names entries by.</param>
+/// <param name="Skipped">
+/// How many of the library's own entries this count can offer for nothing: they carry no identifier
+/// the instance names entries by, or, on a count of sites, the metadata source names no site for
+/// the identifier they carry. Both are entries a run could compose no add for, and a reader's
+/// answer to either is the same.
+/// </param>
 /// <param name="Registers">What a run would register in the instance.</param>
 /// <param name="CountedAt">When the count was taken, so the page can state its age.</param>
 public sealed record SyncPreviewView(
