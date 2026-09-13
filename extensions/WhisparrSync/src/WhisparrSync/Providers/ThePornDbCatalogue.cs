@@ -28,7 +28,8 @@ internal sealed class ThePornDbCatalogue
         IListsTagFacet,
         ISearchesTitles,
         ILooksUpByName,
-        IResolvesNumericSceneId
+        IResolvesNumericSceneId,
+        IResolvesNumericSiteId
 {
     /// <summary>The provider this catalogue names itself as.</summary>
     internal const string ProviderName = "ThePornDB";
@@ -223,6 +224,11 @@ internal sealed class ThePornDbCatalogue
                 ? id
                 : null;
     }
+
+    /// <inheritdoc/>
+    public Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
+        string providerSiteId, CancellationToken ct)
+        => Task.FromResult(ProviderSiteNumber.NotReached);
 
     /// <inheritdoc/>
     /// <remarks>

@@ -124,6 +124,38 @@ public sealed class ProviderCapabilityTests
     }
 
     /// <summary>
+    /// A site's number is ThePornDB's alone. Its site route answers an <c>id</c> beside the uuid
+    /// Cove stores; StashDB names a site by its uuid and issues no number to resolve to, so the
+    /// resolution is refused there before any request.
+    /// </summary>
+    [Fact]
+    public void OnlyThePornDbResolvesASiteToANumber()
+    {
+        Assert.Contains(ProviderCapability.ResolveNumericSiteId, ThePornDb().Capabilities.Held);
+        Assert.NotNull(
+            ThePornDb()
+                .Capabilities.Obtain<IResolvesNumericSiteId>()
+                .Match<object?>(role => role, _ => null));
+    }
+
+    /// <summary>
+    /// The refusal names the capability, so a caller that cannot resolve a site states which
+    /// capability the configured provider does not hold rather than catching a failure.
+    /// </summary>
+    [Fact]
+    public void StashDbRefusesTheSiteNumberRoleByName()
+    {
+        Assert.DoesNotContain(ProviderCapability.ResolveNumericSiteId, StashDb().Capabilities.Held);
+
+        var refused = StashDb()
+            .Capabilities.Obtain<IResolvesNumericSiteId>()
+            .Match<ProviderCapabilityRefusal?>(_ => null, refusal => refusal);
+
+        Assert.Equal(ProviderCapability.ResolveNumericSiteId, refused!.Capability);
+        Assert.Equal("StashDB", refused.Provider);
+    }
+
+    /// <summary>
     /// The provider that issues no such number sends nothing to establish it. A request there would
     /// spend the credential on a question its answer cannot carry.
     /// </summary>
@@ -176,6 +208,7 @@ public sealed class ProviderCapabilityTests
     [InlineData(typeof(ISearchesTitles))]
     [InlineData(typeof(ILooksUpByName))]
     [InlineData(typeof(IResolvesNumericSceneId))]
+    [InlineData(typeof(IResolvesNumericSiteId))]
     public void EveryDeclaredRoleIsAnsweredByBothProviders(Type role)
     {
         foreach (var catalogue in (IProviderCatalogue[])[StashDb(), ThePornDb()])
