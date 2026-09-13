@@ -355,35 +355,6 @@ public sealed class SyncLibrarySitesTests
         Assert.Contains("2 scenes monitored", summary, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// Where the connected provider issues no scene number, the sites are still registered and
-    /// nothing per scene is read at all.
-    /// </summary>
-    /// <remarks>
-    /// The role is obtained once per run rather than once per scene, so the count of provider calls
-    /// is zero whatever the library holds rather than one refusal per scene.
-    /// </remarks>
-    [Fact]
-    public async Task WhereTheProviderIssuesNoSceneNumberTheSitesAreStillRegisteredAndNothingIsRead()
-    {
-        var provider = new RecordingProviderCatalogue(NoAnswers, resolves: false);
-        await using var host = await SiteHost(held: false, provider);
-        await SeedSiteAsync(host, FirstSite, FirstScene);
-        await SeedSiteAsync(host, SecondSite, SecondScene);
-
-        await RunAsync(host, alsoMonitor: true);
-
-        Assert.Equal(
-            new[] { FirstSite, SecondSite }.Order(),
-            Verb(host, nameof(IWhisparrSiteRegistrationActing.RegisterSiteAsync))
-                .Select(call => call.ForeignId!)
-                .Order());
-        Assert.Empty(provider.Resolved);
-        Assert.DoesNotContain(nameof(IWhisparrSiteSceneReading.ReduceSiteSceneRowsAsync), host.Client.Verbs);
-        Assert.DoesNotContain(nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync), host.Client.Verbs);
-        Assert.Empty(host.Client.UnexpectedCalls);
-    }
-
     private static List<LibrarySiteIdentity> Sites(int count)
         => [.. Enumerable.Range(1, count).Select(
             n => new LibrarySiteIdentity(n, $"{n:x8}-0000-4000-8000-000000000000"))];

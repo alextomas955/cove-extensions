@@ -310,9 +310,8 @@ public sealed partial class WhisparrSync
                             MonitorFor(batch, target))
                         : null,
 
-                // The other pass registers a site's presence and monitors nothing. What the reader
-                // owns on a site is its scenes, and this generation registers no per-scene verb this
-                // pass could reach one through.
+                // The other pass registers a site's presence. Nothing monitors the site itself: what
+                // the reader owns on a site is its scenes, so the monitor slot here marks those.
                 SyncRegisters.Sites =>
                     await ComposeSiteRegistrationAsync(services, runCt).ConfigureAwait(false)
                         is { } registerSite
@@ -409,15 +408,14 @@ public sealed partial class WhisparrSync
     /// marks them.
     /// </summary>
     /// <remarks>
-    /// Null unless the reader asked, the generation registers both the row read and the per-scene
-    /// monitor, and the connected metadata provider issues a number to address a scene by. With it
-    /// null the run registers its sites and makes no provider read and no row read at all, so the
-    /// whole cost of monitoring is paid only where it was asked for.
+    /// Null unless the reader asked and the generation registers both the row read and the per-scene
+    /// monitor. With it null the run registers its sites and makes no provider read and no row read
+    /// at all, so the whole cost of monitoring is paid only where it was asked for.
     /// <para>
-    /// The provider's resolving role is obtained once here rather than once per scene. A provider
-    /// that issues no such number would otherwise be asked again for every scene in the library and
-    /// refused every time, and the one line saying why nothing was monitored would be written per
-    /// scene instead of per run.
+    /// Whether the connected provider issues a number to address a scene by is not asked here. The
+    /// generation this pass runs on reads through the provider that issues one, so a refusal on that
+    /// ground would be a sentence no run can produce; a scene left without a number is counted
+    /// unnumbered in the run's own ending instead.
     /// </para>
     /// <para>
     /// Every role is obtained by name and none is chosen by comparing a version. The scene stream is
@@ -440,12 +438,6 @@ public sealed partial class WhisparrSync
         }
 
         var catalogue = services.GetRequiredService<IProviderCatalogue>();
-        if (!catalogue.Capabilities.Obtain<IResolvesNumericSceneId>().Match(_ => true, _ => false))
-        {
-            WhisparrSyncLog.NoSceneNumberingToMonitorBy(_log);
-            return null;
-        }
-
         var scenes = services.GetRequiredService<IEntitySceneIdentityPort>();
 
         var ports = new SiteSceneMonitorPorts(
