@@ -198,8 +198,8 @@ export function syncConfirmation(
     counts.skipped === 0
       ? ""
       : counts.skipped === 1
-        ? ", and skips 1 that carries no metadata id"
-        : `, and skips ${groupThousands(counts.skipped)} that carry no metadata id`;
+        ? ", and skips 1 that cannot be registered"
+        : `, and skips ${groupThousands(counts.skipped)} that cannot be registered`;
 
   const monitoring = monitorAlso
     ? `${sentences.alsoMonitors} ${MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF}`

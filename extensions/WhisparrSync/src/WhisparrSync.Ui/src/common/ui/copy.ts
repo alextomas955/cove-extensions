@@ -822,7 +822,7 @@ export const SYNC_NOT_YET_IN_WHISPARR = "Not yet in Whisparr";
 export const SYNC_ALREADY_IN_WHISPARR = "Already in Whisparr";
 
 /** @see SYNC_NOT_YET_IN_WHISPARR */
-export const SYNC_SKIPPED_NO_ID = "Skipped, no metadata id";
+export const SYNC_SKIPPED_CANNOT_BE_IDENTIFIED = "Skipped, cannot be identified";
 
 /**
  * What the skipped row means, and what a reader can do about it.
@@ -839,7 +839,8 @@ export const SYNC_SKIPPED_CANNOT_BE_REGISTERED =
  * @see SYNC_SKIPPED_CANNOT_BE_REGISTERED
  */
 export const SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED =
-  "A studio with no metadata id cannot be registered. Identify more of your library and count again.";
+  "A studio cannot be registered where your library carries no metadata id for it, or where the " +
+  "metadata source names no site for that id. Identify more of your library and count again.";
 
 /** While the count runs. */
 export const SYNC_COUNTING = "Counting what would sync.";

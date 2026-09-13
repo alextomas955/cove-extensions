@@ -28,7 +28,7 @@ import {
   SYNC_SITE_NOTHING_LEFT_TO_SYNC,
   SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED,
   SYNC_SKIPPED_CANNOT_BE_REGISTERED,
-  SYNC_SKIPPED_NO_ID,
+  SYNC_SKIPPED_CANNOT_BE_IDENTIFIED,
 } from "../common/ui/copy";
 import { deriveAsyncRegionState, type AsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { syncSentences } from "./syncLibraryLogic";
@@ -165,7 +165,7 @@ describe("the preview's four slots", () => {
       { label: SYNC_NOT_YET_IN_WHISPARR, value: "5,898" },
       // A zero still renders its own label, so the reader is not left to infer which row is missing.
       { label: SYNC_ALREADY_IN_WHISPARR, value: "0" },
-      { label: SYNC_SKIPPED_NO_ID, value: "1,648" },
+      { label: SYNC_SKIPPED_CANNOT_BE_IDENTIFIED, value: "1,648" },
     ]);
     expect(host.textContent).toContain("Counted 30 min ago.");
     expect(host.textContent).toContain(SYNC_SKIPPED_CANNOT_BE_REGISTERED);
@@ -790,7 +790,7 @@ describe("the section reads in the noun the run registers", () => {
     expect(countRows(sites).map((row) => row.label)).toEqual([
       SYNC_NOT_YET_IN_WHISPARR,
       SYNC_ALREADY_IN_WHISPARR,
-      SYNC_SKIPPED_NO_ID,
+      SYNC_SKIPPED_CANNOT_BE_IDENTIFIED,
     ]);
   });
 });
