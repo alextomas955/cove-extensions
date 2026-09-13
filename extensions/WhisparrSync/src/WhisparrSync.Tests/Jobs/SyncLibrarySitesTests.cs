@@ -192,11 +192,8 @@ public sealed class SyncLibrarySitesTests
     /// The site count reads every site in the stream and truncates nothing, at any number of sites.
     /// </summary>
     /// <remarks>
-    /// Seeded past <see cref="SyncPreviewJob.ChunkSize"/>, which is the largest batching figure
-    /// declared anywhere on this path and has nothing to do with the pacing bound. Sized against the
-    /// pacing bound, which is one, this would go green again the moment someone capped the pass at a
-    /// hundred; sized against the chunk it reddens on a ceiling introduced at any value below the
-    /// seed.
+    /// Seeded past <see cref="SyncPreviewJob.ChunkSize"/>, so the count both spans more than one
+    /// batch and reddens on a ceiling introduced at any value below the seed.
     /// <para>
     /// This stands in for the failure nobody can observe at three studios: a ceiling would answer a
     /// short already-there and not-yet-there pair that reads exactly like a complete one, which is
@@ -211,10 +208,13 @@ public sealed class SyncLibrarySitesTests
 
         var counted = await CountAsync(
             seeded,
-            (identity, _) =>
+            (batch, _) =>
             {
-                asked.Add(identity);
-                return Task.FromResult(asked.Count % 2 == 0);
+                asked.AddRange(batch);
+                return Task.FromResult(
+                    new SiteBatchReading(
+                        batch.Where((_, index) => index % 2 == 1).ToHashSet(StringComparer.Ordinal),
+                        new HashSet<string>(StringComparer.Ordinal)));
             });
 
         Assert.NotNull(counted);
@@ -223,21 +223,20 @@ public sealed class SyncLibrarySitesTests
         Assert.Equal(SyncRegisters.Sites, counted.Registers);
     }
 
-    /// <summary>The pacing bound is a bound on reads in flight, and it is one.</summary>
+    /// <summary>The pacing bound is a bound on one site's scene reads in flight, and it is one.</summary>
     /// <remarks>
-    /// Read from the constant rather than restated, and asserted beside the case above: the two
-    /// together say that what is bounded is how many reads are outstanding and not how many are
-    /// issued.
+    /// Read from the constant rather than restated: what it bounds is how many of a site's own scene
+    /// reads are outstanding, and not how many the pass issues.
     /// </remarks>
     [Fact]
     public void ThePacingBoundIsOneReadInFlightAndBoundsNoTotal()
     {
-        Assert.Equal(1, SyncPreviewJob.SitePresenceReadsInFlight);
-        Assert.True(SyncPreviewJob.SitePresenceReadsInFlight < SyncPreviewJob.ChunkSize);
+        Assert.Equal(1, SyncPreviewJob.SiteSceneReadsInFlight);
+        Assert.True(SyncPreviewJob.SiteSceneReadsInFlight < SyncPreviewJob.ChunkSize);
     }
 
     /// <summary>
-    /// A presence read that could not be answered part way through leaves no slot written.
+    /// A site read that could not be answered part way through leaves no slot written.
     /// </summary>
     /// <remarks>
     /// Three counts arrive together or not at all. A site put in the not-yet-there column because
@@ -245,26 +244,26 @@ public sealed class SyncLibrarySitesTests
     /// the read route answers no view.
     /// </remarks>
     [Fact]
-    public async Task APresenceReadThatFailedPartWayThroughLeavesNoSlot()
+    public async Task ASiteReadThatFailedPartWayThroughLeavesNoSlot()
     {
         var cache = new SyncPreviewCache(TimeProvider.System);
         var asked = 0;
 
-        Task<bool> AskAsync(string identity, CancellationToken ct)
+        Task<SiteBatchReading> AskAsync(IReadOnlyCollection<string> batch, CancellationToken ct)
         {
             asked++;
-            if (asked == 3)
-            {
-                throw new HttpRequestException("nothing answered");
-            }
-
-            return Task.FromResult(false);
+            return asked == 2
+                ? throw new HttpRequestException("nothing answered")
+                : Task.FromResult(
+                    new SiteBatchReading(
+                        new HashSet<string>(StringComparer.Ordinal),
+                        new HashSet<string>(StringComparer.Ordinal)));
         }
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => CountAsync(Sites(4), AskAsync, cache));
+            () => CountAsync(Sites(SyncPreviewJob.ChunkSize + 2), AskAsync, cache));
 
-        Assert.Equal(3, asked);
+        Assert.Equal(2, asked);
         Assert.Null(cache.Held(WhisparrGeneration.V2));
     }
 
@@ -361,7 +360,7 @@ public sealed class SyncLibrarySitesTests
 
     private static async Task<SyncPreviewView?> CountAsync(
         IReadOnlyList<LibrarySiteIdentity> sites,
-        Func<string, CancellationToken, Task<bool>> presence,
+        Func<IReadOnlyCollection<string>, CancellationToken, Task<SiteBatchReading>> heldSites,
         SyncPreviewCache? cache = null)
     {
         await using var provider = new ServiceCollection()
@@ -374,7 +373,7 @@ public sealed class SyncLibrarySitesTests
             provider.GetRequiredService<IServiceScopeFactory>(),
             (_, _) => Task.FromResult<SyncPreviewAiming?>(
                 new SyncPreviewAiming(
-                    WhisparrGeneration.V2, SyncRegisters.Sites, Held: null, presence)),
+                    WhisparrGeneration.V2, SyncRegisters.Sites, Held: null, heldSites)),
             NullLogger.Instance,
             TestCt);
     }
