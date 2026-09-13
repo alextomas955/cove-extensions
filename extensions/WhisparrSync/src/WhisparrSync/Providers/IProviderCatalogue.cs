@@ -191,6 +191,49 @@ public sealed record ProviderIdentityLookup
         => new(providerEntityId, false, true);
 }
 
+/// <summary>The number a provider issues for one site, or why it issues none.</summary>
+/// <remarks>
+/// A read that never arrived issues no number and states no absence, and the two are held apart here
+/// so an implementation cannot answer one for the other. A rate-limited read belongs on the
+/// not-reached side: counted as a site the provider names none for, a throttled site would move
+/// silently into the column of sites nothing is held for.
+/// <para>
+/// The number and nothing else. What the provider calls the site is resolved by whoever is handed
+/// the number, so no name crosses this seam to disagree with the one already stored.
+/// </para>
+/// </remarks>
+public sealed record ProviderSiteNumber
+{
+    private ProviderSiteNumber(int? number, bool wasReached)
+    {
+        Number = number;
+        WasReached = wasReached;
+    }
+
+    /// <summary>The number the provider issued, or null.</summary>
+    public int? Number { get; }
+
+    /// <summary>The provider answered, whatever it answered.</summary>
+    public bool WasReached { get; }
+
+    /// <summary>The provider was not reached, or refused.</summary>
+    public static ProviderSiteNumber NotReached { get; } = new(null, false);
+
+    /// <summary>The provider names no site for the identifier it was asked about.</summary>
+    public static ProviderSiteNumber NamesNone { get; } = new(null, true);
+
+    /// <summary>The provider issues <paramref name="number"/> for the site.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="number"/> is not positive. Zero is no identifier on any provider measured
+    /// here, and a caller handed one would address a row by it.
+    /// </exception>
+    public static ProviderSiteNumber Numbered(int number)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(number);
+        return new ProviderSiteNumber(number, true);
+    }
+}
+
 /// <summary>The metadata provider Cove is configured with, as this product reads it.</summary>
 /// <remarks>
 /// Narrow in the same sense this product's instance client is: no member takes a caller-supplied
@@ -276,6 +319,20 @@ public interface IProviderCatalogue
     /// </para>
     /// </remarks>
     Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct);
+
+    /// <summary>
+    /// The provider's own numeric id for the site <paramref name="providerSiteId"/> names.
+    /// </summary>
+    /// <remarks>
+    /// One read per site. Nothing is held between calls, for the reason the entity reads already
+    /// state: a cache here would answer for a source the host was reconfigured away from.
+    /// <para>
+    /// A caller obtains <see cref="IResolvesNumericSiteId"/> by name before asking. A provider that
+    /// issues no number of its own holds no such role, so the resolution is refused there rather
+    /// than answered here as a site the provider names none for.
+    /// </para>
+    /// </remarks>
+    Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(string providerSiteId, CancellationToken ct);
 
     /// <summary>
     /// The facet menus this provider fills for the <paramref name="kind"/> entity

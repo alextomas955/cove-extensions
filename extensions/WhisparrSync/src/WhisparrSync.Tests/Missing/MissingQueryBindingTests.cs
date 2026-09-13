@@ -357,6 +357,10 @@ public sealed class MissingQueryBindingTests
             return Task.FromResult<int?>(null);
         }
 
+        public Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
+            string providerSiteId, CancellationToken ct)
+            => Task.FromResult(ProviderSiteNumber.NotReached);
+
         public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
             WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
             => Task.FromResult(Menus);
