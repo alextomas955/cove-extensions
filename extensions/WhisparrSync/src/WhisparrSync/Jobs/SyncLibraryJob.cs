@@ -36,8 +36,7 @@ public sealed record SyncLibraryBatch(bool AlsoMonitor);
 /// </param>
 /// <param name="MonitorSiteScenes">
 /// Marks the scenes the reader owns on one registered site wanted, or null where the reader did not
-/// ask for it, the generation registers no per-scene monitor, or the connected metadata provider
-/// issues no number to address a scene by.
+/// ask for it or the generation registers no per-scene monitor.
 /// </param>
 internal sealed record SyncLibraryAiming(
     WhisparrGeneration Generation,
