@@ -73,6 +73,11 @@ internal sealed class StubProviderCatalogue(
         return Task.FromResult<int?>(null);
     }
 
+    // This stub names itself StashDB, which issues no number of its own for a site either.
+    public Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
+        string providerSiteId, CancellationToken ct)
+        => Task.FromResult(ProviderSiteNumber.NotReached);
+
     public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
         WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
         => Task.FromResult<IReadOnlyList<ProviderFacetMenu>>([]);
@@ -149,6 +154,10 @@ internal sealed class PagedProviderCatalogue(List<ProviderScene> scenes, int per
 
     public Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
         => Task.FromResult<int?>(null);
+
+    public Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
+        string providerSiteId, CancellationToken ct)
+        => Task.FromResult(ProviderSiteNumber.NotReached);
 
     public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
         WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)

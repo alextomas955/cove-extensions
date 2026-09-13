@@ -36,6 +36,9 @@ public enum ProviderCapability
 
     /// <summary>A stored scene identifier can be resolved to the provider's own numeric id.</summary>
     ResolveNumericSceneId,
+
+    /// <summary>A stored site identifier can be resolved to the provider's own numeric id.</summary>
+    ResolveNumericSiteId,
 }
 
 /// <summary>The catalogue can be ordered by title.</summary>
@@ -76,6 +79,14 @@ public interface ILooksUpByName;
 /// request rather than answered as a scene the provider does not name.
 /// </remarks>
 public interface IResolvesNumericSceneId;
+
+/// <summary>A stored site identifier can be resolved to the provider's own numeric id.</summary>
+/// <remarks>
+/// Held by a provider that issues a number of its own for a site beside the identifier Cove stores.
+/// A provider that issues none holds no role here, so the resolution is refused before any request
+/// rather than answered as a site the provider does not name.
+/// </remarks>
+public interface IResolvesNumericSiteId;
 
 /// <summary>The capability set each provider holds.</summary>
 /// <remarks>
@@ -189,6 +200,7 @@ public sealed class ProviderCapabilitySet
         [typeof(ISearchesTitles)] = ProviderCapability.SearchTitles,
         [typeof(ILooksUpByName)] = ProviderCapability.LookUpByName,
         [typeof(IResolvesNumericSceneId)] = ProviderCapability.ResolveNumericSceneId,
+        [typeof(IResolvesNumericSiteId)] = ProviderCapability.ResolveNumericSiteId,
     };
 
     private readonly Dictionary<ProviderCapability, object> _roles;

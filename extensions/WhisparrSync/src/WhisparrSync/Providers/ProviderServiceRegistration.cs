@@ -128,6 +128,13 @@ internal sealed class ProviderCatalogueSelector : IProviderCatalogue
         return await catalogue.ResolveNumericSceneIdAsync(providerSceneId, ct).ConfigureAwait(false);
     }
 
+    public async Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
+        string providerSiteId, CancellationToken ct)
+    {
+        var catalogue = await _selected.ConfigureAwait(false);
+        return await catalogue.ResolveNumericSiteIdAsync(providerSiteId, ct).ConfigureAwait(false);
+    }
+
     public async Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
         WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
     {

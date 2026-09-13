@@ -622,6 +622,10 @@ internal sealed class InertProviderCatalogue : IProviderCatalogue
     public Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
         => Task.FromResult<int?>(null);
 
+    public Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
+        string providerSiteId, CancellationToken ct)
+        => Task.FromResult(ProviderSiteNumber.NotReached);
+
     public Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
         WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
         => Task.FromResult<IReadOnlyList<ProviderFacetMenu>>([]);
