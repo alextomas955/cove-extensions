@@ -234,8 +234,8 @@ export function syncDisabledReason(state: SyncControlState): string | null {
  * The one reason the monitor choice cannot be made, or null.
  *
  * A run in flight is the only thing the choice could contradict: it is read at press time, so
- * nothing else about the page's state makes it unavailable. It carries no refusal for a capability
- * gap - the choice is honoured whatever the run registers.
+ * nothing else about the page's state makes it unavailable. It carries no refusal beyond that one,
+ * and a scene the run could not mark is counted in the run's own ending rather than refused here.
  */
 export function monitorToggleReason(state: SyncControlState): string | null {
   if (state.syncRunning) return SYNC_ALREADY_RUNNING;
