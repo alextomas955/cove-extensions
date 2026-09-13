@@ -136,8 +136,14 @@ public sealed class V2BodyProjectorTests
             ],
             body.Select(member => member.Key).Order());
         Assert.Equal(3372, body["tvdbId"]!.GetValue<int>());
-        Assert.Equal("Vixen", body["title"]!.GetValue<string>());
-        Assert.Equal("vixen", body["titleSlug"]!.GetValue<string>());
+
+        // The instance refuses an add carrying no title and discards the value of the one it is
+        // given, resolving the site's real title and its slug from the number alone.
+        Assert.Equal("3372", body["title"]!.GetValue<string>());
+
+        // The member the generated resource cannot leave off the document. Null is its absence on
+        // the wire, not a value this product chose.
+        Assert.Null(body["titleSlug"]);
         Assert.Equal(1, body["qualityProfileId"]!.GetValue<int>());
         Assert.Equal("/config/library", body["rootFolderPath"]!.GetValue<string>());
         Assert.True(body["monitored"]!.GetValue<bool>());
