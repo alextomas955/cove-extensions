@@ -229,7 +229,11 @@ public interface IWhisparrClient
 /// </para>
 /// </remarks>
 internal sealed class WhisparrClient(
-    HttpClient http, Whisparr3Gateway v3Gateway, Whisparr2Gateway v2Gateway, ILogger log)
+    HttpClient http,
+    Whisparr3Gateway v3Gateway,
+    Whisparr2Gateway v2Gateway,
+    ISiteNumberPort siteNumbers,
+    ILogger log)
     : IWhisparrClient,
         IWhisparrStudioActing,
         IWhisparrPerformerActing,
@@ -660,7 +664,7 @@ internal sealed class WhisparrClient(
             baseAddress,
             apiKey,
             api => api.Api<V2Api.ISeriesApi>().CreateSeriesAsync(
-                V2BodyProjector.AddStudio(site.EntityId, site.Title, site.TitleSlug, scope, defaults),
+                V2BodyProjector.AddStudio(site.EntityId, scope, defaults),
                 ct)).ConfigureAwait(false);
     }
 
@@ -687,7 +691,7 @@ internal sealed class WhisparrClient(
             baseAddress,
             apiKey,
             api => api.Api<V2Api.ISeriesApi>().CreateSeriesAsync(
-                V2BodyProjector.RegisterSite(site.EntityId, site.Title, site.TitleSlug, defaults),
+                V2BodyProjector.RegisterSite(site.EntityId, defaults),
                 ct)).ConfigureAwait(false);
     }
 
@@ -700,6 +704,17 @@ internal sealed class WhisparrClient(
     private async Task<(V2Site? Site, WhisparrResponse Answer)> ResolveSiteAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
     {
+        var numbered = await siteNumbers.ResolveSiteNumberAsync(foreignId, ct).ConfigureAwait(false);
+        if (numbered.Number is null)
+        {
+            return (null, new WhisparrResponse(0, null, string.Empty)
+            {
+                Refusal = numbered.WasReached
+                    ? MonitorRefusalKind.NoIdentityInThisNamespace
+                    : MonitorRefusalKind.InstanceRefused,
+            });
+        }
+
         var lookup = await GeneratedV2ReadAsync(
             baseAddress,
             apiKey,
