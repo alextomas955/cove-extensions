@@ -90,14 +90,14 @@ describe("the confirmation names the figures and the consequence", () => {
   // agree with whatever the module produced.
   it("names what it covers and what it skips, and that it monitors nothing", () => {
     expect(syncConfirmation(LIBRARY, false, SCENES)).toBe(
-      "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that carry no metadata id. " +
+      "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that cannot be registered. " +
         "It monitors nothing. Registering a scene in Whisparr downloads nothing.",
     );
   });
 
   it("names what monitoring does, and what it does not do by itself", () => {
     expect(syncConfirmation(LIBRARY, true, SCENES)).toBe(
-      "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that carry no metadata id. " +
+      "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that cannot be registered. " +
         "It also marks each of them monitored. Marking a scene wanted downloads nothing by itself. " +
         "Registering a scene in Whisparr downloads nothing.",
     );
@@ -112,7 +112,7 @@ describe("the confirmation names the figures and the consequence", () => {
 
   it("agrees with a single skipped scene", () => {
     expect(syncConfirmation({ notYetThere: 4, alreadyThere: 0, skipped: 1 }, false, SCENES)).toBe(
-      "This offers all 4 scenes you own to Whisparr, and skips 1 that carries no metadata id. " +
+      "This offers all 4 scenes you own to Whisparr, and skips 1 that cannot be registered. " +
         "It monitors nothing. Registering a scene in Whisparr downloads nothing.",
     );
   });
@@ -148,8 +148,8 @@ describe("the confirmation reads in studios where the run registers studios", ()
   // Transcribed by hand, as the scene set's own pins are.
   it("names what it covers and what it skips, and that it monitors nothing", () => {
     expect(syncConfirmation(STUDIOS, false, SITES)).toBe(
-      "This offers all 412 studios in your library to Whisparr, and skips 12 that carry no " +
-        "metadata id. It monitors nothing. Registering a studio in Whisparr downloads nothing.",
+      "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
+        "registered. It monitors nothing. Registering a studio in Whisparr downloads nothing.",
     );
   });
 
@@ -159,8 +159,8 @@ describe("the confirmation reads in studios where the run registers studios", ()
    */
   it("names the scenes monitoring reaches on those studios", () => {
     expect(syncConfirmation(STUDIOS, true, SITES)).toBe(
-      "This offers all 412 studios in your library to Whisparr, and skips 12 that carry no " +
-        "metadata id. It also marks the scenes you own on them monitored. Marking a scene wanted " +
+      "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
+        "registered. It also marks the scenes you own on them monitored. Marking a scene wanted " +
         "downloads nothing by itself. Registering a studio in Whisparr downloads nothing.",
     );
   });

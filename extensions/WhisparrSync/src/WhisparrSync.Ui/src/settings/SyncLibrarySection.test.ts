@@ -589,7 +589,7 @@ describe("the confirmation in front of the run", () => {
     const opened = dialog();
     expect(opened?.getAttribute("aria-label")).toBe(SYNC_LIBRARY);
     expect(opened?.textContent).toContain("This offers all 5,898 scenes you own to Whisparr");
-    expect(opened?.textContent).toContain("and skips 1,648 that carry no metadata id");
+    expect(opened?.textContent).toContain("and skips 1,648 that cannot be registered");
     expect(opened?.textContent).toContain("Registering a scene in Whisparr downloads nothing.");
     // Its confirm control carries the same words as the control that opened it.
     expect([...(opened?.querySelectorAll("button") ?? [])].at(0)?.textContent).toBe(SYNC_LIBRARY);
