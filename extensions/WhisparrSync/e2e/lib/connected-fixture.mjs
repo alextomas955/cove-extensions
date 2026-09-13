@@ -216,6 +216,7 @@ const SEEDERS = {
 
       return {
         whisparr,
+        metadata,
         remoteId: String(siteId),
         monitored: async (instance) => (await siteRow(instance, seeded.seriesId))?.monitored,
 
@@ -395,6 +396,7 @@ export const test = base.extend({
         api,
         generation,
         instance,
+        metadata: seeded.metadata ?? null,
         owned,
         provider,
         remoteId: seeded.remoteId,
