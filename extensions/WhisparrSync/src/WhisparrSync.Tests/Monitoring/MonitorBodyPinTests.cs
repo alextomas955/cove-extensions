@@ -297,7 +297,7 @@ public sealed class MonitorBodyPinTests
                 StudioForeignId, MonitorScope.AllScenes, new AddDefaults(0, "/config/library"), Now)));
         Assert.Throws<ArgumentOutOfRangeException>(
             () => V2BodyProjector.AddStudio(
-                SiteEntityId, "Vixen", "vixen", MonitorScope.AllScenes, new AddDefaults(0, "/config/library")));
+                SiteEntityId, MonitorScope.AllScenes, new AddDefaults(0, "/config/library")));
     }
 
     /// <summary>
@@ -496,8 +496,6 @@ public sealed class MonitorBodyPinTests
             ComposedV2Body
                 .Of(V2BodyProjector.AddStudio(
                     site.EntityId,
-                    site.Title,
-                    site.TitleSlug,
                     MonitorScope.FutureScenes,
                     new AddDefaults(1, "/config/library")))["tvdbId"]!
                 .GetValue<int>());
@@ -678,8 +676,6 @@ public sealed class MonitorBodyPinTests
         var composed = Enum.GetValues<MonitorScope>()
             .Select(scope => (JsonObject)ComposedV2Body.Of(V2BodyProjector.AddStudio(
                 SiteEntityId,
-                "Vixen",
-                "vixen",
                 scope,
                 new AddDefaults(1, "/config/library")))["addOptions"]!)
             .Select(options2 => options2["monitor"]!.GetValue<string>())
