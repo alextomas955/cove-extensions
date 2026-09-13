@@ -37,10 +37,13 @@ public sealed class MonitorPathTests
     /// <summary>A stored identifier of the shape v2's source mints.</summary>
     private const string V2StoredIdentifier = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-    /// <summary>One site as v2's lookup answers with it.</summary>
-    private const string V2OneSite = """
-        [{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen","year":2016}]
-        """;
+    /// <summary>The number the metadata source names that site by.</summary>
+    private const int V2SiteNumber = 3372;
+
+    /// <summary>The shipped client, with the one site number v2's paths are driven for.</summary>
+    private static WhisparrClient V2Client(HttpClient http, BodyRecordingHandler handler)
+        => TestWhisparrClient.Over(
+            http, handler, siteNumbers: TestSiteNumbers.Numbering(V2StoredIdentifier, V2SiteNumber));
 
     /// <summary>
     /// The whole gesture: one stored identity row in, one monitored studio out, and nothing that
@@ -213,121 +216,6 @@ public sealed class MonitorPathTests
     }
 
     /// <summary>
-    /// Whisparr v2 is asked under the stored identifier exactly as the library holds it, and
-    /// the entity is then added under the numeric identifier the lookup answered with.
-    /// </summary>
-    /// <remarks>
-    /// The prefixed spelling is answered with a success and an empty list, so a term carrying one
-    /// would compose no add at all and report nothing wrong. The query is what this asserts, because
-    /// that is where the term travels.
-    /// </remarks>
-    [Fact]
-    public async Task TheOlderGenerationIsAskedUnprefixedAndAddedUnderTheIdentifierItAnsweredWith()
-    {
-        var handler = BodyRecordingHandler.AnsweringInTurn(
-            (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.Created, "{\"id\":1}"));
-        using var http = new HttpClient(handler);
-
-        await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
-            .AddMonitoredStudioAsync(
-                new Uri(MonitorHost.StoredAddress),
-                MonitorHost.StoredKey,
-                WhisparrGeneration.V2,
-                V2StoredIdentifier,
-                MonitorScope.FutureScenes,
-                new AddDefaults(1, "/config/library"),
-                TestCt);
-
-        Assert.Equal(2, handler.Requests.Count);
-        Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
-        Assert.Equal("/api/v3/series/lookup", handler.Requests[0].Path);
-        Assert.Equal("/api/v3/series/lookup?term=" + V2StoredIdentifier, handler.Targets[0]);
-        Assert.DoesNotContain("tpdb", handler.Targets[0], StringComparison.OrdinalIgnoreCase);
-
-        Assert.Equal(HttpMethod.Post, handler.Requests[1].Method);
-        Assert.Equal("/api/v3/series", handler.Targets[1]);
-
-        var body = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[1].Body));
-        Assert.Equal(3372, body["tvdbId"]!.GetValue<int>());
-        Assert.DoesNotContain(V2StoredIdentifier, handler.Requests[1].Body, StringComparison.Ordinal);
-
-        var addOptions = Assert.IsType<JsonObject>(body["addOptions"]);
-        Assert.Equal("future", addOptions["monitor"]!.GetValue<string>());
-        Assert.False(addOptions["searchForMissingEpisodes"]!.GetValue<bool>());
-        Assert.False(addOptions["searchForCutoffUnmetEpisodes"]!.GetValue<bool>());
-        Assert.Equal(1, body["qualityProfileId"]!.GetValue<int>());
-    }
-
-    /// <summary>
-    /// A lookup naming more than one entity stops the gesture with nothing composed and nothing sent
-    /// after it.
-    /// </summary>
-    /// <remarks>
-    /// Paired with the case above, which sends a second request through the same stub, so the single
-    /// recorded request here is evidence about the refusal rather than about the stub.
-    /// </remarks>
-    [Fact]
-    public async Task ALookupNamingMoreThanOneEntityAddsNothing()
-    {
-        const string twoSites = """
-            [{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen"},
-             {"tvdbId":36826,"title":"Vixen Media Group","titleSlug":"vixen-media-group"}]
-            """;
-
-        var handler = BodyRecordingHandler.AnsweringInTurn(
-            (HttpStatusCode.OK, twoSites), (HttpStatusCode.Created, "{\"id\":1}"));
-        using var http = new HttpClient(handler);
-
-        var answered = await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
-            .AddMonitoredStudioAsync(
-                new Uri(MonitorHost.StoredAddress),
-                MonitorHost.StoredKey,
-                WhisparrGeneration.V2,
-                V2StoredIdentifier,
-                MonitorScope.AllScenes,
-                new AddDefaults(1, "/config/library"),
-                TestCt);
-
-        Assert.Equal(HttpMethod.Get, Assert.Single(handler.Requests).Method);
-        Assert.NotEqual(
-            MonitorRefusalKind.None, MonitoringProjector.Accepted(answered));
-    }
-
-    /// <summary>
-    /// Whether v2's instance holds the entity is read out of its own listing, and
-    /// only the matched entry is carried onward.
-    /// </summary>
-    [Fact]
-    public async Task TheOlderGenerationsHeldReadingComesFromItsOwnListing()
-    {
-        const string listed = """
-            [{"id":1,"tvdbId":3372,"title":"Vixen","monitored":true},
-             {"id":2,"tvdbId":247,"title":"Tushy Raw","monitored":false}]
-            """;
-
-        var handler = BodyRecordingHandler.AnsweringInTurn(
-            (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.OK, listed));
-        using var http = new HttpClient(handler);
-
-        var read = await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
-            .ReadStudioAsync(
-                new Uri(MonitorHost.StoredAddress),
-                MonitorHost.StoredKey,
-                WhisparrGeneration.V2,
-                V2StoredIdentifier,
-                TestCt);
-
-        // The recorded query, never the recorded path: AbsolutePath alone cannot tell a read narrowed
-        // to one entity from one that asked the instance for its whole catalogue.
-        Assert.Equal("/api/v3/series?tvdbId=3372", handler.Targets[1]);
-        Assert.Equal(
-            MonitoringProjector.EntityReading.Held, MonitoringProjector.Classify(read).Reading);
-        Assert.Equal(1, MonitoringProjector.EntityIdIn(read.Body));
-        Assert.True(MonitoringProjector.MonitoredIn(read.Body));
-        Assert.DoesNotContain("Tushy Raw", read.Body, StringComparison.Ordinal);
-    }
-
-    /// <summary>
     /// An accepted add whose read-back finds nothing says the change was not reported, not that the
     /// instance holds no such entry.
     /// </summary>
@@ -382,29 +270,22 @@ public sealed class MonitorPathTests
     }
 
     /// <summary>
-    /// An answer past the read bound on either of v2's two reads keeps its own
-    /// reason, rather than being parsed as an absence or as the instance refusing.
+    /// An answer past the read bound on v2's site read keeps its own reason, rather than being
+    /// parsed as an absence.
     /// </summary>
     /// <remarks>
-    /// The assembly reads the status of each answer, and an answer past the bound arrives with the
-    /// success status the instance gave and an empty body. Parsing that body reports the entity as
-    /// absent on the listing and unreadable on the lookup, which is the reason this generation's
-    /// path needs its own case rather than resting on the transport one.
+    /// An answer past the bound arrives with the success status the instance gave and an empty body.
+    /// Parsing that body reports the site as one the instance does not hold, which is the reason this
+    /// generation's path needs its own case rather than resting on the transport one.
     /// </remarks>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task AnAnswerPastTheBoundOnEitherOlderGenerationReadKeepsItsOwnReason(
-        bool onTheLookup)
+    [Fact]
+    public async Task AnAnswerPastTheBoundOnTheOlderGenerationReadKeepsItsOwnReason()
     {
         var past = $"[\"{new string('a', (int)WhisparrClient.MaxResponseBytes)}\"]";
-        var handler = onTheLookup
-            ? BodyRecordingHandler.AnsweringInTurn((HttpStatusCode.OK, past))
-            : BodyRecordingHandler.AnsweringInTurn(
-                (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.OK, past));
+        var handler = BodyRecordingHandler.AnsweringInTurn((HttpStatusCode.OK, past));
         using var http = new HttpClient(handler);
 
-        var read = await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
+        var read = await ((IWhisparrStudioActing)V2Client(http, handler))
             .ReadStudioAsync(
                 new Uri(MonitorHost.StoredAddress),
                 MonitorHost.StoredKey,
@@ -415,29 +296,6 @@ public sealed class MonitorPathTests
         Assert.Equal(
             MonitorRefusalKind.AnswerTooLargeToRead, MonitoringProjector.Classify(read).Refusal);
         Assert.Empty(read.Body);
-    }
-
-    /// <summary>
-    /// An entity v2's instance lists nowhere reads as not held, which is not a
-    /// refusal: it is the precondition for adding it.
-    /// </summary>
-    [Fact]
-    public async Task AnEntityTheOlderGenerationDoesNotListReadsAsNotHeld()
-    {
-        var handler = BodyRecordingHandler.AnsweringInTurn(
-            (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.OK, "[]"));
-        using var http = new HttpClient(handler);
-
-        var read = await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
-            .ReadStudioAsync(
-                new Uri(MonitorHost.StoredAddress),
-                MonitorHost.StoredKey,
-                WhisparrGeneration.V2,
-                V2StoredIdentifier,
-                TestCt);
-
-        Assert.Equal(
-            MonitoringProjector.EntityReading.NotHeld, MonitoringProjector.Classify(read).Reading);
     }
 
     /// <summary>
@@ -481,10 +339,10 @@ public sealed class MonitorPathTests
         });
 
         var handler = BodyRecordingHandler.AnsweringInTurn(
-            (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.OK, listing.ToJsonString()));
+            (HttpStatusCode.OK, listing.ToJsonString()));
         using var http = new HttpClient(handler);
 
-        var read = await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
+        var read = await ((IWhisparrStudioActing)V2Client(http, handler))
             .ReadStudioAsync(
                 new Uri(MonitorHost.StoredAddress),
                 MonitorHost.StoredKey,
@@ -492,7 +350,7 @@ public sealed class MonitorPathTests
                 V2StoredIdentifier,
                 TestCt);
 
-        Assert.Equal("/api/v3/series?tvdbId=3372", handler.Targets[1]);
+        Assert.Equal("/api/v3/series?tvdbId=3372", Assert.Single(handler.Targets));
         Assert.Equal(
             3372,
             Assert.IsType<JsonObject>(JsonNode.Parse(read.Body))["tvdbId"]!.GetValue<int>());
@@ -518,12 +376,11 @@ public sealed class MonitorPathTests
     public async Task TheOlderGenerationsHeldReadOfAnEntityTheInstanceDoesNotHoldIsTheFilteredAnswer()
     {
         var handler = BodyRecordingHandler.AnsweringInTurn(
-            (HttpStatusCode.OK, V2OneSite),
             (HttpStatusCode.OK,
                 ProbeFixtures.Read("whisparr-v2-2.2.0.231-series-by-tvdbid-absent.json")));
         using var http = new HttpClient(handler);
 
-        var read = await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler))
+        var read = await ((IWhisparrStudioActing)V2Client(http, handler))
             .ReadStudioAsync(
                 new Uri(MonitorHost.StoredAddress),
                 MonitorHost.StoredKey,
@@ -531,7 +388,7 @@ public sealed class MonitorPathTests
                 V2StoredIdentifier,
                 TestCt);
 
-        Assert.Equal("/api/v3/series?tvdbId=3372", handler.Targets[1]);
+        Assert.Equal("/api/v3/series?tvdbId=3372", Assert.Single(handler.Targets));
         Assert.Equal(
             MonitoringProjector.EntityReading.NotHeld, MonitoringProjector.Classify(read).Reading);
         Assert.Equal(MonitorRefusalKind.None, MonitoringProjector.Classify(read).Refusal);

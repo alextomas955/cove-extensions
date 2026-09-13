@@ -262,12 +262,15 @@ internal sealed class WhisparrClient(
     internal const string StudioPath = "api/v3/studio";
     internal const string ExclusionsPath = "api/v3/exclusions";
 
-    // The one status this product composes rather than receives, and the only one anywhere in it.
-    // Whisparr v2 answers "do you hold this entity" through no single route, so that reading
-    // is assembled from a lookup and a listing and reported in the spelling a caller already
-    // classifies. Named rather than written inline so a reader is not left to infer that an instance
-    // sent it.
+    // The one status this product composes rather than receives. Whisparr v2 answers "do you hold
+    // this site" only as a row inside its own list, so an absent row is reported in the spelling a
+    // caller already classifies. Named rather than written inline so a reader is not left to infer
+    // that an instance sent it.
     private const int AssembledNotHeld = 404;
+
+    // No request was sent, so there is no status to report. Zero is no status rather than a composed
+    // one: every caller of an answer carrying it reads the refusal, which outranks the status.
+    private const int NoInstanceStatus = 0;
 
     // The member naming the verb on a composed command body.
     private const string CommandNameProperty = "name";
@@ -616,36 +619,38 @@ internal sealed class WhisparrClient(
 
     /// <summary>Whether v2's instance holds the entity named by an identifier.</summary>
     /// <remarks>
-    /// Two reads, because this generation answers the question through no single route: its lookup
-    /// resolves the identifier to an entity and carries no instance-side id until that entity has been
-    /// added, and its own listing is what says whether it has been. The second read names the one
-    /// entity the lookup resolved, so what it answers does not vary with how much the instance holds,
-    /// and only the matched entry is carried onward.
+    /// One read, narrowed to the number the metadata source names the site by, so what it answers
+    /// does not vary with how much the instance holds. Only the matched entry is carried onward,
+    /// because this generation narrows its own answer by no parameter it publishes a contract for.
     /// </remarks>
     private async Task<WhisparrResponse> ReadHeldSeriesAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
     {
-        var resolved = await ResolveSiteAsync(baseAddress, apiKey, foreignId, ct).ConfigureAwait(false);
-        if (resolved.Site is not { } site)
+        var numbered = await siteNumbers.ResolveSiteNumberAsync(foreignId, ct).ConfigureAwait(false);
+        if (numbered.Number is not { } siteNumber)
         {
-            return resolved.Answer;
+            return NoSiteNumber(numbered);
         }
 
         var listed = await GeneratedV2ReadAsync(
             baseAddress,
             apiKey,
             api => api.Api<V2Api.ISeriesApi>().ListSeriesAsync(
-                tvdbId: site.EntityId, cancellationToken: ct)).ConfigureAwait(false);
+                tvdbId: siteNumber, cancellationToken: ct)).ConfigureAwait(false);
         if (Refused(listed))
         {
             return listed;
         }
 
-        return V2LookupProjector.HeldEntry(listed.Body, site.EntityId) is { } held
+        return V2LookupProjector.HeldEntry(listed.Body, siteNumber) is { } held
             ? new WhisparrResponse(listed.StatusCode, listed.ContentType, held.ToJsonString())
             : new WhisparrResponse(AssembledNotHeld, listed.ContentType, string.Empty);
     }
 
+    /// <remarks>
+    /// One request. The add carries the number and the scope and nothing the metadata source said,
+    /// because the instance resolves the site's own title and slug from that number.
+    /// </remarks>
     private async Task<WhisparrResponse> AddMonitoredSeriesAsync(
         Uri baseAddress,
         string apiKey,
@@ -654,25 +659,24 @@ internal sealed class WhisparrClient(
         AddDefaults defaults,
         CancellationToken ct)
     {
-        var resolved = await ResolveSiteAsync(baseAddress, apiKey, foreignId, ct).ConfigureAwait(false);
-        if (resolved.Site is not { } site)
+        var numbered = await siteNumbers.ResolveSiteNumberAsync(foreignId, ct).ConfigureAwait(false);
+        if (numbered.Number is not { } siteNumber)
         {
-            return resolved.Answer;
+            return NoSiteNumber(numbered);
         }
 
         return await GeneratedV2ActAsync(
             baseAddress,
             apiKey,
             api => api.Api<V2Api.ISeriesApi>().CreateSeriesAsync(
-                V2BodyProjector.AddStudio(site.EntityId, scope, defaults),
+                V2BodyProjector.AddStudio(siteNumber, scope, defaults),
                 ct)).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
     /// <remarks>
-    /// The same two-step the monitoring add uses: the lookup resolves the stored identifier to the
-    /// number this generation names a site by, and the add carries that number. The body is the
-    /// presence-only one, so the catalogue the instance then reads for the site is wanted by nothing.
+    /// The same one request the monitoring add sends, with the presence-only body, so the catalogue
+    /// the instance then reads for the site is wanted by nothing.
     /// </remarks>
     public async Task<WhisparrResponse> RegisterSiteAsync(
         Uri baseAddress,
@@ -681,70 +685,32 @@ internal sealed class WhisparrClient(
         AddDefaults defaults,
         CancellationToken ct)
     {
-        var resolved = await ResolveSiteAsync(baseAddress, apiKey, foreignId, ct).ConfigureAwait(false);
-        if (resolved.Site is not { } site)
+        var numbered = await siteNumbers.ResolveSiteNumberAsync(foreignId, ct).ConfigureAwait(false);
+        if (numbered.Number is not { } siteNumber)
         {
-            return resolved.Answer;
+            return NoSiteNumber(numbered);
         }
 
         return await GeneratedV2ActAsync(
             baseAddress,
             apiKey,
             api => api.Api<V2Api.ISeriesApi>().CreateSeriesAsync(
-                V2BodyProjector.RegisterSite(site.EntityId, defaults),
+                V2BodyProjector.RegisterSite(siteNumber, defaults),
                 ct)).ConfigureAwait(false);
     }
 
-    /// <summary>The entity an identifier names on v2, or the answer standing for it.</summary>
-    /// <remarks>
-    /// The answer never echoes the term, so exactly one result is what the correspondence rests on. A
-    /// second result is refused rather than picked from, because nothing in the answer says which of
-    /// them was meant and acting on either would act on an entity nobody named.
-    /// </remarks>
-    private async Task<(V2Site? Site, WhisparrResponse Answer)> ResolveSiteAsync(
-        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
-    {
-        var numbered = await siteNumbers.ResolveSiteNumberAsync(foreignId, ct).ConfigureAwait(false);
-        if (numbered.Number is null)
+    // Nothing was sent, so there is no status to report and the refusal is the whole of what a
+    // caller reads. A source naming no site is the no-identity reading, and a source that was not
+    // reached is not that: it establishes nothing about the site, and reporting it as unidentified
+    // would send a reader to fix an identity that may be correct. The body is empty, so no sentence
+    // a reader is shown can be composed from what the source said.
+    private static WhisparrResponse NoSiteNumber(WhisparrSiteNumber numbered)
+        => new(NoInstanceStatus, null, string.Empty)
         {
-            return (null, new WhisparrResponse(0, null, string.Empty)
-            {
-                Refusal = numbered.WasReached
-                    ? MonitorRefusalKind.NoIdentityInThisNamespace
-                    : MonitorRefusalKind.InstanceRefused,
-            });
-        }
-
-        var lookup = await GeneratedV2ReadAsync(
-            baseAddress,
-            apiKey,
-            api => api.Api<V2Api.ISeriesLookupApi>().ListSeriesLookupAsync(
-                V2BodyProjector.LookupTerm(foreignId), ct)).ConfigureAwait(false);
-
-        if (Refused(lookup))
-        {
-            return (null, lookup);
-        }
-
-        var resolution = V2LookupProjector.Resolve(lookup.Body);
-        if (resolution.Reading == V2LookupReading.Ambiguous)
-        {
-            WhisparrSyncLog.EntityLookupNotDistinct(log, WhisparrGeneration.V2);
-        }
-
-        if (resolution.Site is { } site)
-        {
-            return (site, lookup);
-        }
-
-        // Which refusal this is comes from the parsed answer, because the status carries none: an
-        // identifier this generation's source does not know is answered with a success. Nothing of
-        // the body is carried onward, so no sentence a reader is shown can be composed from it.
-        return (null, new WhisparrResponse(lookup.StatusCode, lookup.ContentType, string.Empty)
-        {
-            Refusal = V2LookupProjector.RefusalFor(resolution.Reading),
-        });
-    }
+            Refusal = numbered.WasReached
+                ? MonitorRefusalKind.NoIdentityInThisNamespace
+                : MonitorRefusalKind.InstanceRefused,
+        };
 
     private static bool IsSuccess(int statusCode) => statusCode is >= 200 and < 300;
 
