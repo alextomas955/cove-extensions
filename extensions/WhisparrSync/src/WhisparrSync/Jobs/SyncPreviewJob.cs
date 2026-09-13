@@ -189,12 +189,14 @@ public static class SyncPreviewJob
     /// Counts every site the library's studios name against what the instance holds.
     /// </summary>
     /// <remarks>
-    /// Nothing caps how many batches are asked: the whole stream is read however many studios the
-    /// reader owns, and a cap would answer a short already-there and not-yet-there pair that reads
-    /// exactly like a complete one.
+    /// One request per batch, and nothing caps how many batches are asked: the whole stream is read
+    /// however many studios the reader owns, and a cap would answer a short already-there and
+    /// not-yet-there pair that reads exactly like a complete one. What is bounded is how many
+    /// metadata resolves one batch keeps outstanding, which is
+    /// <see cref="MetadataResolvesInFlight"/>.
     /// <para>
-    /// Nothing per site is held. One batch of identifiers is alive at a time and the three answers
-    /// are integers.
+    /// Nothing per site is held. One batch of identifiers is alive at a time, bounded by
+    /// <see cref="ChunkSize"/> whatever the library holds, and the three answers are integers.
     /// </para>
     /// </remarks>
     private static async Task<SyncPreviewView> CompareSitesAsync(
@@ -211,6 +213,7 @@ public static class SyncPreviewJob
 
         var notYetThere = 0;
         var alreadyThere = 0;
+        var batch = new List<string>(ChunkSize);
 
         try
         {
@@ -219,16 +222,25 @@ public static class SyncPreviewJob
                 .WithCancellation(ct)
                 .ConfigureAwait(false))
             {
-                var answered = await heldSites([site.RemoteId], ct).ConfigureAwait(false);
-                if (answered.Held.Contains(site.RemoteId))
+                batch.Add(site.RemoteId);
+                if (batch.Count < ChunkSize)
                 {
-                    alreadyThere++;
+                    continue;
                 }
-                else if (!answered.NamesNone.Contains(site.RemoteId))
-                {
-                    notYetThere++;
-                }
+
+                await AskAsync().ConfigureAwait(false);
             }
+
+            if (batch.Count > 0)
+            {
+                await AskAsync().ConfigureAwait(false);
+            }
+        }
+        // Ahead of the containment below, which names a shape a stop also arrives in: a stop read as
+        // a count that did not finish would be reported as this product's own failure.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
         {
@@ -243,6 +255,28 @@ public static class SyncPreviewJob
             await identities.CountUnidentifiedSitesAsync(aimed.Generation, ct).ConfigureAwait(false),
             aimed.Registers,
             DateTimeOffset.UtcNow);
+
+        async Task AskAsync()
+        {
+            var answered = await heldSites(batch, ct).ConfigureAwait(false);
+
+            // Each offered identifier is classified rather than the answered set being counted. Two
+            // studios carrying one identifier answer one number, and counting the answer's own size
+            // would put the second of them in the not-yet-there column.
+            foreach (var identity in batch)
+            {
+                if (answered.Held.Contains(identity))
+                {
+                    alreadyThere++;
+                }
+                else if (!answered.NamesNone.Contains(identity))
+                {
+                    notYetThere++;
+                }
+            }
+
+            batch.Clear();
+        }
     }
 
     private static async Task<SyncPreviewView> CompareScenesAsync(
