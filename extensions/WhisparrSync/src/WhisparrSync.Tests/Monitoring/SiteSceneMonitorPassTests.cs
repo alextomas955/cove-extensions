@@ -28,6 +28,15 @@ public sealed class SiteSceneMonitorPassTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
+    /// <summary>The shapes a read that could not be answered arrives in.</summary>
+    /// <remarks>
+    /// The timeout shape is the one <see cref="WhisparrClient.RequestTimeout"/> produces, and it
+    /// derives from the shape a host stop raises. A filter written for the other two lets it through
+    /// unnoticed, which is why every contained read is driven against all three.
+    /// </remarks>
+    public static TheoryData<Type> UnanswerableReads =>
+        [typeof(HttpRequestException), typeof(IOException), typeof(TaskCanceledException)];
+
     /// <summary>Every scene the reader owns on the site is reached, at any number of scenes.</summary>
     /// <remarks>
     /// Seeded past <see cref="SiteSceneMonitorPass.ChunkSize"/>, read from the constant rather than
@@ -121,15 +130,21 @@ public sealed class SiteSceneMonitorPassTests
     /// Contained rather than propagated, because a provider that went away leaves the rest of the
     /// library to offer - which is what the per-entity job already does with a refusal.
     /// </remarks>
-    [Fact]
-    public async Task AProviderThatStoppedAnsweringCostsThoseScenesTheirNumberAndTheRunGoesOn()
+    [Theory]
+    [MemberData(nameof(UnanswerableReads))]
+    public async Task AProviderThatStoppedAnsweringCostsThoseScenesTheirNumberAndTheRunGoesOn(
+        Type shape)
     {
         var owned = Scenes(3);
         var instance = new Instance([NumberOf(owned[2])]);
         var provider = Answering(owned);
 
         var (tally, _) = await MonitorAsync(
-            owned, instance, provider, beforeEachScene: scene => provider.Unreachable = scene < 3);
+            owned,
+            instance,
+            provider,
+            beforeEachScene: scene =>
+                provider.Unreachable = scene < 3 ? () => Unanswerable(shape) : null);
 
         Assert.Equal(2, tally.Unnumbered);
         Assert.Equal(1, tally.Monitored);
@@ -146,17 +161,70 @@ public sealed class SiteSceneMonitorPassTests
     /// a row for none of the numbers asked about. Counting those scenes as unresolved is what the
     /// role's own remarks say a caller does.
     /// </remarks>
-    [Fact]
-    public async Task ARowReadThatCouldNotBeAnsweredCountsThoseScenesAsUnresolvedAndTheRunGoesOn()
+    [Theory]
+    [MemberData(nameof(UnanswerableReads))]
+    public async Task ARowReadThatCouldNotBeAnsweredCountsThoseScenesAsUnresolvedAndTheRunGoesOn(
+        Type shape)
     {
         var owned = Scenes(SiteSceneMonitorPass.ChunkSize + 1);
-        var instance = new Instance(owned.Select(NumberOf)) { RefusingReadNumber = 1 };
+        var instance = new Instance(owned.Select(NumberOf))
+        {
+            RefusingReadNumber = 1,
+            Refusal = () => Unanswerable(shape),
+        };
 
         var (tally, _) = await MonitorAsync(owned, instance);
 
         Assert.Equal(SiteSceneMonitorPass.ChunkSize, tally.Unresolved);
         Assert.Equal(1, tally.Monitored);
         Assert.Equal(2, instance.RowReads.Count);
+    }
+
+    /// <summary>A stop during the number read ends the run instead of answering a tally.</summary>
+    /// <remarks>
+    /// The stop arrives in the same shape a timeout does, so a pass containing it would end
+    /// <c>Completed</c> carrying counts that read exactly like a finished site.
+    /// </remarks>
+    [Fact]
+    public async Task AStopDuringTheNumberReadEndsTheRunRatherThanCountingTheScene()
+    {
+        var owned = Scenes(3);
+        var instance = new Instance(owned.Select(NumberOf));
+        var provider = Answering(owned);
+        using var stopping = new CancellationTokenSource();
+        provider.Unreachable = () =>
+        {
+            stopping.Cancel();
+            return new TaskCanceledException("the host stopped the run");
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => MonitorAsync(owned, instance, provider, stopping: stopping));
+
+        Assert.Empty(instance.Flagged);
+    }
+
+    /// <summary>A stop during the row read ends the run instead of answering a tally.</summary>
+    /// <inheritdoc cref="AStopDuringTheNumberReadEndsTheRunRatherThanCountingTheScene"/>
+    [Fact]
+    public async Task AStopDuringTheRowReadEndsTheRunRatherThanCountingTheChunk()
+    {
+        var owned = Scenes(3);
+        using var stopping = new CancellationTokenSource();
+        var instance = new Instance(owned.Select(NumberOf))
+        {
+            RefusingReadNumber = 1,
+            Refusal = () =>
+            {
+                stopping.Cancel();
+                return new TaskCanceledException("the host stopped the run");
+            },
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => MonitorAsync(owned, instance, stopping: stopping));
+
+        Assert.Empty(instance.Flagged);
     }
 
     /// <summary>The identifiers of <paramref name="count"/> scenes the reader owns.</summary>
@@ -172,12 +240,34 @@ public sealed class SiteSceneMonitorPassTests
         => new(owned.ToDictionary(
             identity => identity, identity => (int?)NumberOf(identity), StringComparer.Ordinal));
 
+    /// <summary>One of <see cref="UnanswerableReads"/> as the failure a read raises.</summary>
+    private static Exception Unanswerable(Type shape)
+    {
+        if (shape == typeof(HttpRequestException))
+        {
+            return new HttpRequestException("nothing answered");
+        }
+
+        if (shape == typeof(IOException))
+        {
+            return new IOException("the answer stopped part way");
+        }
+
+        if (shape == typeof(TaskCanceledException))
+        {
+            return new TaskCanceledException("the read timed out");
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(shape), shape, "No failure is written for this.");
+    }
+
     private static async Task<(SceneMonitorTally Tally, RecordingProviderCatalogue Provider)>
         MonitorAsync(
             IReadOnlyList<string> owned,
             Instance instance,
             RecordingProviderCatalogue? provider = null,
-            Action<int>? beforeEachScene = null)
+            Action<int>? beforeEachScene = null,
+            CancellationTokenSource? stopping = null)
     {
         var answering = provider ?? Answering(owned);
         var scene = 0;
@@ -195,7 +285,7 @@ public sealed class SiteSceneMonitorPassTests
             Site,
             SiteId,
             NullLogger.Instance,
-            TestCt);
+            stopping?.Token ?? TestCt);
 
         return (tally, answering);
     }
@@ -235,6 +325,13 @@ public sealed class SiteSceneMonitorPassTests
         /// <summary>Which row read answers nothing at all, counted from one.</summary>
         public int? RefusingReadNumber { get; init; }
 
+        /// <summary>What that read raises.</summary>
+        /// <remarks>
+        /// A factory rather than an instance, so a case can also stop the run at the moment the read
+        /// is made and raise the shape that stop arrives in.
+        /// </remarks>
+        public Func<Exception> Refusal { get; init; } = () => new HttpRequestException("nothing answered");
+
         /// <summary>The row the instance declines to flag, or null where it declines none.</summary>
         public int? Declining { get; init; }
 
@@ -247,7 +344,7 @@ public sealed class SiteSceneMonitorPassTests
 
             if (RowReads.Count == RefusingReadNumber)
             {
-                throw new HttpRequestException("nothing answered");
+                throw Refusal();
             }
 
             return Task.FromResult<IReadOnlyDictionary<int, int>>(
