@@ -111,10 +111,11 @@ internal static class ProviderCapabilities
     ];
 
     // Neither the performer route nor the site route exposes a filter that would scope its values to
-    // one entity, so neither of those menus is listable here. Resolving a scene to a number is this
-    // provider's alone: its scene rows carry an `_id` beside the uuid Cove stores, measured on
-    // 2026-09-10 against the whole of one site, where 412 of 412 numbers matched. StashDB names a
-    // scene by its uuid and by nothing else, so it issues no such number to resolve to.
+    // one entity, so neither of those menus is listable here. Resolving a scene or a site to a
+    // number is this provider's alone: its scene rows carry an `_id` beside the uuid Cove stores,
+    // measured on 2026-09-10 against the whole of one site, where 412 of 412 numbers matched, and
+    // its site route answers an `id` beside the same uuid. StashDB names both by uuid and by
+    // nothing else, so it issues no such number to resolve to.
     private static readonly ProviderCapability[] ThePornDbHolds =
     [
         ProviderCapability.SortByDate,
@@ -124,6 +125,7 @@ internal static class ProviderCapabilities
         ProviderCapability.SearchTitles,
         ProviderCapability.LookUpByName,
         ProviderCapability.ResolveNumericSceneId,
+        ProviderCapability.ResolveNumericSiteId,
     ];
 
     /// <summary>What StashDB holds, acting through <paramref name="source"/>.</summary>

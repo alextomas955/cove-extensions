@@ -248,9 +248,15 @@ internal sealed class StashDbCatalogue
         => Task.FromResult<int?>(null);
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// None, and no request is sent to establish it. This provider names a site by its uuid and by
+    /// nothing else, so there is no number of its own to resolve to. It holds no
+    /// <see cref="IResolvesNumericSiteId"/> role either, so a caller that asks by role is refused
+    /// before reaching this answer.
+    /// </remarks>
     public Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
         string providerSiteId, CancellationToken ct)
-        => Task.FromResult(ProviderSiteNumber.NotReached);
+        => Task.FromResult(ProviderSiteNumber.NamesNone);
 
     /// <inheritdoc/>
     /// <remarks>
