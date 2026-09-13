@@ -106,7 +106,15 @@ internal static class SiteSceneMonitorPass
             {
                 number = await ports.NumberFor(identity, ct).ConfigureAwait(false);
             }
-            catch (Exception failure) when (failure is HttpRequestException or IOException)
+            // Ahead of the containment below, which names a shape a stop also arrives in: a stop
+            // read as a failed provider would end the run Completed on a tally that reads like a
+            // finished pass.
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception failure)
+                when (failure is HttpRequestException or IOException or TaskCanceledException)
             {
                 // Contained rather than propagated, because a provider that stopped answering leaves
                 // the rest of the library to offer. Reported once per site: one line per scene would
@@ -150,7 +158,12 @@ internal static class SiteSceneMonitorPass
             {
                 rows = await ports.RowsFor(siteId, chunk, ct).ConfigureAwait(false);
             }
-            catch (Exception failure) when (failure is HttpRequestException or IOException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception failure)
+                when (failure is HttpRequestException or IOException or TaskCanceledException)
             {
                 // The read raises rather than answering an empty map, so these scenes are counted as
                 // unresolved rather than reported as scenes the instance holds nothing for.
