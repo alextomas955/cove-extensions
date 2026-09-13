@@ -213,6 +213,7 @@ public static class SyncPreviewJob
 
         var notYetThere = 0;
         var alreadyThere = 0;
+        var namesNone = 0;
         var batch = new List<string>(ChunkSize);
 
         try
@@ -242,17 +243,25 @@ public static class SyncPreviewJob
         {
             throw;
         }
-        catch (Exception failure) when (failure is HttpRequestException or IOException)
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
             WhisparrSyncLog.SyncCountDidNotFinish(log, WhisparrSyncLog.Classify(failure));
             throw new InvalidOperationException(
                 "The count could not be finished, so no count was held.", failure);
         }
 
+        if (namesNone > 0)
+        {
+            WhisparrSyncLog.StudiosTheSourceNamesNoSiteFor(log, namesNone);
+        }
+
         return new SyncPreviewView(
             notYetThere,
             alreadyThere,
-            await identities.CountUnidentifiedSitesAsync(aimed.Generation, ct).ConfigureAwait(false),
+            namesNone
+                + await identities.CountUnidentifiedSitesAsync(aimed.Generation, ct)
+                    .ConfigureAwait(false),
             aimed.Registers,
             DateTimeOffset.UtcNow);
 
@@ -269,7 +278,14 @@ public static class SyncPreviewJob
                 {
                     alreadyThere++;
                 }
-                else if (!answered.NamesNone.Contains(identity))
+                else if (answered.NamesNone.Contains(identity))
+                {
+                    // Counted with the studios carrying no identifier at all, because a run can
+                    // compose no add for either. In the not-yet-there column it would be offered
+                    // for registration and the run would then refuse it.
+                    namesNone++;
+                }
+                else
                 {
                     notYetThere++;
                 }
@@ -316,7 +332,13 @@ public static class SyncPreviewJob
                 await AskAsync().ConfigureAwait(false);
             }
         }
-        catch (Exception failure) when (failure is HttpRequestException or IOException)
+        // Ahead of the containment below, for the reason the site comparison's own rethrow states.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
             WhisparrSyncLog.SyncCountDidNotFinish(log, WhisparrSyncLog.Classify(failure));
             throw new InvalidOperationException(
