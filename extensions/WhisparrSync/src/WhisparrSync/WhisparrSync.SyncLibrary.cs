@@ -213,9 +213,11 @@ public sealed partial class WhisparrSync
         var numbered = new List<(string Identity, int Number)>(asked.Count);
         var namesNone = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var identity in asked)
+        using var outstanding = new SemaphoreSlim(SyncPreviewJob.MetadataResolvesInFlight);
+        var resolutions = await Task.WhenAll(asked.Select(ResolveAsync)).ConfigureAwait(false);
+
+        foreach (var (identity, resolved) in resolutions)
         {
-            var resolved = await siteNumbers.ResolveSiteNumberAsync(identity, ct).ConfigureAwait(false);
             if (!resolved.WasReached)
             {
                 throw new HttpRequestException(
@@ -242,6 +244,24 @@ public sealed partial class WhisparrSync
                 .Select(pair => pair.Identity)
                 .ToHashSet(StringComparer.Ordinal),
             namesNone);
+
+        async Task<(string Identity, WhisparrSiteNumber Resolved)> ResolveAsync(string identity)
+        {
+            // The wait is here rather than around the request, so the resolves past the bound queue
+            // on this semaphore instead of on the provider's own, which refuses a caller past its
+            // queue depth rather than holding it.
+            await outstanding.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                return (
+                    identity,
+                    await siteNumbers.ResolveSiteNumberAsync(identity, ct).ConfigureAwait(false));
+            }
+            finally
+            {
+                outstanding.Release();
+            }
+        }
     }
 
     /// <summary>Starts one library run, or refuses it by name.</summary>
