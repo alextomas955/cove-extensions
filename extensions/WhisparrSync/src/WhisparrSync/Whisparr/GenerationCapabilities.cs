@@ -61,6 +61,7 @@ public sealed class WhisparrCapabilitySet
         [typeof(IWhisparrSceneMonitorActing)] = WhisparrCapability.MonitorScene,
         [typeof(IWhisparrSceneExclusionActing)] = WhisparrCapability.ExcludeScene,
         [typeof(IWhisparrSiteSceneReading)] = WhisparrCapability.ReadSiteSceneRows,
+        [typeof(IWhisparrHeldSiteReading)] = WhisparrCapability.ReadHeldSites,
     };
 
     private readonly Dictionary<WhisparrCapability, object> _roles;
@@ -173,6 +174,11 @@ public static class GenerationCapabilities
     /// flag on named rows answered 202 and left exactly those rows monitored. What is absent is a
     /// per-scene route addressing a scene without its site, not the flag itself.
     /// </para>
+    /// <para>
+    /// It holds the held-site read, which v3 does not: this generation answers presence for a site
+    /// through its own list and by no other route, so asking about many sites at once is one request
+    /// here and nothing v3 has an implementation for.
+    /// </para>
     /// </remarks>
     private static readonly WhisparrCapability[] V2Capabilities =
     [
@@ -183,6 +189,7 @@ public static class GenerationCapabilities
         WhisparrCapability.MonitorScene,
         WhisparrCapability.RegisterOwnedSites,
         WhisparrCapability.ReadSiteSceneRows,
+        WhisparrCapability.ReadHeldSites,
     ];
 
     /// <summary>What <paramref name="generation"/> can honour, with no acting role supplied.</summary>
@@ -260,6 +267,7 @@ public static class GenerationCapabilities
                     registered[WhisparrCapability.MonitorScene] = roles.SceneMonitorActing;
                     registered[WhisparrCapability.RegisterOwnedSites] = roles.SiteRegistrationActing;
                     registered[WhisparrCapability.ReadSiteSceneRows] = roles.SiteSceneReading;
+                    registered[WhisparrCapability.ReadHeldSites] = roles.HeldSiteReading;
                 }
 
                 break;
@@ -304,6 +312,7 @@ public static class GenerationCapabilities
 /// <param name="SiteSceneReading">
 /// Reads which of a set of scenes one site the instance holds has a row for.
 /// </param>
+/// <param name="HeldSiteReading">Reads which of a set of sites the instance holds.</param>
 internal sealed record WhisparrRoleSet(
     IWhisparrStudioActing StudioActing,
     IWhisparrPerformerActing PerformerActing,
@@ -316,7 +325,8 @@ internal sealed record WhisparrRoleSet(
     IWhisparrSceneMonitorActing SceneMonitorActing,
     IWhisparrSceneExclusionActing SceneExclusionActing,
     IWhisparrSiteRegistrationActing SiteRegistrationActing,
-    IWhisparrSiteSceneReading SiteSceneReading)
+    IWhisparrSiteSceneReading SiteSceneReading,
+    IWhisparrHeldSiteReading HeldSiteReading)
 {
     /// <summary>The roles <paramref name="client"/> implements.</summary>
     /// <exception cref="InvalidOperationException">
@@ -340,6 +350,7 @@ internal sealed record WhisparrRoleSet(
             and IWhisparrSceneExclusionActing sceneExclusionActing
             and IWhisparrSiteRegistrationActing siteRegistrationActing
             and IWhisparrSiteSceneReading siteSceneReading
+            and IWhisparrHeldSiteReading heldSiteReading
             ? new WhisparrRoleSet(
                 studioActing,
                 performerActing,
@@ -352,7 +363,8 @@ internal sealed record WhisparrRoleSet(
                 sceneMonitorActing,
                 sceneExclusionActing,
                 siteRegistrationActing,
-                siteSceneReading)
+                siteSceneReading,
+                heldSiteReading)
             : throw new InvalidOperationException(
                 $"{client.GetType()} holds this product's HTTP client but implements only part of "
                     + $"{nameof(WhisparrRoleSet)}.");

@@ -98,7 +98,8 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         IWhisparrSceneExclusionReading,
         IWhisparrSceneMonitorActing,
         IWhisparrSceneExclusionActing,
-        IWhisparrSiteSceneReading
+        IWhisparrSiteSceneReading,
+        IWhisparrHeldSiteReading
 {
     private const string JsonContentType = "application/json; charset=utf-8";
 
@@ -125,6 +126,12 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
 
     /// <summary>The row identifier each scene number on a site is answered under.</summary>
     public Dictionary<int, int> SiteSceneRowIds { get; } = [];
+
+    /// <summary>The numbers each held-site read was asked about, in order.</summary>
+    public List<IReadOnlyCollection<int>> HeldSiteReads { get; } = [];
+
+    /// <summary>Which site numbers a batched presence read answers as already held.</summary>
+    public HashSet<int> HeldSites { get; } = [];
 
     /// <summary>The scene each exclusion lookup named, in order.</summary>
     public List<string> ExclusionLookups { get; } = [];
@@ -538,6 +545,30 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             sceneNumbers
                 .Where(SiteSceneRowIds.ContainsKey)
                 .ToDictionary(number => number, number => SiteSceneRowIds[number]));
+    }
+
+    public Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyCollection<int> siteNumbers,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(siteNumbers);
+
+        if (siteNumbers.Count == 0)
+        {
+            return Task.FromResult<IReadOnlySet<int>>(new HashSet<int>());
+        }
+
+        HeldSiteReads.Add([.. siteNumbers]);
+        Verbs.Add(nameof(ReduceHeldSitesAsync));
+
+        if (Unreachable.Contains(nameof(ReduceHeldSitesAsync)))
+        {
+            throw new HttpRequestException("nothing answered");
+        }
+
+        return Task.FromResult<IReadOnlySet<int>>(siteNumbers.Where(HeldSites.Contains).ToHashSet());
     }
 
     public Task<SceneExclusionLookup> FindSceneExclusionAsync(
