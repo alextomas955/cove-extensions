@@ -261,6 +261,15 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] a library count could not be finished ({Failure}); no count was held")]
     internal static partial void SyncCountDidNotFinish(ILogger logger, string failure);
 
+    // Studios the metadata source names no site for. They can be registered nowhere, so they are
+    // counted with the studios carrying no identifier at all rather than offered. Once per count
+    // with how many it covered: a line per studio would fill the log with one fact repeated, and the
+    // count itself carries the number a reader acts on.
+    [LoggerMessage(
+        EventId = 2129, Level = LogLevel.Information,
+        Message = "[WhisparrSync] the metadata source names no site for {Studios} of the library's studios; they were counted as carrying no usable id")]
+    internal static partial void StudiosTheSourceNamesNoSiteFor(ILogger logger, int studios);
+
     // A metadata provider that stopped answering part way through one site's scenes. Contained so
     // the rest of the library is still offered, and reported once per site rather than once per
     // scene: the same fact repeated per scene would fill the log, and the run's own ending states
