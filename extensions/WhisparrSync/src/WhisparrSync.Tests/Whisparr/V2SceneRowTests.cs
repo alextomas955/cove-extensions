@@ -244,7 +244,7 @@ public sealed class V2SceneRowTests
         var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync(
             Address, ApiKey, [SiteId, SecondSiteNumber], TestCt);
 
-        Assert.Equal([SiteId, SecondSiteNumber], held.Order());
+        Assert.Equal([SecondSiteNumber, SiteId], held.Order());
         Assert.Single(handler.Requests);
     }
 

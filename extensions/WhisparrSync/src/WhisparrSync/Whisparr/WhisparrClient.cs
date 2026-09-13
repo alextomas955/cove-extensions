@@ -559,14 +559,40 @@ internal sealed class WhisparrClient(
     /// narrowed, because this generation narrows it by one number at a time and a request per site
     /// would cost one round trip per studio in the library.
     /// </remarks>
-    public Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
+    public async Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
         Uri baseAddress,
         string apiKey,
         IReadOnlyCollection<int> siteNumbers,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(siteNumbers);
-        throw new HttpRequestException("The instance's own site list could not be read.");
+
+        if (siteNumbers.Count == 0)
+        {
+            return new HashSet<int>();
+        }
+
+        var listed = await GeneratedV2ReadAsync(
+            baseAddress,
+            apiKey,
+            api => api.Api<V2Api.ISeriesApi>().ListSeriesAsync(cancellationToken: ct))
+            .ConfigureAwait(false);
+
+        // Raised rather than answered as an empty set. An empty set would report every site it asked
+        // about as one the instance holds none of, and a caller acting on that registers the whole
+        // library a second time.
+        if (Refused(listed))
+        {
+            throw new HttpRequestException(
+                "The instance's own site list could not be read, so which of the sites it holds was "
+                    + "not established.");
+        }
+
+        var rows = V2LookupProjector.RowsByNumber(listed.Body, siteNumbers)
+            ?? throw new HttpRequestException(
+                "The answer to the instance's own site list is not a list of rows at all.");
+
+        return rows.Keys.ToHashSet();
     }
 
     public Task<WhisparrResponse> AddSceneExclusionAsync(
