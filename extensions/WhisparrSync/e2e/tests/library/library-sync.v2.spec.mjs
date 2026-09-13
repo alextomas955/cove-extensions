@@ -15,6 +15,7 @@ import {
   expect,
   EXTENSION_ID,
   extensionRoute,
+  seedCoveStudio,
   seedCoveVideo,
   SPEC_BUDGET_MS,
   test,
@@ -30,7 +31,7 @@ const SYNC_LIBRARY = "Sync library to Whisparr";
 const ALSO_MONITOR = "Also monitor what it syncs";
 const NOT_YET_THERE = "Not yet in Whisparr";
 const ALREADY_THERE = "Already in Whisparr";
-const SKIPPED = "Skipped, no metadata id";
+const SKIPPED = "Skipped, cannot be identified";
 
 /** How this extension's own library runs are typed on the host's job list. */
 const SYNC_JOB_TYPE = `ext:${EXTENSION_ID}:sync-library`;
@@ -203,4 +204,43 @@ test("a library sync monitors the scenes the reader owns under a site on Cove's 
     await countAndRead(page, RECOUNT),
     "the second count disagrees with a run that registered nothing",
   ).toEqual(counted);
+});
+
+test("a count asks the instance's own metadata source nothing", async ({
+  page,
+  api,
+  baseUrl,
+  connected,
+}) => {
+  const { metadata, remoteId, run } = connected;
+
+  // A second studio, identified by a number no site in the instance's catalogue carries, so the
+  // count has one of each to report and a not-yet-there figure of zero would be a failure.
+  await seedCoveStudio(api, {
+    name: `Cove E2E Unheld Studio ${run}`,
+    remoteIds: [{ endpoint: THEPORNDB_ENDPOINT, remoteId: String(Number(remoteId) + 500_000) }],
+  });
+
+  await visitSettings(page, baseUrl);
+
+  const askedBefore = await metadata.asked();
+  const counted = await countAndRead(page, COUNT);
+  const askedAfter = await metadata.asked();
+
+  expect(counted, "the count disagreed with the two studios this test's library holds").toEqual({
+    notYetThere: "1",
+    alreadyThere: "1",
+    skipped: "0",
+  });
+
+  // Both readings are taken around the count alone. A registration does make the instance read its
+  // metadata source, so a measurement spanning one would fail for a reason that is not a defect.
+  //
+  // WHAT THIS ESTABLISHES: a count reaches the instance's own metadata source not at all, so the
+  // search route it once walked is off the count path. WHAT IT DOES NOT: anything about a studio
+  // identified by a uuid. A uuid resolves through a service this container cannot reach, so the
+  // identifiers here are numbers and the resolve they take short-circuits.
+  expect(askedAfter, "the count made the instance ask its metadata source something").toEqual(
+    askedBefore,
+  );
 });
