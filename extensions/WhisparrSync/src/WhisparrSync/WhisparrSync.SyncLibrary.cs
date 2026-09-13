@@ -158,47 +158,90 @@ public sealed partial class WhisparrSync
                                 target.BaseAddress, target.ApiKey, asked, batchCt),
                             _ => throw new InvalidOperationException(
                                 "A scene count reached a target holding no scene-status read.")),
-                    SitePresence: null),
+                    HeldSites: null),
 
                 SyncRegisters.Sites => new SyncPreviewAiming(
                     target.Generation,
                     SyncRegisters.Sites,
                     Held: null,
-                    (identity, siteCt) => SiteIsHeldAsync(target, identity, siteCt)),
+                    (asked, batchCt) => ReduceHeldSitesAsync(
+                        services.GetRequiredService<ISiteNumberPort>(),
+                        (numbers, numbersCt) => target.Capabilities
+                            .Obtain<IWhisparrHeldSiteReading>()
+                            .Match(
+                                reads => reads.ReduceHeldSitesAsync(
+                                    target.BaseAddress, target.ApiKey, numbers, numbersCt),
+                                _ => throw new InvalidOperationException(
+                                    "A site count reached a target holding no held-site read.")),
+                        asked,
+                        batchCt)),
 
                 _ => null,
             };
         }
     }
 
-    /// <summary>Whether the instance holds the site <paramref name="identity"/> names.</summary>
+    /// <summary>
+    /// Which of <paramref name="asked"/> the instance holds a site for, and which of them the
+    /// metadata source names no site for.
+    /// </summary>
     /// <remarks>
-    /// One read per site, and it is not contained: an answer that did not arrive has to reach the
-    /// count so the count fails whole. Three counts arrive together or not at all, and a site put in
-    /// the not-yet-there column because its read failed is a number a reader cannot tell from a real
-    /// one.
+    /// The library's identifiers are mapped forward to the numbers a site is named by rather than
+    /// the instance's own numbers being mapped back, because a run has to map forward to register
+    /// anything at all, and because the reverse direction cannot tell a studio the metadata source
+    /// names no site for from one the instance simply does not hold.
+    /// <para>
+    /// The resolve runs here rather than behind the batched read, which answers a local question and
+    /// sends one request: a resolve inside it would cost that read a request per element.
+    /// </para>
     /// </remarks>
     /// <exception cref="HttpRequestException">
-    /// The read established neither presence nor absence, so nothing about the site is known.
+    /// The metadata source was not reached for one of the identifiers, so nothing about that studio
+    /// is known and no count is held. Raised rather than counted as a studio the instance does not
+    /// hold, which would offer it for registration on the strength of nothing.
     /// </exception>
-    private static async Task<bool> SiteIsHeldAsync(
-        MonitoringTarget target, string identity, CancellationToken ct)
+    internal static async Task<SiteBatchReading> ReduceHeldSitesAsync(
+        ISiteNumberPort siteNumbers,
+        Func<IReadOnlyCollection<int>, CancellationToken, Task<IReadOnlySet<int>>> heldSites,
+        IReadOnlyCollection<string> asked,
+        CancellationToken ct)
     {
-        var studios = target.Capabilities.Obtain<IWhisparrStudioActing>()
-            .Match<IWhisparrStudioActing?>(held => held, _ => null)
-            ?? throw new InvalidOperationException(
-                "A site count reached a target holding no studio read.");
+        ArgumentNullException.ThrowIfNull(siteNumbers);
+        ArgumentNullException.ThrowIfNull(heldSites);
+        ArgumentNullException.ThrowIfNull(asked);
 
-        var answered = await studios.ReadStudioAsync(
-            target.BaseAddress, target.ApiKey, target.Generation, identity, ct).ConfigureAwait(false);
+        var numbered = new List<(string Identity, int Number)>(asked.Count);
+        var namesNone = new HashSet<string>(StringComparer.Ordinal);
 
-        return MonitoringProjector.Classify(answered).Reading switch
+        foreach (var identity in asked)
         {
-            MonitoringProjector.EntityReading.Held => true,
-            MonitoringProjector.EntityReading.NotHeld => false,
-            _ => throw new HttpRequestException(
-                "A site presence read answered neither presence nor absence."),
-        };
+            var resolved = await siteNumbers.ResolveSiteNumberAsync(identity, ct).ConfigureAwait(false);
+            if (!resolved.WasReached)
+            {
+                throw new HttpRequestException(
+                    "The metadata source was not reached for a studio the library holds, so which "
+                        + "sites the instance is missing was not established.");
+            }
+
+            if (resolved.Number is { } named)
+            {
+                numbered.Add((identity, named));
+            }
+            else
+            {
+                namesNone.Add(identity);
+            }
+        }
+
+        var held = await heldSites(
+                [.. numbered.Select(pair => pair.Number).Distinct()], ct)
+            .ConfigureAwait(false);
+
+        return new SiteBatchReading(
+            numbered.Where(pair => held.Contains(pair.Number))
+                .Select(pair => pair.Identity)
+                .ToHashSet(StringComparer.Ordinal),
+            namesNone);
     }
 
     /// <summary>Starts one library run, or refuses it by name.</summary>

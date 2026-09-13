@@ -44,7 +44,7 @@ internal sealed record SiteSceneMonitorPorts(
 /// Nothing bounds how many scenes the pass resolves. Every scene the reader owns on the site is read,
 /// however many there are. A ceiling would leave part of the library unmonitored and report a total
 /// that reads exactly like a complete one. What is bounded is how many reads are outstanding at a
-/// time, which is <see cref="SyncPreviewJob.SitePresenceReadsInFlight"/> and is why every read here
+/// time, which is <see cref="SyncPreviewJob.SiteSceneReadsInFlight"/> and is why every read here
 /// is awaited before the next is issued - the instance's and the provider's request queues are the
 /// shared resource, and that is the same bound for the same reason.
 /// </para>

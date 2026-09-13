@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
@@ -159,6 +160,145 @@ public sealed class SyncPreviewJobTests
         Assert.Null(cache.Held(WhisparrGeneration.V3));
     }
 
+    /// <summary>
+    /// A library of three studios, two of which the instance holds, counts two and one from one
+    /// request.
+    /// </summary>
+    [Fact]
+    public async Task AThreeStudioLibraryCountsTwoHeldAndOneNotYetThereFromOneRequest()
+    {
+        var studios = Studios(3);
+        var source = new SiteNumbers(NumbersFor(studios));
+        var instance = new HeldSites([NumberOf(1), NumberOf(2)]);
+
+        var counted = await RunSitesAsync(studios, source, instance, TestCt);
+
+        Assert.NotNull(counted);
+        Assert.Equal(2, counted.AlreadyThere);
+        Assert.Equal(1, counted.NotYetThere);
+        Assert.Equal(3, Assert.Single(instance.Asked).Count);
+        Assert.Equal(3, source.Resolved.Count);
+    }
+
+    /// <summary>
+    /// A library larger than one batch asks once per batch and the totals are the sum.
+    /// </summary>
+    /// <remarks>
+    /// Seeded past the batch size on purpose, so the flush of the final partial batch is exercised:
+    /// a count that only asked about full batches would silently drop the remainder.
+    /// </remarks>
+    [Fact]
+    public async Task ALibraryPastOneBatchAsksOncePerBatchAndTheTotalsAddUp()
+    {
+        var studios = Studios(SyncPreviewJob.ChunkSize + 3);
+        var source = new SiteNumbers(NumbersFor(studios));
+        var instance = new HeldSites(Enumerable.Range(1, 10).Select(NumberOf));
+
+        var counted = await RunSitesAsync(studios, source, instance, TestCt);
+
+        Assert.NotNull(counted);
+        Assert.Equal(2, instance.Asked.Count);
+        Assert.Equal(SyncPreviewJob.ChunkSize, instance.Asked[0].Count);
+        Assert.Equal(3, instance.Asked[1].Count);
+        Assert.Equal(10, counted.AlreadyThere);
+        Assert.Equal(studios.Count - 10, counted.NotYetThere);
+    }
+
+    /// <summary>
+    /// A studio the library holds no identifier for is counted where it already was, and nothing is
+    /// asked about it.
+    /// </summary>
+    [Fact]
+    public async Task AStudioTheLibraryHoldsNoIdentifierForIsCountedWhereItWasAndAsksNothing()
+    {
+        var studios = Studios(2);
+        var source = new SiteNumbers(NumbersFor(studios));
+        var instance = new HeldSites([]);
+
+        var counted = await RunSitesAsync(studios, source, instance, TestCt);
+
+        Assert.NotNull(counted);
+        Assert.Equal(UnidentifiedStudios, counted.Skipped);
+        Assert.Equal(2, source.Resolved.Count);
+        Assert.Equal(2, Assert.Single(instance.Asked).Count);
+    }
+
+    /// <summary>No more than the bound's own number of metadata resolves is outstanding at once.</summary>
+    /// <remarks>
+    /// Over a batch twice the bound, and against a source that holds each resolve open until the
+    /// bound is reached. A count resolving one at a time never reaches the bound and a count
+    /// resolving the whole batch at once passes it, so the assertion reddens in both directions.
+    /// </remarks>
+    [Fact]
+    public async Task NoMoreThanTheBoundsMetadataResolvesAreOutstandingAtOnce()
+    {
+        var studios = Studios(SyncPreviewJob.MetadataResolvesInFlight * 2);
+        var source = new SiteNumbers(NumbersFor(studios), waitsForCompany: true);
+
+        var counted = await RunSitesAsync(studios, source, new HeldSites([]), TestCt);
+
+        Assert.NotNull(counted);
+        Assert.Equal(SyncPreviewJob.MetadataResolvesInFlight, source.MaxInFlight);
+    }
+
+    /// <summary>
+    /// A metadata source that was not reached leaves no count held and counts no studio anywhere.
+    /// </summary>
+    /// <remarks>
+    /// Where a rate-limited answer arrives. Counted as a studio the instance does not hold, it would
+    /// offer that studio for registration with nothing saying so.
+    /// </remarks>
+    [Fact]
+    public async Task AMetadataSourceThatWasNotReachedLeavesNoCountAndCountsNoStudio()
+    {
+        var studios = Studios(3);
+        var cache = new SyncPreviewCache(TimeProvider.System);
+        var numbers = NumbersFor(studios);
+        numbers[Identity(2)] = WhisparrSiteNumber.NotReached;
+        var instance = new HeldSites([]);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => RunSitesAsync(studios, new SiteNumbers(numbers), instance, TestCt, cache));
+
+        Assert.Empty(instance.Asked);
+        Assert.Null(cache.Held(WhisparrGeneration.V2));
+    }
+
+    /// <summary>An instance read that raised leaves no count held.</summary>
+    [Fact]
+    public async Task AnInstanceReadThatRaisedLeavesNoCountAtAll()
+    {
+        var studios = Studios(3);
+        var cache = new SyncPreviewCache(TimeProvider.System);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => RunSitesAsync(
+                studios,
+                new SiteNumbers(NumbersFor(studios)),
+                new HeldSites([], failOnCall: 1),
+                TestCt,
+                cache));
+
+        Assert.Null(cache.Held(WhisparrGeneration.V2));
+    }
+
+    /// <summary>A host stop during the site walk propagates as a stop.</summary>
+    /// <remarks>
+    /// A stop reported as a count that did not finish would be logged and answered as this
+    /// product's own failure, and the run would end Failed rather than Cancelled.
+    /// </remarks>
+    [Fact]
+    public async Task AHostStopDuringTheSiteWalkPropagatesAsAStop()
+    {
+        using var stopping = new CancellationTokenSource();
+        var studios = Studios(SyncPreviewJob.ChunkSize + 2);
+        var instance = new HeldSites([], onAsk: stopping.Cancel);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => RunSitesAsync(
+                studios, new SiteNumbers(NumbersFor(studios)), instance, stopping.Token));
+    }
+
     private static readonly Uri Instance = new("http://whisparr-v3:6969");
 
     private const string Key = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
@@ -167,8 +307,55 @@ public sealed class SyncPreviewJobTests
 
     private const string SecondScene = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
+    /// <summary>How many studios the library carries no identifier at all for.</summary>
+    private const int UnidentifiedStudios = 7;
+
     private static List<string> Identifiers(int count)
-        => [.. Enumerable.Range(1, count).Select(n => $"{n:x8}-0000-4000-8000-000000000000")];
+        => [.. Enumerable.Range(1, count).Select(Identity)];
+
+    private static string Identity(int n) => $"{n:x8}-0000-4000-8000-000000000000";
+
+    /// <summary>The number the metadata source names the site of studio <paramref name="n"/> by.</summary>
+    /// <remarks>
+    /// Held apart from Cove's own id for the studio, so a count that compared the instance's answer
+    /// against the wrong one of the two would not pass against one shared value.
+    /// </remarks>
+    private static int NumberOf(int n) => (n * 10) + 3;
+
+    private static List<LibrarySiteIdentity> Studios(int count)
+        => [.. Enumerable.Range(1, count).Select(n => new LibrarySiteIdentity(n, Identity(n)))];
+
+    private static Dictionary<string, WhisparrSiteNumber> NumbersFor(
+        IEnumerable<LibrarySiteIdentity> studios)
+        => studios.ToDictionary(
+            studio => studio.RemoteId,
+            studio => WhisparrSiteNumber.Numbered(NumberOf(studio.StudioId)),
+            StringComparer.Ordinal);
+
+    private static Task<SyncPreviewView?> RunSitesAsync(
+        IReadOnlyList<LibrarySiteIdentity> studios,
+        SiteNumbers source,
+        HeldSites instance,
+        CancellationToken ct,
+        SyncPreviewCache? cache = null,
+        ILogger? log = null)
+    {
+        var provider = Scopes(
+            StubLibraryIdentities.OfSites(studios, UnidentifiedStudios),
+            cache ?? new SyncPreviewCache(TimeProvider.System));
+
+        return SyncPreviewJob.RunAsync(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            (_, _) => Task.FromResult<SyncPreviewAiming?>(
+                new SyncPreviewAiming(
+                    WhisparrGeneration.V2,
+                    SyncRegisters.Sites,
+                    Held: null,
+                    (asked, batchCt) => global::WhisparrSync.WhisparrSync.ReduceHeldSitesAsync(
+                        source, instance.AskAsync, asked, batchCt))),
+            log ?? NullLogger.Instance,
+            ct);
+    }
 
     private static Task<SyncPreviewView?> RunAsync(
         IReadOnlyList<string> identifiers, HeldScenes instance, SyncPreviewCache? cache = null)
@@ -184,7 +371,7 @@ public sealed class SyncPreviewJobTests
                     WhisparrGeneration.V3,
                     SyncRegisters.Scenes,
                     instance.AskAsync,
-                    SitePresence: null)),
+                    HeldSites: null)),
             NullLogger.Instance,
             TestCt);
     }
@@ -214,6 +401,81 @@ public sealed class SyncPreviewJobTests
                 ? throw new HttpRequestException("nothing answered")
                 : Task.FromResult<IReadOnlySet<string>>(
                     foreignIds.Where(_held.Contains).ToHashSet(StringComparer.Ordinal));
+        }
+    }
+
+    /// <summary>Which sites an instance holds, recording every batch of numbers it was asked about.</summary>
+    private sealed class HeldSites(
+        IEnumerable<int> held, int? failOnCall = null, Action? onAsk = null)
+    {
+        private readonly HashSet<int> _held = [.. held];
+
+        public List<IReadOnlyCollection<int>> Asked { get; } = [];
+
+        public Task<IReadOnlySet<int>> AskAsync(
+            IReadOnlyCollection<int> siteNumbers, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            Asked.Add([.. siteNumbers]);
+            onAsk?.Invoke();
+
+            return Asked.Count == failOnCall
+                ? throw new HttpRequestException("nothing answered")
+                : Task.FromResult<IReadOnlySet<int>>(siteNumbers.Where(_held.Contains).ToHashSet());
+        }
+    }
+
+    /// <summary>
+    /// A metadata source answering each identifier, recording how many resolves were outstanding at
+    /// once.
+    /// </summary>
+    /// <remarks>
+    /// With <paramref name="waitsForCompany"/> a resolve is held open until as many are outstanding
+    /// as the bound allows, so what the caller bounds is observable rather than timed. The wait ends
+    /// on its own where that never happens, so a caller resolving one at a time fails the assertion
+    /// rather than hanging.
+    /// </remarks>
+    private sealed class SiteNumbers(
+        IReadOnlyDictionary<string, WhisparrSiteNumber> answers, bool waitsForCompany = false)
+        : ISiteNumberPort
+    {
+        private readonly TaskCompletionSource _company =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private readonly Lock _gate = new();
+        private int _live;
+
+        public List<string> Resolved { get; } = [];
+
+        public int MaxInFlight { get; private set; }
+
+        public async Task<WhisparrSiteNumber> ResolveSiteNumberAsync(
+            string storedSiteId, CancellationToken ct)
+        {
+            var live = Interlocked.Increment(ref _live);
+            lock (_gate)
+            {
+                Resolved.Add(storedSiteId);
+                MaxInFlight = Math.Max(MaxInFlight, live);
+            }
+
+            if (live >= SyncPreviewJob.MetadataResolvesInFlight)
+            {
+                _company.TrySetResult();
+            }
+
+            if (waitsForCompany)
+            {
+                await Task.WhenAny(_company.Task, Task.Delay(TimeSpan.FromMilliseconds(250), ct))
+                    .ConfigureAwait(false);
+            }
+
+            Interlocked.Decrement(ref _live);
+            return answers.TryGetValue(storedSiteId, out var answer)
+                ? answer
+                : throw new InvalidOperationException(
+                    $"This source was given no answer for {storedSiteId}, so nothing under test "
+                        + "should be resolving it.");
         }
     }
 }
