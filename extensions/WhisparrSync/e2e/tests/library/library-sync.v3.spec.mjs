@@ -56,7 +56,7 @@ const SYNC_LIBRARY = "Sync library to Whisparr";
 const ALSO_MONITOR = "Also monitor what it syncs";
 const NOT_YET_THERE = "Not yet in Whisparr";
 const ALREADY_THERE = "Already in Whisparr";
-const SKIPPED = "Skipped, no metadata id";
+const SKIPPED = "Skipped, cannot be identified";
 
 /** How this extension's own library runs are typed on the host's job list. */
 const SYNC_JOB_TYPE = `ext:${EXTENSION_ID}:sync-library`;
