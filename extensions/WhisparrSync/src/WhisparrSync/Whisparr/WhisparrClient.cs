@@ -246,7 +246,8 @@ internal sealed class WhisparrClient(
         IWhisparrSceneExclusionReading,
         IWhisparrSceneMonitorActing,
         IWhisparrSceneExclusionActing,
-        IWhisparrSiteSceneReading
+        IWhisparrSiteSceneReading,
+        IWhisparrHeldSiteReading
 {
     /// <summary>The header both generations authenticate an API request with.</summary>
     internal const string ApiKeyHeader = "X-Api-Key";
@@ -547,9 +548,25 @@ internal sealed class WhisparrClient(
                     + "was not established.");
         }
 
-        return V2LookupProjector.SiteSceneRows(listed.Body, sceneNumbers)
+        return V2LookupProjector.RowsByNumber(listed.Body, sceneNumbers)
             ?? throw new HttpRequestException(
                 "The answer to the site's own scene rows is not a list of rows at all.");
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// One request against the instance's own site list, whatever the batch holds. The list is not
+    /// narrowed, because this generation narrows it by one number at a time and a request per site
+    /// would cost one round trip per studio in the library.
+    /// </remarks>
+    public Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyCollection<int> siteNumbers,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(siteNumbers);
+        throw new HttpRequestException("The instance's own site list could not be read.");
     }
 
     public Task<WhisparrResponse> AddSceneExclusionAsync(

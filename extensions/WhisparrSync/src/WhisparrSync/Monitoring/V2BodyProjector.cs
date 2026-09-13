@@ -354,19 +354,24 @@ internal static class V2LookupProjector
     }
 
     /// <summary>
-    /// Which of <paramref name="asked"/> the site's own rows in <paramref name="listed"/> name, and
-    /// each row's own identifier, or null where the answer is not a list of rows at all.
+    /// Which of <paramref name="asked"/> the rows in <paramref name="listed"/> name, and each row's
+    /// own identifier, or null where the answer is not a list of rows at all.
     /// </summary>
     /// <remarks>
-    /// The answer is bounded by <paramref name="asked"/> and by nothing the instance sent, so a
-    /// site's whole catalogue reduces to at most as many entries as were asked about. Each row is
-    /// read and dropped, so nothing here grows with the site.
+    /// One reduction over both of this generation's lists. A site row and a scene row name themselves
+    /// by the same misnamed member and carry their instance-side id under the same one, so a second
+    /// reduction beside this one could only drift from it.
+    /// <para>
+    /// The answer is bounded by <paramref name="asked"/> and by nothing the instance sent, so a whole
+    /// catalogue reduces to at most as many entries as were asked about. Each row is read and
+    /// dropped, so nothing here grows with what the instance holds.
+    /// </para>
     /// <para>
     /// A number the list does not carry is absent from the answer rather than present with a zero.
     /// The two would read the same at a caller that looked the number up and got a default.
     /// </para>
     /// </remarks>
-    internal static IReadOnlyDictionary<int, int>? SiteSceneRows(
+    internal static IReadOnlyDictionary<int, int>? RowsByNumber(
         string? listed, IReadOnlyCollection<int> asked)
     {
         ArgumentNullException.ThrowIfNull(asked);

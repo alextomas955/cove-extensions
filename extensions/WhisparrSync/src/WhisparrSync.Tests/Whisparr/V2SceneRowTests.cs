@@ -40,6 +40,11 @@ public sealed class V2SceneRowTests
 
     private const string ApiKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
+    /// <summary>A second site the instance holds, and one it holds no row for.</summary>
+    private const int SecondSiteNumber = 5998;
+
+    private const int UnheldSiteNumber = 4242;
+
     /// <summary>A stored studio identifier of the shape the metadata source mints.</summary>
     private const string StoredSiteId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
@@ -223,6 +228,86 @@ public sealed class V2SceneRowTests
                 Assert.Null(body["titleSlug"]);
                 Assert.False(string.IsNullOrWhiteSpace(body["title"]!.GetValue<string>()));
             });
+    }
+
+    /// <summary>The held-site read answers only the numbers it was asked about, in one request.</summary>
+    /// <remarks>
+    /// One request whatever the batch holds. The instance narrows its own list by one number at a
+    /// time, so a narrowed read would cost one round trip per studio in the library.
+    /// </remarks>
+    [Fact]
+    public async Task TheHeldSiteReadAnswersOnlyTheNumbersItWasAskedAbout()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, ASiteList());
+        var client = SiteClient(handler, new TestSiteNumbers());
+
+        var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync(
+            Address, ApiKey, [SiteId, SecondSiteNumber], TestCt);
+
+        Assert.Equal([SiteId, SecondSiteNumber], held.Order());
+        Assert.Single(handler.Requests);
+    }
+
+    /// <summary>A number the instance holds no row for is absent from the answer.</summary>
+    [Fact]
+    public async Task ANumberTheInstanceHoldsNoSiteRowForIsAbsentFromTheAnswer()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, ASiteList());
+        var client = SiteClient(handler, new TestSiteNumbers());
+
+        var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync(
+            Address, ApiKey, [SiteId, UnheldSiteNumber], TestCt);
+
+        Assert.Equal([SiteId], held);
+    }
+
+    /// <summary>An empty input asks nothing.</summary>
+    [Fact]
+    public async Task AnEmptySiteInputSendsNoRequestAtAll()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, ASiteList());
+        var client = SiteClient(handler, new TestSiteNumbers());
+
+        var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync(
+            Address, ApiKey, [], TestCt);
+
+        Assert.Empty(held);
+        Assert.Empty(handler.Requests);
+    }
+
+    /// <summary>An answer the read could not read raises, and answers no empty set.</summary>
+    /// <remarks>
+    /// An empty set would report every site it asked about as one the instance holds none of, which
+    /// is the opposite of the truth and would register the whole library a second time.
+    /// </remarks>
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError, "")]
+    [InlineData(HttpStatusCode.OK, "{}")]
+    public async Task AnAnswerTheHeldSiteReadCouldNotReadRaises(
+        HttpStatusCode status, string answered)
+    {
+        var client = SiteClient(
+            BodyRecordingHandler.Answering(status, answered), new TestSiteNumbers());
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync(
+                Address, ApiKey, [SiteId], TestCt));
+    }
+
+    /// <summary>
+    /// The instance's own site list, holding more rows than any case here asks about.
+    /// </summary>
+    private static string ASiteList()
+    {
+        var rows = new JsonArray
+        {
+            Row(11, SiteId),
+            Row(12, SecondSiteNumber),
+            Row(13, 3372),
+            Row(14, 247),
+        };
+
+        return rows.ToJsonString();
     }
 
     private static WhisparrClient SiteClient(

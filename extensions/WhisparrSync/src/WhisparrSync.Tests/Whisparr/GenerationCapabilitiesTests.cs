@@ -60,6 +60,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.MonitorScene,
                 WhisparrCapability.RegisterOwnedSites,
                 WhisparrCapability.ReadSiteSceneRows,
+                WhisparrCapability.ReadHeldSites,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);
     }
@@ -173,6 +174,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.MonitorScene,
                 WhisparrCapability.RegisterOwnedSites,
                 WhisparrCapability.ReadSiteSceneRows,
+                WhisparrCapability.ReadHeldSites,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
         Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
@@ -202,6 +204,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.MonitorScene,
                 WhisparrCapability.RegisterOwnedSites,
                 WhisparrCapability.ReadSiteSceneRows,
+                WhisparrCapability.ReadHeldSites,
             ],
             held);
         Assert.All(
@@ -244,6 +247,33 @@ public sealed class GenerationCapabilitiesTests
         Assert.NotNull(refusal);
         Assert.Equal(WhisparrCapability.SearchScene, refusal.Capability);
         Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
+    }
+
+    /// <summary>Only Whisparr v2 obtains the held-site read role, and v3 refuses it by name.</summary>
+    /// <remarks>
+    /// v3 answers presence for a site through a route naming the site, so it needs no list to do it
+    /// and has nothing to implement. A member answering an empty set there would report every site
+    /// as one that instance does not hold.
+    /// </remarks>
+    [Fact]
+    public void OnlyTheOlderGenerationObtainsTheHeldSiteReadRole()
+    {
+        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"));
+
+        Assert.NotNull(
+            GenerationCapabilities
+                .For(WhisparrGeneration.V2, WhisparrRoleSet.From(client))
+                .Obtain<IWhisparrHeldSiteReading>()
+                .Match<IWhisparrHeldSiteReading?>(held => held, _ => null));
+
+        var refusal = GenerationCapabilities
+            .For(WhisparrGeneration.V3, WhisparrRoleSet.From(client))
+            .Obtain<IWhisparrHeldSiteReading>()
+            .Match<CapabilityRefusal?>(_ => null, refused => refused);
+
+        Assert.NotNull(refusal);
+        Assert.Equal(WhisparrCapability.ReadHeldSites, refusal.Capability);
+        Assert.Equal(WhisparrGeneration.V3, refusal.Generation);
     }
 
     /// <summary>The per-scene search role <paramref name="generation"/> holds, or null.</summary>
