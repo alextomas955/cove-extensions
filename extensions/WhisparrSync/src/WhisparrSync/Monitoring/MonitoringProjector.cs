@@ -112,10 +112,10 @@ internal static class MonitoringProjector
 
     /// <summary>What <paramref name="answered"/> says about whether the entity is held.</summary>
     /// <remarks>
-    /// A refusal the answering seam read out of a parsed body wins over the status. The older
-    /// generation resolves an identifier through a lookup that answers a success alongside the fact
-    /// that it named nothing, so the status there is about the request rather than about the entity,
-    /// and reading it would report the wrong reason to a reader who can act on the right one.
+    /// A refusal the answering seam established wins over the status. On v2 a site nothing could be
+    /// numbered for is refused before any request leaves, so the answer carries no status about the
+    /// entity at all, and reading one would report the wrong reason to a reader who can act on the
+    /// right one.
     /// </remarks>
     internal static EntityAnswer Classify(WhisparrResponse answered)
     {
@@ -169,9 +169,9 @@ internal static class MonitoringProjector
 
     /// <summary>Whether the write <paramref name="answered"/> answered was accepted.</summary>
     /// <remarks>
-    /// A refusal the answering seam read out of a parsed body wins, for the reason
-    /// <see cref="Classify"/> states: on v2 an add is preceded by a lookup, so a
-    /// lookup naming no entity refused before any write left and the status belongs to that read.
+    /// A refusal the answering seam established wins, for the reason <see cref="Classify"/> states:
+    /// on v2 an add carries a site number, so a site nothing could be numbered for refused before
+    /// any write left and there is no status of its own.
     /// </remarks>
     internal static MonitorRefusalKind Accepted(WhisparrResponse answered)
     {
