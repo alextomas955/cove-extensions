@@ -64,22 +64,6 @@ internal static class V2BodyProjector
         };
     }
 
-    /// <summary>The term the lookup is asked for <paramref name="storedId"/> under.</summary>
-    /// <remarks>
-    /// The stored identifier exactly as the library holds it, with no prefix and no scheme. The
-    /// prefixed spelling this generation's own documentation suggests expects its numeric form: given
-    /// the identifier the library holds it answers with a success and an empty list, so a prefixed term
-    /// matches nothing and reports no failure of any kind.
-    /// </remarks>
-    internal static string LookupTerm(string storedId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(storedId);
-
-        // Never "tpdb:" + storedId. That form is answered 200 with an empty array and the miss is
-        // completely silent.
-        return storedId.Trim();
-    }
-
     /// <summary>
     /// Adds the entity <paramref name="entityId"/> names, monitored at <paramref name="scope"/>.
     /// </summary>
@@ -241,90 +225,22 @@ internal static class V2BodyProjector
         };
 }
 
-/// <summary>What one entity is called on v2, once its lookup has answered.</summary>
-/// <param name="EntityId">The numeric identifier the lookup answered with.</param>
-/// <param name="Title">The name the lookup answered with.</param>
-/// <param name="TitleSlug">The slug the add is composed with.</param>
-internal sealed record V2Site(int EntityId, string Title, string TitleSlug);
-
-/// <summary>What a v2 lookup answered.</summary>
-internal enum V2LookupReading
-{
-    /// <summary>Exactly one entity answered, and it is named.</summary>
-    Resolved,
-
-    /// <summary>Nothing answered. The identifier names no entity this generation knows.</summary>
-    NoMatch,
-
-    /// <summary>More than one entity answered, and nothing says which was meant.</summary>
-    Ambiguous,
-
-    /// <summary>The answer is not a list of entities at all.</summary>
-    Unreadable,
-}
-
-/// <summary>The entity a lookup named, or why it named none.</summary>
-/// <param name="Site">The entity, or null on anything but a single answer.</param>
-/// <param name="Reading">What the answer was.</param>
-internal sealed record V2SiteResolution(V2Site? Site, V2LookupReading Reading);
-
-/// <summary>What v2's lookup and listing answers mean.</summary>
+/// <summary>What v2's own lists answer.</summary>
 /// <remarks>
-/// Pure. Read on the parsed shape and never on a status: this generation answers an identifier it does
-/// not know with a success and an empty list, and answers a body whose fields it dropped with a created
-/// status and an echo. A status is not evidence about this generation.
-/// <para>
-/// The answer never echoes the term it was asked about, so the correspondence between the identifier
-/// the library holds and the entity acted on rests on there being exactly ONE answer rather than on any
-/// field matching what was sent. More than one is therefore a refusal and not a pick of the first.
-/// </para>
+/// Pure. Read on the parsed shape and never on a status: this generation publishes no contract and
+/// answers a body whose fields it dropped with a created status and an echo, so a status is not
+/// evidence about it.
 /// </remarks>
-internal static class V2LookupProjector
+internal static class V2ListProjector
 {
-    /// <summary>The entity <paramref name="body"/> names, or why it names none.</summary>
-    internal static V2SiteResolution Resolve(string? body)
-    {
-        if (AsArray(body) is not { } answered)
-        {
-            return new V2SiteResolution(null, V2LookupReading.Unreadable);
-        }
-
-        if (answered.Count == 0)
-        {
-            return new V2SiteResolution(null, V2LookupReading.NoMatch);
-        }
-
-        if (answered.Count > 1)
-        {
-            return new V2SiteResolution(null, V2LookupReading.Ambiguous);
-        }
-
-        return SiteIn(answered[0]) is { } site
-            ? new V2SiteResolution(site, V2LookupReading.Resolved)
-            : new V2SiteResolution(null, V2LookupReading.Unreadable);
-    }
-
-    /// <summary>What a caller answers a <paramref name="reading"/> with.</summary>
-    /// <remarks>
-    /// An empty answer is the no-identity refusal rather than an instance one: the entity carries an
-    /// identifier the library holds and this generation's own source does not know it.
-    /// </remarks>
-    internal static MonitorRefusalKind RefusalFor(V2LookupReading reading)
-        => reading switch
-        {
-            V2LookupReading.Resolved => MonitorRefusalKind.None,
-            V2LookupReading.NoMatch => MonitorRefusalKind.NoIdentityInThisNamespace,
-            _ => MonitorRefusalKind.InstanceRefused,
-        };
-
     /// <summary>
     /// The entity <paramref name="entityId"/> names inside <paramref name="listed"/>, or null when the
     /// instance holds none.
     /// </summary>
     /// <remarks>
-    /// The lookup answers with no instance-side identifier until an entity has been added, so whether
-    /// the instance holds it is a second question and its own listing is what answers it. Only the
-    /// matched entry is returned.
+    /// The instance's own list is the one route that answers whether it holds the entity, and the
+    /// row it answers with is the only place its instance-side identifier appears. Only the matched
+    /// entry is returned.
     /// <para>
     /// The match stays even where the listing was asked for one entity. The answer is read on its
     /// parsed shape and never on the fact that a filter was asked for, because this generation
@@ -400,48 +316,6 @@ internal static class V2LookupProjector
         }
 
         return found;
-    }
-
-    private static V2Site? SiteIn(JsonNode? answered)
-    {
-        if (answered is not JsonObject site
-            || site["tvdbId"] is not JsonValue named
-            || !named.TryGetValue<int>(out var entityId)
-            || entityId < 1)
-        {
-            return null;
-        }
-
-        // Read the same way the identifier above is. This generation publishes no contract, so a
-        // field's type cannot be assumed, and a node that is not a string reads as unreadable rather
-        // than throwing out of the seam.
-        var title = site["title"] is JsonValue titled && titled.TryGetValue<string>(out var name)
-            ? name
-            : null;
-        if (string.IsNullOrWhiteSpace(title))
-        {
-            return null;
-        }
-
-        // A slug the answer does not carry and a slug of the wrong type are different facts. The
-        // field is the instance's own, and a site it does not yet hold has no row to have set one on,
-        // so an absent slug is what every registration starts from: requiring one made a site
-        // resolvable only once it was already held, which is the opposite of what registering is for.
-        // A slug that IS there and is not a string says the answer is not the shape this reads, which
-        // is unreadable for the same reason a mistyped identifier is.
-        var carried = site["titleSlug"];
-        if (carried is not null && carried.GetValueKind() is not JsonValueKind.Null)
-        {
-            return carried is JsonValue slugged
-                && slugged.TryGetValue<string>(out var slug)
-                && !string.IsNullOrWhiteSpace(slug)
-                    ? new V2Site(entityId, title, slug)
-                    : null;
-        }
-
-        // Composed as the instance composes its own: every row it holds carries a slug equal to its
-        // identifier.
-        return new V2Site(entityId, title, entityId.ToString(CultureInfo.InvariantCulture));
     }
 
     private static JsonArray? AsArray(string? body)
