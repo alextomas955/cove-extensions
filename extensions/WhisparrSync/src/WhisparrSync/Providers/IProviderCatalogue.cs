@@ -271,9 +271,8 @@ public interface IProviderCatalogue
     /// state: a cache here would answer for a source the host was reconfigured away from.
     /// <para>
     /// Null and a refusal are different answers and this member gives only the first. A provider
-    /// that issues no number of its own holds no <see cref="IResolvesNumericSceneId"/> role, so a
-    /// caller obtains the role first and is refused there rather than reading a null as a scene the
-    /// provider does not name.
+    /// that issues no number of its own holds no <see cref="IResolvesNumericSceneId"/> role, but no
+    /// caller obtains that role: null is read here and the scene is counted unnumbered.
     /// </para>
     /// </remarks>
     Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct);
