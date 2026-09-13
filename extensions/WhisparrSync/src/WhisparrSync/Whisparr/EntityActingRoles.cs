@@ -238,6 +238,41 @@ public interface IWhisparrSiteSceneReading
         CancellationToken ct);
 }
 
+/// <summary>Reads which of a set of sites an instance holds.</summary>
+/// <remarks>
+/// A read role, so nothing declared here changes an instance. Only one generation registers it: the
+/// other answers presence for a site through a route naming the site, and needs no list to do it.
+/// <para>
+/// Narrow in the same way the other roles are: no member takes a caller-supplied route, verb or
+/// query key. The numbers arrive already resolved from the metadata source, so nothing here can be
+/// aimed by an identifier a browser supplied.
+/// </para>
+/// </remarks>
+public interface IWhisparrHeldSiteReading
+{
+    /// <summary>Which of <paramref name="siteNumbers"/> the instance holds a row for.</summary>
+    /// <remarks>
+    /// The answer is the subset of the numbers that were asked about, so what it carries is bounded
+    /// by the caller's own set whatever the instance holds. One request answers a whole batch: the
+    /// instance narrows its own list by no parameter, so the whole answer is read as it arrives and
+    /// each row is reduced to this question and dropped.
+    /// <para>
+    /// An empty input answers an empty set with no request. There is no row cap: a cap would stop
+    /// part way and report the rest as sites the instance holds none of, with nothing saying so.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="HttpRequestException">
+    /// No answer arrived, or the answer could not be read as the instance's own rows. Raised rather
+    /// than answered as an empty set, because a caller comparing its library against this would
+    /// otherwise report every site it asked about as one the instance does not hold.
+    /// </exception>
+    Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyCollection<int> siteNumbers,
+        CancellationToken ct);
+}
+
 /// <summary>Tells an instance where files the library already holds are.</summary>
 /// <remarks>
 /// Transfers no file data. The instance is asked to link a file into place, which costs no second

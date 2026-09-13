@@ -90,6 +90,12 @@ public enum WhisparrCapability
     /// generation that names a scene only as a row under a site.
     /// </summary>
     ReadSiteSceneRows,
+
+    /// <summary>
+    /// Which of a set of sites the instance holds can be read in one request. Held by the generation
+    /// that answers presence for a site through its own list and by no other route.
+    /// </summary>
+    ReadHeldSites,
 }
 
 /// <summary>
