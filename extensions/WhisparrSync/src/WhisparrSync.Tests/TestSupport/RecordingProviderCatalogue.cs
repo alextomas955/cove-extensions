@@ -44,12 +44,16 @@ internal sealed class RecordingProviderCatalogue : IProviderCatalogue, IResolves
     /// <summary>Every scene identifier this was asked to resolve, in order.</summary>
     public List<string> Resolved { get; } = [];
 
-    /// <summary>Whether a resolution reaches the provider at all.</summary>
+    /// <summary>What a resolution raises, or null where it reaches the provider.</summary>
     /// <remarks>
     /// Set for a case whose subject is a provider that stopped answering part way through a site.
     /// The call is still recorded, because what the pass asked about is the fact under test.
+    /// <para>
+    /// A factory rather than an instance, so a case can also stop the run at the moment the read is
+    /// made and raise the shape that stop arrives in.
+    /// </para>
     /// </remarks>
-    public bool Unreachable { get; set; }
+    public Func<Exception>? Unreachable { get; set; }
 
     public ProviderCapabilitySet Capabilities { get; }
 
@@ -61,9 +65,9 @@ internal sealed class RecordingProviderCatalogue : IProviderCatalogue, IResolves
     {
         Resolved.Add(providerSceneId);
 
-        if (Unreachable)
+        if (Unreachable is { } raised)
         {
-            throw new HttpRequestException("nothing answered");
+            throw raised();
         }
 
         return _numbers.TryGetValue(providerSceneId, out var number)
