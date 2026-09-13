@@ -85,8 +85,8 @@ internal static class V2BodyProjector
     /// </summary>
     /// <remarks>
     /// Composed field for field as this generation's own form composes it. The identifier is the
-    /// numeric one the lookup answered with, which arrives in a field this generation misnames after
-    /// an unrelated metadata source.
+    /// number the metadata source names the site by, which travels in a field this generation
+    /// misnames after an unrelated metadata source.
     /// <para>
     /// The new-item rule is set to the whole catalogue because that is this generation's own default,
     /// and it governs whether a catalogue addition made later is monitored, which is a different
@@ -98,12 +98,9 @@ internal static class V2BodyProjector
     /// names no usable quality profile. This generation refuses a zero profile with a validation
     /// failure naming the property, and v3 accepts it and then never acquires.
     /// </exception>
-    internal static SeriesResource AddStudio(
-        int entityId, string title, string titleSlug, MonitorScope scope, AddDefaults defaults)
+    internal static SeriesResource AddStudio(int entityId, MonitorScope scope, AddDefaults defaults)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
-        ArgumentException.ThrowIfNullOrWhiteSpace(title);
-        ArgumentException.ThrowIfNullOrWhiteSpace(titleSlug);
         ArgumentNullException.ThrowIfNull(defaults);
         ArgumentException.ThrowIfNullOrWhiteSpace(defaults.RootFolderPath);
         ArgumentOutOfRangeException.ThrowIfLessThan(defaults.QualityProfileId, 1);
@@ -111,8 +108,8 @@ internal static class V2BodyProjector
         const bool search = false;
         return new SeriesResource(
             tvdbId: entityId,
-            title: title,
-            titleSlug: titleSlug,
+            title: NameFor(entityId),
+            titleSlug: null,
             qualityProfileId: defaults.QualityProfileId,
             rootFolderPath: defaults.RootFolderPath,
             monitored: true,
@@ -125,6 +122,20 @@ internal static class V2BodyProjector
                 searchForMissingEpisodes: search,
                 searchForCutoffUnmetEpisodes: search));
     }
+
+    /// <summary>The name an add carries for the site <paramref name="entityId"/> names.</summary>
+    /// <remarks>
+    /// The instance refuses an add carrying no title, with a validation failure naming the property,
+    /// and discards the value of the one it is given: it resolves the site's real title and its slug
+    /// from the number alone. So the number rendered as text satisfies the refusal and asserts
+    /// nothing this product would have had to be right about.
+    /// <para>
+    /// The slug member is passed null rather than composed. Null is the member's absence on the wire,
+    /// not a value this product chose, and an add carrying no slug at all is accepted.
+    /// </para>
+    /// </remarks>
+    private static string NameFor(int entityId)
+        => entityId.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>Registers the entity <paramref name="entityId"/> names, monitoring nothing.</summary>
     /// <remarks>
@@ -140,12 +151,9 @@ internal static class V2BodyProjector
     /// <paramref name="defaults"/> names no usable quality profile. This generation refuses a zero
     /// profile with a validation failure naming the property.
     /// </exception>
-    internal static SeriesResource RegisterSite(
-        int entityId, string title, string titleSlug, AddDefaults defaults)
+    internal static SeriesResource RegisterSite(int entityId, AddDefaults defaults)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
-        ArgumentException.ThrowIfNullOrWhiteSpace(title);
-        ArgumentException.ThrowIfNullOrWhiteSpace(titleSlug);
         ArgumentNullException.ThrowIfNull(defaults);
         ArgumentException.ThrowIfNullOrWhiteSpace(defaults.RootFolderPath);
         ArgumentOutOfRangeException.ThrowIfLessThan(defaults.QualityProfileId, 1);
@@ -153,8 +161,8 @@ internal static class V2BodyProjector
         const bool search = false;
         return new SeriesResource(
             tvdbId: entityId,
-            title: title,
-            titleSlug: titleSlug,
+            title: NameFor(entityId),
+            titleSlug: null,
             qualityProfileId: defaults.QualityProfileId,
             rootFolderPath: defaults.RootFolderPath,
             monitored: false,

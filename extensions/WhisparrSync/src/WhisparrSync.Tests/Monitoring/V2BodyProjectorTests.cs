@@ -59,7 +59,7 @@ public sealed class V2BodyProjectorTests
     public void TheAddCarriesTheScopeKeyThisGenerationSpellsItWith(MonitorScope scope, string key)
     {
         var body = ComposedV2Body.Of(
-            V2BodyProjector.AddStudio(3372, "Vixen", "vixen", scope, Defaults));
+            V2BodyProjector.AddStudio(3372, scope, Defaults));
 
         Assert.Equal(key, ((JsonObject)body["addOptions"]!)["monitor"]!.GetValue<string>());
     }
@@ -76,7 +76,7 @@ public sealed class V2BodyProjectorTests
     {
         var composed = Enum.GetValues<MonitorScope>()
             .Select(scope => ComposedV2Body.Of(
-                V2BodyProjector.AddStudio(3372, "Vixen", "vixen", scope, Defaults)))
+                V2BodyProjector.AddStudio(3372, scope, Defaults)))
             .Select(body => ((JsonObject)body["addOptions"]!)["monitor"]!.GetValue<string>())
             .Order()
             .ToArray();
@@ -97,7 +97,7 @@ public sealed class V2BodyProjectorTests
     public void EveryAddCarriesBothOfThisGenerationsSuppressionSpellingsPresentAndFalse(MonitorScope scope)
     {
         var options = (JsonObject)ComposedV2Body
-            .Of(V2BodyProjector.AddStudio(3372, "Vixen", "vixen", scope, Defaults))["addOptions"]!;
+            .Of(V2BodyProjector.AddStudio(3372, scope, Defaults))["addOptions"]!;
 
         Assert.True(options.ContainsKey("searchForMissingEpisodes"));
         Assert.True(options.ContainsKey("searchForCutoffUnmetEpisodes"));
@@ -115,7 +115,7 @@ public sealed class V2BodyProjectorTests
     public void NoAddCarriesTheOtherGenerationsSuppressionSpellings()
     {
         var body = ComposedV2Body
-            .Of(V2BodyProjector.AddStudio(3372, "Vixen", "vixen", MonitorScope.FutureScenes, Defaults))
+            .Of(V2BodyProjector.AddStudio(3372, MonitorScope.FutureScenes, Defaults))
             .ToJsonString();
 
         Assert.DoesNotContain("searchOnAdd", body, StringComparison.Ordinal);
@@ -127,7 +127,7 @@ public sealed class V2BodyProjectorTests
     public void TheAddCarriesEveryFieldThisGenerationsOwnFormSends()
     {
         var body = ComposedV2Body.Of(
-            V2BodyProjector.AddStudio(3372, "Vixen", "vixen", MonitorScope.AllScenes, Defaults));
+            V2BodyProjector.AddStudio(3372, MonitorScope.AllScenes, Defaults));
 
         Assert.Equal(
             [
@@ -160,13 +160,13 @@ public sealed class V2BodyProjectorTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(
             () => V2BodyProjector.AddStudio(
-                3372, "Vixen", "vixen", MonitorScope.AllScenes, new AddDefaults(0, "/config/library")));
+                3372, MonitorScope.AllScenes, new AddDefaults(0, "/config/library")));
 
         Assert.All(
             Enum.GetValues<MonitorScope>(),
             scope => Assert.True(
                 ComposedV2Body.Of(V2BodyProjector.AddStudio(
-                    3372, "Vixen", "vixen", scope, Defaults))["qualityProfileId"]!
+                    3372, scope, Defaults))["qualityProfileId"]!
                     .GetValue<int>() > 0));
     }
 
@@ -175,7 +175,7 @@ public sealed class V2BodyProjectorTests
     public void AnAddWithNoLibraryRootIsRefused()
         => Assert.Throws<ArgumentException>(
             () => V2BodyProjector.AddStudio(
-                3372, "Vixen", "vixen", MonitorScope.AllScenes, new AddDefaults(1, "  ")));
+                3372, MonitorScope.AllScenes, new AddDefaults(1, "  ")));
 
     /// <summary>The flag flip names the entity and the flag, and says nothing else at all.</summary>
     [Fact]
@@ -220,7 +220,7 @@ public sealed class V2BodyProjectorTests
     public void AnUnrecognisedScopeThrowsRatherThanResolvingToAnyScope()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => V2BodyProjector.AddStudio(3372, "Vixen", "vixen", (MonitorScope)7, Defaults));
+            () => V2BodyProjector.AddStudio(3372, (MonitorScope)7, Defaults));
         Assert.Throws<ArgumentOutOfRangeException>(() => V2BodyProjector.SetScope(1, (MonitorScope)7));
     }
 

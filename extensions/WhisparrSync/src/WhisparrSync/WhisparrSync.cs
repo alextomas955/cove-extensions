@@ -103,6 +103,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
                 client,
                 services.GetRequiredService<Whisparr3Gateway>(),
                 services.GetRequiredService<Whisparr2Gateway>(),
+                services.GetRequiredService<ISiteNumberPort>(),
                 _log));
 
         services.AddSingleton(TimeProvider.System);
