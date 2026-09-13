@@ -118,7 +118,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         BodyRecordingHandler? bytes = null,
         MonitorScope defaultScope = MonitorScope.FutureScenes,
         IProviderCatalogue? catalogue = null,
-        CoveConfiguration? metadataConfig = null)
+        CoveConfiguration? metadataConfig = null,
+        ISiteNumberPort? siteNumbers = null)
     {
         var host = new MonitorHost();
         (host._db, host._connection) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -176,7 +177,7 @@ internal sealed class MonitorHost : IAsyncDisposable
             host.Bytes = bytes;
             host._http = new HttpClient(bytes);
             builder.Services.AddSingleton<IWhisparrClient>(
-                TestWhisparrClient.Over(host._http, bytes));
+                TestWhisparrClient.Over(host._http, bytes, siteNumbers: siteNumbers));
         }
 
         builder.Services.AddSingleton<IJobService>(host.Jobs);

@@ -92,7 +92,6 @@ public sealed class AbsentCapabilityTests
         (WhisparrGeneration.V3, "IImportListExclusionApi", "CreateExclusionsAsync", "api/v3/exclusions"),
         (WhisparrGeneration.V3, "IImportListExclusionApi", "DeleteExclusionsAsync", "api/v3/exclusions"),
         (WhisparrGeneration.V2, "IHistoryApi", "GetHistoryAsync", "api/v3/history"),
-        (WhisparrGeneration.V2, "ISeriesLookupApi", "ListSeriesLookupAsync", "api/v3/series/lookup"),
         (WhisparrGeneration.V2, "ISeriesApi", "ListSeriesAsync", "api/v3/series"),
         (WhisparrGeneration.V2, "ISeriesApi", "CreateSeriesAsync", "api/v3/series"),
         (WhisparrGeneration.V2, "ISeriesEditorApi", "PutSeriesEditorAsync", "api/v3/series/editor"),
@@ -238,7 +237,11 @@ public sealed class AbsentCapabilityTests
     public async Task EveryRouteTheGeneratedClientSendsOnWasTranscribed()
     {
         var handler = BodyRecordingHandler.AnsweringByPath(AnswerFor);
-        var client = TestWhisparrClient.Over(handler);
+
+        // v2's site paths send nothing at all for an identifier no site number is established for,
+        // so the drive below reaches none of that generation's site routes without this.
+        var client = TestWhisparrClient.Over(
+            handler, siteNumbers: TestSiteNumbers.Numbering("studio-1", 3372));
 
         await DriveEveryGeneratedRouteAsync(client);
 
@@ -252,19 +255,10 @@ public sealed class AbsentCapabilityTests
                 .ToList());
     }
 
-    // Whisparr v2 reaches its entity through a lookup and then a listing, so the lookup has
-    // to resolve for the second request to happen at all. The answered entry carries the three members
-    // the resolution reads, with the values the committed lookup fixture holds.
     // The site-row read raises where its answer is not a list of rows, so that one route answers a
     // list. Empty is enough: the case is about which route was reached.
     private static string AnswerFor(string path)
-        => path switch
-        {
-            _ when path.EndsWith("/series/lookup", StringComparison.Ordinal) =>
-                """[{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen"}]""",
-            _ when path.EndsWith("/episode", StringComparison.Ordinal) => "[]",
-            _ => "{}",
-        };
+        => path.EndsWith("/episode", StringComparison.Ordinal) ? "[]" : "{}";
 
     // A route naming one entity carries its identifier as a further segment, so the transcribed route
     // is a whole-segment prefix of what was sent. The longest match wins: several transcribed routes
