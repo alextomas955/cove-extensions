@@ -25,7 +25,7 @@ import {
   SYNC_NOTHING_COUNTED_YET,
   SYNC_NOT_YET_IN_WHISPARR,
   SYNC_RUNS_IN_THE_JOB_DRAWER,
-  SYNC_SKIPPED_NO_ID,
+  SYNC_SKIPPED_CANNOT_BE_IDENTIFIED,
 } from "../common/ui/copy";
 import type { AsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { ConfirmDialog } from "./hostComponents";
@@ -200,7 +200,7 @@ function Counts({ counts, now, remedy }: { counts: SyncPreviewView; now: number;
     <div className="space-y-2">
       <CountRow label={SYNC_NOT_YET_IN_WHISPARR} value={counts.notYetThere} />
       <CountRow label={SYNC_ALREADY_IN_WHISPARR} value={counts.alreadyThere} />
-      <CountRow label={SYNC_SKIPPED_NO_ID} value={counts.skipped} />
+      <CountRow label={SYNC_SKIPPED_CANNOT_BE_IDENTIFIED} value={counts.skipped} />
 
       <StatusText kind="muted">
         {age === null ? remedy : `Counted ${age.text}. ${remedy}`}
