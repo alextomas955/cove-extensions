@@ -146,7 +146,7 @@ internal sealed class ThePornDbCatalogue
             return ProviderCatalogueAnswer.NotReached;
         }
 
-        var answered = await AskAsync(resolved, ScenesRoute, scope, ct).ConfigureAwait(false);
+        var answered = (await AskAsync(resolved, ScenesRoute, scope, ct).ConfigureAwait(false)).Body;
         if (answered is null)
         {
             return ProviderCatalogueAnswer.NotReached;
@@ -197,7 +197,7 @@ internal sealed class ThePornDbCatalogue
             return null;
         }
 
-        var answered = await AskAsync(resolved, ScenesRoute, scope, ct).ConfigureAwait(false);
+        var answered = (await AskAsync(resolved, ScenesRoute, scope, ct).ConfigureAwait(false)).Body;
         return answered is null ? null : Number(Meta(answered.Value), "total") ?? 0;
     }
 
@@ -226,9 +226,32 @@ internal sealed class ThePornDbCatalogue
     }
 
     /// <inheritdoc/>
-    public Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
+    /// <remarks>
+    /// The site route answers one row for the uuid Cove stores, carrying this provider's own
+    /// <c>id</c> beside it. A status the provider stated is its answer about the site; anything
+    /// else, a rate limiter included, established nothing and is answered as that.
+    /// </remarks>
+    public async Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
         string providerSiteId, CancellationToken ct)
-        => Task.FromResult(ProviderSiteNumber.NotReached);
+    {
+        var resolved = await ResolveProviderAsync(ct).ConfigureAwait(false);
+        if (resolved is null)
+        {
+            return ProviderSiteNumber.NotReached;
+        }
+
+        var (send, entity) = await EntityAsync(resolved, SitesRoute, providerSiteId, ct)
+            .ConfigureAwait(false);
+
+        if (entity is null)
+        {
+            return send.WasDefinite ? ProviderSiteNumber.NamesNone : ProviderSiteNumber.NotReached;
+        }
+
+        return Number(entity.Value, "id") is int number and > 0
+            ? ProviderSiteNumber.Numbered(number)
+            : ProviderSiteNumber.NotReached;
+    }
 
     /// <inheritdoc/>
     /// <remarks>
@@ -328,9 +351,9 @@ internal sealed class ThePornDbCatalogue
         // No page size is asked for. The route serves thirty rows a page and declares no per_page,
         // so a size named here would be a number this product invented for a parameter the provider
         // does not read.
-        var answered = await AskAsync(
-                resolved, TagsRoute, Query(("q", fragment), ("page", "1")), ct)
-            .ConfigureAwait(false);
+        var answered = (await AskAsync(
+                    resolved, TagsRoute, Query(("q", fragment), ("page", "1")), ct)
+                .ConfigureAwait(false)).Body;
 
         if (answered is null
             || !answered.Value.TryGetProperty("data", out var rows)
@@ -360,12 +383,14 @@ internal sealed class ThePornDbCatalogue
     private async Task<ProviderFacetMenu?> TagMenuAsync(
         ResolvedProvider resolved, CancellationToken ct)
     {
-        var answered = await AskAsync(
-                resolved,
-                TagsRoute,
-                Query(("per_page", FacetPageSize.ToString(CultureInfo.InvariantCulture)), ("page", "1")),
-                ct)
-            .ConfigureAwait(false);
+        var answered = (await AskAsync(
+                    resolved,
+                    TagsRoute,
+                    Query(
+                        ("per_page", FacetPageSize.ToString(CultureInfo.InvariantCulture)),
+                        ("page", "1")),
+                    ct)
+                .ConfigureAwait(false)).Body;
 
         if (answered is null
             || !answered.Value.TryGetProperty("data", out var rows)
@@ -434,12 +459,12 @@ internal sealed class ThePornDbCatalogue
         string ordering,
         CancellationToken ct)
     {
-        var answered = await AskAsync(
-                resolved,
-                ScenesRoute,
-                Query(scope, ("page", "1"), ("per_page", "1"), ("orderBy", ordering)),
-                ct)
-            .ConfigureAwait(false);
+        var answered = (await AskAsync(
+                    resolved,
+                    ScenesRoute,
+                    Query(scope, ("page", "1"), ("per_page", "1"), ("orderBy", ordering)),
+                    ct)
+                .ConfigureAwait(false)).Body;
 
         return answered is not null
             && answered.Value.TryGetProperty("data", out var rows)
@@ -625,15 +650,27 @@ internal sealed class ThePornDbCatalogue
         string property,
         CancellationToken ct)
     {
+        var (_, entity) = await EntityAsync(resolved, collection, storedId, ct)
+            .ConfigureAwait(false);
+
+        return entity is null ? null : Identifier(entity.Value, property);
+    }
+
+    // One row of one collection, addressed by the identifier Cove stores. The send is carried
+    // beside the row, so a caller can tell a row the provider states it has none of from a read
+    // that established nothing at all.
+    private async Task<(ProviderSend Send, JsonElement? Entity)> EntityAsync(
+        ResolvedProvider resolved, string collection, string storedId, CancellationToken ct)
+    {
         var answered = await AskAsync(
                 resolved, $"{collection}/{Uri.EscapeDataString(storedId)}", string.Empty, ct)
             .ConfigureAwait(false);
 
-        return answered is not null
-            && answered.Value.TryGetProperty("data", out var entity)
+        return answered.Body is { } body
+            && body.TryGetProperty("data", out var entity)
             && entity.ValueKind == JsonValueKind.Object
-                ? Identifier(entity, property)
-                : null;
+                ? (answered, entity)
+                : (answered, null);
     }
 
     private async Task<ProviderIdentityLookup> SearchExactAsync(
@@ -648,12 +685,12 @@ internal sealed class ThePornDbCatalogue
 
         for (var page = 1; page <= MaxLookupPages; page++)
         {
-            var answered = await AskAsync(
-                    resolved,
-                    collection,
-                    Query(("q", term), ("page", page.ToString(CultureInfo.InvariantCulture))),
-                    ct)
-                .ConfigureAwait(false);
+            var answered = (await AskAsync(
+                        resolved,
+                        collection,
+                        Query(("q", term), ("page", page.ToString(CultureInfo.InvariantCulture))),
+                        ct)
+                    .ConfigureAwait(false)).Body;
 
             if (answered is null)
             {
@@ -695,28 +732,26 @@ internal sealed class ThePornDbCatalogue
         return ProviderIdentityLookup.Unmatched;
     }
 
-    // Null where no catalogue arrived: no whole answer, a status that is not a success, or a body
-    // carrying the provider's own refusal. The body decides, so a refusal is never read as a
-    // catalogue that is simply empty. An answer the provider stated ends the attempts.
-    private async Task<JsonElement?> AskAsync(
+    // No body where no catalogue arrived: no whole answer, a status that is not a success, or a
+    // body carrying the provider's own refusal. The body decides, so a refusal is never read as a
+    // catalogue that is simply empty. An answer the provider stated ends the attempts, and what is
+    // answered is the last attempt's send: a status worth another try is the only case that reaches
+    // a second one.
+    private async Task<ProviderSend> AskAsync(
         ResolvedProvider resolved, string collection, string query, CancellationToken ct)
     {
         var attempts = WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read);
+        var read = ProviderSend.Nothing;
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
-            var read = await TryReadAsync(resolved, collection, query, ct).ConfigureAwait(false);
-            if (read.Body is { } carried)
+            read = await TryReadAsync(resolved, collection, query, ct).ConfigureAwait(false);
+            if (read.Body is not null || read.WasDefinite)
             {
-                return carried;
-            }
-
-            if (read.WasDefinite)
-            {
-                return null;
+                return read;
             }
         }
 
-        return null;
+        return read;
     }
 
     private async Task<ProviderSend> TryReadAsync(
