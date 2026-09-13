@@ -24,10 +24,6 @@ public sealed class SiteRegistrationBodyTests
     /// <summary>The site as this generation's own lookup answered it, measured on 2.2.0.231.</summary>
     private const int SiteId = 5999;
 
-    private const string SiteTitle = "Jay Bank Presents";
-
-    private const string SiteSlug = "jay-bank-presents";
-
     /// <summary>The member this generation gates a later catalogue addition through.</summary>
     private const string NewItemRule = "monitorNewItems";
 
@@ -96,7 +92,7 @@ public sealed class SiteRegistrationBodyTests
     {
         var monitoring = ComposedV2Body.Of(
             V2BodyProjector.AddStudio(
-                SiteId, SiteTitle, SiteSlug, MonitorScope.AllScenes, Defaults));
+                SiteId, MonitorScope.AllScenes, Defaults));
 
         Assert.True(Bool(monitoring, MonitoredFlag));
         Assert.Equal("all", Text(monitoring, NewItemRule));
@@ -113,7 +109,7 @@ public sealed class SiteRegistrationBodyTests
     }
 
     private static JsonObject Registered()
-        => ComposedV2Body.Of(V2BodyProjector.RegisterSite(SiteId, SiteTitle, SiteSlug, Defaults));
+        => ComposedV2Body.Of(V2BodyProjector.RegisterSite(SiteId, Defaults));
 
     private static bool Bool(JsonObject body, string path)
         => ComposedAdds.At(body, path)!.GetValue<bool>();
