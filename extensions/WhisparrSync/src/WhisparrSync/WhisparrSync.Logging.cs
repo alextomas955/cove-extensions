@@ -235,17 +235,6 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] an answer from {Host} was larger than the {Bound} bytes this extension reads at once and was refused")]
     internal static partial void ResponseBeyondReadBound(ILogger logger, string host, long bound);
 
-    // A lookup that named more than one entity, refused rather than picked from. The identifier is a
-    // stored library value and the answer is an upstream body, so neither is named: the generation is
-    // what makes it diagnosable, and without this line a refusal nobody can explain looks the same as
-    // an entity the instance simply does not know.
-    [LoggerMessage(
-        EventId = 2118, Level = LogLevel.Warning,
-        Message = "[WhisparrSync] a lookup on {Generation} named more than one entity and was refused rather than guessed at")]
-    internal static partial void EntityLookupNotDistinct(
-        ILogger logger,
-        WhisparrGeneration generation);
-
     // The one verb that can make an instance download, recorded because it is the only one that
     // spends the user's bandwidth and disk. The entity KIND and nothing else: which entity, which
     // instance and which key are all either caller-supplied or credentials, and a log sink is durable

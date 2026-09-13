@@ -75,13 +75,13 @@ public static class WhisparrRetryPolicy
 /// <param name="Body">The response body as text; empty when there was none.</param>
 public sealed record WhisparrResponse(int StatusCode, string? ContentType, string Body)
 {
-    /// <summary>Why no entity was named, where a seam read that out of a parsed body.</summary>
+    /// <summary>Why no entity was named, where a seam established that without an instance.</summary>
     /// <remarks>
-    /// Whisparr v2 resolves an identifier through a lookup that states its answer in the
-    /// body and not in the status: an identifier its own source does not know is answered with a
-    /// success and an empty list. A seam reading that meaning states it here, so a caller classifies
-    /// the fact rather than a status this product would otherwise have had to invent, and the two
-    /// readings that mean different things to a reader stay apart.
+    /// A v2 site is addressed by a number the metadata source issues, so a site nothing could be
+    /// numbered for is refused before any request leaves and there is no status to classify. The
+    /// seam states the reason here instead, so a caller reads the fact rather than a status this
+    /// product would otherwise have had to invent, and the two readings that mean different things
+    /// to a reader stay apart.
     /// <para>
     /// <see cref="MonitorRefusalKind.None"/> on every answer that came from an instance, which is
     /// classified from its status.
@@ -548,7 +548,7 @@ internal sealed class WhisparrClient(
                     + "was not established.");
         }
 
-        return V2LookupProjector.RowsByNumber(listed.Body, sceneNumbers)
+        return V2ListProjector.RowsByNumber(listed.Body, sceneNumbers)
             ?? throw new HttpRequestException(
                 "The answer to the site's own scene rows is not a list of rows at all.");
     }
@@ -588,7 +588,7 @@ internal sealed class WhisparrClient(
                     + "not established.");
         }
 
-        var rows = V2LookupProjector.RowsByNumber(listed.Body, siteNumbers)
+        var rows = V2ListProjector.RowsByNumber(listed.Body, siteNumbers)
             ?? throw new HttpRequestException(
                 "The answer to the instance's own site list is not a list of rows at all.");
 
@@ -685,7 +685,7 @@ internal sealed class WhisparrClient(
             return listed;
         }
 
-        return V2LookupProjector.HeldEntry(listed.Body, siteNumber) is { } held
+        return V2ListProjector.HeldEntry(listed.Body, siteNumber) is { } held
             ? new WhisparrResponse(listed.StatusCode, listed.ContentType, held.ToJsonString())
             : new WhisparrResponse(AssembledNotHeld, listed.ContentType, string.Empty);
     }

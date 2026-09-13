@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
@@ -35,7 +34,6 @@ namespace WhisparrSync.Tests.Monitoring;
 public sealed class MonitorBodyPinTests
 {
     private const string V3Build = "3.3.8.1097";
-    private const string V2Build = "2.2.0.231";
 
     private const string V3StudioFixture = "whisparr-v3-3.3.8.1097-studio-resource.json";
     private const string V3StudioAfterEditorFixture = "whisparr-v3-3.3.8.1097-studio-after-editor.json";
@@ -54,8 +52,6 @@ public sealed class MonitorBodyPinTests
     private const string V3SceneAddTitlelessFixture = "whisparr-v3-3.3.8.1097-scene-add-titleless-refusal.json";
     private const string V3SceneAddTitleReplacedFixture = "whisparr-v3-3.3.8.1097-scene-add-title-replaced.json";
 
-    private const string V2LookupFixture = "whisparr-v2-2.2.0.231-series-lookup.json";
-    private const string V2LookupEmptyFixture = "whisparr-v2-2.2.0.231-series-lookup-empty.json";
     private const string V2AddRefusalFixture = "whisparr-v2-2.2.0.231-series-add-refusal.json";
     private const string V2SeriesFixture = "whisparr-v2-2.2.0.231-series-resource.json";
     private const string V2SeriesAfterEditorFixture = "whisparr-v2-2.2.0.231-series-after-editor.json";
@@ -75,7 +71,7 @@ public sealed class MonitorBodyPinTests
     /// <summary>The identifier the registration control used, which no provider lists.</summary>
     private const string UnknownSceneForeignId = "00000000-0000-4000-8000-000000000000";
 
-    /// <summary>The numeric identifier v2's lookup answered for one entity.</summary>
+    /// <summary>The number the metadata source names that site by.</summary>
     private const int SiteEntityId = 3372;
 
     private static readonly AddDefaults Defaults = new(4, "/config/library");
@@ -392,113 +388,6 @@ public sealed class MonitorBodyPinTests
     {
         Assert.True(Object(V3MediaManagementFixture)["copyUsingHardlinks"]!.GetValue<bool>());
         Assert.True(Object(V2MediaManagementFixture)["copyUsingHardlinks"]!.GetValue<bool>());
-    }
-
-    /// <summary>
-    /// Whisparr v2's lookup answers a list that names each entity by a field it misnames, and
-    /// never echoes the term it was asked under.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 2.2.0.231, from a real lookup answer. No member of the whole document is an
-    /// identifier of the shape the library holds, which is why the correspondence between the stored
-    /// identifier and the entity acted on rests on there being exactly one answer rather than on any
-    /// field matching what was sent.
-    /// <para>
-    /// No element carries an instance-side identifier either. That is what makes "does the instance
-    /// hold this" a second question rather than a member of this answer.
-    /// </para>
-    /// </remarks>
-    [Fact]
-    public void TheOlderGenerationsLookupNeverEchoesTheTermItWasAskedUnder()
-    {
-        var answered = Array(V2LookupFixture);
-
-        Assert.NotEmpty(answered);
-        Assert.All(
-            answered,
-            entry =>
-            {
-                var site = Assert.IsType<JsonObject>(entry);
-                Assert.True(site.ContainsKey("tvdbId"), $"an entry names no identifier on {V2Build}");
-                Assert.True(site.ContainsKey("titleSlug"), $"an entry names no slug on {V2Build}");
-                Assert.False(site.ContainsKey("id"), $"an entry carries an instance id on {V2Build}");
-            });
-
-        Assert.Empty(
-            Regex.Matches(
-                ProbeFixtures.Read(V2LookupFixture),
-                "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
-                RegexOptions.None,
-                TimeSpan.FromSeconds(5)));
-    }
-
-    /// <summary>
-    /// A term v2's source does not know is answered with a success and an empty
-    /// list, so nothing about the answer says the request was wrong.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 2.2.0.231. Three probes produced this one document byte for byte: an
-    /// identifier of the shape the library holds that its source does not know, an identifier minted
-    /// by the other generation's source, and the prefixed spelling. The prefixed form is the trap,
-    /// because it looks more correct and reports nothing at all.
-    /// </remarks>
-    [Fact]
-    public void ATermThatMatchesNothingIsAnsweredWithAnEmptyList()
-    {
-        Assert.Empty(Array(V2LookupEmptyFixture));
-        Assert.Equal(
-            V2LookupReading.NoMatch,
-            V2LookupProjector.Resolve(ProbeFixtures.Read(V2LookupEmptyFixture)).Reading);
-    }
-
-    /// <summary>
-    /// A term that names more than one entity is refused by this product rather than picked from.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 2.2.0.231, over a real answer holding many entities. Nothing in that answer
-    /// says which of them the term meant.
-    /// </remarks>
-    [Fact]
-    public void AnAnswerNamingMoreThanOneEntityIsRefusedRatherThanPickedFrom()
-    {
-        var resolution = V2LookupProjector.Resolve(ProbeFixtures.Read(V2LookupFixture));
-
-        Assert.Equal(V2LookupReading.Ambiguous, resolution.Reading);
-        Assert.Null(resolution.Site);
-    }
-
-    /// <summary>
-    /// One answer names the entity by the misnamed numeric field and by its slug, and that is what the
-    /// add is composed from.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 2.2.0.231. The single answer is taken out of the real document rather than
-    /// invented, so what is resolved here is an entry that instance produced.
-    /// </remarks>
-    [Fact]
-    public void OneAnswerNamesTheEntityByTheFieldThisGenerationMisnames()
-    {
-        var one = new JsonArray(
-            Array(V2LookupFixture)
-                .Select(entry => (JsonObject)entry!.DeepClone())
-                .Single(site => site["tvdbId"]!.GetValue<int>() == SiteEntityId));
-
-        var resolution = V2LookupProjector.Resolve(one.ToJsonString());
-
-        Assert.Equal(V2LookupReading.Resolved, resolution.Reading);
-        var site = Assert.IsType<V2Site>(resolution.Site);
-        Assert.Equal(SiteEntityId, site.EntityId);
-        Assert.Equal("Vixen", site.Title);
-        Assert.Equal("vixen", site.TitleSlug);
-
-        Assert.Equal(
-            SiteEntityId,
-            ComposedV2Body
-                .Of(V2BodyProjector.AddStudio(
-                    site.EntityId,
-                    MonitorScope.FutureScenes,
-                    new AddDefaults(1, "/config/library")))["tvdbId"]!
-                .GetValue<int>());
     }
 
     /// <summary>
