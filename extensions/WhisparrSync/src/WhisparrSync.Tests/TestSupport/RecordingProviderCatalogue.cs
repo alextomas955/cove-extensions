@@ -13,9 +13,8 @@ namespace WhisparrSync.Tests.TestSupport;
 /// answer here and is configured explicitly: it is the provider naming no number for a scene it does
 /// know about.
 /// <para>
-/// Whether it holds the resolving role at all is chosen per case, because that absence is what the
-/// run reads to decide whether to monitor anything. It is expressed as the capability set of a real
-/// provider rather than as a flag, so a case cannot ask for a combination no provider has.
+/// It carries the capability set of a real provider rather than a set assembled per case, so a case
+/// cannot ask for a combination no provider has.
 /// </para>
 /// <para>
 /// Every other member of the seam throws. Nothing on this path reads a catalogue page, and a member
@@ -27,18 +26,12 @@ internal sealed class RecordingProviderCatalogue : IProviderCatalogue, IResolves
 {
     private readonly Dictionary<string, int?> _numbers;
 
-    /// <summary>
-    /// A provider answering <paramref name="numbers"/>, holding the resolving role where
-    /// <paramref name="resolves"/> says so.
-    /// </summary>
-    internal RecordingProviderCatalogue(
-        IReadOnlyDictionary<string, int?> numbers, bool resolves = true)
+    /// <summary>A provider answering <paramref name="numbers"/>.</summary>
+    internal RecordingProviderCatalogue(IReadOnlyDictionary<string, int?> numbers)
     {
         ArgumentNullException.ThrowIfNull(numbers);
         _numbers = new Dictionary<string, int?>(numbers, StringComparer.Ordinal);
-        Capabilities = resolves
-            ? ProviderCapabilities.ForThePornDb(this)
-            : ProviderCapabilities.ForStashDb(this);
+        Capabilities = ProviderCapabilities.ForThePornDb(this);
     }
 
     /// <summary>Every scene identifier this was asked to resolve, in order.</summary>

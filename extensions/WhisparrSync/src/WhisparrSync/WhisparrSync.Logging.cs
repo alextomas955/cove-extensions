@@ -290,15 +290,6 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] a site's own scene rows could not be read ({Failure}); those scenes were counted as unresolved and the run went on")]
     internal static partial void SiteSceneRowsUnreadable(ILogger logger, string failure);
 
-    // A run asked to monitor against a metadata provider that issues no scene number at all. The
-    // sites are still registered, and nothing per scene is attempted: without a number there is
-    // nothing to address a row by. Said once per run, because it is a fact about the configuration
-    // rather than about any one scene.
-    [LoggerMessage(
-        EventId = 2129, Level = LogLevel.Information,
-        Message = "[WhisparrSync] the connected metadata provider issues no scene number this Whisparr names scenes by, so the run registered its sites and monitored nothing")]
-    internal static partial void NoSceneNumberingToMonitorBy(ILogger logger);
-
     // A write dropped because the blob it would have been built on could not be read, so the fold ran
     // on defaults. The stored configuration is what survives; the update the caller asked for is
     // lost, and the writers that reach this run with nobody watching.
