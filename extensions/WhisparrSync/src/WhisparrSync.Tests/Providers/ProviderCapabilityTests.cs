@@ -208,6 +208,29 @@ public sealed class ProviderCapabilityTests
         Assert.Equal(named, selected.Capabilities.Provider);
     }
 
+    /// <summary>
+    /// The catalogue an older-generation connection reads through is one that issues a scene number.
+    /// The site-scene monitor pass runs only on that generation and addresses a row by that number,
+    /// so it composes its provider read without asking whether the number exists.
+    /// </summary>
+    [Theory]
+    [InlineData(WhisparrGeneration.V2, true)]
+    [InlineData(WhisparrGeneration.V3, false)]
+    public async Task TheCatalogueAGenerationReadsThroughIssuesASceneNumberOnlyOnTheOlderOne(
+        WhisparrGeneration generation, bool issuesANumber)
+    {
+        var options = new OptionsStore(new FakeStore());
+        await options.SaveAsync(
+            new WhisparrSyncOptions { SelectedGeneration = generation },
+            TestContext.Current.CancellationToken);
+
+        var selected = new ProviderCatalogueSelector(options, StashDb(), ThePornDb());
+
+        Assert.Equal(
+            issuesANumber,
+            selected.Capabilities.Obtain<IResolvesNumericSceneId>().Match(_ => true, _ => false));
+    }
+
     private static CoveConfiguration Configured(string endpoint)
     {
         var config = new CoveConfiguration();
