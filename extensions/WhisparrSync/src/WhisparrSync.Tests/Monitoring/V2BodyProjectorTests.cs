@@ -7,50 +7,25 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Tests.Monitoring;
 
 /// <summary>
-/// Every body v2 is sent for a monitor, an unmonitor or a scope change, and the
-/// reading of the lookup that names the entity those bodies are about.
+/// Every body v2 is sent for a monitor, an unmonitor or a scope change, and the reading of the list
+/// that says what the instance holds.
 /// </summary>
 /// <remarks>
 /// This generation publishes no contract at all, so every shape asserted here is a hand transcription
 /// of a measurement rather than a derivation from a document. The expected values are written out by
 /// hand for that reason: one computed from the composer would agree with it whatever either said.
 /// <para>
-/// The lookup answers with a success and an empty array for an identifier it does not know, so
-/// nothing here reads a status: every case is on the parsed shape.
+/// Nothing here reads a status: this generation answers a body whose fields it dropped with a created
+/// status and an echo, so every case is on the parsed shape.
 /// </para>
 /// </remarks>
 public sealed class V2BodyProjectorTests
 {
-    /// <summary>A stored identifier of the shape this generation's source mints.</summary>
-    private const string StoredIdentifier = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
-
     /// <summary>The fields a flag flip must leave alone, because the user owns each of them.</summary>
     private static readonly string[] FieldsAFlagFlipMustNotCarry =
         ["qualityProfileId", "rootFolderPath", "tags", "monitorNewItems", "seasons", "addOptions"];
 
-    /// <summary>One site as the lookup answers with it, named by the field this generation misnames.</summary>
-    private const string OneSite = """
-        [{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen","year":2016,"status":"continuing"}]
-        """;
-
     private static readonly AddDefaults Defaults = new(1, "/config/library");
-
-    /// <summary>
-    /// The lookup term is the stored identifier, unchanged and unprefixed.
-    /// </summary>
-    /// <remarks>
-    /// The prefixed spelling is answered with a success and an empty array, so a term carrying one
-    /// matches nothing and reports no failure of any kind.
-    /// </remarks>
-    [Fact]
-    public void TheLookupTermIsTheStoredIdentifierCharacterForCharacter()
-    {
-        var term = V2BodyProjector.LookupTerm(StoredIdentifier);
-
-        Assert.Equal(StoredIdentifier, term);
-        Assert.DoesNotContain("tpdb", term, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(":", term, StringComparison.Ordinal);
-    }
 
     /// <summary>Each scope this product expresses composes this generation's own key for it.</summary>
     [Theory]
@@ -230,103 +205,26 @@ public sealed class V2BodyProjectorTests
         Assert.Throws<ArgumentOutOfRangeException>(() => V2BodyProjector.SetScope(1, (MonitorScope)7));
     }
 
-    /// <summary>
-    /// One result names the entity by the field this generation misnames, and never by the identifier
-    /// that was asked about.
-    /// </summary>
+    /// <summary>What the instance holds is read out of its own list, by the site number.</summary>
     /// <remarks>
-    /// The response echoes nothing of the term, so the correspondence rests on there being exactly one
-    /// answer rather than on any field matching what was sent.
+    /// The row the list answers with is the only place the instance-side id appears, so the match is
+    /// what carries it.
     /// </remarks>
     [Fact]
-    public void OneResultNamesTheEntityByTheFieldThisGenerationMisnames()
-    {
-        var resolution = V2LookupProjector.Resolve(OneSite);
-
-        Assert.Equal(V2LookupReading.Resolved, resolution.Reading);
-        Assert.Equal(MonitorRefusalKind.None, V2LookupProjector.RefusalFor(resolution.Reading));
-        var site = Assert.IsType<V2Site>(resolution.Site);
-        Assert.Equal(3372, site.EntityId);
-        Assert.Equal("Vixen", site.Title);
-        Assert.Equal("vixen", site.TitleSlug);
-        Assert.DoesNotContain(StoredIdentifier, OneSite, StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// More than one result is a refusal, never a pick of the first.
-    /// </summary>
-    /// <remarks>
-    /// Nothing in the answer says which of them the identifier meant, so acting on either would act on
-    /// an entity nobody named.
-    /// </remarks>
-    [Fact]
-    public void MoreThanOneResultIsARefusalRatherThanAFirstResultPick()
-    {
-        const string twoSites = """
-            [{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen"},
-             {"tvdbId":36826,"title":"Vixen Media Group","titleSlug":"vixen-media-group"}]
-            """;
-
-        var resolution = V2LookupProjector.Resolve(twoSites);
-
-        Assert.Equal(V2LookupReading.Ambiguous, resolution.Reading);
-        Assert.Null(resolution.Site);
-        Assert.Equal(
-            MonitorRefusalKind.InstanceRefused, V2LookupProjector.RefusalFor(resolution.Reading));
-    }
-
-    /// <summary>No result at all is the no-identity refusal.</summary>
-    [Fact]
-    public void NoResultAtAllIsTheNoIdentityRefusal()
-    {
-        var resolution = V2LookupProjector.Resolve("[]");
-
-        Assert.Equal(V2LookupReading.NoMatch, resolution.Reading);
-        Assert.Null(resolution.Site);
-        Assert.Equal(
-            MonitorRefusalKind.NoIdentityInThisNamespace,
-            V2LookupProjector.RefusalFor(resolution.Reading));
-    }
-
-    /// <summary>An answer that is not a list of results at all is a refusal, not an absence.</summary>
-    [Theory]
-    [InlineData("")]
-    [InlineData("<!DOCTYPE html>")]
-    [InlineData("""{"message":"not a list"}""")]
-    [InlineData("""[{"title":"Vixen","titleSlug":"vixen"}]""")]
-    [InlineData("""[{"tvdbId":0,"title":"Vixen","titleSlug":"vixen"}]""")]
-    public void AnAnswerThatNamesNoEntityIsARefusalRatherThanAnAbsence(string body)
-    {
-        var resolution = V2LookupProjector.Resolve(body);
-
-        Assert.Equal(V2LookupReading.Unreadable, resolution.Reading);
-        Assert.Null(resolution.Site);
-        Assert.Equal(
-            MonitorRefusalKind.InstanceRefused, V2LookupProjector.RefusalFor(resolution.Reading));
-    }
-
-    /// <summary>
-    /// What the instance holds is read out of its own listing by the identifier the lookup named.
-    /// </summary>
-    /// <remarks>
-    /// The lookup answers with no instance-side id until the entity has been added, so whether it is
-    /// held is a second question and the listing is what answers it.
-    /// </remarks>
-    [Fact]
-    public void TheHeldEntryIsTheListedEntityCarryingTheIdentifierTheLookupNamed()
+    public void TheHeldEntryIsTheListedRowCarryingTheSiteNumber()
     {
         const string listed = """
             [{"id":1,"tvdbId":3372,"title":"Vixen","monitored":true},
              {"id":2,"tvdbId":247,"title":"Tushy Raw","monitored":false}]
             """;
 
-        var held = V2LookupProjector.HeldEntry(listed, 3372);
+        var held = V2ListProjector.HeldEntry(listed, 3372);
 
         Assert.NotNull(held);
         Assert.Equal(1, held["id"]!.GetValue<int>());
         Assert.True(held["monitored"]!.GetValue<bool>());
-        Assert.Null(V2LookupProjector.HeldEntry(listed, 36826));
-        Assert.Null(V2LookupProjector.HeldEntry("[]", 3372));
-        Assert.Null(V2LookupProjector.HeldEntry("<!DOCTYPE html>", 3372));
+        Assert.Null(V2ListProjector.HeldEntry(listed, 36826));
+        Assert.Null(V2ListProjector.HeldEntry("[]", 3372));
+        Assert.Null(V2ListProjector.HeldEntry("<!DOCTYPE html>", 3372));
     }
 }
