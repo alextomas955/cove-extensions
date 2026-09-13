@@ -708,7 +708,7 @@ public sealed class SafetyInvariantTests
         [
             (ComposedBody.Of(V3BodyProjector.AddScene(SyncScene, SyncDefaults)),
                 [ComposedAdds.SceneSuppression]),
-            (ComposedV2Body.Of(V2BodyProjector.RegisterSite(3372, "Vixen", "vixen", SyncV2Defaults)),
+            (ComposedV2Body.Of(V2BodyProjector.RegisterSite(3372, SyncV2Defaults)),
                 ComposedAdds.V2Suppression),
         ];
 
