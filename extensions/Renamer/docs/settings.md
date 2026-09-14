@@ -92,6 +92,27 @@ Undoing a rename puts the file back under its old name; the recorded title stays
 that item therefore renders the same name again rather than deriving a new one from whatever the file
 is called at the time.
 
+### Entity kinds
+
+One row per kind Renamer can rename: videos, images, audio and text documents.
+
+| Setting                       | What it does                                                                   | Default |
+| ----------------------------- | ------------------------------------------------------------------------------ | ------- |
+| Rename _kind_                 | Whether Renamer touches items of that kind at all.                             | On      |
+| Send them to their own folder | Give the kind its own destination, used when no routing rule matches the item. | Off     |
+
+A kind turned off is dropped from **Dry run** and **Rename all files** before it is read, so it adds
+nothing to the scan counts. Selecting items of that kind and using **Rename selected** reports them
+as skipped, with the kind named in the reason.
+
+A kind's own destination is a default, not an override. An item that matches a tag, studio,
+source-path or unorganized rule still goes where that rule says, so setting one here never redirects
+items you have already routed by hand. An item that matches no rule goes to the kind's destination
+instead of the one under [Where files go](#where-files-go).
+
+Turning both settings back off removes the kind's stored entry, so the saved settings are the same as
+before you touched it.
+
 ### Run & automation
 
 | Setting               | What it does                                                                                | Default |
@@ -99,7 +120,7 @@ is called at the time.
 | Auto-rename on update | Re-rename an item automatically when Cove raises a `video.updated` / `image.updated` event. | Off     |
 
 Auto-rename acts on the events Cove raises, and Renamer hooks the video and image events only —
-audio is never auto-renamed. Editing several items at once raises an event for each of them, so every
+audio and text documents are never auto-renamed. Editing several items at once raises an event for each of them, so every
 one is considered.
 
 A rename makes Cove announce that the item changed, and that announcement is the same event that

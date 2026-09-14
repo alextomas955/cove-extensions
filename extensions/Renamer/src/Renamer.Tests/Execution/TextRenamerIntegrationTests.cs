@@ -153,4 +153,58 @@ public sealed class TextRenamerIntegrationTests
             await conn.DisposeAsync();
         }
     }
+
+    [Fact]
+    public async Task Undo_PutsTheFileBack_AndPublishesTextUpdated()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, textId, fileId) = await ExecutorTestSeed.SeedTextAsync(
+                db, folderPath, "raw scan.pdf", "A Manual");
+
+            string oldFull = Path.Combine(dir.Root, "raw scan.pdf");
+            File.WriteAllText(oldFull, "text-bytes");
+
+            var port = new CoveRenamerDataPort(db);
+            var journal = new FakeRevertJournal();
+            var options = new RenamerOptions { FilenameTemplate = "$title" };
+
+            await journal.BeginBatchAsync("run-text", RenamerFileKind.Text, DateTime.UtcNow);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Text, textId, options, default);
+            var forward = await new RenamerExecutor(
+                port, new CapturingEventBus(), journal, "run-text", new DiskMover())
+                .ExecuteAsync(plan, options, default);
+            Assert.Single(forward.Renamed);
+
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
+            Assert.NotNull(batch);
+            var undoBus = new CapturingEventBus();
+            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch!, default);
+
+            Assert.Equal(1, result.Undone);
+            Assert.Empty(result.Failed);
+            Assert.Empty(result.Skipped);
+
+            Assert.True(File.Exists(oldFull), "file restored to old path");
+            Assert.False(File.Exists(Path.Combine(dir.Root, "A Manual.pdf")), "new path gone after undo");
+
+            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            Assert.Equal("raw scan.pdf", basename);
+
+            // The undo path keeps its own kind-to-event map, so the kind it publishes is asserted here
+            // and not inferred from the forward rename above.
+            var evt = Assert.IsType<EntityEvent>(Assert.Single(undoBus.Published));
+            Assert.Equal(EventType.TextUpdated, evt.Type);
+            Assert.Equal("Text", evt.EntityType);
+            Assert.Equal(textId, evt.EntityId);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
 }

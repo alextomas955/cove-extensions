@@ -200,14 +200,23 @@ permission of the kind the batch turns out to name, before it touches disk.
 
 Three surfaces reach different numbers of kinds, and the difference is deliberate:
 
-| Surface                               | Kinds               | Where               |
-| ------------------------------------- | ------------------- | ------------------- |
-| Endpoints and their permission checks | video, image, audio | `Renamer.Api.cs`    |
-| The "Rename selected" bulk action     | video, image        | `GetUIManifest`     |
-| The opt-in auto-rename hook           | video, image        | `Renamer.Events.cs` |
+| Surface                               | Kinds                     | Where               |
+| ------------------------------------- | ------------------------- | ------------------- |
+| Endpoints and their permission checks | video, image, audio, text | `Renamer.Api.cs`    |
+| The "Rename selected" bulk action     | video, image, text        | `GetUIManifest`     |
+| The opt-in auto-rename hook           | video, image              | `Renamer.Events.cs` |
 
 So audio is renamed from the Renamer tab or through the API, and an audio list carries no "Rename
-selected" action. The manifest's description states the endpoint reach and the bulk action's narrower
+selected" action.
+
+The text action declares both `text` and `texts`. The host's selection-action normalizer singularizes
+only `videos` and `images` and passes every other list's entity type through unchanged, so a texts
+list hands the extension the plural. `Renamer.TryParseKind` accepts both spellings for the same
+reason.
+
+A kind can also be turned off in the settings, which is separate from the reach above. The whole-library
+scan and rename drop a disabled kind before reading it; the planner gates it, which is what a
+selection-based rename of a disabled kind meets. The manifest's description states the endpoint reach and the bulk action's narrower
 one together, because that description is what an operator reads before granting the extension access.
 
 The bulk-action registration, the job definition, and the optional auto-rename event hook live
@@ -218,7 +227,7 @@ background job runner in `src/Renamer/Jobs/`.
 ### Frontend — `src/Renamer.Ui/src/`
 
 A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **Settings → Extensions
-→ Renamer** tab; it also registers the "Rename selected" bulk action on video and image lists.
+→ Renamer** tab; it also registers the "Rename selected" bulk action on video, image and text lists.
 
 - `index.ts` — the bundle entry that registers the components and the bulk-action handler.
 - `RenamePage.tsx` / `RenameSettingsPanel.tsx` — the settings tab and its body (the controls + the
