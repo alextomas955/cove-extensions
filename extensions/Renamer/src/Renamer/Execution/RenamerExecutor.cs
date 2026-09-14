@@ -646,6 +646,7 @@ public sealed class RenamerExecutor
         RenamerFileKind.Video => EventType.VideoUpdated,
         RenamerFileKind.Image => EventType.ImageUpdated,
         RenamerFileKind.Audio => EventType.AudioUpdated,
+        RenamerFileKind.Text => EventType.TextUpdated,
         _ => EventType.VideoUpdated,
     };
 
@@ -654,6 +655,7 @@ public sealed class RenamerExecutor
         RenamerFileKind.Video => "Video",
         RenamerFileKind.Image => "Image",
         RenamerFileKind.Audio => "Audio",
+        RenamerFileKind.Text => "Text",
         _ => "Video",
     };
 
