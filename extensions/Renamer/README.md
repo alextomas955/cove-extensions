@@ -1,9 +1,12 @@
 # Renamer
 
-A Cove extension (`com.alextomas955.renamer`) that bulk-renames — and optionally relocates —
-library items from configurable metadata templates. It updates the file on disk and its Cove
-database record together, previews every change before touching disk, and can undo the last rename
-up to a bounded size.
+A Cove extension (`com.alextomas955.renamer`) that bulk-renames, and optionally relocates, library
+items from configurable metadata templates. It updates the file on disk and its Cove database
+record together, previews every change before touching disk, and can undo the last rename up to a
+bounded size.
+
+It renames videos, images, audio files and text documents. Each kind can be turned off on its own,
+and can be given its own destination folder, under Entity kinds in the settings panel.
 
 ## Documentation
 

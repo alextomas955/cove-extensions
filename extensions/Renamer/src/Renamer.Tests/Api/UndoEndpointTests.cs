@@ -369,6 +369,45 @@ public sealed class UndoEndpointTests
         }
     }
 
+    [Fact]
+    public async Task Undo_OfATextBatch_IsAllowedForACallerHoldingOnlyTextsWrite()
+    {
+        // The coarse gate that runs before the journal is read admits a caller holding ANY renamer
+        // write permission. It has to be read off the same array every other path reads, because a
+        // caller whose only kind is text holds none of the other three: a second copy of that list
+        // refuses them here while the rename that made the batch was allowed.
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, textId, _) = await ExecutorTestSeed.SeedTextAsync(
+                db, folderPath, "raw scan.pdf", "A Manual");
+
+            string oldFull = Path.Combine(dir.Root, "raw scan.pdf");
+            string newFull = Path.Combine(dir.Root, "A Manual.pdf");
+            File.WriteAllText(oldFull, "text-bytes");
+
+            var bus = new CapturingEventBus();
+            var (ext, store) = await BuildExtensionAsync(db, bus);
+            await SeedTitleOptionsAsync(store);
+
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("text", [textId]), new FakeJobProgress(), default);
+            Assert.True(File.Exists(newFull));
+
+            var textsOnly = FakePrincipalAccessor.WithPermissions(Permissions.TextsWrite);
+            var result = await ext.UndoAsync(textsOnly, default);
+
+            Assert.Equal(1, UndoValue(result).Undone);
+            Assert.True(File.Exists(oldFull), "file restored to old path");
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
     /// <summary>Seeds an Image + one ImageFile in the given (already-seeded or new) folder. Returns (imageId, fileId).</summary>
     private static async Task<(int imageId, int fileId)> SeedImageAsync(
         DbContext db, string folderPath, string basename, string title)

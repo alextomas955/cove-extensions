@@ -60,7 +60,7 @@ destination, and any warnings — without changing anything.
 4. To find a particular file, type part of its path or its new name into the search box. The search
    runs on the server and covers the current path, the new path, the new name and the destination
    folder, ignoring case.
-5. Rows load as you scroll, in scan order — videos, then images, then audio, then text documents,
+5. Rows load as you scroll, in scan order: videos, then images, then audio, then text documents,
    each in library order. A kind you have turned off under Entity kinds is not scanned, so it
    contributes no rows and no counts. On a large library the server reads it in stages, and a stage can pass with nothing in it
    that matches your filter; the table keeps asking for the next stage until the rows in view are

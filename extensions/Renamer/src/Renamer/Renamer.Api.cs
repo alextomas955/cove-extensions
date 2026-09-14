@@ -525,11 +525,13 @@ public sealed partial class Renamer
         // read or disk touch, so an unauthorized caller cannot even learn whether a batch exists. The
         // SPECIFIC kind's write permission is re-checked below once the batch reveals the kind; this
         // coarse gate only preserves the "no read/disk work for the wholly-unauthorized" property.
-        bool canWriteAny = principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosWrite)
-                || principal.Current.Has(Permissions.ImagesWrite)
-                || principal.Current.Has(Permissions.AudiosWrite));
-        if (!canWriteAny)
+        // Read through the shared helper, never a list spelled again here: a kind added to
+        // AnyWritePermissions and not to a second copy locks that kind's own writers out of undo while
+        // every other path accepts them.
+        // Read through the shared helper, never a list spelled again here: a kind added to
+        // AnyWritePermissions and not to a second copy locks that kind's own writers out of undo while
+        // every other path accepts them.
+        if (!HasAnyWritePermission(principal))
         {
             return new ForbiddenCode();
         }

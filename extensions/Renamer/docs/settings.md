@@ -119,8 +119,8 @@ before you touched it.
 | --------------------- | ------------------------------------------------------------------------------------------- | ------- |
 | Auto-rename on update | Re-rename an item automatically when Cove raises a `video.updated` / `image.updated` event. | Off     |
 
-Auto-rename acts on the events Cove raises, and Renamer hooks the video and image events only —
-audio and text documents are never auto-renamed. Editing several items at once raises an event for each of them, so every
+Auto-rename acts on the events Cove raises, and Renamer hooks the video and image events only.
+Audio and text documents are never auto-renamed. Editing several items at once raises an event for each of them, so every
 one is considered.
 
 A rename makes Cove announce that the item changed, and that announcement is the same event that
