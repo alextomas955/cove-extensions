@@ -22,6 +22,7 @@ import { DryRunModal } from "./dry-run/DryRunModal";
 import { FilenameSection } from "./FilenameSection";
 import { LivePreviewPane } from "./LivePreviewPane";
 import { WhatGetsRenamedSection } from "./WhatGetsRenamedSection";
+import { EntityKindsSection } from "./EntityKindsSection";
 import { RunAutomationSection } from "./RunAutomationSection";
 import { TokenSettingsSection } from "./TokenSettingsSection";
 import { DestinationRoutingSection } from "./DestinationRoutingSection";
@@ -224,6 +225,7 @@ export function RenamePanelBody() {
       <div className="space-y-4">
         <SectionGroupHeader title="Scope & run" />
         <WhatGetsRenamedSection options={options} set={set} />
+        <EntityKindsSection options={options} set={set} library={library} />
         <RunAutomationSection
           options={options}
           set={set}

@@ -43,6 +43,24 @@ export type Destination = Pascal<Wire.Destination>;
 export type PathDestinationRule = Pascal<Wire.PathDestinationRule>;
 export type ExcludeRule = Pascal<Wire.ExcludeRule>;
 export type FieldReplaceRule = Pascal<Wire.FieldReplaceRule>;
+export type KindOptions = Pascal<Wire.KindOptions>;
+
+/**
+ * The entity kinds this extension renames, in the spelling the stored blob uses as its `Kinds` keys.
+ * PascalCase, measured off the serializer rather than assumed: the options-level converter overrides
+ * the camelCase attribute the enum carries for the wire document.
+ */
+export const RENAMABLE_KINDS = ["Video", "Image", "Audio", "Text"] as const;
+
+export type RenamableKind = (typeof RENAMABLE_KINDS)[number];
+
+/** How each kind is named in the panel. */
+export const KIND_LABELS: Readonly<Record<RenamableKind, string>> = {
+  Video: "Videos",
+  Image: "Images",
+  Audio: "Audio",
+  Text: "Text documents",
+};
 
 /**
  * The stored root standing for _the file's own library path_ - an empty string, so that a rule
@@ -211,6 +229,11 @@ export interface RenamerOptions {
   // Folder/title de-duplication.
   PreventTitlePerformer: boolean;
   PreventConsecutiveSegments: boolean;
+  /**
+   * Per-kind settings. A kind with no entry is renamed, with the default folder template and root, so
+   * an empty map is what this extension did before the setting existed.
+   */
+  Kinds: Partial<Record<RenamableKind, KindOptions>>;
 }
 
 /**
@@ -295,6 +318,7 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
   Articles: ["The", "A", "An"],
   PreventTitlePerformer: false,
   PreventConsecutiveSegments: true,
+  Kinds: {},
 };
 
 /**
@@ -333,6 +357,7 @@ export function cloneDefaults(): RenamerOptions {
     AssociatedExtensions: [...DEFAULT_OPTIONS.AssociatedExtensions],
     FieldReplacers: DEFAULT_OPTIONS.FieldReplacers.map((r) => ({ ...r })),
     Articles: [...DEFAULT_OPTIONS.Articles],
+    Kinds: cloneKinds(DEFAULT_OPTIONS.Kinds),
   };
 }
 
@@ -393,6 +418,41 @@ function numKeyDestinationMap(v: unknown): Record<number, Destination> {
   for (const [k, val] of Object.entries(src)) {
     const n = Number(k);
     if (Number.isInteger(n)) out[n] = destination(val);
+  }
+  return out;
+}
+
+/**
+ * The per-kind map, keeping only the keys that name a renamable kind. A blob holding a kind this
+ * version does not know is dropped rather than carried, because the key is what the backend binds the
+ * entry to and an unbindable key fails the whole options bind.
+ */
+function kindOptionsMap(v: unknown): Partial<Record<RenamableKind, KindOptions>> {
+  const src = asRecord(v);
+  const out: Partial<Record<RenamableKind, KindOptions>> = {};
+  for (const kind of RENAMABLE_KINDS) {
+    const entry = src[kind];
+    if (!entry || typeof entry !== "object") continue;
+    const r = entry as Record<string, unknown>;
+    out[kind] = {
+      Enabled: bool(r.Enabled, true),
+      // Absent is "no destination of its own", which is a different state from one naming neither a
+      // root nor a folder - the same distinction UnorganizedDestination draws.
+      Destination:
+        r.Destination && typeof r.Destination === "object" ? destination(r.Destination) : null,
+    };
+  }
+  return out;
+}
+
+/** A fresh copy of the per-kind map, so a clone shares no nested object with its source. */
+function cloneKinds(
+  map: Partial<Record<RenamableKind, KindOptions>>,
+): Partial<Record<RenamableKind, KindOptions>> {
+  const out: Partial<Record<RenamableKind, KindOptions>> = {};
+  for (const kind of RENAMABLE_KINDS) {
+    const entry = map[kind];
+    if (entry) out[kind] = { ...entry, Destination: entry.Destination && { ...entry.Destination } };
   }
   return out;
 }
@@ -697,5 +757,6 @@ export function normalizeOptions(raw: unknown): RenamerOptions {
     Articles: strArray(r.Articles, [...d.Articles]),
     PreventTitlePerformer: bool(r.PreventTitlePerformer, d.PreventTitlePerformer),
     PreventConsecutiveSegments: bool(r.PreventConsecutiveSegments, d.PreventConsecutiveSegments),
+    Kinds: kindOptionsMap(r.Kinds),
   };
 }
