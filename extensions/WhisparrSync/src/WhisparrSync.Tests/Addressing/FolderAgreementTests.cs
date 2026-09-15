@@ -22,14 +22,58 @@ public sealed class FolderAgreementTests
 
     private static readonly string[] TwoInstanceRoots = ["/data", "/media"];
 
+    /// <summary>
+    /// One candidate per declared root, and the library's own spelling beside them.
+    /// </summary>
+    /// <remarks>
+    /// The library's own spelling is the deployment where both systems reach one filesystem at one
+    /// path, and the one where the instance's root sits below the Cove root. Neither produces a
+    /// rebuilt candidate that names the file.
+    /// </remarks>
     [Fact]
-    public void ASampleFileProducesOneCandidatePerDeclaredRoot()
+    public void ASampleFileProducesOneCandidatePerDeclaredRootAndTheLibrarysOwnSpelling()
     {
         var reading = FolderAgreement.CandidatesFor(Sample, CoveRoot, TwoInstanceRoots);
 
         Assert.Null(reading.Refusal);
         Assert.Equal(
-            ["/data/Blue Harbor/scene.mp4", "/media/Blue Harbor/scene.mp4"], reading.Candidates);
+            ["/data/Blue Harbor/scene.mp4", "/media/Blue Harbor/scene.mp4", Sample],
+            reading.Candidates);
+    }
+
+    /// <summary>
+    /// An instance whose root sits below the Cove root agrees on the Cove root itself.
+    /// </summary>
+    /// <remarks>
+    /// One filesystem both systems reach at one path, with the instance's catalogue rooted inside
+    /// the library. Rebuilding the tail under the instance's own root repeats the segments that root
+    /// already carries, so the only candidate naming the file is the library's own spelling.
+    /// </remarks>
+    [Fact]
+    public void AnInstanceRootedInsideTheLibraryAgreesOnTheLibrarysOwnSpelling()
+    {
+        const string oneRoot = "/shared";
+        const string sample = "/shared/media/Blue Harbor/scene.mp4";
+        var reading = FolderAgreement.CandidatesFor(sample, oneRoot, ["/shared/media"]);
+
+        // The rebuild repeats the root's own segment and names nothing; the library's own spelling is
+        // the file.
+        Assert.Equal(["/shared/media/media/Blue Harbor/scene.mp4", sample], reading.Candidates);
+
+        var agreement = FolderAgreement.Resolve(
+            sample,
+            oneRoot,
+            [
+                new ProbedCandidate(reading.Candidates[0], new ProbedPath(false, null)),
+                new ProbedCandidate(sample, new ProbedPath(true, SampleSize)),
+            ],
+            SampleSize);
+
+        Assert.Null(agreement.Refusal);
+        Assert.Equal(oneRoot, agreement.InstanceRoot);
+        Assert.Equal(
+            "/shared/media/Blue Harbor",
+            FolderAgreement.Address("/shared/media/Blue Harbor", oneRoot, agreement.InstanceRoot!));
     }
 
     [Fact]

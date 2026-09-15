@@ -86,10 +86,23 @@ public static class FolderAgreement
         // A single Cove root to strip under, so exactly one tail is produced and each declared root
         // contributes one candidate.
         var reading = PathCandidateGuard.Read(sampleFilePath, [coveRoot], instanceRoots);
+        if (reading.Refusal is { } refused)
+        {
+            return new FolderCandidates([], ReasonFor(refused));
+        }
 
-        return reading.Refusal is { } refused
-            ? new FolderCandidates([], ReasonFor(refused))
-            : new FolderCandidates(reading.Candidates, null);
+        // The library's own spelling is asked about too. Where both systems reach one filesystem at
+        // one path, and where the instance's root sits below the Cove root, no rebuilt candidate
+        // names the file: the rebuild would carry the segments the instance's own root already holds.
+        // Only the instance's answer tells that deployment from one whose mounts differ. Last, so a
+        // run reporting one of the paths it tried reports one the instance could have held.
+        var asTheLibrarySpellsIt = PathCandidateGuard.Normalize(sampleFilePath);
+
+        return new FolderCandidates(
+            reading.Candidates.Contains(asTheLibrarySpellsIt, StringComparer.Ordinal)
+                ? reading.Candidates
+                : [.. reading.Candidates, asTheLibrarySpellsIt],
+            null);
     }
 
     /// <summary>What the instance's answers make of the candidates.</summary>

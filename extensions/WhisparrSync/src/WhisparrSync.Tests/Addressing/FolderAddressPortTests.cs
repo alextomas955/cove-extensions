@@ -75,7 +75,7 @@ public sealed class FolderAddressPortTests
 
         Assert.Null(addressed.InstancePath);
         Assert.Equal(FolderAgreementRefusal.NothingResolved, addressed.Refusal);
-        Assert.Equal(["/data/Blue Harbor/scene.mp4"], addressed.Tried);
+        Assert.Equal(["/data/Blue Harbor/scene.mp4", Sample], addressed.Tried);
     }
 
     [Fact]
@@ -89,11 +89,16 @@ public sealed class FolderAddressPortTests
     }
 
     /// <summary>
-    /// A run over many folders under one root reads one sample file and probes once, whatever the
-    /// folder count.
+    /// A run over many folders under one root reads one sample file and probes its candidates once,
+    /// whatever the folder count.
     /// </summary>
+    /// <remarks>
+    /// One probe per candidate: the rebuild under the instance's declared root, and the library's own
+    /// spelling. What a run costs grows with the roots an operator configured, never with the folders
+    /// under them.
+    /// </remarks>
     [Fact]
-    public async Task ManyFoldersUnderOneRootCostOneSampleFileAndOneProbe()
+    public async Task ManyFoldersUnderOneRootCostOneSampleFileAndOneRoundOfProbes()
     {
         var samples = new CountingSampleFiles(new SampleFile(Sample, SampleSize));
         var (port, handler) = Over(HoldingTheSample, ["/data"], samples);
@@ -107,7 +112,7 @@ public sealed class FolderAddressPortTests
 
         Assert.Equal(1, samples.Reads);
         Assert.Equal(
-            1, handler.Targets.Count(sent => sent.Contains("filesystem", StringComparison.Ordinal)));
+            2, handler.Targets.Count(sent => sent.Contains("filesystem", StringComparison.Ordinal)));
     }
 
     /// <summary>
@@ -164,6 +169,38 @@ public sealed class FolderAddressPortTests
         Assert.Equal(FolderAgreementRefusal.InstanceDeclaresNoRoot, addressed.Refusal);
     }
 
+    /// <summary>
+    /// Where configured library roots nest, the folder is addressed under the most specific of them.
+    /// </summary>
+    /// <remarks>
+    /// The tail is taken below the root, so the shallower root produces a tail carrying the very
+    /// segment the instance's own root already holds, and the rebuilt candidate then names a path
+    /// neither system has.
+    /// </remarks>
+    [Fact]
+    public async Task AFolderUnderTwoNestedLibraryRootsIsAddressedUnderTheMoreSpecificOne()
+    {
+        const string nestedSample = "/shared/media/Blue Harbor/scene.mp4";
+        var listing = """
+            {"parent":"/data/media/Blue Harbor/","directories":[],
+             "files":[{"path":"/data/media/Blue Harbor/scene.mp4","size":41,"type":"file"}]}
+            """;
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, listing);
+        var port = new FolderAddressPort(
+            new CountingSampleFiles(new SampleFile(nestedSample, SampleSize)),
+            new StubLibraryRoots(["/shared", "/shared/media"]),
+            new StubInstanceRoots(["/data/media"]),
+            new FolderAgreementCache(TimeProvider.System),
+            NullLogger.Instance);
+
+        var addressed = await port.AddressAsync(
+            Target(handler), "/shared/media/Blue Harbor", TestCt);
+
+        Assert.Null(addressed.Refusal);
+        Assert.Equal("/data/media/Blue Harbor", addressed.InstancePath);
+        Assert.Equal("/shared/media", addressed.CoveRoot);
+    }
+
     private static FolderAddressTarget Target(BodyRecordingHandler handler)
         => new(
             WhisparrGeneration.V3,
@@ -209,9 +246,9 @@ public sealed class FolderAddressPortTests
     /// Only the roots are supplied. Every other member raises, so a case reaching one fails rather
     /// than reading a value nobody configured.
     /// </remarks>
-    private sealed class StubLibraryRoots : ICoveLibraryPort
+    private sealed class StubLibraryRoots(IReadOnlyList<string>? roots = null) : ICoveLibraryPort
     {
-        public IReadOnlyList<string> LibraryRoots { get; } = [CoveRoot];
+        public IReadOnlyList<string> LibraryRoots { get; } = roots ?? [CoveRoot];
 
         public IReadOnlyList<string> ConfiguredMetadataEndpoints
             => throw new NotSupportedException();
