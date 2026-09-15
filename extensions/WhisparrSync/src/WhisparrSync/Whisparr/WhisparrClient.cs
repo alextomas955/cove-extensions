@@ -1113,7 +1113,46 @@ internal sealed class WhisparrClient(
         WhisparrGeneration generation,
         string directory,
         CancellationToken ct)
-        => throw new NotImplementedException();
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+
+        var asDirectory = WithTrailingSeparator(directory);
+
+        return generation switch
+        {
+            WhisparrGeneration.V3 => GeneratedReadAsync(
+                baseAddress,
+                apiKey,
+                api => api.Api<V3Api.IFileSystemApi>().GetFileSystemAsync(
+                    path: asDirectory,
+                    includeFiles: true,
+                    allowFoldersWithoutTrailingSlashes: true,
+                    cancellationToken: ct)),
+
+            WhisparrGeneration.V2 => GeneratedV2ReadAsync(
+                baseAddress,
+                apiKey,
+                api => api.Api<V2Api.IFileSystemApi>().GetFileSystemAsync(
+                    path: asDirectory,
+                    includeFiles: true,
+                    allowFoldersWithoutTrailingSlashes: true,
+                    cancellationToken: ct)),
+            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
+        };
+    }
+
+    // Without a trailing separator the instance reads the spelling as a partial name and answers with
+    // the names its parent holds that start with it. The separator already in the spelling is the one
+    // appended, so a path rooted on a drive letter keeps its own.
+    private static string WithTrailingSeparator(string directory)
+    {
+        if (directory.EndsWith('/') || directory.EndsWith('\\'))
+        {
+            return directory;
+        }
+
+        return directory + (directory.Contains('\\') ? '\\' : '/');
+    }
 
     // The one member of this whole seam that can make an instance acquire anything, and the only one
     // whose invocation is recorded on its own. Its verb class has no retry entry, so an attempt whose

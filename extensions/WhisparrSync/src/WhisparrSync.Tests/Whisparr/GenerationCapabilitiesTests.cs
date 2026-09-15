@@ -41,6 +41,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.SearchScene,
                 WhisparrCapability.MonitorScene,
                 WhisparrCapability.ExcludeScene,
+                WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
     }
@@ -61,6 +62,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.RegisterOwnedSites,
                 WhisparrCapability.ReadSiteSceneRows,
                 WhisparrCapability.ReadHeldSites,
+                WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);
     }
@@ -163,6 +165,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.SearchScene,
                 WhisparrCapability.MonitorScene,
                 WhisparrCapability.ExcludeScene,
+                WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
         Assert.Equal(
@@ -175,6 +178,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.RegisterOwnedSites,
                 WhisparrCapability.ReadSiteSceneRows,
                 WhisparrCapability.ReadHeldSites,
+                WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
         Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
@@ -205,6 +209,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.RegisterOwnedSites,
                 WhisparrCapability.ReadSiteSceneRows,
                 WhisparrCapability.ReadHeldSites,
+                WhisparrCapability.ReadInstanceFilesystem,
             ],
             held);
         Assert.All(
@@ -422,7 +427,7 @@ public sealed class GenerationCapabilitiesTests
             "[\"outOfBandCallbackSecret\",\"monitorStudio\",\"monitorPerformer\","
                 + "\"registerMissingScenes\",\"reflectOwnedFiles\",\"searchMonitored\","
                 + "\"readSceneStatus\",\"readSceneExclusions\",\"searchScene\","
-                + "\"monitorScene\",\"excludeScene\"]",
+                + "\"monitorScene\",\"excludeScene\",\"readInstanceFilesystem\"]",
             JsonSerializer.Serialize(
                 GenerationCapabilities.For(WhisparrGeneration.V3).Held, HostJsonOptions));
 
