@@ -508,7 +508,12 @@ public sealed class SyncPreviewJobTests
                     SyncRegisters.Sites,
                     Held: null,
                     (asked, batchCt) => global::WhisparrSync.WhisparrSync.ReduceHeldSitesAsync(
-                        source, instance.AskAsync, asked, batchCt))),
+                        source,
+                        Instance,
+                        Key,
+                        instance.AskAsync,
+                        asked,
+                        batchCt))),
             log ?? NullLogger.Instance,
             ct);
     }
@@ -632,7 +637,7 @@ public sealed class SyncPreviewJobTests
         public int MaxInFlight { get; private set; }
 
         public async Task<WhisparrSiteNumber> ResolveSiteNumberAsync(
-            string storedSiteId, CancellationToken ct)
+            Uri baseAddress, string apiKey, string storedSiteId, CancellationToken ct)
         {
             var live = Interlocked.Increment(ref _live);
             lock (_gate)

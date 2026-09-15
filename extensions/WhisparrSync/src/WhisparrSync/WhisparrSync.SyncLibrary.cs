@@ -167,6 +167,8 @@ public sealed partial class WhisparrSync
                     Held: null,
                     (asked, batchCt) => ReduceHeldSitesAsync(
                         services.GetRequiredService<ISiteNumberPort>(),
+                        target.BaseAddress,
+                        target.ApiKey,
                         (numbers, numbersCt) => target.Capabilities
                             .Obtain<IWhisparrHeldSiteReading>()
                             .Match(
@@ -197,12 +199,14 @@ public sealed partial class WhisparrSync
     /// </para>
     /// </remarks>
     /// <exception cref="HttpRequestException">
-    /// The metadata source was not reached for one of the identifiers, so nothing about that studio
-    /// is known and no count is held. Raised rather than counted as a studio the instance does not
+    /// The instance was not reached for one of the identifiers, so nothing about that studio is
+    /// known and no count is held. Raised rather than counted as a studio the instance does not
     /// hold, which would offer it for registration on the strength of nothing.
     /// </exception>
     internal static async Task<SiteBatchReading> ReduceHeldSitesAsync(
         ISiteNumberPort siteNumbers,
+        Uri baseAddress,
+        string apiKey,
         Func<IReadOnlyCollection<int>, CancellationToken, Task<IReadOnlySet<int>>> heldSites,
         IReadOnlyCollection<string> asked,
         CancellationToken ct)
@@ -249,14 +253,15 @@ public sealed partial class WhisparrSync
         async Task<(string Identity, WhisparrSiteNumber Resolved)> ResolveAsync(string identity)
         {
             // The wait is here rather than around the request, so the resolves past the bound queue
-            // on this semaphore instead of on the provider's own, which refuses a caller past its
+            // on this semaphore instead of on the instance's own, which refuses a caller past its
             // queue depth rather than holding it.
             await outstanding.WaitAsync(ct).ConfigureAwait(false);
             try
             {
                 return (
                     identity,
-                    await siteNumbers.ResolveSiteNumberAsync(identity, ct).ConfigureAwait(false));
+                    await siteNumbers.ResolveSiteNumberAsync(baseAddress, apiKey, identity, ct)
+                        .ConfigureAwait(false));
             }
             finally
             {
