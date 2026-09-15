@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json.Nodes;
 using Cove.Extensions.Shared;
 using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 
@@ -22,10 +23,14 @@ public sealed record ReflectOwnedBatch(WhisparrEntityKind? Kind, int CoveId);
 /// time.
 /// </remarks>
 /// <param name="Generation">Whose row spellings the parse answers are read under.</param>
+/// <param name="Address">
+/// Turns a folder the library names into the path the instance confirmed it can open.
+/// </param>
 /// <param name="ReadImportable">Reads one folder's attachable rows.</param>
 /// <param name="Attach">Hands one folder's rows to the instance, answering whether it took them.</param>
 internal sealed record ReflectOwnedAiming(
     WhisparrGeneration Generation,
+    Func<string, CancellationToken, Task<AddressedFolder>> Address,
     Func<string, CancellationToken, Task<ImportableListing>> ReadImportable,
     Func<JsonArray, CancellationToken, Task<bool>> Attach);
 
@@ -169,6 +174,7 @@ public static class ReflectOwnedJob
         return ReflectOwnedPlanner.RunAsync(
             aimed.Generation,
             services.GetRequiredService<IEntityFolderPort>().FoldersFor(kind, coveId, ct),
+            aimed.Address,
             aimed.ReadImportable,
             aimed.Attach,
             ct);

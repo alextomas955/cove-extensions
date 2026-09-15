@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
 using WhisparrSync.Import;
 using WhisparrSync.Library;
@@ -181,6 +182,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddMissingProviders();
         services.AddMissingDerivation();
         services.AddLibraryStatus(_log);
+        services.AddFolderAddressing(_log);
     }
 
     public override async Task InitializeAsync(

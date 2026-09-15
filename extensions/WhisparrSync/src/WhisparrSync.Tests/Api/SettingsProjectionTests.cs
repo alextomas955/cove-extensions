@@ -204,6 +204,10 @@ public sealed partial class SettingsProjectionTests
                 // halves of the enrichment containment are given the same reduced value.
                 "EnrichmentContained.source",
                 "EnrichmentNotCommitted.source",
+                // A probe that reached nothing while establishing which spelling of a library root an
+                // instance can open: the host, exactly what every other outbound failure is given.
+                // The candidate path it was asking about is never given to the line.
+                "FolderProbeFailed.host",
                 "HostImportContained.failure",
                 "ImportEventTypeIgnored.eventType",
                 // A monitoring request that reached nothing: the failure's classification and the

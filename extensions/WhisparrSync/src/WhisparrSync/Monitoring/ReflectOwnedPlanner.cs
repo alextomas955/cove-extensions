@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 
 namespace WhisparrSync.Monitoring;
@@ -41,6 +42,13 @@ internal readonly record struct ImportableListing(string? Rows, bool WasRefused)
     internal static ImportableListing Listed(string? rows) => new(rows, false);
 }
 
+/// <summary>Why one library root's folders could not be addressed on the instance.</summary>
+/// <param name="CoveRoot">The library root, named once however many folders sit under it.</param>
+/// <param name="Refusal">What the root could not establish.</param>
+/// <param name="Tried">The paths the instance was asked about under it.</param>
+internal sealed record FolderAddressRefusal(
+    string CoveRoot, FolderAgreementRefusal Refusal, IReadOnlyList<string> Tried);
+
 /// <summary>What a run over an entity's folders did.</summary>
 /// <param name="Outcome">Whether every folder was read.</param>
 /// <param name="FoldersAttached">How many folders' files the instance accepted.</param>
@@ -53,11 +61,23 @@ internal readonly record struct ImportableListing(string? Rows, bool WasRefused)
 /// cause other than the instance's linking setting, because no setting was read on that path and
 /// naming one would send a reader to a value nobody looked at.
 /// </param>
+/// <param name="FoldersNotAddressed">
+/// How many folders never reached the instance, because no path it confirmed it can open was
+/// established for them. Apart from <paramref name="FoldersRefused"/> on purpose: the instance
+/// declined nothing here and was never asked about these folders at all.
+/// </param>
+/// <param name="AddressRefusals">
+/// One line per library root that could not be addressed, with the paths tried under it. A line per
+/// folder would grow with the entity and would put recorded filesystem paths somewhere nothing needs
+/// them.
+/// </param>
 internal sealed record ReflectOwnedRun(
     ReflectOwnedRunOutcome Outcome,
     int FoldersAttached,
     int FoldersRefused,
-    ReflectOwnedSkipReason? Skipped = null);
+    ReflectOwnedSkipReason? Skipped = null,
+    int FoldersNotAddressed = 0,
+    IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null);
 
 /// <summary>Whether, and with what, an instance is asked to link files the library already holds.</summary>
 /// <remarks>
@@ -146,8 +166,9 @@ internal static class ReflectOwnedPlanner
     }
 
     /// <summary>
-    /// Reads each of <paramref name="folders"/> through <paramref name="readImportable"/>, hands the
-    /// rows that can be attached into one <paramref name="attach"/>, and drops them.
+    /// Addresses each of <paramref name="folders"/> on the instance through
+    /// <paramref name="address"/>, reads it through <paramref name="readImportable"/>, hands the rows
+    /// that can be attached into one <paramref name="attach"/>, and drops them.
     /// </summary>
     /// <remarks>
     /// A cancellation classifies the run as cancelled rather than failed, and what was attached before
@@ -156,27 +177,51 @@ internal static class ReflectOwnedPlanner
     /// A folder whose listing was refused counts as refused. A folder the instance listed nothing
     /// attachable in counts as neither, because that is a complete answer about the folder.
     /// </para>
+    /// <para>
+    /// The path handed to the read is always the instance's own. A folder with none reaches the
+    /// instance not at all: the library's own spelling would produce a legitimately empty listing and
+    /// a run reporting a clean zero over a folder nothing ever looked in.
+    /// </para>
     /// </remarks>
     internal static async Task<ReflectOwnedRun> RunAsync(
         WhisparrGeneration generation,
         IAsyncEnumerable<string> folders,
+        Func<string, CancellationToken, Task<AddressedFolder>> address,
         Func<string, CancellationToken, Task<ImportableListing>> readImportable,
         Func<JsonArray, CancellationToken, Task<bool>> attach,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(folders);
+        ArgumentNullException.ThrowIfNull(address);
         ArgumentNullException.ThrowIfNull(readImportable);
         ArgumentNullException.ThrowIfNull(attach);
 
         var attached = 0;
         var refused = 0;
+        var unaddressed = 0;
+        var refusalByRoot = new Dictionary<string, FolderAddressRefusal>(StringComparer.Ordinal);
         try
         {
             ct.ThrowIfCancellationRequested();
             await foreach (var folder in folders.WithCancellation(ct).ConfigureAwait(false))
             {
                 ct.ThrowIfCancellationRequested();
-                var listing = await readImportable(folder, ct).ConfigureAwait(false);
+
+                var addressed = await address(folder, ct).ConfigureAwait(false);
+                if (addressed.InstancePath is not { } onInstance)
+                {
+                    unaddressed++;
+                    if (addressed.Refusal is { } reason)
+                    {
+                        refusalByRoot.TryAdd(
+                            addressed.CoveRoot,
+                            new FolderAddressRefusal(addressed.CoveRoot, reason, addressed.Tried));
+                    }
+
+                    continue;
+                }
+
+                var listing = await readImportable(onInstance, ct).ConfigureAwait(false);
                 if (listing.WasRefused)
                 {
                     refused++;
@@ -200,10 +245,13 @@ internal static class ReflectOwnedPlanner
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            return new ReflectOwnedRun(ReflectOwnedRunOutcome.Cancelled, attached, refused);
+            return Ended(ReflectOwnedRunOutcome.Cancelled);
         }
 
-        return new ReflectOwnedRun(ReflectOwnedRunOutcome.Completed, attached, refused);
+        return Ended(ReflectOwnedRunOutcome.Completed);
+
+        ReflectOwnedRun Ended(ReflectOwnedRunOutcome outcome)
+            => new(outcome, attached, refused, null, unaddressed, [.. refusalByRoot.Values]);
     }
 
     // Both spellings are transcribed from the interface bundle each build ships. The newer names one
