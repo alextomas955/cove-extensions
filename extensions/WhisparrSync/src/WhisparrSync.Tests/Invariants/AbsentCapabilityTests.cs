@@ -349,11 +349,13 @@ public sealed class AbsentCapabilityTests
     /// Asserts absence. The seam's configuring half is the callback registration and nothing else.
     /// <para>
     /// The types that can reach an instance are named: the instance client, the two metadata
-    /// catalogues, and the types each generation's gateway reaches its generated client through. A
-    /// catalogue reads a third party rather than an instance, and it composes one verb on one route,
-    /// so it declares no member through which a mutation could be expressed. The registry's own entry
-    /// type is named too, since it holds the provider a call is made through. That is asserted here
-    /// rather than assumed, because a holder nobody wrote down is a call site nothing constrains.
+    /// catalogues, the site-number port, and the types each generation's gateway reaches its
+    /// generated client through. A catalogue reads a third party rather than an instance, and it
+    /// composes one verb on one route, so it declares no member through which a mutation could be
+    /// expressed; the site-number port composes one read on the lookup route and is the same shape.
+    /// The registry's own entry type is named too, since it holds the provider a call is made
+    /// through. That is asserted here rather than assumed, because a holder nobody wrote down is a
+    /// call site nothing constrains.
     /// </para>
     /// </remarks>
     [Fact]
@@ -370,6 +372,7 @@ public sealed class AbsentCapabilityTests
         Assert.Equal(
             [
                 typeof(GeneratedClientRegistry<Whisparr3Target>).Name,
+                nameof(InstanceSiteNumberPort),
                 "Registration",
                 nameof(StashDbCatalogue),
                 nameof(ThePornDbCatalogue),

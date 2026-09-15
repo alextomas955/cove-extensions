@@ -62,11 +62,6 @@ internal static class ProviderServiceRegistration
             provider.GetRequiredService<StashDbCatalogue>(),
             provider.GetRequiredService<ThePornDbCatalogue>()));
 
-        // Scoped like the catalogue it reads through, so a host reconfigured to another source is
-        // picked up without the container being rebuilt.
-        services.AddScoped<ISiteNumberPort>(
-            provider => new SiteNumberPort(provider.GetRequiredService<IProviderCatalogue>()));
-
         return services;
     }
 

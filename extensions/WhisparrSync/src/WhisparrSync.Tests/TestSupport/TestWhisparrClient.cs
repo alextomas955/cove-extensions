@@ -68,7 +68,8 @@ internal sealed class TestSiteNumbers : ISiteNumberPort
         return this;
     }
 
-    public Task<WhisparrSiteNumber> ResolveSiteNumberAsync(string storedSiteId, CancellationToken ct)
+    public Task<WhisparrSiteNumber> ResolveSiteNumberAsync(
+        Uri baseAddress, string apiKey, string storedSiteId, CancellationToken ct)
     {
         Asked.Add(storedSiteId);
 
