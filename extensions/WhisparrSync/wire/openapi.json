@@ -3104,7 +3104,8 @@
           "excludeScene",
           "registerOwnedSites",
           "readSiteSceneRows",
-          "readHeldSites"
+          "readHeldSites",
+          "readInstanceFilesystem"
         ]
       },
       "WhisparrEntityKind": {

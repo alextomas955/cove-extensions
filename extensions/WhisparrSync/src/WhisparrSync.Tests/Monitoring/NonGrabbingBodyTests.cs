@@ -243,6 +243,10 @@ internal static class ComposedAdds
             // body at all.
             (_, WhisparrCapability.ReadHeldSites) => [],
 
+            // Reads what the instance holds at a path of its own, through one get, and composes no
+            // body at all.
+            (_, WhisparrCapability.ReadInstanceFilesystem) => [],
+
             (WhisparrGeneration.V3, WhisparrCapability.MonitorStudio) =>
             [
                 new ComposedAdd(
@@ -443,6 +447,7 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.SearchScene,
                 WhisparrCapability.MonitorScene,
                 WhisparrCapability.ExcludeScene,
+                WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
 
@@ -457,6 +462,7 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.RegisterOwnedSites,
                 WhisparrCapability.ReadSiteSceneRows,
                 WhisparrCapability.ReadHeldSites,
+                WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
 

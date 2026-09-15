@@ -91,6 +91,7 @@ public sealed class AbsentCapabilityTests
         (WhisparrGeneration.V3, "ICommandApi", "GetCommandByIdAsync", "api/v3/command"),
         (WhisparrGeneration.V3, "IImportListExclusionApi", "CreateExclusionsAsync", "api/v3/exclusions"),
         (WhisparrGeneration.V3, "IImportListExclusionApi", "DeleteExclusionsAsync", "api/v3/exclusions"),
+        (WhisparrGeneration.V3, "IFileSystemApi", "GetFileSystemAsync", "api/v3/filesystem"),
         (WhisparrGeneration.V2, "IHistoryApi", "GetHistoryAsync", "api/v3/history"),
         (WhisparrGeneration.V2, "ISeriesApi", "ListSeriesAsync", "api/v3/series"),
         (WhisparrGeneration.V2, "ISeriesApi", "CreateSeriesAsync", "api/v3/series"),
@@ -99,6 +100,7 @@ public sealed class AbsentCapabilityTests
         (WhisparrGeneration.V2, "CommandApi", "SendCommandAsync", "api/v3/command"),
         (WhisparrGeneration.V2, "IEpisodeApi", "ListEpisodeAsync", "api/v3/episode"),
         (WhisparrGeneration.V2, "IEpisodeApi", "PutEpisodeMonitorAsync", "api/v3/episode/monitor"),
+        (WhisparrGeneration.V2, "IFileSystemApi", "GetFileSystemAsync", "api/v3/filesystem"),
     ];
 
     /// <summary>
@@ -291,6 +293,7 @@ public sealed class AbsentCapabilityTests
         await client.ReadQualityProfilesAsync(address, key, ct);
         await client.ReadHistoryAsync(address, key, WhisparrGeneration.V3, 1, 10, ct);
         await client.ReadCommandAsync(address, key, 8123, ct);
+        await client.ReadInstanceFolderAsync(address, key, WhisparrGeneration.V3, "/config/library/", ct);
 
         await client.ReadStudioAsync(address, key, WhisparrGeneration.V3, "studio-1", ct);
         await client.AddMonitoredStudioAsync(
@@ -336,6 +339,7 @@ public sealed class AbsentCapabilityTests
         await client.SetSceneMonitoredAsync(
             address, key, WhisparrGeneration.V2, 41, monitored: true, ct);
         await client.ReduceSiteSceneRowsAsync(address, key, 1, [1363738], ct);
+        await client.ReadInstanceFolderAsync(address, key, WhisparrGeneration.V2, "/config/library/", ct);
     }
 
     /// <summary>
