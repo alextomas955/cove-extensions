@@ -46,4 +46,24 @@ public interface IFolderAddressPort
     /// <exception cref="ArgumentException"><paramref name="folder"/> is blank.</exception>
     Task<AddressedFolder> AddressAsync(
         FolderAddressTarget target, string folder, CancellationToken ct);
+
+    /// <summary>
+    /// What <paramref name="coveRoot"/> itself comes to under <paramref name="supplied"/>, asking the
+    /// instance rather than anything stored.
+    /// </summary>
+    /// <remarks>
+    /// The same probe and the same verdict a run takes, so a path accepted here cannot be one a run
+    /// then refuses. A reading that resolved is held for <paramref name="coveRoot"/> on the spot, so
+    /// a mapping saved is in force for the next run rather than after the previous reading expires;
+    /// one that did not is held nowhere, because nothing about the root was settled by it.
+    /// </remarks>
+    /// <param name="target">Which instance to ask.</param>
+    /// <param name="coveRoot">The library root being established.</param>
+    /// <param name="supplied">Where the caller states the instance holds it.</param>
+    /// <param name="ct">Cancels the reads.</param>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="coveRoot"/> or <paramref name="supplied"/> is blank.
+    /// </exception>
+    Task<AddressedFolder> AddressAsync(
+        FolderAddressTarget target, string coveRoot, string supplied, CancellationToken ct);
 }
