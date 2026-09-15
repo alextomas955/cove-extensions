@@ -78,12 +78,17 @@ public sealed record PathResolution
 }
 
 /// <summary>
-/// Builds the absolute paths a reported file might really be at, under the host's own library roots.
+/// Builds the absolute paths one file might really be at, under another system's own library roots.
 /// </summary>
 /// <remarks>
+/// The arithmetic is direction-neutral. Inbound it is called with the reporting instance's roots to
+/// strip under and the host's library roots to rebuild under; outbound those two are swapped, with a
+/// single library root to strip under so exactly one tail is produced.
+/// <para>
 /// Pure, and performs no I/O. Whether a candidate is really that file is a separate reading, taken
-/// through <see cref="IImportPathPort"/> and folded back in by the caller. Two rules here are
-/// security-load-bearing rather than conveniences.
+/// through <see cref="IImportPathPort"/> inbound and through the instance outbound, and folded back
+/// in by the caller. Two rules here are security-load-bearing rather than conveniences.
+/// </para>
 /// <para>
 /// The path handed onward is always one this class CONSTRUCTED by joining a tail under a host
 /// library root. The string the delivery reported is never passed through, and the host's own import
@@ -115,35 +120,35 @@ public static class PathCandidateGuard
     /// </remarks>
     private const string Separator = "/";
 
-    /// <summary>What <paramref name="reportedPath"/> could resolve to on this host.</summary>
-    /// <param name="reportedPath">The absolute path the delivery reported, in its own spelling.</param>
-    /// <param name="reportedRoots">The library roots the reporting instance declares for itself.</param>
-    /// <param name="libraryRoots">The host's own configured library paths.</param>
+    /// <summary>What <paramref name="path"/> could resolve to under the rebuilding roots.</summary>
+    /// <param name="path">The absolute path to re-express, in its own spelling.</param>
+    /// <param name="strippedUnder">The roots a tail is taken below.</param>
+    /// <param name="rebuiltUnder">The roots each tail is placed under.</param>
     /// <exception cref="ArgumentNullException">Either root list is null.</exception>
     public static PathCandidateReading Read(
-        string? reportedPath,
-        IReadOnlyList<string> reportedRoots,
-        IReadOnlyList<string> libraryRoots)
+        string? path,
+        IReadOnlyList<string> strippedUnder,
+        IReadOnlyList<string> rebuiltUnder)
     {
-        ArgumentNullException.ThrowIfNull(reportedRoots);
-        ArgumentNullException.ThrowIfNull(libraryRoots);
+        ArgumentNullException.ThrowIfNull(strippedUnder);
+        ArgumentNullException.ThrowIfNull(rebuiltUnder);
 
-        if (string.IsNullOrWhiteSpace(reportedPath))
+        if (string.IsNullOrWhiteSpace(path))
         {
             return Refused(PathCandidateRefusal.NoReportedPath);
         }
 
-        var reporting = Usable(reportedRoots);
+        var reporting = Usable(strippedUnder);
         if (reporting.Count == 0)
         {
             return Refused(PathCandidateRefusal.NoReportedRoots);
         }
 
         var containing = reporting
-            .Where(root => TailBelow(reportedPath, root) is not null)
+            .Where(root => TailBelow(path, root) is not null)
             .ToList();
         var tails = containing
-            .Select(root => TailBelow(reportedPath, root))
+            .Select(root => TailBelow(path, root))
             .OfType<string>()
             .Distinct(StringComparer.Ordinal)
             .ToList();
@@ -152,7 +157,7 @@ public static class PathCandidateGuard
             return Refused(PathCandidateRefusal.PathOutsideEveryReportedRoot);
         }
 
-        var hosting = Usable(libraryRoots);
+        var hosting = Usable(rebuiltUnder);
         if (hosting.Count == 0)
         {
             return new PathCandidateReading(containing, tails, [], PathCandidateRefusal.NoLibraryRoots);
