@@ -95,6 +95,14 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddSingleton<Whisparr3Gateway>();
         services.AddSingleton<Whisparr2Gateway>();
 
+        // Resolved off the instance's own lookup rather than the configured metadata source, so a
+        // studio held under a provider's code costs the run no second request and no dependency on
+        // a source it does not otherwise need. Singleton like the gateway it sends through: it
+        // holds nothing between calls and takes the instance per call.
+        services.AddSingleton<ISiteNumberPort>(
+            provider => new InstanceSiteNumberPort(
+                provider.GetRequiredService<Whisparr2Gateway>()));
+
         services.AddHttpClient<IWhisparrClient, WhisparrClient>(WhisparrClient.Configure)
             .ConfigurePrimaryHttpMessageHandler(WhisparrClient.CreateHandler)
 

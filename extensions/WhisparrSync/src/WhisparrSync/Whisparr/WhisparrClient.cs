@@ -670,7 +670,8 @@ internal sealed class WhisparrClient(
     private async Task<WhisparrResponse> ReadHeldSeriesAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
     {
-        var numbered = await siteNumbers.ResolveSiteNumberAsync(foreignId, ct).ConfigureAwait(false);
+        var numbered = await siteNumbers.ResolveSiteNumberAsync(baseAddress, apiKey, foreignId, ct)
+            .ConfigureAwait(false);
         if (numbered.Number is not { } siteNumber)
         {
             return NoSiteNumber(numbered);
@@ -703,7 +704,8 @@ internal sealed class WhisparrClient(
         AddDefaults defaults,
         CancellationToken ct)
     {
-        var numbered = await siteNumbers.ResolveSiteNumberAsync(foreignId, ct).ConfigureAwait(false);
+        var numbered = await siteNumbers.ResolveSiteNumberAsync(baseAddress, apiKey, foreignId, ct)
+            .ConfigureAwait(false);
         if (numbered.Number is not { } siteNumber)
         {
             return NoSiteNumber(numbered);
@@ -729,7 +731,8 @@ internal sealed class WhisparrClient(
         AddDefaults defaults,
         CancellationToken ct)
     {
-        var numbered = await siteNumbers.ResolveSiteNumberAsync(foreignId, ct).ConfigureAwait(false);
+        var numbered = await siteNumbers.ResolveSiteNumberAsync(baseAddress, apiKey, foreignId, ct)
+            .ConfigureAwait(false);
         if (numbered.Number is not { } siteNumber)
         {
             return NoSiteNumber(numbered);

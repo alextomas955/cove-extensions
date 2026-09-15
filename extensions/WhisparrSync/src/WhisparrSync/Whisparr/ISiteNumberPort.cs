@@ -42,6 +42,13 @@ public sealed record WhisparrSiteNumber
 }
 
 /// <summary>Turns the identifier the library holds for a studio into the number a site is named by.</summary>
+/// <remarks>
+/// The instance answers this, not the metadata source Cove is configured with. The instance's own
+/// lookup takes the identifier the library holds and answers the number it names that site by, so
+/// asking the source first is a second request for an answer the instance was going to give anyway
+/// - and one that fails the whole count where the source cannot be reached, for a library whose
+/// identifiers the instance would have resolved.
+/// </remarks>
 public interface ISiteNumberPort
 {
     /// <summary>What the site <paramref name="storedSiteId"/> names is numbered.</summary>
@@ -49,9 +56,6 @@ public interface ISiteNumberPort
     /// One resolution per site, and nothing is held between calls. How many run at once is the
     /// caller walking the library to bound; a bound here would be a second one no reader could see.
     /// </remarks>
-    /// <exception cref="InvalidOperationException">
-    /// The composition reached a metadata source issuing no site number at all. Answered as a site
-    /// with no number, it would report every studio in the library as unidentified.
-    /// </exception>
-    Task<WhisparrSiteNumber> ResolveSiteNumberAsync(string storedSiteId, CancellationToken ct);
+    Task<WhisparrSiteNumber> ResolveSiteNumberAsync(
+        Uri baseAddress, string apiKey, string storedSiteId, CancellationToken ct);
 }
