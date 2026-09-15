@@ -6,7 +6,7 @@ using Whisparr2.Net.Client;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-/// <summary>The JSON a composed older-generation request body becomes on the wire.</summary>
+/// <summary>The JSON a composed v2 request body becomes on the wire.</summary>
 /// <remarks>
 /// Serialised with that generation's generated client's own options, taken from its own registration,
 /// so what a test asserts on is what the instance would receive. Options restated here would agree

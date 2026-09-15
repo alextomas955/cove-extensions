@@ -1,4 +1,4 @@
-// A library sync on the older generation, driven against the database engine Cove itself runs on.
+// A library sync on v2, driven against the database engine Cove itself runs on.
 //
 // THE ENGINE IS THE SUBJECT. The site pass reads the scenes under a site while the run's own site
 // stream is still open, and Postgres serves one reader per connection. The .NET suite for this pass
