@@ -1,3 +1,4 @@
+using System.Globalization;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
@@ -449,21 +450,44 @@ public sealed partial class WhisparrSync
             return null;
         }
 
-        return (site, siteCt) => SiteRegistrationStep.RegisterAsync(
-            (identity, readCt) => ContainedAsync(
-                () => studios.ReadStudioAsync(
-                    target.BaseAddress, target.ApiKey, target.Generation, identity, readCt),
-                target,
-                _log,
-                readCt),
-            (identity, addCt) => ContainedAsync(
-                () => acting.RegisterSiteAsync(
-                    target.BaseAddress, target.ApiKey, identity, composeWith, addCt),
-                target,
-                _log,
-                addCt),
-            site,
-            siteCt);
+        return async (site, siteCt) =>
+        {
+            var registered = await SiteRegistrationStep.RegisterAsync(
+                (identity, readCt) => ContainedAsync(
+                    () => studios.ReadStudioAsync(
+                        target.BaseAddress, target.ApiKey, target.Generation, identity, readCt),
+                    target,
+                    _log,
+                    readCt),
+                (identity, addCt) => ContainedAsync(
+                    () => acting.RegisterSiteAsync(
+                        target.BaseAddress, target.ApiKey, identity, composeWith, addCt),
+                    target,
+                    _log,
+                    addCt),
+                site,
+                siteCt).ConfigureAwait(false);
+
+            if (registered.Registration is SceneRegistration.Refused)
+            {
+                WhisparrSyncLog.SiteRegistrationRefused(
+                    _log, site.StudioId, site.RemoteId, RefusalReason(registered.Answer));
+            }
+
+            return registered;
+        };
+
+        static string RefusalReason(WhisparrResponse? answer)
+        {
+            if (answer is null)
+            {
+                return "nothing arrived";
+            }
+
+            return answer.Refusal is not MonitorRefusalKind.None
+                ? answer.Refusal.ToString()
+                : "status " + answer.StatusCode.ToString(CultureInfo.InvariantCulture);
+        }
     }
 
     /// <summary>
