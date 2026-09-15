@@ -237,6 +237,12 @@ public sealed partial class SettingsProjectionTests
                 // library identifiers.
                 "SceneNumbersUnreadable.failure",
                 "SiteSceneRowsUnreadable.failure",
+                // A studio a library run would not register. The site identifier is the one the
+                // library stores for that studio, and the reason is either a refusal kind this
+                // product declares or a status number, so neither is an address and neither can
+                // carry a key.
+                "SiteRegistrationRefused.remoteId",
+                "SiteRegistrationRefused.reason",
             }.Order(),
             LogTemplates()
                 .SelectMany(template => template.GetParameters(), (template, parameter) => (template, parameter))
