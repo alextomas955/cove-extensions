@@ -222,10 +222,13 @@ internal sealed class FolderAddressPort(
 
     /// <summary>The configured library root <paramref name="folder"/> sits under, or null.</summary>
     /// <remarks>
-    /// The first that contains it. Where configured roots nest, which of them carries the line only
-    /// groups a count; the agreement itself comes off the verified candidate either way.
+    /// The most specific of the roots that contain it. The tail is taken below this root, so a
+    /// shallower one produces a tail carrying the very segments an instance root already holds, and
+    /// the rebuilt candidate then names a path neither system has.
     /// </remarks>
     private string? RootContaining(string folder)
         => library.LibraryRoots
-            .FirstOrDefault(root => PathCandidateGuard.TailBelow(folder, root) is not null);
+            .Where(root => PathCandidateGuard.TailBelow(folder, root) is not null)
+            .OrderByDescending(root => PathCandidateGuard.Normalize(root).Length)
+            .FirstOrDefault();
 }
