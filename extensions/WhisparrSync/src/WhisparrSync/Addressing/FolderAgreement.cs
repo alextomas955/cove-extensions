@@ -1,8 +1,16 @@
+using System.Text.Json.Serialization;
+using Cove.Extensions.Shared;
 using WhisparrSync.Import;
 
 namespace WhisparrSync.Addressing;
 
 /// <summary>Why one Cove library root has no agreed spelling on the connected instance.</summary>
+/// <remarks>
+/// Stored in the options blob and served to the settings page, so the wire spelling is declared on
+/// the type. An equivalent converter in a serializer options collection would outrank this one rather
+/// than duplicate it.
+/// </remarks>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum FolderAgreementRefusal
 {
     /// <summary>The instance declares no root to rebuild a tail under.</summary>
