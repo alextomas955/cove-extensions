@@ -62,6 +62,7 @@ public sealed class WhisparrCapabilitySet
         [typeof(IWhisparrSceneExclusionActing)] = WhisparrCapability.ExcludeScene,
         [typeof(IWhisparrSiteSceneReading)] = WhisparrCapability.ReadSiteSceneRows,
         [typeof(IWhisparrHeldSiteReading)] = WhisparrCapability.ReadHeldSites,
+        [typeof(IWhisparrInstanceFilesystemReading)] = WhisparrCapability.ReadInstanceFilesystem,
     };
 
     private readonly Dictionary<WhisparrCapability, object> _roles;
@@ -135,6 +136,11 @@ public static class GenerationCapabilities
     //
     // No site-registration entry here: on this generation presence is a scene add and a site arrives
     // as a side effect of one, so it has no implementation to register.
+    //
+    // The filesystem read is one of the two entries both generations hold. Each generated client
+    // declares the route, and the older generation was measured answering it at 2.2.0.231: a real
+    // directory answered its children, and a path with no counterpart on the instance answered an
+    // empty listing rather than a failure.
     private static readonly WhisparrCapability[] V3Capabilities =
     [
         WhisparrCapability.OutOfBandCallbackSecret,
@@ -148,6 +154,7 @@ public static class GenerationCapabilities
         WhisparrCapability.SearchScene,
         WhisparrCapability.MonitorScene,
         WhisparrCapability.ExcludeScene,
+        WhisparrCapability.ReadInstanceFilesystem,
     ];
 
     /// <inheritdoc cref="V3Capabilities"/>
@@ -190,6 +197,7 @@ public static class GenerationCapabilities
         WhisparrCapability.RegisterOwnedSites,
         WhisparrCapability.ReadSiteSceneRows,
         WhisparrCapability.ReadHeldSites,
+        WhisparrCapability.ReadInstanceFilesystem,
     ];
 
     /// <summary>What <paramref name="generation"/> can honour, with no acting role supplied.</summary>
@@ -251,6 +259,7 @@ public static class GenerationCapabilities
                     registered[WhisparrCapability.SearchScene] = roles.SceneSearchGrabbing;
                     registered[WhisparrCapability.MonitorScene] = roles.SceneMonitorActing;
                     registered[WhisparrCapability.ExcludeScene] = roles.SceneExclusionActing;
+                    registered[WhisparrCapability.ReadInstanceFilesystem] = roles.InstanceFilesystemReading;
                 }
 
                 break;
@@ -268,6 +277,7 @@ public static class GenerationCapabilities
                     registered[WhisparrCapability.RegisterOwnedSites] = roles.SiteRegistrationActing;
                     registered[WhisparrCapability.ReadSiteSceneRows] = roles.SiteSceneReading;
                     registered[WhisparrCapability.ReadHeldSites] = roles.HeldSiteReading;
+                    registered[WhisparrCapability.ReadInstanceFilesystem] = roles.InstanceFilesystemReading;
                 }
 
                 break;
@@ -313,6 +323,9 @@ public static class GenerationCapabilities
 /// Reads which of a set of scenes one site the instance holds has a row for.
 /// </param>
 /// <param name="HeldSiteReading">Reads which of a set of sites the instance holds.</param>
+/// <param name="InstanceFilesystemReading">
+/// Reads what the instance holds at a path on its own filesystem.
+/// </param>
 internal sealed record WhisparrRoleSet(
     IWhisparrStudioActing StudioActing,
     IWhisparrPerformerActing PerformerActing,
@@ -326,7 +339,8 @@ internal sealed record WhisparrRoleSet(
     IWhisparrSceneExclusionActing SceneExclusionActing,
     IWhisparrSiteRegistrationActing SiteRegistrationActing,
     IWhisparrSiteSceneReading SiteSceneReading,
-    IWhisparrHeldSiteReading HeldSiteReading)
+    IWhisparrHeldSiteReading HeldSiteReading,
+    IWhisparrInstanceFilesystemReading InstanceFilesystemReading)
 {
     /// <summary>The roles <paramref name="client"/> implements.</summary>
     /// <exception cref="InvalidOperationException">
@@ -351,6 +365,7 @@ internal sealed record WhisparrRoleSet(
             and IWhisparrSiteRegistrationActing siteRegistrationActing
             and IWhisparrSiteSceneReading siteSceneReading
             and IWhisparrHeldSiteReading heldSiteReading
+            and IWhisparrInstanceFilesystemReading instanceFilesystemReading
             ? new WhisparrRoleSet(
                 studioActing,
                 performerActing,
@@ -364,7 +379,8 @@ internal sealed record WhisparrRoleSet(
                 sceneExclusionActing,
                 siteRegistrationActing,
                 siteSceneReading,
-                heldSiteReading)
+                heldSiteReading,
+                instanceFilesystemReading)
             : throw new InvalidOperationException(
                 $"{client.GetType()} holds this product's HTTP client but implements only part of "
                     + $"{nameof(WhisparrRoleSet)}.");
