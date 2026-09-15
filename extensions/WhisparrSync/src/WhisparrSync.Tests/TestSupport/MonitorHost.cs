@@ -64,6 +64,7 @@ internal sealed class MonitorHost : IAsyncDisposable
     public const string AddedPerformer =
         """{"id":2,"foreignId":"9f0d6f27-1f3a-4a5f-8b21-6b2d3a5f9c10","monitored":true}""";
 
+    private readonly OptionsWriteGate _writeGate = new();
     private WebApplication _app = null!;
     private HttpClient? _http;
     private DbContext _db = null!;
@@ -71,6 +72,9 @@ internal sealed class MonitorHost : IAsyncDisposable
     private int _seeded;
 
     public RecordingWhisparrClient Client { get; private set; } = null!;
+
+    /// <summary>The stored options the routes read and a run writes back through.</summary>
+    public OptionsStore Options { get; private set; } = null!;
 
     /// <summary>The identity source over this host's own library, as the routes resolve it.</summary>
     /// <remarks>
@@ -232,7 +236,12 @@ internal sealed class MonitorHost : IAsyncDisposable
         host.LibraryScenes = new LibrarySceneIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.LibraryScenes);
         builder.Services.AddSingleton(new SyncPreviewCache(TimeProvider.System));
+        host.Options = options;
         builder.Services.AddSingleton(options);
+
+        // A real gate rather than the registration-only null: a run writes back what it established
+        // about each library root through it, so a case driving a run reaches it.
+        builder.Services.AddSingleton(host._writeGate);
         builder.Services.AddSingleton<ICredentialPort>(credentials);
 
         // The catalogue routes take these, and minimal-API binding resolves a handler's services
@@ -572,6 +581,7 @@ internal sealed class MonitorHost : IAsyncDisposable
     {
         Http?.Dispose();
         _http?.Dispose();
+        _writeGate.Dispose();
         await _app.StopAsync(TestCt);
         await _app.DisposeAsync();
         await _db.DisposeAsync();

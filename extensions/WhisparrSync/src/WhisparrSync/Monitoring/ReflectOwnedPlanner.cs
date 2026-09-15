@@ -71,13 +71,19 @@ internal sealed record FolderAddressRefusal(
 /// folder would grow with the entity and would put recorded filesystem paths somewhere nothing needs
 /// them.
 /// </param>
+/// <param name="AddressedRoots">
+/// The library roots the run did establish a path under, named once each. Carried apart from the
+/// counts because a root that agreed is what clears that root's stored refusal, and a count cannot
+/// say which root it was.
+/// </param>
 internal sealed record ReflectOwnedRun(
     ReflectOwnedRunOutcome Outcome,
     int FoldersAttached,
     int FoldersRefused,
     ReflectOwnedSkipReason? Skipped = null,
     int FoldersNotAddressed = 0,
-    IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null);
+    IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null,
+    IReadOnlyList<string>? AddressedRoots = null);
 
 /// <summary>Whether, and with what, an instance is asked to link files the library already holds.</summary>
 /// <remarks>
@@ -200,6 +206,7 @@ internal static class ReflectOwnedPlanner
         var refused = 0;
         var unaddressed = 0;
         var refusalByRoot = new Dictionary<string, FolderAddressRefusal>(StringComparer.Ordinal);
+        var addressedRoots = new HashSet<string>(StringComparer.Ordinal);
         try
         {
             ct.ThrowIfCancellationRequested();
@@ -220,6 +227,8 @@ internal static class ReflectOwnedPlanner
 
                     continue;
                 }
+
+                addressedRoots.Add(addressed.CoveRoot);
 
                 var listing = await readImportable(onInstance, ct).ConfigureAwait(false);
                 if (listing.WasRefused)
@@ -251,7 +260,14 @@ internal static class ReflectOwnedPlanner
         return Ended(ReflectOwnedRunOutcome.Completed);
 
         ReflectOwnedRun Ended(ReflectOwnedRunOutcome outcome)
-            => new(outcome, attached, refused, null, unaddressed, [.. refusalByRoot.Values]);
+            => new(
+                outcome,
+                attached,
+                refused,
+                null,
+                unaddressed,
+                [.. refusalByRoot.Values],
+                [.. addressedRoots]);
     }
 
     // Both spellings are transcribed from the interface bundle each build ships. The newer names one
