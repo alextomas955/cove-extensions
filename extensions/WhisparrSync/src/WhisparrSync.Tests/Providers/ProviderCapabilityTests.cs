@@ -242,7 +242,7 @@ public sealed class ProviderCapabilityTests
     }
 
     /// <summary>
-    /// The catalogue an older-generation connection reads through is one that issues a scene number.
+    /// The catalogue a v2 connection reads through is one that issues a scene number.
     /// The site-scene monitor pass runs only on that generation and addresses a row by that number,
     /// so it composes its provider read without asking whether the number exists.
     /// </summary>
