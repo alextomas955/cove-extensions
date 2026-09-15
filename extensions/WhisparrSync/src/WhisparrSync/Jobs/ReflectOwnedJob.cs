@@ -195,16 +195,53 @@ public static class ReflectOwnedJob
     {
         ArgumentNullException.ThrowIfNull(run);
 
-        if (run.Skipped is { } reason)
+        return LineFor(
+            run.Skipped,
+            run.FoldersAttached,
+            run.FoldersRefused,
+            run.AddressRefusals,
+            run.Outcome == ReflectOwnedRunOutcome.Cancelled);
+    }
+
+    /// <summary>The one line a run over an entity's folders is reported on.</summary>
+    /// <remarks>
+    /// Read by the entity's own enqueued run and by a selection's linking step alike, so a selection
+    /// cannot report a run in different words from a click.
+    /// <para>
+    /// A run that reached the instance for nothing leads with why instead of its counts: two zeros
+    /// read as a clean pass over every folder, which is exactly what a run that addressed none of
+    /// them is not.
+    /// </para>
+    /// </remarks>
+    /// <param name="skipped">Which reading of the linking setting stopped the run, or null.</param>
+    /// <param name="attached">How many folders' files the instance took.</param>
+    /// <param name="refused">How many it declined, or never answered about.</param>
+    /// <param name="unaddressed">One entry per library root no path was established under.</param>
+    /// <param name="cancelled">Whether the run was stopped part-way.</param>
+    internal static string LineFor(
+        ReflectOwnedSkipReason? skipped,
+        int attached,
+        int refused,
+        IReadOnlyList<FolderAddressRefusal>? unaddressed,
+        bool cancelled)
+    {
+        if (skipped is { } reason)
         {
             return SentenceFor(reason);
         }
 
-        var ending = run.Outcome == ReflectOwnedRunOutcome.Cancelled ? ", then stopped" : string.Empty;
+        var reasons = string.Join(' ', (unaddressed ?? []).Select(SentenceFor));
 
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{run.FoldersAttached} linked, {run.FoldersRefused} refused{ending}.");
+        if (attached == 0 && refused == 0 && reasons.Length > 0)
+        {
+            return cancelled ? reasons + " The run was then stopped." : reasons;
+        }
+
+        var ending = cancelled ? ", then stopped" : string.Empty;
+        var counts = string.Create(
+            CultureInfo.InvariantCulture, $"{attached} linked, {refused} refused{ending}.");
+
+        return reasons.Length == 0 ? counts : counts + " " + reasons;
     }
 
     /// <summary>The one sentence a run stopped by <paramref name="reason"/> is reported in.</summary>
@@ -226,6 +263,62 @@ public static class ReflectOwnedJob
                 nameof(reason),
                 reason,
                 "This skip reason has no sentence written down for it."),
+        };
+
+    /// <summary>The one sentence a library root <paramref name="refusal"/> stopped is reported in.</summary>
+    /// <remarks>
+    /// One library root, named once, with at most one of the paths tried under it: an operator
+    /// created the roots by hand and there are few of them, while the folders under them grow with
+    /// the library.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="refusal"/> names a reason no sentence is written down for.
+    /// </exception>
+    internal static string SentenceFor(FolderAddressRefusal refusal)
+    {
+        ArgumentNullException.ThrowIfNull(refusal);
+
+        var opening = string.IsNullOrWhiteSpace(refusal.CoveRoot)
+            ? "Nothing could be linked"
+            : "Nothing under " + refusal.CoveRoot + " could be linked";
+
+        return opening + ": "
+            + Because(refusal.Refusal, refusal.Tried.Count > 0 ? refusal.Tried[0] : null);
+    }
+
+    /// <summary>
+    /// Why one library root established no path, naming <paramref name="tried"/> where the reason is
+    /// about a path the instance was asked about.
+    /// </summary>
+    /// <remarks>
+    /// A root holding no file to establish the agreement from is a library with nothing under it
+    /// rather than a misconfiguration, so its sentence asks the reader for nothing.
+    /// </remarks>
+    private static string Because(FolderAgreementRefusal refusal, string? tried)
+        => refusal switch
+        {
+            FolderAgreementRefusal.NothingResolved => tried is null
+                ? "Whisparr holds nothing at the paths it was asked about."
+                : "Whisparr holds nothing at " + tried + ".",
+            FolderAgreementRefusal.MoreThanOneResolved => tried is null
+                ? "Whisparr holds a file of that size at more than one of the paths asked about."
+                : "Whisparr holds a file of that size at more than one of the paths asked about, "
+                    + "including " + tried + ".",
+            FolderAgreementRefusal.InstanceDeclaresNoRoot
+                => "Whisparr declares no root folder to build a path under.",
+            FolderAgreementRefusal.InstanceCannotBeAsked
+                => "Whisparr could not be asked what it holds.",
+            FolderAgreementRefusal.NoFileToProbeWith
+                => "Cove holds no file under it to establish Whisparr's spelling of it from.",
+            FolderAgreementRefusal.ProbeCouldNotBeRead => tried is null
+                ? "Whisparr's answer could not be read."
+                : "Whisparr's answer about " + tried + " could not be read.",
+            FolderAgreementRefusal.FolderUnderNoLibraryRoot
+                => "Cove holds these folders under none of its library paths.",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(refusal),
+                refusal,
+                "This refusal has no sentence written down for it."),
         };
 
     /// <summary>A run that reached no folder.</summary>
