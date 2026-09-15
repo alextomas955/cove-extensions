@@ -94,21 +94,27 @@ const studioTitle = (run) => `Cove E2E Studio ${run}`;
  *
  * The chown is the instance's own: it reads and links as its user, and a file Cove placed arrives
  * owned by root.
+ *
+ * `destDir` is the INSTANCE's spelling, because it comes out of the instance's own catalogue. Where
+ * the two containers mount the volume at different paths, the file has to be written and registered
+ * at Cove's spelling of that same directory: Cove has no such path as the instance's own.
  */
 async function ownFile({
   api,
   isolatedCove,
   instanceContainer,
+  instanceMount,
   studio,
   destDir,
   destName,
   identity,
 }) {
+  const onInstance = instanceMount ?? isolatedCove.sharedPath;
   const video = await seedVideo({
     container: isolatedCove.container,
     baseUrl: isolatedCove.baseUrl,
     token: isolatedCove.token,
-    destDir,
+    destDir: `${isolatedCove.sharedPath}${destDir.slice(onInstance.length)}`,
     destName,
   });
   const owned = await api.put(`/api/videos/${String(video.id)}`, {
@@ -120,7 +126,7 @@ async function ownFile({
       `ownFile: putting the seeded video under the studio answered ${String(owned.status)}: ${String(owned.text).slice(0, 300)}`,
     );
   }
-  await instanceContainer.exec(["chown", "-R", WHISPARR_APP_USER, isolatedCove.sharedPath], {
+  await instanceContainer.exec(["chown", "-R", WHISPARR_APP_USER, onInstance], {
     user: "root",
   });
   return video;
@@ -161,7 +167,7 @@ const SEEDERS = {
         // The catalogue entry the file has to land on. The instance attaches a file to an entry it
         // already holds, so with none for this scene it matches the file to nothing and reports a
         // clean pass having attached none.
-        async ownMedia({ api, isolatedCove, studio }) {
+        async ownMedia({ api, isolatedCove, instanceMount, studio }) {
           const sceneRemoteId = `cove-e2e-owned-scene-${run}`;
           const scene = await whisparr.seedEntity("v3", {
             kind: "scene",
@@ -173,6 +179,7 @@ const SEEDERS = {
             api,
             isolatedCove,
             instanceContainer: whisparr.v3.container,
+            instanceMount,
             studio,
             destDir: scene.path,
             destName: `Cove E2E Owned Scene ${run} 1080p WEBDL.mp4`,
@@ -224,13 +231,14 @@ const SEEDERS = {
         // "Site - Date - Title" with a quality the parse recognises. A name it cannot parse lists as
         // a row matched to nothing, which this product excludes, and the run then reports a clean
         // pass that attached nothing.
-        async ownMedia({ api, isolatedCove, studio }) {
+        async ownMedia({ api, isolatedCove, instanceMount, studio }) {
           const instance = whisparr.apiFor("v2");
           const site = await siteRow(instance, seeded.seriesId);
           await ownFile({
             api,
             isolatedCove,
             instanceContainer: whisparr.v2.container,
+            instanceMount,
             studio,
             destDir: site.path,
             destName: `${site.title} - ${SCENE_RELEASE_DATE} - Owned ${run} 1080p WEBDL.mp4`,
@@ -291,31 +299,27 @@ async function standInForProviders(names, { api, isolatedCove, cleanup }) {
  * Cove's volume anywhere else is handed a path it cannot read, links nothing, and the run still
  * completes reporting no failure.
  *
- * A spec measuring what the extension does with a path the instance REPORTED needs the opposite:
- * one filesystem reachable at two different paths, so a reported path that resolved by accident is
- * distinguishable from one the extension re-rooted. `instanceMount` is that second path, and
- * mounting the volume there roots the catalogue under it.
+ * A spec measuring what the extension does with a path it SENDS or a path the instance REPORTED
+ * needs the opposite: one filesystem reachable at two different paths, so a path that resolved by
+ * accident is distinguishable from one the extension re-rooted. `instanceMount` is that second
+ * path, and mounting the volume there roots the catalogue under it.
+ *
+ * A spec naming both is one measuring the product re-rooting a path it sends: the library owns the
+ * file, and the instance reaches that same file somewhere else.
  */
 function mediaFor({ ownedMedia, instanceMount }, isolatedCove) {
-  if (ownedMedia) {
-    return {
-      start: {
-        rootFolder: `${isolatedCove.sharedPath}/media`,
-        dataVolume: isolatedCove.sharedVolume,
-        dataMount: isolatedCove.sharedPath,
-      },
-    };
+  if (!ownedMedia && instanceMount === null) {
+    return { start: { rootFolder: WHISPARR_ROOT } };
   }
-  if (instanceMount !== null) {
-    return {
-      start: {
-        rootFolder: `${instanceMount}/media`,
-        dataVolume: isolatedCove.sharedVolume,
-        dataMount: instanceMount,
-      },
-    };
-  }
-  return { start: { rootFolder: WHISPARR_ROOT } };
+
+  const dataMount = instanceMount ?? isolatedCove.sharedPath;
+  return {
+    start: {
+      rootFolder: `${dataMount}/media`,
+      dataVolume: isolatedCove.sharedVolume,
+      dataMount,
+    },
+  };
 }
 
 export const test = base.extend({
@@ -387,7 +391,9 @@ export const test = base.extend({
       });
 
       // Before the connection, so the extension's first read of the library already sees it.
-      const owned = ownedMedia ? await seeded.ownMedia({ api, isolatedCove, studio }) : null;
+      const owned = ownedMedia
+        ? await seeded.ownMedia({ api, isolatedCove, instanceMount, studio })
+        : null;
 
       await connectWhisparr(api, seeded.whisparr, generation);
 
