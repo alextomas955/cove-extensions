@@ -99,7 +99,8 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         IWhisparrSceneMonitorActing,
         IWhisparrSceneExclusionActing,
         IWhisparrSiteSceneReading,
-        IWhisparrHeldSiteReading
+        IWhisparrHeldSiteReading,
+        IWhisparrInstanceFilesystemReading
 {
     private const string JsonContentType = "application/json; charset=utf-8";
 
@@ -417,6 +418,19 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         Uri baseAddress, string apiKey, JsonNode files, CancellationToken ct)
         => RecordActing(
             new ActingCall(nameof(AttachOwnedFilesAsync), baseAddress, apiKey) { Body = files });
+
+    public Task<WhisparrResponse> ReadInstanceFolderAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        string directory,
+        CancellationToken ct)
+        => RecordActing(
+            new ActingCall(nameof(ReadInstanceFolderAsync), baseAddress, apiKey)
+            {
+                Generation = generation,
+                Folder = directory,
+            });
 
     public Task<WhisparrResponse> SearchMonitoredAsync(
         Uri baseAddress,
