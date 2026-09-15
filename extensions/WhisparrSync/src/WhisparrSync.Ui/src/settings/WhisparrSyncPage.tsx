@@ -2,6 +2,7 @@ import { useNow } from "../common/lib/useNow";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { ConnectionSection } from "./ConnectionSection";
+import { FolderAgreementSection } from "./FolderAgreementSection";
 import { GenerationCards } from "./GenerationCards";
 import { ImportBanner } from "./ImportBanner";
 import { ImportBehaviorSection } from "./ImportBehaviorSection";
@@ -10,6 +11,7 @@ import { SyncLibrarySection } from "./SyncLibrarySection";
 import { isNoOpSave, testsStoredConnection, valuesForCard } from "./connectLogic";
 import { syncSentences } from "./syncLibraryLogic";
 import { useConnection } from "./useConnection";
+import { useFolderAgreement } from "./useFolderAgreement";
 import { useImportBanner } from "./useImportBanner";
 import { useImportBehavior } from "./useImportBehavior";
 import { useSyncLibrary } from "./useSyncLibrary";
@@ -33,6 +35,7 @@ export function WhisparrSyncPage() {
     useConnection(reloadPage);
   const registration = useRegistration();
   const banner = useImportBanner();
+  const agreement = useFolderAgreement();
   const upgrade = useImportBehavior();
   const sync = useSyncLibrary();
   const stored = valuesForCard(state.settings, state.card);
@@ -45,6 +48,16 @@ export function WhisparrSyncPage() {
   return (
     <div className="space-y-4">
       <ImportBanner read={banner.read} view={banner.view} now={now} />
+
+      <FolderAgreementSection
+        read={agreement.read}
+        view={agreement.view}
+        drafts={agreement.drafts}
+        saving={agreement.saving}
+        answers={agreement.answers}
+        onPathChange={agreement.editPath}
+        onSave={agreement.save}
+      />
 
       {sharedReason === null ? null : (
         <RefusalNotice reason={sharedReason} affectedControls={SHARED_REASON_CONTROLS} />
