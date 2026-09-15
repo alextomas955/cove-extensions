@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
+using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 
@@ -374,6 +375,110 @@ public sealed record ImportRootRefusals
     }
 }
 
+/// <summary>One Cove library root the connected instance established no path for.</summary>
+/// <remarks>
+/// <see cref="PathsTried"/> holds at most <see cref="PathsTriedKept"/> entries. That is a fixed-size
+/// design, not a cap on something that grows: the paths asked about under one root are one per root
+/// the instance declares plus the library's own spelling, and the folders under the root do not enter
+/// into it.
+/// <para>
+/// <see cref="Root"/> is normalised on the way in, so two spellings of one root differing only by a
+/// trailing separator are one entry rather than two.
+/// </para>
+/// </remarks>
+public sealed record OutboundRootRefusal
+{
+    /// <summary>How many of the paths asked about one root's entry holds.</summary>
+    public const int PathsTriedKept = 3;
+
+    private readonly string _root = "";
+    private readonly List<string> _pathsTried = [];
+
+    /// <summary>The Cove library root nothing was established for.</summary>
+    public string Root
+    {
+        get => _root;
+        init => _root = ImportRootRefusals.NormaliseRoot(value);
+    }
+
+    /// <summary>What that root could not establish, as the last run left it.</summary>
+    public FolderAgreementRefusal Refusal { get; init; }
+
+    /// <summary>The paths the instance was asked about, in the order they were formed.</summary>
+    /// <remarks>
+    /// Emptied and bounded here rather than by an initialiser, which runs only for an ABSENT key: a
+    /// stored blob naming this member as null binds it as null, and the load path's non-null restore
+    /// does not descend into a collection's elements to replace it.
+    /// </remarks>
+    public List<string> PathsTried
+    {
+        get => _pathsTried;
+        init => _pathsTried = value is null || value.Count <= PathsTriedKept
+            ? value ?? []
+            : [.. value.Take(PathsTriedKept)];
+    }
+
+    // Record value equality compares the List member by reference, so a JSON round-trip, which
+    // allocates a fresh list, would never be Equal to the original. Both Equals and GetHashCode run
+    // off the SAME component list, which yields the paths element by element.
+    public bool Equals(OutboundRootRefusal? other)
+        => other is not null && EqualityComponents().SequenceEqual(other.EqualityComponents());
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        foreach (var component in EqualityComponents())
+        {
+            hash.Add(component);
+        }
+
+        return hash.ToHashCode();
+    }
+
+    private IEnumerable<object?> EqualityComponents()
+    {
+        yield return Root;
+        yield return Refusal;
+
+        // The count precedes the paths so two component streams cannot line up by borrowing a member
+        // from either side of the list.
+        yield return PathsTried.Count;
+        foreach (var path in PathsTried)
+        {
+            yield return path;
+        }
+    }
+}
+
+/// <summary>Where an operator states one Cove library root is on the connected instance.</summary>
+/// <remarks>
+/// A candidate rather than a fact: the probe decides on the save and on every later run alike, so a
+/// mapping stored here is never a path anything is handed on trust.
+/// <para>
+/// Both roots are normalised on the way in, so a path typed with a trailing separator keys and
+/// rebuilds the same way one typed without it does.
+/// </para>
+/// </remarks>
+public sealed record OutboundRootMapping
+{
+    private readonly string _coveRoot = "";
+    private readonly string _instanceRoot = "";
+
+    /// <summary>The Cove library root this mapping is for.</summary>
+    public string CoveRoot
+    {
+        get => _coveRoot;
+        init => _coveRoot = ImportRootRefusals.NormaliseRoot(value);
+    }
+
+    /// <summary>Where the instance holds that root, as the operator stated it.</summary>
+    public string InstanceRoot
+    {
+        get => _instanceRoot;
+        init => _instanceRoot = ImportRootRefusals.NormaliseRoot(value);
+    }
+}
+
 /// <summary>
 /// Everything Whisparr Sync persists except the API key, as one bounded JSON blob under the store's
 /// <c>options</c> key.
@@ -392,6 +497,9 @@ public sealed record WhisparrSyncOptions
 {
     /// <summary>The interval a backstop pass runs at until something changes it.</summary>
     public const int DefaultBackstopIntervalSeconds = 900;
+
+    private readonly List<OutboundRootRefusal> _outboundRefusals = [];
+    private readonly List<OutboundRootMapping> _outboundMappings = [];
 
     /// <summary>The shortest interval a stored value is honoured at.</summary>
     /// <remarks>
@@ -464,6 +572,40 @@ public sealed record WhisparrSyncOptions
     /// are not. The Whisparr root count is a handful, and each entry is a fixed size.
     /// </remarks>
     public List<ImportRootRefusals> ImportRefusals { get; init; } = [];
+
+    /// <summary>
+    /// One entry per Cove library root the last run over it established no instance path for.
+    /// </summary>
+    /// <remarks>
+    /// Empty while every library root agreed. A root a run addressed loses its entry, so a half-broken
+    /// setup keeps the roots that are still failing and loses the ones that are not. Bounded by the
+    /// host's library root count, which an operator created by hand.
+    /// <para>
+    /// Emptied at the accessor rather than by an initialiser, so a stored blob naming this member as
+    /// null binds it as empty.
+    /// </para>
+    /// </remarks>
+    public List<OutboundRootRefusal> OutboundRefusals
+    {
+        get => _outboundRefusals;
+        init => _outboundRefusals = value ?? [];
+    }
+
+    /// <summary>
+    /// One entry per Cove library root an operator has stated the instance's own path for.
+    /// </summary>
+    /// <remarks>
+    /// Read in place of the roots the instance declares, never alongside them. Still only a candidate:
+    /// the probe decides on the save and on every later run. Bounded by the host's library root count.
+    /// <para>
+    /// Emptied at the accessor for the same reason <see cref="OutboundRefusals"/> is.
+    /// </para>
+    /// </remarks>
+    public List<OutboundRootMapping> OutboundMappings
+    {
+        get => _outboundMappings;
+        init => _outboundMappings = value ?? [];
+    }
 
     /// <summary>The connection stored for <paramref name="generation"/>, or null when none is.</summary>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -539,6 +681,18 @@ public sealed record WhisparrSyncOptions
         foreach (var refusals in ImportRefusals)
         {
             yield return refusals;
+        }
+
+        yield return OutboundRefusals.Count;
+        foreach (var refusal in OutboundRefusals)
+        {
+            yield return refusal;
+        }
+
+        yield return OutboundMappings.Count;
+        foreach (var mapping in OutboundMappings)
+        {
+            yield return mapping;
         }
     }
 }
