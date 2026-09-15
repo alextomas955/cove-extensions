@@ -763,6 +763,108 @@ export function importsPassedOverSentence(count: number, when: string | null): s
   return when === null ? passedOver : `${passedOver} Most recently ${when}.`;
 }
 
+/** The section that asks where Whisparr holds a library folder Cove could not work out. */
+export const FOLDER_AGREEMENT_TITLE = "Folders Whisparr could not be shown to hold";
+
+/** What the section is for, and why it is asking rather than working the path out. */
+export const FOLDER_AGREEMENT_DESCRIPTION =
+  "Whisparr reaches your files at a path of its own. Cove works that path out by asking Whisparr what it holds, and asks you here for the folders it could not settle.";
+
+/** The read behind the prompts failed, so what is outstanding is not known. */
+export const FOLDER_AGREEMENT_UNREADABLE =
+  "Cove could not read which of your folders Whisparr was unable to find.";
+
+/** What the reader types: where the connected instance holds this one folder. */
+export const FOLDER_AGREEMENT_PATH = "Where Whisparr holds this folder";
+
+/** What the field takes, and what leaving it blank does. */
+export const FOLDER_AGREEMENT_PATH_HELPER =
+  "The path Whisparr itself reaches this folder at. Leave it blank to let Cove work the path out again.";
+
+/** The control that states the path. */
+export const FOLDER_AGREEMENT_SAVE = "Save this path";
+
+/** Why nothing under one prompt can act while its own save is in flight. */
+export const FOLDER_AGREEMENT_SAVE_IS_RUNNING = "Cove is checking this path with Whisparr.";
+
+/** No candidate path held a file of the size the library holds. */
+export const FOLDER_NOTHING_RESOLVED =
+  "Whisparr holds no file of the right size at any path Cove asked it about.";
+
+/** Several candidates held one, so which of them the folder means was not settled. */
+export const FOLDER_MORE_THAN_ONE_RESOLVED =
+  "More than one of the paths Cove asked about holds the file, and the two cannot be told apart. Stating the path settles it.";
+
+/** The instance declares no folder of its own to rebuild a path under. */
+export const FOLDER_INSTANCE_DECLARES_NO_ROOT =
+  "Whisparr declares no folder of its own, so Cove had nothing to build a path from.";
+
+/** Cove holds no file under this folder to establish the agreement from. Nothing is misconfigured. */
+export const FOLDER_NO_FILE_TO_PROBE_WITH =
+  "This folder holds no file for Cove to ask Whisparr about yet, so there is nothing to settle here.";
+
+/** The instance was asked and its answer could not be read, which is not an answer of no. */
+export const FOLDER_PROBE_COULD_NOT_BE_READ =
+  "Cove asked Whisparr about this folder and could not read the answer, which is not the same as Whisparr holding nothing.";
+
+/** The connected instance offers no way to ask what it holds. */
+export const FOLDER_INSTANCE_CANNOT_BE_ASKED =
+  "The Whisparr Cove is connected to offers it no way to ask what it holds.";
+
+/** The folder sits under none of the host's own library folders. */
+export const FOLDER_UNDER_NO_LIBRARY_ROOT =
+  "This folder is under none of Cove's own library folders.";
+
+/** The probe run against a stated path resolved, so the path is now in use. */
+export const FOLDER_SAVE_STORED =
+  "Whisparr holds this folder there. Cove uses that path from the next run.";
+
+/** A blank path removed the stated one, so Cove works the path out for itself again. */
+export const FOLDER_SAVE_REMOVED = "Cove works Whisparr's path out for itself again.";
+
+/** The path named is none of Cove's own library folders, so it could never be asked about. */
+export const FOLDER_SAVE_NOT_A_LIBRARY_ROOT =
+  "That is none of Cove's own library folders, so nothing was saved.";
+
+/** No instance is connected, so the path could not be put to one. */
+export const FOLDER_SAVE_NOT_CONFIGURED =
+  "No Whisparr is connected, so Cove could not check that path.";
+
+/** The save itself did not reach Cove, so nothing was established either way. */
+export const FOLDER_SAVE_DID_NOT_REACH = "Cove could not save that path. Nothing was changed.";
+
+/**
+ * Which Cove folder one prompt is about.
+ *
+ * Named on its own line ahead of the refusal, so a reader with several prompts on screen can tell
+ * which folder each is asking about.
+ */
+export function folderAgreementRootSentence(root: string): string {
+  return `Cove holds ${root}.`;
+}
+
+/**
+ * The paths the instance was asked about, or a statement that it was asked about none.
+ *
+ * The paths are what a reader compares against what Whisparr really holds, so they are named rather
+ * than counted.
+ */
+export function folderAgreementTriedSentence(tried: readonly string[]): string {
+  if (tried.length === 0) {
+    return "Cove asked Whisparr about no path at all.";
+  }
+  const asked =
+    tried.length === 1
+      ? tried[0]
+      : `${tried.slice(0, -1).join(", ")} and ${tried[tried.length - 1]}`;
+  return `Cove asked Whisparr about ${asked}.`;
+}
+
+/** The path a reader has already stated for a folder, so they can see what is being used. */
+export function folderAgreementMappingSentence(mapping: string): string {
+  return `Cove is using ${mapping} as Whisparr's path for this folder.`;
+}
+
 /**
  * What the default upgrade behaviour does, in the terms the reader sees the result in.
  *
