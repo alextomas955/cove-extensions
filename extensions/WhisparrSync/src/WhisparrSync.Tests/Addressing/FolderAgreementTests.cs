@@ -33,7 +33,7 @@ public sealed class FolderAgreementTests
     [Fact]
     public void ASampleFileProducesOneCandidatePerDeclaredRootAndTheLibrarysOwnSpelling()
     {
-        var reading = FolderAgreement.CandidatesFor(Sample, CoveRoot, TwoInstanceRoots);
+        var reading = FolderAgreement.CandidatesFor(Sample, CoveRoot, TwoInstanceRoots, mapping: null);
 
         Assert.Null(reading.Refusal);
         Assert.Equal(
@@ -54,7 +54,7 @@ public sealed class FolderAgreementTests
     {
         const string oneRoot = "/shared";
         const string sample = "/shared/media/Blue Harbor/scene.mp4";
-        var reading = FolderAgreement.CandidatesFor(sample, oneRoot, ["/shared/media"]);
+        var reading = FolderAgreement.CandidatesFor(sample, oneRoot, ["/shared/media"], mapping: null);
 
         // The rebuild repeats the root's own segment and names nothing; the library's own spelling is
         // the file.
@@ -79,7 +79,7 @@ public sealed class FolderAgreementTests
     [Fact]
     public void AnInstanceDeclaringNoRootAnswersItsOwnReasonWithNothingTried()
     {
-        var reading = FolderAgreement.CandidatesFor(Sample, CoveRoot, []);
+        var reading = FolderAgreement.CandidatesFor(Sample, CoveRoot, [], mapping: null);
 
         Assert.Equal(FolderAgreementRefusal.InstanceDeclaresNoRoot, reading.Refusal);
         Assert.Empty(reading.Candidates);
@@ -88,7 +88,7 @@ public sealed class FolderAgreementTests
     [Fact]
     public void NoFileToProbeWithAnswersItsOwnReason()
     {
-        var reading = FolderAgreement.CandidatesFor(null, CoveRoot, TwoInstanceRoots);
+        var reading = FolderAgreement.CandidatesFor(null, CoveRoot, TwoInstanceRoots, mapping: null);
 
         Assert.Equal(FolderAgreementRefusal.NoFileToProbeWith, reading.Refusal);
         Assert.Empty(reading.Candidates);

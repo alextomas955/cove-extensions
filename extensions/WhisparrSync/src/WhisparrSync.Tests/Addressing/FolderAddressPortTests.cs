@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
@@ -190,6 +191,7 @@ public sealed class FolderAddressPortTests
             new CountingSampleFiles(new SampleFile(nestedSample, SampleSize)),
             new StubLibraryRoots(["/shared", "/shared/media"]),
             new StubInstanceRoots(["/data/media"]),
+            new OptionsStore(new FakeStore()),
             new FolderAgreementCache(TimeProvider.System),
             NullLogger.Instance);
 
@@ -224,6 +226,7 @@ public sealed class FolderAddressPortTests
                 samples ?? new CountingSampleFiles(new SampleFile(Sample, SampleSize)),
                 new StubLibraryRoots(),
                 new StubInstanceRoots(declaredRoots),
+                new OptionsStore(new FakeStore()),
                 new FolderAgreementCache(TimeProvider.System),
                 NullLogger.Instance),
             handler);

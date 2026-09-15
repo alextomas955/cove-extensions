@@ -157,7 +157,7 @@ public sealed class FolderAgreementMappingTests
             (IWhisparrInstanceFilesystemReading)TestWhisparrClient.Over(handler));
 
     /// <summary>The port over one store and one declared-root source.</summary>
-    private static IFolderAddressPort Port(OptionsStore options, IReportedRootPort declared)
+    private static FolderAddressPort Port(OptionsStore options, IReportedRootPort declared)
         => new FolderAddressPort(
             new StubSampleFiles(new SampleFile(Sample, SampleSize)),
             new RecordingLibrary(reached: true, [CoveRoot]),
@@ -170,7 +170,7 @@ public sealed class FolderAgreementMappingTests
     /// The port over a store mapping <see cref="CoveRoot"/> to <paramref name="mapping"/>, with the
     /// instance answering <paramref name="listing"/> to every filesystem read.
     /// </summary>
-    private static async Task<(IFolderAddressPort Port, BodyRecordingHandler Handler,
+    private static async Task<(FolderAddressPort Port, BodyRecordingHandler Handler,
         CountingInstanceRoots Declared)> OverMappingAsync(string listing, string mapping)
     {
         var options = new OptionsStore(new FakeStore());
