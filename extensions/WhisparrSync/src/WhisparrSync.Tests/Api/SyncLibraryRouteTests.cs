@@ -56,7 +56,11 @@ public sealed class SyncLibraryRouteTests
         Assert.False(job.Exclusive);
         Assert.StartsWith("ext:" + host.ExtensionId + ":", job.Type, StringComparison.Ordinal);
         Assert.EndsWith(SyncLibraryJob.JobId, job.Type, StringComparison.Ordinal);
-        Assert.Contains("scene", job.Description, StringComparison.OrdinalIgnoreCase);
+        // One title stands over both passes, and which one a run takes is settled after the enqueue,
+        // so it names neither generation's noun.
+        Assert.NotEmpty(job.Description);
+        Assert.DoesNotContain("scene", job.Description, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("site", job.Description, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>A second run is refused while the first is pending or running, and names it.</summary>
