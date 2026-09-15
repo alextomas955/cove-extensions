@@ -1925,6 +1925,10 @@ public sealed partial class WhisparrSync
         var foldersRefused = 0;
         var linkingReached = false;
 
+        // One line per library root for the whole selection. Every entity under one root reaches the
+        // same reason, and a line per entity would grow with the selection.
+        var addressRefusals = new Dictionary<string, FolderAddressRefusal>(StringComparer.Ordinal);
+
         var run = TryParseSelectionType(batch.EntityType, out var kind) && batch.Verb is { } verb
             ? await UnderTheVerbAsync().ConfigureAwait(false)
             : MonitorBulkRun.NothingSelected;
@@ -1936,7 +1940,8 @@ public sealed partial class WhisparrSync
             MonitoringBulkJob.SummaryOf(
                 run,
                 linkingReached
-                    ? new MonitorBulkLinking(linkingSkipped, foldersAttached, foldersRefused)
+                    ? new MonitorBulkLinking(
+                        linkingSkipped, foldersAttached, foldersRefused, [.. addressRefusals.Values])
                     : null));
         ct.ThrowIfCancellationRequested();
 
@@ -2080,6 +2085,10 @@ public sealed partial class WhisparrSync
                 .RunOneAsync(services, aimed, kind, coveId, entityCt).ConfigureAwait(false);
             foldersAttached += linked.FoldersAttached;
             foldersRefused += linked.FoldersRefused;
+            foreach (var refusal in linked.AddressRefusals ?? [])
+            {
+                addressRefusals.TryAdd(refusal.CoveRoot, refusal);
+            }
         }
     }
 

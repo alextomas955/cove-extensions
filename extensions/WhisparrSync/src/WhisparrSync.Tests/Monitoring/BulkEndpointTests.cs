@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using Cove.Core.Auth;
+using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using WhisparrSync.Contracts;
 using WhisparrSync.Tests.TestSupport;
@@ -269,6 +270,47 @@ public sealed class BulkEndpointTests
         Assert.Equal(
             (1d, "1 applied, 0 refused. No files were linked: Whisparr's hard-link setting could not be read."),
             Assert.Single(progress.Reports));
+    }
+
+    /// <summary>
+    /// A selection whose folders could not be addressed says which reason it was, in the words a
+    /// single entity's run says it in.
+    /// </summary>
+    /// <remarks>
+    /// The linking clause here would otherwise read "0 linked, 0 refused." beside a monitor that
+    /// applied, which is a clean pass over folders the instance was never asked about. The instance
+    /// declares one root and holds nothing under it, which is what a container with no counterpart
+    /// for a Cove path really answers.
+    /// </remarks>
+    [Fact]
+    public async Task ASelectionThatCouldNotAddressItsFoldersReportsTheReasonRatherThanACountOfZero()
+    {
+        const string coveRoot = "G:/Downloads/P";
+        await using var host = await MonitorHost.CreateAsync(
+            libraryConfig: new CoveConfiguration { CovePaths = [new CovePath { Path = coveRoot }] });
+        host.Client
+            .Answering(
+                nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
+                MonitorHost.Json(200, """{"copyUsingHardlinks":true}"""))
+            .Answering(
+                nameof(IWhisparrInstanceFilesystemReading.ReadInstanceFolderAsync),
+                MonitorHost.Json(200, """{"parent":"/config/library/","directories":[],"files":[]}"""));
+        var studio = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+        var seeded = await host.SeedStudioFileAsync(studio, coveRoot + "/Blue Harbor", 41);
+        var progress = new RecordingJobProgress();
+
+        await host.PostBulkAsync(BodyOf(Studios, "monitor", [studio]));
+        await host.RunEnqueuedBatchAsync(progress);
+
+        var onInstance = seeded.Replace(coveRoot, "/config/library", StringComparison.Ordinal);
+        Assert.Equal(
+            (1d, "1 applied, 0 refused. Nothing under " + coveRoot
+                + " could be linked: Whisparr holds nothing at " + onInstance + "."),
+            Assert.Single(progress.Reports));
+        Assert.DoesNotContain(
+            host.Client.Verbs,
+            verb => verb == nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync));
     }
 
     /// <summary>
