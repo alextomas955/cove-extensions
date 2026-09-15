@@ -228,6 +228,7 @@ internal sealed class MonitorHost : IAsyncDisposable
                     host.SampleFiles,
                     libraryPort,
                     resolved.GetRequiredService<IReportedRootPort>(),
+                    options,
                     new FolderAgreementCache(TimeProvider.System),
                     NullLogger.Instance));
         }
