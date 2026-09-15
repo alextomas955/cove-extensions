@@ -40,6 +40,7 @@ public sealed partial class WhisparrSync
     private string ConnectionTestRoute => RouteBase + "/connection/test";
     private string SettingsRoute => RouteBase + "/settings";
     private string ImportBannerRoute => RouteBase + "/import/banner";
+    private string FolderMappingsRoute => RouteBase + "/addressing/folder-mappings";
     private string MonitoringReadRoute => RouteBase + "/entity/{kind}/{coveId}/monitoring";
     private string MonitorRoute => RouteBase + "/entity/{kind}/{coveId}/monitor";
     private string UnmonitorRoute => RouteBase + "/entity/{kind}/{coveId}/unmonitor";
@@ -122,6 +123,24 @@ public sealed partial class WhisparrSync
         endpoints.MapGet(ImportBannerRoute,
             (ICurrentPrincipalAccessor principal, OptionsStore options, CancellationToken ct)
                 => ReadImportBannerAsync(principal, options, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The same tier as the settings routes, and for the same reason: both read and write stored
+        // configuration, and the save aims this extension's stored credential at a third party.
+        endpoints.MapGet(FolderMappingsRoute,
+            (ICurrentPrincipalAccessor principal, OptionsStore options, CancellationToken ct)
+                => ReadFolderMappingsAsync(principal, options, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPut(FolderMappingsRoute,
+            (FolderMappingSaveRequest request, ICurrentPrincipalAccessor principal,
+             OptionsStore options, OptionsWriteGate gate, ICredentialPort credentials,
+             IWhisparrClient client, ICoveLibraryPort library, IFolderAddressPort addressing,
+             CancellationToken ct)
+                => SaveFolderMappingAsync(
+                    request, principal, options, gate, credentials, client, library, addressing, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -886,6 +905,143 @@ public sealed partial class WhisparrSync
         return TypedResults.Ok(ImportBannerView.From(stored.ImportRefusals, stored.ImportHealth));
     }
 
+    /// <summary>
+    /// Reads the Cove library roots the connected instance established no path for, one line each.
+    /// </summary>
+    /// <remarks>
+    /// The configure tier, which is the tier Cove's own bulk extension-data route already requires to
+    /// read these same stored values, so this route exposes nothing a caller could not already read.
+    /// The gate is checked before the store, so a principal without it causes no read.
+    /// <para>
+    /// The answer holds recorded filesystem paths. Its size is the stored aggregate's, which the
+    /// library's size does not enter into.
+    /// </para>
+    /// </remarks>
+    internal static async Task<Results<Ok<FolderAgreementView>, ForbiddenCode>>
+        ReadFolderMappingsAsync(
+            ICurrentPrincipalAccessor principal, OptionsStore options, CancellationToken ct)
+    {
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(options);
+
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        return TypedResults.Ok(
+            FolderAgreementView.From(stored.OutboundRefusals, stored.OutboundMappings));
+    }
+
+    /// <summary>Stores where an operator says one library root is, once a probe has resolved it.</summary>
+    /// <remarks>
+    /// The probe is the authority. A mapping typed into this route is built into a candidate and put
+    /// through the same reading a run takes, and it is stored only where the instance reported the
+    /// library's own sample file at the size the library holds. A path taken on trust would attach the
+    /// wrong file to a scene with nothing downstream to reveal it.
+    /// <para>
+    /// A save that resolved also clears that root's stored refusal, and the reading is held on the
+    /// spot, so the next run neither reports a refusal that no longer holds nor waits out the previous
+    /// reading's expiry.
+    /// </para>
+    /// </remarks>
+    internal static async Task<Results<Ok<FolderMappingSaveResult>, ForbiddenCode>>
+        SaveFolderMappingAsync(
+            FolderMappingSaveRequest request,
+            ICurrentPrincipalAccessor principal,
+            OptionsStore options,
+            OptionsWriteGate gate,
+            ICredentialPort credentials,
+            IWhisparrClient client,
+            ICoveLibraryPort library,
+            IFolderAddressPort addressing,
+            CancellationToken ct)
+    {
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(gate);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(addressing);
+
+        // The host's own spelling of the root, not the caller's: what is stored has to key the same
+        // way the sample-file read and the folder loop key it.
+        if (library.LibraryRoots.FirstOrDefault(root => SameRoot(root, request.CoveRoot))
+            is not { } coveRoot)
+        {
+            return TypedResults.Ok(Answering(FolderMappingSaveOutcome.NotALibraryRoot));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.InstancePath))
+        {
+            await StoreAsync(mapping: null, clearRefusal: false).ConfigureAwait(false);
+            return TypedResults.Ok(Answering(FolderMappingSaveOutcome.Removed));
+        }
+
+        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+            is not { } target)
+        {
+            return TypedResults.Ok(Answering(FolderMappingSaveOutcome.NotConfigured));
+        }
+
+        if (FilesystemReadingOn(target) is not { } role)
+        {
+            return TypedResults.Ok(
+                Answering(
+                    FolderMappingSaveOutcome.Refused,
+                    FolderAgreementRefusal.InstanceCannotBeAsked));
+        }
+
+        var aimed = new FolderAddressTarget(
+            target.Generation, target.BaseAddress, target.ApiKey, role);
+        var addressed = await addressing
+            .AddressAsync(aimed, coveRoot, request.InstancePath, ct).ConfigureAwait(false);
+
+        if (addressed.InstancePath is not { } agreed)
+        {
+            return TypedResults.Ok(
+                Answering(
+                    FolderMappingSaveOutcome.Refused, addressed.Refusal, addressed.Tried));
+        }
+
+        // The spelling the probe verified rather than the one that was typed, so what is stored is
+        // what the instance answered to.
+        await StoreAsync(agreed, clearRefusal: true).ConfigureAwait(false);
+        return TypedResults.Ok(
+            Answering(FolderMappingSaveOutcome.Stored, refusal: null, addressed.Tried));
+
+        Task<WhisparrSyncOptions> StoreAsync(string? mapping, bool clearRefusal)
+            => gate.MutateAsync(
+                options,
+                stored => stored with
+                {
+                    OutboundMappings = OutboundRefusalProjector.WithMapping(
+                        stored.OutboundMappings, coveRoot, mapping),
+                    OutboundRefusals = clearRefusal
+                        ? OutboundRefusalProjector.Fold(
+                            stored.OutboundRefusals, refused: null, [coveRoot])
+                        : stored.OutboundRefusals,
+                },
+                ct);
+
+        static FolderMappingSaveResult Answering(
+            FolderMappingSaveOutcome outcome,
+            FolderAgreementRefusal? refusal = null,
+            IReadOnlyList<string>? tried = null)
+            => new(outcome, refusal, tried ?? []);
+    }
+
+    /// <summary>Whether two spellings name one configured library root.</summary>
+    private static bool SameRoot(string? left, string? right)
+        => string.Equals(
+            ImportRootRefusals.NormaliseRoot(left),
+            ImportRootRefusals.NormaliseRoot(right),
+            StringComparison.Ordinal);
+
     /// <summary>Reads how the connected instance monitors one Cove entity, right now.</summary>
     /// <remarks>
     /// Live on every read, holding nothing: one request per entity page view, no cache and no stored
@@ -1222,9 +1378,7 @@ public sealed partial class WhisparrSync
     private static Func<string, CancellationToken, Task<AddressedFolder>> AddressingThrough(
         MonitoringTarget target, IFolderAddressPort addressing)
     {
-        if (target.Capabilities.Obtain<IWhisparrInstanceFilesystemReading>()
-                .Match<IWhisparrInstanceFilesystemReading?>(filesystem => filesystem, _ => null)
-            is not { } role)
+        if (FilesystemReadingOn(target) is not { } role)
         {
             return (_, _) => Task.FromResult(
                 new AddressedFolder(
@@ -1239,6 +1393,14 @@ public sealed partial class WhisparrSync
 
         return (folder, addressCt) => addressing.AddressAsync(aimed, folder, addressCt);
     }
+
+    /// <summary>
+    /// The role that answers what <paramref name="target"/> holds at a path of its own, or null where
+    /// the connected generation holds none.
+    /// </summary>
+    private static IWhisparrInstanceFilesystemReading? FilesystemReadingOn(MonitoringTarget target)
+        => target.Capabilities.Obtain<IWhisparrInstanceFilesystemReading>()
+            .Match<IWhisparrInstanceFilesystemReading?>(filesystem => filesystem, _ => null);
 
     /// <summary>
     /// The role that links owned files into place on <paramref name="target"/>, or null where the

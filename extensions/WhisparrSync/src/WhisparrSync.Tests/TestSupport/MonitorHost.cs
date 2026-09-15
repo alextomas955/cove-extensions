@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
@@ -110,6 +111,11 @@ internal sealed class MonitorHost : IAsyncDisposable
     public string ExtensionId { get; private set; } = null!;
 
     private string RouteBase { get; set; } = null!;
+
+    private string FolderMappingsRoute => RouteBase + "/addressing/folder-mappings";
+
+    /// <summary>One JSON string literal, with the backslashes a Windows path carries escaped.</summary>
+    private static string Quoted(string value) => JsonSerializer.Serialize(value);
 
     /// <summary>
     /// Creates one host over one real library.
@@ -544,6 +550,37 @@ internal sealed class MonitorHost : IAsyncDisposable
         return (await answered.Content.ReadFromJsonAsync<AddAllMissingEnqueued>(TestCt))!;
     }
 
+    /// <summary>The folder-mapping read, as the contract it declares.</summary>
+    public async Task<FolderAgreementView> ReadFolderMappingsAsync()
+    {
+        var answered = await Http.GetAsync(FolderMappingsRoute, TestCt);
+        answered.EnsureSuccessStatusCode();
+        return (await answered.Content.ReadFromJsonAsync<FolderAgreementView>(TestCt))!;
+    }
+
+    /// <summary>The raw answer to the folder-mapping read.</summary>
+    public Task<HttpResponseMessage> GetFolderMappingsAsync() => Http.GetAsync(FolderMappingsRoute, TestCt);
+
+    /// <summary>The raw answer to the folder-mapping save, given <paramref name="body"/> verbatim.</summary>
+    /// <remarks>
+    /// The raw string is sent rather than a serialized record, so a case can carry an absent member
+    /// and members the request contract declares nothing for.
+    /// </remarks>
+    public async Task<HttpResponseMessage> PutFolderMappingAsync(string body)
+    {
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+        return await Http.PutAsync(FolderMappingsRoute, content, TestCt);
+    }
+
+    /// <summary>One folder-mapping save's answer, read as the contract it declares.</summary>
+    public async Task<FolderMappingSaveResult> SaveFolderMappingAsync(string coveRoot, string path)
+    {
+        var answered = await PutFolderMappingAsync(
+            $$"""{"coveRoot":{{Quoted(coveRoot)}},"instancePath":{{Quoted(path)}}}""");
+        answered.EnsureSuccessStatusCode();
+        return (await answered.Content.ReadFromJsonAsync<FolderMappingSaveResult>(TestCt))!;
+    }
+
     /// <summary>The raw answer to this extension's own job-status route.</summary>
     public Task<HttpResponseMessage> ReadJobStatusAsync(string jobId)
         => Http.GetAsync(RouteBase + "/job-status/" + jobId, TestCt);
@@ -660,6 +697,14 @@ internal sealed class PassThroughFolderAddresses : IFolderAddressPort
     public Task<AddressedFolder> AddressAsync(
         FolderAddressTarget target, string folder, CancellationToken ct)
         => Task.FromResult(new AddressedFolder(folder, null, "/config/library", []));
+
+    /// <summary>
+    /// Raises. A case whose subject is a supplied mapping names a library configuration and gets the
+    /// shipped chain, so reaching this one would be a case reading an answer nobody probed for.
+    /// </summary>
+    public Task<AddressedFolder> AddressAsync(
+        FolderAddressTarget target, string coveRoot, string supplied, CancellationToken ct)
+        => throw new NotSupportedException();
 }
 
 /// <summary>A catalogue that reaches no provider, for a case whose subject is a route's own guard.</summary>
