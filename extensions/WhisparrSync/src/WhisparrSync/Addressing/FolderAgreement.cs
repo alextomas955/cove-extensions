@@ -22,6 +22,12 @@ public enum FolderAgreementRefusal
     /// way. Distinct from <see cref="NothingResolved"/>, which is an answer.
     /// </summary>
     ProbeCouldNotBeRead,
+
+    /// <summary>The connected generation holds no role to ask the instance through.</summary>
+    InstanceCannotBeAsked,
+
+    /// <summary>The folder sits under none of the host's configured library roots.</summary>
+    FolderUnderNoLibraryRoot,
 }
 
 /// <summary>The paths to ask the instance about for one Cove root, or why there are none.</summary>

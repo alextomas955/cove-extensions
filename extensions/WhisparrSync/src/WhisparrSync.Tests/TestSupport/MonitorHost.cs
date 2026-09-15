@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Import;
 using WhisparrSync.Library;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
@@ -123,6 +124,7 @@ internal sealed class MonitorHost : IAsyncDisposable
         MonitorScope defaultScope = MonitorScope.FutureScenes,
         IProviderCatalogue? catalogue = null,
         CoveConfiguration? metadataConfig = null,
+        CoveConfiguration? libraryConfig = null,
         ISiteNumberPort? siteNumbers = null)
     {
         var host = new MonitorHost();
@@ -193,6 +195,38 @@ internal sealed class MonitorHost : IAsyncDisposable
         host.Folders = new EntityFolderPort(host._db);
         host.SampleFiles = new SampleFilePort(host._db);
         builder.Services.AddSingleton(host.Folders);
+        builder.Services.AddSingleton(host.SampleFiles);
+
+        // The whole outbound addressing chain, stood over the same database and the same client the
+        // routes use, so a case can drive a folder all the way to the request that leaves.
+        var libraryPort = new CoveLibraryPort(
+            host._db, null, null, libraryConfig, NullLogger.Instance);
+        builder.Services.AddSingleton<ICoveLibraryPort>(libraryPort);
+        builder.Services.AddSingleton<IReportedRootPort>(
+            resolved => new ReportedRootPort(
+                resolved.GetRequiredService<IWhisparrClient>(),
+                options,
+                credentials,
+                new ReportedRootCache(TimeProvider.System),
+                NullLogger.Instance));
+        // With no library configuration the shipped chain would answer that every folder sits under
+        // no root, which is true and is not what a case about the folder loop is asking. Those cases
+        // run over an instance whose spelling is the library's own instead; a case whose subject IS
+        // the addressing names a configuration and gets the shipped chain.
+        if (libraryConfig is null)
+        {
+            builder.Services.AddSingleton<IFolderAddressPort>(new PassThroughFolderAddresses());
+        }
+        else
+        {
+            builder.Services.AddSingleton<IFolderAddressPort>(
+                resolved => new FolderAddressPort(
+                    host.SampleFiles,
+                    libraryPort,
+                    resolved.GetRequiredService<IReportedRootPort>(),
+                    new FolderAgreementCache(TimeProvider.System),
+                    NullLogger.Instance));
+        }
         host.SceneIdentities = new EntitySceneIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.SceneIdentities);
         host.LibraryScenes = new LibrarySceneIdentityPort(host._db, options);
@@ -603,6 +637,18 @@ internal sealed class MonitorHost : IAsyncDisposable
     }
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
+}
+
+/// <summary>An instance whose spelling of every folder is the library's own.</summary>
+/// <remarks>
+/// For a case whose subject is the folder loop rather than the agreement. It answers every folder
+/// unchanged, which is what a Cove and a Whisparr sharing one mount really agree on.
+/// </remarks>
+internal sealed class PassThroughFolderAddresses : IFolderAddressPort
+{
+    public Task<AddressedFolder> AddressAsync(
+        FolderAddressTarget target, string folder, CancellationToken ct)
+        => Task.FromResult(new AddressedFolder(folder, null, "/config/library", []));
 }
 
 /// <summary>A catalogue that reaches no provider, for a case whose subject is a route's own guard.</summary>

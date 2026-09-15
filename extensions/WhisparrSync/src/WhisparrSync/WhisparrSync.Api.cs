@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
@@ -1172,7 +1173,8 @@ public sealed partial class WhisparrSync
             var decision = await ReflectOwnedDecisionAsync(target, acting, runCt).ConfigureAwait(false);
 
             return decision.Act
-                ? new ReflectOwnedAim(AimedAt(target, acting), null)
+                ? new ReflectOwnedAim(
+                    AimedAt(target, acting, services.GetRequiredService<IFolderAddressPort>()), null)
                 : new ReflectOwnedAim(null, decision.Reason);
         }
     }
@@ -1183,9 +1185,11 @@ public sealed partial class WhisparrSync
     /// per-entity step alike. Two statements of one gesture is how a selection comes to behave
     /// differently from a click.
     /// </remarks>
-    private ReflectOwnedAiming AimedAt(MonitoringTarget target, IWhisparrReflectOwnedActing acting)
+    private ReflectOwnedAiming AimedAt(
+        MonitoringTarget target, IWhisparrReflectOwnedActing acting, IFolderAddressPort addressing)
         => new(
             target.Generation,
+            AddressingThrough(target, addressing),
             async (folder, readCt) => (await ContainedAsync(
                     () => acting.ListImportableFilesAsync(
                         target.BaseAddress, target.ApiKey, folder, readCt),
@@ -1203,6 +1207,35 @@ public sealed partial class WhisparrSync
                     attachCt).ConfigureAwait(false))
                 is { } attached
                 && MonitoringProjector.Accepted(attached) == MonitorRefusalKind.None);
+
+    /// <summary>
+    /// How a run turns a folder the library names into the path <paramref name="target"/> can open.
+    /// </summary>
+    /// <remarks>
+    /// Where the connected generation holds no filesystem role, every folder answers that the instance
+    /// cannot be asked. The run then states that rather than handing over a path nobody checked, which
+    /// on a mismatched root reads back as a clean pass over an empty folder.
+    /// </remarks>
+    private static Func<string, CancellationToken, Task<AddressedFolder>> AddressingThrough(
+        MonitoringTarget target, IFolderAddressPort addressing)
+    {
+        if (target.Capabilities.Obtain<IWhisparrInstanceFilesystemReading>()
+                .Match<IWhisparrInstanceFilesystemReading?>(filesystem => filesystem, _ => null)
+            is not { } role)
+        {
+            return (_, _) => Task.FromResult(
+                new AddressedFolder(
+                    null,
+                    FolderAgreementRefusal.InstanceCannotBeAsked,
+                    string.Empty,
+                    Array.Empty<string>()));
+        }
+
+        var aimed = new FolderAddressTarget(
+            target.Generation, target.BaseAddress, target.ApiKey, role);
+
+        return (folder, addressCt) => addressing.AddressAsync(aimed, folder, addressCt);
+    }
 
     /// <summary>
     /// The role that links owned files into place on <paramref name="target"/>, or null where the
@@ -2031,7 +2064,10 @@ public sealed partial class WhisparrSync
                     var decision = await ReflectOwnedDecisionAsync(resolved, acting, entityCt)
                         .ConfigureAwait(false);
                     linkingSkipped = decision.Reason;
-                    linkingThrough = decision.Act ? AimedAt(resolved, acting) : null;
+                    linkingThrough = decision.Act
+                        ? AimedAt(
+                            resolved, acting, services.GetRequiredService<IFolderAddressPort>())
+                        : null;
                 }
             }
 

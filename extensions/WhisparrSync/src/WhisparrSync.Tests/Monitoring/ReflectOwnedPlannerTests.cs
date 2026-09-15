@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
@@ -270,6 +271,7 @@ public sealed class ReflectOwnedPlannerTests
         var run = await ReflectOwnedPlanner.RunAsync(
             WhisparrGeneration.V3,
             Folders("Vixen", "Tushy"),
+            OnTheInstance,
             (_, _) =>
             {
                 reads++;
@@ -301,6 +303,7 @@ public sealed class ReflectOwnedPlannerTests
         var run = await ReflectOwnedPlanner.RunAsync(
             WhisparrGeneration.V3,
             Folders("Vixen", "Tushy", "Blacked"),
+            OnTheInstance,
             (_, _) => Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")),
             (files, _) =>
             {
@@ -328,6 +331,7 @@ public sealed class ReflectOwnedPlannerTests
         var run = await ReflectOwnedPlanner.RunAsync(
             WhisparrGeneration.V3,
             Folders("/config/library/Vixen", "/config/library/Tushy", "/config/library/Empty"),
+            OnTheInstance,
             (folder, _) => Task.FromResult(
                 ImportableListing.Listed(
                     folder.EndsWith("Empty", StringComparison.Ordinal)
@@ -353,6 +357,95 @@ public sealed class ReflectOwnedPlannerTests
             read.Order());
         Assert.All(attached, files => Assert.Single(files));
     }
+
+    /// <summary>
+    /// A folder under a root whose agreement does not resolve reaches the listing not at all, and is
+    /// counted apart from a folder the instance declined.
+    /// </summary>
+    [Fact]
+    public async Task AFolderThatCannotBeAddressedIsNeverReadAndIsCountedOnItsOwn()
+    {
+        var read = new List<string>();
+
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            Folders("G:/Downloads/P/Vixen", "G:/Downloads/P/Tushy"),
+            (_, _) => Task.FromResult(Unaddressable),
+            (folder, _) =>
+            {
+                read.Add(folder);
+                return Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]"));
+            },
+            (_, _) => Task.FromResult(true),
+            TestCt);
+
+        Assert.Empty(read);
+        Assert.Equal(2, run.FoldersNotAddressed);
+        Assert.Equal(0, run.FoldersRefused);
+        Assert.Equal(0, run.FoldersAttached);
+    }
+
+    /// <summary>
+    /// Two folders under one library root produce one refusal line, naming the paths tried under it.
+    /// </summary>
+    [Fact]
+    public async Task ARunReportsOneRefusalPerLibraryRootRatherThanPerFolder()
+    {
+        var run = await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            Folders("G:/Downloads/P/Vixen", "G:/Downloads/P/Tushy"),
+            (_, _) => Task.FromResult(Unaddressable),
+            (_, _) => Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]")),
+            (_, _) => Task.FromResult(true),
+            TestCt);
+
+        var only = Assert.Single(run.AddressRefusals!);
+        Assert.Equal("G:/Downloads/P", only.CoveRoot);
+        Assert.Equal(FolderAgreementRefusal.NothingResolved, only.Refusal);
+        Assert.Equal(["/data/Vixen"], only.Tried);
+    }
+
+    /// <summary>
+    /// The path the listing is asked for is the instance's own, never the library's.
+    /// </summary>
+    [Fact]
+    public async Task TheListingIsAskedForThePathTheAddressAnswered()
+    {
+        var read = new List<string>();
+
+        await ReflectOwnedPlanner.RunAsync(
+            WhisparrGeneration.V3,
+            Folders("G:/Downloads/P/Vixen"),
+            (folder, _) => Task.FromResult(
+                new AddressedFolder(
+                    folder.Replace("G:/Downloads/P", "/data", StringComparison.Ordinal),
+                    null,
+                    "G:/Downloads/P",
+                    [])),
+            (folder, _) =>
+            {
+                read.Add(folder);
+                return Task.FromResult(ImportableListing.Listed($"[{V3MatchedRow}]"));
+            },
+            (_, _) => Task.FromResult(true),
+            TestCt);
+
+        Assert.Equal(["/data/Vixen"], read);
+    }
+
+    /// <summary>Every folder is handed to the listing as the library spells it.</summary>
+    /// <remarks>
+    /// The cases this stands in for are about the loop rather than about the addressing, so they run
+    /// over an instance whose spelling is the library's own.
+    /// </remarks>
+    private static Task<AddressedFolder> OnTheInstance(string folder, CancellationToken _)
+        => Task.FromResult(new AddressedFolder(folder, null, "/config/library", []));
+
+    /// <summary>One library root that established nothing, with the path it tried.</summary>
+    private static AddressedFolder Unaddressable { get; } = new(
+        null, FolderAgreementRefusal.NothingResolved, "G:/Downloads/P", ["/data/Vixen"]);
+
+    private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     private static async IAsyncEnumerable<string> Folders(params string[] folders)
     {
