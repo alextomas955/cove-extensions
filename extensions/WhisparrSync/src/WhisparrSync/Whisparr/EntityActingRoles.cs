@@ -273,6 +273,36 @@ public interface IWhisparrHeldSiteReading
         CancellationToken ct);
 }
 
+/// <summary>Reads what an instance holds at a path on its own filesystem.</summary>
+/// <remarks>
+/// A read role, so nothing declared here changes an instance. Both generations register it: each
+/// serves the route, and the older one was measured answering it.
+/// <para>
+/// Narrow in the same way the other roles are: the member names no route, no verb and no query key.
+/// The directory reaches the instance as a query value and can never change which route is issued.
+/// </para>
+/// <para>
+/// The row count of an answer grows with the directory rather than with the library, so a caller
+/// reads one directory at a time and reduces each answer rather than accumulating it.
+/// </para>
+/// </remarks>
+public interface IWhisparrInstanceFilesystemReading
+{
+    /// <summary>What the instance reports at <paramref name="directory"/>, files included.</summary>
+    /// <remarks>
+    /// A path the instance cannot open answers an empty listing rather than a failure, so the
+    /// question has a definitive yes or no. <paramref name="directory"/> reaches the instance as the
+    /// directory itself whether or not its spelling carries a trailing separator.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="directory"/> is blank.</exception>
+    Task<WhisparrResponse> ReadInstanceFolderAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        string directory,
+        CancellationToken ct);
+}
+
 /// <summary>Tells an instance where files the library already holds are.</summary>
 /// <remarks>
 /// Transfers no file data. The instance is asked to link a file into place, which costs no second

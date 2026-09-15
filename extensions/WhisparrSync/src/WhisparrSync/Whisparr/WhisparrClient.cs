@@ -247,7 +247,8 @@ internal sealed class WhisparrClient(
         IWhisparrSceneMonitorActing,
         IWhisparrSceneExclusionActing,
         IWhisparrSiteSceneReading,
-        IWhisparrHeldSiteReading
+        IWhisparrHeldSiteReading,
+        IWhisparrInstanceFilesystemReading
 {
     /// <summary>The header both generations authenticate an API request with.</summary>
     internal const string ApiKeyHeader = "X-Api-Key";
@@ -1105,6 +1106,14 @@ internal sealed class WhisparrClient(
     public Task<WhisparrResponse> AttachOwnedFilesAsync(
         Uri baseAddress, string apiKey, JsonNode files, CancellationToken ct)
         => GeneratedCommandAsync(baseAddress, apiKey, ReflectOwnedPlanner.Command(files), ct);
+
+    public Task<WhisparrResponse> ReadInstanceFolderAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        string directory,
+        CancellationToken ct)
+        => throw new NotImplementedException();
 
     // The one member of this whole seam that can make an instance acquire anything, and the only one
     // whose invocation is recorded on its own. Its verb class has no retry entry, so an attempt whose

@@ -96,6 +96,12 @@ public enum WhisparrCapability
     /// that answers presence for a site through its own list and by no other route.
     /// </summary>
     ReadHeldSites,
+
+    /// <summary>
+    /// What the instance holds at a path on its own filesystem can be read. Lets a caller establish
+    /// which spelling of a folder the instance can open, rather than assuming the library's own.
+    /// </summary>
+    ReadInstanceFilesystem,
 }
 
 /// <summary>
