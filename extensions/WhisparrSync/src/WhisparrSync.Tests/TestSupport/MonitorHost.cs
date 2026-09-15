@@ -10,6 +10,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Library;
@@ -79,6 +80,9 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     /// <summary>The folder source over this host's own library, as the routes resolve it.</summary>
     public IEntityFolderPort Folders { get; private set; } = null!;
+
+    /// <summary>The sample-file source over this host's own library, as the run resolves it.</summary>
+    public ISampleFilePort SampleFiles { get; private set; } = null!;
 
     /// <summary>The scene-identity source over this host's own library, as the routes resolve it.</summary>
     public IEntitySceneIdentityPort SceneIdentities { get; private set; } = null!;
@@ -187,6 +191,7 @@ internal sealed class MonitorHost : IAsyncDisposable
         host.CardIdentities = new LibraryCardIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.CardIdentities);
         host.Folders = new EntityFolderPort(host._db);
+        host.SampleFiles = new SampleFilePort(host._db);
         builder.Services.AddSingleton(host.Folders);
         host.SceneIdentities = new EntitySceneIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.SceneIdentities);
@@ -358,16 +363,16 @@ internal sealed class MonitorHost : IAsyncDisposable
     /// A folder already seeded at <paramref name="folderPath"/> is reused, so a case can put two of
     /// one entity's files in a single folder and see whether the folder is answered twice.
     /// </remarks>
-    public Task SeedStudioFileAsync(int studioId, string folderPath)
-        => SeedVideoFileAsync(folderPath, studioId, null);
+    public Task<string> SeedStudioFileAsync(int studioId, string folderPath, long size = 0)
+        => SeedVideoFileAsync(folderPath, studioId, null, size);
 
     /// <summary>Seeds one video file linked to the performer <paramref name="performerId"/> names.</summary>
     /// <remarks>
     /// Linked through the join row rather than through the studio column: a performer's files reach
     /// them by a different table, so a port reading the studio column would answer nothing here.
     /// </remarks>
-    public Task SeedPerformerFileAsync(int performerId, string folderPath)
-        => SeedVideoFileAsync(folderPath, null, performerId);
+    public Task<string> SeedPerformerFileAsync(int performerId, string folderPath, long size = 0)
+        => SeedVideoFileAsync(folderPath, null, performerId, size);
 
     /// <summary>Seeds one scene the studio <paramref name="studioId"/> names holds.</summary>
     /// <remarks>
@@ -562,7 +567,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         return video.Id;
     }
 
-    private async Task SeedVideoFileAsync(string folderPath, int? studioId, int? performerId)
+    private async Task<string> SeedVideoFileAsync(
+        string folderPath, int? studioId, int? performerId, long size)
     {
         var basename = "scene " + (++_seeded).ToString(CultureInfo.InvariantCulture) + ".mp4";
 
@@ -584,13 +590,16 @@ internal sealed class MonitorHost : IAsyncDisposable
             await _db.SaveChangesAsync(TestCt);
         }
 
-        _db.Add(new VideoFile
+        var file = new VideoFile
         {
             Basename = basename,
             ParentFolderId = folder.Id,
             VideoId = video.Id,
-        });
+            Size = size,
+        };
+        _db.Add(file);
         await _db.SaveChangesAsync(TestCt);
+        return file.Path;
     }
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
