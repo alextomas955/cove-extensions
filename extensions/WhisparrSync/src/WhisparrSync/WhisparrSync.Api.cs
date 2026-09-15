@@ -1147,6 +1147,9 @@ public sealed partial class WhisparrSync
         var run = await ReflectOwnedJob.RunAsync(
             ReflectOwnedJob.Decode(parameters), scopes, AimAsync, ct).ConfigureAwait(false);
 
+        await RecordRootReadingsAsync(scopes, run.AddressRefusals, run.AddressedRoots)
+            .ConfigureAwait(false);
+
         // The host's progress carries no summary field, so the run's one line rides the final
         // report's sub-task.
         progress.Report(1d, ReflectOwnedJob.SummaryOf(run));
@@ -1928,10 +1931,14 @@ public sealed partial class WhisparrSync
         // One line per library root for the whole selection. Every entity under one root reaches the
         // same reason, and a line per entity would grow with the selection.
         var addressRefusals = new Dictionary<string, FolderAddressRefusal>(StringComparer.Ordinal);
+        var addressedRoots = new HashSet<string>(StringComparer.Ordinal);
 
         var run = TryParseSelectionType(batch.EntityType, out var kind) && batch.Verb is { } verb
             ? await UnderTheVerbAsync().ConfigureAwait(false)
             : MonitorBulkRun.NothingSelected;
+
+        await RecordRootReadingsAsync(scopes, [.. addressRefusals.Values], [.. addressedRoots])
+            .ConfigureAwait(false);
 
         // The host's progress carries no summary field, so the run's one line rides the final
         // report's sub-task.
@@ -2085,6 +2092,11 @@ public sealed partial class WhisparrSync
                 .RunOneAsync(services, aimed, kind, coveId, entityCt).ConfigureAwait(false);
             foldersAttached += linked.FoldersAttached;
             foldersRefused += linked.FoldersRefused;
+            foreach (var root in linked.AddressedRoots ?? [])
+            {
+                addressedRoots.Add(root);
+            }
+
             foreach (var refusal in linked.AddressRefusals ?? [])
             {
                 addressRefusals.TryAdd(refusal.CoveRoot, refusal);
@@ -2129,6 +2141,39 @@ public sealed partial class WhisparrSync
         MonitorScope DefaultMonitorScope);
 
     /// <summary>The instance to act against, or null when none is configured.</summary>
+    /// <summary>Records what one run established about the Cove library roots it reached.</summary>
+    /// <remarks>
+    /// A run that reached no folder at all writes nothing: it established nothing about any root, and
+    /// its zero counts are the run never having been aimed rather than the roots disagreeing.
+    /// <para>
+    /// Written outside the run's own cancellation. What a run established about a root holds whether
+    /// or not the run went on to finish, and a stopped run that dropped its readings would leave the
+    /// settings page asking about roots it had just agreed with.
+    /// </para>
+    /// </remarks>
+    private static async Task RecordRootReadingsAsync(
+        IServiceScopeFactory scopes,
+        IReadOnlyList<FolderAddressRefusal>? refused,
+        IReadOnlyList<string>? addressed)
+    {
+        if (refused is not { Count: > 0 } && addressed is not { Count: > 0 })
+        {
+            return;
+        }
+
+        using var scope = scopes.CreateScope();
+        var services = scope.ServiceProvider;
+
+        await services.GetRequiredService<OptionsWriteGate>().MutateAsync(
+            services.GetRequiredService<OptionsStore>(),
+            stored => stored with
+            {
+                OutboundRefusals = OutboundRefusalProjector.Fold(
+                    stored.OutboundRefusals, refused, addressed),
+            },
+            CancellationToken.None).ConfigureAwait(false);
+    }
+
     private static async Task<MonitoringTarget?> ResolveTargetAsync(
         OptionsStore options, ICredentialPort credentials, IWhisparrClient client, CancellationToken ct)
     {
