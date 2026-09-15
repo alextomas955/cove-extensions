@@ -204,6 +204,31 @@ describe("the whole-catalogue confirmation names the figure and what it is not",
   });
 });
 
+describe("a folder Whisparr could not be shown to hold names what was asked", () => {
+  /**
+   * The prompt exists to be acted on, and the only thing a reader can act on is a path. A composer
+   * that dropped one would read as a complete sentence and send the reader nowhere.
+   */
+  it("names the folder the prompt is about", () => {
+    expect(copy.folderAgreementRootSentence("/media")).toContain("/media");
+  });
+
+  it("names every path the instance was asked about", () => {
+    const sentence = copy.folderAgreementTriedSentence(["/data/media", "/mnt/media"]);
+
+    expect(sentence).toContain("/data/media");
+    expect(sentence).toContain("/mnt/media");
+  });
+
+  it("says a folder was asked about at all where nothing was", () => {
+    expect(copy.folderAgreementTriedSentence([]).length).toBeGreaterThan(0);
+  });
+
+  it("names the path in force where one is already stated", () => {
+    expect(copy.folderAgreementMappingSentence("/data/media")).toContain("/data/media");
+  });
+});
+
 describe("a facet with nothing picked names what its menu covers", () => {
   it("reads as one phrase whatever case the source spelled the menu's name in", () => {
     expect(copy.facetCoversEverything("Tags")).toBe("All tags");
