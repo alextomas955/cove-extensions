@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Addressing;
@@ -61,6 +62,7 @@ internal sealed class FolderAddressPort(
     ISampleFilePort samples,
     ICoveLibraryPort library,
     IReportedRootPort instanceRoots,
+    OptionsStore options,
     FolderAgreementCache cache,
     ILogger log) : IFolderAddressPort
 {
@@ -95,7 +97,12 @@ internal sealed class FolderAddressPort(
     private async Task<FolderAgreementReading> EstablishAsync(
         FolderAddressTarget target, string coveRoot, CancellationToken ct)
     {
-        var reading = await ReadAgreementAsync(target, coveRoot, ct).ConfigureAwait(false);
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        var reading = await ReadAgreementAsync(
+            target,
+            coveRoot,
+            OutboundRefusalProjector.MappingFor(stored.OutboundMappings, coveRoot),
+            ct).ConfigureAwait(false);
 
         // Held whether it agreed or not, so a root the instance cannot see is asked about at the
         // refusal rate rather than once per folder under it.
@@ -103,8 +110,16 @@ internal sealed class FolderAddressPort(
         return reading;
     }
 
+    /// <summary>
+    /// What <paramref name="coveRoot"/> agrees with, asking about <paramref name="mapping"/> where
+    /// one is supplied and about the roots the instance declares where none is.
+    /// </summary>
+    /// <remarks>
+    /// The roots the instance declares are not read at all under a supplied mapping. That read is an
+    /// outbound request, and its answer has no part in a root an operator has settled.
+    /// </remarks>
     private async Task<FolderAgreementReading> ReadAgreementAsync(
-        FolderAddressTarget target, string coveRoot, CancellationToken ct)
+        FolderAddressTarget target, string coveRoot, string? mapping, CancellationToken ct)
     {
         var sample = await samples.ReadSampleFileAsync(coveRoot, ct).ConfigureAwait(false);
         if (sample is null)
@@ -113,8 +128,10 @@ internal sealed class FolderAddressPort(
                 null, FolderAgreementRefusal.NoFileToProbeWith, []);
         }
 
-        var declared = await instanceRoots.ReadAsync(target.Generation, ct).ConfigureAwait(false);
-        var candidates = FolderAgreement.CandidatesFor(sample.Path, coveRoot, declared);
+        var declared = string.IsNullOrWhiteSpace(mapping)
+            ? await instanceRoots.ReadAsync(target.Generation, ct).ConfigureAwait(false)
+            : [];
+        var candidates = FolderAgreement.CandidatesFor(sample.Path, coveRoot, declared, mapping);
         if (candidates.Refusal is { } refused)
         {
             return new FolderAgreementReading(null, refused, candidates.Candidates);

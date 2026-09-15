@@ -77,12 +77,25 @@ public sealed record FolderAgreementReading(
 public static class FolderAgreement
 {
     /// <summary>What to ask the instance about for <paramref name="coveRoot"/>.</summary>
+    /// <remarks>
+    /// A supplied <paramref name="mapping"/> REPLACES the roots the instance declares rather than
+    /// joining them, and the library's own spelling is not asked about either. An operator who states
+    /// where a root is has settled it, and asking about the alternatives as well would reintroduce
+    /// the ambiguity the mapping was supplied to remove.
+    /// </remarks>
     /// <param name="sampleFilePath">One file the library holds under <paramref name="coveRoot"/>.</param>
     /// <param name="coveRoot">The Cove library root the sample file sits under.</param>
     /// <param name="instanceRoots">The roots the connected instance declares for itself.</param>
+    /// <param name="mapping">
+    /// Where an operator states the instance holds <paramref name="coveRoot"/>, or blank where none
+    /// is supplied. Still only a candidate: the instance's answer to it decides.
+    /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="instanceRoots"/> is null.</exception>
     public static FolderCandidates CandidatesFor(
-        string? sampleFilePath, string coveRoot, IReadOnlyList<string> instanceRoots)
+        string? sampleFilePath,
+        string coveRoot,
+        IReadOnlyList<string> instanceRoots,
+        string? mapping)
     {
         ArgumentNullException.ThrowIfNull(instanceRoots);
 
@@ -91,12 +104,20 @@ public static class FolderAgreement
             return new FolderCandidates([], FolderAgreementRefusal.NoFileToProbeWith);
         }
 
-        // A single Cove root to strip under, so exactly one tail is produced and each declared root
-        // contributes one candidate.
-        var reading = PathCandidateGuard.Read(sampleFilePath, [coveRoot], instanceRoots);
+        var supplied = !string.IsNullOrWhiteSpace(mapping);
+
+        // A single Cove root to strip under, so exactly one tail is produced and each root to rebuild
+        // under contributes one candidate.
+        var reading = PathCandidateGuard.Read(
+            sampleFilePath, [coveRoot], supplied ? [mapping!] : instanceRoots);
         if (reading.Refusal is { } refused)
         {
             return new FolderCandidates([], ReasonFor(refused));
+        }
+
+        if (supplied)
+        {
+            return new FolderCandidates(reading.Candidates, null);
         }
 
         // The library's own spelling is asked about too. Where both systems reach one filesystem at

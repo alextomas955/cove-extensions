@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Import;
+using WhisparrSync.Options;
 
 namespace WhisparrSync.Addressing;
 
@@ -35,6 +36,7 @@ internal static class AddressingServiceRegistration
             resolved.GetRequiredService<ISampleFilePort>(),
             resolved.GetRequiredService<ICoveLibraryPort>(),
             resolved.GetRequiredService<IReportedRootPort>(),
+            resolved.GetRequiredService<OptionsStore>(),
             resolved.GetRequiredService<FolderAgreementCache>(),
             log));
         return services;
