@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Tests.TestSupport;
 
@@ -42,6 +43,8 @@ public sealed class WhisparrSyncOpenApiDocumentTests : ExtensionOpenApiDocumentT
         typeof(WhisparrCapability),
         typeof(SceneRefusalKind),
         typeof(SceneBatchVerb),
+        typeof(FolderAgreementRefusal),
+        typeof(FolderMappingSaveOutcome),
     ];
 
     protected override IApiExtension CreateExtension() => WhisparrSyncFixture.Create();

@@ -94,6 +94,24 @@ internal sealed class FolderAddressPort(
             : new AddressedFolder(addressed, null, coveRoot, reading.Tried);
     }
 
+    public async Task<AddressedFolder> AddressAsync(
+        FolderAddressTarget target, string coveRoot, string supplied, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(coveRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(supplied);
+
+        var reading = await ReadAgreementAsync(target, coveRoot, supplied, ct).ConfigureAwait(false);
+
+        if (reading.InstanceRoot is not null)
+        {
+            cache.Hold(target.Generation, coveRoot, reading);
+        }
+
+        return new AddressedFolder(
+            reading.InstanceRoot, reading.Refusal, coveRoot, reading.Tried);
+    }
+
     private async Task<FolderAgreementReading> EstablishAsync(
         FolderAddressTarget target, string coveRoot, CancellationToken ct)
     {

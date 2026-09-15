@@ -43,6 +43,7 @@ public sealed class EndpointPermissionTests
     /// </remarks>
     private static readonly string[] MountedRoutes =
     [
+        "GET /api/extensions/com.alextomas955.whisparrsync/addressing/folder-mappings",
         "GET /api/extensions/com.alextomas955.whisparrsync/host-configuration",
         "GET /api/extensions/com.alextomas955.whisparrsync/callback/status",
         "GET /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitoring",
@@ -78,6 +79,7 @@ public sealed class EndpointPermissionTests
         "POST /api/extensions/com.alextomas955.whisparrsync/scenes/batch",
         "POST /api/extensions/com.alextomas955.whisparrsync/sync/preview",
         "POST /api/extensions/com.alextomas955.whisparrsync/sync/run",
+        "PUT /api/extensions/com.alextomas955.whisparrsync/addressing/folder-mappings",
         "PUT /api/extensions/com.alextomas955.whisparrsync/settings",
     ];
 

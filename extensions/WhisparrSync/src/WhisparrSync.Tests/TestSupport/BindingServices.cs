@@ -1,7 +1,9 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
+using WhisparrSync.Import;
 using WhisparrSync.Library;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
@@ -41,6 +43,8 @@ internal static class BindingServices
         services.AddSingleton<ProviderEndpointPort>(_ => null!);
         services.AddSingleton<MissingPagePlanner>(_ => null!);
         services.AddSingleton<OptionsStore>(_ => null!);
+        services.AddSingleton<ICoveLibraryPort>(_ => null!);
+        services.AddSingleton<IFolderAddressPort>(_ => null!);
         services.AddSingleton<OptionsWriteGate>(_ => null!);
         services.AddSingleton<RegistrationGate>(_ => null!);
         services.AddSingleton<TimeProvider>(_ => null!);
