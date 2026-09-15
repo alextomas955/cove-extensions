@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Cove.Core.Auth;
 using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Monitoring;
@@ -148,7 +149,14 @@ public sealed class ReflectOwnedJobTests
         Func<string, CancellationToken, Task<ImportableListing>> read,
         Func<JsonArray, CancellationToken, Task<bool>> attach)
         => (_, _) => Task.FromResult(
-            new ReflectOwnedAim(new ReflectOwnedAiming(WhisparrGeneration.V3, read, attach), null));
+            new ReflectOwnedAim(
+                new ReflectOwnedAiming(
+                    WhisparrGeneration.V3,
+                    (folder, _) => Task.FromResult(
+                        new AddressedFolder(folder, null, "/config/library", [])),
+                    read,
+                    attach),
+                null));
 
     private static Task<ReflectOwnedRun> RunAsync(
         ReflectOwnedBatch batch,

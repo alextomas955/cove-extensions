@@ -119,6 +119,17 @@ internal static partial class WhisparrSyncLog
         WhisparrGeneration generation,
         string host);
 
+    // A probe that reached nothing while establishing which spelling of a library root the instance
+    // can open. The run reports the folders it could not address, so this is the one line saying the
+    // request was made and died rather than answering.
+    [LoggerMessage(
+        EventId = 2131, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] asking {Generation} at {Host} what it holds at a candidate path produced no response")]
+    internal static partial void FolderProbeFailed(
+        ILogger logger,
+        WhisparrGeneration generation,
+        string host);
+
     // A backstop pass that imported from nothing it read, named by cause. The pass runs with nobody
     // watching and leaves the stored mark where it was, so without this line a channel that has
     // refused every pass since an instance changed looks the same as one with nothing to do.
