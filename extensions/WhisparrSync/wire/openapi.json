@@ -168,6 +168,72 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/addressing/folder-mappings": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderAgreementView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderMappingSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderMappingSaveResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitoring": {
       "get": {
         "tags": [
@@ -2070,6 +2136,113 @@
               "integer"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "FolderAgreementRefusal": {
+        "enum": [
+          "instanceDeclaresNoRoot",
+          "noFileToProbeWith",
+          "nothingResolved",
+          "moreThanOneResolved",
+          "probeCouldNotBeRead",
+          "instanceCannotBeAsked",
+          "folderUnderNoLibraryRoot"
+        ]
+      },
+      "FolderAgreementRootLine": {
+        "required": [
+          "root",
+          "refusal",
+          "pathsTried",
+          "mapping"
+        ],
+        "type": "object",
+        "properties": {
+          "root": {
+            "type": "string"
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/FolderAgreementRefusal"
+          },
+          "pathsTried": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mapping": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "FolderAgreementView": {
+        "required": [
+          "roots"
+        ],
+        "type": "object",
+        "properties": {
+          "roots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FolderAgreementRootLine"
+            }
+          }
+        }
+      },
+      "FolderMappingSaveOutcome": {
+        "enum": [
+          "stored",
+          "removed",
+          "refused",
+          "notALibraryRoot",
+          "notConfigured"
+        ]
+      },
+      "FolderMappingSaveRequest": {
+        "required": [
+          "coveRoot",
+          "instancePath"
+        ],
+        "type": "object",
+        "properties": {
+          "coveRoot": {
+            "type": "string"
+          },
+          "instancePath": {
+            "type": "string"
+          }
+        }
+      },
+      "FolderMappingSaveResult": {
+        "required": [
+          "outcome",
+          "refusal",
+          "tried"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/FolderMappingSaveOutcome"
+          },
+          "refusal": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FolderAgreementRefusal"
+              }
+            ]
+          },
+          "tried": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
