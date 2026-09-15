@@ -270,6 +270,15 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] the metadata source names no site for {Studios} of the library's studios; they were counted as carrying no usable id")]
     internal static partial void StudiosTheSourceNamesNoSiteFor(ILogger logger, int studios);
 
+    // A studio the run would not register. A line per studio rather than the run's own count, which
+    // states how many were refused and names none of them: a reader holding a refused studio needs
+    // something to look it up by, and the ids here are the two a reader can act on.
+    [LoggerMessage(
+        EventId = 2130, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] studio {StudioId}, carrying site identifier {RemoteId}, was not registered ({Reason})")]
+    internal static partial void SiteRegistrationRefused(
+        ILogger logger, int studioId, string remoteId, string reason);
+
     // A metadata provider that stopped answering part way through one site's scenes. Contained so
     // the rest of the library is still offered, and reported once per site rather than once per
     // scene: the same fact repeated per scene would fill the log, and the run's own ending states
