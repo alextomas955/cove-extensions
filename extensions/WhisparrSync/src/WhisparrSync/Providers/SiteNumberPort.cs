@@ -1,3 +1,4 @@
+using System.Globalization;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Providers;
@@ -6,14 +7,6 @@ namespace WhisparrSync.Providers;
 /// <remarks>
 /// Implemented here rather than in the slice that declares the port, so the reference points from
 /// the provider slice to the Whisparr one and never back.
-/// <para>
-/// Every stored identifier is confirmed through the source, including one already shaped like a
-/// number. A stored number the source names no site for can be registered nowhere, and answered
-/// unverified it places the studio among the ones not yet there, where every sync offers it and the
-/// instance declines it again. The cost is one metadata request per studio holding a number, which
-/// is the request a studio holding a uuid already pays, and the resolves on the count path stay
-/// behind that path's existing in-flight bound.
-/// </para>
 /// </remarks>
 internal sealed class SiteNumberPort(IProviderCatalogue catalogue) : ISiteNumberPort
 {
@@ -22,6 +15,14 @@ internal sealed class SiteNumberPort(IProviderCatalogue catalogue) : ISiteNumber
         string storedSiteId, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(storedSiteId);
+
+        // A library reaching this generation may already hold the number itself, and a read to
+        // confirm a number already in hand is a request paid per studio for nothing.
+        if (int.TryParse(storedSiteId, NumberStyles.None, CultureInfo.InvariantCulture, out var held)
+            && held > 0)
+        {
+            return WhisparrSiteNumber.Numbered(held);
+        }
 
         if (catalogue.Capabilities.Obtain<IResolvesNumericSiteId>()
                 .Match<IResolvesNumericSiteId?>(role => role, _ => null)

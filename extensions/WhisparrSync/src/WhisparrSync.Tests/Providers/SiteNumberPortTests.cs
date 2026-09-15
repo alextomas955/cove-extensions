@@ -18,45 +18,18 @@ public sealed class SiteNumberPortTests
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     /// <summary>
-    /// A stored number the source names no site for can be registered nowhere, so it is answered as
-    /// that rather than taken at face value.
+    /// A library may already hold the number itself, and a read to confirm a number already in hand
+    /// is a request paid per studio for nothing.
     /// </summary>
     [Fact]
-    public async Task ANumberTheSourceNamesNoSiteForIsAnsweredAsThat()
-    {
-        var catalogue = new NumberingCatalogue(ProviderSiteNumber.NamesNone);
-
-        var resolved = await new SiteNumberPort(catalogue).ResolveSiteNumberAsync("1003", TestCt);
-
-        Assert.Equal(WhisparrSiteNumber.NamesNone, resolved);
-        Assert.Equal(["1003"], catalogue.Asked);
-    }
-
-    /// <summary>A number the source names a site for is answered with that site's number.</summary>
-    [Fact]
-    public async Task ANumberTheSourceNamesASiteForIsAnsweredWithItsNumber()
-    {
-        var catalogue = new NumberingCatalogue(ProviderSiteNumber.Numbered(3372));
-
-        var resolved = await new SiteNumberPort(catalogue).ResolveSiteNumberAsync("3372", TestCt);
-
-        Assert.Equal(3372, resolved.Number);
-        Assert.Equal(["3372"], catalogue.Asked);
-    }
-
-    /// <summary>
-    /// A number whose read never arrived stays on its own side of the answer, for the reason the
-    /// uuid case below states.
-    /// </summary>
-    [Fact]
-    public async Task ANumberWhoseReadNeverArrivedIsHeldApartFromASiteTheSourceNamesNoneFor()
+    public async Task AnIdentifierThatIsAlreadyANumberIsAnsweredWithoutAskingTheSource()
     {
         var catalogue = new NumberingCatalogue(ProviderSiteNumber.NotReached);
 
         var resolved = await new SiteNumberPort(catalogue).ResolveSiteNumberAsync("3372", TestCt);
 
-        Assert.Equal(WhisparrSiteNumber.NotReached, resolved);
-        Assert.NotEqual(WhisparrSiteNumber.NamesNone, resolved);
+        Assert.Equal(3372, resolved.Number);
+        Assert.Empty(catalogue.Asked);
     }
 
     /// <summary>A uuid the source names a site for is answered with that site's number.</summary>
