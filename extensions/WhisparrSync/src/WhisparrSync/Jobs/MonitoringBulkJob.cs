@@ -4,6 +4,7 @@ using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Jobs;
 
@@ -23,8 +24,15 @@ public sealed record MonitorBulkBatch(
 /// <param name="Skipped">Why no file was linked, or null where the step ran.</param>
 /// <param name="FoldersAttached">How many folders the instance took, across every entity.</param>
 /// <param name="FoldersRefused">How many it declined.</param>
-public sealed record MonitorBulkLinking(
-    ReflectOwnedSkipReason? Skipped, int FoldersAttached, int FoldersRefused);
+/// <param name="AddressRefusals">
+/// One entry per library root no path was established under, across every entity. A root reached by
+/// several entities is carried once.
+/// </param>
+internal sealed record MonitorBulkLinking(
+    ReflectOwnedSkipReason? Skipped,
+    int FoldersAttached,
+    int FoldersRefused,
+    IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null);
 
 /// <summary>
 /// The bulk monitoring job's id, its (de)serialization onto the host's string-only parameter map,
@@ -339,15 +347,21 @@ public static class MonitoringBulkJob
     }
 
     /// <summary>The one sentence <paramref name="linking"/> is reported in.</summary>
+    /// <remarks>
+    /// Composed by the same member a single entity's run is, so a selection cannot say something
+    /// different about the same linking work. The batch's own ending is on the clause before this
+    /// one, so nothing here repeats it.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="linking"/> names a skip reason this product does not express.
+    /// <paramref name="linking"/> names a reason this product does not express.
     /// </exception>
     private static string LinkingIn(MonitorBulkLinking linking)
-        => linking.Skipped is { } skipped
-            ? ReflectOwnedJob.SentenceFor(skipped)
-            : string.Create(
-                CultureInfo.InvariantCulture,
-                $"{linking.FoldersAttached} linked, {linking.FoldersRefused} refused.");
+        => ReflectOwnedJob.LineFor(
+            linking.Skipped,
+            linking.FoldersAttached,
+            linking.FoldersRefused,
+            linking.AddressRefusals,
+            cancelled: false);
 
     /// <summary>
     /// Which unit outcome one refusal kind is reported under.
