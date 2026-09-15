@@ -313,7 +313,7 @@ public sealed partial class WhisparrSync
 
         var started = jobs.Enqueue(
             OwnJobTypePrefix + SyncLibraryJob.JobId,
-            $"[{Name}] Offer every identified scene to Whisparr",
+            $"[{Name}] Offer every identified entry to Whisparr",
             (progress, runCt) => RunSyncLibraryAsync(parameters, scopes, progress, runCt),
             exclusive: false);
 
