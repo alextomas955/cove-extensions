@@ -25,7 +25,7 @@ import {
 import {
   agreementLines,
   asksForAPath,
-  hasAnythingToAsk,
+  hasAnythingToShow,
   mappingSentenceFor,
   saveAnswerSentence,
   sentenceFor,
@@ -61,7 +61,7 @@ export function FolderAgreementSection({
     <AsyncRegion
       // A read that failed has to say so: a page drawing nothing reads as one with no folders
       // outstanding, which is the opposite of what an unanswered read established.
-      available={hasAnythingToAsk(view) || read.failed}
+      available={hasAnythingToShow(view) || read.failed}
       state={deriveAsyncRegionState(read)}
       reading={null}
       empty={null}
@@ -118,7 +118,7 @@ function Prompt({
       <p className="text-sm text-secondary">{sentenceFor(line)}</p>
       {mapping === null ? null : <p className="text-xs text-muted">{mapping}</p>}
 
-      {asksForAPath(line.refusal) ? (
+      {asksForAPath(line) ? (
         <div className="space-y-2">
           <Field label={FOLDER_AGREEMENT_PATH} helper={FOLDER_AGREEMENT_PATH_HELPER}>
             <input
