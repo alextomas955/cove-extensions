@@ -1,14 +1,14 @@
 /**
- * The folder agreement section's data layer: the folders nothing resolved for, the path typed under
- * each, and the save that puts one to the instance.
+ * The folder agreement section's data layer: the folders whose Whisparr path is not Cove's own to
+ * work out, the path typed under each, and the save that puts one to the instance.
  *
  * No store beside it. Nothing here is shared with another surface, cached across a visit or
  * coordinated with anything, so the request lives in the hook the way the neighbouring sections keep
  * theirs.
  *
- * A save that settled a folder re-reads the prompts rather than removing one locally: the server
- * decides which folders are still outstanding, and a local removal would be a second answer to that
- * question.
+ * A save that settled a folder re-reads the lines rather than changing one locally: the server
+ * decides which folders are listed, and a local change would be a second answer to that question.
+ * A withdrawal is what takes a folder off the page, and it is the re-read that does it.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
@@ -27,7 +27,7 @@ const FOLDER_MAPPINGS_PATH = api("addressing/folder-mappings");
 export interface UseFolderAgreement {
   /** Which of the four states the prompts are in. */
   readonly read: AsyncRead;
-  /** The folders nothing resolved for, or null before the read answers. */
+  /** The folders listed, or null before the read answers. */
   readonly view: FolderAgreementView | null;
   /** The path typed under each folder, by folder. */
   readonly drafts: Readonly<Record<string, string>>;

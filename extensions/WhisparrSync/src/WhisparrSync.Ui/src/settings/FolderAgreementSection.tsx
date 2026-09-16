@@ -1,11 +1,12 @@
 /**
- * One prompt per Cove library folder the connected instance could not be shown to hold: what
- * happened to it, what was asked, and a field for the path Whisparr really holds it at.
+ * One line per Cove library folder whose Whisparr path is not Cove's own to work out: what happened
+ * to it, what path is in force, and a field for the path Whisparr really holds it at.
  *
  * Presentational. Every value arrives as a prop and no request is issued here.
  *
- * Nothing to ask about renders nothing at all. The prompt exists only where a path an operator can
- * state is the missing fact, so a settled page carries no folder controls of any kind.
+ * Nothing to show renders nothing at all. A folder whose stated path is working has a line because
+ * the field is the only way to withdraw that path, and the field is blank rather than carrying the
+ * path in force, so withdrawing it is one press.
  */
 import { Field, INPUT_CLASS, SectionCard, StatusText } from "@cove-extensions/ui-shared";
 
@@ -34,7 +35,7 @@ import {
 
 export interface FolderAgreementSectionProps {
   read: AsyncRead;
-  /** The folders nothing resolved for, or null before the read answers. */
+  /** The folders listed, or null before the read answers. */
   view: FolderAgreementView | null;
   /** The path typed under each folder, by folder. */
   drafts: Readonly<Record<string, string>>;
