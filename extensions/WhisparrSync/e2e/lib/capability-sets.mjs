@@ -5,9 +5,10 @@
 // so a capability gained or lost is reported by the test that reads it rather than by a control that
 // quietly stops appearing.
 //
-// The two differ in both directions. Five entries are held by both, six by v3 alone, and two by v2
-// alone: v3 needs neither of those two, because there a studio arrives as a side effect of adding a
-// scene.
+// The two differ in both directions. Six entries are held by both, six by v3 alone, and three by v2
+// alone. v3 needs neither the site registration nor the site-row read, because there a studio
+// arrives as a side effect of adding a scene; it has no implementation for the held-site read
+// either, because it answers presence per scene rather than through a list of sites.
 
 export const V2_CAPABILITIES = [
   "outOfBandCallbackSecret",
@@ -17,6 +18,8 @@ export const V2_CAPABILITIES = [
   "monitorScene",
   "registerOwnedSites",
   "readSiteSceneRows",
+  "readHeldSites",
+  "readInstanceFilesystem",
 ];
 
 export const V3_CAPABILITIES = [
@@ -31,4 +34,5 @@ export const V3_CAPABILITIES = [
   "searchScene",
   "monitorScene",
   "excludeScene",
+  "readInstanceFilesystem",
 ];
