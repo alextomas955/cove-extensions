@@ -20,6 +20,7 @@ import {
   FOLDER_AGREEMENT_SETTLED,
   FOLDER_AGREEMENT_UNREADABLE,
   FOLDER_NOTHING_RESOLVED,
+  FOLDER_SAVE_STORED,
 } from "../common/ui/copy";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -282,6 +283,29 @@ test("a save that did not resolve leaves the prompt standing and says what was t
 
   expect(page.prompts().length).toBe(1);
   expect(page.text()).toContain("/wrong/media");
+});
+
+test("a stored path leaves the field under that folder blank, ready to withdraw it", async () => {
+  reads = [viewOf(lineFor("/media")), viewOf(settledLineFor("/media", "/data/media"))];
+  saves = { "/media": { outcome: "stored", refusal: null, tried: ["/data/media"] } };
+
+  const page = await mount();
+  await type(page.inputFor("/media"), "/data/media");
+  await press(page.saveFor("/media"));
+
+  expect(page.inputFor("/media")?.value).toBe("");
+  expect(page.text()).toContain(FOLDER_SAVE_STORED);
+});
+
+test("a save that was refused leaves the typed path in the field to be corrected", async () => {
+  reads = [viewOf(lineFor("/media"))];
+  saves = { "/media": { outcome: "refused", refusal: "nothingResolved", tried: ["/wrong/media"] } };
+
+  const page = await mount();
+  await type(page.inputFor("/media"), "/wrong/media");
+  await press(page.saveFor("/media"));
+
+  expect(page.inputFor("/media")?.value).toBe("/wrong/media");
 });
 
 test("a save that resolved removes its own prompt and leaves the other standing", async () => {
