@@ -285,6 +285,21 @@ internal sealed class WhisparrClient(
     internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
     /// <summary>
+    /// How long a read of everything the instance holds may take before it is reported as
+    /// unreachable.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="RequestTimeout"/> because the two bound different things. A per-item
+    /// call that has not answered in fifteen seconds is not coming. A read of everything an instance
+    /// holds is answered only once the instance has built all of it, which is work whose cost grows
+    /// with its holdings rather than a sign it cannot be reached: a v2 instance holding 512 sites
+    /// takes about 20 seconds to answer <c>GET /api/v3/series</c>, all of it before the first byte.
+    /// The ceiling is set well above that so several times the holdings still answers, and below
+    /// where a reader waiting on a count they asked for would take the product for hung.
+    /// </remarks>
+    internal static readonly TimeSpan LibraryReadTimeout = TimeSpan.FromSeconds(120);
+
+    /// <summary>
     /// How many redirects the client follows. A login redirect is a real deployment, and following an
     /// unbounded chain of them is not.
     /// </summary>
@@ -557,8 +572,15 @@ internal sealed class WhisparrClient(
     /// <inheritdoc/>
     /// <remarks>
     /// One request against the instance's own site list, whatever the batch holds. The list is not
-    /// narrowed, because this generation narrows it by one number at a time and a request per site
-    /// would cost one round trip per studio in the library.
+    /// narrowed, and narrowing it would not help even where the route accepts it: this generation
+    /// builds the whole set before filtering, so <c>?tvdbId=</c> answers a single row no faster than
+    /// the unfiltered list answers all of them. Asking per site would pay that cost once per studio
+    /// in the library rather than once per count.
+    /// <para>
+    /// The read is bounded by <see cref="LibraryReadTimeout"/> rather than
+    /// <see cref="RequestTimeout"/>, because what it waits on is the instance's own work over its
+    /// holdings.
+    /// </para>
     /// </remarks>
     public async Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
         Uri baseAddress,
@@ -576,7 +598,8 @@ internal sealed class WhisparrClient(
         var listed = await GeneratedV2ReadAsync(
             baseAddress,
             apiKey,
-            api => api.Api<V2Api.ISeriesApi>().ListSeriesAsync(cancellationToken: ct))
+            api => api.Api<V2Api.ISeriesApi>().ListSeriesAsync(cancellationToken: ct),
+            LibraryReadTimeout)
             .ConfigureAwait(false);
 
         // Raised rather than answered as an empty set. An empty set would report every site it asked
@@ -1344,10 +1367,11 @@ internal sealed class WhisparrClient(
     private async Task<WhisparrResponse> GeneratedV2ReadAsync<TResponse>(
         Uri baseAddress,
         string apiKey,
-        Func<Whisparr2Apis, Task<TResponse>> call)
+        Func<Whisparr2Apis, Task<TResponse>> call,
+        TimeSpan? budget = null)
         where TResponse : V2Client.IApiResponse
     {
-        var target = V2TargetFor(baseAddress, apiKey);
+        var target = V2TargetFor(baseAddress, apiKey, budget ?? RequestTimeout);
         var attempts = WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read);
         for (var attempt = 1; attempt < attempts; attempt++)
         {
@@ -1400,11 +1424,12 @@ internal sealed class WhisparrClient(
         }
     }
 
-    private static Whisparr2Target V2TargetFor(Uri baseAddress, string apiKey)
+    private static Whisparr2Target V2TargetFor(
+        Uri baseAddress, string apiKey, TimeSpan? budget = null)
     {
         ArgumentNullException.ThrowIfNull(baseAddress);
         ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
-        return new Whisparr2Target(baseAddress, apiKey);
+        return new Whisparr2Target(baseAddress, apiKey, budget ?? RequestTimeout);
     }
 
     private static Whisparr3Target TargetFor(Uri baseAddress, string apiKey)
