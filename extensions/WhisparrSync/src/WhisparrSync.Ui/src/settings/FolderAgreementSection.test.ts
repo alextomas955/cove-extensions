@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 /**
- * What the settings page shows for a folder Whisparr could not be shown to hold, and what pressing
- * save puts to Cove.
+ * What the settings page shows for a folder Whisparr could not be shown to hold and for one whose
+ * stated path is working, and what pressing save puts to Cove.
  *
  * The hook and the section are mounted together, because the properties under test span both: which
- * prompts are on screen after a save is what the re-read answers, and what the save carried is a
+ * lines are on screen after a save is what the re-read answers, and what the save carried is a
  * request rather than a value a component returns.
  *
  * The fake refuses a call it was not configured for, so a surface reaching a route nobody arranged
@@ -17,6 +17,7 @@ import { press, render as renderNode } from "../common/lib/testRender";
 import type { FolderAgreementRootLine, FolderAgreementView } from "../wire/api";
 import {
   FOLDER_AGREEMENT_SAVE,
+  FOLDER_AGREEMENT_SETTLED,
   FOLDER_AGREEMENT_UNREADABLE,
   FOLDER_NOTHING_RESOLVED,
 } from "../common/ui/copy";
@@ -88,6 +89,10 @@ function lineFor(
   mapping: string | null = null,
 ): FolderAgreementRootLine {
   return { root, refusal: "nothingResolved", pathsTried, mapping };
+}
+
+function settledLineFor(root: string, mapping: string): FolderAgreementRootLine {
+  return { root, refusal: null, pathsTried: [], mapping };
 }
 
 function viewOf(...roots: FolderAgreementRootLine[]): FolderAgreementView {
@@ -171,6 +176,55 @@ test("two unresolved folders show two prompts, each with its own field", async (
   expect(page.roots()).toEqual(["/media", "/archive"]);
   expect(page.inputFor("/media")).not.toBeNull();
   expect(page.inputFor("/archive")).not.toBeNull();
+});
+
+test("a folder whose stated path is working shows one line, naming the path and offering a field", async () => {
+  reads = [viewOf(settledLineFor("/media", "/data/media"))];
+
+  const page = await mount();
+
+  expect(page.prompts().length).toBe(1);
+  expect(page.text()).toContain(FOLDER_AGREEMENT_SETTLED);
+  expect(page.text()).toContain("/data/media");
+  expect(page.inputFor("/media")).not.toBeNull();
+  expect(page.saveFor("/media")).not.toBeNull();
+});
+
+test("saving under a working path with the field left blank withdraws it", async () => {
+  reads = [viewOf(settledLineFor("/media", "/data/media")), viewOf()];
+  saves = { "/media": { outcome: "removed", refusal: null, tried: [] } };
+
+  const page = await mount();
+  await press(page.saveFor("/media"));
+
+  expect(JSON.parse(puts()[0].body ?? "{}")).toEqual({ coveRoot: "/media", instancePath: "" });
+  expect(page.prompts().length).toBe(0);
+});
+
+test("a folder nothing resolved for and one whose path works show a field each", async () => {
+  reads = [viewOf(lineFor("/archive"), settledLineFor("/media", "/data/media"))];
+  let settle: (result: unknown) => void = () => undefined;
+  saves = {
+    "/archive": new Promise((resolve) => {
+      settle = resolve;
+    }),
+  };
+
+  const page = await mount();
+  expect(page.inputFor("/archive")).not.toBeNull();
+  expect(page.inputFor("/media")).not.toBeNull();
+
+  await type(page.inputFor("/archive"), "/data/archive");
+  await press(page.saveFor("/archive"));
+
+  expect(page.saveFor("/media")?.disabled).toBe(true);
+
+  await act(() => {
+    settle({ outcome: "refused", refusal: "nothingResolved", tried: ["/data/archive"] });
+    return Promise.resolve();
+  });
+
+  expect(page.saveFor("/media")?.disabled).toBe(false);
 });
 
 test("a folder with nothing to ask about states it and offers no field", async () => {
