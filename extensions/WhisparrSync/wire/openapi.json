@@ -2147,7 +2147,8 @@
           "moreThanOneResolved",
           "probeCouldNotBeRead",
           "instanceCannotBeAsked",
-          "folderUnderNoLibraryRoot"
+          "folderUnderNoLibraryRoot",
+          null
         ]
       },
       "FolderAgreementRootLine": {
@@ -2163,7 +2164,14 @@
             "type": "string"
           },
           "refusal": {
-            "$ref": "#/components/schemas/FolderAgreementRefusal"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FolderAgreementRefusal"
+              }
+            ]
           },
           "pathsTried": {
             "type": "array",
