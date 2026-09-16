@@ -783,6 +783,9 @@ export const FOLDER_AGREEMENT_PATH_HELPER =
 /** The control that states the path. */
 export const FOLDER_AGREEMENT_SAVE = "Save this path";
 
+/** The control on a line where withdrawing the path in force is the only thing that can be done. */
+export const FOLDER_AGREEMENT_WITHDRAW = "Withdraw this path";
+
 /** Why nothing under one prompt can act while its own save is in flight. */
 export const FOLDER_AGREEMENT_SAVE_IS_RUNNING = "Cove is checking this path with Whisparr.";
 

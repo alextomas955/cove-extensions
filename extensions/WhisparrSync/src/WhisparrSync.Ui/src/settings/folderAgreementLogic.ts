@@ -90,15 +90,26 @@ export function describeFolderRefusal(refusal: FolderRefusal): string {
 }
 
 /**
+ * Whether the path in force under <code>line</code> can only be withdrawn.
+ *
+ * A reason a stated path cannot settle is one the save cannot get past either: the save's first act
+ * is the read that produced the reason, so every path a reader could type is refused. Withdrawing
+ * the one in force is the only thing that state accepts.
+ */
+export function withdrawsOnly(line: FolderAgreementRootLine): boolean {
+  return line.mapping !== null && line.refusal !== null && NOTHING_TO_STATE.includes(line.refusal);
+}
+
+/**
  * Whether the folder <code>line</code> is about has a field under it.
  *
- * A line carrying a path in force always has one, whatever reason the last run left on it, because
- * the field is what withdraws that path: a blank save is the withdrawal. Only a line with no path
- * stated is decided by its reason.
+ * A line carrying a path in force has one wherever a typed path could be stored, because the field
+ * is also what withdraws that path: a blank save is the withdrawal. Where nothing typed could be
+ * stored the field goes and the withdrawal gets a control of its own.
  */
 export function asksForAPath(line: FolderAgreementRootLine): boolean {
   if (line.mapping !== null) {
-    return true;
+    return !withdrawsOnly(line);
   }
   return line.refusal === null || !NOTHING_TO_STATE.includes(line.refusal);
 }

@@ -19,6 +19,7 @@ import {
   FOLDER_AGREEMENT_SAVE,
   FOLDER_AGREEMENT_SETTLED,
   FOLDER_AGREEMENT_UNREADABLE,
+  FOLDER_AGREEMENT_WITHDRAW,
   FOLDER_NOTHING_RESOLVED,
   FOLDER_SAVE_STORED,
 } from "../common/ui/copy";
@@ -110,6 +111,7 @@ function Page() {
     answers: agreement.answers,
     onPathChange: agreement.editPath,
     onSave: agreement.save,
+    onWithdraw: agreement.withdraw,
   });
 }
 
@@ -125,6 +127,8 @@ async function mount() {
     roots: () => [...prompts()].map((item) => item.getAttribute("data-root")),
     inputFor: (root: string) => promptFor(root)?.querySelector("input") ?? null,
     saveFor: (root: string) => promptFor(root)?.querySelector("button") ?? null,
+    buttonNamesFor: (root: string) =>
+      [...(promptFor(root)?.querySelectorAll("button") ?? [])].map((button) => button.textContent),
     text: () => container.textContent,
   };
 }
@@ -238,7 +242,7 @@ test("a folder with nothing to ask about states it and offers no field", async (
   expect(page.saveFor("/empty")).toBeNull();
 });
 
-test("a folder with a stated path and nothing to probe with offers the field that withdraws it", async () => {
+test("a folder with a stated path and nothing to probe with offers only the withdrawal", async () => {
   reads = [
     viewOf({
       root: "/media",
@@ -251,8 +255,33 @@ test("a folder with a stated path and nothing to probe with offers the field tha
   const page = await mount();
 
   expect(page.text()).toContain("/data/media");
-  expect(page.inputFor("/media")).not.toBeNull();
-  expect(page.saveFor("/media")).not.toBeNull();
+  expect(page.inputFor("/media")).toBeNull();
+  expect(page.buttonNamesFor("/media")).toEqual([FOLDER_AGREEMENT_WITHDRAW]);
+});
+
+test("pressing that withdrawal sends no path, whatever is left typed under the folder", async () => {
+  const withdrawable: FolderAgreementRootLine = {
+    root: "/media",
+    refusal: "noFileToProbeWith",
+    pathsTried: [],
+    mapping: "/data/media",
+  };
+  // The draft survives the re-read that turns /media into a line with no field, because only the
+  // saved folder's draft is cleared. So the press below meets a draft nothing on screen can reach.
+  reads = [viewOf(lineFor("/media"), lineFor("/archive")), viewOf(withdrawable)];
+  saves = { "/archive": { outcome: "stored", refusal: null, tried: ["/data/archive"] } };
+
+  const page = await mount();
+  await type(page.inputFor("/media"), "/typed/earlier");
+  await type(page.inputFor("/archive"), "/data/archive");
+  await press(page.saveFor("/archive"));
+
+  expect(page.buttonNamesFor("/media")).toEqual([FOLDER_AGREEMENT_WITHDRAW]);
+
+  saves = { "/media": { outcome: "removed", refusal: null, tried: [] } };
+  await press(page.saveFor("/media"));
+
+  expect(JSON.parse(puts()[1].body ?? "{}")).toEqual({ coveRoot: "/media", instancePath: "" });
 });
 
 test("saving sends the folder it is under and the path that was typed, and nothing else", async () => {
