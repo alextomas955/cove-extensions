@@ -2,9 +2,10 @@
 // the settings page against a running pair whose mounts differ on purpose.
 //
 // WHAT THIS ESTABLISHES. That a stated path is refused until a probe resolves the folder under it,
-// and that one which does resolve makes the next run hand the instance the file. The evidence for
-// the second half is the instance's own file rows for the seeded entry, read through the generation
-// adapter: not this product's answer and not the line the run reports about itself.
+// that one which does resolve makes the next run hand the instance the file, and that the path in
+// force can then be read back at the settings page and withdrawn there. The evidence for the second
+// part is the instance's own file rows for the seeded entry, read through the generation adapter:
+// not this product's answer and not the line the run reports about itself.
 //
 // WHAT IT DOES NOT ESTABLISH. Nothing about more than one candidate resolving. A stated path builds
 // exactly one candidate, so that outcome cannot arise through the save at all, and this harness has
@@ -23,6 +24,7 @@ import { WHISPARR_DATA_MOUNT } from "@cove-extensions/e2e/whisparr";
 
 import {
   FOLDER_AGREEMENT_SAVE,
+  FOLDER_AGREEMENT_SETTLED,
   FOLDER_NOTHING_RESOLVED,
 } from "../../../src/WhisparrSync.Ui/src/common/ui/copy.ts";
 import { expect, SPEC_BUDGET_MS, test } from "../../lib/connected-fixture.mjs";
@@ -86,7 +88,7 @@ for (const generation of ["v3", "v2"]) {
   test.describe(`Whisparr ${generation}`, () => {
     test.use({ generation, ownedMedia: true, instanceMount: WHISPARR_DATA_MOUNT });
 
-    test("a path stated at the settings page is refused until it resolves, and then the run links", async ({
+    test("a path stated at the settings page is refused until it resolves, the run then links, and the path can be read back and withdrawn", async ({
       page,
       baseUrl,
       connected,
@@ -143,8 +145,16 @@ for (const generation of ["v3", "v2"]) {
       ).toBe("stored");
       await expect(
         prompt,
-        `the prompt for ${COVE_SHARED} is still standing after a path that resolved, so the run's own answer about it was not cleared`,
-      ).toBeHidden({ timeout: CONTROL_BUDGET_MS });
+        `the line for ${COVE_SHARED} left the page once its path resolved, so the path in force can be neither reviewed nor withdrawn`,
+      ).toBeVisible({ timeout: CONTROL_BUDGET_MS });
+      await expect(
+        prompt,
+        `the line for ${COVE_SHARED} does not read as settled, so the page still reports a folder that is working as one that is not`,
+      ).toContainText(FOLDER_AGREEMENT_SETTLED, { timeout: CONTROL_BUDGET_MS });
+      await expect(
+        prompt,
+        `the line for ${COVE_SHARED} does not name ${WHISPARR_DATA_MOUNT}, so a reader cannot tell which path is in force`,
+      ).toContainText(WHISPARR_DATA_MOUNT, { timeout: CONTROL_BUDGET_MS });
 
       await openMonitoredMenu(page, baseUrl, studio);
       const second = await followJob(api, (await pressReflectOwned(page)).jobId);
@@ -174,6 +184,19 @@ for (const generation of ["v3", "v2"]) {
         paths.filter((path) => path.includes(run)).length,
         `the instance holds ${String(paths.length)} file(s) for the entry, which are not the one file the library named: ${paths.join(", ")}`,
       ).toBe(1);
+
+      // The gesture the field's own helper describes: leave it blank and Cove works the path out
+      // again. The field is not prefilled with the path in force, so pressing save is the whole of it.
+      const settled = await visitPrompts(page, baseUrl, COVE_SHARED);
+      const withdrawn = await statePath(page, settled, "");
+      expect(
+        withdrawn.outcome,
+        `blanking the field under ${COVE_SHARED} answered ${JSON.stringify(withdrawn)}, so the stated path cannot be withdrawn the way the field says it can`,
+      ).toBe("removed");
+      await expect(
+        settled,
+        `the line for ${COVE_SHARED} is still on the page after its path was withdrawn, so the page's own re-read disagrees with what the save answered`,
+      ).toBeHidden({ timeout: CONTROL_BUDGET_MS });
     });
   });
 }
