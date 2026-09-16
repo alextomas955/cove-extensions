@@ -21,9 +21,14 @@ namespace WhisparrSync.Addressing;
 /// time than one that agreed.
 /// </para>
 /// <para>
-/// The entry expires on its own rather than being invalidated by a writer. A root added or remounted
-/// in Whisparr is a change this extension is never told about, so a reading with no expiry could stay
-/// wrong until the host restarted.
+/// An entry is good only for what it was established from: the instance it was read off and the
+/// stored path, if any, it was read under. Either of those changing misses the entry rather than
+/// waiting out its expiry, so a path an operator withdraws or changes is out of use on the next run.
+/// </para>
+/// <para>
+/// Everything else the reading depends on expires rather than being noticed. A root added or
+/// remounted in Whisparr is a change this extension is never told about, so a reading with no expiry
+/// could stay wrong until the host restarted.
 /// </para>
 /// </remarks>
 internal sealed class FolderAgreementCache(TimeProvider clock)
@@ -40,21 +45,35 @@ internal sealed class FolderAgreementCache(TimeProvider clock)
     internal static readonly TimeSpan RefusedLifetime = TimeSpan.FromMinutes(2);
 
     private readonly ConcurrentDictionary<
-        (WhisparrGeneration Generation, string CoveRoot),
-        (DateTimeOffset ReadAt, TimeSpan For, FolderAgreementReading Reading)> _entries = new();
+        (WhisparrGeneration Generation, string Instance, string CoveRoot),
+        (DateTimeOffset ReadAt, TimeSpan For, string? Stated, FolderAgreementReading Reading)>
+        _entries = new();
 
-    internal FolderAgreementReading? Held(WhisparrGeneration generation, string coveRoot)
-        => _entries.TryGetValue((generation, coveRoot), out var entry)
+    internal FolderAgreementReading? Held(
+        FolderAddressTarget target, string coveRoot, string? stated)
+        => _entries.TryGetValue(KeyFor(target, coveRoot), out var entry)
             && clock.GetUtcNow() - entry.ReadAt < entry.For
+            && string.Equals(entry.Stated, stated, StringComparison.Ordinal)
                 ? entry.Reading
                 : null;
 
     internal void Hold(
-        WhisparrGeneration generation, string coveRoot, FolderAgreementReading reading)
-        => _entries[(generation, coveRoot)] = (
+        FolderAddressTarget target,
+        string coveRoot,
+        string? stated,
+        FolderAgreementReading reading)
+        => _entries[KeyFor(target, coveRoot)] = (
             clock.GetUtcNow(),
             reading.Refusal is null ? Lifetime : RefusedLifetime,
+            stated,
             reading);
+
+    private static (WhisparrGeneration, string, string) KeyFor(
+        FolderAddressTarget target, string coveRoot)
+        => (
+            target.Generation,
+            target.BaseAddress.GetLeftPart(UriPartial.Authority),
+            coveRoot);
 }
 
 /// <inheritdoc cref="IFolderAddressPort"/>
@@ -66,6 +85,8 @@ internal sealed class FolderAddressPort(
     FolderAgreementCache cache,
     ILogger log) : IFolderAddressPort
 {
+    private WhisparrSyncOptions? _stored;
+
     public async Task<AddressedFolder> AddressAsync(
         FolderAddressTarget target, string folder, CancellationToken ct)
     {
@@ -78,8 +99,13 @@ internal sealed class FolderAddressPort(
                 null, FolderAgreementRefusal.FolderUnderNoLibraryRoot, string.Empty, []);
         }
 
-        var reading = cache.Held(target.Generation, coveRoot)
-            ?? await EstablishAsync(target, coveRoot, ct).ConfigureAwait(false);
+        // Read before the cache is asked, not inside the establishing path: a held reading taken
+        // under a path that has since been withdrawn or changed must lose to the store.
+        var stated = OutboundRefusalProjector.MappingFor(
+            (await StoredAsync(ct).ConfigureAwait(false)).OutboundMappings, coveRoot);
+
+        var reading = cache.Held(target, coveRoot, stated)
+            ?? await EstablishAsync(target, coveRoot, stated, ct).ConfigureAwait(false);
 
         if (reading.InstanceRoot is not { } agreed)
         {
@@ -105,7 +131,9 @@ internal sealed class FolderAddressPort(
 
         if (reading.InstanceRoot is not null)
         {
-            cache.Hold(target.Generation, coveRoot, reading);
+            // Stamped with the spelling the probe answered to rather than the one that was typed,
+            // because that is what the caller goes on to store and what the next run will read.
+            cache.Hold(target, coveRoot, reading.InstanceRoot, reading);
         }
 
         return new AddressedFolder(
@@ -113,20 +141,24 @@ internal sealed class FolderAddressPort(
     }
 
     private async Task<FolderAgreementReading> EstablishAsync(
-        FolderAddressTarget target, string coveRoot, CancellationToken ct)
+        FolderAddressTarget target, string coveRoot, string? stated, CancellationToken ct)
     {
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        var reading = await ReadAgreementAsync(
-            target,
-            coveRoot,
-            OutboundRefusalProjector.MappingFor(stored.OutboundMappings, coveRoot),
-            ct).ConfigureAwait(false);
+        var reading = await ReadAgreementAsync(target, coveRoot, stated, ct).ConfigureAwait(false);
 
         // Held whether it agreed or not, so a root the instance cannot see is asked about at the
         // refusal rate rather than once per folder under it.
-        cache.Hold(target.Generation, coveRoot, reading);
+        cache.Hold(target, coveRoot, stated, reading);
         return reading;
     }
+
+    /// <summary>The stored options, loaded once for the life of this port.</summary>
+    /// <remarks>
+    /// A load reads the blob from the host store and deserialises it every time. The port is scoped
+    /// and a run's folder loop is one sequential pass through one instance of it, so memoising here
+    /// costs one read per run rather than one per folder.
+    /// </remarks>
+    private async Task<WhisparrSyncOptions> StoredAsync(CancellationToken ct)
+        => _stored ??= await options.LoadAsync(ct).ConfigureAwait(false);
 
     /// <summary>
     /// What <paramref name="coveRoot"/> agrees with, asking about <paramref name="mapping"/> where
