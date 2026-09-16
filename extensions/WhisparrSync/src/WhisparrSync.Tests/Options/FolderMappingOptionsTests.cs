@@ -311,6 +311,37 @@ public sealed class FolderMappingOptionsTests
         Assert.Equal(FolderAgreementRefusal.NothingResolved, line.Refusal);
     }
 
+    /// <summary>A refusal naming no root at all has no line.</summary>
+    /// <remarks>
+    /// A folder under none of the library roots is refused with an empty root. A line for it would
+    /// ask for a path for nothing, and the only answer a save could give is that the empty root is
+    /// not a library root.
+    /// </remarks>
+    [Fact]
+    public void ARefusalNamingNoRootHasNoLine()
+    {
+        var view = FolderAgreementView.From(
+            [
+                new OutboundRootRefusal
+                {
+                    Root = "",
+                    Refusal = FolderAgreementRefusal.FolderUnderNoLibraryRoot,
+                },
+                new OutboundRootRefusal
+                {
+                    Root = CoveRoot,
+                    Refusal = FolderAgreementRefusal.NothingResolved,
+                    PathsTried = ["/data/Blue Harbor/a.mp4"],
+                },
+            ],
+            []);
+
+        var line = Assert.Single(view.Roots);
+        Assert.Equal(CoveRoot, line.Root);
+        Assert.Equal(FolderAgreementRefusal.NothingResolved, line.Refusal);
+        Assert.Equal(["/data/Blue Harbor/a.mp4"], line.PathsTried);
+    }
+
     /// <summary>One refusal a run reported, carrying the paths it asked the instance about.</summary>
     private static FolderAddressRefusal Refused(
         string coveRoot, FolderAgreementRefusal refusal, params string[] tried)
