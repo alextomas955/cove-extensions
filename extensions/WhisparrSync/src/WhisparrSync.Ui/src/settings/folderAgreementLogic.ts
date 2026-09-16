@@ -90,11 +90,16 @@ export function describeFolderRefusal(refusal: FolderRefusal): string {
 }
 
 /**
- * Whether the folder <code>line</code> is about is one a stated path could settle.
+ * Whether the folder <code>line</code> is about has a field under it.
  *
- * A line with no reason carries a path that is working, and the field is what withdraws it.
+ * A line carrying a path in force always has one, whatever reason the last run left on it, because
+ * the field is what withdraws that path: a blank save is the withdrawal. Only a line with no path
+ * stated is decided by its reason.
  */
 export function asksForAPath(line: FolderAgreementRootLine): boolean {
+  if (line.mapping !== null) {
+    return true;
+  }
   return line.refusal === null || !NOTHING_TO_STATE.includes(line.refusal);
 }
 
