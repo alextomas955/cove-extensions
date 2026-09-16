@@ -763,16 +763,15 @@ export function importsPassedOverSentence(count: number, when: string | null): s
   return when === null ? passedOver : `${passedOver} Most recently ${when}.`;
 }
 
-/** The section that asks where Whisparr holds a library folder Cove could not work out. */
-export const FOLDER_AGREEMENT_TITLE = "Folders Whisparr could not be shown to hold";
+/** The section holding every folder whose Whisparr path is not Cove's own to work out. */
+export const FOLDER_AGREEMENT_TITLE = "Where Whisparr holds your folders";
 
-/** What the section is for, and why it is asking rather than working the path out. */
+/** What the section is for, and which folders reach it. */
 export const FOLDER_AGREEMENT_DESCRIPTION =
-  "Whisparr reaches your files at a path of its own. Cove works that path out by asking Whisparr what it holds, and asks you here for the folders it could not settle.";
+  "Whisparr reaches your files at a path of its own. Cove works that path out by asking Whisparr what it holds. Listed here are the folders it could not settle, and the folders you have stated a path for.";
 
-/** The read behind the prompts failed, so what is outstanding is not known. */
-export const FOLDER_AGREEMENT_UNREADABLE =
-  "Cove could not read which of your folders Whisparr was unable to find.";
+/** The read behind the section failed, so which folders are listed is not known. */
+export const FOLDER_AGREEMENT_UNREADABLE = "Cove could not read where Whisparr holds your folders.";
 
 /** What the reader types: where the connected instance holds this one folder. */
 export const FOLDER_AGREEMENT_PATH = "Where Whisparr holds this folder";
