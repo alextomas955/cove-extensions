@@ -68,11 +68,15 @@ internal sealed class FolderAgreementCache(TimeProvider clock)
             stated,
             reading);
 
+    // Keyed on the path, not the authority: TryReadAddress keeps the stored address's URL base, so
+    // two instances behind one reverse proxy differ by that base alone. Trimmed of its trailing
+    // separator to agree with NormaliseAddress, which decides what a connection save calls the same
+    // instance.
     private static (WhisparrGeneration, string, string) KeyFor(
         FolderAddressTarget target, string coveRoot)
         => (
             target.Generation,
-            target.BaseAddress.GetLeftPart(UriPartial.Authority),
+            target.BaseAddress.GetLeftPart(UriPartial.Path).TrimEnd('/'),
             coveRoot);
 }
 
