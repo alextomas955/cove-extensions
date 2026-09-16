@@ -787,6 +787,9 @@ export const FOLDER_AGREEMENT_SAVE = "Save this path";
 /** Why nothing under one prompt can act while its own save is in flight. */
 export const FOLDER_AGREEMENT_SAVE_IS_RUNNING = "Cove is checking this path with Whisparr.";
 
+/** The stated path is working, so the folder is listed to be reviewed rather than acted on. */
+export const FOLDER_AGREEMENT_SETTLED = "Nothing about this folder is outstanding.";
+
 /** No candidate path held a file of the size the library holds. */
 export const FOLDER_NOTHING_RESOLVED =
   "Whisparr holds no file of the right size at any path Cove asked it about.";

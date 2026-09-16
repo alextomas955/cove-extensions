@@ -7,6 +7,7 @@ import type {
   FolderMappingSaveResult,
 } from "../wire/api";
 import {
+  FOLDER_AGREEMENT_SETTLED,
   FOLDER_INSTANCE_CANNOT_BE_ASKED,
   FOLDER_MORE_THAN_ONE_RESOLVED,
   FOLDER_NO_FILE_TO_PROBE_WITH,
@@ -38,6 +39,11 @@ function lineFor(
   mapping: string | null = null,
 ): FolderAgreementRootLine {
   return { root, refusal, pathsTried, mapping };
+}
+
+/** A folder whose stated path is working: a path in force, no reason and nothing asked about. */
+function settledLineFor(root: string, mapping: string): FolderAgreementRootLine {
+  return { root, refusal: null, pathsTried: [], mapping };
 }
 
 function viewOf(...roots: FolderAgreementRootLine[]): FolderAgreementView {
@@ -124,6 +130,33 @@ describe("each folder says what happened to it", () => {
         "probeCouldNotBeRead",
       ].sort(),
     );
+  });
+});
+
+describe("a folder whose stated path is working", () => {
+  it("names the folder and says nothing about it is outstanding", () => {
+    const sentence = sentenceFor(settledLineFor("/media", "/data/media"));
+
+    expect(sentence).toContain("/media");
+    expect(sentence).toContain(FOLDER_AGREEMENT_SETTLED);
+  });
+
+  it("names no path the instance was asked about", () => {
+    expect(sentenceFor(settledLineFor("/media", "/data/media"))).not.toContain("asked Whisparr");
+  });
+
+  it("names the path in force beneath the folder", () => {
+    const sentence = mappingSentenceFor(settledLineFor("/media", "/data/media"));
+
+    expect(sentence ?? "").toContain("/data/media");
+  });
+
+  it("asks for a path, so the stated one can be withdrawn", () => {
+    expect(asksForAPath(settledLineFor("/media", "/data/media"))).toBe(true);
+  });
+
+  it("is something to show on a page holding nothing else", () => {
+    expect(hasAnythingToShow(viewOf(settledLineFor("/media", "/data/media")))).toBe(true);
   });
 });
 
