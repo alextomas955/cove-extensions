@@ -242,22 +242,55 @@ public sealed class FolderMappingOptionsTests
         Assert.Null(line.Mapping);
     }
 
-    /// <summary>Nothing is projected for a root the instance could see.</summary>
+    /// <summary>A root whose stored path is working reads as a line carrying that path alone.</summary>
+    /// <remarks>
+    /// The field that withdraws a path is offered beside the line. A root that vanished the moment
+    /// its path worked could not be reviewed or withdrawn through the product at all.
+    /// </remarks>
     [Fact]
-    public void NothingIsProjectedForARootTheInstanceCouldSee()
+    public void ARootWhoseStoredPathIsWorkingReadsAsALineCarryingThatPath()
     {
-        Assert.Empty(
-            FolderAgreementView.From([], [new OutboundRootMapping
-            {
-                CoveRoot = CoveRoot,
-                InstanceRoot = "/data",
-            }]).Roots);
+        var view = FolderAgreementView.From(
+            [], [new OutboundRootMapping { CoveRoot = CoveRoot, InstanceRoot = "/data" }]);
+
+        var line = Assert.Single(view.Roots);
+        Assert.Equal(CoveRoot, line.Root);
+        Assert.Equal("/data", line.Mapping);
+        Assert.Empty(line.PathsTried);
+    }
+
+    /// <summary>A store holding neither a refusal nor a path reads as no lines at all.</summary>
+    [Fact]
+    public void AStoreHoldingNeitherARefusalNorAPathReadsAsNoLines()
+        => Assert.Empty(FolderAgreementView.From([], []).Roots);
+
+    /// <summary>A refused root reads before a working one, whichever way round they are stored.</summary>
+    /// <remarks>
+    /// A page already showing refusals keeps them where the reader last saw them when a root below
+    /// starts working.
+    /// </remarks>
+    [Fact]
+    public void ARefusedRootReadsBeforeAWorkingOne()
+    {
+        var view = FolderAgreementView.From(
+            [
+                new OutboundRootRefusal
+                {
+                    Root = "/shared",
+                    Refusal = FolderAgreementRefusal.InstanceDeclaresNoRoot,
+                },
+            ],
+            [new OutboundRootMapping { CoveRoot = CoveRoot, InstanceRoot = "/data" }]);
+
+        Assert.Equal(["/shared", CoveRoot], view.Roots.Select(line => line.Root));
+        Assert.Equal(FolderAgreementRefusal.InstanceDeclaresNoRoot, view.Roots[0].Refusal);
     }
 
     /// <summary>The mapping in force travels beside the root it was supplied for.</summary>
     /// <remarks>
     /// A root with a mapping stored can still be refused: the instance's answer decides on every
-    /// run, so the operator has to see what was supplied beside what it came to.
+    /// run, so the operator has to see what was supplied beside what it came to. The two are one
+    /// line even where the spellings differ by a trailing separator.
     /// </remarks>
     [Fact]
     public void TheMappingInForceTravelsBesideTheRootItWasSuppliedFor()
@@ -273,7 +306,9 @@ public sealed class FolderMappingOptionsTests
             ],
             [new OutboundRootMapping { CoveRoot = CoveRoot + "/", InstanceRoot = "/gone" }]);
 
-        Assert.Equal("/gone", Assert.Single(view.Roots).Mapping);
+        var line = Assert.Single(view.Roots);
+        Assert.Equal("/gone", line.Mapping);
+        Assert.Equal(FolderAgreementRefusal.NothingResolved, line.Refusal);
     }
 
     /// <summary>One refusal a run reported, carrying the paths it asked the instance about.</summary>
