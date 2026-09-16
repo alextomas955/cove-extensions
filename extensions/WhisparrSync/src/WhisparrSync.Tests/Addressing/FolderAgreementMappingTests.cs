@@ -226,6 +226,32 @@ public sealed class FolderAgreementMappingTests
         Assert.Equal(1, Probes(handler));
     }
 
+    /// <summary>
+    /// Two folders under one root with a stored path in force establish that root once.
+    /// </summary>
+    /// <remarks>
+    /// What a run costs grows with the roots an operator configured, never with the folders under
+    /// them. Reading the store before the cache is asked must not put a probe on each folder.
+    /// </remarks>
+    [Fact]
+    public async Task TwoFoldersUnderOneRootWithAStoredPathAreProbedForOnce()
+    {
+        var options = await StoringAsync("/mnt/media");
+        var declared = new CountingInstanceRoots(["/data"]);
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingTheSample);
+        var port = Port(options, declared);
+        var target = Target(handler);
+
+        foreach (var folder in new[] { "Blue Harbor", "Tushy" })
+        {
+            var addressed = await port.AddressAsync(target, CoveRoot + "/" + folder, TestCt);
+            Assert.Equal("/mnt/media/" + folder, addressed.InstancePath);
+        }
+
+        Assert.Equal(1, Probes(handler));
+        Assert.Equal(0, declared.Reads);
+    }
+
     private static FolderAddressTarget Target(BodyRecordingHandler handler)
         => Target(handler, Address);
 
