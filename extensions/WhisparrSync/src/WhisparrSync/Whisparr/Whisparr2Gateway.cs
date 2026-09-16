@@ -14,8 +14,8 @@ namespace WhisparrSync.Whisparr;
 /// <see cref="Whisparr3Gateway"/>.
 /// <para>
 /// The transport settings this product requires are applied to every typed client the registration
-/// creates: the redirect cap, the per-attempt timeout and the bound on how much of one answer is
-/// read. None is the generated client's default, and each is a requirement stated in
+/// creates: the redirect cap, the bound on how much of one answer is read, and the budget the target
+/// names. None is the generated client's default, and each is a requirement stated in
 /// <see cref="WhisparrClient"/>.
 /// </para>
 /// </remarks>
@@ -28,7 +28,9 @@ internal sealed class Whisparr2Gateway : IDisposable
         Action<HttpClient>? configure = null)
     {
         var handler = primaryHandler ?? WhisparrClient.CreateHandler;
-        var settings = configure ?? WhisparrClient.Configure;
+        // No default settings of its own: the budget below is where a gateway client's timeout comes
+        // from, and a supplied configure still runs after it so a caller can override.
+        var settings = configure ?? (static _ => { });
         _registry = new GeneratedClientRegistry<Whisparr2Target>(
             target => Register(target, handler, settings));
     }
@@ -69,6 +71,9 @@ internal sealed class Whisparr2Gateway : IDisposable
                 .ConfigurePrimaryHttpMessageHandler(handler)
                 .AddHttpMessageHandler(static () =>
                     new BoundedResponseHandler(WhisparrClient.MaxResponseBytes))
+                // The registry keys by value, so a second budget against one instance is a second
+                // client rather than a setting changed on a client already in use.
+                .ConfigureHttpClient(client => client.Timeout = target.Budget)
                 .ConfigureHttpClient(settings),
         });
 
@@ -76,12 +81,21 @@ internal sealed class Whisparr2Gateway : IDisposable
     }
 }
 
-/// <summary>The instance one generated call is made against.</summary>
+/// <summary>The instance one generated call is made against, and how long it may take.</summary>
 /// <remarks>
-/// A record so the pair is the cache key by value. The key is the address and the key together,
-/// because a key edited against the same address is a different registration.
+/// A record so the whole of it is the cache key by value. The address and the key are both in it
+/// because a key edited against the same address is a different registration. The budget is in it
+/// because <see cref="HttpClient.Timeout"/> cannot be changed once a client has been used, so a
+/// second budget against the same instance is a second client rather than a setting.
 /// </remarks>
-internal readonly record struct Whisparr2Target(Uri BaseAddress, string ApiKey);
+internal readonly record struct Whisparr2Target(Uri BaseAddress, string ApiKey, TimeSpan Budget)
+{
+    /// <summary>The instance at <paramref name="baseAddress"/>, for a per-item call.</summary>
+    public Whisparr2Target(Uri baseAddress, string apiKey)
+        : this(baseAddress, apiKey, WhisparrClient.RequestTimeout)
+    {
+    }
+}
 
 /// <summary>The generated client's typed APIs, already bound to one instance.</summary>
 /// <remarks>
