@@ -1,6 +1,6 @@
 /**
- * Pure rules for the folder agreement prompts: whether there is anything to ask about, what each
- * unsettled folder reads as, which of them is worth asking a path for, and what one save came to.
+ * Pure rules for the folder agreement lines: whether there is anything to show, what each folder
+ * reads as, which of them a path can be stated or withdrawn for, and what one save came to.
  *
  * Relative imports only, so this module runs with no environment and needs no doubles. The wire types
  * arrive as `import type`, which erases at runtime and so takes nothing with it.
@@ -15,6 +15,7 @@ import {
   folderAgreementMappingSentence,
   folderAgreementRootSentence,
   folderAgreementTriedSentence,
+  FOLDER_AGREEMENT_SETTLED,
   FOLDER_INSTANCE_CANNOT_BE_ASKED,
   FOLDER_INSTANCE_DECLARES_NO_ROOT,
   FOLDER_MORE_THAN_ONE_RESOLVED,
@@ -88,9 +89,13 @@ export function describeFolderRefusal(refusal: FolderRefusal): string {
   return REFUSAL_SENTENCES[refusal];
 }
 
-/** Whether the folder <code>line</code> is about is one a stated path could settle. */
+/**
+ * Whether the folder <code>line</code> is about is one a stated path could settle.
+ *
+ * A line with no reason carries a path that is working, and the field is what withdraws it.
+ */
 export function asksForAPath(line: FolderAgreementRootLine): boolean {
-  return line.refusal !== null && !NOTHING_TO_STATE.includes(line.refusal);
+  return line.refusal === null || !NOTHING_TO_STATE.includes(line.refusal);
 }
 
 /** The folders to prompt for, in the order the server stored them. */
@@ -110,16 +115,18 @@ export function hasAnythingToShow(view: FolderAgreementView | null): boolean {
  * instance was asked about.
  *
  * The paths tried are named rather than counted, because they are what a reader compares against
- * what Whisparr really holds.
+ * what Whisparr really holds. A line with no reason names none: the instance was asked about
+ * nothing this run, and saying so would read as a failure rather than a working path.
  */
 export function sentenceFor(line: FolderAgreementRootLine): string {
+  if (line.refusal === null) {
+    return [folderAgreementRootSentence(line.root), FOLDER_AGREEMENT_SETTLED].join(" ");
+  }
   return [
     folderAgreementRootSentence(line.root),
-    line.refusal === null ? null : describeFolderRefusal(line.refusal),
+    describeFolderRefusal(line.refusal),
     folderAgreementTriedSentence(line.pathsTried),
-  ]
-    .filter((part) => part !== null)
-    .join(" ");
+  ].join(" ");
 }
 
 /** The path already stated for <code>line</code>, or null where none is. */
