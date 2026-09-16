@@ -9,6 +9,10 @@
  * A save that settled a folder re-reads the lines rather than changing one locally: the server
  * decides which folders are listed, and a local change would be a second answer to that question.
  * A withdrawal is what takes a folder off the page, and it is the re-read that does it.
+ *
+ * That folder's draft is cleared with the re-read, so the field beside a path that has just started
+ * working is blank and the blank save that withdraws it is one press. Its save answer stays, being
+ * the reader's only confirmation the store worked.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
@@ -84,7 +88,10 @@ export function useFolderAgreement(): UseFolderAgreement {
           const answer: FolderSaveAnswer = { kind: "answered", result };
           setSaving(null);
           setAnswers((held) => ({ ...held, [root]: answer }));
-          if (saveSettled(answer)) load();
+          if (saveSettled(answer)) {
+            setDrafts((held) => ({ ...held, [root]: "" }));
+            load();
+          }
         })
         .catch(() => {
           setSaving(null);
