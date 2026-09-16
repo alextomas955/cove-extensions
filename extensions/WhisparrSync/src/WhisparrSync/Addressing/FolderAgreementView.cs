@@ -60,11 +60,17 @@ public sealed record FolderAgreementView(IReadOnlyList<FolderAgreementRootLine> 
 
         return new FolderAgreementView(
             [
-                .. refusals.Select(entry => new FolderAgreementRootLine(
-                    entry.Root,
-                    entry.Refusal,
-                    [.. entry.PathsTried],
-                    OutboundRefusalProjector.MappingFor(mappings, entry.Root))),
+                // A folder under none of the library roots is refused with no root at all, and no
+                // path can answer that: a save could only reply that the empty root is not a library
+                // root, and the next run would store the entry again. The run's own report is where
+                // that state is said.
+                .. refusals
+                    .Where(entry => !string.IsNullOrEmpty(entry.Root))
+                    .Select(entry => new FolderAgreementRootLine(
+                        entry.Root,
+                        entry.Refusal,
+                        [.. entry.PathsTried],
+                        OutboundRefusalProjector.MappingFor(mappings, entry.Root))),
                 .. mappings
                     .Where(entry => !refused.Contains(ImportRootRefusals.NormaliseRoot(entry.CoveRoot)))
                     .Select(entry => new FolderAgreementRootLine(
