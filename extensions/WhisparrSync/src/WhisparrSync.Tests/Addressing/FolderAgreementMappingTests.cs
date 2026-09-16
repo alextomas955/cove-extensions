@@ -287,12 +287,16 @@ public sealed class FolderAgreementMappingTests
     /// </summary>
     /// <remarks>
     /// What a run costs grows with the roots an operator configured, never with the folders under
-    /// them. Reading the store before the cache is asked must not put a probe on each folder.
+    /// them. Reading the store before the cache is asked must put neither a probe nor a store read on
+    /// each folder: a load deserialises the whole blob every time, so only the port's own memoisation
+    /// keeps a run over a million folders to one.
     /// </remarks>
     [Fact]
     public async Task TwoFoldersUnderOneRootWithAStoredPathAreProbedForOnce()
     {
-        var options = await StoringAsync("/mnt/media");
+        var store = new FakeStore();
+        var options = new OptionsStore(store);
+        await options.SaveAsync(Mapping("/mnt/media"), TestCt);
         var declared = new CountingInstanceRoots(["/data"]);
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingTheSample);
         var port = Port(options, declared);
@@ -306,6 +310,7 @@ public sealed class FolderAgreementMappingTests
 
         Assert.Equal(1, Probes(handler));
         Assert.Equal(0, declared.Reads);
+        Assert.Equal(1, store.GetKeys.Count(key => key == OptionsStore.Key));
     }
 
     private static FolderAddressTarget Target(BodyRecordingHandler handler)
