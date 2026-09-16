@@ -60,9 +60,9 @@ public sealed class FolderMappingRouteTests
         Assert.Equal(Mapping, line.Mapping);
     }
 
-    /// <summary>The read answers nothing at all where every root resolved.</summary>
+    /// <summary>The read answers nothing at all where neither collection has been written to.</summary>
     [Fact]
-    public async Task TheReadAnswersNothingWhereEveryRootResolved()
+    public async Task TheReadAnswersNothingWhereNothingIsStored()
     {
         await using var host = await MonitorHost.CreateAsync();
 
@@ -152,13 +152,15 @@ public sealed class FolderMappingRouteTests
         Assert.Empty((await host.Options.LoadAsync(TestCt)).OutboundMappings);
     }
 
-    /// <summary>A save that resolved clears the refusal stored for that root.</summary>
+    /// <summary>
+    /// A save that resolved reads back as one line carrying the stored path and no reason.
+    /// </summary>
     /// <remarks>
-    /// Without this the settings page would keep asking about a root the operator has just settled,
-    /// until a run over it happened to write the entry away.
+    /// The refusal the save settled is gone, and the line stays so the path can still be read and
+    /// withdrawn. A root that vanished on resolving would leave the operator no way back to it.
     /// </remarks>
     [Fact]
-    public async Task ASaveThatResolvedClearsThatRootsRefusal()
+    public async Task ASaveThatResolvedReadsAsOneLineCarryingThePathAndNoReason()
     {
         var (host, _) = await ProbingHostAsync(Holding.TheSample);
         await using var driven = host;
@@ -175,6 +177,23 @@ public sealed class FolderMappingRouteTests
         });
 
         await host.SaveFolderMappingAsync(CoveRoot, Mapping);
+
+        var line = Assert.Single((await host.ReadFolderMappingsAsync()).Roots);
+        Assert.Equal(CoveRoot, line.Root);
+        Assert.Equal(Mapping, line.Mapping);
+        Assert.Null(line.Refusal);
+        Assert.Empty(line.PathsTried);
+    }
+
+    /// <summary>A save that withdrew the path leaves that root no line at all.</summary>
+    [Fact]
+    public async Task ASaveThatWithdrewThePathLeavesThatRootNoLine()
+    {
+        var (host, _) = await ProbingHostAsync(Holding.TheSample);
+        await using var driven = host;
+        await host.SaveFolderMappingAsync(CoveRoot, Mapping);
+
+        await host.SaveFolderMappingAsync(CoveRoot, "  ");
 
         Assert.Empty((await host.ReadFolderMappingsAsync()).Roots);
     }
