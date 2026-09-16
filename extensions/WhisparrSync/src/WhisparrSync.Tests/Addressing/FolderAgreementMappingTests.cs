@@ -202,6 +202,62 @@ public sealed class FolderAgreementMappingTests
         Assert.Equal(1, Probes(second));
     }
 
+    /// <summary>
+    /// A reading established against one URL base is not reused for a sibling base under the same
+    /// authority.
+    /// </summary>
+    /// <remarks>
+    /// Two Whisparrs behind one reverse proxy differ by their base path alone. A reading kept for the
+    /// authority would answer the second instance with the first one's filesystem spelling, and the
+    /// run would report nothing refused against a path the second instance has no counterpart for.
+    /// </remarks>
+    [Fact]
+    public async Task AReadingIsNotReusedOnceTheStoredInstanceAddressIsAnotherUrlBase()
+    {
+        var options = await StoringAsync("/mnt/media");
+        var cache = new FolderAgreementCache(TimeProvider.System);
+        var declared = new CountingInstanceRoots(["/data"]);
+        var first = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingTheSample);
+        var mapped = await Port(options, declared, cache).AddressAsync(
+            Target(first, new Uri("http://proxy:443/whisparr-a")),
+            CoveRoot + "/Blue Harbor",
+            TestCt);
+        Assert.Equal("/mnt/media/Blue Harbor", mapped.InstancePath);
+
+        var second = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingNothing);
+
+        var addressed = await Port(options, declared, cache).AddressAsync(
+            Target(second, new Uri("http://proxy:443/whisparr-b")),
+            CoveRoot + "/Blue Harbor",
+            TestCt);
+
+        Assert.Null(addressed.InstancePath);
+        Assert.Equal(FolderAgreementRefusal.NothingResolved, addressed.Refusal);
+        Assert.Equal(1, Probes(second));
+    }
+
+    /// <summary>An address stored with a trailing separator meets the entry established without one.</summary>
+    [Fact]
+    public async Task AnAddressStoredWithATrailingSeparatorMeetsTheEntryEstablishedWithoutOne()
+    {
+        var options = await StoringAsync("/mnt/media");
+        var cache = new FolderAgreementCache(TimeProvider.System);
+        var declared = new CountingInstanceRoots(["/data"]);
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingTheSample);
+        await Port(options, declared, cache).AddressAsync(
+            Target(handler, new Uri("http://proxy:443/whisparr-a")),
+            CoveRoot + "/Blue Harbor",
+            TestCt);
+
+        var addressed = await Port(options, declared, cache).AddressAsync(
+            Target(handler, new Uri("http://proxy:443/whisparr-a/")),
+            CoveRoot + "/Tushy",
+            TestCt);
+
+        Assert.Equal("/mnt/media/Tushy", addressed.InstancePath);
+        Assert.Equal(1, Probes(handler));
+    }
+
     /// <summary>A path a save resolved is in force on the next reading, unprobed.</summary>
     /// <remarks>
     /// The save stores the spelling the probe answered to, so the reading it held has to be stamped
