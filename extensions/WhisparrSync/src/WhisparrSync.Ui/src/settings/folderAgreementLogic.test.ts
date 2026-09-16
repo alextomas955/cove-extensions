@@ -29,6 +29,7 @@ import {
   saveAnswerSentence,
   saveSettled,
   sentenceFor,
+  withdrawsOnly,
   type FolderSaveAnswer,
 } from "./folderAgreementLogic";
 
@@ -153,6 +154,7 @@ describe("a folder whose stated path is working", () => {
 
   it("asks for a path, so the stated one can be withdrawn", () => {
     expect(asksForAPath(settledLineFor("/media", "/data/media"))).toBe(true);
+    expect(withdrawsOnly(settledLineFor("/media", "/data/media"))).toBe(false);
   });
 
   it("is something to show on a page holding nothing else", () => {
@@ -161,18 +163,25 @@ describe("a folder whose stated path is working", () => {
 });
 
 describe("a folder carrying a stated path and a reason at once", () => {
-  it("asks for a path, so the stated one can be withdrawn", () => {
-    expect(asksForAPath(lineFor("/media", "noFileToProbeWith", [], "/data/media"))).toBe(true);
+  it("offers only the withdrawal where no path typed could be stored", () => {
+    const line = lineFor("/media", "noFileToProbeWith", [], "/data/media");
+
+    expect(withdrawsOnly(line)).toBe(true);
+    expect(asksForAPath(line)).toBe(false);
   });
 
-  it("asks for none where that reason carries no stated path", () => {
-    expect(asksForAPath(lineFor("/media", "noFileToProbeWith"))).toBe(false);
+  it("asks for a path where a typed one could settle the reason", () => {
+    const line = lineFor("/media", "nothingResolved", ["/data/media"], "/mnt/media");
+
+    expect(withdrawsOnly(line)).toBe(false);
+    expect(asksForAPath(line)).toBe(true);
   });
 
-  it("names the path in force beside the reason", () => {
-    const sentence = mappingSentenceFor(lineFor("/media", "noFileToProbeWith", [], "/data/media"));
+  it("offers neither where that reason carries no stated path", () => {
+    const line = lineFor("/media", "noFileToProbeWith");
 
-    expect(sentence ?? "").toContain("/data/media");
+    expect(asksForAPath(line)).toBe(false);
+    expect(withdrawsOnly(line)).toBe(false);
   });
 });
 

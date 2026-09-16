@@ -41,6 +41,8 @@ export interface UseFolderAgreement {
   readonly answers: Readonly<Record<string, FolderSaveAnswer>>;
   readonly editPath: (root: string, next: string) => void;
   readonly save: (root: string) => void;
+  /** Takes the path in force off <code>root</code>, without reading what is typed under it. */
+  readonly withdraw: (root: string) => void;
 }
 
 export function useFolderAgreement(): UseFolderAgreement {
@@ -72,8 +74,8 @@ export function useFolderAgreement(): UseFolderAgreement {
     setDrafts((held) => ({ ...held, [root]: next }));
   }, []);
 
-  const save = useCallback(
-    (root: string) => {
+  const put = useCallback(
+    (root: string, instancePath: string) => {
       if (saving !== null) return;
       setSaving(root);
 
@@ -81,7 +83,7 @@ export function useFolderAgreement(): UseFolderAgreement {
         method: "PUT",
         body: JSON.stringify({
           coveRoot: root,
-          instancePath: drafts[root] ?? "",
+          instancePath,
         } satisfies FolderMappingSaveRequest),
       })
         .then((result) => {
@@ -98,8 +100,22 @@ export function useFolderAgreement(): UseFolderAgreement {
           setAnswers((held) => ({ ...held, [root]: { kind: "didNotReach" } }));
         });
     },
-    [drafts, load, saving],
+    [load, saving],
   );
 
-  return { read, view, drafts, saving, answers, editPath, save };
+  const save = useCallback(
+    (root: string) => {
+      put(root, drafts[root] ?? "");
+    },
+    [drafts, put],
+  );
+
+  const withdraw = useCallback(
+    (root: string) => {
+      put(root, "");
+    },
+    [put],
+  );
+
+  return { read, view, drafts, saving, answers, editPath, save, withdraw };
 }
