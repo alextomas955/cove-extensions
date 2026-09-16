@@ -5,8 +5,9 @@
  * Presentational. Every value arrives as a prop and no request is issued here.
  *
  * Nothing to show renders nothing at all. A folder whose stated path is working has a line because
- * the field is the only way to withdraw that path, and the field is blank rather than carrying the
- * path in force, so withdrawing it is one press.
+ * the field is what withdraws that path, and the field is blank rather than carrying the path in
+ * force, so withdrawing it is one press. Where no typed path could be stored at all the field goes
+ * and the withdrawal gets a control of its own, rather than a save that state always refuses.
  */
 import { Field, INPUT_CLASS, SectionCard, StatusText } from "@cove-extensions/ui-shared";
 
@@ -22,6 +23,7 @@ import {
   FOLDER_AGREEMENT_SAVE_IS_RUNNING,
   FOLDER_AGREEMENT_TITLE,
   FOLDER_AGREEMENT_UNREADABLE,
+  FOLDER_AGREEMENT_WITHDRAW,
 } from "../common/ui/copy";
 import {
   agreementLines,
@@ -30,6 +32,7 @@ import {
   mappingSentenceFor,
   saveAnswerSentence,
   sentenceFor,
+  withdrawsOnly,
   type FolderSaveAnswer,
 } from "./folderAgreementLogic";
 
@@ -45,6 +48,7 @@ export interface FolderAgreementSectionProps {
   answers: Readonly<Record<string, FolderSaveAnswer>>;
   onPathChange: (root: string, next: string) => void;
   onSave: (root: string) => void;
+  onWithdraw: (root: string) => void;
 }
 
 export function FolderAgreementSection({
@@ -55,6 +59,7 @@ export function FolderAgreementSection({
   answers,
   onPathChange,
   onSave,
+  onWithdraw,
 }: FolderAgreementSectionProps) {
   const lines = agreementLines(view);
 
@@ -84,6 +89,7 @@ export function FolderAgreementSection({
                 answer={answers[line.root] ?? null}
                 onPathChange={onPathChange}
                 onSave={onSave}
+                onWithdraw={onWithdraw}
               />
             ))}
           </ul>
@@ -101,6 +107,7 @@ function Prompt({
   answer,
   onPathChange,
   onSave,
+  onWithdraw,
 }: {
   line: FolderAgreementRootLine;
   draft: string;
@@ -110,6 +117,7 @@ function Prompt({
   answer: FolderSaveAnswer | null;
   onPathChange: (root: string, next: string) => void;
   onSave: (root: string) => void;
+  onWithdraw: (root: string) => void;
 }) {
   const mapping = mappingSentenceFor(line);
   const reason = saving || blocked ? FOLDER_AGREEMENT_SAVE_IS_RUNNING : null;
@@ -141,6 +149,17 @@ function Prompt({
             }}
           />
         </div>
+      ) : null}
+
+      {withdrawsOnly(line) ? (
+        <OptionallyDisabled
+          name={FOLDER_AGREEMENT_WITHDRAW}
+          variant="ghost"
+          reason={reason}
+          onClick={() => {
+            onWithdraw(line.root);
+          }}
+        />
       ) : null}
 
       {answer === null ? null : <StatusText kind="muted">{saveAnswerSentence(answer)}</StatusText>}

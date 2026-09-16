@@ -57,6 +57,7 @@ export function WhisparrSyncPage() {
         answers={agreement.answers}
         onPathChange={agreement.editPath}
         onSave={agreement.save}
+        onWithdraw={agreement.withdraw}
       />
 
       {sharedReason === null ? null : (
