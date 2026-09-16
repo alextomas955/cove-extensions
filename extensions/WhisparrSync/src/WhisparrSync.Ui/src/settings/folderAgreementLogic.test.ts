@@ -160,6 +160,22 @@ describe("a folder whose stated path is working", () => {
   });
 });
 
+describe("a folder carrying a stated path and a reason at once", () => {
+  it("asks for a path, so the stated one can be withdrawn", () => {
+    expect(asksForAPath(lineFor("/media", "noFileToProbeWith", [], "/data/media"))).toBe(true);
+  });
+
+  it("asks for none where that reason carries no stated path", () => {
+    expect(asksForAPath(lineFor("/media", "noFileToProbeWith"))).toBe(false);
+  });
+
+  it("names the path in force beside the reason", () => {
+    const sentence = mappingSentenceFor(lineFor("/media", "noFileToProbeWith", [], "/data/media"));
+
+    expect(sentence ?? "").toContain("/data/media");
+  });
+});
+
 describe("a folder with a path already stated shows it", () => {
   it("names the path in force", () => {
     const sentence = mappingSentenceFor(

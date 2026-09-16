@@ -237,6 +237,23 @@ test("a folder with nothing to ask about states it and offers no field", async (
   expect(page.saveFor("/empty")).toBeNull();
 });
 
+test("a folder with a stated path and nothing to probe with offers the field that withdraws it", async () => {
+  reads = [
+    viewOf({
+      root: "/media",
+      refusal: "noFileToProbeWith",
+      pathsTried: [],
+      mapping: "/data/media",
+    }),
+  ];
+
+  const page = await mount();
+
+  expect(page.text()).toContain("/data/media");
+  expect(page.inputFor("/media")).not.toBeNull();
+  expect(page.saveFor("/media")).not.toBeNull();
+});
+
 test("saving sends the folder it is under and the path that was typed, and nothing else", async () => {
   reads = [viewOf(lineFor("/media"), lineFor("/archive"))];
   saves = { "/media": { outcome: "refused", refusal: "nothingResolved", tried: ["/data/media"] } };
