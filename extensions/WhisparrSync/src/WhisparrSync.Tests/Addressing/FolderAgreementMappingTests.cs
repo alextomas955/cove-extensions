@@ -41,6 +41,12 @@ public sealed class FolderAgreementMappingTests
          "files":[{"path":"/mnt/media/Blue Harbor/scene.mp4","name":"scene.mp4","size":42,"type":"file"}]}
         """;
 
+    /// <summary>A second mapped directory, holding the sample file at the library's length.</summary>
+    private const string SecondMappingHoldingTheSample = """
+        {"parent":"/srv/media/","directories":[],
+         "files":[{"path":"/srv/media/Blue Harbor/scene.mp4","name":"scene.mp4","size":41,"type":"file"}]}
+        """;
+
     /// <summary>A directory the instance lists nothing in.</summary>
     private const string HoldingNothing = """
         {"parent":"/mnt/media/","directories":[],"files":[]}
@@ -119,52 +125,150 @@ public sealed class FolderAgreementMappingTests
     }
 
     /// <summary>Removing a mapping returns the root to the declared roots on the next reading.</summary>
+    /// <remarks>
+    /// Both readings share one cache, which is what the host registers. A reading established under
+    /// the mapping must not answer the reading taken after it was removed.
+    /// </remarks>
     [Fact]
     public async Task RemovingAMappingReturnsTheRootToTheDeclaredRootsOnTheNextReading()
     {
-        var store = new FakeStore();
-        var options = new OptionsStore(store);
-        await options.SaveAsync(
-            new WhisparrSyncOptions
-            {
-                OutboundMappings =
-                    [new OutboundRootMapping { CoveRoot = CoveRoot, InstanceRoot = "/mnt/media" }],
-            },
-            TestCt);
-
+        var options = await StoringAsync("/mnt/media");
+        var cache = new FolderAgreementCache(TimeProvider.System);
         var declared = new CountingInstanceRoots(["/data"]);
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingNothing);
-        var mapped = await Port(options, declared)
+        var mapped = await Port(options, declared, cache)
             .AddressAsync(Target(handler), CoveRoot + "/Blue Harbor", TestCt);
         Assert.Equal(FolderAgreementRefusal.NothingResolved, mapped.Refusal);
 
-        await options.SaveAsync(new WhisparrSyncOptions(), TestCt);
+        await options.SaveAsync(Mapping(null), TestCt);
         var unmapped = BodyRecordingHandler.Answering(
             HttpStatusCode.OK, DeclaredRootHoldingTheSample);
 
-        var addressed = await Port(options, declared)
+        var addressed = await Port(options, declared, cache)
             .AddressAsync(Target(unmapped), CoveRoot + "/Blue Harbor", TestCt);
 
         Assert.Equal("/data/Blue Harbor", addressed.InstancePath);
         Assert.Equal(1, declared.Reads);
     }
 
+    /// <summary>Changing a mapping asks about the new path on the next reading.</summary>
+    [Fact]
+    public async Task ChangingAMappingAsksAboutTheNewPathOnTheNextReading()
+    {
+        var options = await StoringAsync("/mnt/media");
+        var cache = new FolderAgreementCache(TimeProvider.System);
+        var declared = new CountingInstanceRoots(["/data"]);
+        var first = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingTheSample);
+        var mapped = await Port(options, declared, cache)
+            .AddressAsync(Target(first), CoveRoot + "/Blue Harbor", TestCt);
+        Assert.Equal("/mnt/media/Blue Harbor", mapped.InstancePath);
+
+        await options.SaveAsync(Mapping("/srv/media"), TestCt);
+        var second = BodyRecordingHandler.Answering(
+            HttpStatusCode.OK, SecondMappingHoldingTheSample);
+
+        var addressed = await Port(options, declared, cache)
+            .AddressAsync(Target(second), CoveRoot + "/Blue Harbor", TestCt);
+
+        Assert.Equal("/srv/media/Blue Harbor", addressed.InstancePath);
+        Assert.Equal(["/srv/media/Blue Harbor/scene.mp4"], addressed.Tried);
+    }
+
+    /// <summary>A reading established against one instance is not reused for another.</summary>
+    /// <remarks>
+    /// An operator who stores a different connection address is pointing this extension at a
+    /// filesystem the previous instance's reading says nothing about.
+    /// </remarks>
+    [Fact]
+    public async Task AReadingIsNotReusedOnceTheStoredInstanceAddressIsAnotherOne()
+    {
+        var options = await StoringAsync("/mnt/media");
+        var cache = new FolderAgreementCache(TimeProvider.System);
+        var declared = new CountingInstanceRoots(["/data"]);
+        var first = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingTheSample);
+        var mapped = await Port(options, declared, cache)
+            .AddressAsync(Target(first), CoveRoot + "/Blue Harbor", TestCt);
+        Assert.Equal("/mnt/media/Blue Harbor", mapped.InstancePath);
+
+        var second = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingNothing);
+
+        var addressed = await Port(options, declared, cache).AddressAsync(
+            Target(second, new Uri("http://other-whisparr:6969")),
+            CoveRoot + "/Blue Harbor",
+            TestCt);
+
+        Assert.Null(addressed.InstancePath);
+        Assert.Equal(FolderAgreementRefusal.NothingResolved, addressed.Refusal);
+        Assert.Equal(1, Probes(second));
+    }
+
+    /// <summary>A path a save resolved is in force on the next reading, unprobed.</summary>
+    /// <remarks>
+    /// The save stores the spelling the probe answered to, so the reading it held has to be stamped
+    /// with that spelling rather than with the one that was typed.
+    /// </remarks>
+    [Fact]
+    public async Task APathASaveResolvedAnswersTheNextReadingWithNoSecondProbe()
+    {
+        var options = await StoringAsync(null);
+        var cache = new FolderAgreementCache(TimeProvider.System);
+        var declared = new CountingInstanceRoots(["/data"]);
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, HoldingTheSample);
+        var saved = await Port(options, declared, cache)
+            .AddressAsync(Target(handler), CoveRoot, "/mnt/media/", TestCt);
+        Assert.Equal("/mnt/media", saved.InstancePath);
+        await options.SaveAsync(Mapping(saved.InstancePath), TestCt);
+
+        var addressed = await Port(options, declared, cache)
+            .AddressAsync(Target(handler), CoveRoot + "/Blue Harbor", TestCt);
+
+        Assert.Equal("/mnt/media/Blue Harbor", addressed.InstancePath);
+        Assert.Equal(1, Probes(handler));
+    }
+
     private static FolderAddressTarget Target(BodyRecordingHandler handler)
+        => Target(handler, Address);
+
+    private static FolderAddressTarget Target(BodyRecordingHandler handler, Uri address)
         => new(
             WhisparrGeneration.V3,
-            Address,
+            address,
             Key,
             (IWhisparrInstanceFilesystemReading)TestWhisparrClient.Over(handler));
 
-    /// <summary>The port over one store and one declared-root source.</summary>
-    private static FolderAddressPort Port(OptionsStore options, IReportedRootPort declared)
+    /// <summary>
+    /// The port over one store and one declared-root source, sharing <paramref name="cache"/> where
+    /// a case takes two readings and needs the second to meet what the first held.
+    /// </summary>
+    private static FolderAddressPort Port(
+        OptionsStore options, IReportedRootPort declared, FolderAgreementCache? cache = null)
         => new FolderAddressPort(
             new StubSampleFiles(new SampleFile(Sample, SampleSize)),
             new RecordingLibrary(reached: true, [CoveRoot]),
             declared,
             options,
-            new FolderAgreementCache(TimeProvider.System),
+            cache ?? new FolderAgreementCache(TimeProvider.System),
             NullLogger.Instance);
+
+    /// <summary>A store holding <paramref name="mapping"/> for <see cref="CoveRoot"/>.</summary>
+    private static async Task<OptionsStore> StoringAsync(string? mapping)
+    {
+        var options = new OptionsStore(new FakeStore());
+        await options.SaveAsync(Mapping(mapping), TestCt);
+        return options;
+    }
+
+    private static WhisparrSyncOptions Mapping(string? mapping)
+        => new()
+        {
+            OutboundMappings = mapping is null
+                ? []
+                : [new OutboundRootMapping { CoveRoot = CoveRoot, InstanceRoot = mapping }],
+        };
+
+    /// <summary>How many filesystem reads left over <paramref name="handler"/>.</summary>
+    private static int Probes(BodyRecordingHandler handler)
+        => handler.Targets.Count(sent => sent.Contains("filesystem", StringComparison.Ordinal));
 
     /// <summary>
     /// The port over a store mapping <see cref="CoveRoot"/> to <paramref name="mapping"/>, with the
