@@ -29,6 +29,14 @@ import {
   FOLDER_UNDER_NO_LIBRARY_ROOT,
 } from "../common/ui/copy";
 
+/**
+ * A reason a folder could not be settled.
+ *
+ * The wire type admits null, because a line for a folder whose stated path is working carries no
+ * reason at all. Everything keyed by a reason works in this narrower type instead.
+ */
+type FolderRefusal = NonNullable<FolderAgreementRefusal>;
+
 /** What one save came to, including a request that never reached Cove at all. */
 export type FolderSaveAnswer =
   | { readonly kind: "answered"; readonly result: FolderMappingSaveResult }
@@ -41,7 +49,7 @@ export type FolderSaveAnswer =
  * decision made about it. An answer that could not be read and an answer of no are separate
  * sentences, because a reader who takes the first for the second stops looking.
  */
-const REFUSAL_SENTENCES: Record<FolderAgreementRefusal, string> = {
+const REFUSAL_SENTENCES: Record<FolderRefusal, string> = {
   instanceDeclaresNoRoot: FOLDER_INSTANCE_DECLARES_NO_ROOT,
   noFileToProbeWith: FOLDER_NO_FILE_TO_PROBE_WITH,
   nothingResolved: FOLDER_NOTHING_RESOLVED,
@@ -57,7 +65,7 @@ const REFUSAL_SENTENCES: Record<FolderAgreementRefusal, string> = {
  * The spellings are transcribed by hand from the server's enum. A list computed from the generated
  * module would agree with it whatever it says.
  */
-export const FOLDER_AGREEMENT_REFUSALS: readonly FolderAgreementRefusal[] = [
+export const FOLDER_AGREEMENT_REFUSALS: readonly FolderRefusal[] = [
   "instanceDeclaresNoRoot",
   "noFileToProbeWith",
   "nothingResolved",
@@ -73,16 +81,16 @@ export const FOLDER_AGREEMENT_REFUSALS: readonly FolderAgreementRefusal[] = [
  * Nothing is misconfigured for a folder Cove holds no file under, so it is reported and no path is
  * asked for: a form under it would invite an answer that changes nothing.
  */
-const NOTHING_TO_STATE: readonly FolderAgreementRefusal[] = ["noFileToProbeWith"];
+const NOTHING_TO_STATE: readonly FolderRefusal[] = ["noFileToProbeWith"];
 
 /** How <code>refusal</code> reads on its own. */
-export function describeFolderRefusal(refusal: FolderAgreementRefusal): string {
+export function describeFolderRefusal(refusal: FolderRefusal): string {
   return REFUSAL_SENTENCES[refusal];
 }
 
-/** Whether a folder in <code>refusal</code> is one a stated path could settle. */
-export function asksForAPath(refusal: FolderAgreementRefusal): boolean {
-  return !NOTHING_TO_STATE.includes(refusal);
+/** Whether the folder <code>line</code> is about is one a stated path could settle. */
+export function asksForAPath(line: FolderAgreementRootLine): boolean {
+  return line.refusal !== null && !NOTHING_TO_STATE.includes(line.refusal);
 }
 
 /** The folders to prompt for, in the order the server stored them. */
@@ -92,8 +100,8 @@ export function agreementLines(
   return view?.roots ?? [];
 }
 
-/** Whether there is anything to ask about at all. Nothing to ask is rendered as nothing at all. */
-export function hasAnythingToAsk(view: FolderAgreementView | null): boolean {
+/** Whether there is anything to show at all. Nothing to show is rendered as nothing at all. */
+export function hasAnythingToShow(view: FolderAgreementView | null): boolean {
   return agreementLines(view).length > 0;
 }
 
@@ -107,9 +115,11 @@ export function hasAnythingToAsk(view: FolderAgreementView | null): boolean {
 export function sentenceFor(line: FolderAgreementRootLine): string {
   return [
     folderAgreementRootSentence(line.root),
-    describeFolderRefusal(line.refusal),
+    line.refusal === null ? null : describeFolderRefusal(line.refusal),
     folderAgreementTriedSentence(line.pathsTried),
-  ].join(" ");
+  ]
+    .filter((part) => part !== null)
+    .join(" ");
 }
 
 /** The path already stated for <code>line</code>, or null where none is. */

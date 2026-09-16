@@ -23,7 +23,7 @@ import {
   asksForAPath,
   describeFolderRefusal,
   FOLDER_AGREEMENT_REFUSALS,
-  hasAnythingToAsk,
+  hasAnythingToShow,
   mappingSentenceFor,
   saveAnswerSentence,
   saveSettled,
@@ -50,17 +50,17 @@ function answered(result: FolderMappingSaveResult): FolderSaveAnswer {
 
 describe("a page with every folder settled has nothing to show", () => {
   it("says there is nothing to ask about for an answer with no folders", () => {
-    expect(hasAnythingToAsk(viewOf())).toBe(false);
+    expect(hasAnythingToShow(viewOf())).toBe(false);
     expect(agreementLines(viewOf())).toEqual([]);
   });
 
   it("says the same before the read has answered at all", () => {
-    expect(hasAnythingToAsk(null)).toBe(false);
+    expect(hasAnythingToShow(null)).toBe(false);
     expect(agreementLines(null)).toEqual([]);
   });
 
   it("has something to ask about as soon as one folder is unsettled", () => {
-    expect(hasAnythingToAsk(viewOf(lineFor("/media", "nothingResolved")))).toBe(true);
+    expect(hasAnythingToShow(viewOf(lineFor("/media", "nothingResolved")))).toBe(true);
   });
 });
 
@@ -89,7 +89,7 @@ describe("each folder says what happened to it", () => {
     expect(sentenceFor(lineFor("/media", "noFileToProbeWith"))).toContain(
       FOLDER_NO_FILE_TO_PROBE_WITH,
     );
-    expect(asksForAPath("noFileToProbeWith")).toBe(false);
+    expect(asksForAPath(lineFor("/media", "noFileToProbeWith"))).toBe(false);
   });
 
   it("separates an answer that could not be read from an answer of no", () => {
@@ -110,7 +110,9 @@ describe("each folder says what happened to it", () => {
   });
 
   it("asks for a path for every refusal a stated one could settle", () => {
-    const asking = FOLDER_AGREEMENT_REFUSALS.filter(asksForAPath);
+    const asking = FOLDER_AGREEMENT_REFUSALS.filter((refusal) =>
+      asksForAPath(lineFor("/media", refusal)),
+    );
 
     expect([...asking].sort()).toEqual(
       [
