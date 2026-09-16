@@ -102,7 +102,8 @@ public sealed class FolderAddressPortTests
     public async Task ManyFoldersUnderOneRootCostOneSampleFileAndOneRoundOfProbes()
     {
         var samples = new CountingSampleFiles(new SampleFile(Sample, SampleSize));
-        var (port, handler) = Over(HoldingTheSample, ["/data"], samples);
+        var declared = new StubInstanceRoots(["/data"]);
+        var (port, handler) = Over(HoldingTheSample, declared, samples);
         var target = Target(handler);
 
         foreach (var folder in new[] { "Blue Harbor", "Tushy", "Vixen", "Blacked" })
@@ -112,6 +113,7 @@ public sealed class FolderAddressPortTests
         }
 
         Assert.Equal(1, samples.Reads);
+        Assert.Equal(1, declared.Reads);
         Assert.Equal(
             2, handler.Targets.Count(sent => sent.Contains("filesystem", StringComparison.Ordinal)));
     }
@@ -218,6 +220,12 @@ public sealed class FolderAddressPortTests
         string listing,
         string[] declaredRoots,
         ISampleFilePort? samples = null)
+        => Over(listing, new StubInstanceRoots(declaredRoots), samples);
+
+    private static (IFolderAddressPort Port, BodyRecordingHandler Handler) Over(
+        string listing,
+        IReportedRootPort declared,
+        ISampleFilePort? samples = null)
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, listing);
 
@@ -225,7 +233,7 @@ public sealed class FolderAddressPortTests
             new FolderAddressPort(
                 samples ?? new CountingSampleFiles(new SampleFile(Sample, SampleSize)),
                 new StubLibraryRoots(),
-                new StubInstanceRoots(declaredRoots),
+                declared,
                 new OptionsStore(new FakeStore()),
                 new FolderAgreementCache(TimeProvider.System),
                 NullLogger.Instance),
@@ -286,7 +294,12 @@ public sealed class FolderAddressPortTests
     /// <summary>The roots the instance declares, with no request behind them.</summary>
     private sealed class StubInstanceRoots(IReadOnlyList<string> roots) : IReportedRootPort
     {
+        public int Reads { get; private set; }
+
         public Task<IReadOnlyList<string>> ReadAsync(WhisparrGeneration generation, CancellationToken ct)
-            => Task.FromResult(roots);
+        {
+            Reads++;
+            return Task.FromResult(roots);
+        }
     }
 }
