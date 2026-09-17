@@ -396,6 +396,7 @@ public static class MonitoringBulkJob
                 or MonitorRefusalKind.CapabilityAbsentOnThisGeneration
                 or MonitorRefusalKind.NoQualityProfile
                 or MonitorRefusalKind.NoRootFolder
+                or MonitorRefusalKind.NoAgreedRootForThisEntity
                 or MonitorRefusalKind.InstanceHoldsNoSuchEntity => JobUnitOutcome.Skipped,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(refusal), refusal, "This refusal kind has no unit outcome written down for it."),

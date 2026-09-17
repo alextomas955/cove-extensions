@@ -403,9 +403,10 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(MissingSceneMonitorRoute,
             (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal,
              OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
-             CancellationToken ct)
+             IServiceScopeFactory scopes, CancellationToken ct)
                 => MonitorMissingSceneAsync(
-                    kind, coveId, providerSceneId, principal, options, credentials, client, _log, ct))
+                    kind, coveId, providerSceneId, principal, options, credentials, client, scopes,
+                    _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -1174,6 +1175,7 @@ public sealed partial class WhisparrSync
             identities,
             log,
             ActingFor(entityKind, target, scope),
+            EntityRootThrough(scopes, target, FilesOfEntity(entityKind, coveId)),
             ct).ConfigureAwait(false);
 
         // From HERE and not from the resolved member the bulk path also reaches: a selection of a
@@ -1488,8 +1490,13 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(new AddAllMissingEnqueued(null, MonitorRefusalKind.NotConfigured));
         }
 
-        var resolved = await ResolveAddAllMissingAsync(entityKind, coveId, target, identities, ct)
-            .ConfigureAwait(false);
+        var resolved = await ResolveAddAllMissingAsync(
+            entityKind,
+            coveId,
+            target,
+            identities,
+            EntityRootThrough(scopes, target, FilesOfEntity(entityKind, coveId)),
+            ct).ConfigureAwait(false);
         if (resolved.Aiming is null)
         {
             return TypedResults.Ok(new AddAllMissingEnqueued(null, resolved.Refusal));
@@ -1521,6 +1528,7 @@ public sealed partial class WhisparrSync
         int coveId,
         MonitoringTarget target,
         IEntityIdentityPort identities,
+        Func<AddDefaults, CancellationToken, Task<EntityAddDefaultsResolution>> composeAdd,
         CancellationToken ct)
     {
         var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
@@ -1567,9 +1575,17 @@ public sealed partial class WhisparrSync
         }
 
         var defaults = AddDefaultsProjector.From(profiles.Body, roots.Body);
-        if (defaults.Defaults is not { } composeWith)
+        if (defaults.Defaults is not { } runWide)
         {
             return new AddAllMissingResolution(null, defaults.Refusal);
+        }
+
+        // Composed once for the run rather than once per scene. The agreement is cached per library
+        // root, but a per-scene composition would still repeat the counts for every scene in a page.
+        var composed = await composeAdd(runWide, ct).ConfigureAwait(false);
+        if (composed.Defaults is not { } composeWith)
+        {
+            return new AddAllMissingResolution(null, composed.Refusal);
         }
 
         return new AddAllMissingResolution(
@@ -1649,6 +1665,7 @@ public sealed partial class WhisparrSync
                 batch.CoveId,
                 target,
                 services.GetRequiredService<IEntityIdentityPort>(),
+                EntityRootIn(services, target, FilesOfEntity(kind, batch.CoveId)),
                 runCt).ConfigureAwait(false)).Aiming;
         }
     }
@@ -2203,6 +2220,7 @@ public sealed partial class WhisparrSync
                     identities,
                     _log,
                     ActingFor(kind, resolved, batch.Scope ?? resolved.DefaultMonitorScope),
+                    EntityRootIn(services, resolved, FilesOfEntity(kind, coveId)),
                     entityCt).ConfigureAwait(false),
                 MonitorBulkVerb.Unmonitor => await UnmonitorResolvedAsync(
                     kind, coveId, resolved, identities, _log, entityCt).ConfigureAwait(false),
@@ -2464,6 +2482,52 @@ public sealed partial class WhisparrSync
         }
     }
 
+    /// <summary>How many of one entity's own files sit under one library root.</summary>
+    private static Func<IEntityFolderPort, string, CancellationToken, Task<int>> FilesOfEntity(
+        WhisparrEntityKind kind, int coveId)
+        => (files, coveRoot, ct) => files.FilesUnderAsync(kind, coveId, coveRoot, ct);
+
+    /// <summary>
+    /// Composes an add's root per entity from a path holding no elevated services of its own.
+    /// </summary>
+    /// <remarks>
+    /// The count is taken inside a System scope. Cove's per-principal query filters answer a reader
+    /// with the rows that reader can see, so a count taken as the caller would report an entity that
+    /// holds files as holding none, and the add would then go to the wrong root with no error.
+    /// </remarks>
+    private static Func<AddDefaults, CancellationToken, Task<EntityAddDefaultsResolution>>
+        EntityRootThrough(
+            IServiceScopeFactory scopes,
+            MonitoringTarget target,
+            Func<IEntityFolderPort, string, CancellationToken, Task<int>> countUnder)
+        => (runWide, ct) => RunAsSystem.RunInSystemScopeAsync(
+            scopes, services => ComposeWithEntityRootAsync(services, target, countUnder, runWide, ct));
+
+    /// <summary>Composes an add's root per entity inside a run's own elevated services.</summary>
+    private static Func<AddDefaults, CancellationToken, Task<EntityAddDefaultsResolution>>
+        EntityRootIn(
+            IServiceProvider services,
+            MonitoringTarget target,
+            Func<IEntityFolderPort, string, CancellationToken, Task<int>> countUnder)
+        => (runWide, ct) => ComposeWithEntityRootAsync(services, target, countUnder, runWide, ct);
+
+    /// <summary>The one place every add body's root is composed, whatever doorway reached it.</summary>
+    private static Task<EntityAddDefaultsResolution> ComposeWithEntityRootAsync(
+        IServiceProvider services,
+        MonitoringTarget target,
+        Func<IEntityFolderPort, string, CancellationToken, Task<int>> countUnder,
+        AddDefaults runWide,
+        CancellationToken ct)
+    {
+        var files = services.GetRequiredService<IEntityFolderPort>();
+        return EntityAddDefaults.ComposeAsync(
+            runWide,
+            services.GetRequiredService<ICoveLibraryPort>().LibraryRoots,
+            (coveRoot, countCt) => countUnder(files, coveRoot, countCt),
+            AgreedRootThrough(target, services.GetRequiredService<IFolderAddressPort>()),
+            ct);
+    }
+
     /// <summary>Monitors one entity, at the scope <paramref name="actingFor"/> was armed with.</summary>
     /// <remarks>
     /// The scope reaches the instance through the arm and is never answered from here: every branch
@@ -2478,6 +2542,7 @@ public sealed partial class WhisparrSync
         IEntityIdentityPort identities,
         ILogger log,
         Func<string, KindActing>? actingFor,
+        Func<AddDefaults, CancellationToken, Task<EntityAddDefaultsResolution>> composeAdd,
         CancellationToken ct)
     {
         var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
@@ -2526,9 +2591,15 @@ public sealed partial class WhisparrSync
         }
 
         var defaults = AddDefaultsProjector.From(profiles.Body, roots.Body);
-        if (defaults.Defaults is not { } composeWith)
+        if (defaults.Defaults is not { } runWide)
         {
             return Refused(kind, target, defaults.Refusal);
+        }
+
+        var composed = await composeAdd(runWide, ct).ConfigureAwait(false);
+        if (composed.Defaults is not { } composeWith)
+        {
+            return Refused(kind, target, composed.Refusal);
         }
 
         var added = await ContainedAsync(
