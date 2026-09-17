@@ -372,7 +372,8 @@ public sealed partial class WhisparrSync
                 // and no performer pass. Nor is there a catalogue refresh after the loop - that is a
                 // per-entity act, and there is no single entity here.
                 SyncRegisters.Scenes =>
-                    await ComposeSceneAddAsync(services, runCt).ConfigureAwait(false) is { } register
+                    await ComposeSceneAddAsync(owningKind: null, owningId: 0, services, runCt)
+                            .ConfigureAwait(false) is { } register
                         ? new SyncLibraryAiming(
                             target.Generation,
                             SyncRegisters.Scenes,

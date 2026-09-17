@@ -87,6 +87,13 @@ internal sealed class MonitorHost : IAsyncDisposable
     /// <summary>The folder source over this host's own library, as the routes resolve it.</summary>
     public IEntityFolderPort Folders { get; private set; } = null!;
 
+    /// <summary>Each per-root count taken, named by the library root it was about, in order.</summary>
+    /// <remarks>
+    /// One composition asks about every configured root once, so this is what tells a root composed
+    /// once for a run apart from one composed again for every scene in it.
+    /// </remarks>
+    public List<string> RootCounts { get; } = [];
+
     /// <summary>The sample-file source over this host's own library, as the run resolves it.</summary>
     public ISampleFilePort SampleFiles { get; private set; } = null!;
 
@@ -202,7 +209,7 @@ internal sealed class MonitorHost : IAsyncDisposable
         builder.Services.AddSingleton<ILibraryStatusPort>(new LibraryStatusPort(host.Identities, NullLogger.Instance));
         host.CardIdentities = new LibraryCardIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.CardIdentities);
-        host.Folders = new EntityFolderPort(host._db);
+        host.Folders = new CountRecordingFolders(new EntityFolderPort(host._db), host.RootCounts);
         host.SampleFiles = new SampleFilePort(host._db);
         builder.Services.AddSingleton(host.Folders);
         builder.Services.AddSingleton(host.SampleFiles);
@@ -685,6 +692,22 @@ internal sealed class MonitorHost : IAsyncDisposable
     }
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
+
+    /// <summary>The shipped folder port, noting which library root each count was about.</summary>
+    private sealed class CountRecordingFolders(IEntityFolderPort held, List<string> counts)
+        : IEntityFolderPort
+    {
+        public IAsyncEnumerable<string> FoldersFor(
+            WhisparrEntityKind kind, int coveId, CancellationToken ct)
+            => held.FoldersFor(kind, coveId, ct);
+
+        public Task<int> FilesUnderAsync(
+            WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct)
+        {
+            counts.Add(coveRoot);
+            return held.FilesUnderAsync(kind, coveId, coveRoot, ct);
+        }
+    }
 }
 
 /// <summary>An instance whose spelling of every folder is the library's own.</summary>
