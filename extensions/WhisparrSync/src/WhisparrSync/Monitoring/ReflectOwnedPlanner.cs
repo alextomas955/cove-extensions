@@ -178,10 +178,10 @@ internal static class ReflectOwnedPlanner
     /// under a different root.
     /// </summary>
     /// <remarks>
-    /// The import mode that links copies the whole file instead, with no error and no distinct
-    /// outcome, whenever the source and the destination are not on one filesystem. Measured on
-    /// 2026-09-16 against two roots on separate devices: the bytes were copied in full and the run
-    /// reported a success.
+    /// The import mode that links copies the whole file instead whenever the source and the
+    /// destination are not on one filesystem, and the instance's own hard-link setting being on does
+    /// not prevent it. The copy is reported as a successful import carrying no distinct outcome, so
+    /// nothing downstream can tell a link from terabytes of copied bytes.
     /// <para>
     /// Compared by declared root rather than by device, which is a conservative stand-in: two roots
     /// on one device cost a link that would have been safe, and no arrangement costs data.
