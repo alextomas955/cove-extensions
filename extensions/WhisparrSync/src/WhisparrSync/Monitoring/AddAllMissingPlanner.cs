@@ -14,6 +14,15 @@ internal enum SceneRegistration
     /// <summary>The instance already held the scene, so nothing about it changed.</summary>
     AlreadyHeld,
 
+    /// <summary>
+    /// The instance already held the entry and it was moved to the root holding its files.
+    /// </summary>
+    /// <remarks>
+    /// Only the site path answers this. A scene is never moved, so every switch on the scene path
+    /// decides on its default arm and gains nothing by naming it.
+    /// </remarks>
+    Moved,
+
     /// <summary>The instance would not take it.</summary>
     Refused,
 }
