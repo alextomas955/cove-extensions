@@ -4,6 +4,7 @@ using Cove.Extensions.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
+using WhisparrSync.Import;
 using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Jobs;
@@ -155,13 +156,19 @@ public static class ReflectOwnedJob
     /// The ONE folder loop, reached by the enqueued run above and by a selection's per-entity step.
     /// It takes an open <paramref name="services"/> rather than opening its own scope, because a
     /// selection is already inside one that is elevated to System.
+    /// <para>
+    /// The instance's declared roots are read once for the run and handed down, never once per
+    /// folder. They are what the planner compares a file's root against the root of the site it
+    /// would join, and an instance that declares none, or that could not be asked, answers an empty
+    /// list and no comparison is made.
+    /// </para>
     /// </remarks>
     /// <param name="services">Elevated services the folder read is made through.</param>
     /// <param name="aimed">What the run acts through, resolved by its caller.</param>
     /// <param name="kind">Which entity kind the run is about.</param>
     /// <param name="coveId">Which entity.</param>
     /// <param name="ct">Cancelled when the host stops the job.</param>
-    internal static Task<ReflectOwnedRun> RunOneAsync(
+    internal static async Task<ReflectOwnedRun> RunOneAsync(
         IServiceProvider services,
         ReflectOwnedAiming aimed,
         WhisparrEntityKind kind,
@@ -171,13 +178,17 @@ public static class ReflectOwnedJob
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(aimed);
 
-        return ReflectOwnedPlanner.RunAsync(
+        var instanceRoots = await services.GetRequiredService<IReportedRootPort>()
+            .ReadAsync(aimed.Generation, ct).ConfigureAwait(false);
+
+        return await ReflectOwnedPlanner.RunAsync(
             aimed.Generation,
+            instanceRoots,
             services.GetRequiredService<IEntityFolderPort>().FoldersFor(kind, coveId, ct),
             aimed.Address,
             aimed.ReadImportable,
             aimed.Attach,
-            ct);
+            ct).ConfigureAwait(false);
     }
 
     /// <summary>The one line the host's Job Drawer shows for <paramref name="run"/>.</summary>
