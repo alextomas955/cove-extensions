@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json.Nodes;
 using Cove.Core.Interfaces;
@@ -194,6 +195,45 @@ public sealed class EntityRootOnEveryAddTests
         await fixture.Host.SceneActionAsync(videoId, "add");
 
         Assert.Equal(FirstInstanceRoot, RootOn(fixture.SingleAdd(MoviePath)));
+    }
+
+    /// <summary>
+    /// A scene whose root agreed on nothing names its own library folder as the cause, not the
+    /// instance.
+    /// </summary>
+    /// <remarks>
+    /// Nothing was sent, so a reason saying the instance declined would name the wrong party and
+    /// send a reader to an instance whose own settings are perfectly good.
+    /// </remarks>
+    [Fact]
+    public async Task ASceneWhoseRootAgreedOnNothingNamesItsOwnFolderAsTheCause()
+    {
+        await using var fixture = await StudioFixture.CreateAsync(instanceHoldsTheSample: false);
+        var videoId = await fixture.Host.SeedStudioSceneAsync(
+            fixture.StudioId, MonitorHost.StoredEndpoint, FirstScene);
+        await fixture.Host.SeedSceneFileAsync(videoId, Folder);
+
+        var answered = await fixture.Host.SceneActionAsync(videoId, "add");
+
+        Assert.Equal(SceneRefusalKind.NoAgreedRootForThisEntity, answered.Refusal);
+        Assert.DoesNotContain(fixture.Sent, call => call.Method == HttpMethod.Post);
+    }
+
+    /// <summary>The card's own add names it the same way.</summary>
+    [Fact]
+    public async Task AMissingSceneCardWhoseRootAgreedOnNothingNamesItsOwnFolderAsTheCause()
+    {
+        await using var fixture = await StudioFixture.CreateAsync(instanceHoldsTheSample: false);
+
+        var answered = await fixture.Host.Http.PostAsync(
+            fixture.Host.RouteFor("studio", fixture.StudioId, "missing/" + FirstScene + "/monitor"),
+            content: null,
+            TestCt);
+        answered.EnsureSuccessStatusCode();
+        var result = (await answered.Content.ReadFromJsonAsync<MissingSceneActionResult>(TestCt))!;
+
+        Assert.Equal(MissingSceneActionRefusal.NoAgreedRootForThisEntity, result.Refusal);
+        Assert.DoesNotContain(fixture.Sent, call => call.Method == HttpMethod.Post);
     }
 
     /// <summary>The path a v3 instance takes a scene add on.</summary>
