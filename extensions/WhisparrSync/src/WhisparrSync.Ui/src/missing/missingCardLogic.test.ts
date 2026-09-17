@@ -6,6 +6,7 @@ import {
   INSTANCE_OFFERS_NO_QUALITY_PROFILE,
   INSTANCE_OFFERS_NO_ROOT_FOLDER,
   INSTANCE_REFUSED,
+  NO_AGREED_ROOT_FOR_THIS_ENTITY,
   SEARCH_WITH_NO_ENTRY,
 } from "../common/ui/copy";
 import type { MissingCard, MissingPerformerChip, MissingSceneActionRefusal } from "../wire/api";
@@ -111,6 +112,7 @@ describe("what is stated beneath the action row", () => {
       kind: "error",
     },
     instanceOffersNoRootFolder: { sentence: INSTANCE_OFFERS_NO_ROOT_FOLDER, kind: "error" },
+    noAgreedRootForThisEntity: { sentence: NO_AGREED_ROOT_FOR_THIS_ENTITY, kind: "error" },
     whisparrHasNoEntryForScene: { sentence: SEARCH_WITH_NO_ENTRY, kind: "muted" },
   };
 
