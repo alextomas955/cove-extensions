@@ -830,6 +830,53 @@ public sealed class SyncLibrarySitesTests
     /// against an instance that already holds the site reaches a verb this client was given no answer
     /// for, and the client refuses it.
     /// </remarks>
+    /// <summary>
+    /// A pass that could settle no instance root for a library root puts that root on the settings
+    /// page, where its own ending sends the reader to state a path for it.
+    /// </summary>
+    /// <remarks>
+    /// The run's ending counts the sites it left for want of an agreed root and names the settings
+    /// page as the remedy. That page offers a root only once something has recorded a reading for
+    /// it, so without this the reader is sent to a page listing nothing and no site under that root
+    /// can ever acquire one.
+    /// </remarks>
+    [Fact]
+    public async Task APassThatSettledNoRootPutsThatRootOnTheSettingsPage()
+    {
+        await using var host = await UnsettledRootHostAsync();
+        var studioId = await host.SeedStudioAsync(V2Endpoint, FirstSite);
+        await host.SeedStudioFileAsync(studioId, UnsettledCoveRoot + "/Blue Harbor", 41);
+
+        await RunAsync(host);
+
+        var listed = Assert.Single(
+            (await host.ReadFolderMappingsAsync()).Roots,
+            root => root.Root == UnsettledCoveRoot);
+        Assert.NotNull(listed.Refusal);
+    }
+
+    /// <summary>The library root whose instance spelling the probe below never resolves.</summary>
+    private const string UnsettledCoveRoot = "I:/Downloads/P";
+
+    /// <summary>A host whose probe answers no file, so no library root is ever settled.</summary>
+    private static Task<MonitorHost> UnsettledRootHostAsync()
+        => MonitorHost.CreateAsync(
+            generation: WhisparrGeneration.V2,
+            bytes: BodyRecordingHandler.AnsweringByPath(path => path switch
+            {
+                var route when route.EndsWith("/filesystem", StringComparison.Ordinal)
+                    => """{"parent":"/data/","directories":[],"files":[]}""",
+                var route when route.EndsWith("/rootfolder", StringComparison.Ordinal)
+                    => """[{"id":1,"path":"/data","accessible":true}]""",
+                var route when route.EndsWith("/qualityprofile", StringComparison.Ordinal)
+                    => """[{"id":1,"name":"Any"}]""",
+                _ => "{}",
+            }),
+            libraryConfig: new CoveConfiguration
+            {
+                CovePaths = [new CovePath { Path = UnsettledCoveRoot }],
+            });
+
     private static async Task<MonitorHost> SiteHost(
         bool held, RecordingProviderCatalogue? provider = null)
     {
