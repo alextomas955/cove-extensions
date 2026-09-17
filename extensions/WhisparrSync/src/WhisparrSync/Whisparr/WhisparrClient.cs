@@ -797,7 +797,12 @@ internal sealed class WhisparrClient(
             .ConfigureAwait(false);
         if (resource is null)
         {
-            return read;
+            // A success status carrying nothing the model could be read from arrives here too, and
+            // its own status classifies as accepted. Returning it unchanged would report a move the
+            // caller counts as done while no update was sent and the site still sits where it was.
+            return Refused(read)
+                ? read
+                : read with { Refusal = MonitorRefusalKind.InstanceRefused };
         }
 
         var moved = await GeneratedV2ActAsync(
