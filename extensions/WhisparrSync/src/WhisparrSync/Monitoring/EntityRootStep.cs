@@ -39,6 +39,25 @@ internal static class EntityRootStep
     /// <summary>
     /// The instance root to register an entity at, chosen from <paramref name="coveRoots"/>.
     /// </summary>
+    /// <remarks>
+    /// The root holding most of the entity's files, with no threshold and no second rule: the same
+    /// rule applies whether the split is 883 to 2 or 45 to 40. An exact tie takes the root the
+    /// supplied list names first, which is the host's own configured order, so two runs over one
+    /// configuration choose the same root.
+    /// <para>
+    /// Only the chosen root is asked about, so a run over hundreds of entities still establishes one
+    /// agreement per root rather than one per entity.
+    /// </para>
+    /// <para>
+    /// Nothing is imported into the chosen root and no file is moved. The files are the library's,
+    /// and this product relocating them is a change the owner cannot undo; the roots holding the
+    /// strays are reported instead.
+    /// </para>
+    /// <para>
+    /// <see cref="EntityRoot.RootsLeftBehind"/> is bounded by the configured root count, which an
+    /// operator creates by hand. It carries root names only, never an entity, a folder or a file.
+    /// </para>
+    /// </remarks>
     /// <param name="coveRoots">The configured library roots, in the host's own configured order.</param>
     /// <param name="countUnder">How many of the entity's files sit under one library root.</param>
     /// <param name="agreedRoot">What instance root one library root agrees with.</param>
@@ -53,28 +72,43 @@ internal static class EntityRootStep
         ArgumentNullException.ThrowIfNull(countUnder);
         ArgumentNullException.ThrowIfNull(agreedRoot);
 
-        string? chosen = null;
+        var chosenAt = -1;
         var atChosen = 0;
-        foreach (var root in coveRoots)
+        var counts = new int[coveRoots.Count];
+        for (var index = 0; index < coveRoots.Count; index++)
         {
-            var count = await countUnder(root, ct).ConfigureAwait(false);
-            if (count > atChosen)
+            counts[index] = await countUnder(coveRoots[index], ct).ConfigureAwait(false);
+
+            // Strictly greater, so the first root of a tie keeps the choice.
+            if (counts[index] > atChosen)
             {
-                chosen = root;
-                atChosen = count;
+                chosenAt = index;
+                atChosen = counts[index];
             }
         }
 
-        if (chosen is null)
+        if (chosenAt < 0)
         {
             return new EntityRoot(null, MonitorRefusalKind.None, null, 0, 0, []);
         }
 
+        var chosen = coveRoots[chosenAt];
+        var leftBehind = coveRoots
+            .Where((_, index) => index != chosenAt && counts[index] > 0)
+            .ToList();
+        var filesLeft = counts.Where((_, index) => index != chosenAt).Sum();
+
         var addressed = await agreedRoot(chosen, ct).ConfigureAwait(false);
 
         return addressed.InstancePath is { } agreed
-            ? new EntityRoot(agreed, MonitorRefusalKind.None, chosen, atChosen, 0, [])
+            ? new EntityRoot(
+                agreed, MonitorRefusalKind.None, chosen, atChosen, filesLeft, leftBehind)
             : new EntityRoot(
-                null, MonitorRefusalKind.NoAgreedRootForThisEntity, chosen, atChosen, 0, []);
+                null,
+                MonitorRefusalKind.NoAgreedRootForThisEntity,
+                chosen,
+                atChosen,
+                filesLeft,
+                leftBehind);
     }
 }
