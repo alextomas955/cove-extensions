@@ -27,4 +27,25 @@ public interface IEntityFolderPort
     /// <paramref name="kind"/> is not a kind this product expresses.
     /// </exception>
     IAsyncEnumerable<string> FoldersFor(WhisparrEntityKind kind, int coveId, CancellationToken ct);
+
+    /// <summary>
+    /// How many files the <paramref name="kind"/> entity <paramref name="coveId"/> names holds under
+    /// <paramref name="coveRoot"/>.
+    /// </summary>
+    /// <remarks>
+    /// One scalar, answered by the database, so the cost of asking does not grow with the number of
+    /// files under the root. The narrowing is on the denormalized path column the host stores and
+    /// indexes rather than on the folder row, which is what makes the read an index seek.
+    /// <para>
+    /// The root's trailing separator is part of the prefix, so a sibling directory whose name begins
+    /// with the root's own name is not under it. An id below one answers zero, because there is no
+    /// entity for it to be about.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="kind"/> is not a kind this product expresses.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="coveRoot"/> is blank.</exception>
+    Task<int> FilesUnderAsync(
+        WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct);
 }

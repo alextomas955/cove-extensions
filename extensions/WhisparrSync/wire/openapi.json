@@ -2962,6 +2962,7 @@
           "capabilityAbsentOnThisGeneration",
           "noQualityProfile",
           "noRootFolder",
+          "noAgreedRootForThisEntity",
           "instanceRefused",
           "answerTooLargeToRead",
           "instanceHoldsNoSuchEntity",

@@ -66,4 +66,17 @@ public interface IFolderAddressPort
     /// </exception>
     Task<AddressedFolder> AddressAsync(
         FolderAddressTarget target, string coveRoot, string supplied, CancellationToken ct);
+
+    /// <summary>
+    /// What instance root <paramref name="coveRoot"/> itself agrees with on
+    /// <paramref name="target"/>.
+    /// </summary>
+    /// <remarks>
+    /// The same held reading every folder under that root is addressed through, so asking once per
+    /// entity still costs one establishment per root. <see cref="AddressedFolder.InstancePath"/>
+    /// carries the instance's own root rather than a folder beneath it.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="coveRoot"/> is blank.</exception>
+    Task<AddressedFolder> AgreedRootAsync(
+        FolderAddressTarget target, string coveRoot, CancellationToken ct);
 }

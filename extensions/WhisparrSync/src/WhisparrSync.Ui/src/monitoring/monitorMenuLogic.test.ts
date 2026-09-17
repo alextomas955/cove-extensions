@@ -333,7 +333,12 @@ describe("one refusal, one sentence", () => {
   });
 
   it("keeps the control usable for a refusal that was one attempt failing", () => {
-    for (const kind of ["noQualityProfile", "noRootFolder", "instanceRefused"] as const) {
+    for (const kind of [
+      "noQualityProfile",
+      "noRootFolder",
+      "noAgreedRootForThisEntity",
+      "instanceRefused",
+    ] as const) {
       const menu = monitorMenu(view({ kind: "studio", refusal: kind }), false);
       expect(menu.available, kind).toBe(true);
       expect(menu.items.length, kind).toBeGreaterThan(0);
@@ -373,6 +378,8 @@ const EXPECTED_NOTICE: Record<MonitorRefusalKind, string | null> = {
     "Whisparr offers no quality profile, so nothing was sent. Add one in Whisparr and try again.",
   noRootFolder:
     "Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.",
+  noAgreedRootForThisEntity:
+    "Whisparr and Cove have not agreed on where this entity's files are, so nothing was sent. Set the folder mapping for that library folder on this extension's settings page.",
   instanceRefused: "Whisparr would not do this. Nothing here was changed.",
   answerTooLargeToRead:
     "Whisparr's answer was larger than this extension reads at once. Your Whisparr answered correctly. Reload the page for its current state.",
@@ -402,12 +409,13 @@ describe("which refusal speaks beneath the control, and which speaks at it", () 
     }
 
     const speaking = MONITOR_REFUSAL_KINDS.filter((kind) => refusalNoticeFor(kind) !== null);
-    expect(speaking).toHaveLength(6);
+    expect(speaking).toHaveLength(7);
     expect([...speaking].sort()).toEqual([
       "answerTooLargeToRead",
       "instanceDidNotReportTheChange",
       "instanceHoldsNoSuchEntity",
       "instanceRefused",
+      "noAgreedRootForThisEntity",
       "noQualityProfile",
       "noRootFolder",
     ]);
