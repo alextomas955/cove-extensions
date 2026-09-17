@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
+using WhisparrSync.Import;
 
 namespace WhisparrSync.Monitoring;
 
@@ -76,6 +77,12 @@ internal sealed record FolderAddressRefusal(
 /// counts because a root that agreed is what clears that root's stored refusal, and a count cannot
 /// say which root it was.
 /// </param>
+/// <param name="EntriesLeftUnderAnotherRoot">
+/// How many files were left out because the instance holds the site they would join under a
+/// different declared root from the file itself. Apart from <paramref name="FoldersRefused"/> on
+/// purpose: the instance declined nothing here and was never asked about these files, and an import
+/// across two roots copies the bytes in full rather than linking them.
+/// </param>
 internal sealed record ReflectOwnedRun(
     ReflectOwnedRunOutcome Outcome,
     int FoldersAttached,
@@ -83,7 +90,25 @@ internal sealed record ReflectOwnedRun(
     ReflectOwnedSkipReason? Skipped = null,
     int FoldersNotAddressed = 0,
     IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null,
-    IReadOnlyList<string>? AddressedRoots = null);
+    IReadOnlyList<string>? AddressedRoots = null,
+    int EntriesLeftUnderAnotherRoot = 0);
+
+/// <summary>What one folder's rows became, beside what was left out of them.</summary>
+/// <remarks>
+/// The two travel together because the entries reach the instance through an early continue when
+/// there are none, and a count carried anywhere else would be lost exactly on the folder whose every
+/// row was left out.
+/// </remarks>
+/// <param name="Entries">The entries to send, or null when no row can be attached.</param>
+/// <param name="LeftUnderAnotherRoot">
+/// How many rows were left out because the file and the site it matched sit under different declared
+/// roots.
+/// </param>
+internal sealed record PlannedFiles(JsonArray? Entries, int LeftUnderAnotherRoot)
+{
+    /// <summary>A folder that produced nothing to send and left nothing out.</summary>
+    internal static PlannedFiles Nothing { get; } = new(null, 0);
+}
 
 /// <summary>Whether, and with what, an instance is asked to link files the library already holds.</summary>
 /// <remarks>
@@ -121,6 +146,12 @@ internal static class ReflectOwnedPlanner
     /// <summary>The media-management member both generations report the setting under.</summary>
     internal const string HardLinkSetting = "copyUsingHardlinks";
 
+    /// <summary>The member the newer generation names the scene a row matched under.</summary>
+    private const string V3MatchedMember = "movie";
+
+    /// <summary>The member the older generation names the series a row matched under.</summary>
+    private const string V2MatchedMember = "series";
+
     /// <summary>Whether to act on what the media-management read answered.</summary>
     internal static ReflectOwnedDecision Decide(string? mediaManagement)
     {
@@ -138,25 +169,54 @@ internal static class ReflectOwnedPlanner
 
     /// <summary>
     /// The file entries one folder's parsed rows become, spelled as <paramref name="generation"/>'s
-    /// own interface spells them, or null when no row can be attached.
+    /// own interface spells them, beside the rows left out because the instance holds their site
+    /// under a different root.
     /// </summary>
-    internal static JsonArray? Files(WhisparrGeneration generation, string? importable)
+    /// <remarks>
+    /// The import mode that links copies the whole file instead, with no error and no distinct
+    /// outcome, whenever the source and the destination are not on one filesystem. Measured on
+    /// 2026-09-16 against two roots on separate devices: the bytes were copied in full and the run
+    /// reported a success.
+    /// <para>
+    /// Compared by declared root rather than by device, which is a conservative stand-in: two roots
+    /// on one device cost a link that would have been safe, and no arrangement costs data. Where
+    /// either path sits under no declared root, or the instance declares none, there is no
+    /// comparison to make and the entry stays: a guard that dropped on an unknown would stop every
+    /// import on an instance whose roots could not be read.
+    /// </para>
+    /// </remarks>
+    /// <param name="generation">Whose row spellings the rows are read under.</param>
+    /// <param name="importable">The instance's own listing of the folder.</param>
+    /// <param name="instanceRoots">The roots the instance declares for itself.</param>
+    internal static PlannedFiles Files(
+        WhisparrGeneration generation, string? importable, IReadOnlyList<string> instanceRoots)
     {
+        ArgumentNullException.ThrowIfNull(instanceRoots);
+
         if (AsArray(importable) is not { } rows)
         {
-            return null;
+            return PlannedFiles.Nothing;
         }
 
         var files = new JsonArray();
+        var leftUnderAnotherRoot = 0;
         foreach (var row in rows.OfType<JsonObject>())
         {
-            if (Entry(generation, row) is { } entry)
+            if (Entry(generation, row) is not { } entry)
             {
-                files.Add(entry);
+                continue;
             }
+
+            if (UnderDifferentRoots(generation, row, instanceRoots))
+            {
+                leftUnderAnotherRoot++;
+                continue;
+            }
+
+            files.Add(entry);
         }
 
-        return files.Count == 0 ? null : files;
+        return new PlannedFiles(files.Count == 0 ? null : files, leftUnderAnotherRoot);
     }
 
     /// <summary>The command that attaches <paramref name="files"/>.</summary>
@@ -191,6 +251,7 @@ internal static class ReflectOwnedPlanner
     /// </remarks>
     internal static async Task<ReflectOwnedRun> RunAsync(
         WhisparrGeneration generation,
+        IReadOnlyList<string> instanceRoots,
         IAsyncEnumerable<string> folders,
         Func<string, CancellationToken, Task<AddressedFolder>> address,
         Func<string, CancellationToken, Task<ImportableListing>> readImportable,
@@ -205,6 +266,7 @@ internal static class ReflectOwnedPlanner
         var attached = 0;
         var refused = 0;
         var unaddressed = 0;
+        var leftUnderAnotherRoot = 0;
         var refusalByRoot = new Dictionary<string, FolderAddressRefusal>(StringComparer.Ordinal);
         var addressedRoots = new HashSet<string>(StringComparer.Ordinal);
         try
@@ -237,7 +299,9 @@ internal static class ReflectOwnedPlanner
                     continue;
                 }
 
-                if (Files(generation, listing.Rows) is not { } files)
+                var planned = Files(generation, listing.Rows, instanceRoots);
+                leftUnderAnotherRoot += planned.LeftUnderAnotherRoot;
+                if (planned.Entries is not { } files)
                 {
                     continue;
                 }
@@ -267,14 +331,73 @@ internal static class ReflectOwnedPlanner
                 null,
                 unaddressed,
                 [.. refusalByRoot.Values],
-                [.. addressedRoots]);
+                [.. addressedRoots],
+                leftUnderAnotherRoot);
     }
+
+    /// <summary>
+    /// Whether the row's own file and the site it matched sit under different declared roots.
+    /// </summary>
+    /// <remarks>
+    /// The most specific containing root answers for each path. Roots nest - an instance declaring
+    /// both a parent and two children under it is the arrangement this guard exists for - and taking
+    /// the first declared would answer the parent for both paths and see one root where there are
+    /// two.
+    /// </remarks>
+    private static bool UnderDifferentRoots(
+        WhisparrGeneration generation, JsonObject row, IReadOnlyList<string> instanceRoots)
+    {
+        if (instanceRoots.Count == 0)
+        {
+            return false;
+        }
+
+        var file = RootOf(Text(row, "path"), instanceRoots);
+        var site = RootOf(Text(row[MatchedMember(generation)] as JsonObject, "path"), instanceRoots);
+
+        return file is not null
+            && site is not null
+            && !string.Equals(file, site, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The most specific declared root <paramref name="path"/> sits under, or null when it sits
+    /// under none.
+    /// </summary>
+    private static string? RootOf(string? path, IReadOnlyList<string> roots)
+        => path is null
+            ? null
+            : roots
+                .Where(root => PathCandidateGuard.TailBelow(path, root) is not null)
+                .OrderByDescending(root => PathCandidateGuard.Normalize(root).Length)
+                .FirstOrDefault();
+
+    /// <summary>The member a row names the entity it matched under.</summary>
+    private static string MatchedMember(WhisparrGeneration generation)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => V3MatchedMember,
+            WhisparrGeneration.V2 => V2MatchedMember,
+            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
+        };
+
+    /// <summary>
+    /// The non-blank text <paramref name="member"/> names, or null when it names none.
+    /// </summary>
+    private static string? Text(JsonObject? owner, string member)
+        => owner?[member] is JsonValue value
+            && value.TryGetValue<string>(out var text)
+            && !string.IsNullOrWhiteSpace(text)
+                ? text
+                : null;
 
     // Both spellings are transcribed from the interface bundle each build ships. The newer names one
     // scene; the older names a series and the episodes matched inside it.
     private static JsonObject? Entry(WhisparrGeneration generation, JsonObject row)
     {
-        if (row["quality"] is not JsonObject quality || row["languages"] is not JsonArray languages)
+        if (row["quality"] is not JsonObject quality
+            || row["languages"] is not JsonArray languages
+            || Text(row, "path") is null)
         {
             return null;
         }
@@ -293,7 +416,7 @@ internal static class ReflectOwnedPlanner
         switch (generation)
         {
             case WhisparrGeneration.V3:
-                if (MatchedId(row, "movie") is not { } movieId)
+                if (MatchedId(row, V3MatchedMember) is not { } movieId)
                 {
                     return null;
                 }
@@ -303,7 +426,7 @@ internal static class ReflectOwnedPlanner
                 return entry;
 
             case WhisparrGeneration.V2:
-                if (MatchedId(row, "series") is not { } seriesId
+                if (MatchedId(row, V2MatchedMember) is not { } seriesId
                     || row["episodes"] is not JsonArray episodes)
                 {
                     return null;

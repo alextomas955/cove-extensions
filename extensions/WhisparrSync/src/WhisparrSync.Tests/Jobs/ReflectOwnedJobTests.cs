@@ -4,6 +4,7 @@ using Cove.Core.Auth;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
+using WhisparrSync.Import;
 using WhisparrSync.Jobs;
 using WhisparrSync.Monitoring;
 
@@ -173,6 +174,7 @@ public sealed class ReflectOwnedJobTests
         var services = new ServiceCollection();
         services.AddScoped<ICurrentPrincipalAccessor>(_ => FakePrincipalAccessor.WithPermissions());
         services.AddScoped<IEntityFolderPort>(_ => new FixedFolders(folders));
+        services.AddScoped<IReportedRootPort>(_ => new NoDeclaredRoots());
         await using var provider = services.BuildServiceProvider();
 
         return await ReflectOwnedJob.RunAsync(
@@ -202,5 +204,13 @@ public sealed class ReflectOwnedJobTests
 
         public Task<int> VideoFilesUnderAsync(int videoId, string coveRoot, CancellationToken ct)
             => throw new NotSupportedException("This case is about the folder loop.");
+    }
+
+    /// <summary>An instance declaring no root, so no file is compared against one.</summary>
+    private sealed class NoDeclaredRoots : IReportedRootPort
+    {
+        public Task<IReadOnlyList<string>> ReadAsync(
+            WhisparrGeneration generation, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<string>>([]);
     }
 }
