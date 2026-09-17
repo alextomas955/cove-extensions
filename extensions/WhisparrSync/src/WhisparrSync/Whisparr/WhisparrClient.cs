@@ -686,9 +686,18 @@ internal sealed class WhisparrClient(
 
     /// <summary>Whether v2's instance holds the entity named by an identifier.</summary>
     /// <remarks>
-    /// One read, narrowed to the number the metadata source names the site by, so what it answers
-    /// does not vary with how much the instance holds. Only the matched entry is carried onward,
-    /// because this generation narrows its own answer by no parameter it publishes a contract for.
+    /// One read, narrowed to the number the metadata source names the site by, so how much it
+    /// answers does not vary with how much the instance holds. Only the matched entry is carried
+    /// onward, because this generation narrows its own answer by no parameter it publishes a
+    /// contract for.
+    /// <para>
+    /// How long it takes does vary with the holdings, which is why the read is bounded by
+    /// <see cref="LibraryReadTimeout"/> rather than <see cref="RequestTimeout"/>. This generation
+    /// builds its whole set before filtering, so the narrowed answer is no faster than the
+    /// unfiltered one: an instance holding 512 sites answers this in about 41 seconds while
+    /// returning a few kilobytes. Bounded as a per-item call it times out on every site, and the
+    /// site pass then registers and moves nothing.
+    /// </para>
     /// </remarks>
     private async Task<WhisparrResponse> ReadHeldSeriesAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
@@ -704,7 +713,8 @@ internal sealed class WhisparrClient(
             baseAddress,
             apiKey,
             api => api.Api<V2Api.ISeriesApi>().ListSeriesAsync(
-                tvdbId: siteNumber, cancellationToken: ct)).ConfigureAwait(false);
+                tvdbId: siteNumber, cancellationToken: ct),
+            LibraryReadTimeout).ConfigureAwait(false);
         if (Refused(listed))
         {
             return listed;
