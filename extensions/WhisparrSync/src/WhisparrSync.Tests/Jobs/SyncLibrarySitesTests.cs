@@ -162,6 +162,7 @@ public sealed class SyncLibrarySitesTests
             Answering(reads, RecordingWhisparrClient.Json(404, string.Empty)),
             Answering(adds, RecordingWhisparrClient.Json(201, RegisteredRow)),
             NeverMoves,
+            NeverRefreshes,
             agreedRoot: null,
             new LibrarySiteIdentity(4, FirstSite),
             TestCt);
@@ -170,6 +171,7 @@ public sealed class SyncLibrarySitesTests
             Answering(reads, RecordingWhisparrClient.Json(200, HeldRow)),
             Answering(adds, RecordingWhisparrClient.Json(201, RegisteredRow)),
             NeverMoves,
+            NeverRefreshes,
             agreedRoot: null,
             new LibrarySiteIdentity(7, SecondSite),
             TestCt);
@@ -197,6 +199,7 @@ public sealed class SyncLibrarySitesTests
             (_, _) => Task.FromResult<WhisparrResponse?>(null),
             Answering(adds, RecordingWhisparrClient.Json(201, RegisteredRow)),
             NeverMoves,
+            NeverRefreshes,
             agreedRoot: null,
             new LibrarySiteIdentity(4, FirstSite),
             TestCt);
@@ -424,6 +427,35 @@ public sealed class SyncLibrarySitesTests
 
         Assert.Equal(SceneRegistration.AlreadyHeld, outcome.Registration);
         Assert.Empty(instance.Moves);
+        Assert.Empty(instance.Adds);
+    }
+
+    /// <summary>
+    /// A move whose catalogue re-read never arrived is finished by the next pass, which then stops.
+    /// </summary>
+    /// <remarks>
+    /// The update lands before the re-read, so a timeout between the two leaves the site registered
+    /// at the right root and reporting no file. Its root reads as correct from then on, so without a
+    /// re-read decided on its own the site would stay unlinked with nothing able to repair it.
+    /// </remarks>
+    [Fact]
+    public async Task AMoveWhoseCatalogueReReadDidNotArriveIsFinishedByTheNextPass()
+    {
+        var instance = new InstanceHolding((FirstSite, HeldSiteId, OtherRoot))
+        {
+            MoveLosesTheCatalogueReRead = true,
+        };
+
+        var interrupted = await PassAsync(instance, FirstSite, AgreedRoot, TestCt);
+        var repairing = await PassAsync(instance, FirstSite, AgreedRoot, TestCt);
+        var settled = await PassAsync(instance, FirstSite, AgreedRoot, TestCt);
+
+        Assert.Equal(SceneRegistration.Refused, interrupted.Registration);
+        Assert.Equal(AgreedRoot, instance.RootOf(FirstSite));
+        Assert.Equal(SceneRegistration.AlreadyHeld, repairing.Registration);
+        Assert.Equal(SceneRegistration.AlreadyHeld, settled.Registration);
+        Assert.Equal([HeldSiteId], instance.Refreshes);
+        Assert.Equal([(HeldSiteId, AgreedRoot)], instance.Moves);
         Assert.Empty(instance.Adds);
     }
 
@@ -697,6 +729,7 @@ public sealed class SyncLibrarySitesTests
             instance.ReadAsync,
             instance.AddAsync,
             instance.MoveAsync,
+            instance.RefreshAsync,
             agreedRoot,
             new LibrarySiteIdentity(4, site),
             ct);
@@ -746,6 +779,10 @@ public sealed class SyncLibrarySitesTests
     /// <summary>A move no case under it may make, so a call faults rather than passing unnoticed.</summary>
     private static Task<WhisparrResponse?> NeverMoves(int siteId, string root, CancellationToken ct)
         => throw new InvalidOperationException("This case must send no move.");
+
+    /// <summary>The same for the catalogue re-read.</summary>
+    private static Task<WhisparrResponse?> NeverRefreshes(int siteId, CancellationToken ct)
+        => throw new InvalidOperationException("This case must send no catalogue re-read.");
 
     private static List<LibrarySiteIdentity> Sites(int count)
         => [.. Enumerable.Range(1, count).Select(
@@ -903,17 +940,30 @@ public sealed class SyncLibrarySitesTests
     /// </remarks>
     private sealed class InstanceHolding
     {
-        private readonly Dictionary<string, (int Id, string Root)> _held;
+        /// <summary>What a site whose catalogue the instance has read reports.</summary>
+        private const int LinkedFiles = 2;
+
+        private readonly Dictionary<string, (int Id, string Root, int Files)> _held;
 
         public InstanceHolding(params (string Site, int Id, string Root)[] held)
             => _held = held.ToDictionary(
-                entry => entry.Site, entry => (entry.Id, entry.Root), StringComparer.Ordinal);
+                entry => entry.Site,
+                entry => (entry.Id, entry.Root, LinkedFiles),
+                StringComparer.Ordinal);
 
         public List<string> Adds { get; } = [];
 
         public List<(int SiteId, string Root)> Moves { get; } = [];
 
+        public List<int> Refreshes { get; } = [];
+
         public bool RefusesTheMove { get; init; }
+
+        /// <summary>
+        /// The update lands and the catalogue re-read beside it does not, which is what a timeout or
+        /// a restart between the two leaves behind.
+        /// </summary>
+        public bool MoveLosesTheCatalogueReRead { get; init; }
 
         /// <summary>Stopped once one move is made, standing in for the host stopping the job.</summary>
         public CancellationTokenSource? StopAfterTheFirstMove { get; init; }
@@ -926,7 +976,7 @@ public sealed class SyncLibrarySitesTests
             ct.ThrowIfCancellationRequested();
             return Task.FromResult<WhisparrResponse?>(
                 _held.TryGetValue(site, out var entry)
-                    ? MonitorHost.Json(200, Row(entry.Id, entry.Root))
+                    ? MonitorHost.Json(200, Row(entry.Id, entry.Root, entry.Files))
                     : MonitorHost.Json(404, string.Empty));
         }
 
@@ -934,7 +984,7 @@ public sealed class SyncLibrarySitesTests
         {
             ct.ThrowIfCancellationRequested();
             Adds.Add(site);
-            _held[site] = (RegisteredSiteId, AgreedRoot);
+            _held[site] = (RegisteredSiteId, AgreedRoot, LinkedFiles);
             return Task.FromResult<WhisparrResponse?>(MonitorHost.Json(201, RegisteredRow));
         }
 
@@ -950,18 +1000,35 @@ public sealed class SyncLibrarySitesTests
 
             foreach (var (site, entry) in _held.Where(entry => entry.Value.Id == siteId).ToList())
             {
-                _held[site] = (entry.Id, root);
+                _held[site] = (entry.Id, root, MoveLosesTheCatalogueReRead ? 0 : entry.Files);
             }
 
             StopAfterTheFirstMove?.Cancel();
-            return Task.FromResult<WhisparrResponse?>(MonitorHost.Json(202, "{}"));
+
+            return Task.FromResult<WhisparrResponse?>(
+                MoveLosesTheCatalogueReRead
+                    ? MonitorHost.Json(503, "[]")
+                    : MonitorHost.Json(202, "{}"));
+        }
+
+        public Task<WhisparrResponse?> RefreshAsync(int siteId, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            Refreshes.Add(siteId);
+
+            foreach (var (site, entry) in _held.Where(entry => entry.Value.Id == siteId).ToList())
+            {
+                _held[site] = (entry.Id, entry.Root, LinkedFiles);
+            }
+
+            return Task.FromResult<WhisparrResponse?>(MonitorHost.Json(201, "{}"));
         }
 
         /// <remarks>
         /// Serialized rather than interpolated, so a root carrying the separator a Windows instance
         /// answers with reaches the step as the instance really spells it.
         /// </remarks>
-        private static string Row(int siteId, string root)
+        private static string Row(int siteId, string root, int files)
         {
             var separator = root.Contains('\\', StringComparison.Ordinal) ? "\\" : "/";
 
@@ -971,6 +1038,7 @@ public sealed class SyncLibrarySitesTests
                 ["title"] = "Jay Bank Presents",
                 ["rootFolderPath"] = root,
                 ["path"] = root + separator + "Jay Bank Presents",
+                ["statistics"] = new JsonObject { ["episodeFileCount"] = files },
             }.ToJsonString();
         }
     }

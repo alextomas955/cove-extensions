@@ -94,6 +94,9 @@ internal static class OutboundSeam
             // names no transfer parameter, which is what leaves the library's own files where they
             // are.
             [nameof(IWhisparrSiteRegistrationActing.MoveSiteRootAsync)] = WhisparrVerbClass.Act,
+            // Acting, and repeatable: it asks the instance to read what is on disk under the path it
+            // already holds. It composes no body, moves no file and changes no registration.
+            [nameof(IWhisparrSiteRegistrationActing.RefreshSiteCatalogueAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync)] = WhisparrVerbClass.Act,
