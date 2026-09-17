@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Contracts;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 using V2Api = Whisparr2.Net.Api;
@@ -21,6 +22,7 @@ namespace WhisparrSync.Tests.Whisparr;
 public sealed class GatewayBudgetTests
 {
     private const string SomeKey = "0123456789abcdef0123456789abcdef";
+    private const string SomeSiteIdentifier = "a30bc641-6afe-4c80-9c73-ecb68104a68d";
 
     private static readonly Uri SomeAddress = new("http://whisparr:6969");
     private static readonly TimeSpan LongerThanTheSlowAnswer = TimeSpan.FromSeconds(10);
@@ -77,6 +79,41 @@ public sealed class GatewayBudgetTests
 
         await client.ReduceHeldSitesAsync(
             SomeAddress, SomeKey, [207], TestContext.Current.CancellationToken);
+
+        Assert.Contains(WhisparrClient.LibraryReadTimeout, builtWith);
+        Assert.DoesNotContain(WhisparrClient.RequestTimeout, builtWith);
+    }
+
+    /// <summary>
+    /// Reading whether one site is held is made against the longer budget too.
+    /// </summary>
+    /// <remarks>
+    /// Narrowing the read by the site's own number bounds how much comes back, not how long it
+    /// takes: this generation builds its whole set before filtering, so a few kilobytes about one
+    /// site arrive no sooner than the whole list does. On an instance holding enough sites that
+    /// answer exceeds <see cref="WhisparrClient.RequestTimeout"/>, so budgeting it as a per-item
+    /// call gives up on every site in the library and the site pass registers and moves nothing.
+    /// </remarks>
+    [Fact]
+    public async Task ReadingWhetherOneSiteIsHeldIsBudgetedForAReadOfEverythingHeld()
+    {
+        var builtWith = new List<TimeSpan>();
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
+        using var http = new HttpClient(handler);
+        WhisparrClient.Configure(http);
+        var client = new WhisparrClient(
+            http,
+            new Whisparr3Gateway(() => handler, c => c.Timeout = http.Timeout),
+            new Whisparr2Gateway(() => handler, c => builtWith.Add(c.Timeout)),
+            TestSiteNumbers.Numbering(SomeSiteIdentifier, 207),
+            NullLogger.Instance);
+
+        await client.ReadStudioAsync(
+            SomeAddress,
+            SomeKey,
+            WhisparrGeneration.V2,
+            SomeSiteIdentifier,
+            TestContext.Current.CancellationToken);
 
         Assert.Contains(WhisparrClient.LibraryReadTimeout, builtWith);
         Assert.DoesNotContain(WhisparrClient.RequestTimeout, builtWith);
