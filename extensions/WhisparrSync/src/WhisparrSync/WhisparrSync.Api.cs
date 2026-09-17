@@ -2106,6 +2106,7 @@ public sealed partial class WhisparrSync
         var linkingResolved = false;
         var foldersAttached = 0;
         var foldersRefused = 0;
+        var entriesLeftUnderAnotherRoot = 0;
         var linkingReached = false;
 
         // One line per library root for the whole selection. Every entity under one root reaches the
@@ -2128,7 +2129,11 @@ public sealed partial class WhisparrSync
                 run,
                 linkingReached
                     ? new MonitorBulkLinking(
-                        linkingSkipped, foldersAttached, foldersRefused, [.. addressRefusals.Values])
+                        linkingSkipped,
+                        foldersAttached,
+                        foldersRefused,
+                        [.. addressRefusals.Values],
+                        entriesLeftUnderAnotherRoot)
                     : null));
         ct.ThrowIfCancellationRequested();
 
@@ -2273,6 +2278,7 @@ public sealed partial class WhisparrSync
                 .RunOneAsync(services, aimed, kind, coveId, entityCt).ConfigureAwait(false);
             foldersAttached += linked.FoldersAttached;
             foldersRefused += linked.FoldersRefused;
+            entriesLeftUnderAnotherRoot += linked.EntriesLeftUnderAnotherRoot;
             foreach (var root in linked.AddressedRoots ?? [])
             {
                 addressedRoots.Add(root);

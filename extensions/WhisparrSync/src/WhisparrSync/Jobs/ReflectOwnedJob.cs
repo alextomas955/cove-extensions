@@ -63,6 +63,15 @@ public static class ReflectOwnedJob
     /// <summary>The job id this extension's own type prefix is minted onto.</summary>
     public const string JobId = "reflect-owned";
 
+    /// <summary>The one sentence a run that left files under another root is reported in.</summary>
+    /// <remarks>
+    /// It names no file, no folder and no site. The line is durable and its length must not grow
+    /// with the library.
+    /// </remarks>
+    internal const string LeftUnderAnotherRootSentence =
+        "Some files were not linked: Whisparr holds their site under a different root from the "
+        + "files, and nothing was copied.";
+
     private const string KindKey = "kind";
     private const string CoveIdKey = "coveId";
 
@@ -211,6 +220,7 @@ public static class ReflectOwnedJob
             run.FoldersAttached,
             run.FoldersRefused,
             run.AddressRefusals,
+            run.EntriesLeftUnderAnotherRoot,
             run.Outcome == ReflectOwnedRunOutcome.Cancelled);
     }
 
@@ -228,12 +238,16 @@ public static class ReflectOwnedJob
     /// <param name="attached">How many folders' files the instance took.</param>
     /// <param name="refused">How many it declined, or never answered about.</param>
     /// <param name="unaddressed">One entry per library root no path was established under.</param>
+    /// <param name="leftUnderAnotherRoot">
+    /// How many files the instance holds the site for under a different root from the file.
+    /// </param>
     /// <param name="cancelled">Whether the run was stopped part-way.</param>
     internal static string LineFor(
         ReflectOwnedSkipReason? skipped,
         int attached,
         int refused,
         IReadOnlyList<FolderAddressRefusal>? unaddressed,
+        int leftUnderAnotherRoot,
         bool cancelled)
     {
         if (skipped is { } reason)
@@ -242,6 +256,12 @@ public static class ReflectOwnedJob
         }
 
         var reasons = string.Join(' ', (unaddressed ?? []).Select(SentenceFor));
+        if (leftUnderAnotherRoot > 0)
+        {
+            reasons = reasons.Length == 0
+                ? LeftUnderAnotherRootSentence
+                : reasons + " " + LeftUnderAnotherRootSentence;
+        }
 
         if (attached == 0 && refused == 0 && reasons.Length > 0)
         {
