@@ -480,7 +480,8 @@ public sealed partial class WhisparrSync
             {
                 WhisparrSyncLog.SiteRegistrationRefused(
                     _log, site.StudioId, site.RemoteId, composed.Refusal.ToString());
-                return new SyncRegistration(SceneRegistration.Refused, Nothing(composed.Refusal), null);
+                return new SyncRegistration(
+                    SceneRegistration.Refused, Nothing(composed.Refusal), null, composed.Root);
             }
 
             var registered = await SiteRegistrationStep.RegisterAsync(
@@ -512,7 +513,9 @@ public sealed partial class WhisparrSync
                     _log, site.StudioId, site.RemoteId, RefusalReason(registered.Answer));
             }
 
-            return registered;
+            // The root choice travels on the outcome rather than being read again by the run, which
+            // holds nothing per studio and counts what each one answered.
+            return registered with { Root = composed.Root };
         };
 
         // Nothing was sent, so there is no status to classify and the refusal is the whole of what a
