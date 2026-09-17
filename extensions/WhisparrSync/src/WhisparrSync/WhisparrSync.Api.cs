@@ -281,9 +281,10 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(SceneAddRoute,
             (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
              ICredentialPort credentials, IWhisparrClient client,
-             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+             ILibraryCardIdentityPort sceneCards, IServiceScopeFactory scopes,
+             CancellationToken ct)
                 => AddSceneAsync(
-                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+                    coveId, principal, options, credentials, client, sceneCards, scopes, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -2486,6 +2487,11 @@ public sealed partial class WhisparrSync
     private static Func<IEntityFolderPort, string, CancellationToken, Task<int>> FilesOfEntity(
         WhisparrEntityKind kind, int coveId)
         => (files, coveRoot, ct) => files.FilesUnderAsync(kind, coveId, coveRoot, ct);
+
+    /// <summary>How many of one video's own files sit under one library root.</summary>
+    private static Func<IEntityFolderPort, string, CancellationToken, Task<int>> FilesOfVideo(
+        int videoId)
+        => (files, coveRoot, ct) => files.VideoFilesUnderAsync(videoId, coveRoot, ct);
 
     /// <summary>
     /// Composes an add's root per entity from a path holding no elevated services of its own.
