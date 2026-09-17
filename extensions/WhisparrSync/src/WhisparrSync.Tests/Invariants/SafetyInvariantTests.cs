@@ -641,6 +641,11 @@ public sealed class SafetyInvariantTests
     /// Asserted on the declared shapes rather than on what one run put in them, which is the
     /// stronger claim: a run observed at one library size says nothing about the next one. Every one
     /// of these travels to a reader whole, and a library reaches millions of files.
+    /// <para>
+    /// A member bounded by something other than the library is allowed only by naming it below with
+    /// its bound. The rule is that nothing grows with the library, and a collection is the shape that
+    /// usually would.
+    /// </para>
     /// </remarks>
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
@@ -654,12 +659,32 @@ public sealed class SafetyInvariantTests
                 typeof(SyncLibraryRun),
                 typeof(SceneMonitorTally),
             },
-            shape => Assert.Empty(
-                shape.GetProperties()
+            shape =>
+            {
+                var unbounded = shape.GetProperties()
                     .Where(property => property.PropertyType != typeof(string)
                         && typeof(System.Collections.IEnumerable)
                             .IsAssignableFrom(property.PropertyType))
-                    .Select(property => $"{shape.Name}.{property.Name}")));
+                    .Select(property => $"{shape.Name}.{property.Name}")
+                    .Where(member => !BoundedBySomethingOtherThanTheLibrary.Contains(member))
+                    .ToList();
+
+                Assert.Empty(unbounded);
+            });
+
+    /// <summary>
+    /// The collection members allowed above, each bounded by something other than the library.
+    /// </summary>
+    /// <remarks>
+    /// The library roots hold one entry per root an operator configured by hand, each named once, and
+    /// they carry root names only: never an entry, a folder or a file. A member added here has to
+    /// state its own bound the same way.
+    /// </remarks>
+    private static readonly HashSet<string> BoundedBySomethingOtherThanTheLibrary =
+        new(StringComparer.Ordinal)
+        {
+            $"{nameof(SyncLibraryRun)}.{nameof(SyncLibraryRun.RootsLeftBehind)}",
+        };
 
     /// <summary>A scene the library holds, and two more, for the run driven over three.</summary>
     private const string SyncScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
