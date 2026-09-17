@@ -273,17 +273,20 @@ public sealed class BulkEndpointTests
     }
 
     /// <summary>
-    /// A selection whose folders could not be addressed says which reason it was, in the words a
-    /// single entity's run says it in.
+    /// A selection whose library root the instance agrees no spelling for adds nothing at all.
     /// </summary>
     /// <remarks>
-    /// The linking clause here would otherwise read "0 linked, 0 refused." beside a monitor that
-    /// applied, which is a clean pass over folders the instance was never asked about. The instance
-    /// declares one root and holds nothing under it, which is what a container with no counterpart
-    /// for a Cove path really answers.
+    /// The instance declares one root and holds nothing under it, which is what a container with no
+    /// counterpart for a Cove path really answers. Adding anyway would create an entry at a root
+    /// holding none of the entity's files, which can never link anything and which a later run
+    /// cannot tell from an entry a reader made.
+    /// <para>
+    /// Nothing is linked either, and no folder is listed: what would be linked belongs to an entry
+    /// that was never created.
+    /// </para>
     /// </remarks>
     [Fact]
-    public async Task ASelectionThatCouldNotAddressItsFoldersReportsTheReasonRatherThanACountOfZero()
+    public async Task ASelectionWhoseRootAgreedOnNothingAddsNothingAndLinksNothing()
     {
         const string coveRoot = "G:/Downloads/P";
         await using var host = await MonitorHost.CreateAsync(
@@ -297,20 +300,17 @@ public sealed class BulkEndpointTests
                 MonitorHost.Json(200, """{"parent":"/config/library/","directories":[],"files":[]}"""));
         var studio = await host.SeedStudioAsync(
             MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
-        var seeded = await host.SeedStudioFileAsync(studio, coveRoot + "/Blue Harbor", 41);
+        await host.SeedStudioFileAsync(studio, coveRoot + "/Blue Harbor", 41);
         var progress = new RecordingJobProgress();
 
         await host.PostBulkAsync(BodyOf(Studios, "monitor", [studio]));
         await host.RunEnqueuedBatchAsync(progress);
 
-        var onInstance = seeded.Replace(coveRoot, "/config/library", StringComparison.Ordinal);
-        Assert.Equal(
-            (1d, "1 applied, 0 refused. Nothing under " + coveRoot
-                + " could be linked: Whisparr holds nothing at " + onInstance + "."),
-            Assert.Single(progress.Reports));
+        Assert.Equal((1d, "0 applied, 1 refused."), Assert.Single(progress.Reports));
         Assert.DoesNotContain(
             host.Client.Verbs,
-            verb => verb == nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync));
+            verb => verb is nameof(IWhisparrStudioActing.AddMonitoredStudioAsync)
+                or nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync));
     }
 
     /// <summary>

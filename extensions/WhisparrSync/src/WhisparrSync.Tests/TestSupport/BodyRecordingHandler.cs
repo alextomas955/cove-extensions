@@ -28,6 +28,7 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
     private readonly Queue<(HttpStatusCode Status, string Answer)> _answers;
     private readonly BodyShape _shape;
     private readonly Func<string, string>? _byPath;
+    private readonly Func<HttpMethod, string, (HttpStatusCode Status, string Answer)>? _byCall;
 
     private BodyRecordingHandler(params (HttpStatusCode Status, string Answer)[] answers)
         : this(BodyShape.Whole, answers)
@@ -37,6 +38,11 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
     private BodyRecordingHandler(Func<string, string> byPath)
         : this(BodyShape.Whole, (HttpStatusCode.OK, string.Empty))
         => _byPath = byPath;
+
+    private BodyRecordingHandler(
+        Func<HttpMethod, string, (HttpStatusCode Status, string Answer)> byCall)
+        : this(BodyShape.Whole, (HttpStatusCode.OK, string.Empty))
+        => _byCall = byCall;
 
     private BodyRecordingHandler(
         BodyShape shape, params (HttpStatusCode Status, string Answer)[] answers)
@@ -66,6 +72,18 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
     /// reachable. The turn-taking factory keys on order, and the order shifts whenever a call is added.
     /// </remarks>
     public static BodyRecordingHandler AnsweringByPath(Func<string, string> answer)
+        => new(answer);
+
+    /// <summary>
+    /// Answers whatever <paramref name="answer"/> returns for the request's method and path.
+    /// </summary>
+    /// <remarks>
+    /// The status is the case's to state as well as the body. A read and a write can share a path,
+    /// and whether an instance holds an entity is read from the status rather than from the body, so
+    /// a fixture that always answers a success describes an instance holding everything.
+    /// </remarks>
+    public static BodyRecordingHandler AnsweringEach(
+        Func<HttpMethod, string, (HttpStatusCode Status, string Answer)> answer)
         => new(answer);
 
     /// <summary>Answers with more of one answer than the client reads at once.</summary>
@@ -115,6 +133,12 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
         if (_byPath is not null)
         {
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = Content(_byPath(path)) };
+        }
+
+        if (_byCall is not null)
+        {
+            var (called, answered) = _byCall(request.Method, path);
+            return new HttpResponseMessage(called) { Content = Content(answered) };
         }
 
         var (status, answer) = _answers.Count > 1 ? _answers.Dequeue() : _answers.Peek();
