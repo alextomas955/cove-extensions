@@ -219,19 +219,25 @@ public sealed class ReflectOwnedNeverTransfersTests
     /// the run reported.
     /// </summary>
     /// <remarks>
-    /// The answers are positional, and the order is the path's own: the route's setting read, the
-    /// run's own read of the same setting, then one parse and one command per folder.
+    /// The answers are keyed on the path each read asks for rather than on their order, so a read
+    /// added to the run does not silently hand one call's answer to another.
     /// </remarks>
     private static async Task<(MonitorHost Host, RecordingJobProgress Progress)> RunOverAsync(
         string rows)
     {
-        var bytes = BodyRecordingHandler.AnsweringInTurn(
-            (HttpStatusCode.OK, LinksIntoPlace),
-            (HttpStatusCode.OK, LinksIntoPlace),
-            (HttpStatusCode.OK, rows),
-            (HttpStatusCode.OK, "{}"),
-            (HttpStatusCode.OK, rows),
-            (HttpStatusCode.OK, "{}"));
+        var bytes = BodyRecordingHandler.AnsweringEach((_, path) => (
+            HttpStatusCode.OK,
+            path switch
+            {
+                var setting when setting.EndsWith("/config/mediamanagement", StringComparison.Ordinal)
+                    => LinksIntoPlace,
+
+                // No root, so these cases stay about the loop rather than about which root a site
+                // sits under.
+                var roots when roots.EndsWith("/rootfolder", StringComparison.Ordinal) => "[]",
+                var listing when listing.EndsWith("/manualimport", StringComparison.Ordinal) => rows,
+                _ => "{}",
+            }));
 
         var host = await MonitorHost.CreateAsync(bytes: bytes);
         var studioId = await SeededStudio(host);
