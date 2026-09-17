@@ -4,17 +4,28 @@ using WhisparrSync.Tests.TestSupport;
 namespace WhisparrSync.Tests.Monitoring;
 
 /// <summary>
-/// Which folders one entity's own files sit in, read from a real relational library.
+/// Which folders one entity's own files sit in, and how many sit under one library root, read from a
+/// real relational library.
 /// </summary>
 /// <remarks>
 /// The de-duplication is as much the subject as the paths are. A library reaches millions of files,
 /// so a folder set assembled by loading every file and reducing it in memory would answer correctly
 /// and be unusable, which is why the shape of the read is asserted beside the answer.
+/// <para>
+/// The counting cases are about the answer and about which kind's table each arm reads, not about
+/// the SQL. The two traps they exist for are a sibling directory sharing a root's name prefix, and a
+/// root spelled with the separator the library does not store.
+/// </para>
 /// </remarks>
 public sealed class EntityFolderPortTests
 {
     private const string Earlier = "/library/vixen/2025";
     private const string Later = "/library/vixen/2026";
+
+    /// <summary>A library root spelled the way the host stores one, and a second beside it.</summary>
+    private const string FirstRoot = "G:/Downloads/P";
+
+    private const string SecondRoot = "I:/Downloads/P";
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
@@ -171,6 +182,116 @@ public sealed class EntityFolderPortTests
             accumulating => Assert.DoesNotContain(accumulating, source, StringComparison.Ordinal));
     }
 
+    /// <summary>One studio's files under two library roots answer each root's own count.</summary>
+    [Fact]
+    public async Task AStudioSplitAcrossTwoRootsAnswersEachRootsOwnCount()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        await host.SeedStudioFileAsync(studioId, FirstRoot + "/Vixen/2025");
+        await host.SeedStudioFileAsync(studioId, FirstRoot + "/Vixen/2026");
+        await host.SeedStudioFileAsync(studioId, SecondRoot + "/Vixen/2026");
+
+        Assert.Equal(2, await CountUnder(host, WhisparrEntityKind.Studio, studioId, FirstRoot));
+        Assert.Equal(1, await CountUnder(host, WhisparrEntityKind.Studio, studioId, SecondRoot));
+    }
+
+    /// <summary>
+    /// A sibling directory whose name begins with the root's own name counts under neither root.
+    /// </summary>
+    /// <remarks>
+    /// The two roots share a name prefix on purpose: a count taken without the root's trailing
+    /// separator answers three for the shorter root, so this case reddens rather than passing by
+    /// accident.
+    /// </remarks>
+    [Fact]
+    public async Task ASiblingSharingTheRootsNamePrefixCountsUnderNeitherRoot()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        await host.SeedStudioFileAsync(studioId, "/library/vixen/2026");
+        await host.SeedStudioFileAsync(studioId, "/library/vixen-classics/2026");
+        await host.SeedStudioFileAsync(studioId, "/library/vixen-classics/2025");
+
+        Assert.Equal(
+            1, await CountUnder(host, WhisparrEntityKind.Studio, studioId, "/library/vixen"));
+        Assert.Equal(
+            2,
+            await CountUnder(host, WhisparrEntityKind.Studio, studioId, "/library/vixen-classics"));
+    }
+
+    /// <summary>A root spelled with the other separator still counts its files.</summary>
+    /// <remarks>
+    /// The library stores the forward-slash form, and a host configured on Windows names its roots
+    /// the other way, so a count comparing the two as typed would answer zero for every studio.
+    /// </remarks>
+    [Fact]
+    public async Task ARootSpelledWithBackslashesStillCountsItsFiles()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        await host.SeedStudioFileAsync(studioId, FirstRoot + "/Vixen/2026");
+
+        Assert.Equal(
+            1,
+            await CountUnder(host, WhisparrEntityKind.Studio, studioId, @"G:\Downloads\P"));
+    }
+
+    /// <summary>
+    /// A performer's files reach the count through the join row, and a studio's are not in it.
+    /// </summary>
+    /// <remarks>
+    /// Both kinds are seeded in one library under one root, so an arm reading the other kind's table
+    /// finds rows rather than nothing and the mistake is visible.
+    /// </remarks>
+    [Fact]
+    public async Task NeitherKindCountsTheOthersFiles()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        var performerId = await host.SeedPerformerAsync(null, null);
+        await host.SeedStudioFileAsync(studioId, FirstRoot + "/Vixen/2026");
+        await host.SeedPerformerFileAsync(performerId, FirstRoot + "/Vixen/2025");
+        await host.SeedPerformerFileAsync(performerId, FirstRoot + "/Vixen/2026");
+
+        Assert.Equal(1, await CountUnder(host, WhisparrEntityKind.Studio, studioId, FirstRoot));
+        Assert.Equal(
+            2, await CountUnder(host, WhisparrEntityKind.Performer, performerId, FirstRoot));
+    }
+
+    /// <summary>An id below one counts nothing rather than every file carrying no entity.</summary>
+    [Fact]
+    public async Task AnIdBelowOneCountsNothing()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        await host.SeedStudioFileAsync(
+            await host.SeedStudioAsync(null, null), FirstRoot + "/Vixen/2026");
+
+        Assert.Equal(0, await CountUnder(host, WhisparrEntityKind.Studio, 0, FirstRoot));
+        Assert.Equal(0, await CountUnder(host, WhisparrEntityKind.Performer, -1, FirstRoot));
+    }
+
+    /// <summary>A kind this product does not express is a fault here too.</summary>
+    [Fact]
+    public async Task AKindThisProductDoesNotExpressFaultsTheCount()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => CountUnder(host, (WhisparrEntityKind)(-1), 1, FirstRoot));
+    }
+
+    /// <summary>A blank root is refused rather than counted as every file in the library.</summary>
+    [Fact]
+    public async Task ABlankRootIsRefused()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => CountUnder(host, WhisparrEntityKind.Studio, studioId, "   "));
+    }
+
     /// <summary>
     /// The per-root count is the database's, and no file row is loaded to reach it.
     /// </summary>
@@ -188,6 +309,10 @@ public sealed class EntityFolderPortTests
         Assert.Contains("file.Path.StartsWith(prefix)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Select(file => file.Path)", source, StringComparison.Ordinal);
     }
+
+    private static Task<int> CountUnder(
+        MonitorHost host, WhisparrEntityKind kind, int coveId, string coveRoot)
+        => host.Folders.FilesUnderAsync(kind, coveId, coveRoot, TestCt);
 
     private static async Task<List<string>> FoldersOf(
         MonitorHost host, WhisparrEntityKind kind, int coveId)
