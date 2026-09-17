@@ -171,6 +171,24 @@ public sealed class EntityFolderPortTests
             accumulating => Assert.DoesNotContain(accumulating, source, StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The per-root count is the database's, and no file row is loaded to reach it.
+    /// </summary>
+    /// <remarks>
+    /// Read off the source for the reason the folder read's own shape case states: a count assembled
+    /// in memory answers the same number, and only one of the two still works on a library of
+    /// millions. The narrowing is on the denormalized path column, which no folder row is loaded for.
+    /// </remarks>
+    [Fact]
+    public void ThePerRootCountIsTakenAsACount()
+    {
+        var source = PortSource();
+
+        Assert.Contains("CountAsync(ct)", source, StringComparison.Ordinal);
+        Assert.Contains("file.Path.StartsWith(prefix)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Select(file => file.Path)", source, StringComparison.Ordinal);
+    }
+
     private static async Task<List<string>> FoldersOf(
         MonitorHost host, WhisparrEntityKind kind, int coveId)
     {
