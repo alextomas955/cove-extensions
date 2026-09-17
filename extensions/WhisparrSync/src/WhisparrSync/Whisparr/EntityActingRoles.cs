@@ -191,6 +191,37 @@ public interface IWhisparrSiteRegistrationActing
         string foreignId,
         AddDefaults defaults,
         CancellationToken ct);
+
+    /// <summary>
+    /// Moves the site <paramref name="siteId"/> names to <paramref name="rootFolderPath"/>, leaving
+    /// its files where they are.
+    /// </summary>
+    /// <remarks>
+    /// No file is moved or copied. The files are the library's, and this product relocating them is a
+    /// change the owner cannot undo, so a site registered at the wrong root is corrected by changing
+    /// where the instance records it and by nothing else.
+    /// <para>
+    /// The guarantee rests on the request carrying no transfer instruction at all. The instance
+    /// transfers nothing when the transfer parameter is absent, measured against a live instance
+    /// holding linked files under the old root, and the same when it is stated false. So an edit that
+    /// adds the parameter would be the change that could move terabytes, and a serialized-request
+    /// assertion is what holds it out.
+    /// </para>
+    /// <para>
+    /// The instance relinks nothing on its own: the change alone leaves the site reporting no file,
+    /// so this member issues the catalogue re-read that links them as part of the same call.
+    /// </para>
+    /// <para>
+    /// One generation registers this role and the other holds no registration for it, so a target
+    /// connected to the other is refused before any request leaves.
+    /// </para>
+    /// </remarks>
+    Task<WhisparrResponse> MoveSiteRootAsync(
+        Uri baseAddress,
+        string apiKey,
+        int siteId,
+        string rootFolderPath,
+        CancellationToken ct);
 }
 
 /// <summary>Reads which of a set of scenes one site the instance holds has a row for.</summary>

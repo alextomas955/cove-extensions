@@ -9,7 +9,8 @@ namespace WhisparrSync.Monitoring;
 
 /// <summary>The bodies v2 is sent, composed rather than assembled at a call site.</summary>
 /// <remarks>
-/// Pure. Every flag that suppresses acquisition is set here, from ONE local, so an edit cannot set one
+/// Pure but for <see cref="MovedSiteRoot"/>, which changes the resource it is handed and says why.
+/// Every flag that suppresses acquisition is set here, from ONE local, so an edit cannot set one
 /// spelling and miss the other. v2's pair is not v3's: a rule stated in the
 /// newer spellings leaves every body composed here unguarded.
 /// <para>
@@ -158,6 +159,63 @@ internal static class V2BodyProjector
                 monitor: MonitorTypes.None,
                 searchForMissingEpisodes: search,
                 searchForCutoffUnmetEpisodes: search));
+    }
+
+    /// <summary>
+    /// <paramref name="held"/> with its path members moved under <paramref name="instanceRoot"/>.
+    /// </summary>
+    /// <remarks>
+    /// The resource the instance answered, changed and handed back rather than rebuilt. Rebuilding it
+    /// would name a fixed member set, and every member outside that set - the tags, the per-year
+    /// flags, whatever a later client carries - would be dropped on the way back out. That is why the
+    /// argument is changed in place: there is no way to copy this model that a package bump cannot
+    /// silently narrow.
+    /// <para>
+    /// The path is what relocates a site. Changing the root folder alone is accepted and relocates
+    /// nothing, and the instance derives the root folder from the path when the path is set. There is
+    /// no member that names a root and moves the site, so the path is recomposed as the new root and
+    /// the site's own existing last segment. The root folder is sent beside it because the value the
+    /// instance derives is the value sent, so sending it states the intent and changes no outcome.
+    /// </para>
+    /// <para>
+    /// Nothing here instructs a transfer. Whether the files move is a parameter of the request rather
+    /// than a member of this body, and it is left off.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="held"/> carries no path, so there is no last segment to move.
+    /// </exception>
+    internal static SeriesResource MovedSiteRoot(SeriesResource held, string instanceRoot)
+    {
+        ArgumentNullException.ThrowIfNull(held);
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(held.Path);
+
+        held.Path = Under(instanceRoot, held.Path);
+        held.RootFolderPath = instanceRoot;
+        return held;
+    }
+
+    /// <summary>The last segment of <paramref name="path"/>, under <paramref name="root"/>.</summary>
+    /// <remarks>
+    /// Both separators are accepted on the way in because the instance answers whichever its own host
+    /// uses, and the one written out is the one the root already uses: joining a Windows root with a
+    /// forward slash yields a path that instance will not resolve.
+    /// </remarks>
+    private static string Under(string root, string path)
+    {
+        var trimmedRoot = root.TrimEnd('/', '\\');
+        var trimmedPath = path.TrimEnd('/', '\\');
+        var separator = trimmedRoot.Contains('\\', StringComparison.Ordinal)
+            && !trimmedRoot.Contains('/', StringComparison.Ordinal)
+                ? '\\'
+                : '/';
+
+        var lastSegment = trimmedPath[(trimmedPath.LastIndexOfAny(['/', '\\']) + 1)..];
+        return lastSegment.Length == 0
+            ? trimmedRoot
+            : string.Create(
+                CultureInfo.InvariantCulture, $"{trimmedRoot}{separator}{lastSegment}");
     }
 
     /// <summary>Sets only the monitored flag on the entity <paramref name="entityId"/> names.</summary>
