@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Cove.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 using WhisparrSync.Contracts;
+using WhisparrSync.Import;
 
 namespace WhisparrSync.Monitoring;
 
@@ -54,6 +55,30 @@ internal sealed class EntityFolderPort(DbContext db) : IEntityFolderPort
         {
             yield return folder;
         }
+    }
+
+    public async Task<int> FilesUnderAsync(
+        WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct)
+    {
+        // The kind is read first for the reason the folder read states: an unexpressible kind and an
+        // entity holding nothing are different facts and only one of them is about the library.
+        var files = FilesOf(kind, coveId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(coveRoot);
+        if (coveId < 1)
+        {
+            return 0;
+        }
+
+        // The stored path is the forward-slash form, so a root configured with the other separator
+        // would otherwise match nothing. The separator is part of the prefix, so a sibling whose name
+        // begins with the root's own is not under it.
+        var prefix = PathCandidateGuard.Normalize(coveRoot).TrimEnd('/') + "/";
+
+        return await files
+            .AsNoTracking()
+            .Where(file => file.Path.StartsWith(prefix))
+            .CountAsync(ct)
+            .ConfigureAwait(false);
     }
 
     /// <summary>The video files one entity holds, as a query.</summary>
