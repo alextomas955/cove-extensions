@@ -1,0 +1,232 @@
+{
+  "instance": {
+    "build": "2.2.0.231",
+    "image": "ghcr.io/hotio/whisparr:v2-2.2.0-release.231",
+    "container": "whisparr-exp-v2",
+    "generation": "v2",
+    "baseAddress": "http://localhost:16971",
+    "capturedAt": "2026-09-17T01:40:14.559Z"
+  },
+  "question": "Does the series member on a matched manual-import row carry its own path and rootFolderPath, or only an id?",
+  "request": {
+    "method": "GET",
+    "path": "/api/v3/manualimport",
+    "query": {
+      "folder": "/library/inbox",
+      "filterExistingFiles": false
+    }
+  },
+  "arrangement": {
+    "folder": "/library/inbox",
+    "files": [
+      "Tushy - 2015-05-04 - Big Butt Teen Ass Fucked To Pay BF Debt 1080p WEBDL.mp4",
+      "zqx nothing here holds this 2099-01-01 1080p WEBDL.mp4"
+    ],
+    "matchingFileNamedAfter": {
+      "seriesId": 2,
+      "title": "Tushy",
+      "registeredAt": "/library/rootA"
+    },
+    "unmatchedFile": "zqx nothing here holds this 2099-01-01 1080p WEBDL.mp4"
+  },
+  "response": {
+    "status": 200
+  },
+  "rows": [
+    {
+      "path": "/library/inbox/Tushy - 2015-05-04 - Big Butt Teen Ass Fucked To Pay BF Debt 1080p WEBDL.mp4",
+      "relativePath": "Tushy - 2015-05-04 - Big Butt Teen Ass Fucked To Pay BF Debt 1080p WEBDL.mp4",
+      "name": "Tushy - 2015-05-04 - Big Butt Teen Ass Fucked To Pay BF Debt 1080p WEBDL",
+      "size": 72246,
+      "series": {
+        "title": "Tushy",
+        "sortTitle": "tushy",
+        "status": "continuing",
+        "ended": false,
+        "overview": "Tushy is a part of the Vixen Media Group network.",
+        "network": "Vixen Media Group",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://cdn.theporndb.net/sites/ce/6b/fd/6970d531c4f80526abba7e3112a0b6a/poster/tushy-poster.jpg"
+          },
+          {
+            "coverType": "logo",
+            "remoteUrl": "https://cdn.theporndb.net/sites/1c/13/81/1e479b4c52c0d8586b6e8c1ed34c805/logo/01HVSPZ7VFW64HANHDNHMNWE8X.png"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 2015,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2016,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2017,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2018,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2019,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2020,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2021,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2022,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2023,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2024,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2025,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2026,
+            "monitored": false
+          }
+        ],
+        "year": 2015,
+        "path": "/library/rootA/Tushy",
+        "qualityProfileId": 4,
+        "monitored": false,
+        "seriesType": "standard",
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 40,
+        "tvdbId": 3417,
+        "cleanTitle": "tushy",
+        "titleSlug": "tushy",
+        "genres": [],
+        "tags": [],
+        "added": "2026-09-17T01:30:28Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 2
+      },
+      "seasonNumber": 2015,
+      "episodes": [
+        {
+          "seriesId": 2,
+          "tvdbId": 1010707,
+          "episodeFileId": 0,
+          "seasonNumber": 2015,
+          "title": "Big Butt Teen Ass Fucked To Pay BF Debt",
+          "releaseDate": "2015-05-04",
+          "runtime": 40,
+          "overview": "Abella is sick of her boyfriend’s poker addiction. This has happened before. She has to fuck other men to pay off his debts. But this time is different. This time, this creditor wants payment from her ass! She surprises herself how she loves her round butt being spanked and being told exactly what to do. She is made to take his entire length in her throat before he informs her that it isn’t her pussy but her tight little ass that he really wants. She has never tried anal but her boyfriend’s debt is so big she has no other option. As he bangs into her virgin butthole she realises just what she’s been missing out on.",
+          "hasFile": false,
+          "monitored": false,
+          "actors": [
+            {
+              "tpdbId": 82842,
+              "name": "Abella Danger",
+              "character": "Abella Danger",
+              "gender": "female",
+              "images": []
+            },
+            {
+              "tpdbId": 83099,
+              "name": "Manuel Ferrara",
+              "character": "Manuel Ferrara",
+              "gender": "male",
+              "images": []
+            }
+          ],
+          "id": 347
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 8,
+          "name": "WEBDL-480p",
+          "source": "web",
+          "resolution": 480
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "qualityWeight": 4,
+      "customFormats": [],
+      "customFormatScore": 0,
+      "indexerFlags": 0,
+      "rejections": [
+        {
+          "reason": "Sample",
+          "type": "permanent"
+        }
+      ],
+      "id": 1065420791
+    },
+    {
+      "path": "/library/inbox/zqx nothing here holds this 2099-01-01 1080p WEBDL.mp4",
+      "relativePath": "zqx nothing here holds this 2099-01-01 1080p WEBDL.mp4",
+      "name": "zqx nothing here holds this 2099-01-01 1080p WEBDL",
+      "size": 72246,
+      "quality": {
+        "quality": {
+          "id": 3,
+          "name": "WEBDL-1080p",
+          "source": "web",
+          "resolution": 1080
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "languages": [
+        {
+          "id": 0,
+          "name": "Unknown"
+        }
+      ],
+      "qualityWeight": 13,
+      "customFormats": [],
+      "customFormatScore": 0,
+      "indexerFlags": 0,
+      "rejections": [
+        {
+          "reason": "Unknown Series",
+          "type": "permanent"
+        }
+      ],
+      "id": 1444214165
+    }
+  ]
+}
