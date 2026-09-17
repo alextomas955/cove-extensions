@@ -769,6 +769,80 @@ internal sealed class WhisparrClient(
                 ct)).ConfigureAwait(false);
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// One read and one update, then the catalogue re-read that links the files. The update's body is
+    /// the resource the read answered rather than one composed here, for the reason the v3 scope
+    /// change re-sends its own read.
+    /// <para>
+    /// No transfer parameter is named, which is what leaves the files where they are.
+    /// </para>
+    /// <para>
+    /// The re-read is not optional. The update alone rewrites where the instance records the site and
+    /// links nothing: a site moved onto the root its media really sits under still reports no file
+    /// until the catalogue is re-read.
+    /// </para>
+    /// </remarks>
+    public async Task<WhisparrResponse> MoveSiteRootAsync(
+        Uri baseAddress,
+        string apiKey,
+        int siteId,
+        string rootFolderPath,
+        CancellationToken ct)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(siteId, 1);
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootFolderPath);
+
+        var (read, resource) = await ReadSeriesResourceAsync(baseAddress, apiKey, siteId, ct)
+            .ConfigureAwait(false);
+        if (resource is null)
+        {
+            return read;
+        }
+
+        var moved = await GeneratedV2ActAsync(
+            baseAddress,
+            apiKey,
+            api => api.Api<V2Api.ISeriesApi>().UpdateSeriesAsync(
+                siteId.ToString(CultureInfo.InvariantCulture),
+                seriesResource: V2BodyProjector.MovedSiteRoot(resource, rootFolderPath),
+                cancellationToken: ct)).ConfigureAwait(false);
+        if (Refused(moved))
+        {
+            return moved;
+        }
+
+        var (verb, payload) = VerbAndPayload(V2BodyProjector.RefreshCatalogue(siteId));
+        var linked = await GeneratedV2ActAsync(
+            baseAddress,
+            apiKey,
+            api => api.Api<V2Api.CommandApi>().SendCommandAsync(verb, payload, ct))
+            .ConfigureAwait(false);
+
+        return Refused(linked) ? linked : moved;
+    }
+
+    // The typed resource beside the answer, because the update re-sends what the read answered.
+    // Re-parsing the text answer into a member set named here would drop every member this product
+    // does not name - the tags, the per-year flags, and whatever a later instance build adds.
+    private async Task<(WhisparrResponse Answer, V2Model.SeriesResource? Held)>
+        ReadSeriesResourceAsync(Uri baseAddress, string apiKey, int siteId, CancellationToken ct)
+    {
+        V2Model.SeriesResource? held = null;
+        var answered = await GeneratedV2ReadAsync(
+            baseAddress,
+            apiKey,
+            async api =>
+            {
+                var read = await api.Api<V2Api.ISeriesApi>()
+                    .GetSeriesByIdAsync(siteId, cancellationToken: ct).ConfigureAwait(false);
+                read.TryOk(out held);
+                return read;
+            }).ConfigureAwait(false);
+
+        return Refused(answered) ? (answered, null) : (answered, held);
+    }
+
     // Nothing was sent, so there is no status to report and the refusal is the whole of what a
     // caller reads. A source naming no site is the no-identity reading, and a source that was not
     // reached is not that: it establishes nothing about the site, and reporting it as unidentified
@@ -1397,8 +1471,8 @@ internal sealed class WhisparrClient(
         where TResponse : V2Client.IApiResponse
         => GeneratedV2SendAsync(V2TargetFor(baseAddress, apiKey), call);
 
-    // Sent once. The grabbing class is the only one that reaches this generation's command route, so
-    // an attempt count added here covers no other class.
+    // Sent once. Held apart from the acting sends that name the same route, so an attempt count added
+    // here covers the grabbing class alone.
     private Task<WhisparrResponse> GeneratedV2GrabCommandAsync(
         Uri baseAddress, string apiKey, JsonObject command, CancellationToken ct)
     {
