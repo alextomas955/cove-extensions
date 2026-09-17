@@ -119,6 +119,11 @@ internal enum SyncLibraryRunOutcome
 /// How many scenes the instance holds no row for, or would not answer about.
 /// </param>
 /// <param name="Offered">How many identifiers the run reached.</param>
+/// <param name="Moved">
+/// How many entries the instance already held at a root other than the one their own files sit
+/// under, and were moved to it. Counted apart from <paramref name="Registered"/> and from
+/// <paramref name="AlreadyHeld"/>: the run changed the instance, and it added nothing.
+/// </param>
 internal sealed record SyncLibraryRun(
     SyncLibraryRunOutcome Outcome,
     int Registered,
@@ -128,7 +133,8 @@ internal sealed record SyncLibraryRun(
     int MonitorRefused,
     int Unnumbered,
     int Unresolved,
-    int Offered);
+    int Offered,
+    int Moved);
 
 /// <summary>
 /// Offers every identifier the library yields to the connected instance once, one bounded request
@@ -228,6 +234,7 @@ internal static class SyncLibraryPlanner
         var registered = 0;
         var alreadyHeld = 0;
         var refused = 0;
+        var moved = 0;
         var monitoring = SceneMonitorTally.Nothing;
         var offered = 0;
 
@@ -270,6 +277,9 @@ internal static class SyncLibraryPlanner
                     case SceneRegistration.AlreadyHeld:
                         alreadyHeld++;
                         break;
+                    case SceneRegistration.Moved:
+                        moved++;
+                        break;
                     default:
                         refused++;
                         break;
@@ -307,7 +317,8 @@ internal static class SyncLibraryPlanner
                 monitoring.Refused,
                 monitoring.Unnumbered,
                 monitoring.Unresolved,
-                offered);
+                offered,
+                moved);
     }
 
     /// <summary>The one line a reader sees while the run works.</summary>
@@ -351,8 +362,22 @@ internal static class SyncLibraryPlanner
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{run.Registered:N0} {Plural(registers)} registered, {run.AlreadyHeld:N0} already in "
-                + $"Whisparr, {run.Refused:N0} refused{Monitoring(run, monitoring, registers)}{ending}.");
+                + $"Whisparr{Relocated(run)}, {run.Refused:N0} "
+                + $"refused{Monitoring(run, monitoring, registers)}{ending}.");
     }
+
+    /// <summary>What the summary says about entries this run moved, or nothing where it moved none.</summary>
+    /// <remarks>
+    /// Stated only where there is a figure to act on. One of the two passes can never move anything,
+    /// and a permanent zero there would read as a thing that failed rather than one that never
+    /// applied.
+    /// </remarks>
+    private static string Relocated(SyncLibraryRun run)
+        => run.Moved == 0
+            ? string.Empty
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $", {run.Moved:N0} moved to the root holding their files");
 
     /// <summary>What one entry the run registers is called.</summary>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -378,7 +403,7 @@ internal static class SyncLibraryPlanner
 
     /// <summary>A run that reached no identifier at all.</summary>
     internal static SyncLibraryRun Nothing { get; } =
-        new(SyncLibraryRunOutcome.NothingToRegister, 0, 0, 0, 0, 0, 0, 0, 0);
+        new(SyncLibraryRunOutcome.NothingToRegister, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
     /// <summary>Sets <paramref name="run"/>'s own summary as the last progress call, and answers it.</summary>
     private static SyncLibraryRun Ending(
@@ -429,11 +454,13 @@ internal static class SyncLibraryPlanner
     /// <summary>The host outcome one scene's unit is completed under.</summary>
     /// <remarks>
     /// A scene the instance already held is skipped rather than succeeded: nothing about it changed,
-    /// and the host's own aggregate counts the two apart.
+    /// and the host's own aggregate counts the two apart. An entry this run moved succeeded, because
+    /// the run did change the instance, which is the opposite of that skip.
     /// </remarks>
     private static JobUnitOutcome OutcomeFor(SceneRegistration registration) => registration switch
     {
         SceneRegistration.Registered => JobUnitOutcome.Succeeded,
+        SceneRegistration.Moved => JobUnitOutcome.Succeeded,
         SceneRegistration.AlreadyHeld => JobUnitOutcome.Skipped,
         _ => JobUnitOutcome.Failed,
     };

@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Cove.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
@@ -63,6 +65,12 @@ public sealed class SyncLibrarySitesTests
 
     /// <summary>The instance's own numeric id for a site it already held.</summary>
     private const int HeldSiteId = 9;
+
+    /// <summary>The instance root this studio's own files agree on.</summary>
+    private const string AgreedRoot = "/i-downloads-p/videos";
+
+    /// <summary>The instance root a site was registered at before any of this ran.</summary>
+    private const string OtherRoot = "/g-downloads-p/videos";
 
     private static readonly string RegisteredRow =
         $$"""{"id":{{RegisteredSiteId}},"title":"Jay Bank Presents"}""";
@@ -149,12 +157,16 @@ public sealed class SyncLibrarySitesTests
         var registered = await SiteRegistrationStep.RegisterAsync(
             Answering(reads, RecordingWhisparrClient.Json(404, string.Empty)),
             Answering(adds, RecordingWhisparrClient.Json(201, RegisteredRow)),
+            NeverMoves,
+            agreedRoot: null,
             new LibrarySiteIdentity(4, FirstSite),
             TestCt);
 
         var alreadyThere = await SiteRegistrationStep.RegisterAsync(
             Answering(reads, RecordingWhisparrClient.Json(200, HeldRow)),
             Answering(adds, RecordingWhisparrClient.Json(201, RegisteredRow)),
+            NeverMoves,
+            agreedRoot: null,
             new LibrarySiteIdentity(7, SecondSite),
             TestCt);
 
@@ -180,6 +192,8 @@ public sealed class SyncLibrarySitesTests
         var outcome = await SiteRegistrationStep.RegisterAsync(
             (_, _) => Task.FromResult<WhisparrResponse?>(null),
             Answering(adds, RecordingWhisparrClient.Json(201, RegisteredRow)),
+            NeverMoves,
+            agreedRoot: null,
             new LibrarySiteIdentity(4, FirstSite),
             TestCt);
 
@@ -354,6 +368,221 @@ public sealed class SyncLibrarySitesTests
         Assert.Contains("2 scenes monitored", summary, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A site the instance holds at a root other than the agreed one is moved once, and no add is
+    /// composed for it.
+    /// </summary>
+    /// <remarks>
+    /// The correction is one update against the site the read already found. A second add would
+    /// create a duplicate the instance has no way to merge.
+    /// </remarks>
+    [Fact]
+    public async Task ASiteHeldAtTheWrongRootIsMovedOnceAndAddedNotAtAll()
+    {
+        var instance = new InstanceHolding((FirstSite, HeldSiteId, OtherRoot));
+
+        var outcome = await PassAsync(instance, FirstSite, AgreedRoot, TestCt);
+
+        Assert.Equal(SceneRegistration.Moved, outcome.Registration);
+        Assert.Equal(HeldSiteId, outcome.InstanceId);
+        Assert.Equal([(HeldSiteId, AgreedRoot)], instance.Moves);
+        Assert.Empty(instance.Adds);
+    }
+
+    /// <summary>A site already at the agreed root is sent nothing at all.</summary>
+    [Fact]
+    public async Task ASiteHeldAtTheAgreedRootIsSentNothing()
+    {
+        var instance = new InstanceHolding((FirstSite, HeldSiteId, AgreedRoot));
+
+        var outcome = await PassAsync(instance, FirstSite, AgreedRoot, TestCt);
+
+        Assert.Equal(SceneRegistration.AlreadyHeld, outcome.Registration);
+        Assert.Empty(instance.Moves);
+        Assert.Empty(instance.Adds);
+    }
+
+    /// <summary>A studio this product has no agreed root for is left where it is.</summary>
+    /// <remarks>
+    /// A studio owning no file reaches this step with no root, because there is nothing to derive one
+    /// from. A studio whose own library root the instance agrees no spelling for never reaches it at
+    /// all: the composition refuses before the read, which
+    /// <c>SiteRootRegistrationTests.AStudioWhoseRootAgreedOnNothingHasNoAddSentForIt</c> asserts over
+    /// the whole pass. Both are states in which moving the site would be a guess written to a live
+    /// instance.
+    /// </remarks>
+    [Fact]
+    public async Task AStudioWithNoAgreedRootIsSentNothing()
+    {
+        var instance = new InstanceHolding((FirstSite, HeldSiteId, OtherRoot));
+
+        var outcome = await PassAsync(instance, FirstSite, agreedRoot: null, TestCt);
+
+        Assert.Equal(SceneRegistration.AlreadyHeld, outcome.Registration);
+        Assert.Empty(instance.Moves);
+        Assert.Empty(instance.Adds);
+    }
+
+    /// <summary>A second pass over what the first one left sends nothing of either kind.</summary>
+    /// <remarks>
+    /// The whole point of correcting a root by moving rather than adding: a library already put right
+    /// costs one read per site and changes nothing.
+    /// </remarks>
+    [Fact]
+    public async Task ASecondPassOverACorrectedLibrarySendsNothing()
+    {
+        var instance = new InstanceHolding(
+            (FirstSite, HeldSiteId, OtherRoot), (SecondSite, RegisteredSiteId, OtherRoot));
+
+        await PassAsync(instance, FirstSite, AgreedRoot, TestCt);
+        await PassAsync(instance, SecondSite, AgreedRoot, TestCt);
+        var movedByTheFirstPass = instance.Moves.Count;
+
+        await PassAsync(instance, FirstSite, AgreedRoot, TestCt);
+        await PassAsync(instance, SecondSite, AgreedRoot, TestCt);
+
+        Assert.Equal(2, movedByTheFirstPass);
+        Assert.Equal(movedByTheFirstPass, instance.Moves.Count);
+        Assert.Empty(instance.Adds);
+    }
+
+    /// <summary>A pass stopped part way leaves every site it already moved at its new root.</summary>
+    /// <remarks>
+    /// There is nothing to undo. Each move is its own request against its own site, so a stop leaves
+    /// a library part corrected rather than one in a state no run produced.
+    /// </remarks>
+    [Fact]
+    public async Task APassStoppedPartWayLeavesTheSitesItMovedAtTheirNewRoot()
+    {
+        using var stopping = new CancellationTokenSource();
+        var instance = new InstanceHolding(
+            (FirstSite, HeldSiteId, OtherRoot), (SecondSite, RegisteredSiteId, OtherRoot))
+        {
+            StopAfterTheFirstMove = stopping,
+        };
+
+        await PassAsync(instance, FirstSite, AgreedRoot, stopping.Token);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => PassAsync(instance, SecondSite, AgreedRoot, stopping.Token));
+
+        Assert.Equal(AgreedRoot, instance.RootOf(FirstSite));
+        Assert.Equal(OtherRoot, instance.RootOf(SecondSite));
+    }
+
+    /// <summary>A move the instance declined is reported as refused, not as already held.</summary>
+    /// <remarks>
+    /// The site is still registered where none of its files sit, which is the state this pass exists
+    /// to remove, so reporting it as untouched would hide a failure a reader acts on.
+    /// </remarks>
+    [Fact]
+    public async Task AMoveTheInstanceDeclinedIsReportedAsRefused()
+    {
+        var instance = new InstanceHolding((FirstSite, HeldSiteId, OtherRoot))
+        {
+            RefusesTheMove = true,
+        };
+
+        var outcome = await PassAsync(instance, FirstSite, AgreedRoot, TestCt);
+
+        Assert.Equal(SceneRegistration.Refused, outcome.Registration);
+        Assert.Equal(OtherRoot, instance.RootOf(FirstSite));
+    }
+
+    /// <summary>
+    /// The unit for a site the pass moved is completed as succeeded, and the refused site's is not.
+    /// </summary>
+    /// <remarks>
+    /// Read off the unit the run actually reported rather than off the member that decides it: the
+    /// host aggregates what it was told, and a moved site reported as failed is the figure a reader
+    /// would act on.
+    /// </remarks>
+    [Fact]
+    public async Task TheUnitForASiteThePassMovedIsSucceededAndTheRefusedOneIsNot()
+    {
+        var progress = new RecordingJobProgress();
+
+        var run = await RunOverAsync(progress, SceneRegistration.Moved, SceneRegistration.Refused);
+
+        Assert.Equal(
+            [JobUnitOutcome.Succeeded, JobUnitOutcome.Failed],
+            progress.Units.Select(unit => unit.Outcome));
+        Assert.Equal(1, run.Moved);
+        Assert.Equal(1, run.Refused);
+    }
+
+    /// <summary>The pass counts a site it moved apart from the ones it refused.</summary>
+    /// <remarks>
+    /// A moved site is neither work refused nor a catalogue that was already right, and a reader acts
+    /// differently on each.
+    /// </remarks>
+    [Fact]
+    public async Task ThePassCountsAMovedSiteApartFromTheRefusedOnes()
+    {
+        var progress = new RecordingJobProgress();
+
+        var run = await RunOverAsync(
+            progress,
+            SceneRegistration.Moved,
+            SceneRegistration.Moved,
+            SceneRegistration.Refused,
+            SceneRegistration.AlreadyHeld);
+
+        Assert.Equal(2, run.Moved);
+        Assert.Equal(1, run.Refused);
+        Assert.Equal(1, run.AlreadyHeld);
+        Assert.Equal(0, run.Registered);
+        Assert.Contains(
+            "2 moved to the root holding their files",
+            Assert.Single(progress.Summaries),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>One site through the registration step, against <paramref name="instance"/>.</summary>
+    private static Task<SyncRegistration> PassAsync(
+        InstanceHolding instance,
+        string site,
+        string? agreedRoot,
+        CancellationToken ct)
+        => SiteRegistrationStep.RegisterAsync(
+            instance.ReadAsync,
+            instance.AddAsync,
+            instance.MoveAsync,
+            agreedRoot,
+            new LibrarySiteIdentity(4, site),
+            ct);
+
+    /// <summary>One run over as many sites as <paramref name="answers"/> names.</summary>
+    private static Task<SyncLibraryRun> RunOverAsync(
+        RecordingJobProgress progress, params SceneRegistration[] answers)
+    {
+        var offered = 0;
+
+        return SyncLibraryPlanner.RunAsync(
+            SyncRegisters.Sites,
+            Streamed,
+            identity => identity,
+            (_, _) => Task.FromResult(
+                new SyncRegistration(answers[offered++], MonitorHost.Json(202, "{}"), HeldSiteId)),
+            monitor: null,
+            progress,
+            TestCt);
+
+        async IAsyncEnumerable<string> Streamed([EnumeratorCancellation] CancellationToken ct)
+        {
+            for (var index = 0; index < answers.Length; index++)
+            {
+                ct.ThrowIfCancellationRequested();
+                yield return string.Create(CultureInfo.InvariantCulture, $"site-{index}");
+            }
+
+            await Task.CompletedTask;
+        }
+    }
+
+    /// <summary>A move no case under it may make, so a call faults rather than passing unnoticed.</summary>
+    private static Task<WhisparrResponse?> NeverMoves(int siteId, string root, CancellationToken ct)
+        => throw new InvalidOperationException("This case must send no move.");
+
     private static List<LibrarySiteIdentity> Sites(int count)
         => [.. Enumerable.Range(1, count).Select(
             n => new LibrarySiteIdentity(n, $"{n:x8}-0000-4000-8000-000000000000"))];
@@ -499,5 +728,77 @@ public sealed class SyncLibrarySitesTests
             "/api/extensions/" + host.ExtensionId + "/" + route, content, TestCt);
         answered.EnsureSuccessStatusCode();
         return (await answered.Content.ReadFromJsonAsync<T>(TestCt))!;
+    }
+
+    /// <summary>
+    /// An instance holding some sites, each at one root, that a pass can read, add to and move.
+    /// </summary>
+    /// <remarks>
+    /// Stateful on purpose. What a second pass sends depends on what the first one left, so a double
+    /// answering a fixed reply could not tell a correction that stuck from one that did not.
+    /// </remarks>
+    private sealed class InstanceHolding
+    {
+        private readonly Dictionary<string, (int Id, string Root)> _held;
+
+        public InstanceHolding(params (string Site, int Id, string Root)[] held)
+            => _held = held.ToDictionary(
+                entry => entry.Site, entry => (entry.Id, entry.Root), StringComparer.Ordinal);
+
+        public List<string> Adds { get; } = [];
+
+        public List<(int SiteId, string Root)> Moves { get; } = [];
+
+        public bool RefusesTheMove { get; init; }
+
+        /// <summary>Stopped once one move is made, standing in for the host stopping the job.</summary>
+        public CancellationTokenSource? StopAfterTheFirstMove { get; init; }
+
+        public string? RootOf(string site)
+            => _held.TryGetValue(site, out var entry) ? entry.Root : null;
+
+        public Task<WhisparrResponse?> ReadAsync(string site, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult<WhisparrResponse?>(
+                _held.TryGetValue(site, out var entry)
+                    ? MonitorHost.Json(200, Row(entry.Id, entry.Root))
+                    : MonitorHost.Json(404, string.Empty));
+        }
+
+        public Task<WhisparrResponse?> AddAsync(string site, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            Adds.Add(site);
+            _held[site] = (RegisteredSiteId, AgreedRoot);
+            return Task.FromResult<WhisparrResponse?>(MonitorHost.Json(201, RegisteredRow));
+        }
+
+        public Task<WhisparrResponse?> MoveAsync(int siteId, string root, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            Moves.Add((siteId, root));
+
+            if (RefusesTheMove)
+            {
+                return Task.FromResult<WhisparrResponse?>(MonitorHost.Json(400, "[]"));
+            }
+
+            foreach (var (site, entry) in _held.Where(entry => entry.Value.Id == siteId).ToList())
+            {
+                _held[site] = (entry.Id, root);
+            }
+
+            StopAfterTheFirstMove?.Cancel();
+            return Task.FromResult<WhisparrResponse?>(MonitorHost.Json(202, "{}"));
+        }
+
+        private static string Row(int siteId, string root)
+            => string.Create(
+                CultureInfo.InvariantCulture,
+                $$$"""
+                {"id":{{{siteId}}},"title":"Jay Bank Presents",
+                 "rootFolderPath":"{{{root}}}","path":"{{{root}}}/Jay Bank Presents"}
+                """);
     }
 }
