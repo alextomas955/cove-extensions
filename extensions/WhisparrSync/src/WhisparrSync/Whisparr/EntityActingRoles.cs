@@ -222,6 +222,25 @@ public interface IWhisparrSiteRegistrationActing
         int siteId,
         string rootFolderPath,
         CancellationToken ct);
+
+    /// <summary>
+    /// Asks the instance to read the catalogue of the site <paramref name="siteId"/> names again.
+    /// </summary>
+    /// <remarks>
+    /// The same re-read <see cref="MoveSiteRootAsync"/> issues, on its own. A move whose re-read did
+    /// not arrive leaves the site registered at the right root and reporting no file, and the root
+    /// alone then reads as correct, so there must be a way to send the re-read without moving the
+    /// site again.
+    /// <para>
+    /// Nothing is written. The instance reads what is on disk under the path it already holds, so
+    /// the call is repeatable and moves no file.
+    /// </para>
+    /// </remarks>
+    Task<WhisparrResponse> RefreshSiteCatalogueAsync(
+        Uri baseAddress,
+        string apiKey,
+        int siteId,
+        CancellationToken ct);
 }
 
 /// <summary>Reads which of a set of scenes one site the instance holds has a row for.</summary>

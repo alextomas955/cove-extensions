@@ -131,6 +131,7 @@ public sealed class AbsentCapabilityTests
                 nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync),
                 nameof(IWhisparrSiteRegistrationActing.MoveSiteRootAsync),
                 nameof(IWhisparrMissingSceneActing.RefreshCatalogueAsync),
+                nameof(IWhisparrSiteRegistrationActing.RefreshSiteCatalogueAsync),
                 nameof(IWhisparrSiteRegistrationActing.RegisterSiteAsync),
                 nameof(IWhisparrSceneExclusionActing.RemoveSceneExclusionAsync),
                 nameof(IWhisparrPerformerActing.SetPerformerMonitoredAsync),

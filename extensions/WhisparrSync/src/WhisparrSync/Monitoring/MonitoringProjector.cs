@@ -239,6 +239,24 @@ internal static class MonitoringProjector
                 : null;
 
     /// <summary>
+    /// How many files the instance reports for the entity <paramref name="body"/> describes, or
+    /// null where the answer states none either way.
+    /// </summary>
+    /// <remarks>
+    /// Null is DISTINCT from zero. Zero is the instance stating it has linked no file to the entity,
+    /// which a caller acts on by asking for the catalogue to be read again; null says the answer
+    /// carried no count and a caller must send nothing on it.
+    /// </remarks>
+    internal static int? FileCountIn(string? body)
+        => AsObject(body) is { } entity
+            && entity["statistics"] is JsonObject statistics
+            && statistics["episodeFileCount"] is JsonValue counted
+            && counted.TryGetValue<int>(out var files)
+            && files >= 0
+                ? files
+                : null;
+
+    /// <summary>
     /// Which scope the entity <paramref name="body"/> describes is monitored at, or null where the
     /// product cannot say.
     /// </summary>
