@@ -135,7 +135,7 @@ public sealed partial class WhisparrSync
 
         Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?> AimAsync(
             IServiceProvider services, CancellationToken runCt)
-            => ComposeSceneAddAsync(services, runCt);
+            => ComposeSceneAddAsync(batch.Kind, batch.CoveId, services, runCt);
 
         Task<MissingPageView?> ReadPageAsync(
             IServiceProvider services,

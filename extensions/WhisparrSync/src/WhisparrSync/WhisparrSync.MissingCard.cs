@@ -2,6 +2,7 @@ using Cove.Core.Auth;
 using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
@@ -37,6 +38,7 @@ public sealed partial class WhisparrSync
             OptionsStore options,
             ICredentialPort credentials,
             IWhisparrClient client,
+            IServiceScopeFactory scopes,
             ILogger log,
             CancellationToken ct)
     {
@@ -47,7 +49,7 @@ public sealed partial class WhisparrSync
             return new ForbiddenCode();
         }
 
-        if (!TryReadEntity(kind, coveId, out _) || !IsBoundedSceneId(providerSceneId))
+        if (!TryReadEntity(kind, coveId, out var owning) || !IsBoundedSceneId(providerSceneId))
         {
             return TypedResults.BadRequest();
         }
@@ -86,9 +88,16 @@ public sealed partial class WhisparrSync
         }
 
         var defaults = AddDefaultsProjector.From(profiles.Body, roots.Body);
-        if (defaults.Defaults is not { } composeWith)
+        if (defaults.Defaults is not { } runWide)
         {
             return TypedResults.Ok(NothingWasSent(ActionRefusalFor(defaults.Refusal)));
+        }
+
+        var composed = await EntityRootThrough(scopes, target, FilesOfEntity(owning, coveId))(
+            runWide, ct).ConfigureAwait(false);
+        if (composed.Defaults is not { } composeWith)
+        {
+            return TypedResults.Ok(NothingWasSent(ActionRefusalFor(composed.Refusal)));
         }
 
         var added = await ContainedAsync(
