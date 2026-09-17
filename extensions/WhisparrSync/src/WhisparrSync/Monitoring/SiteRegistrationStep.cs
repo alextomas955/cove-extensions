@@ -1,3 +1,4 @@
+using WhisparrSync.Contracts;
 using WhisparrSync.Library;
 using WhisparrSync.Whisparr;
 
@@ -22,22 +23,42 @@ namespace WhisparrSync.Monitoring;
 /// row's where it was already there, the add's own where it was added - so nothing re-reads the site
 /// to learn an id the instance has just stated.
 /// </para>
+/// <para>
+/// A site already there at a root other than the agreed one is moved rather than added again. The
+/// decision sits on the same per-site read, so correcting a root costs no listing of what the
+/// instance holds and a second pass over a corrected library sends nothing.
+/// </para>
+/// <para>
+/// With no agreed root nothing is sent and the site is left where it is. An entity owning no file
+/// and an entity whose library root the instance agreed no spelling for are both states in which
+/// this product knows nothing about where the site belongs, and moving it would be a guess written
+/// to a live instance.
+/// </para>
 /// </remarks>
 internal static class SiteRegistrationStep
 {
     /// <summary>Registers <paramref name="site"/> unless <paramref name="readSite"/> says it is held.</summary>
     /// <param name="readSite">Reads what the instance holds for one site, by its identifier.</param>
     /// <param name="registerSite">Registers one site, monitoring nothing.</param>
+    /// <param name="moveSiteRoot">
+    /// Moves one site the instance already holds to another root, moving no file.
+    /// </param>
+    /// <param name="agreedRoot">
+    /// The instance root this site's own files agree on, or null where there is none.
+    /// </param>
     /// <param name="site">The site, carrying Cove's own id beside the identifier.</param>
     /// <param name="ct">Cancels the step.</param>
     internal static async Task<SyncRegistration> RegisterAsync(
         Func<string, CancellationToken, Task<WhisparrResponse?>> readSite,
         Func<string, CancellationToken, Task<WhisparrResponse?>> registerSite,
+        Func<int, string, CancellationToken, Task<WhisparrResponse?>> moveSiteRoot,
+        string? agreedRoot,
         LibrarySiteIdentity site,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(readSite);
         ArgumentNullException.ThrowIfNull(registerSite);
+        ArgumentNullException.ThrowIfNull(moveSiteRoot);
         ArgumentNullException.ThrowIfNull(site);
 
         var held = await readSite(site.RemoteId, ct).ConfigureAwait(false);
@@ -48,13 +69,40 @@ internal static class SiteRegistrationStep
         switch (reading)
         {
             case MonitoringProjector.EntityReading.Held:
-                return new SyncRegistration(
-                    SceneRegistration.AlreadyHeld, held, MonitoringProjector.EntityIdIn(held!.Body));
+                return await HeldAsync(moveSiteRoot, agreedRoot, held!, ct).ConfigureAwait(false);
             case MonitoringProjector.EntityReading.NotHeld:
                 return SyncRegistration.Offered(
                     await registerSite(site.RemoteId, ct).ConfigureAwait(false));
             default:
                 return new SyncRegistration(SceneRegistration.Refused, held, null);
         }
+    }
+
+    private static async Task<SyncRegistration> HeldAsync(
+        Func<int, string, CancellationToken, Task<WhisparrResponse?>> moveSiteRoot,
+        string? agreedRoot,
+        WhisparrResponse held,
+        CancellationToken ct)
+    {
+        var siteId = MonitoringProjector.EntityIdIn(held.Body);
+        var heldRoot = MonitoringProjector.RootFolderPathIn(held.Body);
+        var alreadyThere = new SyncRegistration(SceneRegistration.AlreadyHeld, held, siteId);
+
+        if (siteId is not { } instanceId
+            || agreedRoot is not { } agreed
+            || heldRoot is not { } registeredAt
+            || string.Equals(registeredAt, agreed, StringComparison.Ordinal))
+        {
+            return alreadyThere;
+        }
+
+        var moved = await moveSiteRoot(instanceId, agreed, ct).ConfigureAwait(false);
+
+        // A move the instance declined is a failure a reader acts on, not a site left already held:
+        // the site is still registered where none of its files sit.
+        return moved is not null
+            && MonitoringProjector.Accepted(moved) is MonitorRefusalKind.None
+                ? new SyncRegistration(SceneRegistration.Moved, moved, siteId)
+                : new SyncRegistration(SceneRegistration.Refused, moved, siteId);
     }
 }

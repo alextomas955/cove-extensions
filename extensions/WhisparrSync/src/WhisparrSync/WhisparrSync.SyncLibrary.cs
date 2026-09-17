@@ -496,6 +496,13 @@ public sealed partial class WhisparrSync
                     target,
                     _log,
                     addCt),
+                (siteId, agreed, moveCt) => ContainedAsync(
+                    () => acting.MoveSiteRootAsync(
+                        target.BaseAddress, target.ApiKey, siteId, agreed, moveCt),
+                    target,
+                    _log,
+                    moveCt),
+                composed.Root.InstanceRoot,
                 site,
                 siteCt).ConfigureAwait(false);
 
