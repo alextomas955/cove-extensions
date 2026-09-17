@@ -128,7 +128,12 @@ public sealed partial class WhisparrSync
     {
         var batch = MissingBulkJob.Decode(parameters);
         var run = await MissingBulkJob
-            .RunAsync(batch, scopes, ComposeSceneAddAsync, ct)
+            .RunAsync(
+                batch,
+                scopes,
+                (services, runCt) => ComposeSceneAddAsync(
+                    batch.Kind, batch.CoveId, services, runCt),
+                ct)
             .ConfigureAwait(false);
 
         // The host's progress carries no summary field, so the run's one line rides the final
@@ -150,7 +155,11 @@ public sealed partial class WhisparrSync
     /// </para>
     /// </remarks>
     private async Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?>
-        ComposeSceneAddAsync(IServiceProvider services, CancellationToken runCt)
+        ComposeSceneAddAsync(
+            WhisparrEntityKind? owningKind,
+            int owningId,
+            IServiceProvider services,
+            CancellationToken runCt)
     {
         if (await ResolveTargetAsync(
                 services.GetRequiredService<OptionsStore>(),
@@ -180,9 +189,27 @@ public sealed partial class WhisparrSync
             return null;
         }
 
-        if (AddDefaultsProjector.From(profiles.Body, roots.Body).Defaults is not { } composeWith)
+        if (AddDefaultsProjector.From(profiles.Body, roots.Body).Defaults is not { } runWide)
         {
             return null;
+        }
+
+        // Composed once for the run rather than once per scene. The agreement is cached per library
+        // root, but a per-scene composition would still repeat the counts for every scene in a page.
+        //
+        // A pass naming no owning entity keeps the run-wide root: the library-wide scene pass offers
+        // every scene the library holds, and there is no one entity to derive a root from.
+        var composeWith = runWide;
+        if (owningKind is { } owning)
+        {
+            var composed = await EntityRootIn(services, target, FilesOfEntity(owning, owningId))(
+                runWide, runCt).ConfigureAwait(false);
+            if (composed.Defaults is not { } perEntity)
+            {
+                return null;
+            }
+
+            composeWith = perEntity;
         }
 
         return (providerSceneId, markCt) => ContainedAsync(
