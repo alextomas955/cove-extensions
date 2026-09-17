@@ -90,6 +90,10 @@ internal static class OutboundSeam
             // An add, so it is never retried; non-grabbing, because the body it composes sets both
             // of that generation's search flags false and monitors nothing.
             [nameof(IWhisparrSiteRegistrationActing.RegisterSiteAsync)] = WhisparrVerbClass.Act,
+            // Acting, so it is never retried. It adds nothing and it transfers nothing: the request
+            // names no transfer parameter, which is what leaves the library's own files where they
+            // are.
+            [nameof(IWhisparrSiteRegistrationActing.MoveSiteRootAsync)] = WhisparrVerbClass.Act,
             [nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync)] = WhisparrVerbClass.Act,
