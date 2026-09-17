@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
@@ -342,8 +343,27 @@ public sealed partial class WhisparrSync
         CoreJobProgress progress,
         CancellationToken ct)
     {
+        // One entry per library root the pass asked about, so the settings page can offer a root
+        // this run could not settle. The run's own ending says how many sites were left for want of
+        // one, and that sentence sends the reader to a page that lists nothing without this.
+        var readings = new ConcurrentDictionary<string, AddressedFolder>(StringComparer.Ordinal);
+
         await SyncLibraryJob.RunAsync(
             SyncLibraryJob.Decode(parameters), scopes, AimAsync, progress, ct).ConfigureAwait(false);
+
+        // Before the cancellation check, for the reason RecordRootReadingsAsync states: what a run
+        // established about a root holds whether or not the run went on to finish.
+        await RecordRootReadingsAsync(
+            scopes,
+            [.. readings.Values
+                .Where(reading => reading.Refusal is not null)
+                .Select(reading => new FolderAddressRefusal(
+                    reading.CoveRoot, reading.Refusal!.Value, reading.Tried))],
+            [.. readings.Values
+                .Where(reading => reading.Refusal is null)
+                .Select(reading => reading.CoveRoot)])
+            .ConfigureAwait(false);
+
         ct.ThrowIfCancellationRequested();
 
         async Task<SyncLibraryAiming?> AimAsync(
@@ -385,7 +405,8 @@ public sealed partial class WhisparrSync
                 // The other pass registers a site's presence. Nothing monitors the site itself: what
                 // the reader owns on a site is its scenes, so the monitor slot here marks those.
                 SyncRegisters.Sites =>
-                    await ComposeSiteRegistrationAsync(services, runCt).ConfigureAwait(false)
+                    await ComposeSiteRegistrationAsync(services, readings, runCt)
+                            .ConfigureAwait(false)
                         is { } registerSite
                         ? new SyncLibraryAiming(
                             target.Generation,
@@ -421,7 +442,10 @@ public sealed partial class WhisparrSync
     /// the scene composition reads them here.
     /// </remarks>
     private async Task<Func<LibrarySiteIdentity, CancellationToken, Task<SyncRegistration>>?>
-        ComposeSiteRegistrationAsync(IServiceProvider services, CancellationToken runCt)
+        ComposeSiteRegistrationAsync(
+            IServiceProvider services,
+            ConcurrentDictionary<string, AddressedFolder> readings,
+            CancellationToken runCt)
     {
         if (await ResolveTargetAsync(
                 services.GetRequiredService<OptionsStore>(),
@@ -463,8 +487,14 @@ public sealed partial class WhisparrSync
         // owning no file and register all of them at the run-wide root.
         var files = services.GetRequiredService<IEntityFolderPort>();
         var library = services.GetRequiredService<ICoveLibraryPort>();
-        var agreedRoot = AgreedRootThrough(
+        var addressing = AgreedRootThrough(
             target, services.GetRequiredService<IFolderAddressPort>());
+        var agreedRoot = async (string coveRoot, CancellationToken addressCt) =>
+        {
+            var addressed = await addressing(coveRoot, addressCt).ConfigureAwait(false);
+            readings[addressed.CoveRoot] = addressed;
+            return addressed;
+        };
 
         return async (site, siteCt) =>
         {
