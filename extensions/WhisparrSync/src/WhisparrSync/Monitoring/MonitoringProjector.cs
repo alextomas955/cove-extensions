@@ -222,6 +222,23 @@ internal static class MonitoringProjector
                 : null;
 
     /// <summary>
+    /// The instance root the entity <paramref name="body"/> describes is registered at, or null
+    /// where it names none.
+    /// </summary>
+    /// <remarks>
+    /// Null is what a caller must leave alone rather than act on. An entity whose answer names no
+    /// root says nothing about where the instance has it, and correcting a root read from nothing
+    /// would be a guess written to a live instance.
+    /// </remarks>
+    internal static string? RootFolderPathIn(string? body)
+        => AsObject(body) is { } entity
+            && entity["rootFolderPath"] is JsonValue named
+            && named.TryGetValue<string>(out var root)
+            && !string.IsNullOrWhiteSpace(root)
+                ? root
+                : null;
+
+    /// <summary>
     /// Which scope the entity <paramref name="body"/> describes is monitored at, or null where the
     /// product cannot say.
     /// </summary>
