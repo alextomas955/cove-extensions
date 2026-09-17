@@ -140,9 +140,11 @@ internal enum SyncLibraryRunOutcome
 /// moved to reach the chosen root, so these are where they have always been.
 /// </param>
 /// <param name="WithoutAnAgreedRoot">
-/// How many entries were left alone because no instance root was agreed for the library root their
-/// files sit under. Counted apart from <paramref name="Refused"/>: the instance declined nothing,
-/// and what a reader fixes is the folder mapping.
+/// How many entries had no instance root agreed for the library root their files sit under. Neither
+/// inside <paramref name="Refused"/> nor apart from it: an entry the instance already holds is
+/// counted as already held and its scenes are still marked, while one it does not hold is refused,
+/// and both are counted here. The instance declined nothing either way, and what a reader fixes is
+/// the folder mapping.
 /// </param>
 /// <param name="RootsLeftBehind">
 /// The library roots holding files whose entries were registered somewhere else, each named once.
@@ -434,16 +436,17 @@ internal static class SyncLibraryPlanner
     /// What the summary says about entries no root was agreed for, or nothing where there were none.
     /// </summary>
     /// <remarks>
-    /// Stated inside the refused figure rather than beside it, because these entries are counted in
-    /// it and a reader seeing two figures would add them. What fixes them is the folder mapping
-    /// rather than anything about the instance's catalogue.
+    /// Stated beside the other figures rather than inside the refused one, because an entry the
+    /// instance already holds is counted as already held: these entries are spread across two of the
+    /// figures and a parenthetical inside either would read as a subset of it. What fixes them is the
+    /// folder mapping rather than anything about the instance's catalogue.
     /// </remarks>
     private static string Unagreed(SyncLibraryRun run)
         => run.WithoutAnAgreedRoot == 0
             ? string.Empty
             : string.Create(
                 CultureInfo.InvariantCulture,
-                $" ({run.WithoutAnAgreedRoot:N0} for want of an agreed root)");
+                $", {run.WithoutAnAgreedRoot:N0} with no agreed root");
 
     /// <summary>
     /// What the summary says about files left under another root, or nothing where none were.
