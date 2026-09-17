@@ -246,6 +246,18 @@ public enum MonitorRefusalKind
     /// <summary>The instance offers no library root, so no add can be composed.</summary>
     NoRootFolder,
 
+    /// <summary>
+    /// The library root this entity's own files sit under is one the instance has agreed no spelling
+    /// for, so no add can be composed for it.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="NoRootFolder"/>, which is the instance offering no root at all. Here
+    /// the instance's own root list is not what is wrong: a reader sent to check it would find
+    /// nothing to fix. What is unsettled is which of those roots holds this entity's files, which is
+    /// a folder mapping rather than a Whisparr setting.
+    /// </remarks>
+    NoAgreedRootForThisEntity,
+
     /// <summary>The instance answered, and would not do it.</summary>
     InstanceRefused,
 

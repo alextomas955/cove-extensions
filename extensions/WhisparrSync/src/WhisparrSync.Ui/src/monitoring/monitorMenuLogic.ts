@@ -38,6 +38,7 @@ import {
   INSTANCE_REFUSED,
   MENU_MONITOR,
   MENU_UNMONITOR,
+  NO_AGREED_ROOT_FOR_THIS_ENTITY,
   NO_IDENTITY_IN_THIS_NAMESPACE,
   NO_INSTANCE_CONNECTED,
   REFLECT_OWNED_SKIPPED,
@@ -128,6 +129,10 @@ const REFUSALS: Record<MonitorRefusalKind, MonitorRefusal> = {
   },
   noQualityProfile: { sentence: INSTANCE_OFFERS_NO_QUALITY_PROFILE, leavesNothingToOffer: false },
   noRootFolder: { sentence: INSTANCE_OFFERS_NO_ROOT_FOLDER, leavesNothingToOffer: false },
+  noAgreedRootForThisEntity: {
+    sentence: NO_AGREED_ROOT_FOR_THIS_ENTITY,
+    leavesNothingToOffer: false,
+  },
   instanceRefused: { sentence: INSTANCE_REFUSED, leavesNothingToOffer: false },
   answerTooLargeToRead: {
     sentence: INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ,
@@ -321,6 +326,7 @@ export const MONITOR_REFUSAL_KINDS: readonly MonitorRefusalKind[] = [
   "capabilityAbsentOnThisGeneration",
   "noQualityProfile",
   "noRootFolder",
+  "noAgreedRootForThisEntity",
   "instanceRefused",
   "answerTooLargeToRead",
   "instanceHoldsNoSuchEntity",

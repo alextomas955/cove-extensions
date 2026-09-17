@@ -144,6 +144,22 @@ internal sealed class FolderAddressPort(
             reading.InstanceRoot, reading.Refusal, coveRoot, reading.Tried);
     }
 
+    public async Task<AddressedFolder> AgreedRootAsync(
+        FolderAddressTarget target, string coveRoot, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(coveRoot);
+
+        // Read before the cache is asked, for the reason the folder overload states.
+        var stated = OutboundRefusalProjector.MappingFor(
+            (await StoredAsync(ct).ConfigureAwait(false)).OutboundMappings, coveRoot);
+
+        var reading = cache.Held(target, coveRoot, stated)
+            ?? await EstablishAsync(target, coveRoot, stated, ct).ConfigureAwait(false);
+
+        return new AddressedFolder(reading.InstanceRoot, reading.Refusal, coveRoot, reading.Tried);
+    }
+
     private async Task<FolderAgreementReading> EstablishAsync(
         FolderAddressTarget target, string coveRoot, string? stated, CancellationToken ct)
     {
