@@ -32,12 +32,17 @@ public sealed record MonitorBulkBatch(
 /// How many files were left out, across every entity, because the instance holds the site they
 /// would join under a different declared root from the file.
 /// </param>
+/// <param name="RootsCouldNotBeRead">
+/// Whether the linking step stopped because the instance declared no root to compare against. One
+/// reading for the whole selection, the way the hard-link setting is.
+/// </param>
 internal sealed record MonitorBulkLinking(
     ReflectOwnedSkipReason? Skipped,
     int FoldersAttached,
     int FoldersRefused,
     IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null,
-    int EntriesLeftUnderAnotherRoot = 0);
+    int EntriesLeftUnderAnotherRoot = 0,
+    bool RootsCouldNotBeRead = false);
 
 /// <summary>
 /// The bulk monitoring job's id, its (de)serialization onto the host's string-only parameter map,
@@ -367,7 +372,8 @@ public static class MonitoringBulkJob
             linking.FoldersRefused,
             linking.AddressRefusals,
             linking.EntriesLeftUnderAnotherRoot,
-            cancelled: false);
+            cancelled: false,
+            linking.RootsCouldNotBeRead);
 
     /// <summary>
     /// Which unit outcome one refusal kind is reported under.

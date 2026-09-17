@@ -72,6 +72,16 @@ public static class ReflectOwnedJob
         "Some files were not linked: Whisparr holds their site under a different root from the "
         + "files, and nothing was copied.";
 
+    /// <summary>The one sentence a run with no root to compare against is reported in.</summary>
+    /// <remarks>
+    /// States that the check was not made rather than that nothing was found to link. An instance
+    /// that could not be asked answers the same empty root list as one declaring none, and linking
+    /// across two roots copies the bytes in full.
+    /// </remarks>
+    internal const string NoRootToCompareSentence =
+        "No files were linked: Whisparr declared no root folder, so whether a link would copy the "
+        + "data could not be checked.";
+
     private const string KindKey = "kind";
     private const string CoveIdKey = "coveId";
 
@@ -167,9 +177,10 @@ public static class ReflectOwnedJob
     /// selection is already inside one that is elevated to System.
     /// <para>
     /// The instance's declared roots are read once for the run and handed down, never once per
-    /// folder. They are what the planner compares a file's root against the root of the site it
-    /// would join, and an instance that declares none, or that could not be asked, answers an empty
-    /// list and no comparison is made.
+    /// folder. They are what the planner compares a file's root against the root of the site it would
+    /// join. A list that could not be established stops the run before a folder is read: the
+    /// comparison cannot be made without one, and an import made with it unmade copies the bytes in
+    /// full rather than linking them.
     /// </para>
     /// </remarks>
     /// <param name="services">Elevated services the folder read is made through.</param>
@@ -189,6 +200,11 @@ public static class ReflectOwnedJob
 
         var instanceRoots = await services.GetRequiredService<IReportedRootPort>()
             .ReadAsync(aimed.Generation, ct).ConfigureAwait(false);
+        if (instanceRoots is null)
+        {
+            return new ReflectOwnedRun(
+                ReflectOwnedRunOutcome.Completed, 0, 0, RootsCouldNotBeRead: true);
+        }
 
         return await ReflectOwnedPlanner.RunAsync(
             aimed.Generation,
@@ -221,7 +237,8 @@ public static class ReflectOwnedJob
             run.FoldersRefused,
             run.AddressRefusals,
             run.EntriesLeftUnderAnotherRoot,
-            run.Outcome == ReflectOwnedRunOutcome.Cancelled);
+            run.Outcome == ReflectOwnedRunOutcome.Cancelled,
+            run.RootsCouldNotBeRead);
     }
 
     /// <summary>The one line a run over an entity's folders is reported on.</summary>
@@ -242,17 +259,26 @@ public static class ReflectOwnedJob
     /// How many files the instance holds the site for under a different root from the file.
     /// </param>
     /// <param name="cancelled">Whether the run was stopped part-way.</param>
+    /// <param name="rootsCouldNotBeRead">
+    /// Whether the run stopped for want of a declared root to compare against.
+    /// </param>
     internal static string LineFor(
         ReflectOwnedSkipReason? skipped,
         int attached,
         int refused,
         IReadOnlyList<FolderAddressRefusal>? unaddressed,
         int leftUnderAnotherRoot,
-        bool cancelled)
+        bool cancelled,
+        bool rootsCouldNotBeRead = false)
     {
         if (skipped is { } reason)
         {
             return SentenceFor(reason);
+        }
+
+        if (rootsCouldNotBeRead)
+        {
+            return NoRootToCompareSentence;
         }
 
         var reasons = string.Join(' ', (unaddressed ?? []).Select(SentenceFor));

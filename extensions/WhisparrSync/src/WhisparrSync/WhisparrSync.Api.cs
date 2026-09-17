@@ -2108,6 +2108,7 @@ public sealed partial class WhisparrSync
         var foldersRefused = 0;
         var entriesLeftUnderAnotherRoot = 0;
         var linkingReached = false;
+        var rootsCouldNotBeRead = false;
 
         // One line per library root for the whole selection. Every entity under one root reaches the
         // same reason, and a line per entity would grow with the selection.
@@ -2133,7 +2134,8 @@ public sealed partial class WhisparrSync
                         foldersAttached,
                         foldersRefused,
                         [.. addressRefusals.Values],
-                        entriesLeftUnderAnotherRoot)
+                        entriesLeftUnderAnotherRoot,
+                        rootsCouldNotBeRead)
                     : null));
         ct.ThrowIfCancellationRequested();
 
@@ -2279,6 +2281,7 @@ public sealed partial class WhisparrSync
             foldersAttached += linked.FoldersAttached;
             foldersRefused += linked.FoldersRefused;
             entriesLeftUnderAnotherRoot += linked.EntriesLeftUnderAnotherRoot;
+            rootsCouldNotBeRead |= linked.RootsCouldNotBeRead;
             foreach (var root in linked.AddressedRoots ?? [])
             {
                 addressedRoots.Add(root);
