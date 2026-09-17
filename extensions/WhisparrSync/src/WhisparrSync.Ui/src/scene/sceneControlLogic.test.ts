@@ -383,6 +383,7 @@ const EVERY_REFUSAL: readonly SceneRefusalKind[] = [
   "instanceRefused",
   "instanceOffersNoQualityProfile",
   "instanceOffersNoRootFolder",
+  "noAgreedRootForThisEntity",
   "whisparrHasNoEntryForScene",
   "whisparrAlreadyHoldsThisScene",
   "whisparrIsNotMonitoringThisScene",

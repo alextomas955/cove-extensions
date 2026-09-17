@@ -2839,6 +2839,7 @@
           "capabilityAbsentOnThisGeneration",
           "instanceOffersNoQualityProfile",
           "instanceOffersNoRootFolder",
+          "noAgreedRootForThisEntity",
           "whisparrHasNoEntryForScene"
         ]
       },
@@ -3159,6 +3160,7 @@
           "instanceRefused",
           "instanceOffersNoQualityProfile",
           "instanceOffersNoRootFolder",
+          "noAgreedRootForThisEntity",
           "whisparrHasNoEntryForScene",
           "whisparrAlreadyHoldsThisScene",
           "whisparrIsNotMonitoringThisScene"

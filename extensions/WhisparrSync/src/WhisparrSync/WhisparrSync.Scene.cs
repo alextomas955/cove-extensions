@@ -581,6 +581,8 @@ public sealed partial class WhisparrSync
             MonitorRefusalKind.NoQualityProfile
                 => SceneRefusalKind.InstanceOffersNoQualityProfile,
             MonitorRefusalKind.NoRootFolder => SceneRefusalKind.InstanceOffersNoRootFolder,
+            MonitorRefusalKind.NoAgreedRootForThisEntity
+                => SceneRefusalKind.NoAgreedRootForThisEntity,
             _ => SceneRefusalKind.InstanceRefused,
         };
 

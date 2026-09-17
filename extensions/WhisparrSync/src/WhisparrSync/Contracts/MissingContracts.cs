@@ -112,6 +112,17 @@ public enum MissingSceneActionRefusal
     /// <summary>The instance offers no library root, so no add can be composed.</summary>
     InstanceOffersNoRootFolder,
 
+    /// <summary>
+    /// The library folder this scene's own files sit in is one the instance has agreed no spelling
+    /// for, so no add can be composed.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="InstanceOffersNoRootFolder"/>, which is the instance offering no
+    /// root at all. Here its root list is not what is wrong: what is unsettled is which of those
+    /// roots holds this scene's files, which is a folder mapping rather than a Whisparr setting.
+    /// </remarks>
+    NoAgreedRootForThisEntity,
+
     /// <summary>The instance holds no entry for the scene, so there was nothing to act on.</summary>
     /// <remarks>
     /// A legitimate answer rather than a failure, and read as one: the instance reported an absence
