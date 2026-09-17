@@ -195,5 +195,9 @@ public sealed class ReflectOwnedJobTests
 
             await Task.CompletedTask;
         }
+
+        public Task<int> FilesUnderAsync(
+            WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct)
+            => throw new NotSupportedException("This case is about the folder loop.");
     }
 }

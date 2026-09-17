@@ -5,8 +5,10 @@ using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Import;
 using WhisparrSync.Jobs;
 using WhisparrSync.Library;
 using WhisparrSync.Missing;
@@ -455,8 +457,31 @@ public sealed partial class WhisparrSync
             return null;
         }
 
+        // Resolved out of the run's own elevated services, because Cove's per-principal query filters
+        // answer an anonymous reader zero rows and no error - which here would report every studio as
+        // owning no file and register all of them at the run-wide root.
+        var files = services.GetRequiredService<IEntityFolderPort>();
+        var library = services.GetRequiredService<ICoveLibraryPort>();
+        var agreedRoot = AgreedRootThrough(
+            target, services.GetRequiredService<IFolderAddressPort>());
+
         return async (site, siteCt) =>
         {
+            var composed = await EntityAddDefaults.ComposeAsync(
+                composeWith,
+                library.LibraryRoots,
+                (coveRoot, countCt) => files.FilesUnderAsync(
+                    WhisparrEntityKind.Studio, site.StudioId, coveRoot, countCt),
+                agreedRoot,
+                siteCt).ConfigureAwait(false);
+
+            if (composed.Defaults is not { } addWith)
+            {
+                WhisparrSyncLog.SiteRegistrationRefused(
+                    _log, site.StudioId, site.RemoteId, composed.Refusal.ToString());
+                return new SyncRegistration(SceneRegistration.Refused, Nothing(composed.Refusal), null);
+            }
+
             var registered = await SiteRegistrationStep.RegisterAsync(
                 (identity, readCt) => ContainedAsync(
                     () => studios.ReadStudioAsync(
@@ -466,7 +491,7 @@ public sealed partial class WhisparrSync
                     readCt),
                 (identity, addCt) => ContainedAsync(
                     () => acting.RegisterSiteAsync(
-                        target.BaseAddress, target.ApiKey, identity, composeWith, addCt),
+                        target.BaseAddress, target.ApiKey, identity, addWith, addCt),
                     target,
                     _log,
                     addCt),
@@ -482,6 +507,11 @@ public sealed partial class WhisparrSync
             return registered;
         };
 
+        // Nothing was sent, so there is no status to classify and the refusal is the whole of what a
+        // caller reads. The body is empty, so no sentence can be composed from what an instance said.
+        static WhisparrResponse Nothing(MonitorRefusalKind refusal)
+            => new(0, null, string.Empty) { Refusal = refusal };
+
         static string RefusalReason(WhisparrResponse? answer)
         {
             if (answer is null)
@@ -493,6 +523,34 @@ public sealed partial class WhisparrSync
                 ? answer.Refusal.ToString()
                 : "status " + answer.StatusCode.ToString(CultureInfo.InvariantCulture);
         }
+    }
+
+    /// <summary>
+    /// What each library root agrees with on <paramref name="target"/>, or a refusal where the
+    /// connected generation holds no role that could be asked.
+    /// </summary>
+    /// <remarks>
+    /// A generation this product cannot ask refuses the root rather than composing one, for the
+    /// reason the reflect-owned addressing states: a root nobody checked reads back as a clean pass
+    /// over an entry holding nothing.
+    /// </remarks>
+    private static Func<string, CancellationToken, Task<AddressedFolder>> AgreedRootThrough(
+        MonitoringTarget target, IFolderAddressPort addressing)
+    {
+        if (FilesystemReadingOn(target) is not { } role)
+        {
+            return (_, _) => Task.FromResult(
+                new AddressedFolder(
+                    null,
+                    FolderAgreementRefusal.InstanceCannotBeAsked,
+                    string.Empty,
+                    Array.Empty<string>()));
+        }
+
+        var aimed = new FolderAddressTarget(
+            target.Generation, target.BaseAddress, target.ApiKey, role);
+
+        return (coveRoot, ct) => addressing.AgreedRootAsync(aimed, coveRoot, ct);
     }
 
     /// <summary>

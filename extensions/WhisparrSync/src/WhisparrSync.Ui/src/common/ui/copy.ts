@@ -314,6 +314,16 @@ export const INSTANCE_OFFERS_NO_ROOT_FOLDER =
   "Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.";
 
 /**
+ * The folder this entity's own files sit in has no agreed Whisparr spelling.
+ *
+ * Names the entity's own folder rather than Whisparr's root list, which is not what is wrong: a
+ * reader sent to check that list would find nothing to fix.
+ */
+export const NO_AGREED_ROOT_FOR_THIS_ENTITY =
+  "Whisparr and Cove have not agreed on where this entity's files are, so nothing was sent. " +
+  "Set the folder mapping for that library folder on this extension's settings page.";
+
+/**
  * The instance answered and declined.
  *
  * Says nothing about why. This generation answers a refused add with a stack trace, so its own words

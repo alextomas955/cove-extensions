@@ -1,3 +1,4 @@
+using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
@@ -113,6 +114,7 @@ public sealed class RefusalPrecedenceTests
             await TheKindAnAnswerPastTheReadBoundProducesAsync(),
             await TheKindAnEntityTheInstanceDoesNotHoldProducesAsync(),
             await TheKindAReadBackThatFindsNothingProducesAsync(),
+            await TheKindAnEntityWhoseRootAgreedOnNothingProducesAsync(),
         };
 
         foreach (var kind in Enum.GetValues<MonitorRefusalKind>())
@@ -250,6 +252,17 @@ public sealed class RefusalPrecedenceTests
 
         return (await host.MonitorAsync(studioId)).Refusal;
     }
+
+    // Answered by the one seam an add body's root is composed through, for an entity whose own
+    // library root the instance agreed no spelling for.
+    private static async Task<MonitorRefusalKind> TheKindAnEntityWhoseRootAgreedOnNothingProducesAsync()
+        => (await EntityAddDefaults.ComposeAsync(
+            new AddDefaults(4, "/config/library"),
+            ["G:/Downloads/P"],
+            (_, _) => Task.FromResult(1),
+            (coveRoot, _) => Task.FromResult(
+                new AddressedFolder(null, FolderAgreementRefusal.NothingResolved, coveRoot, [])),
+            TestContext.Current.CancellationToken)).Refusal;
 
     private static IEnumerable<MonitorRefusalKind> Reachable()
     {

@@ -705,6 +705,10 @@ internal sealed class PassThroughFolderAddresses : IFolderAddressPort
     public Task<AddressedFolder> AddressAsync(
         FolderAddressTarget target, string coveRoot, string supplied, CancellationToken ct)
         => throw new NotSupportedException();
+
+    public Task<AddressedFolder> AgreedRootAsync(
+        FolderAddressTarget target, string coveRoot, CancellationToken ct)
+        => Task.FromResult(new AddressedFolder(coveRoot, null, coveRoot, []));
 }
 
 /// <summary>A catalogue that reaches no provider, for a case whose subject is a route's own guard.</summary>
