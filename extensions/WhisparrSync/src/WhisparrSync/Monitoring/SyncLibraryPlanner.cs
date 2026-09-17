@@ -18,8 +18,15 @@ namespace WhisparrSync.Monitoring;
 /// The instance's own numeric id for the entry, or null where the answer names none. Read off the
 /// answer the offer already has, so reaching the entry afterwards costs no further request.
 /// </param>
+/// <param name="Root">
+/// What choosing a root for this entry found, or null where no root was chosen for it. Null on the
+/// scene pass, which registers a scene under a site the instance already placed.
+/// </param>
 internal sealed record SyncRegistration(
-    SceneRegistration Registration, WhisparrResponse? Answer, int? InstanceId)
+    SceneRegistration Registration,
+    WhisparrResponse? Answer,
+    int? InstanceId,
+    EntityRoot? Root = null)
 {
     /// <summary>What <paramref name="answered"/> says about an entry that was offered outright.</summary>
     internal static SyncRegistration Offered(WhisparrResponse? answered)
@@ -124,6 +131,25 @@ internal enum SyncLibraryRunOutcome
 /// under, and were moved to it. Counted apart from <paramref name="Registered"/> and from
 /// <paramref name="AlreadyHeld"/>: the run changed the instance, and it added nothing.
 /// </param>
+/// <param name="SplitAcrossRoots">
+/// How many entries own files under more than one library root. Only one root can be registered, so
+/// each of these has files the instance was not told where to find.
+/// </param>
+/// <param name="FilesLeftElsewhere">
+/// How many files sit under a library root their entry was not registered at. Nothing was copied or
+/// moved to reach the chosen root, so these are where they have always been.
+/// </param>
+/// <param name="WithoutAnAgreedRoot">
+/// How many entries were left alone because no instance root was agreed for the library root their
+/// files sit under. Counted apart from <paramref name="Refused"/>: the instance declined nothing,
+/// and what a reader fixes is the folder mapping.
+/// </param>
+/// <param name="RootsLeftBehind">
+/// The library roots holding files whose entries were registered somewhere else, each named once.
+/// The one member here that names anything rather than counting it: an operator creates these roots
+/// by hand and there are few of them, while the entries and the files under them grow with the
+/// library.
+/// </param>
 internal sealed record SyncLibraryRun(
     SyncLibraryRunOutcome Outcome,
     int Registered,
@@ -134,7 +160,11 @@ internal sealed record SyncLibraryRun(
     int Unnumbered,
     int Unresolved,
     int Offered,
-    int Moved);
+    int Moved,
+    int SplitAcrossRoots,
+    int FilesLeftElsewhere,
+    int WithoutAnAgreedRoot,
+    IReadOnlyList<string> RootsLeftBehind);
 
 /// <summary>
 /// Offers every identifier the library yields to the connected instance once, one bounded request
@@ -235,6 +265,13 @@ internal static class SyncLibraryPlanner
         var alreadyHeld = 0;
         var refused = 0;
         var moved = 0;
+        var splitAcrossRoots = 0;
+        var filesLeftElsewhere = 0;
+        var withoutAnAgreedRoot = 0;
+
+        // Bounded by the configured library root count, which an operator creates by hand. It holds
+        // root names only, never an entry and never a file, so it does not grow with the library.
+        var rootsLeftBehind = new List<string>();
         var monitoring = SceneMonitorTally.Nothing;
         var offered = 0;
 
@@ -285,6 +322,28 @@ internal static class SyncLibraryPlanner
                         break;
                 }
 
+                if (answered.Root is { } root)
+                {
+                    if (root.Refusal is MonitorRefusalKind.NoAgreedRootForThisEntity)
+                    {
+                        withoutAnAgreedRoot++;
+                    }
+
+                    if (root.RootsLeftBehind.Count > 0)
+                    {
+                        splitAcrossRoots++;
+                        filesLeftElsewhere += root.FilesLeftElsewhere;
+
+                        foreach (var left in root.RootsLeftBehind)
+                        {
+                            if (!rootsLeftBehind.Contains(left, StringComparer.Ordinal))
+                            {
+                                rootsLeftBehind.Add(left);
+                            }
+                        }
+                    }
+                }
+
                 // Skipped only where the offer was refused: there is no entry on the instance there
                 // to set a flag on.
                 if (monitor is not null && registration is not SceneRegistration.Refused)
@@ -318,7 +377,11 @@ internal static class SyncLibraryPlanner
                 monitoring.Unnumbered,
                 monitoring.Unresolved,
                 offered,
-                moved);
+                moved,
+                splitAcrossRoots,
+                filesLeftElsewhere,
+                withoutAnAgreedRoot,
+                rootsLeftBehind);
     }
 
     /// <summary>The one line a reader sees while the run works.</summary>
@@ -362,8 +425,54 @@ internal static class SyncLibraryPlanner
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{run.Registered:N0} {Plural(registers)} registered, {run.AlreadyHeld:N0} already in "
-                + $"Whisparr{Relocated(run)}, {run.Refused:N0} "
-                + $"refused{Monitoring(run, monitoring, registers)}{ending}.");
+                + $"Whisparr{Relocated(run)}, {run.Refused:N0} refused{Unagreed(run)}"
+                + $"{Monitoring(run, monitoring, registers)}{ending}.")
+            + Split(run, registers);
+    }
+
+    /// <summary>
+    /// What the summary says about entries no root was agreed for, or nothing where there were none.
+    /// </summary>
+    /// <remarks>
+    /// Stated inside the refused figure rather than beside it, because these entries are counted in
+    /// it and a reader seeing two figures would add them. What fixes them is the folder mapping
+    /// rather than anything about the instance's catalogue.
+    /// </remarks>
+    private static string Unagreed(SyncLibraryRun run)
+        => run.WithoutAnAgreedRoot == 0
+            ? string.Empty
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $" ({run.WithoutAnAgreedRoot:N0} for want of an agreed root)");
+
+    /// <summary>
+    /// What the summary says about files left under another root, or nothing where none were.
+    /// </summary>
+    /// <remarks>
+    /// Absent entirely where nothing was split, so a library with one root reads as it always has.
+    /// <para>
+    /// The library roots are named and nothing else is. What a reader most needs from this line is
+    /// that the files were left where they are, so it says so in plain words: an operator reading
+    /// that an entry moved could otherwise take it to mean the files moved with it.
+    /// </para>
+    /// </remarks>
+    private static string Split(SyncLibraryRun run, SyncRegisters registers)
+    {
+        if (run.SplitAcrossRoots == 0 || run.RootsLeftBehind.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var entries = run.SplitAcrossRoots == 1
+            ? Singular(registers).ToLowerInvariant() + " has"
+            : Plural(registers) + " have";
+        var files = run.FilesLeftElsewhere == 1 ? "file" : "files";
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $" {run.SplitAcrossRoots:N0} {entries} files under more than one library root: "
+                + $"{run.FilesLeftElsewhere:N0} {files} were left where they are under "
+                + $"{string.Join(", ", run.RootsLeftBehind)}, and nothing was copied.");
     }
 
     /// <summary>What the summary says about entries this run moved, or nothing where it moved none.</summary>
@@ -403,7 +512,7 @@ internal static class SyncLibraryPlanner
 
     /// <summary>A run that reached no identifier at all.</summary>
     internal static SyncLibraryRun Nothing { get; } =
-        new(SyncLibraryRunOutcome.NothingToRegister, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        new(SyncLibraryRunOutcome.NothingToRegister, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, []);
 
     /// <summary>Sets <paramref name="run"/>'s own summary as the last progress call, and answers it.</summary>
     private static SyncLibraryRun Ending(
