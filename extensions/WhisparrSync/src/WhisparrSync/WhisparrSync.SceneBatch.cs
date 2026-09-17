@@ -160,7 +160,7 @@ public sealed partial class WhisparrSync
             var acted = verb switch
             {
                 SceneBatchVerb.Add => await AddSceneResolvedAsync(
-                    coveId, target, options, credentials, client, sceneCards, _log, sceneCt)
+                    coveId, target, options, credentials, client, sceneCards, scopes, _log, sceneCt)
                     .ConfigureAwait(false),
                 SceneBatchVerb.Monitor => await SetSceneMonitoringResolvedAsync(
                     monitored: true,

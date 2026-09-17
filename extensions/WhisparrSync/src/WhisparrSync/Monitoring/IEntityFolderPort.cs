@@ -2,7 +2,7 @@ using WhisparrSync.Contracts;
 
 namespace WhisparrSync.Monitoring;
 
-/// <summary>The folders one entity's own files sit in, as the library holds them.</summary>
+/// <summary>Where one entity's or one video's own files sit, as the library holds them.</summary>
 /// <remarks>
 /// Streamed rather than answered as a collection. A library reaches millions of files, so a caller
 /// reads one folder at a time and hands that folder's rows straight into one request; a materialized
@@ -48,4 +48,21 @@ public interface IEntityFolderPort
     /// <exception cref="ArgumentException"><paramref name="coveRoot"/> is blank.</exception>
     Task<int> FilesUnderAsync(
         WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct);
+
+    /// <summary>
+    /// How many files the video <paramref name="videoId"/> names holds under
+    /// <paramref name="coveRoot"/>.
+    /// </summary>
+    /// <remarks>
+    /// The same scalar read as the entity-keyed count, narrowed to one video. A caller adding a
+    /// single scene has a video and no owning entity in hand, and the scene's own file is better
+    /// evidence of where it sits than its studio is: a studio split across roots would send the
+    /// scene to the root holding the majority of the studio's other files rather than to the one
+    /// holding this scene's.
+    /// <para>
+    /// An id below one answers zero, because there is no video for it to be about.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="coveRoot"/> is blank.</exception>
+    Task<int> VideoFilesUnderAsync(int videoId, string coveRoot, CancellationToken ct);
 }

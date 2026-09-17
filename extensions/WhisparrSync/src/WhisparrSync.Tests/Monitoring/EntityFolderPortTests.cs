@@ -310,9 +310,69 @@ public sealed class EntityFolderPortTests
         Assert.DoesNotContain("Select(file => file.Path)", source, StringComparison.Ordinal);
     }
 
+    /// <summary>One video's files under two library roots answer each root's own count.</summary>
+    [Fact]
+    public async Task AVideoSplitAcrossTwoRootsAnswersEachRootsOwnCount()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        var videoId = await host.SeedVideoWithFilesAsync(
+            studioId, FirstRoot + "/Vixen/2025", FirstRoot + "/Vixen/2026", SecondRoot + "/Vixen");
+
+        Assert.Equal(2, await CountVideoUnder(host, videoId, FirstRoot));
+        Assert.Equal(1, await CountVideoUnder(host, videoId, SecondRoot));
+    }
+
+    /// <summary>
+    /// One video's count holds none of another video's files, even under the same studio and root.
+    /// </summary>
+    /// <remarks>
+    /// The two videos share a studio on purpose: a count narrowed by the studio rather than by the
+    /// video answers both videos' files and would send a scene to the root holding its studio's
+    /// other files rather than its own.
+    /// </remarks>
+    [Fact]
+    public async Task OneVideosCountHoldsNoneOfAnothersFiles()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        var videoId = await host.SeedVideoWithFilesAsync(studioId, SecondRoot + "/Vixen");
+        await host.SeedVideoWithFilesAsync(
+            studioId, FirstRoot + "/Vixen/2025", FirstRoot + "/Vixen/2026");
+
+        Assert.Equal(0, await CountVideoUnder(host, videoId, FirstRoot));
+        Assert.Equal(1, await CountVideoUnder(host, videoId, SecondRoot));
+    }
+
+    /// <summary>A video id below one counts nothing rather than every file in the library.</summary>
+    [Fact]
+    public async Task AVideoIdBelowOneCountsNothing()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        await host.SeedVideoWithFilesAsync(
+            await host.SeedStudioAsync(null, null), FirstRoot + "/Vixen/2026");
+
+        Assert.Equal(0, await CountVideoUnder(host, 0, FirstRoot));
+        Assert.Equal(0, await CountVideoUnder(host, -1, FirstRoot));
+    }
+
+    /// <summary>A blank root is refused for a video too.</summary>
+    [Fact]
+    public async Task ABlankRootIsRefusedForAVideo()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var videoId = await host.SeedVideoWithFilesAsync(
+            await host.SeedStudioAsync(null, null), FirstRoot + "/Vixen/2026");
+
+        await Assert.ThrowsAsync<ArgumentException>(() => CountVideoUnder(host, videoId, "   "));
+    }
+
     private static Task<int> CountUnder(
         MonitorHost host, WhisparrEntityKind kind, int coveId, string coveRoot)
         => host.Folders.FilesUnderAsync(kind, coveId, coveRoot, TestCt);
+
+    private static Task<int> CountVideoUnder(MonitorHost host, int videoId, string coveRoot)
+        => host.Folders.VideoFilesUnderAsync(videoId, coveRoot, TestCt);
 
     private static async Task<List<string>> FoldersOf(
         MonitorHost host, WhisparrEntityKind kind, int coveId)

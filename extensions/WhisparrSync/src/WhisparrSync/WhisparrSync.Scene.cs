@@ -2,6 +2,7 @@ using Cove.Core.Auth;
 using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
@@ -134,6 +135,7 @@ public sealed partial class WhisparrSync
             ICredentialPort credentials,
             IWhisparrClient client,
             ILibraryCardIdentityPort sceneCards,
+            IServiceScopeFactory scopes,
             ILogger log,
             CancellationToken ct)
     {
@@ -151,7 +153,7 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             await AddSceneResolvedAsync(
-                coveId, known: null, options, credentials, client, sceneCards, log, ct)
+                coveId, known: null, options, credentials, client, sceneCards, scopes, log, ct)
                 .ConfigureAwait(false));
     }
 
@@ -168,6 +170,7 @@ public sealed partial class WhisparrSync
         ICredentialPort credentials,
         IWhisparrClient client,
         ILibraryCardIdentityPort sceneCards,
+        IServiceScopeFactory scopes,
         ILogger log,
         CancellationToken ct)
     {
@@ -205,9 +208,19 @@ public sealed partial class WhisparrSync
         // instance's own business, and these two are the settings that stop an add before anything
         // is sent.
         var defaults = AddDefaultsProjector.From(profiles.Body, roots.Body);
-        if (defaults.Defaults is not { } composeWith)
+        if (defaults.Defaults is not { } runWide)
         {
             return ActionRefused(SceneRefusalFor(defaults.Refusal));
+        }
+
+        // Counted over this scene's own files rather than its studio's. The count runs as System for
+        // the reason every other route-side count does: a per-principal filter would report a video
+        // that holds a file as holding none, and the add would go to the wrong root with no error.
+        var composed = await EntityRootThrough(scopes, target, FilesOfVideo(coveId))(runWide, ct)
+            .ConfigureAwait(false);
+        if (composed.Defaults is not { } composeWith)
+        {
+            return ActionRefused(SceneRefusalFor(composed.Refusal));
         }
 
         var added = await ContainedAsync(
