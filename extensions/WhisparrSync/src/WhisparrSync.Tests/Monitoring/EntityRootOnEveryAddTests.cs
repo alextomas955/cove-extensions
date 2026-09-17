@@ -83,6 +83,28 @@ public sealed class EntityRootOnEveryAddTests
     }
 
     /// <summary>
+    /// That refusal puts the studio's own library root on the settings page, where its sentence
+    /// sends the reader to state a path for it.
+    /// </summary>
+    /// <remarks>
+    /// The refusal's sentence names the settings page as the remedy, and that page offers a root
+    /// only once something has recorded a reading for it. Without this the reader is sent to a page
+    /// that does not list the folder, and no studio under that root can ever acquire a root at all.
+    /// </remarks>
+    [Fact]
+    public async Task AStudioWhoseRootAgreedOnNothingPutsThatRootOnTheSettingsPage()
+    {
+        await using var fixture = await StudioFixture.CreateAsync(instanceHoldsTheSample: false);
+
+        await fixture.Host.MonitorAsync("studio", fixture.StudioId);
+
+        var listed = Assert.Single(
+            (await fixture.Host.ReadFolderMappingsAsync()).Roots,
+            root => root.Root == SecondCoveRoot);
+        Assert.NotNull(listed.Refusal);
+    }
+
+    /// <summary>
     /// A studio the library holds no file for is still added, at the root the instance offered first.
     /// </summary>
     /// <remarks>

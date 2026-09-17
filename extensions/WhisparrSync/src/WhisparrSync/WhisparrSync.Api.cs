@@ -2509,14 +2509,40 @@ public sealed partial class WhisparrSync
     /// The count is taken inside a System scope. Cove's per-principal query filters answer a reader
     /// with the rows that reader can see, so a count taken as the caller would report an entity that
     /// holds files as holding none, and the add would then go to the wrong root with no error.
+    /// <para>
+    /// What the addressing established about each root is recorded, the same way a run records it.
+    /// This is the doorway a single gesture comes through, and its refusal tells the reader to state
+    /// the folder's path on the settings page. That page offers a root only once something has
+    /// recorded a reading for it, so without this the sentence names a remedy the page cannot show.
+    /// </para>
     /// </remarks>
     private static Func<AddDefaults, CancellationToken, Task<EntityAddDefaultsResolution>>
         EntityRootThrough(
             IServiceScopeFactory scopes,
             MonitoringTarget target,
             Func<IEntityFolderPort, string, CancellationToken, Task<int>> countUnder)
-        => (runWide, ct) => RunAsSystem.RunInSystemScopeAsync(
-            scopes, services => ComposeWithEntityRootAsync(services, target, countUnder, runWide, ct));
+        => async (runWide, ct) =>
+        {
+            var readings = new List<AddressedFolder>();
+            var composed = await RunAsSystem.RunInSystemScopeAsync(
+                scopes,
+                services => ComposeWithEntityRootAsync(
+                    services, target, countUnder, runWide, readings.Add, ct))
+                .ConfigureAwait(false);
+
+            await RecordRootReadingsAsync(
+                scopes,
+                [.. readings
+                    .Where(reading => reading.Refusal is not null)
+                    .Select(reading => new FolderAddressRefusal(
+                        reading.CoveRoot, reading.Refusal!.Value, reading.Tried))],
+                [.. readings
+                    .Where(reading => reading.Refusal is null)
+                    .Select(reading => reading.CoveRoot)])
+                .ConfigureAwait(false);
+
+            return composed;
+        };
 
     /// <summary>Composes an add's root per entity inside a run's own elevated services.</summary>
     private static Func<AddDefaults, CancellationToken, Task<EntityAddDefaultsResolution>>
@@ -2524,22 +2550,39 @@ public sealed partial class WhisparrSync
             IServiceProvider services,
             MonitoringTarget target,
             Func<IEntityFolderPort, string, CancellationToken, Task<int>> countUnder)
-        => (runWide, ct) => ComposeWithEntityRootAsync(services, target, countUnder, runWide, ct);
+        => (runWide, ct) =>
+            ComposeWithEntityRootAsync(services, target, countUnder, runWide, observe: null, ct);
 
     /// <summary>The one place every add body's root is composed, whatever doorway reached it.</summary>
+    /// <remarks>
+    /// An observer is told what the addressing established about each root it was asked about, and
+    /// is null where the caller records nothing. A run keeps its own loop over the roots and records
+    /// from there; a single gesture has no such loop, so this is where it learns the same thing.
+    /// </remarks>
     private static Task<EntityAddDefaultsResolution> ComposeWithEntityRootAsync(
         IServiceProvider services,
         MonitoringTarget target,
         Func<IEntityFolderPort, string, CancellationToken, Task<int>> countUnder,
         AddDefaults runWide,
+        Action<AddressedFolder>? observe,
         CancellationToken ct)
     {
         var files = services.GetRequiredService<IEntityFolderPort>();
+        var agreedRoot = AgreedRootThrough(
+            target, services.GetRequiredService<IFolderAddressPort>());
+
         return EntityAddDefaults.ComposeAsync(
             runWide,
             services.GetRequiredService<ICoveLibraryPort>().LibraryRoots,
             (coveRoot, countCt) => countUnder(files, coveRoot, countCt),
-            AgreedRootThrough(target, services.GetRequiredService<IFolderAddressPort>()),
+            observe is null
+                ? agreedRoot
+                : async (coveRoot, addressCt) =>
+                {
+                    var addressed = await agreedRoot(coveRoot, addressCt).ConfigureAwait(false);
+                    observe(addressed);
+                    return addressed;
+                },
             ct);
     }
 
