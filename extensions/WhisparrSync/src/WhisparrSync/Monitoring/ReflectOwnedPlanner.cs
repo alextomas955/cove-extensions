@@ -83,6 +83,10 @@ internal sealed record FolderAddressRefusal(
 /// purpose: the instance declined nothing here and was never asked about these files, and an import
 /// across two roots copies the bytes in full rather than linking them.
 /// </param>
+/// <param name="RootsCouldNotBeRead">
+/// Whether the run stopped because the instance declared no root to compare against. Every other
+/// count is then zero: no folder was reached, so nothing was linked and nothing was refused.
+/// </param>
 internal sealed record ReflectOwnedRun(
     ReflectOwnedRunOutcome Outcome,
     int FoldersAttached,
@@ -91,7 +95,8 @@ internal sealed record ReflectOwnedRun(
     int FoldersNotAddressed = 0,
     IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null,
     IReadOnlyList<string>? AddressedRoots = null,
-    int EntriesLeftUnderAnotherRoot = 0);
+    int EntriesLeftUnderAnotherRoot = 0,
+    bool RootsCouldNotBeRead = false);
 
 /// <summary>What one folder's rows became, beside what was left out of them.</summary>
 /// <remarks>
@@ -179,10 +184,11 @@ internal static class ReflectOwnedPlanner
     /// reported a success.
     /// <para>
     /// Compared by declared root rather than by device, which is a conservative stand-in: two roots
-    /// on one device cost a link that would have been safe, and no arrangement costs data. Where
-    /// either path sits under no declared root, or the instance declares none, there is no
-    /// comparison to make and the entry stays: a guard that dropped on an unknown would stop every
-    /// import on an instance whose roots could not be read.
+    /// on one device cost a link that would have been safe, and no arrangement costs data.
+    /// Where either path sits under no declared root, or the instance declares none at all, there
+    /// is no comparison to make and the entry stays. An instance whose root list could not be read
+    /// is a different fact and never reaches here: the run stops before a folder is, because a
+    /// guard nobody could apply is not a guard.
     /// </para>
     /// </remarks>
     /// <param name="generation">Whose row spellings the rows are read under.</param>
@@ -258,6 +264,7 @@ internal static class ReflectOwnedPlanner
         Func<JsonArray, CancellationToken, Task<bool>> attach,
         CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(instanceRoots);
         ArgumentNullException.ThrowIfNull(folders);
         ArgumentNullException.ThrowIfNull(address);
         ArgumentNullException.ThrowIfNull(readImportable);
@@ -332,7 +339,8 @@ internal static class ReflectOwnedPlanner
                 unaddressed,
                 [.. refusalByRoot.Values],
                 [.. addressedRoots],
-                leftUnderAnotherRoot);
+                leftUnderAnotherRoot,
+                RootsCouldNotBeRead: false);
     }
 
     /// <summary>
@@ -347,11 +355,6 @@ internal static class ReflectOwnedPlanner
     private static bool UnderDifferentRoots(
         WhisparrGeneration generation, JsonObject row, IReadOnlyList<string> instanceRoots)
     {
-        if (instanceRoots.Count == 0)
-        {
-            return false;
-        }
-
         var file = RootOf(Text(row, "path"), instanceRoots);
         var site = RootOf(Text(row[MatchedMember(generation)] as JsonObject, "path"), instanceRoots);
 

@@ -18,12 +18,18 @@ namespace WhisparrSync.Import;
 public interface IReportedRootPort
 {
     /// <summary>
-    /// The roots <paramref name="generation"/>'s configured instance declares, or an empty list when
-    /// it declares none and when there is no configured instance to ask.
+    /// The roots <paramref name="generation"/>'s configured instance declares, an empty list where
+    /// it declares none, or null where the list could not be established at all.
     /// </summary>
     /// <remarks>
-    /// Empty rather than throwing on an unreachable or unconfigured instance: the caller refuses the
-    /// ingest either way, and a refusal it can name beats an exception it has to classify.
+    /// Null rather than throwing on an unreachable or unconfigured instance: the caller refuses
+    /// either way, and a refusal it can name beats an exception it has to classify.
+    /// <para>
+    /// Null is distinct from empty. Empty is the instance stating it declares no root, and null says
+    /// nothing was established: a caller comparing two paths by the root each sits under can draw no
+    /// conclusion from a list nobody read, and an import made with that comparison unmade copies the
+    /// bytes in full.
+    /// </para>
     /// </remarks>
-    Task<IReadOnlyList<string>> ReadAsync(WhisparrGeneration generation, CancellationToken ct);
+    Task<IReadOnlyList<string>?> ReadAsync(WhisparrGeneration generation, CancellationToken ct);
 }
