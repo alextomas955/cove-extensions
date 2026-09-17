@@ -228,9 +228,9 @@ public sealed class ImportCoreRefusalTests
 
     private sealed class StubReportedRoots(params string[] roots) : IReportedRootPort
     {
-        public Task<IReadOnlyList<string>> ReadAsync(
+        public Task<IReadOnlyList<string>?> ReadAsync(
             WhisparrGeneration generation, CancellationToken ct)
-            => Task.FromResult<IReadOnlyList<string>>(roots);
+            => Task.FromResult<IReadOnlyList<string>?>(roots);
     }
 
     private sealed class StubPaths : IImportPathPort
