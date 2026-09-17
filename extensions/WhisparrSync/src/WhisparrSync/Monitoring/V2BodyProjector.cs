@@ -191,32 +191,40 @@ internal static class V2BodyProjector
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(held.Path);
 
-        held.Path = Under(instanceRoot, held.Path);
-        held.RootFolderPath = instanceRoot;
+        var separator = SeparatorOf(held.Path);
+        var root = Respelled(instanceRoot, separator);
+
+        held.Path = Under(root, held.Path, separator);
+        held.RootFolderPath = root;
         return held;
     }
 
     /// <summary>The last segment of <paramref name="path"/>, under <paramref name="root"/>.</summary>
-    /// <remarks>
-    /// Both separators are accepted on the way in because the instance answers whichever its own host
-    /// uses, and the one written out is the one the root already uses: joining a Windows root with a
-    /// forward slash yields a path that instance will not resolve.
-    /// </remarks>
-    private static string Under(string root, string path)
+    private static string Under(string root, string path, char separator)
     {
-        var trimmedRoot = root.TrimEnd('/', '\\');
         var trimmedPath = path.TrimEnd('/', '\\');
-        var separator = trimmedRoot.Contains('\\', StringComparison.Ordinal)
-            && !trimmedRoot.Contains('/', StringComparison.Ordinal)
+        var lastSegment = trimmedPath[(trimmedPath.LastIndexOfAny(['/', '\\']) + 1)..];
+
+        return lastSegment.Length == 0
+            ? root
+            : string.Create(CultureInfo.InvariantCulture, $"{root}{separator}{lastSegment}");
+    }
+
+    // The separator comes off the site's own held path rather than off the root. The root arrives
+    // from the addressing port, which spells every candidate with forward slashes whichever host the
+    // instance runs on, and joining a Windows path with a forward slash yields one that instance
+    // will not resolve.
+    private static char SeparatorOf(string path)
+    {
+        var trimmed = path.TrimEnd('/', '\\');
+        return trimmed.Contains('\\', StringComparison.Ordinal)
+            && !trimmed.Contains('/', StringComparison.Ordinal)
                 ? '\\'
                 : '/';
-
-        var lastSegment = trimmedPath[(trimmedPath.LastIndexOfAny(['/', '\\']) + 1)..];
-        return lastSegment.Length == 0
-            ? trimmedRoot
-            : string.Create(
-                CultureInfo.InvariantCulture, $"{trimmedRoot}{separator}{lastSegment}");
     }
+
+    private static string Respelled(string root, char separator)
+        => root.TrimEnd('/', '\\').Replace(separator == '\\' ? '/' : '\\', separator);
 
     /// <summary>Sets only the monitored flag on the entity <paramref name="entityId"/> names.</summary>
     /// <remarks>

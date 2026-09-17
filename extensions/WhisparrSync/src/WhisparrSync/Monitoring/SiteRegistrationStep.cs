@@ -1,4 +1,5 @@
 using WhisparrSync.Contracts;
+using WhisparrSync.Import;
 using WhisparrSync.Library;
 using WhisparrSync.Whisparr;
 
@@ -91,7 +92,7 @@ internal static class SiteRegistrationStep
         if (siteId is not { } instanceId
             || agreedRoot is not { } agreed
             || heldRoot is not { } registeredAt
-            || string.Equals(registeredAt, agreed, StringComparison.Ordinal))
+            || SameRoot(registeredAt, agreed))
         {
             return alreadyThere;
         }
@@ -105,4 +106,15 @@ internal static class SiteRegistrationStep
                 ? new SyncRegistration(SceneRegistration.Moved, moved, siteId)
                 : new SyncRegistration(SceneRegistration.Refused, moved, siteId);
     }
+
+    // The agreed root reaches here through the addressing port, which spells every candidate with
+    // forward slashes and verifies it against the instance's own listing without regard to case.
+    // The instance answers its own verbatim spelling. Compared literally, a Windows instance
+    // holding D:\Media never matches the agreed D:/Media, so every held site is moved again on
+    // every run and the correction never converges.
+    private static bool SameRoot(string registeredAt, string agreed)
+        => string.Equals(
+            PathCandidateGuard.Normalize(registeredAt),
+            PathCandidateGuard.Normalize(agreed),
+            StringComparison.OrdinalIgnoreCase);
 }

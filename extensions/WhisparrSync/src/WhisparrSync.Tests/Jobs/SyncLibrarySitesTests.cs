@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json.Nodes;
 using Cove.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -399,6 +400,27 @@ public sealed class SyncLibrarySitesTests
         var instance = new InstanceHolding((FirstSite, HeldSiteId, AgreedRoot));
 
         var outcome = await PassAsync(instance, FirstSite, AgreedRoot, TestCt);
+
+        Assert.Equal(SceneRegistration.AlreadyHeld, outcome.Registration);
+        Assert.Empty(instance.Moves);
+        Assert.Empty(instance.Adds);
+    }
+
+    /// <summary>
+    /// A site held at the agreed root, spelled with the separator its own host uses, is sent
+    /// nothing.
+    /// </summary>
+    /// <remarks>
+    /// The agreed root reaches the step forward-slashed whichever host the instance runs on, because
+    /// every candidate the addressing port builds is spelled that way. Compared literally, a Windows
+    /// instance would be told to move every site it holds on every run, forever.
+    /// </remarks>
+    [Fact]
+    public async Task ASiteHeldAtTheAgreedRootTheInstanceSpellsItsOwnWayIsSentNothing()
+    {
+        var instance = new InstanceHolding((FirstSite, HeldSiteId, @"D:\Media"));
+
+        var outcome = await PassAsync(instance, FirstSite, "D:/Media", TestCt);
 
         Assert.Equal(SceneRegistration.AlreadyHeld, outcome.Registration);
         Assert.Empty(instance.Moves);
@@ -935,12 +957,21 @@ public sealed class SyncLibrarySitesTests
             return Task.FromResult<WhisparrResponse?>(MonitorHost.Json(202, "{}"));
         }
 
+        /// <remarks>
+        /// Serialized rather than interpolated, so a root carrying the separator a Windows instance
+        /// answers with reaches the step as the instance really spells it.
+        /// </remarks>
         private static string Row(int siteId, string root)
-            => string.Create(
-                CultureInfo.InvariantCulture,
-                $$$"""
-                {"id":{{{siteId}}},"title":"Jay Bank Presents",
-                 "rootFolderPath":"{{{root}}}","path":"{{{root}}}/Jay Bank Presents"}
-                """);
+        {
+            var separator = root.Contains('\\', StringComparison.Ordinal) ? "\\" : "/";
+
+            return new JsonObject
+            {
+                ["id"] = siteId,
+                ["title"] = "Jay Bank Presents",
+                ["rootFolderPath"] = root,
+                ["path"] = root + separator + "Jay Bank Presents",
+            }.ToJsonString();
+        }
     }
 }
