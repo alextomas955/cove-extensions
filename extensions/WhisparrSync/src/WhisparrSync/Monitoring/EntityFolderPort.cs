@@ -81,6 +81,24 @@ internal sealed class EntityFolderPort(DbContext db) : IEntityFolderPort
             .ConfigureAwait(false);
     }
 
+    public async Task<int> VideoFilesUnderAsync(
+        int videoId, string coveRoot, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(coveRoot);
+        if (videoId < 1)
+        {
+            return 0;
+        }
+
+        var prefix = PathCandidateGuard.Normalize(coveRoot).TrimEnd('/') + "/";
+
+        return await db.Set<VideoFile>()
+            .AsNoTracking()
+            .Where(file => file.VideoId == videoId && file.Path.StartsWith(prefix))
+            .CountAsync(ct)
+            .ConfigureAwait(false);
+    }
+
     /// <summary>The video files one entity holds, as a query.</summary>
     /// <remarks>
     /// A studio's files reach it through the column its videos carry; a performer's reach it through

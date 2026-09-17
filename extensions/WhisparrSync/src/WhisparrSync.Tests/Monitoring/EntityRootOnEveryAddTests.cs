@@ -159,6 +159,43 @@ public sealed class EntityRootOnEveryAddTests
         Assert.Equal(SecondInstanceRoot, RootOn(fixture.SingleAdd(MoviePath)));
     }
 
+    /// <summary>
+    /// Adding one scene composes with the root that scene's own Cove file sits under.
+    /// </summary>
+    /// <remarks>
+    /// The studio's other files sit under the first root, so a composition keyed on the owning
+    /// entity rather than on the video would send this scene to the wrong one.
+    /// </remarks>
+    [Fact]
+    public async Task OneSceneIsAddedAtTheRootItsOwnFileSitsUnder()
+    {
+        await using var fixture = await StudioFixture.CreateAsync(seedTheFile: false);
+        await fixture.Host.SeedStudioFileAsync(
+            fixture.StudioId, FirstCoveRoot + "/Exploited College Girls", SampleSize);
+        var videoId = await fixture.Host.SeedStudioSceneAsync(
+            fixture.StudioId, MonitorHost.StoredEndpoint, FirstScene);
+        fixture.InstanceHolds(await fixture.Host.SeedSceneFileAsync(videoId, Folder));
+
+        await fixture.Host.SceneActionAsync(videoId, "add");
+
+        Assert.Equal(SecondInstanceRoot, RootOn(fixture.SingleAdd(MoviePath)));
+    }
+
+    /// <summary>
+    /// A scene the library holds no file for is still added, at the root the instance offered first.
+    /// </summary>
+    [Fact]
+    public async Task ASceneOwningNoFileIsAddedAtTheRootTheInstanceOfferedFirst()
+    {
+        await using var fixture = await StudioFixture.CreateAsync();
+        var videoId = await fixture.Host.SeedStudioSceneAsync(
+            fixture.StudioId, MonitorHost.StoredEndpoint, FirstScene);
+
+        await fixture.Host.SceneActionAsync(videoId, "add");
+
+        Assert.Equal(FirstInstanceRoot, RootOn(fixture.SingleAdd(MoviePath)));
+    }
+
     /// <summary>The path a v3 instance takes a scene add on.</summary>
     private const string MoviePath = "api/v3/movie";
 
@@ -177,13 +214,25 @@ public sealed class EntityRootOnEveryAddTests
     private sealed class StudioFixture : IAsyncDisposable
     {
         private readonly BodyRecordingHandler _bytes;
+        private readonly string[] _listing;
 
-        private StudioFixture(MonitorHost host, BodyRecordingHandler bytes, int studioId)
+        private StudioFixture(
+            MonitorHost host, BodyRecordingHandler bytes, string[] listing, int studioId)
         {
             Host = host;
             _bytes = bytes;
+            _listing = listing;
             StudioId = studioId;
         }
+
+        /// <summary>States that the instance holds <paramref name="covePath"/> under its own root.</summary>
+        /// <remarks>
+        /// The probe's listing is composed from a path the library really seeded, so the instance is
+        /// asked about the path the product really asked about rather than one this case guessed at.
+        /// </remarks>
+        public void InstanceHolds(string covePath)
+            => _listing[0] = ListingHolding(
+                covePath.Replace(SecondCoveRoot, SecondInstanceRoot, StringComparison.Ordinal));
 
         public MonitorHost Host { get; }
 
@@ -250,21 +299,18 @@ public sealed class EntityRootOnEveryAddTests
             var studioId = await host.SeedStudioAsync(
                 MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
+            var fixture = new StudioFixture(host, bytes, listing, studioId);
+
             if (seedTheFile)
             {
                 var seeded = await host.SeedStudioFileAsync(studioId, Folder, SampleSize);
                 if (instanceHoldsTheSample)
                 {
-                    var onInstance = seeded.Replace(
-                        SecondCoveRoot, SecondInstanceRoot, StringComparison.Ordinal);
-                    listing[0] = $$"""
-                        {"parent":"{{SecondInstanceRoot}}/","directories":[],
-                         "files":[{"path":"{{onInstance}}","size":{{SampleSize}}}]}
-                        """;
+                    fixture.InstanceHolds(seeded);
                 }
             }
 
-            return new StudioFixture(host, bytes, studioId);
+            return fixture;
         }
 
         /// <summary>Marks <paramref name="providerSceneIds"/> wanted, and runs the enqueued pass.</summary>
@@ -289,6 +335,13 @@ public sealed class EntityRootOnEveryAddTests
 
         /// <summary>The one body posted to <paramref name="path"/>.</summary>
         public string SingleAdd(string path) => Assert.Single(Adds(path));
+
+        /// <summary>One folder listing holding <paramref name="instancePath"/> and nothing else.</summary>
+        private static string ListingHolding(string instancePath)
+            => $$"""
+                {"parent":"{{SecondInstanceRoot}}/","directories":[],
+                 "files":[{"path":"{{instancePath}}","size":{{SampleSize}}}]}
+                """;
 
         public ValueTask DisposeAsync() => Host.DisposeAsync();
     }

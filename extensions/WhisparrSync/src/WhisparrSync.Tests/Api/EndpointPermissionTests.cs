@@ -365,7 +365,15 @@ public sealed class EndpointPermissionTests
         => verb switch
         {
             "add" => await global::WhisparrSync.WhisparrSync.AddSceneAsync(
-                1, principal, options, credentials, client, identities, NullLogger.Instance, TestCt),
+                1,
+                principal,
+                options,
+                credentials,
+                client,
+                identities,
+                new UnreachableScopes(),
+                NullLogger.Instance,
+                TestCt),
             "monitor" => await global::WhisparrSync.WhisparrSync.MonitorSceneAsync(
                 1, principal, options, credentials, client, identities, NullLogger.Instance, TestCt),
             "unmonitor" => await global::WhisparrSync.WhisparrSync.UnmonitorSceneAsync(
@@ -378,6 +386,14 @@ public sealed class EndpointPermissionTests
                 1, principal, options, credentials, client, identities, NullLogger.Instance, TestCt),
             _ => throw new ArgumentOutOfRangeException(nameof(verb)),
         };
+
+    /// <summary>A scope factory whose use is a failure, because the gate refuses before it.</summary>
+    private sealed class UnreachableScopes : IServiceScopeFactory
+    {
+        public IServiceScope CreateScope()
+            => throw new InvalidOperationException(
+                "A refused caller must reach no scope, and therefore no library read.");
+    }
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 

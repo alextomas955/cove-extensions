@@ -199,5 +199,8 @@ public sealed class ReflectOwnedJobTests
         public Task<int> FilesUnderAsync(
             WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct)
             => throw new NotSupportedException("This case is about the folder loop.");
+
+        public Task<int> VideoFilesUnderAsync(int videoId, string coveRoot, CancellationToken ct)
+            => throw new NotSupportedException("This case is about the folder loop.");
     }
 }

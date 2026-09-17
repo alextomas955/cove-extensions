@@ -54,6 +54,13 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     public const string StoredKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
+    /// <summary>The size every file seeded through <see cref="SeedVideoWithFilesAsync"/> carries.</summary>
+    /// <remarks>
+    /// Non-zero, because a folder probe matches a candidate on its size as well as its path and a
+    /// zero would make every case agree with every file.
+    /// </remarks>
+    public const long SeededFileSize = 41;
+
     /// <summary>Profiles as an instance offered them, in the order received and not in id order.</summary>
     public const string UnsortedProfiles = """[{"id":4,"name":"Any"},{"id":1,"name":"HD-1080p"}]""";
 
@@ -656,6 +663,60 @@ internal sealed class MonitorHost : IAsyncDisposable
         return video.Id;
     }
 
+    /// <summary>
+    /// Seeds one video the studio <paramref name="studioId"/> names, holding one file in each of
+    /// <paramref name="folderPaths"/>, and answers the video's own id.
+    /// </summary>
+    /// <remarks>
+    /// One video across several folders, which the per-file helpers cannot express: each of those
+    /// seeds a video of its own, so a case about one video's files would be about several.
+    /// </remarks>
+    public async Task<int> SeedVideoWithFilesAsync(int studioId, params string[] folderPaths)
+    {
+        ArgumentNullException.ThrowIfNull(folderPaths);
+
+        var videoId = await SeedSceneAsync(studioId, null, null, null);
+        foreach (var folderPath in folderPaths)
+        {
+            await SeedSceneFileAsync(videoId, folderPath);
+        }
+
+        return videoId;
+    }
+
+    /// <summary>
+    /// Seeds one file the video <paramref name="videoId"/> names holds, in
+    /// <paramref name="folderPath"/>, and answers its stored path.
+    /// </summary>
+    public async Task<string> SeedSceneFileAsync(int videoId, string folderPath)
+    {
+        var folder = await FolderAtAsync(folderPath);
+        var file = new VideoFile
+        {
+            Basename = "scene " + (++_seeded).ToString(CultureInfo.InvariantCulture) + ".mp4",
+            ParentFolderId = folder.Id,
+            VideoId = videoId,
+            Size = SeededFileSize,
+        };
+        _db.Add(file);
+        await _db.SaveChangesAsync(TestCt);
+        return file.Path;
+    }
+
+    private async Task<Folder> FolderAtAsync(string folderPath)
+    {
+        var folder = await _db.Set<Folder>()
+            .FirstOrDefaultAsync(row => row.Path == folderPath, TestCt);
+        if (folder is null)
+        {
+            folder = new Folder { Path = folderPath };
+            _db.Add(folder);
+            await _db.SaveChangesAsync(TestCt);
+        }
+
+        return folder;
+    }
+
     private async Task<string> SeedVideoFileAsync(
         string folderPath, int? studioId, int? performerId, long size)
     {
@@ -706,6 +767,12 @@ internal sealed class MonitorHost : IAsyncDisposable
         {
             counts.Add(coveRoot);
             return held.FilesUnderAsync(kind, coveId, coveRoot, ct);
+        }
+
+        public Task<int> VideoFilesUnderAsync(int videoId, string coveRoot, CancellationToken ct)
+        {
+            counts.Add(coveRoot);
+            return held.VideoFilesUnderAsync(videoId, coveRoot, ct);
         }
     }
 }
