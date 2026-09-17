@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json.Nodes;
+using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -133,6 +134,24 @@ public sealed class SiteRootMoveTests
         Assert.Equal([HttpMethod.Get], sent.Requests.Select(request => request.Method));
     }
 
+    /// <summary>
+    /// A read the instance answered, and that nothing could be read out of, sends no update and
+    /// does not read as accepted.
+    /// </summary>
+    /// <remarks>
+    /// The status alone is a success here, so an answer handed back unchanged would be counted as a
+    /// move that happened. Nothing left, and the site is still registered where none of its files
+    /// sit, which is a failure a reader acts on.
+    /// </remarks>
+    [Fact]
+    public async Task AReadAnsweringNothingReadableSendsNoUpdateAndIsNotAccepted()
+    {
+        var (answered, sent) = await MoveAsync(readAnswer: "null");
+
+        Assert.Equal([HttpMethod.Get], sent.Requests.Select(request => request.Method));
+        Assert.NotEqual(MonitorRefusalKind.None, MonitoringProjector.Accepted(answered));
+    }
+
     /// <summary>An update the instance refused stops before the catalogue re-read.</summary>
     [Fact]
     public async Task AnUpdateTheInstanceRefusedStopsBeforeTheCatalogueReRead()
@@ -162,7 +181,8 @@ public sealed class SiteRootMoveTests
     /// <summary>One move against an instance holding the site under the other root.</summary>
     private static async Task<(WhisparrResponse Answered, BodyRecordingHandler Sent)> MoveAsync(
         HttpStatusCode readStatus = HttpStatusCode.OK,
-        HttpStatusCode updateStatus = HttpStatusCode.Accepted)
+        HttpStatusCode updateStatus = HttpStatusCode.Accepted,
+        string? readAnswer = null)
     {
         var sent = BodyRecordingHandler.AnsweringEach((method, _) => Answer(method));
 
@@ -170,7 +190,7 @@ public sealed class SiteRootMoveTests
         {
             if (method == HttpMethod.Get)
             {
-                return (readStatus, Held);
+                return (readStatus, readAnswer ?? Held);
             }
 
             return method == HttpMethod.Put
