@@ -85,6 +85,31 @@ public sealed class SiteRootMoveTests
         Assert.Equal(AgreedRoot, body["rootFolderPath"]!.GetValue<string>());
     }
 
+    /// <summary>
+    /// The update is spelled with the separator the site's own held path uses, not the one the
+    /// agreed root arrives with.
+    /// </summary>
+    /// <remarks>
+    /// Every candidate the addressing port builds is forward-slashed whichever host the instance
+    /// runs on, so the root alone cannot say which separator that host resolves. A Windows instance
+    /// does not resolve a path joined with the other one.
+    /// </remarks>
+    [Fact]
+    public async Task TheUpdateIsSpelledWithTheSeparatorTheHeldPathUses()
+    {
+        var (_, sent) = await MoveAsync(
+            readAnswer: $$"""
+                {"id":{{SiteId}},"title":"{{Folder}}",
+                 "path":"D:\\MediaA\\{{Folder}}","rootFolderPath":"D:\\MediaA",
+                 "qualityProfileId":6,"monitored":true,"seasons":[]}
+                """,
+            agreedRoot: "D:/MediaB");
+        var body = UpdateBody(sent);
+
+        Assert.Equal(@"D:\MediaB\" + Folder, body["path"]!.GetValue<string>());
+        Assert.Equal(@"D:\MediaB", body["rootFolderPath"]!.GetValue<string>());
+    }
+
     /// <summary>The update instructs no file transfer, in the request or in the body.</summary>
     /// <remarks>
     /// Absence is the guarantee. The instance leaves the bytes under the old root when the parameter
@@ -182,7 +207,8 @@ public sealed class SiteRootMoveTests
     private static async Task<(WhisparrResponse Answered, BodyRecordingHandler Sent)> MoveAsync(
         HttpStatusCode readStatus = HttpStatusCode.OK,
         HttpStatusCode updateStatus = HttpStatusCode.Accepted,
-        string? readAnswer = null)
+        string? readAnswer = null,
+        string agreedRoot = AgreedRoot)
     {
         var sent = BodyRecordingHandler.AnsweringEach((method, _) => Answer(method));
 
@@ -199,7 +225,7 @@ public sealed class SiteRootMoveTests
         }
 
         var client = TestWhisparrClient.Over(sent);
-        var answered = await client.MoveSiteRootAsync(Instance, ApiKey, SiteId, AgreedRoot, TestCt);
+        var answered = await client.MoveSiteRootAsync(Instance, ApiKey, SiteId, agreedRoot, TestCt);
 
         return (answered, sent);
     }
