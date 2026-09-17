@@ -823,14 +823,6 @@ public sealed class SyncLibrarySitesTests
         };
 
     /// <summary>
-    /// A host on v2, whose instance either holds every site or holds none.
-    /// </summary>
-    /// <remarks>
-    /// The add is given an answer only where the instance holds nothing. A pass that composed one
-    /// against an instance that already holds the site reaches a verb this client was given no answer
-    /// for, and the client refuses it.
-    /// </remarks>
-    /// <summary>
     /// A pass that could settle no instance root for a library root puts that root on the settings
     /// page, where its own ending sends the reader to state a path for it.
     /// </summary>
@@ -877,6 +869,14 @@ public sealed class SyncLibrarySitesTests
                 CovePaths = [new CovePath { Path = UnsettledCoveRoot }],
             });
 
+    /// <summary>
+    /// A host on v2, whose instance either holds every site or holds none.
+    /// </summary>
+    /// <remarks>
+    /// The add is given an answer only where the instance holds nothing. A pass that composed one
+    /// against an instance that already holds the site reaches a verb this client was given no answer
+    /// for, and the client refuses it.
+    /// </remarks>
     private static async Task<MonitorHost> SiteHost(
         bool held, RecordingProviderCatalogue? provider = null)
     {
