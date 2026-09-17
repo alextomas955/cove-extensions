@@ -660,25 +660,29 @@ public sealed class SyncLibrarySitesTests
     }
 
     /// <summary>
-    /// A run that left studios alone for want of an agreed root states that count apart.
+    /// A run that agreed no root for some studios states that count beside the other figures.
     /// </summary>
     /// <remarks>
-    /// Inside the refused figure rather than beside it, because those studios are counted in it.
+    /// Beside them rather than inside the refused one: a studio the instance already holds is
+    /// counted as already held even where its root was not agreed, so the count is spread across two
+    /// figures and a parenthetical inside either would read as a subset of it.
     /// </remarks>
     [Fact]
-    public async Task ARunThatLeftStudiosAloneForWantOfAnAgreedRootStatesThatCountApart()
+    public async Task ARunThatAgreedNoRootForSomeStudiosStatesThatCountBesideTheOthers()
     {
         var progress = new RecordingJobProgress();
 
         var run = await RunOverAsync(
             progress,
             (SceneRegistration.Refused, NoAgreedRoot),
+            (SceneRegistration.AlreadyHeld, NoAgreedRoot),
             (SceneRegistration.Refused, AtOneRoot));
 
         Assert.Equal(2, run.Refused);
-        Assert.Equal(1, run.WithoutAnAgreedRoot);
+        Assert.Equal(1, run.AlreadyHeld);
+        Assert.Equal(2, run.WithoutAnAgreedRoot);
         Assert.Contains(
-            "2 refused (1 for want of an agreed root)",
+            "2 refused, 2 with no agreed root",
             Assert.Single(progress.Summaries),
             StringComparison.Ordinal);
     }

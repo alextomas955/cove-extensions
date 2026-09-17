@@ -108,6 +108,29 @@ public sealed class SiteRootRegistrationTests
             "0 sites registered", Assert.Single(progress.Summaries), StringComparison.Ordinal);
     }
 
+    /// <summary>A studio no root was agreed for is still read on the instance.</summary>
+    /// <remarks>
+    /// The read is what decides whether the site is already there, and a site already there has its
+    /// scenes marked whatever root it sits at. A probe that cannot be answered refuses the same way
+    /// for every site in the run, so stopping before the read would leave a whole run's scenes
+    /// unflagged over a folder mapping.
+    /// </remarks>
+    [Fact]
+    public async Task AStudioWhoseRootAgreedOnNothingIsStillReadOnTheInstance()
+    {
+        var (host, progress) = await RunAsync(instanceHoldsTheSample: false);
+        await using var driven = host;
+
+        Assert.Contains(
+            host.Bytes!.Requests,
+            sent => sent.Method == HttpMethod.Get
+                && sent.Path.EndsWith("/series", StringComparison.Ordinal));
+        Assert.Contains(
+            "1 with no agreed root",
+            Assert.Single(progress.Summaries),
+            StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// The reason that studio carries is its own library root, not the instance offering no root.
     /// </summary>

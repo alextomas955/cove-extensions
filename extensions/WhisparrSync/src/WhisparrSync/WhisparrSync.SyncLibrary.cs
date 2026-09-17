@@ -476,14 +476,10 @@ public sealed partial class WhisparrSync
                 agreedRoot,
                 siteCt).ConfigureAwait(false);
 
-            if (composed.Defaults is not { } addWith)
-            {
-                WhisparrSyncLog.SiteRegistrationRefused(
-                    _log, site.StudioId, site.RemoteId, composed.Refusal.ToString());
-                return new SyncRegistration(
-                    SceneRegistration.Refused, Nothing(composed.Refusal), null, composed.Root);
-            }
-
+            // A composition that refused still reaches the step, so the site is read. Where the
+            // instance already holds it, nothing about its root has to be settled for its scenes to
+            // be marked, and stopping short would leave a whole run's scenes unflagged whenever the
+            // instance could not be probed.
             var registered = await SiteRegistrationStep.RegisterAsync(
                 (identity, readCt) => ContainedAsync(
                     () => studios.ReadStudioAsync(
@@ -491,12 +487,14 @@ public sealed partial class WhisparrSync
                     target,
                     _log,
                     readCt),
-                (identity, addCt) => ContainedAsync(
-                    () => acting.RegisterSiteAsync(
-                        target.BaseAddress, target.ApiKey, identity, addWith, addCt),
-                    target,
-                    _log,
-                    addCt),
+                (identity, addCt) => composed.Defaults is { } addWith
+                    ? ContainedAsync(
+                        () => acting.RegisterSiteAsync(
+                            target.BaseAddress, target.ApiKey, identity, addWith, addCt),
+                        target,
+                        _log,
+                        addCt)
+                    : Task.FromResult<WhisparrResponse?>(Nothing(composed.Refusal)),
                 (siteId, agreed, moveCt) => ContainedAsync(
                     () => acting.MoveSiteRootAsync(
                         target.BaseAddress, target.ApiKey, siteId, agreed, moveCt),
