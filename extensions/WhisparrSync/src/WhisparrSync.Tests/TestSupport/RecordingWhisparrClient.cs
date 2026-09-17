@@ -389,6 +389,21 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
                 Monitored = false,
             });
 
+    public Task<WhisparrResponse> MoveSiteRootAsync(
+        Uri baseAddress,
+        string apiKey,
+        int siteId,
+        string rootFolderPath,
+        CancellationToken ct)
+        => RecordActing(
+            new ActingCall(nameof(MoveSiteRootAsync), baseAddress, apiKey)
+            {
+                Kind = WhisparrEntityKind.Studio,
+                Generation = WhisparrGeneration.V2,
+                EntityId = siteId,
+                Folder = rootFolderPath,
+            });
+
     public Task<WhisparrResponse> RefreshCatalogueAsync(
         Uri baseAddress,
         string apiKey,
