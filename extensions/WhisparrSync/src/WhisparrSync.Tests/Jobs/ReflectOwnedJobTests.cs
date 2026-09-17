@@ -38,6 +38,10 @@ public sealed class ReflectOwnedJobTests
 
     private const string AttachedNothing = "0 linked, 0 refused.";
 
+    private const string NoRootToCompare =
+        "No files were linked: Whisparr declared no root folder, so whether a link would copy the "
+        + "data could not be checked.";
+
     [Fact]
     public async Task ARunTheLinkingSettingStoppedSaysWhichSettingStoppedIt()
     {
@@ -60,6 +64,37 @@ public sealed class ReflectOwnedJobTests
         var line = ReflectOwnedJob.SummaryOf(run);
         Assert.Equal(SettingUnreadable, line);
         Assert.NotEqual(SettingIsOff, line);
+    }
+
+    /// <summary>
+    /// A run whose instance root list could not be read reaches no folder, and says the check was
+    /// not made.
+    /// </summary>
+    /// <remarks>
+    /// The list is what the cross-root guard compares against, and an import that crosses two roots
+    /// copies the bytes in full. A run that linked with the guard unapplied would be textually
+    /// identical to one that linked safely, so it stops instead and says why.
+    /// </remarks>
+    [Fact]
+    public async Task ARunWhoseInstanceRootsCouldNotBeReadLinksNothingAndSaysSo()
+    {
+        var attaches = 0;
+
+        var run = await RunAsync(
+            OneStudio,
+            Acting(
+                (_, _) => Task.FromResult(ImportableListing.Listed(Attachable)),
+                (_, _) =>
+                {
+                    attaches++;
+                    return Task.FromResult(true);
+                }),
+            new UnreadableRoots(),
+            TestContext.Current.CancellationToken,
+            "/library/one");
+
+        Assert.Equal(NoRootToCompare, ReflectOwnedJob.SummaryOf(run));
+        Assert.Equal(0, attaches);
     }
 
     /// <summary>
@@ -165,16 +200,24 @@ public sealed class ReflectOwnedJobTests
         params string[] folders)
         => RunAsync(batch, aiming, TestContext.Current.CancellationToken, folders);
 
+    private static Task<ReflectOwnedRun> RunAsync(
+        ReflectOwnedBatch batch,
+        Func<IServiceProvider, CancellationToken, Task<ReflectOwnedAim>> aiming,
+        CancellationToken ct,
+        params string[] folders)
+        => RunAsync(batch, aiming, new NoDeclaredRoots(), ct, folders);
+
     private static async Task<ReflectOwnedRun> RunAsync(
         ReflectOwnedBatch batch,
         Func<IServiceProvider, CancellationToken, Task<ReflectOwnedAim>> aiming,
+        IReportedRootPort roots,
         CancellationToken ct,
         params string[] folders)
     {
         var services = new ServiceCollection();
         services.AddScoped<ICurrentPrincipalAccessor>(_ => FakePrincipalAccessor.WithPermissions());
         services.AddScoped<IEntityFolderPort>(_ => new FixedFolders(folders));
-        services.AddScoped<IReportedRootPort>(_ => new NoDeclaredRoots());
+        services.AddScoped(_ => roots);
         await using var provider = services.BuildServiceProvider();
 
         return await ReflectOwnedJob.RunAsync(
@@ -209,8 +252,16 @@ public sealed class ReflectOwnedJobTests
     /// <summary>An instance declaring no root, so no file is compared against one.</summary>
     private sealed class NoDeclaredRoots : IReportedRootPort
     {
-        public Task<IReadOnlyList<string>> ReadAsync(
+        public Task<IReadOnlyList<string>?> ReadAsync(
             WhisparrGeneration generation, CancellationToken ct)
-            => Task.FromResult<IReadOnlyList<string>>([]);
+            => Task.FromResult<IReadOnlyList<string>?>([]);
+    }
+
+    /// <summary>An instance whose root list nothing could be established from.</summary>
+    private sealed class UnreadableRoots : IReportedRootPort
+    {
+        public Task<IReadOnlyList<string>?> ReadAsync(
+            WhisparrGeneration generation, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<string>?>(null);
     }
 }

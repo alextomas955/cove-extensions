@@ -21,7 +21,7 @@ internal sealed class ImportCore(
 
         var reading = PathCandidateGuard.Read(
             candidate.ReportedPath,
-            await reportedRoots.ReadAsync(candidate.Generation, ct).ConfigureAwait(false),
+            await reportedRoots.ReadAsync(candidate.Generation, ct).ConfigureAwait(false) ?? [],
             library.LibraryRoots);
 
         if (reading.Refusal is { } refusal)

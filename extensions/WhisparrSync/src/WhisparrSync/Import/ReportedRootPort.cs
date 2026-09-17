@@ -40,15 +40,27 @@ internal sealed class ReportedRootCache(TimeProvider clock)
     internal static readonly TimeSpan NothingToReadLifetime = TimeSpan.FromSeconds(30);
 
     private readonly ConcurrentDictionary<
-        WhisparrGeneration, (DateTimeOffset ReadAt, TimeSpan For, IReadOnlyList<string> Roots)>
+        WhisparrGeneration, (DateTimeOffset ReadAt, TimeSpan For, IReadOnlyList<string>? Roots)>
         _entries = new();
 
-    /// <summary>The held reading for <paramref name="generation"/>, or null when there is none in date.</summary>
-    internal IReadOnlyList<string>? Held(WhisparrGeneration generation)
-        => _entries.TryGetValue(generation, out var entry)
-            && clock.GetUtcNow() - entry.ReadAt < entry.For
-                ? entry.Roots
-                : null;
+    /// <summary>Whether a reading for <paramref name="generation"/> is in date, and what it says.</summary>
+    /// <remarks>
+    /// <paramref name="roots"/> is null on a held reading nothing could be established from, which is
+    /// a different fact from an instance declaring none, so the two cannot share the one absent value
+    /// a return would have to carry.
+    /// </remarks>
+    internal bool TryHeld(WhisparrGeneration generation, out IReadOnlyList<string>? roots)
+    {
+        roots = null;
+        if (_entries.TryGetValue(generation, out var entry)
+            && clock.GetUtcNow() - entry.ReadAt < entry.For)
+        {
+            roots = entry.Roots;
+            return true;
+        }
+
+        return false;
+    }
 
     /// <summary>Holds <paramref name="roots"/> as <paramref name="generation"/>'s current reading.</summary>
     internal void Hold(WhisparrGeneration generation, IReadOnlyList<string> roots)
@@ -62,7 +74,7 @@ internal sealed class ReportedRootCache(TimeProvider clock)
     /// found nobody, so both are one reading here rather than two entries or two dictionaries.
     /// </remarks>
     internal void HoldNothingToRead(WhisparrGeneration generation)
-        => _entries[generation] = (clock.GetUtcNow(), NothingToReadLifetime, []);
+        => _entries[generation] = (clock.GetUtcNow(), NothingToReadLifetime, null);
 }
 
 /// <inheritdoc cref="IReportedRootPort"/>
@@ -73,9 +85,10 @@ internal sealed class ReportedRootPort(
     ReportedRootCache cache,
     ILogger log) : IReportedRootPort
 {
-    public async Task<IReadOnlyList<string>> ReadAsync(WhisparrGeneration generation, CancellationToken ct)
+    public async Task<IReadOnlyList<string>?> ReadAsync(
+        WhisparrGeneration generation, CancellationToken ct)
     {
-        if (cache.Held(generation) is { } held)
+        if (cache.TryHeld(generation, out var held))
         {
             return held;
         }
@@ -89,7 +102,7 @@ internal sealed class ReportedRootPort(
                 stored.ConnectionFor(generation)?.Address, apiKey, out var baseAddress, out _))
         {
             cache.HoldNothingToRead(generation);
-            return [];
+            return null;
         }
 
         WhisparrResponse response;
@@ -110,10 +123,14 @@ internal sealed class ReportedRootPort(
             // Held, so a burst of deliveries arriving during an outage does not re-pay the client's
             // timeout and retry once per file, inside the inbound request pipeline.
             cache.HoldNothingToRead(generation);
-            return [];
+            return null;
         }
 
-        var roots = RootsIn(response);
+        if (RootsIn(response) is not { } roots)
+        {
+            cache.HoldNothingToRead(generation);
+            return null;
+        }
 
         // Held even when empty, so an instance that declares none is asked at the same rate as one
         // that declares several.
@@ -122,14 +139,15 @@ internal sealed class ReportedRootPort(
     }
 
     /// <summary>
-    /// The root paths one answer declares, taken on parsed shape rather than on status.
+    /// The root paths one answer declares, or null where the answer is not a list of them at all.
     /// </summary>
     /// <remarks>
-    /// One generation publishes no contract, so what an answer IS gets established by parsing it. A
-    /// body that is not an array of objects carrying a string path yields nothing, which the caller
-    /// refuses on.
+    /// One generation publishes no contract, so what an answer is gets established by parsing it. A
+    /// body that is not an array answers null rather than an empty list: it establishes nothing about
+    /// what the instance declares, and a caller reading it as none would take a decision on a reading
+    /// nobody made.
     /// </remarks>
-    private static IReadOnlyList<string> RootsIn(WhisparrResponse response)
+    private static IReadOnlyList<string>? RootsIn(WhisparrResponse response)
     {
         JsonNode? parsed;
         try
@@ -138,11 +156,11 @@ internal sealed class ReportedRootPort(
         }
         catch (System.Text.Json.JsonException)
         {
-            return [];
+            return null;
         }
 
         return parsed is not JsonArray declared
-            ? []
+            ? null
             : [.. declared
                 .OfType<JsonObject>()
                 .Select(root => (root["path"] as JsonValue)?.GetValue<string>())
