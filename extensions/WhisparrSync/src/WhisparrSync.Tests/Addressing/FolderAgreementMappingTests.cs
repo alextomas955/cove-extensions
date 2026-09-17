@@ -390,11 +390,11 @@ public sealed class FolderAgreementMappingTests
     {
         public int Reads { get; private set; }
 
-        public Task<IReadOnlyList<string>> ReadAsync(
+        public Task<IReadOnlyList<string>?> ReadAsync(
             WhisparrGeneration generation, CancellationToken ct)
         {
             Reads++;
-            return Task.FromResult(roots);
+            return Task.FromResult<IReadOnlyList<string>?>(roots);
         }
     }
 }

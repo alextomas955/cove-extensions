@@ -199,7 +199,7 @@ public sealed class RefusalBeforeRequestTests
 
         for (var delivery = 0; delivery < Burst; delivery++)
         {
-            Assert.Empty(await roots.ReadAsync(WhisparrGeneration.V3, TestCt));
+            Assert.Null(await roots.ReadAsync(WhisparrGeneration.V3, TestCt));
         }
 
         Assert.Equal(1, unreachable.Attempts);
@@ -218,7 +218,7 @@ public sealed class RefusalBeforeRequestTests
 
         for (var delivery = 0; delivery < Burst; delivery++)
         {
-            Assert.Empty(await unconfigured.ReadAsync(WhisparrGeneration.V3, TestCt));
+            Assert.Null(await unconfigured.ReadAsync(WhisparrGeneration.V3, TestCt));
         }
 
         Assert.Empty(client.Notifications);
@@ -249,6 +249,27 @@ public sealed class RefusalBeforeRequestTests
         await roots.ReadAsync(WhisparrGeneration.V3, TestCt);
 
         Assert.Equal(2, unreachable.Attempts);
+    }
+
+    /// <summary>
+    /// An instance declaring no root answers an empty list, not the absent one an unreachable
+    /// instance answers.
+    /// </summary>
+    /// <remarks>
+    /// The cross-root guard can be applied to an instance that really declares none, and cannot be
+    /// applied to a list nobody read. Collapsing the two would let an outage read as a settled fact
+    /// about the instance, and an import made on it copies the bytes in full.
+    /// </remarks>
+    [Fact]
+    public async Task AnInstanceDeclaringNoRootIsHeldApartFromOneThatCouldNotBeRead()
+    {
+        var declaring = RecordingWhisparrClient.Reporting(V3StatusFixture);
+        declaring.Answering(
+            nameof(IWhisparrClient.ReadRootFoldersAsync), RecordingWhisparrClient.Json(200, "[]"));
+        var roots = await RootPortOverAsync(
+            declaring, StoredAddress, StoredKey, new MovableClock(Midnight));
+
+        Assert.Empty((await roots.ReadAsync(WhisparrGeneration.V3, TestCt))!);
     }
 
     /// <summary>
