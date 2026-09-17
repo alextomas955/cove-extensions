@@ -30,6 +30,12 @@ namespace WhisparrSync.Monitoring;
 /// instance holds and a second pass over a corrected library sends nothing.
 /// </para>
 /// <para>
+/// A site already at the agreed root that the instance reports no file for is asked to read its
+/// catalogue again. The move's own re-read can fail after the update has landed, and the root then
+/// reads as correct on every later run, so nothing else would ever send it and the site would stay
+/// registered correctly and reporting nothing.
+/// </para>
+/// <para>
 /// With no agreed root nothing is sent and the site is left where it is. An entity owning no file
 /// and an entity whose library root the instance agreed no spelling for are both states in which
 /// this product knows nothing about where the site belongs, and moving it would be a guess written
@@ -44,6 +50,9 @@ internal static class SiteRegistrationStep
     /// <param name="moveSiteRoot">
     /// Moves one site the instance already holds to another root, moving no file.
     /// </param>
+    /// <param name="refreshSiteCatalogue">
+    /// Asks the instance to read one site's catalogue again, without moving it.
+    /// </param>
     /// <param name="agreedRoot">
     /// The instance root this site's own files agree on, or null where there is none.
     /// </param>
@@ -53,6 +62,7 @@ internal static class SiteRegistrationStep
         Func<string, CancellationToken, Task<WhisparrResponse?>> readSite,
         Func<string, CancellationToken, Task<WhisparrResponse?>> registerSite,
         Func<int, string, CancellationToken, Task<WhisparrResponse?>> moveSiteRoot,
+        Func<int, CancellationToken, Task<WhisparrResponse?>> refreshSiteCatalogue,
         string? agreedRoot,
         LibrarySiteIdentity site,
         CancellationToken ct)
@@ -60,6 +70,7 @@ internal static class SiteRegistrationStep
         ArgumentNullException.ThrowIfNull(readSite);
         ArgumentNullException.ThrowIfNull(registerSite);
         ArgumentNullException.ThrowIfNull(moveSiteRoot);
+        ArgumentNullException.ThrowIfNull(refreshSiteCatalogue);
         ArgumentNullException.ThrowIfNull(site);
 
         var held = await readSite(site.RemoteId, ct).ConfigureAwait(false);
@@ -70,7 +81,9 @@ internal static class SiteRegistrationStep
         switch (reading)
         {
             case MonitoringProjector.EntityReading.Held:
-                return await HeldAsync(moveSiteRoot, agreedRoot, held!, ct).ConfigureAwait(false);
+                return await HeldAsync(
+                    moveSiteRoot, refreshSiteCatalogue, agreedRoot, held!, ct)
+                    .ConfigureAwait(false);
             case MonitoringProjector.EntityReading.NotHeld:
                 return SyncRegistration.Offered(
                     await registerSite(site.RemoteId, ct).ConfigureAwait(false));
@@ -81,6 +94,7 @@ internal static class SiteRegistrationStep
 
     private static async Task<SyncRegistration> HeldAsync(
         Func<int, string, CancellationToken, Task<WhisparrResponse?>> moveSiteRoot,
+        Func<int, CancellationToken, Task<WhisparrResponse?>> refreshSiteCatalogue,
         string? agreedRoot,
         WhisparrResponse held,
         CancellationToken ct)
@@ -91,9 +105,24 @@ internal static class SiteRegistrationStep
 
         if (siteId is not { } instanceId
             || agreedRoot is not { } agreed
-            || heldRoot is not { } registeredAt
-            || SameRoot(registeredAt, agreed))
+            || heldRoot is not { } registeredAt)
         {
+            return alreadyThere;
+        }
+
+        if (SameRoot(registeredAt, agreed))
+        {
+            // The site sits at the agreed root and the instance has linked no file to it, which is
+            // what a move whose catalogue re-read never arrived leaves behind. The root alone reads
+            // as correct from then on, so the re-read has to be reachable without moving the site
+            // again or it is never sent at all. This product registers a site only for one owning
+            // files under a root the instance agreed a spelling for, so a stated zero here is an
+            // unread catalogue rather than an empty site.
+            if (MonitoringProjector.FileCountIn(held.Body) is 0)
+            {
+                await refreshSiteCatalogue(instanceId, ct).ConfigureAwait(false);
+            }
+
             return alreadyThere;
         }
 

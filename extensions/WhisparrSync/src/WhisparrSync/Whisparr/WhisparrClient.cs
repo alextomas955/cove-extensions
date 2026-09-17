@@ -817,14 +817,23 @@ internal sealed class WhisparrClient(
             return moved;
         }
 
-        var (verb, payload) = VerbAndPayload(V2BodyProjector.RefreshCatalogue(siteId));
-        var linked = await GeneratedV2ActAsync(
-            baseAddress,
-            apiKey,
-            api => api.Api<V2Api.CommandApi>().SendCommandAsync(verb, payload, ct))
+        var linked = await RefreshSiteCatalogueAsync(baseAddress, apiKey, siteId, ct)
             .ConfigureAwait(false);
 
         return Refused(linked) ? linked : moved;
+    }
+
+    /// <inheritdoc/>
+    public Task<WhisparrResponse> RefreshSiteCatalogueAsync(
+        Uri baseAddress, string apiKey, int siteId, CancellationToken ct)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(siteId, 1);
+
+        var (verb, payload) = VerbAndPayload(V2BodyProjector.RefreshCatalogue(siteId));
+        return GeneratedV2ActAsync(
+            baseAddress,
+            apiKey,
+            api => api.Api<V2Api.CommandApi>().SendCommandAsync(verb, payload, ct));
     }
 
     // The typed resource beside the answer, because the update re-sends what the read answered.

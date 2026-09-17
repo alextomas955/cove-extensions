@@ -503,6 +503,12 @@ public sealed partial class WhisparrSync
                     target,
                     _log,
                     moveCt),
+                (siteId, refreshCt) => ContainedAsync(
+                    () => acting.RefreshSiteCatalogueAsync(
+                        target.BaseAddress, target.ApiKey, siteId, refreshCt),
+                    target,
+                    _log,
+                    refreshCt),
                 composed.Root.InstanceRoot,
                 site,
                 siteCt).ConfigureAwait(false);
