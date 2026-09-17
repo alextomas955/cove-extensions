@@ -28,11 +28,16 @@ public sealed record MonitorBulkBatch(
 /// One entry per library root no path was established under, across every entity. A root reached by
 /// several entities is carried once.
 /// </param>
+/// <param name="EntriesLeftUnderAnotherRoot">
+/// How many files were left out, across every entity, because the instance holds the site they
+/// would join under a different declared root from the file.
+/// </param>
 internal sealed record MonitorBulkLinking(
     ReflectOwnedSkipReason? Skipped,
     int FoldersAttached,
     int FoldersRefused,
-    IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null);
+    IReadOnlyList<FolderAddressRefusal>? AddressRefusals = null,
+    int EntriesLeftUnderAnotherRoot = 0);
 
 /// <summary>
 /// The bulk monitoring job's id, its (de)serialization onto the host's string-only parameter map,
@@ -361,6 +366,7 @@ public static class MonitoringBulkJob
             linking.FoldersAttached,
             linking.FoldersRefused,
             linking.AddressRefusals,
+            linking.EntriesLeftUnderAnotherRoot,
             cancelled: false);
 
     /// <summary>

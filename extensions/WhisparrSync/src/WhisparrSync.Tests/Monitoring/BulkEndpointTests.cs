@@ -31,6 +31,16 @@ public sealed class BulkEndpointTests
     /// <summary>Renamer's own bound, and the one this route copies.</summary>
     private const int Cap = 1000;
 
+    /// <summary>
+    /// One listing row: a file under the outer declared root, matched to a site the instance holds
+    /// under the inner one.
+    /// </summary>
+    private const string InboxRowMatchedToAnotherRoot = """
+        [{"path":"/config/library/inbox/scene.mp4","folderName":"inbox","size":41,
+          "movie":{"id":7,"title":"A scene","path":"/config/library/rootB/Tushy"},
+          "movieFileId":0,"quality":{"quality":{"id":6}},"languages":[{"id":1}],"rejections":[]}]
+        """;
+
     [Fact]
     public void TheBulkActionsAreRegisteredUnderTheRawPluralTheSelectionBarPasses()
     {
@@ -270,6 +280,47 @@ public sealed class BulkEndpointTests
         Assert.Equal(
             (1d, "1 applied, 0 refused. No files were linked: Whisparr's hard-link setting could not be read."),
             Assert.Single(progress.Reports));
+    }
+
+    /// <summary>
+    /// A selection reports a file left under another root in the same words a single entity's run
+    /// does, and sends no import for it.
+    /// </summary>
+    /// <remarks>
+    /// The instance declares a root inside another one and holds the site under the inner one, while
+    /// the file sits under the outer. An import across the two copies the whole file, so nothing is
+    /// sent and the run says why.
+    /// </remarks>
+    [Fact]
+    public async Task ASelectionWhoseFileAndSiteSitUnderDifferentRootsLinksNothingAndSaysWhy()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        host.Client
+            .Answering(
+                nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync),
+                MonitorHost.Json(200, """{"copyUsingHardlinks":true}"""))
+            .Answering(
+                nameof(IWhisparrClient.ReadRootFoldersAsync),
+                MonitorHost.Json(
+                    200,
+                    """[{"id":1,"path":"/config/library"},{"id":2,"path":"/config/library/rootB"}]"""))
+            .Answering(
+                nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync),
+                MonitorHost.Json(200, InboxRowMatchedToAnotherRoot));
+        var studio = await host.SeedStudioAsync(
+            MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+        await host.SeedStudioFileAsync(studio, "/config/library/inbox", 41);
+        var progress = new RecordingJobProgress();
+
+        await host.PostBulkAsync(BodyOf(Studios, "monitor", [studio]));
+        await host.RunEnqueuedBatchAsync(progress);
+
+        Assert.Equal(
+            (1d, "1 applied, 0 refused. Some files were not linked: Whisparr holds their site "
+                + "under a different root from the files, and nothing was copied."),
+            Assert.Single(progress.Reports));
+        Assert.DoesNotContain(
+            nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync), host.Client.Verbs);
     }
 
     /// <summary>

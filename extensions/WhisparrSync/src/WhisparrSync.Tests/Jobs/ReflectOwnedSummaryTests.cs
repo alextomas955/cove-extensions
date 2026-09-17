@@ -161,6 +161,64 @@ public sealed class ReflectOwnedSummaryTests
         Assert.Contains("then stopped", ReflectOwnedJob.SummaryOf(run), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A run that linked nothing because every file's site sits under another root says so, rather
+    /// than reporting a pair of zeros.
+    /// </summary>
+    [Fact]
+    public void ARunThatLeftEveryFileUnderAnotherRootReportsTheReasonRatherThanACountOfZero()
+    {
+        var line = ReflectOwnedJob.SummaryOf(LeftUnderAnotherRoot(0, 0, 3));
+
+        Assert.Equal(
+            "Some files were not linked: Whisparr holds their site under a different root from the "
+                + "files, and nothing was copied.",
+            line);
+        Assert.DoesNotContain("0 linked", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>A run that linked some and left others reports the counts first and the reason after.</summary>
+    [Fact]
+    public void ARunThatLinkedSomeAndLeftOthersUnderAnotherRootReportsBoth()
+        => Assert.Equal(
+            "2 linked, 1 refused. Some files were not linked: Whisparr holds their site under a "
+                + "different root from the files, and nothing was copied.",
+            ReflectOwnedJob.SummaryOf(LeftUnderAnotherRoot(2, 1, 4)));
+
+    /// <summary>
+    /// A run that left nothing out and could address nothing keeps the sentence it already had, so
+    /// the new clause is never composed onto a run it is not about.
+    /// </summary>
+    [Fact]
+    public void ARunThatLeftNothingUnderAnotherRootKeepsTheSentenceItAlreadyHad()
+    {
+        var line = ReflectOwnedJob.SummaryOf(LeftUnderAnotherRoot(0, 0, 0));
+
+        Assert.Equal("0 linked, 0 refused.", line);
+        Assert.DoesNotContain("different root", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>A run that could address nothing AND left files out reports both reasons.</summary>
+    [Fact]
+    public void ARunWithBothReasonsReportsTheRootItCouldNotAddressAndThenWhatItLeftOut()
+        => Assert.Equal(
+            Under + "Whisparr holds nothing at " + Tried + ". "
+                + "Some files were not linked: Whisparr holds their site under a different root "
+                + "from the files, and nothing was copied.",
+            ReflectOwnedJob.SummaryOf(
+                new ReflectOwnedRun(
+                    ReflectOwnedRunOutcome.Completed,
+                    0,
+                    0,
+                    null,
+                    1,
+                    [Refused(FolderAgreementRefusal.NothingResolved)],
+                    null,
+                    2)));
+
+    private static ReflectOwnedRun LeftUnderAnotherRoot(int attached, int refused, int left)
+        => new(ReflectOwnedRunOutcome.Completed, attached, refused, null, 0, null, null, left);
+
     private static FolderAddressRefusal Refused(FolderAgreementRefusal refusal)
         => new(CoveRoot, refusal, [Tried]);
 
