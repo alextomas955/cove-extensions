@@ -72,6 +72,9 @@ public sealed class SyncLibrarySitesTests
     /// <summary>The instance root a site was registered at before any of this ran.</summary>
     private const string OtherRoot = "/g-downloads-p/videos";
 
+    /// <summary>The library root holding a studio's files that its site was not registered at.</summary>
+    private const string LeftBehindRoot = "G:/Downloads/P";
+
     private static readonly string RegisteredRow =
         $$"""{"id":{{RegisteredSiteId}},"title":"Jay Bank Presents"}""";
 
@@ -537,6 +540,131 @@ public sealed class SyncLibrarySitesTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A run over a library with one split studio names the other root once and carries both counts.
+    /// </summary>
+    /// <remarks>
+    /// The line says the files were left where they are, because an operator reading that a site
+    /// moved could otherwise take it to mean the files moved with it.
+    /// </remarks>
+    [Fact]
+    public async Task ARunWithOneSplitStudioNamesTheOtherRootOnceAndCarriesBothCounts()
+    {
+        var progress = new RecordingJobProgress();
+
+        var run = await RunOverAsync(
+            progress,
+            (SceneRegistration.Moved, Split(filesLeftElsewhere: 7, LeftBehindRoot)),
+            (SceneRegistration.AlreadyHeld, AtOneRoot));
+
+        var summary = Assert.Single(progress.Summaries);
+
+        Assert.Equal(1, run.SplitAcrossRoots);
+        Assert.Equal(7, run.FilesLeftElsewhere);
+        Assert.Equal([LeftBehindRoot], run.RootsLeftBehind);
+        Assert.Contains(
+            "1 site has files under more than one library root", summary, StringComparison.Ordinal);
+        Assert.Contains(
+            "7 files were left where they are under " + LeftBehindRoot,
+            summary,
+            StringComparison.Ordinal);
+        Assert.Contains("nothing was copied", summary, StringComparison.Ordinal);
+    }
+
+    /// <summary>A run with no split studio says nothing about splits at all.</summary>
+    [Fact]
+    public async Task ARunWithNoSplitStudioSaysNothingAboutSplits()
+    {
+        var progress = new RecordingJobProgress();
+
+        var run = await RunOverAsync(
+            progress,
+            (SceneRegistration.Registered, AtOneRoot),
+            (SceneRegistration.AlreadyHeld, AtOneRoot));
+
+        var summary = Assert.Single(progress.Summaries);
+
+        Assert.Equal(0, run.SplitAcrossRoots);
+        Assert.Empty(run.RootsLeftBehind);
+        Assert.Equal(
+            "1 sites registered, 1 already in Whisparr, 0 refused.", summary, StringComparer.Ordinal);
+    }
+
+    /// <summary>A run that moved sites states how many.</summary>
+    [Fact]
+    public async Task ARunThatMovedSitesStatesHowMany()
+    {
+        var progress = new RecordingJobProgress();
+
+        await RunOverAsync(
+            progress, (SceneRegistration.Moved, AtOneRoot), (SceneRegistration.Moved, AtOneRoot));
+
+        Assert.Contains(
+            "2 moved to the root holding their files",
+            Assert.Single(progress.Summaries),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A run that left studios alone for want of an agreed root states that count apart.
+    /// </summary>
+    /// <remarks>
+    /// Inside the refused figure rather than beside it, because those studios are counted in it.
+    /// </remarks>
+    [Fact]
+    public async Task ARunThatLeftStudiosAloneForWantOfAnAgreedRootStatesThatCountApart()
+    {
+        var progress = new RecordingJobProgress();
+
+        var run = await RunOverAsync(
+            progress,
+            (SceneRegistration.Refused, NoAgreedRoot),
+            (SceneRegistration.Refused, AtOneRoot));
+
+        Assert.Equal(2, run.Refused);
+        Assert.Equal(1, run.WithoutAnAgreedRoot);
+        Assert.Contains(
+            "2 refused (1 for want of an agreed root)",
+            Assert.Single(progress.Summaries),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>Two studios split under one root name that root once, not twice.</summary>
+    /// <remarks>
+    /// The names are what an operator acts on, and one entry per library root is the only shape that
+    /// does not grow with the library.
+    /// </remarks>
+    [Fact]
+    public async Task TwoStudiosSplitUnderOneRootNameThatRootOnce()
+    {
+        var progress = new RecordingJobProgress();
+
+        var run = await RunOverAsync(
+            progress,
+            (SceneRegistration.Moved, Split(filesLeftElsewhere: 3, LeftBehindRoot)),
+            (SceneRegistration.Moved, Split(filesLeftElsewhere: 5, LeftBehindRoot)));
+
+        Assert.Equal(2, run.SplitAcrossRoots);
+        Assert.Equal(8, run.FilesLeftElsewhere);
+        Assert.Equal([LeftBehindRoot], run.RootsLeftBehind);
+        Assert.Contains(
+            "2 sites have files under more than one library root",
+            Assert.Single(progress.Summaries),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>A studio whose files all sit under the one root that was chosen.</summary>
+    private static EntityRoot AtOneRoot { get; } =
+        new(AgreedRoot, MonitorRefusalKind.None, "I:/Downloads/P", 4, 0, []);
+
+    /// <summary>A studio whose own library root the instance agreed no spelling for.</summary>
+    private static EntityRoot NoAgreedRoot { get; } =
+        new(null, MonitorRefusalKind.NoAgreedRootForThisEntity, "I:/Downloads/P", 4, 0, []);
+
+    /// <summary>A studio with files under a library root other than the one that was chosen.</summary>
+    private static EntityRoot Split(int filesLeftElsewhere, params string[] leftBehind)
+        => new(AgreedRoot, MonitorRefusalKind.None, "I:/Downloads/P", 4, filesLeftElsewhere, leftBehind);
+
     /// <summary>One site through the registration step, against <paramref name="instance"/>.</summary>
     private static Task<SyncRegistration> PassAsync(
         InstanceHolding instance,
@@ -554,6 +682,15 @@ public sealed class SyncLibrarySitesTests
     /// <summary>One run over as many sites as <paramref name="answers"/> names.</summary>
     private static Task<SyncLibraryRun> RunOverAsync(
         RecordingJobProgress progress, params SceneRegistration[] answers)
+        => RunOverAsync(progress, [.. answers.Select(answer => (answer, AtOneRoot))]);
+
+    /// <summary>
+    /// One run over as many sites as <paramref name="answers"/> names, each with the root choice
+    /// that was made for it.
+    /// </summary>
+    private static Task<SyncLibraryRun> RunOverAsync(
+        RecordingJobProgress progress,
+        params (SceneRegistration Registration, EntityRoot Root)[] answers)
     {
         var offered = 0;
 
@@ -561,8 +698,13 @@ public sealed class SyncLibrarySitesTests
             SyncRegisters.Sites,
             Streamed,
             identity => identity,
-            (_, _) => Task.FromResult(
-                new SyncRegistration(answers[offered++], MonitorHost.Json(202, "{}"), HeldSiteId)),
+            (_, _) =>
+            {
+                var (registration, root) = answers[offered++];
+                return Task.FromResult(
+                    new SyncRegistration(
+                        registration, MonitorHost.Json(202, "{}"), HeldSiteId, root));
+            },
             monitor: null,
             progress,
             TestCt);
