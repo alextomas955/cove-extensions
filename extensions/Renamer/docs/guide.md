@@ -101,6 +101,10 @@ these files too, so you see the warning whether you started from the dry run or 
 **Skipped — copy did not verify** means a cross-drive copy was written and then read back different, so
 the file was left where it was — check the destination drive before running that row again.
 
+A cross-drive rename can also report **renamed** and warn that the old file is still there. The copy
+was verified and put in place, so the rename is done, but the original could not be deleted because
+something held it open or permissions refused it. Delete the old file yourself once it is free.
+
 ## Rename
 
 1. When the preview looks right, **save** your settings (the sticky Save bar at the bottom).
