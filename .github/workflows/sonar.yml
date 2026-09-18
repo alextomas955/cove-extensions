@@ -39,9 +39,8 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Two conditions, both of which mean "the scanner has nothing to authenticate with", and both of
-    # which skip rather than fail: a run that could not analyse must not read as a run that analysed
-    # and found nothing.
+    # Every arm below means "the scanner has nothing to authenticate with", and each skips rather
+    # than fails: a run that could not analyse must not read as a run that analysed and found nothing.
     #
     # SONAR_PROJECT_KEY is the switch. Until it is set as a repository variable this workflow does
     # nothing, which is what keeps it inert while the SonarQube Cloud project is still to be set up.
@@ -49,8 +48,13 @@ jobs:
     # `if:`, and the two are set together.
     #
     # A pull request from a fork carries no secret at all, whatever is configured here.
+    #
+    # Dependabot needs naming separately, and it is the arm easiest to leave out: its branch lives in
+    # this repository, so it satisfies the fork test above, while GitHub still withholds the secret
+    # from it. Without this every dependency pull request would reach the scanner with an empty token.
     if: >-
       vars.SONAR_PROJECT_KEY != ''
+      && github.actor != 'dependabot[bot]'
       && (github.event_name == 'push'
           || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
@@ -105,22 +109,58 @@ jobs:
       - name: Install the scanner
         run: dotnet tool install --global dotnet-sonarscanner
 
-      # The frontend coverage report. Generated before the scanner starts, because `begin` records the
-      # report path and the file has to exist by the time `end` reads it.
-      # --ignore-scripts: this job only needs the bundle's test run, which the platform binaries in
-      # the lockfile serve without a lifecycle hook. Nothing here builds or publishes the bundle, so
-      # there is no install step whose output a hook is required to produce.
-      - name: Install frontend deps
-        working-directory: extensions/extensions/Renamer/src/Renamer.Ui
-        run: npm ci --ignore-scripts
+      # The subjects come from extensions/catalog.json, so an extension reaches this job by being in
+      # the catalog rather than by an edit here. Hardcoding one extension's paths would leave a new
+      # frontend's coverage report ungenerated, which normalize-lcov-paths.mjs refuses by design, and
+      # a new backend's C# analysed with no coverage behind it.
+      - name: Resolve the catalog's coverage subjects
+        id: subjects
+        working-directory: extensions
+        shell: bash
+        run: |
+          # The lists go to files and only the comma-joined report paths to step outputs: a step
+          # output holding a newline needs delimiter escaping that a plain `key=value` line does not
+          # provide, and the silent result is one run over a single path named "a%0Ab".
+          node -e '
+            const fs = require("fs");
+            const path = require("node:path");
+            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
+            const uiPaths = catalog.extensions.filter((e) => e.uiPath).map((e) => e.uiPath);
+            const testProjects = catalog.extensions.filter((e) => e.testProjectPath).map((e) => e.testProjectPath);
+            const tmp = process.env.RUNNER_TEMP;
+            fs.writeFileSync(path.join(tmp, "ui-paths.txt"), uiPaths.join("\n"));
+            fs.writeFileSync(path.join(tmp, "test-projects.txt"), testProjects.join("\n"));
+            // Each suite writes its own report; one shared name would leave only the last run measured.
+            const cs = testProjects.map((_, i) => "TestResults/coverage-" + i + ".xml");
+            const lcov = uiPaths.map((p) => p + "/coverage/lcov.info");
+            fs.appendFileSync(
+              process.env.GITHUB_OUTPUT,
+              "lcovPaths=" + lcov.join(",") + "\ncsPaths=" + cs.join(",") + "\n",
+            );
+            console.error("frontends: " + (uiPaths.join(", ") || "none"));
+            console.error("test projects: " + (testProjects.join(", ") || "none"));
+          '
 
       - name: Install root tooling
         working-directory: extensions
         run: npm ci --no-workspaces --ignore-scripts
 
+      # --ignore-scripts: this job only needs each bundle's test run, which the platform binaries in
+      # the lockfile serve without a lifecycle hook. Nothing here builds or publishes a bundle, so no
+      # install hook has output this job reads.
+      #
+      # Generated before the scanner starts, because `begin` records the report paths and each file
+      # has to exist by the time `end` reads it.
       - name: Collect frontend coverage
-        working-directory: extensions/extensions/Renamer/src/Renamer.Ui
-        run: npm run test:coverage
+        working-directory: extensions
+        shell: bash
+        run: |
+          while IFS= read -r ui; do
+            [ -n "$ui" ] || continue
+            echo "::group::$ui"
+            (cd "$ui" && npm ci --ignore-scripts && npm run test:coverage)
+            echo "::endgroup::"
+          done < "$RUNNER_TEMP/ui-paths.txt"
 
       # Vitest records each path relative to the directory its config sits in, and the scanner
       # resolves an lcov path against the repository root. Without this the shared package's records
@@ -137,6 +177,8 @@ jobs:
         working-directory: extensions
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          CS_PATHS: ${{ steps.subjects.outputs.csPaths }}
+          LCOV_PATHS: ${{ steps.subjects.outputs.lcovPaths }}
         run: |
           dotnet sonarscanner begin \
             /k:"${{ vars.SONAR_PROJECT_KEY }}" \
@@ -148,21 +190,33 @@ jobs:
             /d:sonar.exclusions="**/node_modules/**,**/dist/**,**/bin/**,**/obj/**,**/vendor/**,**/artifacts/**,**/coverage/**,**/src/wire/**,website/build/**,website/.docusaurus/**" \
             /d:sonar.coverage.exclusions="scripts/**,tests/**,**/e2e/**,website/**,**/*.config.*,shared/ui-shared/vite/**,shared/ui-shared/scripts/**,**/*.d.ts" \
             /d:sonar.cpd.exclusions="**/*.test.ts,**/*.test.tsx,**/*.test.mjs,**/*.spec.mjs,**/*.spec.ts,**/*Tests.cs" \
-            /d:sonar.cs.vscoveragexml.reportsPaths="TestResults/coverage.xml" \
-            /d:sonar.javascript.lcov.reportPaths="extensions/Renamer/src/Renamer.Ui/coverage/lcov.info"
+            /d:sonar.cs.vscoveragexml.reportsPaths="$CS_PATHS" \
+            /d:sonar.javascript.lcov.reportPaths="$LCOV_PATHS"
 
       - name: Build
         working-directory: extensions
-        run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=source -p:CoveRepoRoot="${{ github.workspace }}/cove"
+        env:
+          COVE_REPO_ROOT: ${{ github.workspace }}/cove
+        run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=source -p:CoveRepoRoot="$COVE_REPO_ROOT"
 
       # Visual Studio coverage XML, which is the format Sonar's C# analyzer reads; it accepts no
       # Cobertura. --no-build so the assemblies the scanner just observed are the ones measured.
       - name: Test with coverage
         working-directory: extensions
+        shell: bash
+        env:
+          COVE_REPO_ROOT: ${{ github.workspace }}/cove
         run: |
-          dotnet test --project extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj -c Release --no-build \
-            -p:CoveSourceMode=source -p:CoveRepoRoot="${{ github.workspace }}/cove" \
-            -- --coverage --coverage-output-format xml --coverage-output coverage.xml
+          i=0
+          while IFS= read -r proj; do
+            [ -n "$proj" ] || continue
+            echo "::group::$proj"
+            dotnet test --project "$proj" -c Release --no-build \
+              -p:CoveSourceMode=source -p:CoveRepoRoot="$COVE_REPO_ROOT" \
+              -- --coverage --coverage-output-format xml --coverage-output "coverage-$i.xml"
+            echo "::endgroup::"
+            i=$((i + 1))
+          done < "$RUNNER_TEMP/test-projects.txt"
 
       - name: End analysis
         working-directory: extensions
