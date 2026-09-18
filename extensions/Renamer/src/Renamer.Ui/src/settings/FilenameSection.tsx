@@ -138,7 +138,6 @@ export function FilenameSection({
           templateRef={folderRef}
           onTemplateFocus={() => (activeTemplateRef.current = "folder")}
         />
-        <TemplateValidation value={options.FolderTemplate} />
         <PerKindRows options={options} set={set} library={library} />
       </SectionCard>
     </div>

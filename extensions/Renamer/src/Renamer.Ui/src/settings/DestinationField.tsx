@@ -12,6 +12,8 @@ import type { Ref } from "react";
 
 import { Field, Select, TextInput, PathShapeHint, StatusText } from "@cove-extensions/ui-shared";
 
+import { TemplateValidation } from "./templateAdvisories";
+
 import {
   CONTAINING_ROOT,
   CONTAINING_ROOT_LABEL,
@@ -105,6 +107,9 @@ export function DestinationField({
             : "This is a folder template, not a path — the whole thing becomes folder names under this destination's root."
         }
       />
+      {/* Every folder template gets the same token advisory, wherever it is edited. Rendered by the
+          one editor they all use, so a new destination cannot ship without it. */}
+      <TemplateValidation value={value.Template} />
     </Field>
   );
 
