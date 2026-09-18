@@ -13,7 +13,7 @@
     <PackageVersion Include="Cove.Sdk" Version="$(CoveSdkVersion)" />
     <PackageVersion Include="Cove.Plugins" Version="$(CoveSdkVersion)" />
 
-    <PackageVersion Include="System.IO.Hashing" Version="10.0.11" />
+    <PackageVersion Include="System.IO.Hashing" Version="10.0.12" />
 
     <!--
       Sonar's C# rules as a build-time Roslyn analyzer: no server, no token, no workflow step. The
