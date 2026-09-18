@@ -4,7 +4,7 @@
 // matters - a per-kind setting that leaked across kinds would still pass a one-kind test.
 //
 // The proof is exact on-disk + DB state for every kind, never the panel's own banner: an excluded
-// kind's file must still be byte-for-byte where it was, which only a filesystem check can say.
+// kind's file must still be at the path it started from, which only a filesystem check can say.
 import { test as base, expect, seedVideo, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
 import { seedImage, seedText } from "@cove-extensions/e2e/seed-media";
 import { startHarness } from "@cove-extensions/e2e/harness";
@@ -84,8 +84,10 @@ async function assertLandedAt({ api, container, route, id, expectedPath, origina
 }
 
 /**
- * Asserts one item was left exactly where it was. A settled run is what makes this meaningful, so
- * callers assert the kinds that DID move first: this check would pass on a run that had not started.
+ * Asserts one item was left where it was: the DB still points at its original path, and a file is
+ * still there. It does not compare contents, because a rename this run refused to make is a move,
+ * not a write. A settled run is what makes it meaningful, so callers assert the kinds that DID move
+ * first: this check would pass on a run that had not started.
  */
 async function assertUntouched({ api, container, route, id, originalPath }) {
   const path = await currentPath(api, route, id);
