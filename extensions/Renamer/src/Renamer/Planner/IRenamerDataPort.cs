@@ -87,13 +87,13 @@ public readonly record struct NameResolution(
 public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string? Gender);
 
 /// <summary>
-/// A loaded media item (Video/Image/Audio) in the renamer boundary's own vocabulary — the
+/// A loaded library item in the renamer boundary's own vocabulary — the
 /// entity-level metadata the projector turns into scalar tokens + the per-file rows it renders
 /// independently (every file is processed, not just the first). Performers carry a per-performer
 /// record (name plus the id/favorite/gender used for ordering); tags carry the id/name pairs the tag
 /// rules key on. Both are resolved from Cove's JOIN collections at the port boundary rather than here.
 /// </summary>
-/// <param name="EntityId">The Cove entity id (Video/Image/Audio).</param>
+/// <param name="EntityId">The Cove entity id for the item's kind.</param>
 /// <param name="Kind">The media kind (used as the per-file <see cref="RenamerFile.Kind"/> too).</param>
 /// <param name="Title">Entity title (<c>$title</c>); null/empty degrades.</param>
 /// <param name="Code">Entity code (<c>$studioCode</c>); null/empty degrades.</param>
@@ -115,7 +115,7 @@ public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string
 /// </param>
 /// <param name="Files">Every physical file of the item (all files, not just the first).</param>
 /// <param name="StudioId">
-/// The entity's STABLE studio id (Cove's <c>Video/Image/Audio.StudioId</c>; <c>null</c> when the item
+/// The entity's STABLE studio id (the <c>StudioId</c> on its Cove entity; <c>null</c> when the item
 /// has no studio). The studio routing rule keys on THIS id — never on <see cref="StudioName"/> — so a
 /// name typo or sanitization variant can never split one studio across two destination trees: route on
 /// the stable id, then render the destination folder from the rewritten name.

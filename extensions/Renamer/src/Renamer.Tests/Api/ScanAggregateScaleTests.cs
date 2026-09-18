@@ -54,7 +54,7 @@ public sealed class ScanAggregateScaleTests
     }
 
     /// <summary>
-    /// Seeds <paramref name="files"/> single-file entities spread evenly across the three kinds; every
+    /// Seeds <paramref name="files"/> single-file entities spread evenly across the renamable kinds; every
     /// entity renames in place, so the aggregate's acting counts are the file count.
     /// </summary>
     private static FakeRenamerDataPort SeedLibrary(int files, string folder = "/lib")

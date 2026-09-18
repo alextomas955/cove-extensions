@@ -187,8 +187,8 @@ types are generated from it rather than declared a second time by hand.
 
 Every endpoint re-checks the caller's permission **in the handler**, and it asks for the permission of
 the _kind_ it is about: that kind's read permission to preview it (`videos.read`, `images.read`,
-`audios.read`) and its write permission to rename or undo it (`videos.write`, `images.write`,
-`audios.write`). A caller holding only some of them is not refused outright — the whole-library
+`audios.read`, `texts.read`) and its write permission to rename or undo it (`videos.write`,
+`images.write`, `audios.write`, `texts.write`). A caller holding only some of them is not refused outright — the whole-library
 endpoints narrow to the kinds that caller may read. Cove's attribute-based permission filter is inert
 on minimal-API routes, so the check is explicit and runs before any work.
 
