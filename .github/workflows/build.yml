@@ -22,7 +22,7 @@ on:
       - "*/v*"
   # The only trigger that sees upstream breakage above the declared floor: a pull request does not
   # resolve the version axis. It is also the only environment carrying more than one leg, so a per-leg
-  # `continue-on-error` can be read here and nowhere else. Every job runs daily, which is real spend.
+  # `continue-on-error` can be read here and nowhere else.
   #
   # 06:00 UTC puts a red before a working session rather than during one. Caveat worth a day of
   # debugging: the upstream images move too, so a run landing inside an upstream rebuild window can
@@ -389,9 +389,7 @@ jobs:
       # a Chromium flag to turn the notifier off.
       #
       # `default` is the template the kernel applies to interfaces created AFTER it is set, so this
-      # reaches each new veth and leaves the runner's existing interfaces alone. It is set here rather
-      # than worked around in the page objects because the page objects cannot fix it: they would each
-      # have to treat an aborted asset as recoverable, at every site that navigates, forever.
+      # reaches each new veth and leaves the runner's existing interfaces alone.
       #
       # The values are printed because a runner that has IPv6 off already, or a kernel that refuses
       # the write, would otherwise look identical to one where this worked.
@@ -413,8 +411,7 @@ jobs:
       # publish directory — this must match the path each extension's own e2e fixtures file expects
       # (e.g. Renamer's RENAMER_EXTENSION.publishDir), which mirrors what a local dev deploy script
       # (deploy-dev.ps1) produces. A mismatch here fails every E2E test at harness install time with
-      # "publishDir does not exist" — found via this repo's actual first CI run, since this job's
-      # own publish path was never exercised against the real fixtures before.
+      # "publishDir does not exist".
       #
       # The harness assembles the declared package from this publish output in-process, so a change to
       # the package shape reaches this job through extensions/catalog.json with no workflow edit here.
@@ -445,8 +442,7 @@ jobs:
           npm run build
 
       # npm ci runs at the REPO ROOT so the workspace symlinks (node_modules/@cove-extensions/e2e ->
-      # tests/e2e) + the single hoisted @playwright/test are established before the suite runs. A
-      # `cd tests/e2e && npm ci` would ignore the root lockfile/workspaces and is wrong now.
+      # tests/e2e) + the single hoisted @playwright/test are established before the suite runs.
       #
       # Several root dependencies place their platform binaries from an install script, and the one
       # lever the pinned npm offers is blanket: --ignore-scripts would disable all of them to
@@ -473,9 +469,7 @@ jobs:
       # which is what that selection is. Such a leg exists only where the two roles resolve to DIFFERENT
       # images: when they collapse onto one (they do today, upstream having published no GA above the
       # floor) the merged leg's role reads `floor+newest-ga`, this match fails, and the whole suite runs.
-      # Every way of being wrong about a role name therefore lands on MORE coverage, never less, which is
-      # the only direction a selection keyed on a label may fail in — and it is why `advisory` is read
-      # off the leg's own flag instead, where the safe direction would be the opposite one.
+      # Every way of misreading a role name therefore lands on more coverage, never less.
       #
       # The pre-release leg is deliberately not on this list: it is the forward-compatibility canary, and
       # cutting it to six tests would hide the breakage it exists to report. Nor can the selection
@@ -665,10 +659,8 @@ jobs:
       # because the pre-release e2e leg is advisory: it boots an UNRELEASED upstream image, and on failure
       # it still uploads its Playwright report while reporting success to the aggregate. Publishing from a
       # directory that leg can write into makes an upstream compromise a release-integrity problem.
-      #
-      # Today nothing of its report lands at the root as a `.zip` (Playwright puts traces under `data/`),
-      # so the exposure was latent — but that is a third-party layout detail, not an invariant this repo
-      # owns, and resting on it is the kind of accident this allowlist removes at the source.
+      # Playwright happens to put its traces under `data/` rather than at the root today, but that is a
+      # third-party layout detail this repo does not own.
       - uses: actions/download-artifact@v8
         with:
           pattern: package-*
