@@ -5,8 +5,8 @@ namespace Renamer.Tests.Execution;
 
 /// <summary>
 /// A locked/in-use source file (held open with <see cref="FileShare.None"/>)
-/// is caught and reported as a skip — the move does NOT happen, NO exception escapes, the source
-/// stays at its old path, and the locking process is NEVER touched (the helper references no
+/// is caught and reported as a skip — the move does not happen, no exception escapes, the source
+/// stays at its old path, and the locking process is never touched (the helper references no
 /// <c>System.Diagnostics.Process</c> API — it never tries to force a lock open).
 /// Exercised against the real filesystem via the <see cref="TempDir"/> fixture.
 /// </summary>
@@ -22,7 +22,7 @@ public sealed class LockedFileTests
         var dest = Path.Combine(dir.Root, "Renamed.mkv");
         var mover = new DiskMover();
 
-        // Hold the SOURCE open exclusively so File.Move throws IOException (ERROR_SHARING_VIOLATION).
+        // Hold the source open exclusively so File.Move throws IOException (ERROR_SHARING_VIOLATION).
         using (new FileStream(old, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             var result = mover.Move(old, dest);

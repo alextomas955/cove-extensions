@@ -29,7 +29,7 @@ public sealed class SuffixBudgetTests
 
     /// <summary>
     /// Renames the seeded source onto a name already present on disk, under a budget derived from the
-    /// PLANNED path's own length, so the arrangement cannot drift with the temp directory's depth.
+    /// planned path's own length, so the arrangement cannot drift with the temp directory's depth.
     /// </summary>
     private static async Task<Run> RenameOntoATakenNameAsync(TempDir dir, int budgetOverPlanned)
     {

@@ -11,16 +11,16 @@ namespace Renamer.Tests.TestSupport;
 /// <remarks>
 /// The registration is process-wide and permanent, and both halves of that are deliberate.
 /// <para>
-/// PROCESS-WIDE because <c>CoveContext.SetDataExtensions</c> is static and xUnit runs test classes in
+/// process-wide because <c>CoveContext.SetDataExtensions</c> is static and xUnit runs test classes in
 /// parallel: registration order across classes is not controllable, so anything that registers per
 /// class is a race. Doing it once, before any context exists, makes every context in the run agree —
 /// each <c>EnsureCreatedAsync</c> materializes the journal tables exactly as the host's own migration
 /// does, and every model resolves the journal entity types.
 /// </para>
 /// <para>
-/// PERMANENT because deregistering would rebuild the model without those entity types while other
+/// permanent because deregistering would rebuild the model without those entity types while other
 /// classes are mid-test. There is no window in which this extension is absent; the only mutation any
-/// test may make is to ADD another registration and then drop back to this one.
+/// test may make is to add another registration and then drop back to this one.
 /// </para>
 /// </remarks>
 internal static class CoveDataExtensionScope

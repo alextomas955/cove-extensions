@@ -1,4 +1,4 @@
-// The one spec that runs against an AUTHENTICATION-ENABLED Cove, and the only place this repo can
+// The one spec that runs against an authentication-enabled Cove, and the only place this repo can
 // tell an extension request that carries its own credential apart from one that does not. Under the
 // suite's normal `COVE__Auth__Enabled=false` default every request resolves to a bypass principal
 // whatever headers it carries, so neither a header assertion nor a 200 distinguishes fixed from
@@ -6,7 +6,7 @@
 // per-test harness rather than the worker-shared one. It stays in the default run regardless: it
 // provisions its own instance and shares no state, and a spec CI does not run guards nothing.
 //
-// WHAT MAKES IT FALSIFIABLE, and it is not what it looks like. A logged-in browser holds an
+// what makes it falsifiable, and it is not what it looks like. A logged-in browser holds an
 // `cove_access_token` cookie, and the host's principal middleware falls back to that cookie whenever
 // a request carries no Authorization header — so an extension calling plain `fetch` same-origin is
 // authenticated by ambient authority and answers 200 either way. Measured: this spec passed against
@@ -14,7 +14,7 @@
 // delivers the extension's own UI bundle (`/api/extensions/assets/...` requires ExtensionsRead and a
 // module import cannot carry a bearer), so it must be present for the panel to mount at all.
 //
-// Hence the shape below: the panel mounts and reads WITH the cookie, then the cookie is dropped and
+// Hence the shape below: the panel mounts and reads with the cookie, then the cookie is dropped and
 // the write is exercised on the already-mounted panel. A logged-in session whose access cookie has
 // lapsed is ordinary — the cookie expires with the access token, in minutes, while the refresh
 // session lasts days — and in that state the only credential left is the bearer the app holds, which
@@ -87,7 +87,7 @@ async function dropAmbientAuthority(page) {
  * Dropping the cookie again first only narrows the window, it does not close it: a 401 on any
  * request in between drives the app's own refresh, and the host re-issues the access cookie on that
  * response — handing the remaining writes back the ambient authority this spec exists to rule out.
- * A drop asserted at t=drop says nothing about what the request carried at t=PUT, so the claim is
+ * A drop asserted at t=drop says nothing about what the request carried at t=put, so the claim is
  * asserted on the exercised request itself. That is what stays red against a bundle calling plain
  * `fetch`, whatever the status says.
  *

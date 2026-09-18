@@ -6,7 +6,7 @@
  * read, and for a dropped request — and labelling a valid rule "deleted" on that confusion would be
  * worse than the stuck spinner it replaces.
  *
- * A failed read reports NOTHING orphaned, so the panel falls back to the host's own label rather than
+ * A failed read reports nothing orphaned, so the panel falls back to the host's own label rather than
  * accusing every rule of being broken.
  */
 import { useEffect, useState } from "react";

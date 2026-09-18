@@ -12,13 +12,13 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Concurrency;
 
 /// <summary>
-/// Regression locks for the two-phase parallel batch. Concurrent-folder lock: many parallel workers
-/// routing MULTIPLE items to the SAME not-yet-created destination folder must end with EXACTLY ONE
+/// Regression locks for the parallel batch. Concurrent-folder lock: many parallel workers
+/// routing multiple items to the same not-yet-created destination folder must end with exactly one
 /// <see cref="Folder"/> row for that path — never a duplicate row (silent disk/DB divergence) and
-/// never an unhandled throw. The fix pre-creates every distinct destination folder ONCE in the
-/// sequential PHASE A and hands the resolved id to each worker, so the parallel PHASE B never does a
+/// never an unhandled throw. The fix pre-creates every distinct destination folder once in the
+/// sequential planning pass and hands the resolved id to each worker, so the parallel execution pass never does a
 /// check-then-act create on a shared <see cref="Folder"/> row. Duplicate-path lock: a duplicate <c>OldFullPath</c>
-/// across acting units must not make the PHASE B lookup throw and abort the whole batch after the
+/// across acting units must not make the execution pass's lookup throw and abort the whole batch after the
 /// journal batch is open.
 /// </summary>
 public sealed class ParallelFolderCreationTests
@@ -50,8 +50,8 @@ public sealed class ParallelFolderCreationTests
         {
             const int k = 12;
             string sourceFolderFwd = dir.Root.Replace('\\', '/');
-            // A NOT-YET-CREATED destination folder under the same volume, shared by EVERY routed item.
-            // Same volume => the partition runs the workers UNBOUNDED, maximizing the create race window.
+            // A not-yet-created destination folder under the same volume, shared by every routed item.
+            // Same volume => the partition runs the workers unbounded, maximizing the create race window.
             string destRootFwd = sourceFolderFwd;
             string destFolderFwd = destRootFwd + "/sorted";
 
@@ -70,7 +70,7 @@ public sealed class ParallelFolderCreationTests
                 File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");
             }
 
-            // Route every item from the one source folder into the SAME new "sorted" subfolder under the
+            // Route every item from the one source folder into the same new "sorted" subfolder under the
             // (allowed) temp root, via an exact source-path rule + a constant folder template. Every
             // acting item therefore has the identical TargetFolderPath = "<root>/sorted", which does not
             // yet exist in the DB — the exact duplicate-folder race trigger.
@@ -91,7 +91,7 @@ public sealed class ParallelFolderCreationTests
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
 
-            // EXACTLY ONE Folder row for the shared destination path — no duplicate rows from a racing
+            // exactly one Folder row for the shared destination path — no duplicate rows from a racing
             // check-then-act create across parallel workers.
             await using var verifyDb = shared.NewContext();
             int folderRows = await verifyDb.Set<Folder>()
@@ -162,10 +162,10 @@ public sealed class ParallelFolderCreationTests
         try
         {
             // The same entity id listed twice in one batch (a caller / host re-enqueue passing a
-            // duplicate id — Decode does NOT dedupe) plans the SAME file twice, producing two acting
-            // units with the IDENTICAL OldFullPath. PHASE B used to build its move→unit lookup with
-            // ToDictionary, which throws ArgumentException on the duplicate key and aborts the WHOLE
-            // batch AFTER the journal batch was opened (violating classify-not-throw and masking the
+            // duplicate id — Decode does not dedupe) plans the same file twice, producing two acting
+            // units with the identical OldFullPath. The execution pass builds its move→unit lookup with
+            // ToDictionary, which throws ArgumentException on the duplicate key and aborts the whole
+            // batch after the journal batch was opened (violating classify-not-throw and masking the
             // prior undoable batch from /undo). The defensive group/keep-first build must tolerate the
             // duplicate: the batch must complete (final 1.0) with no unhandled throw.
             string folderFwd = dir.Root.Replace('\\', '/');
@@ -176,7 +176,7 @@ public sealed class ParallelFolderCreationTests
             var (ext, _, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
             var progress = new FakeJobProgress();
 
-            // The duplicate id => two acting units with the same OldFullPath. Must NOT throw; completes.
+            // The duplicate id => two acting units with the same OldFullPath. Must not throw; completes.
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId, videoId]), progress, default);
 
             Assert.Equal(1d, progress.LastPercent);

@@ -3,15 +3,12 @@ namespace Renamer.Planner;
 
 /// <summary>One physical file row in the renamer's own vocabulary.</summary>
 /// <remarks>
-/// A Renamer-owned projection of a Cove file entity, mapped at the port boundary so the production
-/// <c>Renamer.csproj</c> takes no runtime dependency on Cove.Core. A null media-metadata field means
-/// the kind does not carry that token, and the projector omits it so the engine's <c>{}</c> groups
-/// degrade cleanly. <c>ParentFolderPath</c> is denormalized, forward-slash form, and <c>Format</c>
-/// is the token source for <c>$ext</c> and may be empty. <c>Captions</c> holds sidecar caption
-/// basenames and their ids, empty for non-video kinds. <c>SizeBytes</c> feeds the per-volume
-/// free-space sum that refuses a batch which would fill a disk; <c>0</c> is benign for unsized rows,
-/// since a 0-byte projection never pushes a volume over its headroom. <c>BitRate</c> is bits/sec and
-/// <c>null</c> for kinds with no stored bitrate, projected as <c>$bitrate</c> in kbps.
+/// Mapped at the port boundary so the production <c>Renamer.csproj</c> takes no runtime dependency
+/// on Cove.Core. A null media-metadata field means the kind does not carry that token and the
+/// projector omits it. <c>ParentFolderPath</c> is denormalized forward-slash form; <c>Format</c> is
+/// the token source for <c>$ext</c> and may be empty; <c>Captions</c> is empty for non-video kinds.
+/// <c>SizeBytes</c> feeds the per-volume free-space sum, where <c>0</c> never pushes a volume over
+/// its headroom. <c>BitRate</c> is bits/sec, <c>null</c> where none is stored, and renders as kbps.
 /// </remarks>
 public sealed record RenamerFile(
     int FileId,
@@ -64,15 +61,12 @@ public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string
 /// degrade when null or empty, and <c>Organized</c> is Cove's curation flag driving the
 /// only-organized gate.
 /// <para>
-/// Routing keys on stable ids, never names. <c>TagRefs</c> carries <c>(id, name)</c> pairs: the id
-/// is the rule key for tag routing, exclusion and the whitelist, so a renamed tag keeps its rules,
-/// while the name drives the <c>$tags</c> token and the route reason. Routing takes the first tag in
-/// this order whose id has a rule, so two parallel lists that drifted by one element would silently
-/// route to another tag's destination. <c>StudioId</c> is the stable studio id, <c>null</c> when the
-/// item has no studio, so a name typo or sanitization variant cannot split one studio across two
-/// destination trees. <c>ParentStudios</c> is the ancestor chain nearest-first, index 0 being the
-/// direct studio's immediate parent, which is the order the "first ancestor with a rule wins" walk
-/// takes. <c>Director</c> is a video-only column, <c>null</c> for other kinds.
+/// Routing keys on stable ids, never names. In <c>TagRefs</c> the id is the rule key for tag
+/// routing, exclusion and the whitelist, so a renamed tag keeps its rules; the name drives the
+/// <c>$tags</c> token and the route reason. Routing takes the first tag in this order whose id has a
+/// rule, so the pairs must stay aligned. <c>StudioId</c> is <c>null</c> when the item has no studio.
+/// <c>ParentStudios</c> is the ancestor chain nearest-first, which is the order the "first ancestor
+/// with a rule wins" walk takes. <c>Director</c> is video-only.
 /// </para>
 /// </remarks>
 public sealed record RenamerEntity(
@@ -92,10 +86,8 @@ public sealed record RenamerEntity(
 {
     /// <summary>The tag names the <c>$tags</c> token renders, in <see cref="TagRefs"/> order.</summary>
     /// <remarks>
-    /// Derived, so ids and names cannot drift apart: ids without matching names render the token
-    /// empty and names without ids match no rule, and neither state is constructible. Recomputed per
-    /// read, since a cached list is copied verbatim by a <c>with</c> expression and would go stale
-    /// where a caller replaces the pairs.
+    /// Derived, so ids and names cannot drift apart. Recomputed per read: a cached list is copied
+    /// verbatim by a <c>with</c> expression and would go stale where a caller replaces the pairs.
     /// </remarks>
     public IReadOnlyList<string> Tags => [.. TagRefs.Select(t => t.Name)];
 }
@@ -110,24 +102,22 @@ public interface IRenamerDataPort
 {
     /// <summary>The absolute library paths Cove is configured to scan, in configuration order.</summary>
     /// <remarks>
-    /// The anchor a rename cannot move: a destination's folder template resolves against a library
-    /// path, and anchoring it on the file's own parent folder, which is the previous run's output,
-    /// re-appends the rendered folder every run and makes the item descend one directory per pass
-    /// until the path length refuses it. Host configuration held in memory, so this is a property;
-    /// empty means the host declares no library path, and a file under none of the declared paths is
-    /// planned as <see cref="RenamerStatus.SkipUnanchored"/>.
+    /// A destination's folder template resolves against a library path, never against the file's own
+    /// parent folder, which is the previous run's output and would make the item descend one
+    /// directory per pass until the path length refuses it. Host configuration held in memory, so
+    /// this is a property. Empty means the host declares no library path, and a file under none of
+    /// them is planned as <see cref="RenamerStatus.SkipUnanchored"/>.
     /// </remarks>
     IReadOnlyList<string> LibraryRoots { get; }
 
     /// <summary>Resolves stored rule names to the stable ids they name, reading only <paramref name="names"/>.</summary>
     /// <remarks>
     /// Matching is case-insensitive, so a name matching several entities that differ only by case
-    /// returns all of them and the caller decides which one the rule collapses onto; a name with no
+    /// returns all of them and the caller decides which one the rule collapses onto. A name with no
     /// match is absent from <see cref="NameResolution.Matches"/>.
     /// <see cref="NameResolution.TableHasRows"/> travels with the matches because the two are only
     /// meaningful together: no matches over a populated table means those entities are gone, while no
-    /// matches over an empty table means the library is not readable yet, and a caller that converted
-    /// during the second state would discard every rule the user wrote.
+    /// matches over an empty table means the library is not readable yet.
     /// </remarks>
     Task<NameResolution> ResolveNamesAsync(
         RenamerEntityKind kind, IReadOnlyList<string> names, CancellationToken ct = default);
@@ -152,10 +142,10 @@ public interface IRenamerDataPort
     /// </summary>
     /// <remarks>
     /// Two file rows naming one path is state a rename cannot arbitrate, and the twin can sit in
-    /// another page of the walk or under another media kind, out of reach of a grouping over what was
-    /// just planned. A path named by one row or by none is absent from the result. Case sensitivity
-    /// is the database collation's, which is not always the volume's: on a case-sensitive collation
-    /// over a case-insensitive volume, two rows differing only in case read as two paths here.
+    /// another page of the walk or under another media kind. A path named by one row or by none is
+    /// absent from the result. Case sensitivity is the database collation's, which is not always the
+    /// volume's: on a case-sensitive collation over a case-insensitive volume, two rows differing
+    /// only in case read as two paths here.
     /// </remarks>
     Task<IReadOnlyDictionary<string, int>> CountSourcePathClaimsAsync(
         IReadOnlyList<string> sourcePaths, CancellationToken ct = default);
@@ -166,12 +156,11 @@ public interface IRenamerDataPort
     /// </summary>
     /// <remarks>
     /// The result is strictly ascending and holds only ids greater than
-    /// <paramref name="afterEntityId"/>, so the last id of a page is the cursor for the next one; a
-    /// cursor over a provider-ordered result would skip and repeat entities across pages as rows are
-    /// inserted and deleted. A page shorter than <paramref name="take"/> means the kind is exhausted,
-    /// and a non-positive <paramref name="take"/> or a non-renamable kind returns empty without
-    /// throwing. This is the only way to enumerate a kind: there is deliberately no read that returns
-    /// every id at once, because a library reaches millions of entities.
+    /// <paramref name="afterEntityId"/>, so the last id of a page is the cursor for the next one and
+    /// rows inserted or deleted mid-walk neither skip nor repeat a page. A page shorter than
+    /// <paramref name="take"/> means the kind is exhausted; a non-positive <paramref name="take"/> or
+    /// a non-renamable kind returns empty without throwing. This is the only way to enumerate a kind,
+    /// because a library reaches millions of entities.
     /// </remarks>
     Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
         RenamerFileKind kind, int afterEntityId, int take, CancellationToken ct = default);
@@ -181,10 +170,9 @@ public interface IRenamerDataPort
     /// chunked <c>WHERE Id IN (...)</c> queries.
     /// </summary>
     /// <remarks>
-    /// The same include graph and per-entity mapper as the single load, so a returned DTO is
-    /// identical either way. The result holds one entry per id that exists: a missing id is omitted,
-    /// never a null slot and never a throw. Order within the result is not guaranteed, so an
-    /// order-sensitive caller re-orders by its own id list. A non-renamable kind and an empty
+    /// The same include graph and mapper as the single load, so a returned DTO is identical either
+    /// way. A missing id is omitted, never a null slot and never a throw. Order is not guaranteed, so
+    /// an order-sensitive caller re-orders by its own id list. A non-renamable kind and an empty
     /// <paramref name="ids"/> return an empty list.
     /// </remarks>
     Task<IReadOnlyList<RenamerEntity>> LoadEntitiesAsync(RenamerFileKind kind, IReadOnlyList<int> ids, CancellationToken ct = default);
@@ -224,8 +212,7 @@ public interface IRenamerDataPort
     /// <remarks>
     /// An implementation throws on a save failure, such as a unique-index violation, so the caller's
     /// catch can roll the on-disk move back. Both callers pass a single mutation, so an
-    /// implementation may cost a query per element; a caller that starts passing many has to ask for
-    /// a batched implementation.
+    /// implementation may cost a query per element.
     /// </remarks>
     Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default);
 }
@@ -253,7 +240,7 @@ public sealed record RenamerFileMutation(
 /// <summary>A filename-derived title to record on a media entity that has none.</summary>
 /// <remarks>
 /// Recording the derivation once keeps the filename-as-title fallback to the first run; left
-/// unrecorded it re-reads its own output every pass. <c>MetadataProjector.DerivedTitle</c> holds the
-/// whole statement. The title is never empty, since an empty derivation travels as no write at all.
+/// unrecorded it re-reads its own output every pass. The title is never empty, since an empty
+/// derivation travels as no write at all.
 /// </remarks>
 public readonly record struct RenamerEntityTitleWrite(RenamerFileKind Kind, int EntityId, string Title);

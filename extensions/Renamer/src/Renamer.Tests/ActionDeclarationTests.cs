@@ -6,7 +6,7 @@ namespace Renamer.Tests;
 
 /// <summary>
 /// The "Rename selected" bulk action is contributed through the extension's
-/// <c>GetUIManifest()</c> (NOT <c>GetActions()</c> — <c>FullExtensionBase</c> does not implement
+/// <c>GetUIManifest()</c> (not <c>GetActions()</c> — <c>FullExtensionBase</c> does not implement
 /// <c>IActionExtension</c>), and the <c>renamer-batch</c> job is registered via <c>DefineJobs()</c>.
 /// These assert the exact contributed shape the host renders/dispatches against.
 /// </summary>
@@ -21,9 +21,9 @@ public sealed class ActionDeclarationTests
 
         var manifest = ext.GetUIManifest();
 
-        // The bulk action is registered ONCE PER KIND (video, image, text) so each carries the matching
+        // The bulk action is registered once per kind (video, image, text) so each carries the matching
         // RequiredPermission — the host's action model allows only a single permission per action and
-        // filters visibility by both entity-type context AND that permission.
+        // filters visibility by both entity-type context and that permission.
         Assert.Equal(3, manifest.Actions.Count);
 
         var video = Assert.Single(manifest.Actions, a => a.Id == "renamer-selected-video");

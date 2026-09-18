@@ -1,4 +1,4 @@
-// Waits on a Renamer run through the route the PANEL uses, not the host's own job route.
+// Waits on a Renamer run through the route the panel uses, not the host's own job route.
 //
 // The shared harness `pollJob` reads `GET /api/jobs/{id}`, which Cove gates on unrestricted read.
 // Polling that as an owner works and told us nothing about the product: the panel reads the

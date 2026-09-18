@@ -319,7 +319,7 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
             // silently partial.
             var expired = _db.Set<RevertBatchEntity>().Where(b => b.OpenedAtUtcTicks < cutoff);
 
-            // The run ids are not materialized into an IN list. The auto-renamer opens a batch per
+            // The run ids are not materialized into an in list. The auto-renamer opens a batch per
             // metadata edit, so the number of expired batches is unbounded input, and a parameter per
             // batch or a delete per row would make the purge grow with the library.
             await _db.Set<RevertRowEntity>()

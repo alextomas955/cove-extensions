@@ -1,7 +1,7 @@
 /**
  * Behavior contract for the pure bulk-rename confirm builder.
  *
- * The claim under test is the one a user acts on: the confirm shown BEFORE a rename touches disk must
+ * The claim under test is the one a user acts on: the confirm shown before a rename touches disk must
  * promise an undo only when the server says the batch will be journalled.
  */
 import { test } from "vitest";
@@ -104,7 +104,7 @@ test("a confirm built without a summary still reads as undoable", () => {
 });
 
 /**
- * The aggregate field name the server spells for the in-flight overflow count, TRANSCRIBED BY HAND from
+ * The aggregate field name the server spells for the in-flight overflow count, transcribed by hand from
  * the `InFlightPathOverflowCount` member of `PreviewSummary`, camel-cased by the response serializer.
  * Written out rather than imported, because the failure this guards is silent: a key spelled wrong reads
  * `undefined`, the `?? 0` fallback makes it zero, and the warning the user needed before approving a
@@ -137,8 +137,8 @@ test("a confirm built without a summary says nothing about an overflow either", 
 });
 
 /**
- * The statuses a `/preview` item can actually carry, TRANSCRIBED BY HAND from the `RenamerStatus`
- * members the PLANNER emits (`Planner/RenamerPlanner.cs`) rather than from the whole wire union: the
+ * The statuses a `/preview` item can actually carry, transcribed by hand from the `RenamerStatus`
+ * members the planner emits (`Planner/RenamerPlanner.cs`) rather than from the whole wire union: the
  * rest are executor-only and are produced after this confirm has already been approved.
  *
  * Written out because the failure this guards is silent. A status with no clause is not counted, so the

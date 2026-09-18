@@ -17,8 +17,8 @@ namespace Renamer.Tests.Api;
 /// <summary>
 /// The <c>/undo</c> + <c>/last-batch</c> API surface, driven end-to-end on the real spine
 /// (SQLite + a real <see cref="TempDir"/>, mirroring <see cref="RenamerExecutorIntegrationTests"/>).
-/// Each test first performs a REAL renamer through <c>RunRenamerBatchAsync</c> (so a genuine one-batch
-/// log is written to the extension's store) and then exercises the endpoints on the SAME extension
+/// Each test first performs a real renamer through <c>RunRenamerBatchAsync</c> (so a genuine one-batch
+/// log is written to the extension's store) and then exercises the endpoints on the same extension
 /// instance — the RevertLog blob lives in the extension's <see cref="FakeStore"/>, the undo event is
 /// captured on the wired <see cref="CapturingEventBus"/>, and the DbContext is resolved from the
 /// wired scope factory exactly as the production handler does. Proves: round-trip restore (disk + DB
@@ -71,7 +71,7 @@ public sealed class UndoEndpointTests
         {
             string folderPath = dir.Root.Replace('\\', '/');
             // Offset the Video id sequence so videoId != fileId — the published undo event must carry
-            // the ENTITY id from the log row, never the file id.
+            // the entity id from the log row, never the file id.
             db.Set<Video>().Add(new Video { Title = "decoy", Organized = true });
             await db.SaveChangesAsync();
             var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film");
@@ -112,14 +112,14 @@ public sealed class UndoEndpointTests
             Assert.Equal("raw clip.mkv", basename);
             Assert.Equal(folderPath + "/raw clip.mkv", path);
 
-            // Event: exactly one VideoUpdated for the PARENT entity id (≠ fileId).
+            // Event: exactly one VideoUpdated for the parent entity id (≠ fileId).
             var evt = Assert.IsType<EntityEvent>(Assert.Single(bus.Published));
             Assert.Equal(EventType.VideoUpdated, evt.Type);
             Assert.Equal("Video", evt.EntityType);
             Assert.Equal(videoId, evt.EntityId);
             Assert.NotEqual(fileId, evt.EntityId);
 
-            // Batch consumed: a SECOND undo is a no-op.
+            // Batch consumed: a second undo is a no-op.
             var second = await ext.UndoAsync(principal, default);
             var secondUndo = UndoValue(second);
             Assert.Equal(0, secondUndo.Undone);
@@ -161,12 +161,12 @@ public sealed class UndoEndpointTests
             Assert.True(File.Exists(newFull));
             bus.Published.Clear();
 
-            // Undoing an IMAGE batch requires images.write (the batch header carries the kind) — not
+            // Undoing an image batch requires images.write (the batch header carries the kind) — not
             // videos.write. This proves the per-kind permission gate on the undo path.
             var result = await ext.UndoAsync(FakePrincipalAccessor.WithPermissions(Permissions.ImagesWrite), default);
             Assert.Equal(1, UndoValue(result).Undone);
 
-            // The published event is ImageUpdated — proving the kind comes from the batch HEADER,
+            // The published event is ImageUpdated — proving the kind comes from the batch header,
             // never a hardcoded RenamerFileKind.Video default on the undo path.
             var evt = Assert.IsType<EntityEvent>(Assert.Single(bus.Published));
             Assert.Equal(EventType.ImageUpdated, evt.Type);
@@ -186,7 +186,7 @@ public sealed class UndoEndpointTests
     [Fact]
     public async Task Undo_RestoresNothing_LeavesBatchOpen_SoCorrectedRetrySucceeds()
     {
-        // A run that restores NOTHING (every entry skipped) must NOT consume the batch: the undo is
+        // A run that restores nothing (every entry skipped) must not consume the batch: the undo is
         // the only recovery path, and consuming it on an all-skipped run would strand the file at its
         // new location forever. Here the original folder is missing when the undo runs; once it is
         // back, a retry must still recover.
@@ -204,7 +204,7 @@ public sealed class UndoEndpointTests
             File.WriteAllText(oldFull, "video-bytes");
 
             var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus(), srcPath, destPath);
-            // Forward: a routed move OFF the source folder onto the dest folder.
+            // Forward: a routed move off the source folder onto the dest folder.
             await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
             {
                 FilenameTemplate = "$title",
@@ -226,7 +226,7 @@ public sealed class UndoEndpointTests
             Assert.Equal(1, skippedRun.SkippedCount);
             Assert.True(File.Exists(newFull), "file still on dest — nothing restored");
 
-            // The batch MUST remain open (not consumed) so it can be retried.
+            // The batch must remain open (not consumed) so it can be retried.
             var afterSkip = LastBatchValue(await ext.LastBatchAsync(read, default));
             Assert.True(afterSkip.HasBatch);
             Assert.False(afterSkip.Consumed, "an all-skipped undo must NOT consume the batch");
@@ -312,7 +312,7 @@ public sealed class UndoEndpointTests
             var undo = UndoValue(result);
             Assert.Equal(0, undo.Undone);
 
-            // The claim is about the DISK and the DB, not only about the reported count: a restore that
+            // The claim is about the disk and the DB, not only about the reported count: a restore that
             // ran and then reported nothing would satisfy the count alone.
             Assert.True(File.Exists(newFull), "the expired batch was replayed and moved the file back");
             Assert.False(File.Exists(oldFull));
@@ -372,7 +372,7 @@ public sealed class UndoEndpointTests
     [Fact]
     public async Task Undo_OfATextBatch_IsAllowedForACallerHoldingOnlyTextsWrite()
     {
-        // The coarse gate that runs before the journal is read admits a caller holding ANY renamer
+        // The coarse gate that runs before the journal is read admits a caller holding any renamer
         // write permission. It has to be read off the same array every other path reads, because a
         // caller whose only kind is text holds none of the other three: a second copy of that list
         // refuses them here while the rename that made the batch was allowed.

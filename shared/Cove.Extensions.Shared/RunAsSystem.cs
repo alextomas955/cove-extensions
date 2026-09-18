@@ -7,14 +7,14 @@ namespace Cove.Extensions.Shared;
 /// <remarks>
 /// A background op (webhook / job / timer) carries whichever principal happened to reach it, or none at
 /// all. Under a present but under-privileged one, CoveContext's per-principal authz query filters return
-/// ZERO rows with no error, silently undercounting a library-wide read; only System bypasses those
+/// zero rows with no error, silently undercounting a library-wide read; only System bypasses those
 /// filters. (A NULL principal bypasses them too, so an absent principal is the safe case and must never
 /// stand in for an unprivileged one when proving this.) The elevation is reverted in a <c>finally</c>; a
 /// request path stays on its caller's principal, because elevating it would bypass per-user authz.
 /// <para>
 /// Prefer <see cref="RunInSystemScopeAsync{T}(IServiceScopeFactory, Func{IServiceProvider, Task{T}})"/>
 /// when the body needs a scope of its own: it hands out one already elevated, so elevation is not a
-/// second step a new detached body can be written without. What that does NOT do is make the omission
+/// second step a new detached body can be written without. What that does not do is make the omission
 /// impossible — a body may still create a scope by hand and never come here. It removes the separate
 /// step that was there to be forgotten, and it pairs with per-entry-point assertions on the principal at
 /// the command, which go red when a detached body's reads stop running as System. The pairing is the

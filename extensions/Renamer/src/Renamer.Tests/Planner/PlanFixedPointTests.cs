@@ -15,7 +15,7 @@ namespace Renamer.Tests.Planner;
 /// single-pass planner tests cannot see it - pass one is correct even where the loop runs away - so
 /// this is the seam that holds the property. See <c>MetadataProjector.DerivedTitle</c>.
 /// <para>
-/// The commit between two plans is MODELLED, not executed, which is what keeps this tier pure: a
+/// The commit between two plans is modelled, not executed, which is what keeps this tier pure: a
 /// successful commit is one <c>RenamerFileMutation</c>, and its whole effect on the next plan's input
 /// is the basename, the parent folder, and the derived title on the owning entity. The disk move, the
 /// journal row and the published event change nothing the planner reads. That the executor really
@@ -58,7 +58,7 @@ public sealed class PlanFixedPointTests
     }
 
     /// <summary>
-    /// A title belongs to the ITEM, so a multi-file item derives ONE title however many files it has.
+    /// A title belongs to the item, so a multi-file item derives one title however many files it has.
     /// </summary>
     /// <remarks>
     /// Derived from the file being projected instead, an item gets as many candidate titles as it has

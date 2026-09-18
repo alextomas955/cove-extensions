@@ -39,7 +39,7 @@ public sealed class AutoRenamerSelfSaveReleaseTests
             File.WriteAllText(Path.Combine(libraryFolder, "raw.mkv"), "bytes");
 
             // Files at the destination names that Cove holds no row for. The planner's collision check
-            // reads file ROWS, so it sees a free name and plans the move; the executor measures the DISK
+            // reads file rows, so it sees a free name and plans the move; the executor measures the disk
             // too and re-suffixes. A suffix format carrying no {n} renders the same name on every attempt,
             // so those two occupied names exhaust the loop and the item skips. Any per-item failure
             // reaches the same place — this is just the shortest one that needs no platform behaviour.

@@ -546,9 +546,9 @@ public sealed record RenamerOptions
     /// <remarks>
     /// A same-drive rename is an instant metadata <c>File.Move</c> that consumes no extra space, so this
     /// is a pressure bound, not a space guard: it caps the in-flight <c>File.Move</c>, per-worker DB
-    /// scope and event-bus operations a large selection would otherwise issue at once. The default is a
-    /// fixed value, not <c>Environment.ProcessorCount</c>, so the serialized default stays
-    /// byte-identical across machines. A value &lt;= 0 is treated as unbounded.
+    /// scope and event-bus operations a large selection would otherwise issue at once. The default is
+    /// machine-independent, so the serialized default stays byte-identical across machines. A value
+    /// &lt;= 0 is treated as unbounded.
     /// </remarks>
     public int SameVolumeConcurrency { get; init; } = 8;
 

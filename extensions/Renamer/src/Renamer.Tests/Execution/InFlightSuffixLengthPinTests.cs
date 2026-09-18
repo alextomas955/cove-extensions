@@ -14,7 +14,7 @@ namespace Renamer.Tests.Execution;
 /// ignore the warning.
 /// <para>
 /// The measured value comes from the minter, never from a recomposition of the marker and the character
-/// count: a pin that rebuilt the string would agree with a rewritten minter forever. PURE - minting is
+/// count: a pin that rebuilt the string would agree with a rewritten minter forever. pure - minting is
 /// string arithmetic and touches no disk, so this needs no temp directory and none of the cross-volume
 /// fixtures.
 /// </para>
@@ -29,7 +29,7 @@ public sealed class InFlightSuffixLengthPinTests
         string minted = CrossVolumeMover.MintInFlightPath(FinalFull);
 
         // The copy must land in the destination directory beside the final name, or the promote would stop
-        // being a same-directory (atomic) rename - so the minted path EXTENDS the final one.
+        // being a same-directory (atomic) rename - so the minted path extends the final one.
         Assert.StartsWith(FinalFull, minted, StringComparison.Ordinal);
         Assert.Equal(CrossVolumeMover.InFlightSuffixLength, minted.Length - FinalFull.Length);
     }
@@ -37,7 +37,7 @@ public sealed class InFlightSuffixLengthPinTests
     [Fact]
     public void TwoMintsDifferInTheirTail_SoTheLengthAboveIsNotThatOfAFixedSuffix()
     {
-        // Guards the reading of the first case: a minter that appended a FIXED suffix of the same length
+        // Guards the reading of the first case: a minter that appended a fixed suffix of the same length
         // would satisfy it just as well, and a fixed, guessable in-flight name is what the mover's
         // safety contract rules out.
         string first = CrossVolumeMover.MintInFlightPath(FinalFull);

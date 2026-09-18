@@ -6,7 +6,7 @@ namespace Renamer.Tests.Contracts;
 /// The cross-language pin on the undo retention window.
 /// </summary>
 /// <remarks>
-/// The undo panel states the batch's ACTUAL expiry date, computed from the open timestamp the
+/// The undo panel states the batch's actual expiry date, computed from the open timestamp the
 /// <c>/last-batch</c> summary already carries plus the window — and the window deliberately gets no
 /// wire field of its own, because it is a constant rather than per-batch data. That decision buys a
 /// smaller wire surface and costs one duplicated number: the panel holds its own copy in

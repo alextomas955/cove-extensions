@@ -8,7 +8,7 @@
  * bundle. `Button` stands in as a real <button> so a click reaches the handler; DestinationField
  * stands in whole, so what the assertions read is this component's own output.
  *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
+ * React arrives as its production build (the bundle's `process.env.NODE_ENV` define applies here
  * too), which has no `act`, so the render is flushed by waiting rather than by wrapping.
  */
 import { test, expect, vi } from "vitest";

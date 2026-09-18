@@ -47,7 +47,7 @@ const TAG_SORT_OPTIONS: readonly { value: SortOrder; label: string }[] = [
   { value: "None", label: "Keep original order" },
 ];
 
-// The fixed performer-gender set. The VALUE is the C# enum NAME the backend matches (case-insensitive);
+// The fixed performer-gender set. The value is the C# enum name the backend matches (case-insensitive);
 // the label is the friendly spelling. Shared by the ignore-genders multiselect and the gender-order
 // ranking, so both offer exactly the genders the engine understands rather than free text.
 const GENDER_OPTIONS: readonly ValueOption[] = [
@@ -70,7 +70,7 @@ export const DATE_FORMAT_OPTIONS: readonly ExampleOption[] = [
 
 // Common DurationFormat options; the example column uses the reference duration 1h 23m 45s.
 // Values carry the engine's literal backslash escapes exactly (TS "hh\\-mm\\-ss" = literal hh\-mm\-ss).
-// The engine renders a duration through TimeSpan.ToString, where `mm` is the minutes COMPONENT
+// The engine renders a duration through TimeSpan.ToString, where `mm` is the minutes component
 // rather than the total minutes.
 export const DURATION_FORMAT_OPTIONS: readonly ExampleOption[] = [
   { value: String.raw`hh\-mm\-ss`, example: "01-23-45" },

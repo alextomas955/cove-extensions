@@ -3,10 +3,10 @@
  * What the preview pane shows once a preview request has failed and nothing further is in flight.
  *
  * The hook keeps the last good preview on a failed refresh and raises `previewError`, so after the
- * FIRST request fails there is no preview to keep: `preview` stays null and the error flag is set. That
+ * first request fails there is no preview to keep: `preview` stays null and the error flag is set. That
  * pair is a settled outcome, not a wait — the pane must not also claim a render is still coming.
  *
- * A DOM is needed because the claim is about what is on screen. React arrives as its PRODUCTION build
+ * A DOM is needed because the claim is about what is on screen. React arrives as its production build
  * (the bundle's `process.env.NODE_ENV` define applies here too), which has no `act`, so the render is
  * flushed by waiting rather than by wrapping.
  *
@@ -68,7 +68,7 @@ async function renderPane(preview: PreviewSampleResult[] | null, previewError: b
 const SAMPLE = [{ sampleLabel: "Standard" }] as unknown as PreviewSampleResult[];
 
 test("a failed first preview does not leave a spinner running under the error", async () => {
-  // THE case. Nothing further is in flight, so a spinner here promises a render that will never
+  // the case. Nothing further is in flight, so a spinner here promises a render that will never
   // arrive and the pane never resolves for the rest of the session.
   const pane = await renderPane(null, true);
 

@@ -10,8 +10,8 @@ namespace Renamer.Tests.Planner;
 /// a Move whose <see cref="RenamerPlanItem.ResolvedDestinationRoot"/> / <see cref="RenamerPlanItem.MatchedRule"/>
 /// / <see cref="RenamerPlanItem.TargetVolume"/> reflect the matched route, and confinement is anchored
 /// on the destination's own root (so the move lands on the destination volume). An entity no rule
-/// matched takes the DEFAULT destination, measured from the library path holding the file. PURE - no
-/// disk, no DB; every test asserts zero <c>ApplyAndSaveAsync</c> calls.
+/// matched takes the default destination, measured from the library path holding the file. Pure: no
+/// disk and no database.
 /// </summary>
 public sealed class RoutingPlannerTests
 {
@@ -66,7 +66,7 @@ public sealed class RoutingPlannerTests
             excludeTags, excludeStudios, excludePathsExact, excludePathRegex);
 
     /// <summary>
-    /// A destination root stored in a different SPELLING of a library path still resolves to it.
+    /// A destination root stored in a different spelling of a library path still resolves to it.
     /// </summary>
     /// <remarks>
     /// The endpoint emits one spelling, but a stored rule can carry another: an older store holds the
@@ -75,7 +75,7 @@ public sealed class RoutingPlannerTests
     /// spelling the comparison does not fold reads as "this root is no longer one of Cove's library
     /// paths" and the item is skipped - a routing rule that silently stops routing.
     /// <para>
-    /// Each case asserts a MOVE to the resolved root rather than the absence of a skip, so a change that
+    /// Each case asserts a move to the resolved root rather than the absence of a skip, so a change that
     /// starts refusing the route fails here instead of passing on a differently-shaped rejection. The
     /// spellings are derived from <see cref="StudioRoot"/> rather than written as literals, so the case
     /// stays true on every platform instead of pinning one host's path shape.
@@ -112,7 +112,6 @@ public sealed class RoutingPlannerTests
         // place, so this is a cosmetic inconsistency in a projection field and not a routing defect -
         // recorded rather than asserted away, so a later normalisation is a visible change here.
         Assert.Equal(Fwd(StudioRoot), item.ResolvedDestinationRoot!.TrimEnd('/'));
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     /// <summary>
@@ -129,9 +128,9 @@ public sealed class RoutingPlannerTests
     /// measuring the rule alone; three or more would mean the pair had not settled.
     /// </para>
     /// <para>
-    /// WHY IT CONVERGES, and the neighbour that does not. Pass 2 lands the item at
+    /// why it converges, and the neighbour that does not. Pass 2 lands the item at
     /// <c>SrcRoot/Sorted</c>, which is no longer exactly <c>SrcRoot</c>, so the source-path-exact rule
-    /// cannot match a third time. Give that same default an EMPTY template and it lands the item back
+    /// cannot match a third time. Give that same default an empty template and it lands the item back
     /// exactly on the rule's key, the rule fires again, and the two destinations trade the item
     /// forever. That configuration is self-contradictory - the rule says leave this folder, the default
     /// says return to it - but nothing refuses it, and auto-rename-on-update would act on it
@@ -225,7 +224,6 @@ public sealed class RoutingPlannerTests
         Assert.Equal(Fwd(StudioRoot), item.ResolvedDestinationRoot);
         Assert.Equal("Studio:42(direct)", item.MatchedRule);
         Assert.Equal(Path.GetPathRoot(StudioRoot), item.TargetVolume);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -252,16 +250,15 @@ public sealed class RoutingPlannerTests
         Assert.Equal(Fwd(StudioRoot), item.ResolvedDestinationRoot);
         Assert.Equal("Studio:42(direct)", item.MatchedRule);
         Assert.Equal(Path.GetPathRoot(StudioRoot), item.TargetVolume);
-        // The file lands at the ROOT of the routed destination (no subfolder), NOT under its source.
+        // The file lands at the root of the routed destination (no subfolder), not under its source.
         Assert.Equal(Fwd(StudioRoot) + "/My Film.mkv", item.NewFullPath);
         Assert.DoesNotContain("incoming", item.NewFullPath);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
     public async Task RoutedRule_RendersItsOwnTemplate_NotTheDefaultOne()
     {
-        // The rule's template REPLACES the default rather than being appended to it: the two are never
+        // The rule's template replaces the default rather than being appended to it: the two are never
         // joined, which is what keeps a plan a fixed point under the move it names.
         var port = Port(SrcRoot, StudioRoot);
         port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
@@ -284,7 +281,7 @@ public sealed class RoutingPlannerTests
     {
         var port = Port(SrcRoot, TagRoot);
         // The rule was written when tag 7 was called something else. It routes on the id, so the
-        // rename cannot break it, and the reason shows the name the tag carries NOW.
+        // rename cannot break it, and the reason shows the name the tag carries now.
         port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { TagRefs = [(7, "Anime (renamed)")] });
         var planner = new RenamerPlanner(port);
         var opts = MoveOptions();
@@ -297,7 +294,6 @@ public sealed class RoutingPlannerTests
         Assert.Equal(Fwd(TagRoot), item.ResolvedDestinationRoot);
         Assert.Equal("Tag:Anime (renamed)", item.MatchedRule);
         Assert.Equal(Path.GetPathRoot(TagRoot), item.TargetVolume);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -318,7 +314,6 @@ public sealed class RoutingPlannerTests
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(Fwd(PathRoot), item.ResolvedDestinationRoot);
         Assert.Equal("SourcePath:exact", item.MatchedRule);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -341,7 +336,6 @@ public sealed class RoutingPlannerTests
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(Fwd(UnorgRoot), item.ResolvedDestinationRoot);
         Assert.Equal("Unorganized", item.MatchedRule);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -357,21 +351,20 @@ public sealed class RoutingPlannerTests
 
         var item = Assert.Single(plan.Items);
         Assert.Equal("Default", item.MatchedRule);
-        // The rendered folder lands under the LIBRARY path, not under the file's own parent - which is
+        // The rendered folder lands under the library path, not under the file's own parent - which is
         // the previous run's output, and re-anchoring on it descends one directory per pass.
         Assert.Equal(Fwd(SrcRoot) + "/Sorted/My Film.mkv", item.NewFullPath);
         Assert.Equal(Fwd(SrcRoot), item.ResolvedDestinationRoot);
         // An item measured from its own library path stays on the volume it is already on, so it has no
         // destination volume of interest.
         Assert.Equal("", item.TargetVolume);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
     public async Task Unmatched_SecondPass_IsANoOp_NotAnotherDescent()
     {
         // The fixed point the library anchor buys: the file already sits where the first pass put it,
-        // so the second pass computes the SAME path and changes nothing.
+        // so the second pass computes the same path and changes nothing.
         var port = Port(SrcRoot);
         port.SeedEntity(Entity(VideoFile(1, "My Film.mkv", SrcRoot + "/Sorted")) with { TagRefs = [] });
         var planner = new RenamerPlanner(port);
@@ -382,14 +375,13 @@ public sealed class RoutingPlannerTests
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.NoOp, item.Status);
         Assert.Equal(item.OldFullPath, item.NewFullPath);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
     public async Task Unmatched_FileUnderNoLibraryPath_IsSkipUnanchored()
     {
         // A destination measuring from the file's own library path, and the file is under none: the
-        // destination is not forbidden, it cannot be computed. The item keeps its name AND its folder.
+        // destination is not forbidden, it cannot be computed. The item keeps its name and its folder.
         var port = Port(StudioRoot);
         port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { TagRefs = [] });
         var planner = new RenamerPlanner(port);
@@ -402,7 +394,6 @@ public sealed class RoutingPlannerTests
         Assert.Equal(item.OldFullPath, item.NewFullPath);
         Assert.Equal(Fwd(SrcRoot), item.TargetFolderPath);
         Assert.Contains("under none", item.Reason);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -421,7 +412,6 @@ public sealed class RoutingPlannerTests
         Assert.Equal(RenamerStatus.Renamer, item.Status);
         Assert.Equal(Fwd(SrcRoot) + "/My Film.mkv", item.NewFullPath);
         Assert.Null(item.ResolvedDestinationRoot);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -447,14 +437,13 @@ public sealed class RoutingPlannerTests
             Assert.Equal(item.OldFullPath, item.NewFullPath);
             Assert.Contains("Studio:42(direct)", item.Reason);
         });
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
     public async Task Excluded_ProducesSkipExcluded_ForEveryFile_NotSkipGated()
     {
-        // An excluded multi-file entity yields a SkipExcluded skip-with-reason for EVERY file
-        // (mirrors the gated path), carrying the matched exclude rule label — and it is NOT the
+        // An excluded multi-file entity yields a SkipExcluded skip-with-reason for every file
+        // (mirrors the gated path), carrying the matched exclude rule label — and it is not the
         // (gating) SkipGated status, guarding the relabel.
         var port = Port(SrcRoot);
         port.SeedEntity(Entity(
@@ -474,13 +463,12 @@ public sealed class RoutingPlannerTests
             Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
             Assert.Contains("Exclude:Tag:anime", item.Reason);
         });
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
     public async Task ExcludedAndGated_ReportsSkipExcluded_NotSkipGated()
     {
-        // An item that is BOTH gated (unorganized, only-organized on, no unorganized destination) AND
+        // An item that is both gated (unorganized, only-organized on, no unorganized destination) and
         // matches an exclude rule is attributed to the exclude: excludes are evaluated before the
         // gate, so the preview/log shows the real reason (SkipExcluded) rather than the gate.
         var port = Port(SrcRoot);
@@ -501,17 +489,16 @@ public sealed class RoutingPlannerTests
         Assert.Equal(RenamerStatus.SkipExcluded, item.Status);
         Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
         Assert.Contains("Exclude:Tag:anime", item.Reason);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
     public async Task RoutedToSameFolder_SameName_IsNoOp_NotMove()
     {
-        // The move-to-itself bug: with a destination configured, EVERY file is a "move" (isMove
-        // true). If the route resolves the file back to the folder it already lives in AND the
+        // The move-to-itself bug: with a destination configured, every file is a "move" (isMove
+        // true). If the route resolves the file back to the folder it already lives in and the
         // rendered name equals its current basename, nothing changes on disk — it must be NoOp, not
         // a Move reported (and executed) as a rename to its own identical path. Here the default
-        // root IS the file's source root, no subfolder, and the filename template reproduces the
+        // root is the file's source root, no subfolder, and the filename template reproduces the
         // current basename stem — so target full path == current full path.
         var port = Port(SrcRoot);
         port.SeedEntity(Entity(VideoFile(1, "My Film.mkv", SrcRoot)) with { StudioId = 999, TagRefs = [] });
@@ -527,7 +514,6 @@ public sealed class RoutingPlannerTests
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.NoOp, item.Status);
         Assert.Equal(item.OldFullPath, item.NewFullPath);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -536,7 +522,7 @@ public sealed class RoutingPlannerTests
         // Cove does not guarantee a forward-slash Folder.Path — its own tests build
         // `new Folder { Path = "C:\\library" }` — so on a Windows host ParentFolderPath arrives with
         // backslashes while the confinement gate returns its target forward-slashed. The no-op check
-        // compares the two ORDINALLY, so a file already sitting at its routed destination read as a
+        // compares the two ordinally, so a file already sitting at its routed destination read as a
         // Move to its own path. This seeds the raw host shape deliberately: every other test here
         // goes through Fwd(), which normalizes away the one input that reproduces it.
         Assert.SkipUnless(OperatingSystem.IsWindows(), "asserts Windows backslash Folder.Path semantics");
@@ -561,7 +547,6 @@ public sealed class RoutingPlannerTests
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.NoOp, item.Status);
         Assert.Equal(item.OldFullPath, item.NewFullPath);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -584,6 +569,5 @@ public sealed class RoutingPlannerTests
         Assert.Equal(Fwd(DefaultRoot), item.ResolvedDestinationRoot);
         Assert.Equal("Default", item.MatchedRule);
         Assert.Equal(Path.GetPathRoot(DefaultRoot), item.TargetVolume);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

@@ -50,8 +50,8 @@ public sealed class OptionsStoreTests
         Assert.Equal(new RenamerOptions(), loaded); // catches JsonException → defaults
 
         // Defaults are indistinguishable from a correct empty configuration at every layer above this,
-        // so this line is the ONLY evidence that a user's stored settings were discarded rather than
-        // never written. Asserted at the level and the carried exception and NOT at the wording, which
+        // so this line is the only evidence that a user's stored settings were discarded rather than
+        // never written. Asserted at the level and the carried exception and not at the wording, which
         // would pin the sentence instead of the behaviour.
         var entry = Assert.Single(log.Entries);
         Assert.Equal(LogLevel.Warning, entry.Level);
@@ -61,7 +61,7 @@ public sealed class OptionsStoreTests
     [Fact]
     public async Task LoadAsync_CollectionStoredAsNull_KeepsItsDefault()
     {
-        // A property initializer runs only for an ABSENT key, so an explicit null binds to null and
+        // A property initializer runs only for an absent key, so an explicit null binds to null and
         // the member then contradicts its own non-nullable declaration.
         var fake = new FakeStore();
         await fake.SetAsync(OptionsStore.Key, """{"FilenameTemplate":"$title","DropOrder":null}""");
@@ -101,7 +101,7 @@ public sealed class OptionsStoreTests
     [Fact]
     public async Task LoadAsync_NullableMemberStoredAsNull_StaysNull()
     {
-        // The restore is keyed on the DECLARED nullability, so a member whose null is a real state
+        // The restore is keyed on the declared nullability, so a member whose null is a real state
         // keeps it — "there is no unorganized route" must not become a route.
         var fake = new FakeStore();
         await fake.SetAsync(OptionsStore.Key, """{"UnorganizedDestination":null}""");
@@ -126,7 +126,7 @@ public sealed class OptionsStoreTests
     [Fact]
     public async Task LoadAsync_NegativeLengthCap_StillRendersANonEmptyName()
     {
-        // The reducer clamps a negative budget to zero and returns an EMPTY basename, which reads as
+        // The reducer clamps a negative budget to zero and returns an empty basename, which reads as
         // a result rather than as a failure — the reason a nonsense cap has to be caught on load.
         var fake = new FakeStore();
         await fake.SetAsync(OptionsStore.Key, """{"FilenameMax":-5,"FullPathMax":-1}""");

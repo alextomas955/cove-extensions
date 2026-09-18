@@ -37,7 +37,7 @@ const QUOTE = String.fromCodePoint(34);
 //     url out: a multi-letter scheme has no word boundary before its last letter, so `https:` is not
 //     a hit while a drive letter following a quote or a space is. A one-letter scheme would be a hit,
 //     and is spelled exactly like a drive letter — there is nothing left to tell them apart by.
-//   - The share marker instead requires its backslash run to BEGIN a value. Doubled backslashes in
+//   - The share marker instead requires its backslash run to begin a value. Doubled backslashes in
 //     the middle of a value are json escaping one separator, which an escaped drive path is full of,
 //     so a share marker without that anchor matches every escaped drive path and stops being a
 //     separate class at all.
@@ -142,7 +142,7 @@ function checkArtifactName(name, failures) {
   return true;
 }
 
-// Scans the text that is about to be WRITTEN, not the text on disk: the manifest's outgoing copy
+// Scans the text that is about to be written, not the text on disk: the manifest's outgoing copy
 // carries a caller-supplied version the source file does not, and the refusal is about package
 // contents rather than about build output.
 function checkNoAbsolutePath(name, text, failures) {
@@ -201,7 +201,7 @@ function checkDeclarationIsLoadable(sourceManifest, manifestName, names, failure
  * absolute-path refusal, and the package directory was empty. Nothing is ever deleted, and nothing
  * outside `packageDir` is written: every write this function makes names a file directly inside it.
  *
- * Past that point the guarantee is narrower. A failed write leaves the package directory INCOMPLETE
+ * Past that point the guarantee is narrower. A failed write leaves the package directory incomplete
  * and is reported as a named `WRITE:` entry rather than thrown, so a caller reading a non-zero result
  * as "nothing shipped" is right about the rest of its tree and wrong about the package directory.
  *
@@ -317,10 +317,10 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
   // is resolved from that root or not at all — and the remaining three are tried in order, so
   // precedence between roots is stated rather than left to whichever happens to hold the file.
   //
-  // The ui-bundle rule covers BOTH bundle fields, because both are output of the same UI build and
+  // The ui-bundle rule covers both bundle fields, because both are output of the same UI build and
   // neither is ever produced by the dotnet publish. Matching only `jsBundle` sent a declared
   // `cssBundle` down the publish/extension/repo-root search, where it cannot exist, so declaring one
-  // failed as MISSING however correctly it had been built.
+  // failed as missing however correctly it had been built.
   // The roots a declared artifact may come from, in precedence order. The manifest and the UI
   // bundle each resolve from exactly one place; everything else is searched.
   function candidateSourcesFor(name) {
@@ -341,7 +341,7 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
     const searched = candidateSourcesFor(name);
     for (const candidate of searched) {
       // Skipped rather than dropped from `searched`: a root that was not offered is still a root the
-      // caller has to know was considered, so the MISSING message stays as wide as the search.
+      // caller has to know was considered, so the missing message stays as wide as the search.
       if (candidate.repoLevelOnly && !REPO_ROOT_FALLBACK_NAMES.has(name)) continue;
       if (fs.existsSync(candidate.source)) return { ...candidate, searched };
     }
@@ -537,7 +537,7 @@ function invokedAsScript() {
 // `import.meta.main` is a boolean from Node 22.18 onward and `undefined` before it, so a bare
 // `if (import.meta.main)` takes the not-main branch on an older runtime: run as a CLI, this script
 // would then print nothing and exit 0 — the same silent success the two-file split existed to prevent,
-// arriving through the runtime instead of through a guard. The absent feature is refused BY NAME.
+// arriving through the runtime instead of through a guard. The absent feature is refused by name.
 //
 // Scoped to the CLI on purpose: assemblePackage works fine on an older Node, and refusing at import
 // time would break the E2E harness and this file's own tests for a feature only the entry guard needs.

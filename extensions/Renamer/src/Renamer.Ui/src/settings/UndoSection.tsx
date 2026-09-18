@@ -5,7 +5,7 @@
  * callback bumps it). Gates POST /undo behind a red destructive confirm. Every sentence the user
  * reads here is composed by `undoLogic.ts`, where the suite covers it.
  *
- * SECURITY: reasons are rendered as React text nodes (auto-escaped).
+ * security: reasons are rendered as React text nodes (auto-escaped).
  */
 import { useCallback, useEffect, useState } from "react";
 import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
@@ -36,7 +36,7 @@ type Feedback = UndoFeedback | null;
 
 export function UndoSection({ refreshKey }: { refreshKey: number }) {
   const [summary, setSummary] = useState<LastBatchSummary | null>(null);
-  // The clock is read once, WITH the summary, rather than on every render. The expiry decision is
+  // The clock is read once, with the summary, rather than on every render. The expiry decision is
   // then a fact about the moment the data was fetched — which is what the data describes — instead of
   // something that can flip mid-render, and the render stays pure.
   const [loadedAtMs, setLoadedAtMs] = useState(0);
@@ -68,7 +68,7 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     void loadSummary();
   }, [loadSummary, refreshKey]);
 
-  // The button acts on what is LEFT, not on what the batch started as: a partly restored batch is
+  // The button acts on what is left, not on what the batch started as: a partly restored batch is
   // still offered, and what it offers is the outstanding work. An expired batch keeps its line —
   // saying nothing there would read as "there was never a rename".
   const status = buildUndoStatus(summary, loadedAtMs);
@@ -79,7 +79,7 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     setUndoing(true);
     setFeedback(null);
     try {
-      // /undo takes NO body, and answers every arm with counts — the "nothing open to undo" arm
+      // /undo takes no body, and answers every arm with counts — the "nothing open to undo" arm
       // included. So a bodyless reply is an anomaly rather than an outcome, and `requestJson` raises
       // it as one instead of resolving a success this panel would have to invent a sentence for.
       const res = await requestJson<UndoResult>(UNDO_PATH, { method: "POST" });

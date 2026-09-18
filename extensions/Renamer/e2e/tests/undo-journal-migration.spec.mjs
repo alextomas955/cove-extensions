@@ -1,5 +1,5 @@
 // The undo journal's move out of the extension data store and into a table the extension owns,
-// proven on the path that can lose a user's undo: an installation that is ALREADY carrying a stored
+// proven on the path that can lose a user's undo: an installation that is already carrying a stored
 // journal when the new code loads.
 //
 // Why this and not the happy path. A fresh install has nothing to migrate, so it passes whether the
@@ -7,7 +7,7 @@
 // deletes its own source, "it ran twice" is not an error anyone would see — it is a duplicate batch
 // that quietly outranks the real one. Both halves are asserted here.
 //
-// Uses its OWN harness per test. It restarts the container (the only way to reach an initialize-time
+// Uses its own harness per test. It restarts the container (the only way to reach an initialize-time
 // path) and it empties the shared journal tables, either of which would corrupt a sibling spec
 // running against the same worker instance.
 import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
@@ -90,7 +90,7 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
   );
   const renamedPath = renamed.files[0].path;
 
-  // The row the rename actually journalled, read back so the blob below carries the SAME entity id,
+  // The row the rename actually journalled, read back so the blob below carries the same entity id,
   // file id and old path the table did.
   const journalled = await sql(
     harness,
@@ -141,7 +141,7 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
   expect((await harness.container.exec(["test", "-f", originalPath])).exitCode).toBe(0);
   expect((await harness.container.exec(["test", "-f", renamedPath])).exitCode).not.toBe(0);
 
-  // (4) A second load does NOT migrate again. There is nothing left to read, so a re-run would have
+  // (4) A second load does not migrate again. There is nothing left to read, so a re-run would have
   // to invent a batch — and a duplicate batch outranks the real one silently, which is why this is
   // asserted on the table rather than inferred from the keys being gone.
   await harness.restart();

@@ -66,7 +66,7 @@ test("a declaring entry is generated from, with the document as input and the UI
     assert.deepEqual(result.failures, []);
     assert.equal(calls.length, 1);
 
-    // The ARGUMENTS, not merely that it was called: a test that counts calls passes just as happily
+    // The arguments, not merely that it was called: a test that counts calls passes just as happily
     // when the generator is pointed at the wrong document or writes to the wrong path, which is
     // exactly the wiring mistake this injection seam could otherwise introduce.
     assert.equal(calls[0].documentPath, path.join(root, DOC_PATH));

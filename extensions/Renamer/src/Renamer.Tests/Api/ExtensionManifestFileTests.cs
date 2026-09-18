@@ -83,8 +83,8 @@ public sealed class ExtensionManifestFileTests
     /// The extension redeclares none of its metadata in code, so the manifest is what the host reads.
     /// </summary>
     /// <remarks>
-    /// The host reads each value straight off the property, so an override here silently WINS over the
-    /// shipped manifest. The regression is therefore not a wrong value but a REDECLARED one, which no
+    /// The host reads each value straight off the property, so an override here silently wins over the
+    /// shipped manifest. The regression is therefore not a wrong value but a redeclared one, which no
     /// value assertion can catch while the copy still happens to agree with the manifest.
     /// </remarks>
     [Theory]

@@ -4,8 +4,8 @@ using Renamer.Options;
 namespace Renamer.Tests.Engine;
 
 /// <summary>
-/// Proves the dual MAX_PATH reduction: the filename component (≤255) AND the full generated path
-/// (≤259) are BOTH enforced; over-long names drop fields in DropOrder then hard-truncate the title.
+/// Proves the dual MAX_PATH reduction: the filename component (≤255) and the full generated path
+/// (≤259) are both enforced; over-long names drop fields in DropOrder then hard-truncate the title.
 /// Driven by <see cref="LongTemplateFixture"/>, engineered to exhaust every drop and force a title
 /// truncate.
 /// </summary>
@@ -18,7 +18,7 @@ public class LengthReducerTests
             ["tags"] = LongTemplateFixture.Tags,
         };
 
-    // ---- FitsBoth: measures BOTH constraints (filename component AND full path) ----
+    // ---- FitsBoth: measures both constraints (filename component and full path) ----
 
     [Fact]
     public void FitsBoth_FilenameOverCap_FailsEvenWhenPathWouldFit()
@@ -159,13 +159,13 @@ public class LengthReducerTests
 
     // ---- The hard truncate cuts between characters, never through one ----
 
-    // "a" ×9, then U+1F600 (a surrogate PAIR, code units 9 and 10), then filler to force a truncate.
+    // "a" ×9, then U+1F600 (a surrogate pair, code units 9 and 10), then filler to force a truncate.
     private static readonly string PairAtNine = new string('a', 9) + "\U0001F600" + new string('b', 40);
 
     [Fact]
     public void Fit_BudgetLandsInsideASurrogatePair_TruncatesOneUnitShorter()
     {
-        // Truncation is the LAST step of the pipeline, after sanitization, so a lone surrogate cut
+        // Truncation is the last step of the pipeline, after sanitization, so a lone surrogate cut
         // here reaches the planner's candidate basename with nothing left to repair it.
         var o = new RenamerOptions { FilenameMax = 14, FullPathMax = 1000 }; // budget 14 - 4 = 10
 
@@ -178,7 +178,7 @@ public class LengthReducerTests
     [Fact]
     public void Fit_BudgetLandsAfterASurrogatePair_KeepsTheWholePair()
     {
-        // The control: a budget ending ON the low half is already a character boundary and must not
+        // The control: a budget ending on the low half is already a character boundary and must not
         // lose a unit, so the shortening is keyed on the pair and not applied to every truncate.
         var o = new RenamerOptions { FilenameMax = 15, FullPathMax = 1000 }; // budget 15 - 4 = 11
 

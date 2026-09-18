@@ -128,7 +128,7 @@ public sealed class RenamerOptionsJsonTests
     [Fact]
     public void PerformerGenderOptions_Participate_In_Equality()
     {
-        // A difference in a gender field alone must make two options instances UNEQUAL — proves the
+        // A difference in a gender field alone must make two options instances unequal — proves the
         // new fields are wired into the hand-written MultiValueOptions Equals/GetHashCode.
         var a = new RenamerOptions { Performers = new MultiValueOptions { IgnoreGenders = ["Male"] } };
         var b = new RenamerOptions { Performers = new MultiValueOptions { IgnoreGenders = ["Female"] } };
@@ -156,9 +156,9 @@ public sealed class RenamerOptionsJsonTests
     [Fact]
     public void PersistedEnums_KeepTheMemberNameSpelling_NotTheWireSpelling()
     {
-        // The enum TYPES carry [JsonConverter(typeof(CamelCaseStringEnumConverter))] so the wire document
+        // The enum types carry [JsonConverter(typeof(CamelCaseStringEnumConverter))] so the wire document
         // describes them as camelCase. RenamerOptions.JsonOptions declares a converter of its own at the
-        // OPTIONS level, which outranks a type attribute, so the persisted blob keeps the member name.
+        // options level, which outranks a type attribute, so the persisted blob keeps the member name.
         // Asserted as literal text because a round-trip is symmetric: it agrees with itself whichever
         // spelling is written, and a flipped spelling would silently rewrite every saved setting.
         var options = new RenamerOptions
@@ -183,7 +183,7 @@ public sealed class RenamerOptionsJsonTests
     [Fact]
     public void SqueezeStudioNames_Participates_In_Equality()
     {
-        // A bare flag difference must make two options instances UNEQUAL — proves the flag
+        // A bare flag difference must make two options instances unequal — proves the flag
         // is wired into the hand-written Equals/GetHashCode (not silently ignored).
         var off = new RenamerOptions { SqueezeStudioNames = false };
         var on = new RenamerOptions { SqueezeStudioNames = true };
@@ -205,7 +205,7 @@ public sealed class RenamerOptionsJsonTests
     [Fact]
     public void AutoRenamerOnUpdate_Participates_In_Equality()
     {
-        // A bare flag difference must make two options instances UNEQUAL — proves the flag
+        // A bare flag difference must make two options instances unequal — proves the flag
         // is wired into the hand-written Equals/GetHashCode (not silently ignored).
         var off = new RenamerOptions { AutoRenamerOnUpdate = false };
         var on = new RenamerOptions { AutoRenamerOnUpdate = true };
@@ -222,7 +222,7 @@ public sealed class RenamerOptionsJsonTests
         Assert.Contains("{n}", o.DuplicateSuffixFormat); // counter placeholder present
     }
 
-    // ---- FIELD-02: field_replacer ----
+    // ---- field_replacer ----
 
     [Fact]
     public void FieldReplacers_RoundTrip_AreEqual()
@@ -239,7 +239,7 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        // Proves the FieldReplaceRule record AND the List are wired into structural equality
+        // Proves the FieldReplaceRule record and the List are wired into structural equality
         // (a fresh list of fresh records must still compare value-equal).
         Assert.Equal(original, reloaded);
         Assert.Equal(2, reloaded!.FieldReplacers.Count);
@@ -262,7 +262,7 @@ public sealed class RenamerOptionsJsonTests
         Assert.NotEqual(none, withRule);
     }
 
-    // ---- FIELD-03: prepositions_removal ----
+    // ---- prepositions_removal ----
 
     [Fact]
     public void StripLeadingArticles_And_Articles_Defaults()
@@ -332,7 +332,7 @@ public sealed class RenamerOptionsJsonTests
         Assert.True(reloaded!.PreventTitlePerformer); // the new flag survives the round-trip
     }
 
-    // ---- FIELD-06: prevent_consecutive ----
+    // ---- prevent_consecutive ----
 
     [Fact]
     public void PreventConsecutiveSegments_Defaults_On()
@@ -377,15 +377,15 @@ public sealed class RenamerOptionsJsonTests
         Assert.True(loaded.PreventConsecutiveSegments); // defaults on for a fresh install
     }
 
-    // ---- EXCL-01/02/03: exclude system ----
+    // ---- the exclude system ----
 
     [Fact]
     public void ExcludeConfig_Defaults_Empty()
     {
         var o = new RenamerOptions();
-        Assert.Empty(o.ExcludeTagIds);     // EXCL-01 default empty = no excludes (legacy behavior)
-        Assert.Empty(o.ExcludeStudioIds);  // EXCL-02 default empty
-        Assert.Empty(o.ExcludePaths);      // EXCL-03 default empty
+        Assert.Empty(o.ExcludeTagIds);     // default empty = no excludes
+        Assert.Empty(o.ExcludeStudioIds);  // default empty
+        Assert.Empty(o.ExcludePaths);      // default empty
     }
 
     [Fact]
@@ -405,7 +405,7 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        // Proves the ExcludeRule record AND the three collections are wired into structural equality
+        // Proves the ExcludeRule record and the three collections are wired into structural equality
         // (fresh lists of fresh records must still compare value-equal).
         Assert.Equal(original, reloaded);
         Assert.Equal(2, reloaded!.ExcludeTagIds.Count);
@@ -443,7 +443,7 @@ public sealed class RenamerOptionsJsonTests
     [Fact]
     public void ExcludeConfig_OmittedFromJson_LoadsWithDefaults()
     {
-        // forward-compat: a blob predating the EXCL-* fields still loads with empty excludes.
+        // A blob predating the exclude fields still loads with empty excludes.
         const string json = """{"FilenameTemplate":"$title"}""";
 
         var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
@@ -465,7 +465,7 @@ public sealed class RenamerOptionsJsonTests
     [Fact]
     public void NormalizePunctuation_Participates_In_Equality()
     {
-        // A bare flag difference must make two options instances UNEQUAL — proves the flag
+        // A bare flag difference must make two options instances unequal — proves the flag
         // is wired into the hand-written Equals/GetHashCode (not silently ignored).
         var off = new RenamerOptions { NormalizePunctuation = false };
         var on = new RenamerOptions { NormalizePunctuation = true };
@@ -554,8 +554,8 @@ public sealed class RenamerOptionsJsonTests
     [Fact]
     public void StoredOldDefaultBlob_RoundTripsUnchanged_NotOverwrittenByNewDefaults()
     {
-        // A blob saved before the default flip carries the OLD template + both flags off. Loading it
-        // must return those stored values verbatim — the new defaults apply only to an ABSENT field,
+        // A blob saved before the default flip carries the old template + both flags off. Loading it
+        // must return those stored values verbatim — the new defaults apply only to an absent field,
         // never to a present one, so an existing user's saved options never silently change.
         const string json =
             """{"FilenameTemplate":"$title{ [$resolution]}","PreventConsecutiveSegments":false,"FilenameAsTitle":false}""";

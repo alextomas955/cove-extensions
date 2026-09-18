@@ -1,9 +1,9 @@
 // Verifies that the Tailwind utilities the released host's prebuilt stylesheet never emits render
-// via element-scoped INLINE styles rather than as classes that compile to nothing - the panel's
-// layout and transform utilities, and the status pills' background tints - AND that the extension
+// via element-scoped inline styles rather than as classes that compile to nothing - the panel's
+// layout and transform utilities, and the status pills' background tints - and that the extension
 // leaks nothing onto host pages (it ships no cssBundle).
 //
-// This runs against a CLEAN released cove-app image (the harness default), NOT the local dev host
+// This runs against a clean released cove-app image (the harness default), not the local dev host
 // whose @source contamination would mask the whole point: on a released host the extension gets
 // only the classes Cove's own prebuilt bundle emits, so an inline style is the only thing that
 // makes a host-absent utility render for an end user.
@@ -16,7 +16,7 @@ test("the extension declares no cssBundle (ships zero CSS — cannot leak onto h
   const { json } = await api.get("/api/extensions");
   const renamer = json.find((e) => e.id === "com.alextomas955.renamer");
   expect(renamer).toBeTruthy();
-  // The combined extension stylesheet must NOT import a Renamer bundle.
+  // The combined extension stylesheet must not import a Renamer bundle.
   const { text } = await api.get("/api/extensions/bundles/ui.css").catch(() => ({ text: "" }));
   expect(text).not.toContain("renamer");
 });
@@ -86,7 +86,7 @@ test("status pill tints resolve to a real background on a released host", async 
 
   const settings = new RenamerSettingsPage(page, baseUrl);
   await settings.goto();
-  // The modal scans the panel's CURRENT (unsaved) options, so setting the template is enough.
+  // The modal scans the panel's current (unsaved) options, so setting the template is enough.
   await settings.setFilenameTemplate("$title");
   await settings.openDryRun();
 
@@ -115,7 +115,7 @@ test("status pill tints resolve to a real background on a released host", async 
     );
   }
 
-  // Without this the assertions above would also pass on a host that DOES emit the utilities, which
+  // Without this the assertions above would also pass on a host that does emit the utilities, which
   // is exactly the reading the dev host gives and the released host does not.
   const classOnly = await page.evaluate(
     (classNames) => {
@@ -146,7 +146,7 @@ test("host account page is unaffected by the extension (no CSS leak)", async ({
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`${baseUrl}/settings/my/account`);
   const logout = page.getByRole("button", { name: /log ?out/i }).first();
-  // The `page` fixture warms the app ROOT, not this route, so this navigation is the one that pays
+  // The `page` fixture warms the app root, not this route, so this navigation is the one that pays
   // for its chunk. Same budget the other first-visit waits carry.
   await expect(logout).toBeVisible({ timeout: 45_000 });
   const rowFlexDir = await logout.evaluate((btn) => {

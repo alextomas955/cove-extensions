@@ -39,12 +39,12 @@ const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
  * declare; and failing all three the highest floor the catalog's extensions declare in their own
  * manifests. The compose file holds no default, so this is the only thing that decides.
  *
- * A CI leg can only supply the tag-only form, because a version leg resolves a VERSION while the
+ * A CI leg can only supply the tag-only form, because a version leg resolves a version while the
  * repository is declared once in the build properties.
  *
- * A host BELOW an extension's floor does not error: its version gate silently refuses to LOAD the
+ * A host below an extension's floor does not error: its version gate silently refuses to load the
  * extension, so the routes 404 and every browser spec fails against a Settings page that never gains
- * the extension's tab. The floor taken is the HIGHEST declared, since one instance serves whichever
+ * the extension's tab. The floor taken is the highest declared, since one instance serves whichever
  * extensions a run installs into it.
  *
  * Throws rather than falling back when a floor cannot be read or is not strict semver.
@@ -55,7 +55,7 @@ const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
 export function resolveCoveImage(image) {
   if (image) return image;
   if (process.env.COVE_E2E_IMAGE) return process.env.COVE_E2E_IMAGE;
-  // registry AND repository, never the `repository` field alone: that one is the host-less path, and a
+  // registry and repository, never the `repository` field alone: that one is the host-less path, and a
   // reference missing its registry host resolves to Docker Hub — a real image, from a registry nobody
   // named.
   const { registry, repository } = readCoveImageReference();
@@ -104,7 +104,7 @@ function highestDeclaredFloor() {
 export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS } = {}) {
   let environment = new DockerComposeEnvironment(COMPOSE_DIR, COMPOSE_FILE)
     .withStartupTimeout(timeoutMs)
-    // Keyed on CONTAINER names (`<service>-<index>`, the same names getContainer takes below), never
+    // Keyed on container names (`<service>-<index>`, the same names getContainer takes below), never
     // service names: Testcontainers drops a key matching no container with only a log warning, and
     // leaves whatever it inferred from the image in force. restart() reuses the strategy named here.
     .withWaitStrategy("cove-1", Wait.forHealthCheck())
@@ -123,7 +123,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   // the caller.
   let credentials = null;
 
-  // `anonymous` carries no token: the endpoints that MINT a credential are the ones that must not
+  // `anonymous` carries no token: the endpoints that mint a credential are the ones that must not
   // present a stale one.
   const api = createApiClient(
     () => handle.baseUrl,
@@ -165,16 +165,16 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
      * Restarts the Cove container and returns once the host can reach it again with a usable token.
      *
      * `installExtension` needs it because a copied-in extension is only discovered on a (re)start. A
-     * spec needs it to reach anything an extension does at INITIALIZE time, which is the only way in:
+     * spec needs it to reach anything an extension does at initialize time, which is the only way in:
      * an initialize-time path does not run again while the host stays up.
      *
-     * `baseUrl` MAY CHANGE across this call. A container published on an ephemeral host port can be
+     * `baseUrl` may change across this call. A container published on an ephemeral host port can be
      * reassigned a new one, so a caller holding a previously-read `baseUrl`, or anything built from
      * one, must re-read it. The port-binding state is refreshed in place, so the getter above is
      * correct as soon as this resolves.
      *
      * Returning means the host answers `/health` with 2xx, so it is serving and its database is
-     * connectable. It does NOT mean an extension finished initializing: a caller depending on
+     * connectable. It does not mean an extension finished initializing: a caller depending on
      * initialize-time work must wait for that work's own observable outcome.
      */
     async restart() {
@@ -196,7 +196,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     },
 
     /**
-     * Runs a command inside the DATABASE container — the one way to ask the database itself whether
+     * Runs a command inside the database container — the one way to ask the database itself whether
      * the host really created an extension's tables, rather than inferring it from the extension
      * having loaded. A failed extension migration is a host log line and the load continues, so an
      * extension can be enabled with no table behind it.
@@ -211,8 +211,8 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     },
 
     /**
-     * Creates the first (owner) account and returns its access token. REQUIRED before any
-     * browser-driven test: Cove's frontend (App.tsx's `showSetupWizard`) hard-gates the ENTIRE app
+     * Creates the first (owner) account and returns its access token. required before any
+     * browser-driven test: Cove's frontend (App.tsx's `showSetupWizard`) hard-gates the entire app
      * behind a first-run setup wizard whenever no owner account exists, and its "Skip setup for now"
      * button does nothing while `ownerMissing` is true.
      *
@@ -279,18 +279,18 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     },
 
     /**
-     * Creates a NON-OWNER user Cove's row-level authorization filters actually apply to, and returns
-     * its token WITHOUT replacing the handle's own.
+     * Creates a non-owner user Cove's row-level authorization filters actually apply to, and returns
+     * its token without replacing the handle's own.
      *
      * `CoveContext` short-circuits every one of those filters to true for a principal holding the
      * `"*"` permission, and Cove's bootstrap grants exactly that to the owner role. A spec driven
      * with `bootstrapOwner()`'s token therefore cannot observe row-level authorization at all. The
-     * same clause treats a MISSING principal as bypassed, so sending no credential does not
+     * same clause treats a missing principal as bypassed, so sending no credential does not
      * discriminate either; only a present, under-privileged user does.
      *
      * A permission list alone will not produce one. Cove's write permissions declare the matching
      * read as implied, so a role granted `videos.write` is expanded to hold `videos.read` and reaches
-     * every video read endpoint. A CONTENT RULE denying read on a kind leaves the permission in place
+     * every video read endpoint. A content rule denying read on a kind leaves the permission in place
      * while making the per-entity SQL predicate answer false, which is the case where a caller gets
      * 200 and zero rows rather than a 403 naming itself.
      *
@@ -311,7 +311,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       permissions = [],
       denyReadEntityKinds = [],
     } = {}) {
-      // Every call below is made as the OWNER: creating a role, a content rule and a user require
+      // Every call below is made as the owner: creating a role, a content rule and a user require
       // RolesWrite/UsersWrite, which at this point only the bootstrapped owner holds.
       const asOwner = async (path, body) => {
         const res = await api.post(path, body);
@@ -476,7 +476,7 @@ function requireId(payload, field, source) {
   return value;
 }
 
-// The access token is `token`, NOT `accessToken`: the wrong field yields `Bearer undefined`, which
+// The access token is `token`, not `accessToken`: the wrong field yields `Bearer undefined`, which
 // the host rejects exactly as it rejects no header at all. Returns the token rather than storing it,
 // so a helper minting a deliberately under-privileged one cannot overwrite the owner's.
 function readToken(response, source) {
@@ -488,9 +488,9 @@ function readToken(response, source) {
   return response.token;
 }
 
-// The restart's own wait strategy is a health check, but that probe runs INSIDE the container and
+// The restart's own wait strategy is a health check, but that probe runs inside the container and
 // says nothing about the host side, where an ephemeral published port is being re-bound at the same
-// moment. A fetch that lands in that gap REJECTS rather than answering a status, and every call
+// moment. A fetch that lands in that gap rejects rather than answering a status, and every call
 // after the restart is a bare fetch — the first of them inside a per-test fixture, so a single
 // rejection there fails every test in the suite while naming neither the restart nor the gap.
 //

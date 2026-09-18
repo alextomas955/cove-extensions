@@ -15,7 +15,7 @@ namespace Renamer.Tests.Execution.Sidecars;
 /// targets, and the disk mover applies no confinement of its own.
 /// </summary>
 /// <remarks>
-/// The escape is only observable across a folder MOVE. In a same-folder rename the source and the
+/// The escape is only observable across a folder move. In a same-folder rename the source and the
 /// target directory are one, so a traversal prefix cancels against itself and names the same file
 /// twice; with the destination at a different depth the two resolve apart and the sidecar lands
 /// outside both folders.

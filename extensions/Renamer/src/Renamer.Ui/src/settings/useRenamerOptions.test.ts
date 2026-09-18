@@ -4,17 +4,17 @@
  * cannot be written over from this panel.
  *
  * The predicate has its own suite, and a green one there proves nothing on its own — a hook that never
- * consults it saves the names away however correct the predicate is. So this renders the REAL hook over
+ * consults it saves the names away however correct the predicate is. So this renders the real hook over
  * a stubbed extension data store and asserts what a user would lose: no write reaches the store, and
  * the panel's own view of those rules is already empty, which is what the write would have carried.
  *
  * Two seams are stubbed, and neither is the subject. The data store, because it reaches
  * `@cove/runtime/api`, which exists only inside Cove. And the shared barrel, which this hook reaches
- * transitively for one route builder; the stand-in re-exports the REAL one rather than restating a
+ * transitively for one route builder; the stand-in re-exports the real one rather than restating a
  * path shape that could then drift.
  *
  * A DOM is needed because the subject is a hook and the refusal is observable only once React has run
- * its effects. React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define
+ * its effects. React arrives as its production build (the bundle's `process.env.NODE_ENV` define
  * applies here too), which has no `act`, so renders are flushed by waiting rather than by wrapping,
  * and `node:assert` is unreachable, so the assertions are vitest's `expect`.
  */
@@ -188,7 +188,7 @@ test("a blob storing the empty legacy keys is not held back by them", async () =
 
 /**
  * A blob whose destinations are still the bare absolute paths an install before them stored. The
- * global folder template is set too, because that is what the conversion renders UNDER each converted
+ * global folder template is set too, because that is what the conversion renders under each converted
  * root and therefore part of what a save over one loses.
  */
 const LEGACY_DESTINATION_BLOB = JSON.stringify({

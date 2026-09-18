@@ -8,8 +8,8 @@ import prettier from "eslint-config-prettier";
 import importX from "eslint-plugin-import-x";
 import boundaries from "eslint-plugin-boundaries";
 
-// The single ESLint config for the whole monorepo — every extension's React/TS UI bundle AND every
-// first-party .mjs/.cjs helper/build/test script. There is intentionally NO per-extension ESLint
+// The single ESLint config for the whole monorepo — every extension's React/TS UI bundle and every
+// first-party .mjs/.cjs helper/build/test script. There is intentionally no per-extension ESLint
 // config: a new extension's src/ and scripts are linted here automatically by path, so the ruleset
 // never drifts between extensions. Formatting is Prettier's job (the `prettier` config last disables
 // every stylistic rule).
@@ -107,10 +107,10 @@ export default tseslint.config(
 
   // --- The shared UI package (aliased-raw as @cove-extensions/ui-shared, not a workspace) ---
   // Without this block its TS matched no config and was silently un-linted ("File ignored"). This is
-  // NON-type-aware on purpose: the package is deliberately dependency-less (its React/Vite/Node types
+  // non-type-aware on purpose: the package is deliberately dependency-less (its React/Vite/Node types
   // resolve only inside each consuming extension's bundle, never here), so `projectService`
   // type-aware linting produces only spurious no-unsafe-* noise from unresolved types, not real
-  // findings. Syntactic linting (recommended + dead-code + the MF-44 import rules) is the correct
+  // findings. Syntactic linting (recommended + dead-code + the import rules) is the correct
   // scope for code that is type-checked downstream where its types actually resolve.
   {
     files: ["shared/ui-shared/**/*.{ts,tsx}"],
@@ -128,14 +128,13 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": noUnusedVars,
       // overlay.ts uses the intentional "latest ref" pattern (writing optsRef.current during render
       // to keep the newest options without forcing a re-render); react-hooks/refs flags it. Whether
-      // to rework it is a product-code call, not a lint-config one — advisory here (U-35), since this
-      // plan is behavior-neutral and only closes the shared-TS lint-scope gap.
+      // to rework it is a product-code call, not a lint-config one, so it is advisory here.
       "react-hooks/refs": "warn",
     },
   },
 
-  // --- MF-44 import-enforcement layer (both UI surfaces: extensions + the shared package) ---
-  // R8 named-exports + R13 no-internal-barrels. Uses eslint-plugin-import-x (the maintained fork;
+  // --- Import enforcement (both UI surfaces: extensions + the shared package) ---
+  // Named exports only, no internal barrels. Uses eslint-plugin-import-x (the maintained fork;
   // eslint-plugin-import is peer-disqualified at ESLint 10).
   {
     files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
@@ -146,8 +145,8 @@ export default tseslint.config(
       // contract) and are exempted in the override block below.
       "import-x/no-default-export": "error",
       // No internal barrels: import the concrete module, not an index re-export. The pattern matches
-      // ONLY index-file names — deliberately NOT ".", "./", ".." (a group containing those degenerates
-      // via minimatch into match-everything, 127 false positives; CITATION-RECHECK §2). The alias
+      // only index-file names — deliberately not ".", "./", ".." (a group containing those degenerates
+      // via minimatch into match-everything, 127 false positives). The alias
       // `@cove-extensions/ui-shared` is unaffected — that specifier does not end in `index`, and its
       // src/index.ts is the one sanctioned barrel (the package's public entry).
       "no-restricted-imports": [
@@ -156,8 +155,7 @@ export default tseslint.config(
           patterns: [
             {
               group: ["**/index", "**/index.js", "**/index.ts", "**/index.mjs"],
-              message:
-                "No internal barrels: import the concrete module, not an index re-export (Wave-1 slice architecture).",
+              message: "No internal barrels: import the concrete module, not an index re-export.",
             },
           ],
         },
@@ -204,7 +202,7 @@ export default tseslint.config(
   // I/O and belongs in an INFRA or FEAT module.
   //
   // The no-internal-barrels group is restated rather than inherited: a later `no-restricted-imports`
-  // entry REPLACES the earlier one for a matching file, so omitting it would switch the barrels ban off
+  // entry replaces the earlier one for a matching file, so omitting it would switch the barrels ban off
   // for exactly the modules this block covers. It still bites after the `^[^.]` regex, which stops only
   // non-relative specifiers — the relative barrel hop (`./foo/index`) is the group's half.
   {
@@ -223,8 +221,7 @@ export default tseslint.config(
           patterns: [
             {
               group: ["**/index", "**/index.js", "**/index.ts", "**/index.mjs"],
-              message:
-                "No internal barrels: import the concrete module, not an index re-export (Wave-1 slice architecture).",
+              message: "No internal barrels: import the concrete module, not an index re-export.",
             },
             {
               regex: "^[^.]",
@@ -247,16 +244,16 @@ export default tseslint.config(
     rules: { "@typescript-eslint/triple-slash-reference": "off" },
   },
 
-  // --- MF-44 architectural boundaries (eslint-plugin-boundaries v7, `boundaries/dependencies`) ---
-  // Encodes the Wave-1 slice isolation over both UIs: each feature slice folder is an element, its
+  // --- Architectural boundaries (eslint-plugin-boundaries v7, `boundaries/dependencies`) ---
+  // Encodes the slice isolation over both UIs: each feature slice folder is an element, its
   // sibling slices are off-limits (route through common/ or the entry), and common/ is importable by
   // any slice. The src-root index.ts (each extension's defineExtension entry, the one legitimate
   // barrel) is intentionally left unclassified — the rule does not constrain an unknown source, which
   // is exactly the entry's role: it may import any slice. The TS resolver classifies the
   // `@cove-extensions/ui-shared` alias (via each extension's tsconfig paths) so shared imports land as
   // the `shared` element, not an unclassified external. Authored against the v7 `policies`/object-
-  // selector syntax (not the deprecated `element-types`/`rules` shape). BLOCKING (error) per U-35:
-  // the sibling-slice imports it once flagged are resolved, so a cross-slice import now fails lint.
+  // selector syntax (not the deprecated `element-types`/`rules` shape). A cross-slice import is an
+  // error, not a warning.
   {
     files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
     plugins: { boundaries },
@@ -302,7 +299,7 @@ export default tseslint.config(
               from: { element: { type: "common" } },
               allow: { to: { element: { types: { anyOf: ["common", "shared", "wire"] } } } },
             },
-            // A feature slice may reach common/, the shared package and wire, but NOT a sibling slice.
+            // A feature slice may reach common/, the shared package and wire, but not a sibling slice.
             {
               from: { element: { type: "slice" } },
               allow: { to: { element: { types: { anyOf: ["common", "shared", "wire"] } } } },
@@ -317,6 +314,6 @@ export default tseslint.config(
     },
   },
 
-  // MUST BE LAST: disable all formatting rules so Prettier is the sole formatter.
+  // must be last: disable all formatting rules so Prettier is the sole formatter.
   prettier,
 );

@@ -2,7 +2,7 @@
  * The one adapter over the host's entity multi-selector. Every selector instance in the settings
  * panel is reached through here, because two of its props must not vary between them.
  *
- * The create affordance stays OFF. The host control otherwise offers an inline "create" row that
+ * The create affordance stays off. The host control otherwise offers an inline "create" row that
  * writes a real entity into the user's library, a surprising write from a screen that only
  * configures rules over the library the user already has. Locking it at one declaration site is what
  * this component is for: omitting the prop is silent at the instance that forgets.

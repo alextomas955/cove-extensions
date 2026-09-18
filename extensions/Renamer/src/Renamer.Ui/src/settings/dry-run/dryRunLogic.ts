@@ -8,7 +8,7 @@
 
 /**
  * The three buckets a scan row falls into, used by the Dry Run filter segments:
- * - `will-change`: the file WILL be renamed and/or moved (status Renamer | Move).
+ * - `will-change`: the file will be renamed and/or moved (status Renamer | Move).
  * - `attention`: the file was skipped for a reason the user may want to act on (a name conflict, a
  *   missing required field, a locked file, …) or a rename that Failed and rolled back.
  * - `no-change`: nothing to do — the computed name already matches (status NoOp). Not a problem,
@@ -23,7 +23,7 @@ export type DryRunFilter = "all" | DryRunBucket;
  * Classify one scan row into its {@link DryRunBucket}. An unknown/future status is treated as
  * `attention` — surfaced, never silently hidden.
  *
- * Its server twin is `Planner/ScanBucket.Of`, and the two MUST agree on every status: this map drives
+ * Its server twin is `Planner/ScanBucket.Of`, and the two must agree on every status: this map drives
  * the row styling and the segment labels, while that one answers `/scan-rows`' bucket filter, so a
  * divergence would show a row in a segment it was not counted in. The suite pins the agreement
  * against a transcription of the C# map.
@@ -73,7 +73,7 @@ export interface WalkProgress {
  * Whether the row walk should ask for another page.
  *
  * The decision reads the cursor and the row target, and never how many rows the last page carried. The
- * server's per-request ceiling is a budget on entities EXAMINED, not on rows RETURNED, so a page of
+ * server's per-request ceiling is a budget on entities examined, not on rows returned, so a page of
  * zero rows arriving with a live cursor is a normal resumable answer rather than the end of the data.
  * It is also the commonest answer over a sparse filter, where whole budget windows hold nothing the
  * filter matches.
@@ -103,7 +103,7 @@ export const IN_FLIGHT_OVERFLOW_LABEL = "Too long to copy across drives";
  * The label a row earns from the server's `inFlightPathOverflow` flag, or `null` for a row without one.
  *
  * Both wire shapes that reach a badge declare the flag, so the compile-time requirement lives at the
- * `Badgeable` boundary rather than here. What stays optional on the way IN is a runtime guard: a response
+ * `Badgeable` boundary rather than here. What stays optional on the way in is a runtime guard: a response
  * decoded from a build that predates the field has no field, and that must read as "no warning" rather than
  * throw. It is read with `=== true` for the neighbouring reason — an absent field is `undefined`, and a
  * truthiness test would also swallow a wire value that arrived as the string `"false"`.
@@ -145,7 +145,7 @@ export function summaryCounts(summary: {
 /**
  * Cove's asset detail-route segment for each scan kind. Enumerated (not `kind.toLowerCase()`) so an
  * unexpected kind falls through to `null` rather than fabricating a wrong URL — the href is derived
- * from this fixed map and the numeric id ONLY, never from a path or basename.
+ * from this fixed map and the numeric id only, never from a path or basename.
  */
 const KIND_SEGMENT: Record<string, string | undefined> = {
   video: "video",
@@ -221,23 +221,23 @@ export const ETA_SMOOTHING = 0.3;
 
 /**
  * Minimum number of instantaneous-rate observations that must fold into the EWMA before an ETA is
- * shown. The first rate only SEEDS the average (it is unsmoothed), so requiring a second means the
+ * shown. The first rate only seeds the average (it is unsmoothed), so requiring a second means the
  * displayed value always reflects a smoothed rate — no one-poll "~2m" flash from a noisy first
  * sample. This is a display-confidence gate (curl shows `--:--`, tqdm shows `?` until warmed), not a
- * discard of data: every rate still contributes to the average; we only withhold the DISPLAY early.
+ * discard of data: every rate still contributes to the average; we only withhold the display early.
  */
 export const ETA_MIN_RATES = 2;
 
 /**
  * Client-side ETA fallback for when the host's `etaSeconds` is null. Estimates remaining seconds as
- * `(1 − progress) / smoothedRate`, where `smoothedRate` (progress-per-second) is an EXPONENTIALLY-
- * WEIGHTED MOVING AVERAGE of the per-poll instantaneous rates — the standard approach (tqdm, curl's
- * rolling speed, download managers), NOT a cumulative average since start.
+ * `(1 − progress) / smoothedRate`, where `smoothedRate` (progress-per-second) is an exponentially-
+ * weighted moving average of the per-poll instantaneous rates — the standard approach (tqdm, curl's
+ * rolling speed, download managers), not a cumulative average since start.
  *
  * Why EWMA rather than "cumulative elapsed/p·(1−p)" or a fixed window with the first sample dropped:
  * the cumulative form folds the cold-start latency (DB warmup / JIT / first batch) into every later
  * estimate, so a scan that finishes in seconds first flashes "~2h left". EWMA instead lets that slow
- * first rate DECAY exponentially as real samples arrive — the warmup stops mattering within ~2–3
+ * first rate decay exponentially as real samples arrive — the warmup stops mattering within ~2–3
  * polls, with no magic "discard the first N" threshold. Recency-weighting is the principled fix.
  *
  * Returns null when no rate is yet computable — fewer than 2 samples (a rate needs two points; this
@@ -253,12 +253,12 @@ export function etaFromSamples(samples: readonly ProgressSample[]): number | nul
   const p = latest.progress;
   if (p <= 0 || p >= 1) return null;
 
-  // Fold each consecutive pair's instantaneous rate into the EWMA. The FIRST rate merely SEEDS the
+  // Fold each consecutive pair's instantaneous rate into the EWMA. The first rate merely seeds the
   // average (nothing to blend with yet), so it carries any cold-start/first-poll noise unsmoothed —
   // showing an ETA off that single seed is what flashes a wrong "~2m" for one poll. So we withhold
   // the estimate until at least ETA_MIN_RATES rates have folded in (the seed + one more), i.e. the
   // EWMA has actually smoothed. This is the standard "don't show a low-confidence ETA yet" rule that
-  // curl (`--:--`) and tqdm (`?`) use — a display-confidence gate, NOT discarding data from the math.
+  // curl (`--:--`) and tqdm (`?`) use — a display-confidence gate, not discarding data from the math.
   let smoothedRate: number | null = null;
   let rateCount = 0;
   for (let i = 1; i < samples.length; i++) {

@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 /**
- * That the pane shows the preview for the options the user is ON, when two requests overlap.
+ * That the pane shows the preview for the options the user is on, when two requests overlap.
  *
  * The pure decision has its own suite, and a green one there proves nothing on its own - a hook that
  * never consults it repaints from whichever request answers last however correct the decision is. So
- * this renders the REAL hook and holds two POSTs open at once, then settles them in reverse issue
+ * this renders the real hook and holds two POSTs open at once, then settles them in reverse issue
  * order, which is the ordering the debounce cannot prevent.
  *
  * One seam is stubbed, and it is not the subject: the host request helper, because it reaches
  * `@cove/runtime/api`, which exists only inside Cove. Its stand-in hands each call's resolver back to
- * the test so settle order is the test's to choose. React arrives as its PRODUCTION build (the
+ * the test so settle order is the test's to choose. React arrives as its production build (the
  * bundle's `process.env.NODE_ENV` define applies here too), which has no `act`, so renders are flushed
  * by waiting rather than by wrapping.
  */
@@ -44,7 +44,7 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
 
 // The shared barrel re-exports the React primitives, whose `react`/`lucide-react` imports resolve only
 // inside a consuming bundle. This hook reaches the barrel for one route builder, so the stand-in
-// re-exports the REAL one from the pure module that defines it.
+// re-exports the real one from the pure module that defines it.
 vi.mock("@cove-extensions/ui-shared", async () => ({
   extensionApi: (await import("../../../../../../shared/ui-shared/src/actions")).extensionApi,
 }));
@@ -113,7 +113,7 @@ test("an older preview response cannot repaint the pane over a newer one", async
   await sleep(PAST_DEBOUNCE_MS);
   expect(host.calls.length, "the first POST was never issued").toBe(1);
 
-  // A second edit AFTER the first POST is already in flight. Clearing the debounce timer can no longer
+  // A second edit after the first POST is already in flight. Clearing the debounce timer can no longer
   // recall it, so both requests are open at once.
   hook.retarget(second);
   await sleep(PAST_DEBOUNCE_MS);
@@ -123,7 +123,7 @@ test("an older preview response cannot repaint the pane over a newer one", async
   await sleep(COMMIT_MS);
   expect(hook.current.preview?.[0].sampleLabel).toBe("second");
 
-  // The older request answers LAST, which is the ordering the debounce cannot prevent.
+  // The older request answers last, which is the ordering the debounce cannot prevent.
   host.calls[0].resolve(sample("first"));
   await sleep(COMMIT_MS);
 

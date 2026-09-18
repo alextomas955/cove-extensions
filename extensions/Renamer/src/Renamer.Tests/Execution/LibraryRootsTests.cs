@@ -31,7 +31,7 @@ public sealed class LibraryRootsTests
         Assert.Equal([expected], CoveRenamerDataPort.ReadLibraryRoots(ConfigWith(given)));
 
     [Theory]
-    // Trimming a path of nothing but separators would leave the empty string, which is NOT a spelling
+    // Trimming a path of nothing but separators would leave the empty string, which is not a spelling
     // of a root here — it is how a destination says "the file's own library path".
     [InlineData("/")]
     [InlineData(@"\")]

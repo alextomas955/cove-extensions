@@ -7,7 +7,7 @@
 //
 // Extraction is `docker pull` + `docker create` + `docker cp`, which leaves layer selection and
 // digest verification to the daemon. Both moby's classic path and containerd's verify every layer,
-// but the OCI distribution spec only says a client SHOULD, so re-check that if this is ever moved
+// but the OCI distribution spec only says a client should, so re-check that if this is ever moved
 // onto a different puller. It also means assemblies mode needs a Docker that can run LINUX
 // containers; macOS and Windows runners are therefore permanently bare (`CoveSourceMode=none`).
 //
@@ -32,7 +32,7 @@ const MEMBER_PREFIX = "opt/cove/";
 
 // Derived from MEMBER_PREFIX rather than written again, so the path copied from and the member that
 // proves the copy worked cannot drift apart. The trailing `/.` is what makes docker copy the
-// directory's CONTENTS rather than the directory.
+// directory's contents rather than the directory.
 const CONTAINER_SOURCE = `/${MEMBER_PREFIX}.`;
 
 // The assemblies the build's output-closure guard compares. Hashing every extracted file instead
@@ -44,7 +44,7 @@ const GUARDED_ASSEMBLIES = ["Cove.Core.dll", "Cove.Data.dll", "Cove.Plugins.dll"
 // hand-maintained constant.
 const EXPECTATION_FILE = "CoveExtraction.props";
 
-// A CONTRACT, not diagnostics: build.yml reads these three lines back with line-start-anchored
+// A contract, not diagnostics: build.yml reads these three lines back with line-start-anchored
 // `grep -E`, and a rename or a re-flow silently empties the shell variable that reads it. Pinned
 // against the workflow's own greps in the test file so drift on either side goes red.
 export const STDOUT_CONTRACT = Object.freeze({
@@ -109,7 +109,7 @@ export function splitImageReference(reference) {
  * Picks the `algorithm:hex` digest `docker image inspect` recorded for one specific repository.
  *
  * `RepoDigests` carries one entry per repository the image is known under, so index 0 can name a
- * DIFFERENT repository. Matched on the repository instead, and two digests for the same repository
+ * different repository. Matched on the repository instead, and two digests for the same repository
  * are refused rather than resolved by position. An image built locally and never pulled has no
  * registry digest at all, hence the throw rather than an empty value.
  */
@@ -185,7 +185,7 @@ export function readVersionStrings(
  *
  * The attributed `Condition="'$(X)' == ''"` form mirrors Directory.Build.props, so this file reads
  * back the way this repository's other MSBuild inputs do. Every value is checked against a strict
- * shape first: this file is IMPORTED by the build, so a registry-supplied string reaching it
+ * shape first: this file is imported by the build, so a registry-supplied string reaching it
  * unvalidated would be markup MSBuild evaluates rather than data it reads.
  */
 export function renderExtractionProps({ tag, digest, assemblies }) {
@@ -232,7 +232,7 @@ ${items.join("\n")}
 
 // ---- Tag resolution: ranking is pure and the paginated read takes its page reader as an argument. ----
 
-// Strict X.Y.Z[-pre][+build]. This regex IS the filter: it rejects `latest`, `nightly`, the
+// Strict X.Y.Z[-pre][+build]. This regex is the filter: it rejects `latest`, `nightly`, the
 // `sha-<hex>` digest tags and the truncated `X.Y` aliases without naming any of them, so an upstream
 // tag convention nobody anticipated cannot leak in through a denylist nobody updated.
 const SEMVER =
@@ -243,7 +243,7 @@ const SEMVER =
  * True when the tag on `image` is at or above `floor`.
  *
  * Two tag shapes are not plain versions. A non-semver tag (`nightly`, `latest`) counts as at or
- * above, since those track ahead of the last release. A prerelease (`1.2.0-rc.1`) sorts BELOW its own
+ * above, since those track ahead of the last release. A prerelease (`1.2.0-rc.1`) sorts below its own
  * release per semver, so it reads as lacking the capability even when it carries it — a skip rather
  * than a failure.
  *
@@ -275,7 +275,7 @@ export function parseSemver(tag) {
  * Orders two parsed versions by semver precedence, ascending.
  *
  * Build metadata is ignored, a release outranks any pre-release of the same version, a numeric
- * identifier ranks BELOW an alphanumeric one, and a longer pre-release outranks a shorter prefix of
+ * identifier ranks below an alphanumeric one, and a longer pre-release outranks a shorter prefix of
  * itself. Those are the rules a naive string sort gets wrong.
  */
 export function compareSemver(a, b) {
@@ -346,7 +346,7 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
   }
 
   const { ga, prerelease } = splitReleaseChannels(parsed);
-  // The newest GA AT OR ABOVE the floor, never the newest published: a required leg below the declared
+  // The newest GA at or above the floor, never the newest published: a required leg below the declared
   // floor boots a host that declines to load the extension, so every route 404s and every browser spec
   // fails with nothing anywhere naming a version. While the floor is itself the newest GA the two
   // collapse onto one image and that failure cannot be seen at all. When no GA reaches the floor the
@@ -366,7 +366,7 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
     roles.push({ tag: newestPrerelease.tag, role: "newest-prerelease", advisory: true });
   }
 
-  // Dedupe by resolved tag and merge the role labels. Two roles resolving to the same tag are ONE
+  // Dedupe by resolved tag and merge the role labels. Two roles resolving to the same tag are one
   // image, and a leg silently duplicating another reads as coverage while providing none — so the leg
   // count equals the distinct-image count and the merged label says what collapsed. A merged leg is
   // advisory only when every role on it is: a required role landing on a tag does not become
@@ -397,10 +397,10 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
 /**
  * Reads each catalog entry's declared floor, reaching it through that entry's own manifest.
  *
- * `minCoveVersion` is NOT a catalog field — it lives in the manifest the catalog's `manifestPath`
+ * `minCoveVersion` is not a catalog field — it lives in the manifest the catalog's `manifestPath`
  * points at. Nothing here names an extension: a second one needs a catalog entry and no edit.
  *
- * `select` narrows which entries are read AT ALL, not which results come back: a manifest that is
+ * `select` narrows which entries are read at all, not which results come back: a manifest that is
  * absent or declares no floor throws, so an entry a caller does not care about could otherwise fail
  * that caller. Omitted, every entry is read, which is what the CI version matrix wants.
  *
@@ -577,14 +577,14 @@ function parseArguments(argv) {
       if (value === undefined) throw new Error(`${argument} needs an argument.`);
       if (argument === "--out") {
         out = path.resolve(value);
-        // The extraction empties this directory recursively before it writes. A path that CONTAINS the
+        // The extraction empties this directory recursively before it writes. A path that contains the
         // repository therefore deletes the working tree, and `--out .` from the repo root is one
         // keystroke away from `--out ./artifacts`. CI always passes a fixed path, so this refuses the
         // developer typo rather than a live defect. Compared case-insensitively on Windows because a
         // drive letter arrives in either case there and a case-sensitive prefix test would miss.
         const same = (a, b) =>
           process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
-        // A drive root ("I:\") and a POSIX root ("/") already END in the separator, so appending one
+        // A drive root ("I:\") and a POSIX root ("/") already end in the separator, so appending one
         // yields a doubled prefix that matches nothing — and the root is the most destructive target
         // there is. Normalise to exactly one trailing separator before comparing.
         const asPrefix = (dir) => (dir.endsWith(path.sep) ? dir : dir + path.sep);
@@ -689,7 +689,7 @@ export function renderVersionLines(versions) {
 /**
  * Refuses an extraction that wrote nothing or left no marker member, returning the marker's path.
  *
- * The failure this exists for is a wrong container source path, which produces an EMPTY output
+ * The failure this exists for is a wrong container source path, which produces an empty output
  * directory rather than a wrong one — and an empty extraction that returned quietly would surface as
  * a smaller green test run instead of a failure. fs-only and separated from the copy so both arms are
  * provable without Docker.
@@ -737,9 +737,9 @@ export function readGuardedAssemblies(out) {
  * oversight. There is no portable absolute path to resolve to: Docker Engine, Docker Desktop,
  * Colima and Rancher each place the binary somewhere different across the three operating systems
  * this repo builds on, so hardcoding one would break the script everywhere it does not match. The
- * exposure that buys is PATH substitution, which requires an attacker who can already write to a
- * directory on PATH — on a throwaway CI runner or the maintainer's own machine, someone with that
- * access does not need this script. Revisit if this ever runs somewhere PATH is not trusted.
+ * exposure that buys is path substitution, which requires an attacker who can already write to a
+ * directory on path — on a throwaway CI runner or the maintainer's own machine, someone with that
+ * access does not need this script. Revisit if this ever runs somewhere path is not trusted.
  */
 // Hoisted so the call below fits on one line: the suppression has to sit on the line the issue is
 // reported at, and Prettier relocates a trailing comment that follows an inline object's `{`.
@@ -775,16 +775,14 @@ async function extract({ out, tag }) {
 
   // Pulled explicitly rather than left to `docker create`'s implicit pull. `create` is satisfied by
   // whatever image already carries the tag locally, so on a machine holding a stale copy it would
-  // extract bytes the registry no longer serves — silently, and the registry-protocol reader this
-  // replaces always read the registry. A no-op "Image is up to date" is the cost of keeping that.
+  // extract bytes the registry no longer serves, silently. A no-op "Image is up to date" is the
+  // cost of always reading the registry.
   runDocker(["pull", reference]);
 
-  // The manifest-list (image index) digest, NOT the platform-manifest digest the registry-protocol
-  // reader used to record: `RepoDigests` is what the daemon stored for the reference it pulled, and
-  // for a multi-platform tag that is the index. Both identify the same pull and neither is
-  // hand-maintained, and Directory.Build.targets compares the TAG rather than this — the digest rides
-  // as provenance. So the value here is self-consistent but is NOT byte-comparable with a digest
-  // captured before this rewrite; a diff of exactly this line between the two is expected.
+  // The manifest-list (image index) digest, not the platform-manifest digest: `RepoDigests` is what
+  // the daemon stored for the reference it pulled, and for a multi-platform tag that is the index.
+  // Directory.Build.targets compares the tag, not this, so the digest rides as provenance only and is
+  // not byte-comparable with a platform-manifest digest from another source.
   const digest = selectRepoDigest(
     JSON.parse(runDocker(["image", "inspect", reference, "--format", "{{json .RepoDigests}}"])),
     repository,
@@ -826,7 +824,7 @@ async function extract({ out, tag }) {
 }
 
 /**
- * Whether this process was STARTED from this file, rather than importing it for its helpers.
+ * Whether this process was started from this file, rather than importing it for its helpers.
  *
  * Both sides are realpathed rather than compared as resolved strings: Node realpaths the module URL
  * and leaves process.argv[1] as the caller spelled it, so an invocation through a junction or symlink
@@ -853,7 +851,7 @@ function invokedAsScript() {
 // `if (import.meta.main)` takes the not-main branch on an older runtime: run as a CLI, this script
 // then prints nothing and exits 0. That is measured, not theorised — on v22.6.0, a version volta has
 // installed, it produced zero bytes and exit 0. A script that does nothing and reports success is
-// worse than one that crashes, so the absent feature is refused BY NAME instead of being tolerated.
+// worse than one that crashes, so the absent feature is refused by name instead of being tolerated.
 //
 // The root package.json declares `engines.node: ">=22.18"`, which is the version this property became
 // a boolean, but that declaration is advice and not a gate: without engine-strict, npm prints

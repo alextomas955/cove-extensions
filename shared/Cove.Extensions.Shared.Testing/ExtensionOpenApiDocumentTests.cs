@@ -27,11 +27,11 @@ namespace Cove.Extensions.Shared.Testing;
 /// </remarks>
 public abstract class ExtensionOpenApiDocumentTests
 {
-    // AddOpenApi() registers IOpenApiDocumentProvider KEYED by document name; an unkeyed resolve finds
+    // AddOpenApi() registers IOpenApiDocumentProvider keyed by document name; an unkeyed resolve finds
     // nothing.
     private const string DocumentName = "v1";
 
-    // The untransformed title is derived from the ENTRY assembly, so it would move the committed
+    // The untransformed title is derived from the entry assembly, so it would move the committed
     // document the day the test runner changes.
     private const string PinnedTitle = "cove extension wire contract";
     private const string PinnedVersion = "1.0.0";
@@ -70,7 +70,7 @@ public abstract class ExtensionOpenApiDocumentTests
             }));
 
         // Strict, not the Web default: the Web default also accepts numbers written as strings, which
-        // the generator reports as an integer-or-string union on EVERY numeric field. The server only
+        // the generator reports as an integer-or-string union on every numeric field. The server only
         // ever writes a JSON number. This overstates the request side, where the host does still accept
         // the looser form, and a client that never sends it is the outcome worth having.
         builder.Services.ConfigureHttpJsonOptions(
@@ -80,9 +80,9 @@ public abstract class ExtensionOpenApiDocumentTests
         var extension = CreateExtension();
         extension.MapEndpoints(app);
 
-        // MANDATORY. A WebApplication's route registrations are not folded into the DI
+        // mandatory. A WebApplication's route registrations are not folded into the DI
         // EndpointDataSource until routing middleware is built at start, so without this the data
-        // source is empty and the provider still returns a valid document with ZERO paths.
+        // source is empty and the provider still returns a valid document with zero paths.
         await app.StartAsync();
 
         var routes = app.Services
@@ -103,7 +103,7 @@ public abstract class ExtensionOpenApiDocumentTests
 
         Assert.Equal(routes.Count, operations.Count);
 
-        // Every mounted route must also SAY what it returns. Both counts are compared against the live
+        // Every mounted route must also say what it returns. Both counts are compared against the live
         // route table, never against each other, and the Assert.NotEmpty above rules out the empty
         // document that would otherwise satisfy this by having nothing to disagree about. No allowlist
         // of documented routes: that is the shape that lets a gate lose a route in silence.

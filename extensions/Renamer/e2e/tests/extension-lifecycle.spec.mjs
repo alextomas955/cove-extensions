@@ -2,9 +2,9 @@
 // but whether the extension itself behaves correctly as an installable/removable unit, and whether
 // its settings panel reflects different states (enabled/disabled) correctly in the real UI.
 //
-// Uses its OWN harness instance PER TEST (named `isolatedHarness`), unlike every other file in
+// Uses its own harness instance per test (named `isolatedHarness`), unlike every other file in
 // this suite (which shares one `harness` instance per worker for speed). Disable/enable/uninstall
-// mutate the ONE shared extension install itself — under real parallel execution another test in
+// mutate the one shared extension install itself — under real parallel execution another test in
 // the same worker could be mid-assertion against Renamer while this file disables or uninstalls
 // it. A dedicated instance per test trades a bit of speed (extra container boots) for correctness
 // under parallelism, which matters more here than in the read-mostly/uniquely-seeded-data tests

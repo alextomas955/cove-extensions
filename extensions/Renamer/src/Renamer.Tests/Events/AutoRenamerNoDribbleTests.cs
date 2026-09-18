@@ -62,7 +62,7 @@ public sealed class AutoRenamerNoDribbleTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            // The item matches NO explicit (tag/studio/path) rule, so it takes the DEFAULT destination.
+            // The item matches no explicit (tag/studio/path) rule, so it takes the default destination.
             // The hook resolves destinations identically to /preview and the manual batch, so an
             // unmatched item is not a category the hook treats differently.
             string srcFolder = Path.Combine(dir.Root, "incoming");

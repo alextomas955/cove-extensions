@@ -27,7 +27,7 @@ export interface ScanRowsWalk {
 }
 
 /**
- * The identity of a walk. A different query or bucket is a DIFFERENT walk, not a subset of the loaded
+ * The identity of a walk. A different query or bucket is a different walk, not a subset of the loaded
  * one — the server re-plans from the start of the library for it — so the key changes and the rows are
  * discarded. The query is trimmed and lower-cased to match the server's own normalization, so a stray
  * space or a case flip does not throw away rows the same request would return.
@@ -112,7 +112,7 @@ export function createScanRowsStore(initialKey: string): ScanRowsStore {
 
     fail(key, message) {
       // The rows already loaded stay: they were served and are still true, and discarding them would
-      // punish the user for a failure on the page AFTER the one they are reading.
+      // punish the user for a failure on the page after the one they are reading.
       if (walk.key !== key) return;
       emit({ ...walk, loading: false, error: message });
     },

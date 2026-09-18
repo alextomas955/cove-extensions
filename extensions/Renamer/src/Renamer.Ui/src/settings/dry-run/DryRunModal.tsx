@@ -2,7 +2,7 @@
  * The full-screen "Dry run" modal: scans the whole library via the job-backed scan-library endpoint,
  * polls the host's generic job-status endpoint to completion, then reads the scan's bounded summary and
  * renders its rows a page at a time, in scan order, with the search and the status filter answered by
- * the server. The footer "Rename N files" button calls the SAME rename-trigger callback the
+ * the server. The footer "Rename N files" button calls the same rename-trigger callback the
  * panel-level "Rename all files" button calls — this modal never talks to the rename-library endpoint
  * through a separate code path.
  *
@@ -15,7 +15,7 @@
  * rename handler) plus whether a rename triggered from elsewhere is in flight, so the footer
  * button's disabled/spinner state matches the panel-level button exactly.
  *
- * SECURITY: every filename/path is a React text node (auto-escaped); no dangerouslySetInnerHTML.
+ * security: every filename/path is a React text node (auto-escaped); no dangerouslySetInnerHTML.
  */
 import { useEffect, useRef, useState } from "react";
 import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
@@ -173,7 +173,7 @@ export function DryRunModal({
   /** The panel's CURRENT (possibly unsaved) options — sent so the scan previews unsaved edits. */
   options: RenamerOptions;
   /**
-   * Whether the panel holds edits that are not saved. The rename runs the SAVED options, so a dry
+   * Whether the panel holds edits that are not saved. The rename runs the saved options, so a dry
    * run of unsaved ones previews a different operation than the button below would perform.
    */
   dirty: boolean;
@@ -184,7 +184,7 @@ export function DryRunModal({
   renaming: boolean;
   /**
    * Live rename-job progress from the panel's single existing poll. Absent (panel-direct path, or
-   * before the first sample) falls back to the button spinner. The modal creates NO poller of its
+   * before the first sample) falls back to the button spinner. The modal creates no poller of its
    * own for the rename job.
    */
   renameProgress?: { progress: number; subTask?: string | null; etaSeconds?: number | null } | null;
@@ -204,17 +204,17 @@ export function DryRunModal({
   const scanMaxPercent = useRef(0);
   // Trailing (timeMs, progress) samples for the client-side ETA fallback when the host's
   // etaSeconds is null. A rolling window (not a since-open anchor) so the estimate tracks the
-  // CURRENT scan rate and the slow first sample ages out — otherwise a scan that finishes in
+  // current scan rate and the slow first sample ages out — otherwise a scan that finishes in
   // seconds flashes an absurd "~2h left" from the cold-start average.
   const scanSamples = useRef<ProgressSample[]>([]);
   // Guards against StrictMode's dev-only mount->unmount->remount cycle enqueueing the scan job
   // twice. A plain boolean ref (rather than a per-effect `cancelled` local) survives the
-  // synthetic unmount, so it suppresses the SECOND mount's POST without also discarding the
-  // FIRST mount's in-flight response — a `cancelled`-in-cleanup guard would do both, since
+  // synthetic unmount, so it suppresses the second mount's POST without also discarding the
+  // first mount's in-flight response — a `cancelled`-in-cleanup guard would do both, since
   // StrictMode's synthetic unmount fires the cleanup before the network round-trip resolves.
   const scanRequested = useRef(false);
   // The exact blob the scan was enqueued with, captured once at open. The row pages are planned with
-  // this same value, so the rows and the summary always describe ONE dry run; re-reading `options` per
+  // this same value, so the rows and the summary always describe one dry run; re-reading `options` per
   // page would let a later panel edit desynchronise the two.
   const [scanOptionsBlob] = useState(() => JSON.stringify(options));
   // The rows describe the settings the scan was enqueued with. The panel stays live behind this
@@ -223,7 +223,7 @@ export function DryRunModal({
   const scanIsStale = scanOptionsBlob !== JSON.stringify(options);
 
   // Kick off the scan on mount so the modal opens immediately in a loading state. Sends the panel's
-  // current options (captured at open) as the scan body so the dry run previews UNSAVED edits — the
+  // current options (captured at open) as the scan body so the dry run previews unsaved edits — the
   // point of a dry run. The blob is the same PascalCase JSON the save path stores; the backend parses
   // it with the tolerant options set (or falls back to saved options if it's absent/corrupt).
   useEffect(() => {
@@ -277,7 +277,7 @@ export function DryRunModal({
         ...scanSamples.current.slice(-(ETA_MAX_SAMPLES - 1)),
         { timeMs: Date.now(), progress: job.progress },
       ];
-      // Use our OWN EWMA ETA FIRST, not the host's job.etaSeconds. The host's estimate for a
+      // Use our own EWMA ETA first, not the host's job.etaSeconds. The host's estimate for a
       // fraction-reporting job (which the scan is) comes from its legacy fraction path — a since-start
       // average that folds the slow cold-start sample in, so it flashes an absurd "~2h left" on a scan
       // that finishes in seconds. Our recency-weighted EWMA tracks the actual current rate. Fall back
@@ -307,7 +307,7 @@ export function DryRunModal({
     };
   }, [search]);
 
-  // Counts come from the AGGREGATE, so the segment labels do not move when the filter changes — they
+  // Counts come from the aggregate, so the segment labels do not move when the filter changes — they
   // describe the whole scan, not the rows that happen to be loaded.
   const counts = summary ? summaryCounts(summary) : null;
   const {
@@ -319,7 +319,7 @@ export function DryRunModal({
     error: rowsError,
   } = useScanRows(scanOptionsBlob, summary !== null, query, filter);
 
-  // Virtualize the LOADED window: only the rows in view are mounted. The scroll container is
+  // Virtualize the loaded window: only the rows in view are mounted. The scroll container is
   // `scrollRef`; rows are a fixed ROW_HEIGHT, absolutely positioned via each item's translateY.
   const scrollRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual returns functions the React Compiler cannot memoize; this is the library's documented, supported usage and safe here (the returned virtualizer is used inline, not passed to a memoized child).
@@ -517,14 +517,14 @@ export function DryRunModal({
                         const bucket = classifyItem(it);
                         const willChange = bucket === "will-change";
                         const oldName = basename(it.oldFullPath);
-                        // The new basename and the target folder are NOT on the wire — they are this
+                        // The new basename and the target folder are not on the wire — they are this
                         // split of newFullPath, which is also how the server's search reads them.
                         const newName = basename(it.newFullPath);
                         const targetFolder = dirname(it.newFullPath);
                         const oldFolder = dirname(it.oldFullPath);
                         // A folder-only move (basename unchanged, target folder differs) would look
                         // like "no change" in the name columns — flag it explicitly so the user sees
-                        // WHAT is happening (moved, not renamed in place).
+                        // what is happening (moved, not renamed in place).
                         const nameChanged = willChange && newName !== oldName;
                         const folderMoved = willChange && targetFolder !== oldFolder;
                         // Root-relative Cove detail path for the asset (or null when the id can't

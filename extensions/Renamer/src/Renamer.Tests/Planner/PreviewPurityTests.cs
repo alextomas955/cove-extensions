@@ -5,12 +5,12 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Planner;
 
 /// <summary>
-/// F-01 regression: a dry-run plan (what <c>/preview</c> runs) must perform ZERO DB mutation — in
-/// particular it must NOT create a destination <see cref="Cove.Core.Entities.Folder"/> row when a
+/// A dry-run plan, which is what <c>/preview</c> runs, performs no database mutation. In
+/// particular it does not create a destination <see cref="Cove.Core.Entities.Folder"/> row when a
 /// move/route targets a folder that does not exist yet. The planner resolves the target folder id
-/// READ-ONLY (<see cref="IRenamerDataPort.TryGetFolderIdAsync"/>); an absent folder holds no files, so
+/// read-only (<see cref="IRenamerDataPort.TryGetFolderIdAsync"/>); an absent folder holds no files, so
 /// the candidate name is collision-free and the item still plans as a Move. Folder creation is the
-/// executor's job, exercised only on a real renamer.
+/// executor's job.
 /// </summary>
 public sealed class PreviewPurityTests
 {
@@ -23,7 +23,7 @@ public sealed class PreviewPurityTests
             Date: null, Organized: true, Performers: [], TagRefs: [], Files: files);
 
     // A folder-template move: the rendered subfolder makes this a Move whose destination folder
-    // ("media/videos/Archive") is NOT seeded in the fake port, so a get-or-create would mint+record it.
+    // ("media/videos/Archive") is not seeded in the fake port, so a get-or-create would mint+record it.
     private static RenamerOptions MoveOptions() =>
         new() { FilenameTemplate = "$title", FolderTemplate = "Archive" };
 
@@ -41,7 +41,7 @@ public sealed class PreviewPurityTests
         // It still plans as a Move to the (not-yet-existing) destination folder...
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.EndsWith("Archive/My Film.mkv", item.NewFullPath);
-        // ...but planning created NO folder and saved NOTHING — the preview-mutation bug is gone.
+        // ...and planning created no folder and saved nothing.
         Assert.Empty(port.CreatedFolderPaths);
         Assert.Empty(port.ApplyAndSaveCalls);
     }
@@ -74,7 +74,7 @@ public sealed class PreviewPurityTests
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths("media/videos");
         port.SeedEntity(Entity(File(1, "raw.mkv")));
-        // The destination folder already exists (id 42) AND already holds "My Film.mkv" (file 99).
+        // The destination folder already exists (id 42) and already holds "My Film.mkv" (file 99).
         port.SeedFolder("media/videos/Archive", 42);
         port.SeedOccupied(folderId: 42, basename: "My Film.mkv", fileId: 99);
         var planner = new RenamerPlanner(port);

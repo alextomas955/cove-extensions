@@ -9,7 +9,7 @@ test("a response issued under the generation in force is shown", () => {
 });
 
 test("a response issued under a superseded generation is dropped", () => {
-  // The case the generation exists for: an older request that answers LAST would otherwise repaint the
+  // The case the generation exists for: an older request that answers last would otherwise repaint the
   // pane with names the current settings no longer produce.
   assert.equal(decideSettledPreview({ generation: 3, outcome: "resolved" }, 4), "discard");
   assert.equal(decideSettledPreview({ generation: 2, outcome: "resolved" }, 4), "discard");

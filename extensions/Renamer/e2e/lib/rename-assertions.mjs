@@ -1,6 +1,6 @@
 // Shared exact-target rename assertions for the Renamer e2e specs. A rename is "correct" only when
-// two independent truth sources agree on the EXACT computed name: the Cove DB record (files[0].path)
-// AND the container filesystem. Asserting only one would let a half-applied rename (DB updated but
+// two independent truth sources agree on the exact computed name: the Cove DB record (files[0].path)
+// and the container filesystem. Asserting only one would let a half-applied rename (DB updated but
 // no disk move, or a copy that left the source behind) pass.
 import { expect } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
@@ -17,7 +17,7 @@ export function dirname(path) {
 }
 
 /**
- * Asserts a video renamed to EXACTLY `expectedBasename`: the DB record's file basename matches, the
+ * Asserts a video renamed to exactly `expectedBasename`: the DB record's file basename matches, the
  * file exists on disk at that new path, and `originalPath` is gone from disk. Polls the record so the
  * read-after-write window is honored, then returns the new full path.
  */

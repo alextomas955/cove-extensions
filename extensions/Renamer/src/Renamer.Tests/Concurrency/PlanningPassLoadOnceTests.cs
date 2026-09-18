@@ -5,21 +5,21 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Concurrency;
 
 /// <summary>
-/// Locks PHASE A's load de-duplication: the batch runner reads each file's free-space
+/// Locks the planning pass's load de-duplication: the batch runner reads each file's free-space
 /// <c>SizeBytes</c> off the entity the planner already loaded (via
 /// <c>RenamerPlanner.PlanWithEntityAsync</c>) instead of loading it a second time. The load
-/// counter on <see cref="FakeRenamerDataPort"/> is the seam every PHASE A load flows through, so
+/// counter on <see cref="FakeRenamerDataPort"/> is the seam every planning-pass load flows through, so
 /// N ids must produce exactly N loads (not 2N), and the surfaced entity must still carry the seeded
 /// sizes so the de-dup cannot silently drop them.
 /// </summary>
-public sealed class PhaseALoadOnceTests
+public sealed class PlanningPassLoadOnceTests
 {
     private static RenamerFile File(int id, string basename, long sizeBytes) =>
         new(FileId: id, Kind: RenamerFileKind.Video, Basename: basename, ParentFolderId: 5,
             ParentFolderPath: "media/videos", Format: "mkv", SizeBytes: sizeBytes);
 
     [Fact]
-    public async Task PhaseA_LoadsEachEntityExactlyOnce()
+    public async Task PlanningPass_LoadsEachEntityExactlyOnce()
     {
         const int n = 4;
         var port = new FakeRenamerDataPort();
@@ -41,7 +41,7 @@ public sealed class PhaseALoadOnceTests
     }
 
     [Fact]
-    public async Task PhaseA_SurfacesSeededSizesForTheFreeSpaceSum()
+    public async Task PlanningPass_SurfacesSeededSizesForTheFreeSpaceSum()
     {
         var port = new FakeRenamerDataPort();
         port.SeedEntity(new RenamerEntity(
@@ -63,7 +63,7 @@ public sealed class PhaseALoadOnceTests
     }
 
     [Fact]
-    public async Task PhaseA_MissingEntity_LoadsOnce_YieldsNullEntityAndEmptyPlan()
+    public async Task PlanningPass_MissingEntity_LoadsOnce_YieldsNullEntityAndEmptyPlan()
     {
         var port = new FakeRenamerDataPort();
         var planner = new RenamerPlanner(port);

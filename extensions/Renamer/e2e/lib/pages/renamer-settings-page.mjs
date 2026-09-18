@@ -3,7 +3,7 @@ import { describeRenderedPage, remainingVisitBudgetMs } from "@cove-extensions/e
 // Page Object for the Renamer settings panel at /settings/renamer.
 const SETTINGS_PATH = "/settings/renamer";
 
-// The budget for the WHOLE visit, however many navigations it takes.
+// The budget for the whole visit, however many navigations it takes.
 //
 // One clock rather than a fresh one per navigation, because what has to hold is that this file's own
 // error arrives before the per-test timeout: a wait that outlives the test reports Playwright's
@@ -50,13 +50,13 @@ export class RenamerSettingsPage {
     this.unsavedChangesIndicator = page.getByText("Unsaved changes");
     this.renameAllButton = page.getByRole("button", { name: "Rename all files" });
     // The whole-library run's success banner — the poll target that proves the scan+rename job pair
-    // settled, NOT the correctness proof (disk+DB state is asserted separately). Matched on the
+    // settled, not the correctness proof (disk+DB state is asserted separately). Matched on the
     // opening sentence alone: the counts that follow come from the pre-run scan, so pinning them here
     // would tie this locator to a number the banner does not learn from the run.
     this.renameAllFeedback = page.getByText(/Rename finished\./);
     this.undoLastRenameButton = page.getByRole("button", { name: "Undo last rename" });
     // The in-app (React) confirm modal's accept button — dynamic label ("Undo 1 rename",
-    // "Undo 3 renames"), NOT a native browser dialog.
+    // "Undo 3 renames"), not a native browser dialog.
     this.undoConfirmButton = page.getByRole("button", { name: /^Undo \d+ renames?$/ });
     // The panel's own sentence for "there is nothing to put back" — the branch that replaces the whole
     // status-line-plus-button row, so it is what a withheld control looks like to a user.
@@ -122,7 +122,7 @@ export class RenamerSettingsPage {
    *
    * Everything else is the host being slow rather than wrong, and it looks identical from here: the
    * route stays correct, no signal fires, and no locator has anything to match yet. There is nothing
-   * to wait ON in that state, so the budget is the whole instrument.
+   * to wait on in that state, so the budget is the whole instrument.
    */
   async waitForPanel() {
     // Bounded by what the test has left. The budget above is what a cold container needs; a test
@@ -225,7 +225,7 @@ export class RenamerSettingsPage {
   /**
    * Clicks "Rename all files" and waits for the in-panel success banner. Saves first when the panel
    * is dirty: the button is disabled while there are unsaved edits (disabled={dirty || …}), because
-   * a real whole-library rename must run the SAVED rules, not the in-flight ones — so a caller that
+   * a real whole-library rename must run the saved rules, not the in-flight ones — so a caller that
    * just edited the template must persist before the button is clickable, mirroring the panel's own
    * renameLibrary flow. The success banner only gates the poll (the scan + rename job pair settling);
    * it is never the correctness assertion — the caller proves disk+DB state itself.
@@ -273,7 +273,7 @@ export class RenamerSettingsPage {
   /**
    * Waits until the panel has settled on its "No rename to undo." branch.
    *
-   * A caller asserting that the undo control is WITHHELD must wait on this sentence first, never on the
+   * A caller asserting that the undo control is withheld must wait on this sentence first, never on the
    * control's absence alone: the section renders a "Checking for a recent rename…" spinner until its
    * /last-batch fetch resolves, and the control is absent throughout that window too — so an immediate
    * absence check passes on a panel that has not yet decided.

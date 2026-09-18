@@ -12,10 +12,10 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 namespace Renamer.Tests.Api;
 
 /// <summary>
-/// UI-02 backend core: <c>PreviewSampleAsync</c> runs the real <c>TemplateEngine</c> over the fixed
+/// <c>PreviewSampleAsync</c> runs the real <c>TemplateEngine</c> over the fixed
 /// <see cref="SampleTokenSets"/> + the posted (unsaved) options and returns per-sample old→new + folder
 /// + advisory flags — single-sourcing the naming logic so the React panel never re-implements it. The
-/// length-reduced flag is asserted by its NAMED dropped fields (truthful, not a generic boolean),
+/// length-reduced flag is asserted by its named dropped fields (truthful, not a generic boolean),
 /// and the videos.read deny path returns 403 with no engine work. Exercised as a plain method
 /// (no HTTP host, no DbContext).
 /// </summary>
@@ -52,7 +52,7 @@ public sealed class PreviewSampleEndpointTests
         return PreviewRaw(json);
     }
 
-    /// <summary>Runs the endpoint with a videos.read principal and a RAW JSON body string.</summary>
+    /// <summary>Runs the endpoint with a videos.read principal and a raw JSON body string.</summary>
     private static IReadOnlyList<PreviewSampleResult> PreviewRaw(string json)
     {
         var ext = NewExtension();
@@ -112,8 +112,8 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public void PreviewSample_DefaultTemplate_AudioSample_NoBracketsNoDanglingSeparator()
     {
-        // The Audio sample has a date but NO height (so no $resolution), so the default's
-        // "{ [$resolution]}" group collapses ENTIRELY (leading space + brackets + token) while the
+        // The Audio sample has a date but no height (so no $resolution), so the default's
+        // "{ [$resolution]}" group collapses entirely (leading space + brackets + token) while the
         // "{$date - }" prefix stays, leaving a clean name with no dangling brackets.
         var all = Preview(new RenamerOptions()); // default FilenameTemplate = "{$date - }$title{ [$resolution]}"
 
@@ -153,7 +153,7 @@ public sealed class PreviewSampleEndpointTests
     public void PreviewSample_TinyFilenameMax_FlagsLengthReduced_WithNamedDroppedFields()
     {
         // A template that uses early DropOrder fields + a tiny cap forces the reducer to drop them;
-        // the flag is proven TRUTHFUL by asserting the named dropped fields, not just the boolean.
+        // the flag is proven truthful by asserting the named dropped fields, not just the boolean.
         var all = Preview(new RenamerOptions
         {
             FilenameTemplate = "$title $videoCodec $audioCodec $resolution",
@@ -173,7 +173,7 @@ public sealed class PreviewSampleEndpointTests
     public void PreviewSample_RequiredFieldMissing_FlagsGatingSkip()
     {
         // videoCodec is required, but the image and audio samples have none → gating-skip; the video
-        // sample HAS videoCodec → not gated.
+        // sample has videoCodec → not gated.
         var all = Preview(new RenamerOptions { RequiredFields = ["videoCodec"] });
 
         Assert.Contains("gating-skip", Sample(all, "Image").Flags);
@@ -206,7 +206,7 @@ public sealed class PreviewSampleEndpointTests
     {
         var ext = NewExtension();
 
-        // Hand a body stream that would THROW if read, proving the 403 short-circuits before any
+        // Hand a body stream that would throw if read, proving the 403 short-circuits before any
         // body read (permission is enforced before work — including deserialization).
         var ctx = new DefaultHttpContext();
         ctx.Request.Body = new ThrowingStream();
@@ -220,9 +220,9 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public void PreviewSample_StringEnumBody_Parses_Returns200_WithRenderedNames()
     {
-        // REGRESSION (UI-02 gap): the panel posts string enum values. The host's default minimal-API
+        // The panel posts string enum values. The host's default minimal-API
         // JsonSerializerOptions has no JsonStringEnumConverter, so typed binding would 400. The endpoint
-        // now parses with RenamerOptions.JsonOptions, so this MUST succeed and render the expected name.
+        // now parses with RenamerOptions.JsonOptions, so this must succeed and render the expected name.
         const string body = """
             {
               "Options": {
@@ -238,7 +238,7 @@ public sealed class PreviewSampleEndpointTests
         Assert.Equal(3, all.Count);
 
         var video = Sample(all, "Video");
-        // height 2160 → "4k" (engine is source of truth); proves the string-enum body deserialized AND
+        // height 2160 → "4k" (engine is source of truth); proves the string-enum body deserialized and
         // rendered (not a 400/throw).
         Assert.Equal("Acme Studios - The Example [4k].mp4", video.NewName);
     }
@@ -247,7 +247,7 @@ public sealed class PreviewSampleEndpointTests
     public void PreviewSample_LowerCaseStringEnum_AppliesCaseTransform()
     {
         // "case":"Lower" must deserialize to CaseTransform.Lower (not 400) and actually lower the name —
-        // proves the enum VALUE flows through, not just that parsing didn't throw.
+        // proves the enum value flows through, not just that parsing didn't throw.
         const string body = """{ "Options": { "filenameTemplate": "$title", "case": "Lower" } }""";
 
         var video = Sample(PreviewRaw(body), "Video");
@@ -279,10 +279,10 @@ public sealed class PreviewSampleEndpointTests
     public void PreviewSample_SingleCanonicalPascalCaseKey_RendersTheLiveTemplate()
     {
         // Characterization of the wire-fix: the dual-source preview bug was that a legacy blob's
-        // stale camelCase `filenameTemplate` rode into the body AFTER the live PascalCase `FilenameTemplate`
+        // stale camelCase `filenameTemplate` rode into the body after the live PascalCase `FilenameTemplate`
         // and won under System.Text.Json case-insensitive last-write-wins. The real fix is client-side
-        // (frontend `normalizeOptions` now sends ONE canonical key per property). This test documents the
-        // backend contract the fix relies on: given a clean SINGLE-PascalCase-key body (no camelCase
+        // (frontend `normalizeOptions` now sends one canonical key per property). This test documents the
+        // backend contract the fix relies on: given a clean single-PascalCase-key body (no camelCase
         // duplicate — the shape the normalized frontend now always sends), the endpoint renders using that
         // live template value. No backend normalize is added — the binder is unchanged.
         const string body = """

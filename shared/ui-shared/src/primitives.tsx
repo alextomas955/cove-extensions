@@ -5,7 +5,7 @@
  * from native Cove settings — and so every utility resolves against the host's already-
  * emitted Tailwind stylesheet (no CSS bundle ships).
  *
- * Focus treatment uses Cove's convention `focus:border-accent focus:outline-none` — NOT the
+ * Focus treatment uses Cove's convention `focus:border-accent focus:outline-none` — not the
  * `focus-visible:ring-*` utilities, which the host stylesheet does not emit (so they would do nothing).
  *
  * Import audit (checked directly against `@cove/runtime/components`, not assumed): none of its
@@ -44,23 +44,23 @@ export const INPUT_CLASS =
  * Selectable chip/button styling, matching the TokenLegend / PresetRow chip. Host-compiled classes
  * only — no arbitrary `[…]` values, because the host's Tailwind JIT never scans this bundle.
  *
- * The selected and unselected states must NOT share a conflicting color utility. Tailwind resolves
- * two utilities targeting the same property by their order in the generated stylesheet, NOT by the
+ * The selected and unselected states must not share a conflicting color utility. Tailwind resolves
+ * two utilities targeting the same property by their order in the generated stylesheet, not by the
  * order in the class attribute — and the host emits `.bg-card` / `.text-foreground` / `.border-border`
- * AFTER `.bg-accent` / `.text-accent` / `.border-accent`. So a selected state built by APPENDING accent
+ * after `.bg-accent` / `.text-accent` / `.border-accent`. So a selected state built by appending accent
  * utilities to the base chip (which carries the card/foreground/border ones) loses every color
  * conflict and renders identically to unselected — the bug that made the selection invisible.
  *
- * The fix: a color-free shape base, plus two MUTUALLY EXCLUSIVE color sets. {@link chipClass} picks one
+ * The fix: a color-free shape base, plus two mutually exclusive color sets. {@link chipClass} picks one
  * — never both — so no same-property conflict exists and the host's source order is irrelevant.
  */
 const CHIP_BASE = "cursor-pointer rounded-lg border px-2 py-1 text-xs";
 const CHIP_UNSELECTED =
   "border-border bg-card text-foreground hover:border-accent/50 hover:text-accent";
-// Cove's own chip/pill selected state is an accent TINT, not a solid fill — `border-accent bg-accent/15`
+// Cove's own chip/pill selected state is an accent tint, not a solid fill — `border-accent bg-accent/15`
 // (see CustomFields enum chips / BookmarkButton). The solid `bg-accent text-white` is Cove's idiom for
-// segmented TOGGLE buttons, not chips, and reads too heavy here. The tint still carries selection on the
-// BACKGROUND (a property the unselected set's text/border utilities don't contest), so it stays visible
+// segmented toggle buttons, not chips, and reads too heavy here. The tint still carries selection on the
+// background (a property the unselected set's text/border utilities don't contest), so it stays visible
 // regardless of the host stylesheet's source order — the conflict that hid an earlier border/text tint.
 const CHIP_SELECTED = "border-accent bg-accent/15 text-foreground";
 
@@ -303,7 +303,7 @@ export interface SeparatorOption {
  * chip. The active separator's chip is persistently selected (the filled-accent {@link chipClass}).
  * Each chip label makes leading/trailing whitespace visible (never an apparently-empty chip).
  * The `Custom` chip reveals the existing mono {@link TextInput}, pre-filled, when the saved value
- * matches no preset. Binds the SAME separator string via `onChange` — no shape change.
+ * matches no preset. Binds the same separator string via `onChange` — no shape change.
  */
 export function SeparatorChips({
   value,
@@ -381,13 +381,13 @@ export function SegmentedReplace({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   // replaceMode is the explicit UI mode. It is needed (not derived purely from value !== "") because
-  // clicking "Replace with" on an empty value must REVEAL the input so the user can type — deriving from
+  // clicking "Replace with" on an empty value must reveal the input so the user can type — deriving from
   // value alone deadlocks. When the user is in replace mode and the input is momentarily empty, we stay in
-  // replace mode (don't collapse mid-type). The key case is an EXTERNAL change to "" (Reset-to-
+  // replace mode (don't collapse mid-type). The key case is an external change to "" (Reset-to-
   // defaults / load): we detect "value changed to empty since last render" and snap back to strip mode.
   const [replaceMode, setReplaceMode] = useState(value !== "");
   const prevValue = useRef(value);
-  // Sync the explicit UI mode to an EXTERNAL value change (Reset/load), detected via prevValue.
+  // Sync the explicit UI mode to an external value change (Reset/load), detected via prevValue.
   // This is a prop-change synchronization across renders, not a render-derived setState — the
   // react-compiler set-state-in-effect heuristic flags it but the ref-guarded transition is correct.
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -395,7 +395,7 @@ export function SegmentedReplace({
     if (value !== "") {
       setReplaceMode(true); // a non-empty value always means replace mode
     } else if (prevValue.current !== "") {
-      // value transitioned non-empty → "" from OUTSIDE this control (Reset/load) → return to strip mode.
+      // value transitioned non-empty → "" from outside this control (Reset/load) → return to strip mode.
       setReplaceMode(false);
     }
     prevValue.current = value;
@@ -633,14 +633,14 @@ export function TagListInput({
 }
 
 /**
- * A toggle-chip multiselect over a FIXED option set where order does not matter (the ignore-genders
+ * A toggle-chip multiselect over a fixed option set where order does not matter (the ignore-genders
  * list): clicking a chip toggles its membership, selected chips carry the accent tint via
- * {@link chipClass}. Stores the option VALUES (e.g. the gender enum names), in the option set's order
+ * {@link chipClass}. Stores the option values (e.g. the gender enum names), in the option set's order
  * rather than click order — so two configs with the same members serialize identically. Every label
  * is a React text node (auto-escaped).
  *
- * A stored value NOT in `options` (e.g. one saved via the old free-text control, or a gender this
- * build doesn't list) is PRESERVED, not silently dropped: it renders as an extra removable chip and
+ * A stored value not in `options` (e.g. one saved via the old free-text control, or a gender this
+ * build doesn't list) is preserved, not silently dropped: it renders as an extra removable chip and
  * toggling a known option keeps it. Otherwise the first toggle would erase a value the user can't see.
  */
 export function ChipMultiSelect({
@@ -705,10 +705,10 @@ export function ChipMultiSelect({
 }
 
 /**
- * An ordered pick-to-add control over a FIXED option set where order DOES matter (the gender-order
+ * An ordered pick-to-add control over a fixed option set where order does matter (the gender-order
  * priority ranking): a `<select>` offers only the not-yet-added options (via {@link availableOptions}),
  * and the chosen values render as ↑↓-reorderable, removable chips in priority order. Stores the option
- * VALUES in user order. Mirrors {@link TagListInput}'s ordered reorder/remove, but the add path is a
+ * values in user order. Mirrors {@link TagListInput}'s ordered reorder/remove, but the add path is a
  * constrained dropdown rather than free text — so only valid enum names can ever be added.
  */
 export function OrderedPickToAdd({
@@ -796,7 +796,7 @@ export function OrderedPickToAdd({
 
 /**
  * A bespoke "Add token" affordance opening a `flex flex-wrap gap-1` click-to-add chip menu
- * of bare token names (NOT a dropdown, NOT autocomplete). It is purely ADDITIVE UI around a
+ * of bare token names (not a dropdown, not autocomplete). It is purely additive UI around a
  * {@link TagListInput} (it does not replace it). The host has no equivalent, so this is bespoke;
  * it reuses the selectable chip class verbatim (host-compiled classes only — no arbitrary
  * `[…]` values). Clicking a chip calls `onAdd(name)`; tokens already in `values` render
@@ -880,7 +880,7 @@ export function ObjectArrayEditor<T>({
   // remove/reorder permute them, add mints a fresh one, and an external wholesale replacement
   // (load/Reset) re-seeds via the length-drift effect below. The key list lives in a ref so
   // reorder/remove/add can keep it in step without a state-sync render: the ref is written only from
-  // event handlers, and render only READS it (writing a ref during render is what react-compiler
+  // event handlers, and render only reads it (writing a ref during render is what react-compiler
   // forbids, not reading).
   const [keys, setKeys] = useState<number[]>(() => rows.map((_, i) => i));
   const nextKey = useRef(rows.length);
@@ -1025,9 +1025,9 @@ export function KeyValueMapEditor<TValue>({
   addLabel: string;
 }) {
   const [draftKey, setDraftKey] = useState("");
-  // The draft holds UNDEFINED until the user edits it, and `emptyValue` is read at the moment it is
+  // The draft holds undefined until the user edits it, and `emptyValue` is read at the moment it is
   // needed rather than copied at mount. Seeding the state with `emptyValue` instead would freeze the
-  // caller's FIRST one forever: `useState` reads its argument on the first render only, so a value
+  // caller's first one forever: `useState` reads its argument on the first render only, so a value
   // derived from data still being fetched - a destination root derived from Cove's library paths,
   // say - would commit the placeholder the caller had before the fetch landed.
   const [draftValue, setDraftValue] = useState<TValue | undefined>(undefined);
@@ -1113,14 +1113,14 @@ export function RegexValidity({ pattern, isRegex }: { pattern: string; isRegex: 
 }
 
 /**
- * Advisory-only, non-blocking hint that a field meant to hold a RELATIVE folder template has been
+ * Advisory-only, non-blocking hint that a field meant to hold a relative folder template has been
  * given something that looks like a typed path. Mirrors {@link RegexValidity}'s presentational shape
  * exactly: pure, stateless, and renders nothing when the value looks fine or is blank.
  *
  * A typed path is not refused - it renders as ordinary folder names under whichever root the field's
  * owner chose, which is confined and harmless but almost never what the author meant.
  *
- * `message` is the REMEDY, and it is the caller's because only the caller knows what it is. Wording
+ * `message` is the remedy, and it is the caller's because only the caller knows what it is. Wording
  * it here would put one extension's panel layout inside a business-agnostic package.
  */
 export function PathShapeHint({ value, message }: { value: string; message: string }) {
@@ -1269,7 +1269,7 @@ export function SectionGroupHeader({ title, hint }: { title: string; hint?: stri
  * The primary settings section container. Chrome is matched to Cove's own `SettingsSection`
  * (`components/SettingsPrimitives.tsx`) so extension sections are indistinguishable from native
  * ones: same `rounded-2xl border-border bg-surface p-5` fill and long soft drop shadow, and a
- * MARGIN header (no divider rule) — not the heavier `shadow-sm` + `border-b` header the extension
+ * margin header (no divider rule) — not the heavier `shadow-sm` + `border-b` header the extension
  * used before. `badge` is the one addition core lacks: an inline `$token` marker for the
  * token-settings cards. Presentational only.
  */

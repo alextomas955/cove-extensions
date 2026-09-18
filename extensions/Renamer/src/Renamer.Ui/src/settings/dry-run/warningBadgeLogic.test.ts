@@ -9,9 +9,9 @@ import { IN_FLIGHT_OVERFLOW_LABEL } from "./dryRunLogic";
 import type { PreviewItemView, RenamerStatus, ScanRow } from "../../wire/api";
 
 /**
- * Every status the wire can carry, with the label a row earns for it — TRANSCRIBED BY HAND from the
+ * Every status the wire can carry, with the label a row earns for it — transcribed by hand from the
  * `RenamerStatus` declaration in `extensions/Renamer/src/Renamer/Planner/RenamerPlan.cs`, and
- * deliberately NOT derived from the module's own map, which would agree with itself whatever it said.
+ * deliberately not derived from the module's own map, which would agree with itself whatever it said.
  * `null` is a status that earns no badge, and the comment beside each says why it earns none.
  *
  * Typed on the wire union so a status the server grows fails this suite too, at the same moment it
@@ -135,7 +135,7 @@ test("a row with nothing to warn about renders no pill at all", () => {
 });
 
 test("the overflow badge is appended whatever the status, because the server sets it deliberately", () => {
-  // Re-testing the status here would let a flag the server DID set go unrendered if the two vocabularies
+  // Re-testing the status here would let a flag the server did set go unrendered if the two vocabularies
   // ever drifted, so the flag alone decides.
   const eitherSide: RenamerStatus[] = ["renamer", "skipExcluded"];
   for (const status of eitherSide) {
@@ -148,7 +148,7 @@ test("the overflow badge is appended whatever the status, because the server set
 });
 
 test("an unflagged row earns no overflow badge", () => {
-  // The contrast the case above needs: a badge stuck ON would read as a correct warning on every row a
+  // The contrast the case above needs: a badge stuck on would read as a correct warning on every row a
   // user ever looks at.
   assert.deepEqual(badgesFor(row("move", { inFlightPathOverflow: false })), []);
 });

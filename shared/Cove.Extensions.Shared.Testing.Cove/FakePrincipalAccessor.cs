@@ -4,7 +4,7 @@ namespace Cove.Extensions.Shared.Testing;
 
 /// <summary>
 /// A settable <see cref="ICurrentPrincipalAccessor"/> fake so the endpoint permission tests can hand a
-/// principal that HAS or LACKS a given permission key without a request pipeline (extension minimal-API
+/// principal that has or lacks a given permission key without a request pipeline (extension minimal-API
 /// endpoints enforce permissions themselves — the host's <c>[RequiresPermission]</c> filter is inert on
 /// minimal-API routes).
 /// </summary>

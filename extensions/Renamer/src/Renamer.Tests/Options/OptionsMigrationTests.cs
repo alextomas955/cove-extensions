@@ -6,7 +6,7 @@ namespace Renamer.Tests.Options;
 
 /// <summary>
 /// The name-to-id options conversion. Every case here is a way a user's configuration can be lost
-/// silently, so each asserts what SURVIVES rather than only that the conversion ran.
+/// silently, so each asserts what survives rather than only that the conversion ran.
 /// </summary>
 public sealed class OptionsMigrationScanTests
 {
@@ -353,7 +353,7 @@ public sealed class OptionsMigrationConvertTests
     public void AStoredNameResolves_RegardlessOfLetterCase(string stored, int? expected)
     {
         // Matching a rule against a live entity name was OrdinalIgnoreCase before this conversion, so a
-        // rule stored in a different case was LIVE and a case-sensitive lookup here drops it silently.
+        // rule stored in a different case was live and a case-sensitive lookup here drops it silently.
         // Trimming was never part of that matching, which is why the padded name resolves to nothing.
         var conversion = OptionsMigration.Convert(
             $$"""{ "ExcludeTags": ["{{stored}}"] }""", Tags, Performers);
@@ -370,7 +370,7 @@ public sealed class OptionsMigrationConvertTests
         // Three rows sharing one name is a real library state: an entity's identity is its name paired
         // with a disambiguation, so distinct disambiguations coexist under one name. The rule covered all
         // three before the conversion and covers one after, so every file featuring the other two starts
-        // behaving differently. The name RESOLVED, so the dropped-name trail says nothing about it, and
+        // behaving differently. The name resolved, so the dropped-name trail says nothing about it, and
         // without this report the narrowing is invisible.
         //
         // "Dupe"/"dupe" is a case-variant pair no stored rule names. Reporting every such pair in a
@@ -382,7 +382,7 @@ public sealed class OptionsMigrationConvertTests
         var conversion = OptionsMigration.Convert(blob, Tags, rows);
 
         // One report per stored spelling that named the entity, each naming the row the rule now covers
-        // and the rows it no longer does. The pair "Dupe"/"dupe" is a case variant NO stored rule names,
+        // and the rows it no longer does. The pair "Dupe"/"dupe" is a case variant no stored rule names,
         // and reporting every such pair in a library would bury the ones a rule actually narrows.
         Assert.Equal(
             ["ADA VEX", "Ada Vex", "ada vex"],
@@ -396,7 +396,7 @@ public sealed class OptionsMigrationConvertTests
             });
         Assert.Empty(conversion.DroppedNames);
 
-        // Which row the rule now covers is decided by the DATA - the lowest id - and not by the order the
+        // Which row the rule now covers is decided by the data - the lowest id - and not by the order the
         // rows came back in, which is not something the user chose.
         (int, string)[] descending =
             [(81, "dupe"), (80, "Dupe"), (72, "Ada Vex"), (71, "ada vex"), (70, "Ada Vex")];
@@ -413,7 +413,7 @@ public sealed class OptionsMigrationConvertTests
     [Fact]
     public void EveryDroppedName_AcrossAllSixSites_IsReported()
     {
-        // Every lookup table here is POPULATED and none of these names is in it, so each site is exercised
+        // Every lookup table here is populated and none of these names is in it, so each site is exercised
         // on the resolve-and-miss path rather than on the no-rows path. A name lost from any one site is
         // configuration the user does not get back.
         const string blob = """

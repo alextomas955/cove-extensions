@@ -1,6 +1,6 @@
 // What the "Per kind" list does to files, driven through the real panel: a kind sent to a folder of
 // its own lands there, an excluded kind is not touched at all, and a kind left alone follows the
-// card's own destination. All three hold in ONE whole-library run, which is the combination that
+// card's own destination. All three hold in one whole-library run, which is the combination that
 // matters - a per-kind setting that leaked across kinds would still pass a one-kind test.
 //
 // The proof is exact on-disk + DB state for every kind, never the panel's own banner: an excluded
@@ -12,7 +12,7 @@ import { pollUntil } from "@cove-extensions/e2e/poll";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
 const test = base.extend({
-  // "Rename all files" sweeps EVERY item in the library, so this runs on its own instance - a sibling
+  // "Rename all files" sweeps every item in the library, so this runs on its own instance - a sibling
   // test's seeded media sharing the per-worker harness would be swept into this run's scope.
   isolatedHarness: [
     async ({}, use) => {
@@ -56,7 +56,7 @@ async function currentPath(api, route, id) {
 }
 
 /**
- * Asserts one item landed at EXACTLY `expectedPath`: the DB record says so, the file is on disk
+ * Asserts one item landed at exactly `expectedPath`: the DB record says so, the file is on disk
  * there, and the path it came from is gone. Polls the record, so the run's read-after-write window
  * is honored.
  */
@@ -86,7 +86,7 @@ async function assertLandedAt({ api, container, route, id, expectedPath, origina
 /**
  * Asserts one item was left where it was: the DB still points at its original path, and a file is
  * still there. It does not compare contents, because a rename this run refused to make is a move,
- * not a write. A settled run is what makes it meaningful, so callers assert the kinds that DID move
+ * not a write. A settled run is what makes it meaningful, so callers assert the kinds that did move
  * first: this check would pass on a run that had not started.
  */
 async function assertUntouched({ api, container, route, id, originalPath }) {

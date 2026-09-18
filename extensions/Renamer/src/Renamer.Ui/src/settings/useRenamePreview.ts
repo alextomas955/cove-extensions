@@ -35,7 +35,7 @@ export function useRenamePreview(options: RenamerOptions, loading: boolean): Use
   const [preview, setPreview] = useState<PreviewSampleResult[] | null>(null);
   const [previewError, setPreviewError] = useState(false);
   // A ref rather than state on two counts: advancing it must not itself trigger a render, and the
-  // settle handlers below have to read the value AT SETTLE TIME: a state value would be captured when
+  // settle handlers below have to read the value at settle time: a state value would be captured when
   // the effect ran, which is the stale comparison the generation exists to avoid.
   const generation = useRef(0);
 

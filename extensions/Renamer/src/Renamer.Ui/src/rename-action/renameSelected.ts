@@ -4,11 +4,11 @@
  * selected" action. It cannot render a React modal (the host exposes no dialog API to extension
  * action handlers), so the in-flow gate is the native, blocking, accessible `window.confirm`.
  *
- * Flow: POST /preview with the REAL selection → build the confirm summary → window.confirm.
- *   - Cancel               → return { cancelled: true } (NO /renamer, host suppresses the toast).
+ * Flow: POST /preview with the real selection → build the confirm summary → window.confirm.
+ *   - Cancel               → return { cancelled: true } (no /renamer, host suppresses the toast).
  *   - OK but N == 0         → return { cancelled: true } (nothing to do; no pointless /renamer).
  *   - OK and N >= 1         → POST /renamer → return {} (host shows its queued toast).
- * Request errors are NOT swallowed (the host's onError alert shows the failure) — except the
+ * Request errors are not swallowed (the host's onError alert shows the failure) — except the
  * SDK's spurious res.json() throw on the empty-200 /renamer response, which is success.
  */
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";

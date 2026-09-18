@@ -2,7 +2,7 @@
 // registry nor Docker is contacted, and the extraction's refusals are driven over temporary
 // directories, so a red here means the logic is wrong and never that a CDN or a daemon was slow.
 //
-// Three cases deliberately read REAL repository files rather than fixtures, because each pins a seam
+// Three cases deliberately read real repository files rather than fixtures, because each pins a seam
 // where a copy would agree with itself forever while the other side drifted: Directory.Build.props
 // (the image properties), extensions/catalog.json (each extension's declared floor) and
 // tests/e2e/lib/harness.mjs (the helpers it imports from this module).
@@ -380,7 +380,7 @@ test("a value that could inject markup into a file the build imports is refused"
 // ---- the seam with the real catalog ---------------------------------------------------------------
 
 test("every real catalog entry reaches a minCoveVersion floor through its own manifestPath", () => {
-  // minCoveVersion is NOT a catalog field; it lives in each entry's manifest, reached through
+  // minCoveVersion is not a catalog field; it lives in each entry's manifest, reached through
   // manifestPath. Reading the repo's real files here means a catalog entry that loses its manifest
   // path, or a manifest that loses its floor, fails the validate job's own node --test rather than
   // failing later as a leg with no version to resolve.
@@ -543,7 +543,7 @@ test("each guarded assembly missing on its own is refused, naming that assembly"
 // ---- the digest docker records -------------------------------------------------------------------
 
 test("the RepoDigests entry is matched on the repository, never taken by position", () => {
-  // Index 0 can belong to a DIFFERENT repository the same image is known under, which would record a
+  // Index 0 can belong to a different repository the same image is known under, which would record a
   // provenance digest naming an image nobody asked about.
   const digest = `sha256:${"b".repeat(64)}`;
   assert.equal(
@@ -604,7 +604,7 @@ test("an unrecognised argument is refused with the usage line rather than ignore
   await assert.rejects(() => main(["--not-an-argument"]), /Unrecognised argument/);
 });
 
-// The extraction empties its target recursively, so an --out that CONTAINS the repository deletes the
+// The extraction empties its target recursively, so an --out that contains the repository deletes the
 // working tree. Driven through main for the reason the section header states, and the repo root is
 // derived the way the script derives it rather than written down, so this cannot pass by naming a
 // directory that is not the one the guard compares against.

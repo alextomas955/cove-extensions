@@ -2,7 +2,7 @@
 // test directory (extensions/<YourExt>/e2e/tests/), then change the `srcProject` string below to
 // your extension's .NET project name and replace the example tests with your own.
 //
-// NOTE ON IMPORTS: this template lives INSIDE the shared harness (tests/e2e/), so it imports the
+// note on imports: this template lives inside the shared harness (tests/e2e/), so it imports the
 // harness with relative paths (`../lib/...`). When you copy it into your extension, change those to
 // the package name — `@cove-extensions/e2e` and `@cove-extensions/e2e/resolve-extension` — so there
 // is no `../../../` path archaeology (npm workspaces resolves the harness by name). See
@@ -14,7 +14,7 @@
 import { test, expect } from "../lib/fixtures.mjs";
 import { resolveExtensionPaths } from "../lib/resolve-extension.mjs";
 
-// resolveExtensionPaths derives your extension's build outputs from THIS file's own location — no
+// resolveExtensionPaths derives your extension's build outputs from this file's own location — no
 // hand-rolled repo-root math. When copied into your extension it resolves relative to the copy. The
 // UI bundle needs no argument here: what a package ships is declared in your extension's
 // catalog.json entry, and the harness installs exactly that declared set.

@@ -7,7 +7,7 @@ namespace Renamer.Tests.TestSupport;
 /// assert over all of it at once.
 /// </summary>
 /// <remarks>
-/// THIS is where materializing a whole batch lives now, and deliberately not on the port: a production
+/// this is where materializing a whole batch lives now, and deliberately not on the port: a production
 /// read that returned all of a batch would tie memory to whatever the cap on a batch is at the time,
 /// while here the fixtures have a known, small size and a call site that can never reach production.
 /// <para>

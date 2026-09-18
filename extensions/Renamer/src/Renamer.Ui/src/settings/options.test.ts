@@ -1,7 +1,7 @@
 /**
  * Round-trip + preservation contract for the options model. The save merge is reproduced as
  * `{ ...extras, ...options }` — the literal merge RenameSettingsPanel.saveOptions uses — so a pass
- * proves the SAME merge the panel runs.
+ * proves the same merge the panel runs.
  */
 import { test } from "vitest";
 import assert from "node:assert/strict";
@@ -98,7 +98,7 @@ function fullyPopulatedBlob() {
   };
 }
 
-// FreeSpaceHeadroomBytes is the ONLY knob the panel never models, so it is the only one
+// FreeSpaceHeadroomBytes is the only knob the panel never models, so it is the only one
 // extractUnmodeledFields must still carry. The two concurrency knobs are now modeled (see below).
 const UNMODELED_KNOB = { FreeSpaceHeadroomBytes: 2147483648 };
 
@@ -170,7 +170,7 @@ test("FreeSpaceHeadroomBytes stays the only unmodeled knob; concurrency is model
 
   const extras = extractUnmodeledFields(blob);
   // Only FreeSpaceHeadroomBytes is carried as an extra; the two concurrency knobs are modeled now,
-  // so extractUnmodeledFields must NOT carry them.
+  // so extractUnmodeledFields must not carry them.
   assert.equal(extras.FreeSpaceHeadroomBytes, UNMODELED_KNOB.FreeSpaceHeadroomBytes);
   assert.ok(!("CrossVolumeConcurrency" in extras));
   assert.ok(!("SameVolumeConcurrency" in extras));
@@ -194,9 +194,9 @@ test("FreeSpaceHeadroomBytes stays the only unmodeled knob; concurrency is model
 });
 
 test("a concurrency value stored before it was modeled still loads (not the 2/8 defaults)", () => {
-  // These keys used to be UNMODELED (carried by extractUnmodeledFields). A blob saved back then can
-  // hold a hand-tuned value; now that the fields are modeled, normalizeOptions must read that stored
-  // value rather than reverting it to the 2/8 defaults, and the save merge must not drift it.
+  // A blob saved before these keys were modeled carries them through extractUnmodeledFields and can
+  // hold a hand-tuned value. normalizeOptions must read that stored value rather than reverting it to
+  // the 2/8 defaults, and the save merge must not drift it.
   const preExposureBlob = { CrossVolumeConcurrency: 4, SameVolumeConcurrency: 16 };
 
   const loaded = normalizeOptions(preExposureBlob);
@@ -216,9 +216,9 @@ test("a blob absent both concurrency keys normalizes them to the 2/8 defaults", 
 });
 
 test("a stored blob with the old defaults survives load → save unchanged", () => {
-  // A blob saved before the default flip carries the OLD template + both flags off. The new defaults
-  // must NOT overwrite a present stored value — normalizeOptions falls back to a default only when a
-  // field is ABSENT — so an existing user's saved options never silently change.
+  // A blob saved before the default flip carries the old template + both flags off. The new defaults
+  // must not overwrite a present stored value — normalizeOptions falls back to a default only when a
+  // field is absent — so an existing user's saved options never silently change.
   const oldBlob = {
     FilenameTemplate: "$title{ [$resolution]}",
     PreventConsecutiveSegments: false,
@@ -240,7 +240,7 @@ test("a stored blob with the old defaults survives load → save unchanged", () 
 });
 
 test("a blob predating the three gate flags normalizes them to false", () => {
-  // A blob saved before this phase has no EnableStudioDestinations/EnableTagDestinations/
+  // A blob saved before these keys existed has no EnableStudioDestinations/EnableTagDestinations/
   // EnableAdvancedRouting keys at all. Their absence must fall back to the DEFAULT_OPTIONS false,
   // not error and not spuriously turn a gate on.
   const oldBlob = {
@@ -302,7 +302,7 @@ test("an absent unorganized destination stays absent, not a destination naming n
 
 test("every destination-map key a save persists parses as an integer", () => {
   // The backend binds both maps as `Dictionary<int, Destination>` and answers a bind failure with
-  // DEFAULTS, so one unparseable key silently discards the user's whole settings blob. JSON object
+  // defaults, so one unparseable key silently discards the user's whole settings blob. JSON object
   // keys are strings, which is why this is asserted on what a save actually writes.
   const persisted: Record<string, unknown> = {
     ...extractUnmodeledFields(fullyPopulatedBlob()),
@@ -341,7 +341,7 @@ test("a name-valued whitelist coerces to empty rather than reaching the backend 
 });
 
 // The two tests above pin that normalizeOptions empties every name-keyed rule.
-// `extractUnmodeledFields` walks TOP-LEVEL keys only, and both groups and `TagDestinations` are
+// `extractUnmodeledFields` walks top-level keys only, and both groups and `TagDestinations` are
 // modeled, so the emptied shapes are what a save would persist — over rules nothing else keeps a copy
 // of. This predicate is what the panel refuses to save on, so it must be true for exactly the blobs
 // where that loss is real.
@@ -447,7 +447,7 @@ test("only the tag map is scanned for name keys, matching which rules the conver
 
 test("a stored destination counts as unconverted exactly when the backend finds a site to rewrite", () => {
   // Transcribed by hand from `OptionsMigration.ConvertDestinationsToRoots`, whose site walk takes a
-  // JSON STRING and nothing else; the same table is pinned against the real converter in
+  // JSON string and nothing else; the same table is pinned against the real converter in
   // OptionsMigrationDestinationTests, so a C# change breaks a test that names this one.
   const valueKinds: [unknown, boolean][] = [
     ["D:/library/videos", true],
@@ -528,7 +528,7 @@ test("what a save persists never reads as unconverted, so one save cannot lock o
 // The panel stores a destination root as the very string the library-path list gave it, then
 // re-checks membership against a later reading of that list. Cove hands paths back in the platform's
 // own spelling, so a root that arrives spelled differently must still name the same folder — a miss
-// makes chosenLibraryPath return undefined, which is the state that SKIPS the rule, so a user's
+// makes chosenLibraryPath return undefined, which is the state that skips the rule, so a user's
 // destination silently stops applying.
 test("a stored root still names its library path through a separator difference", () => {
   const libraryPaths = ["C:/Videos", "/data"];
@@ -546,7 +546,7 @@ test("a trailing separator on the library path side is forgiven too", () => {
   assert.equal(chosenLibraryPath("C:/Videos", ["C:/Videos/"]), "C:/Videos/");
 });
 
-// Case is deliberately NOT forgiven: a converted root IS the library path's own casing and a picked
+// Case is deliberately not forgiven: a converted root is the library path's own casing and a picked
 // one is the string the endpoint gave, so folding case would invent a second opinion about when two
 // paths name one folder, on a host whose case rule the panel cannot see.
 test("case is not forgiven, so the panel never invents a case rule the host may not share", () => {

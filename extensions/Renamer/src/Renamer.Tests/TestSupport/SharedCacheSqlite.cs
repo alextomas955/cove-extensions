@@ -6,11 +6,11 @@ namespace Renamer.Tests.TestSupport;
 
 /// <summary>
 /// A named, shared-cache in-memory SQLite database for the parallel-batch concurrency proofs. A bare
-/// <c>Data Source=:memory:</c> database is private to its ONE connection, so per-worker scopes that
+/// <c>Data Source=:memory:</c> database is private to its one connection, so per-worker scopes that
 /// each open their own context over one shared connection serialize onto a single SQLite connection
 /// and throw "database is locked" the moment two workers query at once. A named
-/// <c>Mode=Memory;Cache=Shared</c> database instead lets EACH context open its OWN connection to the
-/// SAME database — the production shape (every scope gets its own pooled connection) — so the workers
+/// <c>Mode=Memory;Cache=Shared</c> database instead lets each context open its own connection to the
+/// same database — the production shape (every scope gets its own pooled connection) — so the workers
 /// run genuinely in parallel. One kept-open keep-alive connection holds the database alive for the
 /// fixture's lifetime; a per-connection <c>busy_timeout</c> makes a writer that briefly contends wait
 /// rather than fail. Test-support only — never packaged.
@@ -41,7 +41,7 @@ internal sealed class SharedCacheSqlite : IAsyncDisposable
         return conn;
     }
 
-    /// <summary>Builds a <see cref="CoveContext"/> over its OWN connection to the shared database.</summary>
+    /// <summary>Builds a <see cref="CoveContext"/> over its own connection to the shared database.</summary>
     public DbContext NewContext()
     {
         var options = new DbContextOptionsBuilder<CoveContext>().UseSqlite(OpenConnection()).Options;

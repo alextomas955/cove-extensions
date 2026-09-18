@@ -1,16 +1,16 @@
 /**
  * Pure, client-side template advisories. No React, no I/O — these only
- * DETECT authoring mistakes for an inline amber advisory; the engine remains the render-time
+ * detect authoring mistakes for an inline amber advisory; the engine remains the render-time
  * authority and renders every template leniently (it never throws). Validation is advisory and
- * NEVER blocks Save or moves the caret.
+ * never blocks Save or moves the caret.
  *
  * Two checks live here (brace balance + unknown tokens); the third advisory (empty-for-sample)
  * is read off the existing debounced /preview-sample `flags` in the panel — there is no new
  * request and no engine change.
  *
  * Engine grammar facts these mirror (kept in sync with the C# tokenizer):
- *   - A token is a BARE `$` + [A-Za-z0-9_]+  (Tokenizer.cs:65-79). There is NO `${token}` form.
- *   - `$$` is the literal-`$` escape (Tokenizer.cs:56-63) — the second `$` must NOT start a token.
+ *   - A token is a bare `$` + [A-Za-z0-9_]+  (Tokenizer.cs:65-79). There is no `${token}` form.
+ *   - `$$` is the literal-`$` escape (Tokenizer.cs:56-63) — the second `$` must not start a token.
  *   - `{` increments depth, `}` decrements; a stray `}` (depth < 0) or a leftover open `{`
  *     (depth > 0) is unbalanced (Tokenizer.cs:81-110).
  *   - Tokens resolve case-insensitively (TemplateEngine.cs:147).
@@ -21,7 +21,7 @@ import { TOKENS } from "./TokenLegend";
 const KNOWN = new Set(TOKENS.map((t) => t.token.slice(1).toLowerCase()));
 
 /**
- * The bare token NAMES (leading `$` stripped), in TOKENS declaration order — single-sourced from
+ * The bare token names (leading `$` stripped), in tokens declaration order — single-sourced from
  * the same `TOKENS` constant, no re-listed literals. Used by the TokenPicker menu, whose
  * fields (RequiredFields / DropOrder) take bare names (`title`), not `$title`. Preserves original
  * case for display; matching is done case-insensitively by {@link isKnownToken} / the engine.
@@ -56,8 +56,8 @@ export function bracesBalanced(s: string): boolean {
 }
 
 /**
- * The de-duped list of `$token` occurrences whose name is NOT in the canonical set (typos),
- * each returned WITH its leading `$` for display. Skips the `$$` literal escape so it is never
+ * The de-duped list of `$token` occurrences whose name is not in the canonical set (typos),
+ * each returned with its leading `$` for display. Skips the `$$` literal escape so it is never
  * mis-flagged, and compares case-insensitively (matching the engine resolver).
  */
 export function unknownTokens(s: string): string[] {
@@ -137,8 +137,8 @@ function editDistance(a: string, b: string): number {
 
 /**
  * Best-effort "Did you mean" for an unknown token name (with or without the leading `$`). Returns
- * the nearest known token (WITH a leading `$`) only when the edit distance is small (≤ 2);
- * otherwise undefined. Derived purely from the static TOKENS set — never echoes user markup.
+ * the nearest known token (with a leading `$`) only when the edit distance is small (≤ 2);
+ * otherwise undefined. Derived purely from the static tokens set — never echoes user markup.
  */
 export function suggestFor(token: string): string | undefined {
   const name = (token.startsWith("$") ? token.slice(1) : token).toLowerCase();

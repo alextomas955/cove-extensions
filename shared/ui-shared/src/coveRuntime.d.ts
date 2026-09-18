@@ -11,7 +11,7 @@
 // silently demotes the blocks below from ambient declarations into augmentations of modules that do
 // not otherwise exist.
 //
-// Keep the file free of module specifiers entirely. An `import type` INSIDE a block stays ambient but
+// Keep the file free of module specifiers entirely. An `import type` inside a block stays ambient but
 // makes every declaration below hostage to that specifier resolving in each consuming program. There
 // is no `node_modules` beside this file, so it would resolve only through a consumer's tsconfig
 // `paths`; and because `skipLibCheck` suppresses errors in a `.d.ts`, a consumer lacking that entry
@@ -47,7 +47,7 @@ declare module "@cove/runtime/components" {
   export type EntityReferenceType = "tag" | "performer" | "studio";
 
   // Each component is a bare call signature rather than `ComponentType<P>`, which would need react
-  // (see the header). The props ARE the contract and are checked at every call site; the rendered
+  // (see the header). The props are the contract and are checked at every call site; the rendered
   // result is only ever consumed by JSX, so the return is left uninhabited rather than restating
   // React's node union: `never` satisfies the JSX element check without naming a react type.
   export const EntityReferenceMultiSelector: (props: {

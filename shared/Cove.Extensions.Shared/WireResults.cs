@@ -9,7 +9,7 @@ namespace Cove.Extensions.Shared;
 /// <summary>A <c>403 FORBIDDEN</c> result carrying an <see cref="ErrorCode"/> body and its own schema.</summary>
 /// <remarks>
 /// The framework's typed results cover every other arm these endpoints return, but none of them is a 403
-/// WITH a body: <c>ForbidHttpResult</c> writes none, and the results that do carry one describe no
+/// with a body: <c>ForbidHttpResult</c> writes none, and the results that do carry one describe no
 /// response schema (<c>dotnet/aspnetcore#47630</c>). Declaring this type as a handler's return type is
 /// what publishes the 403 shape.
 /// </remarks>
@@ -51,7 +51,7 @@ public sealed class ForbiddenCode
 
 /// <summary>The error body every non-2xx wire result carries: one stable machine-readable code.</summary>
 /// <remarks>
-/// Deliberately NOT RFC 9457 ProblemDetails, the ASP.NET Core convention for error bodies and what
+/// Deliberately not RFC 9457 ProblemDetails, the ASP.NET Core convention for error bodies and what
 /// Cove's own permission filter returns for a 403. ProblemDetails carries its machine-readable
 /// discriminator in <c>type</c>, a URI, so callers would branch on URI strings rather than on a short
 /// token, and <see cref="Max"/> would ride as an extension member. The panel reads this shape, so

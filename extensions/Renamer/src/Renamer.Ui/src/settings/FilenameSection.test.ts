@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * That the save refusal is VISIBLE. A dead Save button with no reason reads as the user's own mistake,
+ * That the save refusal is visible. A dead Save button with no reason reads as the user's own mistake,
  * and the hook's suite can only prove the write was refused — not that anything on screen says so. So
  * this renders the real section and reads the rendered text, which is the only form of the claim a
  * user would recognise.
@@ -10,7 +10,7 @@
  * text-bearing props and the children it is handed and nothing else, so what the assertions read is
  * this section's own output.
  *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here too),
+ * React arrives as its production build (the bundle's `process.env.NODE_ENV` define applies here too),
  * which has no `act`, so the render is flushed by waiting rather than by wrapping.
  */
 import { test, expect, vi } from "vitest";

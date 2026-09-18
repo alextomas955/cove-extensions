@@ -13,9 +13,9 @@ namespace Renamer.Tests.Preview;
 /// <summary>
 /// Whole-batch wire shape: <c>/preview</c> now answers an object
 /// <c>{ items, summary }</c> (was a bare array). This pins the load-bearing serialization contract:
-/// each per-item object stays camelCase with <c>status</c> the STRING (so the UI's
-/// <c>status === "Renamer"</c> match survives) AND carries its routing fields; the additive summary
-/// serializes camelCase with <c>confirmLevel</c> the STRING and <c>volumePairs</c> as
+/// each per-item object stays camelCase with <c>status</c> the string (so the UI's
+/// <c>status === "Renamer"</c> match survives) and carries its routing fields; the additive summary
+/// serializes camelCase with <c>confirmLevel</c> the string and <c>volumePairs</c> as
 /// <c>{ from, to, count, bytes }</c>. The handler is exercised as a plain method (no HTTP host) over a
 /// real SQLite <c>CoveContext</c>, and zero mutation is re-asserted.
 /// </summary>
@@ -51,7 +51,7 @@ public sealed class PreviewWholeBatchTests
             File.WriteAllText(Path.Combine(srcDir.Root, "raw.mkv"), "video-bytes");
             var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
-            // An exact source-path rule + an allowed dest root on a DIFFERENT volume → a routed Move
+            // An exact source-path rule + an allowed dest root on a different volume → a routed Move
             // that the aggregate classifies as cross-volume.
             var options = new RenamerOptions
             {
@@ -88,8 +88,8 @@ public sealed class PreviewWholeBatchTests
             var pair = Assert.Single(response.Summary.VolumePairs);
             Assert.Equal(1, pair.Count);
 
-            // WIRE-SHAPE regression: the bytes the UI reads MUST be camelCase with `status` and
-            // `confirmLevel` the camelCase STRING — NOT PascalCase, NOT a numeric enum. Serialize with
+            // wire-shape regression: the bytes the UI reads must be camelCase with `status` and
+            // `confirmLevel` the camelCase string — not PascalCase, not a numeric enum. Serialize with
             // the handler's own options.
             var json = JsonSerializer.Serialize(response, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
             Assert.Contains("\"items\":", json);
@@ -123,8 +123,8 @@ public sealed class PreviewWholeBatchTests
     [Fact]
     public async Task PreviewAsync_ExcludedItem_AppearsAsSkipExcluded_WithReason_NotSilentlyDropped()
     {
-        // EXCL-03: an item matched by a source-path exclude is a VISIBLE SkipExcluded
-        // skip-with-reason in the whole-batch preview item list — NOT silently dropped. It is a
+        // An item matched by a source-path exclude is a visible SkipExcluded
+        // skip-with-reason in the whole-batch preview item list — not silently dropped. It is a
         // non-acting skip (BatchPreview.Summarize counts only Renamer|Move), so the summary shows
         // zero acting items while the item itself still appears with its exclude reason.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -134,7 +134,7 @@ public sealed class PreviewWholeBatchTests
                 db, Fwd(SrcRoot), "raw.mkv", "My Film");
             var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
-            // An EXACT source-path exclude on the seeded folder → the item is excluded FIRST.
+            // An exact source-path exclude on the seeded folder → the item is excluded first.
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
@@ -150,7 +150,7 @@ public sealed class PreviewWholeBatchTests
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
 
-            // The excluded item APPEARS in the preview (not dropped), with SkipExcluded + its reason.
+            // The excluded item appears in the preview (not dropped), with SkipExcluded + its reason.
             var item = Assert.Single(response.Items);
             Assert.Equal(fileId, item.FileId);
             Assert.Equal(RenamerStatus.SkipExcluded, item.Status);
@@ -160,7 +160,7 @@ public sealed class PreviewWholeBatchTests
             // Non-acting skip: zero Renamer/Move counted in the blast-radius summary.
             Assert.Equal(0, response.Summary.TotalCount);
 
-            // The status survives serialization as the camelCase STRING the UI matches on.
+            // The status survives serialization as the camelCase string the UI matches on.
             var json = JsonSerializer.Serialize(response, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
             Assert.Contains("\"status\":\"skipExcluded\"", json);
 

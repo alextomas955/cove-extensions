@@ -128,7 +128,7 @@ public sealed class BlastRadiusTests
         Assert.Equal(2, summary.TotalCount);
         Assert.Equal(1, summary.SameVolumeCount);
         Assert.Equal(1, summary.CrossVolumeCount);
-        // The 9 GiB same-volume move is NOT counted; only the 1 GiB cross-volume move.
+        // The 9 GiB same-volume move is not counted; only the 1 GiB cross-volume move.
         Assert.Equal(1L << 30, summary.CrossVolumeBytes);
         var pair = Assert.Single(summary.VolumePairs);
         Assert.Equal(1L << 30, pair.Bytes);
@@ -137,7 +137,7 @@ public sealed class BlastRadiusTests
     [Fact]
     public void ModestCrossVolumeMove_IsStandard()
     {
-        // A handful of items, a few GiB, ONE destination volume → Standard (not Light, not Heavy).
+        // A handful of items, a few GiB, one destination volume → Standard (not Light, not Heavy).
         var items = new[]
         {
             Item(1, OnVol("C", "a.mkv"), OnVol("D", "a.mkv"), RenamerStatus.Move, RootOf("D")),
@@ -182,7 +182,7 @@ public sealed class BlastRadiusTests
     [Fact]
     public void MultipleDistinctDestinationVolumes_IsHeavy()
     {
-        // Two small cross-volume moves to TWO different destination volumes → Heavy by volume count.
+        // Two small cross-volume moves to two different destination volumes → Heavy by volume count.
         var items = new[]
         {
             Item(1, OnVol("C", "a.mkv"), OnVol("D", "a.mkv"), RenamerStatus.Move, RootOf("D")),
@@ -201,7 +201,7 @@ public sealed class BlastRadiusTests
     public void Undoable_TurnsOffOneActingFilePastTheCap(int actingFiles, bool undoable)
     {
         // The preview is the only place a user learns a rename will not be recorded, and they learn it
-        // BEFORE it runs — so the boundary shown here has to be the one the batch core suppresses at.
+        // before it runs — so the boundary shown here has to be the one the batch core suppresses at.
         var items = Enumerable.Range(1, actingFiles)
             .Select(i => Item(i, OnVol("C", $"{i}.mkv"), OnVol("C", $"r{i}.mkv"),
                 RenamerStatus.Renamer, RootOf("C")))

@@ -6,13 +6,13 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Execution.Collisions;
 
 /// <summary>
-/// Collision BACKSTOP (integration, SQLite): the <c>(ParentFolderId, Basename)</c> UNIQUE index is the
+/// Collision backstop (integration, SQLite): the <c>(ParentFolderId, Basename)</c> unique index is the
 /// final safety net behind the proactive suffix loop. Seed two VideoFiles "a.mkv"/"b.mkv" in one
 /// folder on a real SQLite <see cref="Cove.Data.CoveContext"/>; force a renamer of "a"→"b" with the DB
-/// collision pre-check BYPASSED (<see cref="CollisionBlindDataPort"/>) so the proactive suffixing
+/// collision pre-check bypassed (<see cref="CollisionBlindDataPort"/>) so the proactive suffixing
 /// never fires and the save itself hits the unique index → DbUpdateException. Assert the executor's
 /// catch fired (item Failed) and the disk file was rolled back to its old path. This proves the
-/// backstop an EF-InMemory test would FALSE-GREEN (InMemory enforces no unique index).
+/// backstop an EF-InMemory test would false-green (InMemory enforces no unique index).
 /// </summary>
 public sealed class CollisionTests
 {
@@ -28,8 +28,8 @@ public sealed class CollisionTests
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
             var fileB = await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "b.mkv");
 
-            // Disk: only "a.mkv" exists ("b.mkv" the DB-occupied target is NOT on disk, so the disk
-            // move SUCCEEDS and the save is what hits the unique index).
+            // Disk: only "a.mkv" exists ("b.mkv" the DB-occupied target is not on disk, so the disk
+            // move succeeds and the save is what hits the unique index).
             string oldA = Path.Combine(dir.Root, "a.mkv");
             File.WriteAllText(oldA, "A-bytes");
 

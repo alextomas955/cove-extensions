@@ -15,8 +15,8 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 namespace Renamer.Tests.Api;
 
 /// <summary>
-/// The whole-library renamer: <c>RenamerLibraryEnqueue</c> gates on ANY renamer-write permission and
-/// enqueues, and <c>RunRenamerLibraryJobAsync</c> calls the EXISTING <c>RunRenamerBatchAsync</c> once per
+/// The whole-library renamer: <c>RenamerLibraryEnqueue</c> gates on any renamer-write permission and
+/// enqueues, and <c>RunRenamerLibraryJobAsync</c> calls the existing <c>RunRenamerBatchAsync</c> once per
 /// kind that has at least one candidate id — never a synthetic combined kind. Exercised as plain
 /// methods (no HTTP host) with a real SQLite <c>CoveContext</c> and real on-disk files, mirroring
 /// <c>RenamerBatchJobTests</c>/<c>EntityIdsCapTests</c>.
@@ -155,9 +155,9 @@ public sealed class RenamerLibraryEndpointTests
             Assert.Equal("Film.mkv", videoBasename);
             Assert.Equal("Pic.jpg", imageBasename);
 
-            // One batch PER KIND, never one combined batch across kinds: two batch rows, each naming
+            // One batch per kind, never one combined batch across kinds: two batch rows, each naming
             // one kind and holding that kind's file alone. A combined batch would instead be a single
-            // row carrying BOTH files.
+            // row carrying both files.
             var batches = await db.Set<RevertBatchEntity>().AsNoTracking()
                 .OrderBy(b => b.Kind).ToListAsync();
             Assert.Equal(
@@ -186,7 +186,7 @@ public sealed class RenamerLibraryEndpointTests
     /// <remarks>
     /// Each per-kind batch scales its own [0,1] bar and reports 1.0 when it ends, so a kind handed the
     /// caller's sink verbatim restarts the bar below where the previous kind left it. Asserted over the
-    /// recorded SEQUENCE, because a final-value check passes on exactly that behavior.
+    /// recorded sequence, because a final-value check passes on exactly that behavior.
     /// </remarks>
     [Fact]
     public async Task RunRenamerLibraryJobAsync_TwoKinds_ReportsAdvancingProgress_AndReaches1Once()
@@ -292,7 +292,7 @@ public sealed class RenamerLibraryEndpointTests
             var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
-            // Caller only holds videos.write + images.write (no audios.write) and there ARE zero
+            // Caller only holds videos.write + images.write (no audios.write) and there are zero
             // image candidates in the DB — both the permission filter and the empty-candidate skip
             // land on a kind that opens no batch.
             await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);

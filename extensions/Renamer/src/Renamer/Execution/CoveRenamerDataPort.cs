@@ -150,9 +150,9 @@ public class CoveRenamerDataPort : IRenamerDataPort
         }
     }
 
-    // EF Core translates an IN list to one bound parameter per id, so an unchunked load would exceed
+    // EF Core translates an in list to one bound parameter per id, so an unchunked load would exceed
     // Postgres's parameter cap and generate pathological SQL. Chunking keeps the parameter count bounded
-    // at one round-trip per chunk. The IN list is provider-agnostic: the provider is host-supplied,
+    // at one round-trip per chunk. The in list is provider-agnostic: the provider is host-supplied,
     // Postgres in production and SQLite in tests, and a raw Npgsql array parameter would not translate
     // on SQLite.
     internal const int LoadChunkSize = 200;
@@ -305,7 +305,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
         var claims = new Dictionary<string, int>(PathOps.PathComparer);
 
-        // Chunked for the same reason LoadEntitiesAsync is: EF binds one parameter per element of an IN
+        // Chunked for the same reason LoadEntitiesAsync is: EF binds one parameter per element of an in
         // list, and a whole run of planned paths would approach the provider's parameter cap.
         foreach (var chunk in sourcePaths.Distinct(PathOps.PathComparer).Chunk(LoadChunkSize))
         {
@@ -435,7 +435,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
     //
     // Every caller passes a single mutation today, so no batch shape is exercised: this costs a tracked
     // query per mutation, and another per mutation that changes folder, deduping neither. A batching
-    // caller wants the chunked IN list of LoadEntitiesAsync.
+    // caller wants the chunked in list of LoadEntitiesAsync.
     public virtual async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
         IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
     {

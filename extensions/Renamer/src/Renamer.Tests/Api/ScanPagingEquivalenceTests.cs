@@ -13,7 +13,7 @@ namespace Renamer.Tests.Api;
 /// <see cref="RenamerPlanner.PlanLoadedEntity"/> carries no cross-entity state; the one place a same-run
 /// coupling could have hidden is the collision suffix loop, and that resolves against the database
 /// rather than against this run's own planned targets, so the answer does not depend on which entities
-/// happen to share a page. Two entities in ONE run that would collide with each other are consequently
+/// happen to share a page. Two entities in one run that would collide with each other are consequently
 /// not detected — that is pre-existing, is exactly as (un)detected before and after paging, and is
 /// deliberately not addressed here. A later change that makes the planner accumulate any cross-entity
 /// state breaks these facts, which is the intent.
@@ -135,7 +135,7 @@ public sealed class ScanPagingEquivalenceTests
 
     /// <summary>
     /// The reference sequence: one full pass over every kind's ids in ascending order, planned through
-    /// the SAME planner the pager uses — the point of the comparison is the traversal, so the planner is
+    /// the same planner the pager uses — the point of the comparison is the traversal, so the planner is
     /// never doubled.
     /// </summary>
     private static async Task<List<ScanRow>> FullPlanAsync(FakeRenamerDataPort port)
@@ -188,7 +188,7 @@ public sealed class ScanPagingEquivalenceTests
         return rows;
     }
 
-    // Compared as the SERIALIZED sequence, not field by field: a per-field loop would keep passing if a
+    // Compared as the serialized sequence, not field by field: a per-field loop would keep passing if a
     // field were added to the row and populated on only one of the two paths.
     private static string Wire(IEnumerable<ScanRow> rows)
         => JsonSerializer.Serialize(rows.ToArray(), PreviewContracts.PreviewResponseJsonOptions);

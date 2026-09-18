@@ -93,8 +93,9 @@ public static class RevertJournalSchema
     // remaining migrations after one failure, so a single unrunnable statement would block every later
     // migration on that database, on every start.
     //
-    // PostgreSQL syntax, which is the only dialect the host runs. SQLite has no ADD COLUMN IF NOT
-    // EXISTS, and the tests build their journal schema without executing this string. An existing row
+    // PostgreSQL syntax, which is the only dialect the host runs. SQLite has no
+    // ADD COLUMN IF NOT EXISTS, and the tests build their journal schema without executing this
+    // string. An existing row
     // takes '', which readers resolve to that batch's own run id.
     public const string Migration002UpSql =
         """

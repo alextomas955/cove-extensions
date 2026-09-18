@@ -1,5 +1,5 @@
 // The one-time name→id options conversion, driven the only way it can be driven end to end: against
-// a real containerized Cove that is STARTED ON TOP of a stored legacy blob, with the outcome read off
+// a real containerized Cove that is started on top of a stored legacy blob, with the outcome read off
 // the settings panel a user would open.
 //
 // Why this exists when the backend suite already covers the conversion: every one of those tests hands
@@ -10,7 +10,7 @@
 //   1. that the host runs `InitializeAsync` (and therefore the conversion) before it serves the panel;
 //   2. that the elevated library read returns real rows through Cove's own authorization filters,
 //      which exist only under Npgsql and so are absent from the SQLite L1 tier;
-//   3. that the panel then RENDERS the converted ids as entity names rather than as numbers, empty
+//   3. that the panel then renders the converted ids as entity names rather than as numbers, empty
 //      fields, or the host's "Loading tag..." placeholder.
 //
 // This spec is the only place all three are real at once. entity-id-rules.spec.mjs covers the
@@ -18,7 +18,7 @@
 // against an unreadable library. What is here is the rest of the blob (both groups, the exclusion
 // list, the destination map), the narrowing cases, and the render.
 //
-// What it is NOT: a test against data a real installation accumulated. The blob below is written by
+// What it is not: a test against data a real installation accumulated. The blob below is written by
 // this test, so it is realistic by construction rather than by history — six migrated fields in their
 // name-keyed form, both groups carrying the empty-array shape a real install always emitted, and
 // three unrelated fields whose survival is the preservation proof.
@@ -28,10 +28,10 @@ import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
 const RENAMER_ID = "com.alextomas955.renamer";
 
-// Its own Cove instance, for a reason stronger than data isolation: this test RESTARTS the host. A
+// Its own Cove instance, for a reason stronger than data isolation: this test restarts the host. A
 // restart re-binds the published port and invalidates every token minted before it, so running it
 // against the per-worker instance would pull the base URL out from under every sibling test sharing
-// that worker. The fixture installs the extension with NO stored blob, which is what makes the seed
+// that worker. The fixture installs the extension with no stored blob, which is what makes the seed
 // below reachable: the conversion returns before stamping when there is nothing to convert, so the
 // schema stamp is still unset when this test writes its legacy blob.
 const test = base.extend({
@@ -90,11 +90,11 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   const stamp = Date.now();
   const seedApi = clientFor(migrationHarness);
 
-  // ── The library the stored NAMES will be resolved against ───────────────────────────────────────
+  // ── The library the stored names will be resolved against ───────────────────────────────────────
   const names = {
     tagKeep: `Qzmig Keep Tag ${stamp}`,
-    // Two performers differing ONLY by letter case. Created in this order deliberately: the converter
-    // keeps the LOWEST id so the choice is decided by the data rather than by the order rows came back
+    // Two performers differing only by letter case. Created in this order deliberately: the converter
+    // keeps the lowest id so the choice is decided by the data rather than by the order rows came back
     // in, and Postgres hands out ascending ids, so `caseFirst` is the predictable survivor.
     caseFirst: `qzmig case performer ${stamp}`,
     caseSecond: `QZMIG CASE PERFORMER ${stamp}`,
@@ -124,7 +124,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     ).toBe(true);
     ids[key] = created.json.id;
   }
-  // Each spelling carries its OWN disambiguation, which is what lets a host hold both: a performer's
+  // Each spelling carries its own disambiguation, which is what lets a host hold both: a performer's
   // identity is the name key paired with the disambiguation key, so one name covers several ids only
   // where those disambiguations differ.
   for (const key of ["caseFirst", "caseSecond"]) {
@@ -144,7 +144,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   ).toBe(true);
 
   // ── The blob a pre-migration install left behind ────────────────────────────────────────────────
-  // All six migrated fields in their name-keyed form, both groups carrying BOTH legacy keys including
+  // All six migrated fields in their name-keyed form, both groups carrying both legacy keys including
   // the empty array a real install always emitted (the panel serialized its whole defaults object),
   // and three fields the converter does not model at all, so preservation is proven rather than
   // assumed. The template names $performers and $tags because the panel renders those two token cards
@@ -178,7 +178,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
 
   // ── Start the host over on top of it ────────────────────────────────────────────────────────────
   // The conversion runs at InitializeAsync and nowhere else, so there is no way to reach it while the
-  // host stays up. Everything after this reads the RESTARTED instance's base URL: a restart can
+  // host stays up. Everything after this reads the restarted instance's base URL: a restart can
   // re-bind the published port and re-mints the token.
   await migrationHarness.restart();
   const api = clientFor(migrationHarness);
@@ -200,7 +200,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   const settings = new RenamerSettingsPage(page, baseUrl);
   await settings.goto();
 
-  // ── The surviving rules render as entity NAMES ──────────────────────────────────────────────────
+  // ── The surviving rules render as entity names ──────────────────────────────────────────────────
   const tagsCard = groupCard(page, "Tags");
   const tagWhitelist = field(tagsCard, "Whitelist");
   await expect(
@@ -283,7 +283,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     routedRow.getByText(names.tagRoute, { exact: true }),
     "the destination row shows its opaque id rather than the tag name the host resolves it to",
   ).toBeVisible();
-  // The map key is re-keyed AND the stored path is split: a destination now names one of Cove's library
+  // The map key is re-keyed and the stored path is split: a destination now names one of Cove's library
   // paths plus a folder rendered under it, so the single legacy string becomes the library path that
   // holds it and the remainder. Asserting both halves is what distinguishes a real split from a row
   // preserved in name only, and from a path dropped into the template with no root behind it.

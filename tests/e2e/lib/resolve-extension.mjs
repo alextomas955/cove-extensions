@@ -1,4 +1,4 @@
-// Resolves an extension's build outputs from the calling fixture's OWN module URL. This is the one
+// Resolves an extension's build outputs from the calling fixture's own module URL. This is the one
 // place that encodes the `extensions/<Ext>/e2e/lib/…` layout, so a per-extension fixture never
 // hand-rolls a fixed-distance-to-repo-root path.
 import { fileURLToPath } from "node:url";

@@ -5,8 +5,8 @@ namespace Renamer.Tests.Options;
 
 /// <summary>
 /// The frontend↔backend store contract: a panel-shaped JSON blob deserializes via
-/// <see cref="RenamerOptions.JsonOptions"/> into the EXPECTED <see cref="RenamerOptions"/> (value
-/// equality), AND a C#-serialized blob deserializes back equal — BOTH directions, so the panel can
+/// <see cref="RenamerOptions.JsonOptions"/> into the expected <see cref="RenamerOptions"/> (value
+/// equality), and a C#-serialized blob deserializes back equal — both directions, so the panel can
 /// read a backend-written blob and write one the backend reads losslessly. Property-name matching is
 /// proven case-insensitive (lowerCamel and PascalCase mixed), and the three enums are matched as
 /// stable strings.
@@ -17,9 +17,9 @@ public sealed class OptionsRoundTripTests
     public void Deserialize_RequiredFields_ReplacesDefault_DoesNotAppendToTitle()
     {
         // Reproduces the live gating bug: a stored blob sets RequiredFields to a single token.
-        // System.Text.Json, by default, POPULATES a pre-initialized List<string> ("title") instead of
+        // System.Text.Json, by default, populates a pre-initialized List<string> ("title") instead of
         // replacing it, yielding ["title","studioCode"] — so the user's chosen gate silently never
-        // fires (title is always present). The deserialized list must be EXACTLY what the blob said.
+        // fires (title is always present). The deserialized list must be exactly what the blob said.
         const string json = """{ "requiredFields": ["studioCode"] }""";
 
         var opts = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions)!;
@@ -129,7 +129,7 @@ public sealed class OptionsRoundTripTests
     public void Enums_Bind_From_String_Names_In_Either_Casing()
     {
         // lowerCamel property names + string enum values — the TS contract is case-insensitive on
-        // property names while enum VALUES are the stable PascalCase strings.
+        // property names while enum values are the stable PascalCase strings.
         const string json = """{ "case": "Lower", "performers": { "onOverflow": "KeepFirst" } }""";
 
         var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);

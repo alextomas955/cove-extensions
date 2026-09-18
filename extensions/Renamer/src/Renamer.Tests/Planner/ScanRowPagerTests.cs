@@ -9,7 +9,7 @@ namespace Renamer.Tests.Planner;
 /// <summary>
 /// The cursor walk that serves the whole-library dry run a page at a time: its traversal order, its
 /// never-split-an-entity rule, its per-request entity budget, the server-side path search and bucket
-/// filter, and its per-kind permission gate - plus the per-row in-flight overflow flag as a PAGE reads
+/// filter, and its per-kind permission gate - plus the per-row in-flight overflow flag as a page reads
 /// it, driven through <see cref="ScanRowPager.PageAsync"/> rather than through <see cref="ScanRow.From"/>,
 /// because the projection classifies nothing itself and a test of it would only re-check the value it was
 /// handed. What is at stake in that last case is the composition: that the page computes the flag at all,
@@ -243,16 +243,16 @@ public sealed class ScanRowPagerTests
     }
 
     // The in-flight overflow flag, as a page reads it.
-    // PURE: a fake port, string-only path math and a synthetic mount table. No disk, no DB, and no
+    // pure: a fake port, string-only path math and a synthetic mount table. No disk, no DB, and no
     // dependence on the runner's own volumes.
 
     // Volume identity is per-platform: the path root on Windows, the enclosing mount point on Unix. Both
-    // spellings are FOUR characters, which is what lets one arithmetic land on the same absolute length on
+    // spellings are four characters, which is what lets one arithmetic land on the same absolute length on
     // both - a Windows root is otherwise longer than its Unix twin.
     private static string SourceRoot => OperatingSystem.IsWindows() ? @"C:\s" : "/sss";
     private static string DestRoot => OperatingSystem.IsWindows() ? @"D:\d" : "/ddd";
 
-    // On Unix every path under "/" shares one volume, so the destination root has to BE a mount for the
+    // On Unix every path under "/" shares one volume, so the destination root has to be a mount for the
     // cross-volume arm to exist. On Windows the drive letters already carry that difference.
     private static readonly IReadOnlyCollection<string>? Mounts =
         OperatingSystem.IsWindows() ? null : ["/", "/ddd"];

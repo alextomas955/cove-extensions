@@ -35,7 +35,6 @@ public sealed class GatingTests
             Assert.Equal(RenamerStatus.SkipGated, i.Status);
             Assert.NotNull(i.Reason);
         });
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -53,7 +52,6 @@ public sealed class GatingTests
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipGated, item.Status);
         Assert.NotEqual(RenamerStatus.Failed, item.Status);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -69,14 +67,13 @@ public sealed class GatingTests
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipGated, item.Status);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
     public async Task OnlyOrganized_WithUnorganizedDestination_RoutesInsteadOfGating()
     {
-        // With OnlyOrganized ON but an UnorganizedDestination configured, an unorganized item must
-        // NOT be gated out — the unorganized destination takes precedence and the item routes.
+        // With OnlyOrganized on but an UnorganizedDestination configured, an unorganized item must
+        // not be gated out — the unorganized destination takes precedence and the item routes.
         // Without this carve-out the gate would silently nullify the unorganized route.
         string unorgRoot = OperatingSystem.IsWindows() ? @"H:\unsorted" : "/mnt/unsorted";
         string srcFolder = OperatingSystem.IsWindows() ? "C:/library/incoming" : "/srv/library/incoming";
@@ -103,7 +100,6 @@ public sealed class GatingTests
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(unorgRoot.Replace('\\', '/'), item.ResolvedDestinationRoot);
         Assert.Equal("Unorganized", item.MatchedRule);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -119,7 +115,6 @@ public sealed class GatingTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         Assert.Equal(RenamerStatus.SkipGated, Assert.Single(plan.Items).Status);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -133,6 +128,5 @@ public sealed class GatingTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         Assert.NotEqual(RenamerStatus.SkipGated, Assert.Single(plan.Items).Status);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

@@ -8,13 +8,13 @@
  * state points at nothing, which leaves the only warning they get unactionable.
  *
  * A DOM is needed because the claim is about which of two sentences is on screen, and that depends on
- * a derivation the component runs. React arrives as its PRODUCTION build (the bundle's
+ * a derivation the component runs. React arrives as its production build (the bundle's
  * `process.env.NODE_ENV` define applies here too), which has no `act`, so the render is flushed by
  * waiting rather than by wrapping.
  *
  * The shared primitives stand in, because their `react` import resolves only inside a consuming
  * bundle. PathShapeHint's stand-in reproduces its real gate — it renders only for an absolute-path
- * shape — by calling the REAL predicate, so a hint this test reads is one the user would see.
+ * shape — by calling the real predicate, so a hint this test reads is one the user would see.
  */
 import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
@@ -81,7 +81,7 @@ async function renderField(library: LibraryPathsState, template = TYPED_PATH) {
 }
 
 test("with no root picker on screen the hint does not send the user to one", async () => {
-  // THE case: Cove reported no library paths, so `showPicker` is false and no "Under" select renders.
+  // the case: Cove reported no library paths, so `showPicker` is false and no "Under" select renders.
   const field = await renderField({ paths: [], loading: false, failed: false });
 
   expect(field.hasPicker).toBe(false);

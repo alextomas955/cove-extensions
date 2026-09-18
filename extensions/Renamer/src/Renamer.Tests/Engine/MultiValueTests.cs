@@ -30,7 +30,7 @@ public class MultiValueTests
         Assert.Equal(expected, ResolutionLabel.FromHeight(height));
     }
 
-    // Sub-480 heights are progressive-scan-labelled ("{height}p"), NOT bare numbers — otherwise an
+    // Sub-480 heights are progressive-scan-labelled ("{height}p"), not bare numbers — otherwise an
     // already-correct "[368p]" filename would be needlessly rewritten to "[368]". A non-positive height
     // has no resolution and renders empty (never a garbage "[0]").
     [Theory]
@@ -281,7 +281,7 @@ public class MultiValueTests
     public void Resolve_Performers_IgnoreGender_FreesAnOverflowSlot()
     {
         // Three performers, a limit of 2, one gender ignored. The ignored performer is dropped
-        // BEFORE the limit, so two non-ignored performers survive (not one).
+        // before the limit, so two non-ignored performers survive (not one).
         var m = new MultiValueOptions
         {
             Separator = ",",
@@ -356,7 +356,7 @@ public class MultiValueTests
     [Fact]
     public void SortOrder_HasNoRatingValue_PerformerRatingDeferred_NoPrincipal()
     {
-        // Performer sort-by-rating is intentionally NOT offered: rating is per-user data and the
+        // Performer sort-by-rating is intentionally not offered: rating is per-user data and the
         // detached renamer job runs without a signed-in user, so there is no defined rating to order
         // by. This negative assertion documents and guards that deferral — if someone adds a rating
         // sort, they must revisit the no-principal source decision first.

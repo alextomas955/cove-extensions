@@ -6,11 +6,11 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Execution.Undo;
 
 /// <summary>
-/// The write-seam rollback proof this phase unlocked. Because <see cref="IRenamerDataPort.ApplyAndSaveAsync"/>
-/// is now on the INTERFACE (not just the concrete <c>CoveRenamerDataPort</c>), the executor's
+/// The write-seam rollback proof. Because <see cref="IRenamerDataPort.ApplyAndSaveAsync"/>
+/// is now on the interface (not just the concrete <c>CoveRenamerDataPort</c>), the executor's
 /// disk-first/DB-second rollback spine can be driven by a pure in-memory <see cref="FakeRenamerDataPort"/>
-/// with a real on-disk move and NO live database — the L0 test that was impossible while the executor
-/// bound the concrete port. The fake makes the save FAIL after a genuine <see cref="DiskMover"/> move;
+/// with a real on-disk move and no live database — the L0 test that was impossible while the executor
+/// bound the concrete port. The fake makes the save fail after a genuine <see cref="DiskMover"/> move;
 /// the executor must restore the source and classify the item Failed, never leaving the file abandoned
 /// at the new path with the DB unchanged.
 /// </summary>
@@ -29,7 +29,7 @@ public sealed class RollbackTests
         File.WriteAllText(oldA, "A-bytes");
 
         var fake = SeedSingleFilePort(videoId, fileId, folderPath, "a.mkv");
-        // The seam under test: force the save to throw AFTER the disk move has already happened.
+        // The seam under test: force the save to throw after the disk move has already happened.
         fake.ApplyAndSaveThrow = new InvalidOperationException("forced save failure (unique index)");
 
         var bus = new CapturingEventBus();
@@ -54,7 +54,7 @@ public sealed class RollbackTests
         Assert.Empty(journal.Rows);
         Assert.Empty(bus.Published);
 
-        // The file is restored to its ORIGINAL path with original content, and not left at the new path.
+        // The file is restored to its original path with original content, and not left at the new path.
         Assert.True(File.Exists(oldA), "file must be rolled back to its old path");
         Assert.Equal("A-bytes", File.ReadAllText(oldA));
         Assert.False(File.Exists(newB), "rolled-back file must not linger at the new path");

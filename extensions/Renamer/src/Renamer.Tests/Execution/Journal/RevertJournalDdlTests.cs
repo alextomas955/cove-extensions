@@ -45,7 +45,7 @@ public sealed class RevertJournalDdlTests
         // The table can outlive its receipt — an uninstall removes the extension's directory and
         // nothing removes the receipt, while a restored database can carry the tables with none. A
         // second application therefore has to be harmless, and its failure would only be a host log
-        // line, which is precisely the silence this phase exists to close.
+        // line, which is the silence these cases exist to close.
         var (db, conn) = CoveContextFactory.CreateSqliteContextWithoutSchema();
         await using var _ = db;
         await using var __ = conn;

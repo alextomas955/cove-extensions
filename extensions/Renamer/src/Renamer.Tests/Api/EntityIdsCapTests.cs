@@ -14,8 +14,8 @@ namespace Renamer.Tests.Api;
 /// <summary>
 /// The preview and renamer endpoints accept a caller-supplied id array, which is an unbounded fan-out:
 /// preview runs the planner (DB hits) per id on the request thread, and renamer fans the same ids into
-/// one job. Both reject an over-cap array with a 400 BEFORE any per-id work, so a runaway/oversized
-/// request can't tie up a request thread or enqueue a giant job. An ABSENT array is rejected the same
+/// one job. Both reject an over-cap array with a 400 before any per-id work, so a runaway/oversized
+/// request can't tie up a request thread or enqueue a giant job. An absent array is rejected the same
 /// way, with its own code.
 /// </summary>
 public sealed class EntityIdsCapTests
@@ -133,7 +133,7 @@ public sealed class EntityIdsCapTests
     /// An omitted or explicitly-null <c>entityIds</c> is a 400 carrying its own code, not a 500.
     /// </summary>
     /// <remarks>
-    /// Driven over the REAL route rather than by calling the handler with a null argument: a direct
+    /// Driven over the real route rather than by calling the handler with a null argument: a direct
     /// call supplies the null itself, so it says nothing about what the host's model binding actually
     /// produces for these two bodies — which is the whole question.
     /// </remarks>

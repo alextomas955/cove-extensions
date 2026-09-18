@@ -25,7 +25,7 @@ export function stageExtension({ repoRoot, publishDir, manifestPath, stagingRoot
   }
 
   // The manifest read above names the staged directory and stamps the version, while assemblePackage
-  // resolves the manifest to SHIP independently, from the catalog entry's own manifestPath. Should
+  // resolves the manifest to ship independently, from the catalog entry's own manifestPath. Should
   // those two diverge, the container receives a directory named for this manifest's id holding the
   // other one's document, and nothing fails.
   const packagedManifestPath = resolveEntryManifestPath(repoRoot, manifest.id);

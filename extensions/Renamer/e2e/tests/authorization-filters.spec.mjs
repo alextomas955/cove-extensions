@@ -1,4 +1,4 @@
-// The only spec that observes Cove's ROW-LEVEL authorization filters. Three host facts put it here
+// The only spec that observes Cove's row-level authorization filters. Three host facts put it here
 // rather than in a C# tier, and each one of them makes a cheaper version of this test vacuous.
 //
 // The filters install only under Npgsql: `CoveContext.OnModelCreating` configures them inside its
@@ -9,7 +9,7 @@
 //
 // Which principal discriminates, and why this role holds a write permission and still sees nothing,
 // are stated in full on the harness's `createRestrictedUser`. What follows from them here is that
-// this spec's FIRST assertions are that the principal it drives is not the bypass one.
+// this spec's first assertions are that the principal it drives is not the bypass one.
 //
 // `jobs.read` is in the set for one reason only: the host gates its own job-status endpoint on it,
 // so without it the restricted user cannot poll the job it just enqueued (measured — the poll answers
@@ -100,7 +100,7 @@ test("Cove's row-level filters bite for a restricted principal and not for the o
     "the restricted principal does not hold videos.read, so an empty video read would be a permission refusal rather than a filter decision",
   ).toContain("videos.read");
 
-  // The deny rule contributes no allow, so the principal carries no read GRANT to fall back on.
+  // The deny rule contributes no allow, so the principal carries no read grant to fall back on.
   expect(
     me.json?.readGrantedEntityKinds ?? [],
     "the restricted role carries a read grant for videos, so the deny rule is not the only thing deciding",
@@ -128,16 +128,16 @@ test("every endpoint refuses a caller holding no renamer permission, and answers
 }) => {
   const { owner, harness, routeBase } = authz;
 
-  // WHAT THIS DOES AND DOES NOT GATE, measured rather than assumed.
+  // what this does and does not gate, measured rather than assumed.
   //
-  // `RequireCovePermission` is evaluated against the caller's PERMISSIONS: the host returns true as
+  // `RequireCovePermission` is evaluated against the caller's permissions: the host returns true as
   // soon as `principal.Has(permission)` does, and never consults role content rules. So it refuses a
-  // caller holding no permission - asserted below - and it does NOT refuse one that holds the
+  // caller holding no permission - asserted below - and it does not refuse one that holds the
   // permission while a content rule denies it rows. The `restricted` fixture user is the second kind
   // and still reaches these routes; the next test pins that, because it is the host's model rather
   // than a gap in the declaration.
   //
-  // Refusing THAT caller would need the content-rule check Cove applies to its own routes with
+  // Refusing that caller would need the content-rule check Cove applies to its own routes with
   // [RequiresUnscopedEntityAccess], an MVC action filter that never reaches a minimal-API endpoint.
   // `IAuthorizationService` offers no unrestricted-access query either, so an extension could only get
   // there by reading RoleContentRules itself - a host table outside the extension surface.
@@ -148,7 +148,7 @@ test("every endpoint refuses a caller holding no renamer permission, and answers
   });
   const withoutPermission = createApiClient(() => harness.baseUrl, noPermission.token);
 
-  // EVERY route, not a chosen few: each one declares the any-of gate its handler re-checks, so a
+  // every route, not a chosen few: each one declares the any-of gate its handler re-checks, so a
   // caller holding no renamer permission is refused at all twelve doors.
   const everyRoute = [
     { method: "post", path: "preview", body: { entityType: "video", ids: [] } },
@@ -204,7 +204,7 @@ test("a scoped account still reaches what is its own: its rules, and a job it st
 }) => {
   const { restricted, routeBase } = authz;
 
-  // This caller HOLDS a renamer permission; what limits it is a role content rule denying it rows. A
+  // This caller holds a renamer permission; what limits it is a role content rule denying it rows. A
   // permission policy does not consult those, so it passes every door above - which is the half of the
   // host's model the previous test does not cover, and the reason these endpoints stay reachable.
   const ownState = await restricted.get(`${routeBase}/orphaned-rules`);
@@ -219,7 +219,7 @@ test("a scoped account still reaches what is its own: its rules, and a job it st
     `GET library-paths as the restricted user answered ${roots.status}: ${roots.text}`,
   ).toBe(200);
 
-  // Job status, which is the reason the extension serves its own: Cove gates ITS job route on an
+  // Job status, which is the reason the extension serves its own: Cove gates its job route on an
   // unrestricted grant, so without this route a scoped caller could start work it could never watch.
   //
   // Asked with an id no job answers to, deliberately. The two refusals are what separate the door from

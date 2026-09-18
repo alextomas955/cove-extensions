@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 /**
- * That the row walk FOLLOWS a page which carried no rows.
+ * That the row walk follows a page which carried no rows.
  *
  * The pure predicate has its own suite, and a green one there proves nothing on its own - a modal that
  * re-evaluates only when the row count moves never asks it again after the one page that moved nothing.
- * So this renders the REAL modal and answers `/scan-rows` with a scripted sequence in which a zero-row
+ * So this renders the real modal and answers `/scan-rows` with a scripted sequence in which a zero-row
  * page carries a live cursor, then reads the footer, which is where a user learns whether the walk is
  * finished.
  *
@@ -14,7 +14,7 @@
  * imports resolve only inside a consuming bundle: each stand-in renders the text-bearing props and the
  * children it is handed, so what the assertions read is this modal's own output.
  *
- * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here too),
+ * React arrives as its production build (the bundle's `process.env.NODE_ENV` define applies here too),
  * which has no `act`, so renders are flushed by waiting rather than by wrapping.
  */
 import { test, expect, vi, beforeEach } from "vitest";
@@ -188,7 +188,7 @@ beforeEach(() => {
 const MOST_READS_A_FAILING_WALK_NEEDS = 4;
 
 test("the walk follows a page that carried no rows and reaches the end of the library", async () => {
-  // The middle page is the whole point: the server's ceiling is a budget on entities EXAMINED, so it
+  // The middle page is the whole point: the server's ceiling is a budget on entities examined, so it
   // can answer with nothing at all while more of the library is still readable.
   host.pages.push(
     budgetStopped([], 500),
@@ -219,7 +219,7 @@ test("a failed page stops the walk instead of reissuing the same request without
     MOST_READS_A_FAILING_WALK_NEEDS,
   );
 
-  // One count cannot show that a walk STOPPED: a live one and a stopped one look alike at an instant,
+  // One count cannot show that a walk stopped: a live one and a stopped one look alike at an instant,
   // so let several more settle periods pass and require the count not to move.
   await sleep(1_000);
   expect(host.rowReads, "the walk resumed on its own after the failure").toBe(readsAtRest);

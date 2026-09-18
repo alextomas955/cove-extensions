@@ -172,7 +172,7 @@ public sealed class DestinationResolverPrecedenceTests
     }
 }
 
-/// <summary>Route-on-stable-id: the studio NAME never affects the match.</summary>
+/// <summary>Route-on-stable-id: the studio name never affects the match.</summary>
 public sealed class DestinationResolverRouteOnStableStudioIdTests
 {
     [Fact]
@@ -288,8 +288,8 @@ public sealed class DestinationResolverSourcePathRoutingTests
 
 /// <summary>
 /// A valid-but-backtracking source-path regex must be treated as "no match" (skip the rule,
-/// keep cascading) when it times out at match time — NEVER an uncaught throw that aborts the batch.
-/// The build-time guard only catches a SYNTAX-invalid pattern (ArgumentException); a pattern that
+/// keep cascading) when it times out at match time — never an uncaught throw that aborts the batch.
+/// The build-time guard only catches a syntax-invalid pattern (ArgumentException); a pattern that
 /// compiles fine then exhibits catastrophic backtracking throws RegexMatchTimeoutException at IsMatch
 /// time, which the resolver now catches and falls through.
 /// </summary>
@@ -303,21 +303,21 @@ public sealed class DestinationResolverRegexTimeoutTests
     public void BacktrackingRegex_TimesOut_FallsThroughToNextCascadeStage_NotThrow()
     {
         // Classic ReDoS pattern + a long non-matching input → catastrophic backtracking. A tiny
-        // match timeout makes the test fast and deterministic. The pattern COMPILES fine (no
+        // match timeout makes the test fast and deterministic. The pattern compiles fine (no
         // ArgumentException), so the build-time guard would have admitted it.
         var redos = new Regex("^(a+)+$", RegexOptions.None, TimeSpan.FromMilliseconds(50));
         string evil = new string('a', 40) + "!";   // never matches → forces the backtracking blowup
 
-        // The timing-out regex is the FIRST source-path rule; a second, benign exact rule for the SAME
+        // The timing-out regex is the first source-path rule; a second, benign exact rule for the same
         // path proves the cascade keeps going after the timeout (exact is tried before regex, so to
-        // exercise the regex-timeout fall-through we set ONLY the regex rule and assert Unmatched).
+        // exercise the regex-timeout fall-through we set only the regex rule and assert Unmatched).
         var lk = new RouteLookups(
             new Dictionary<int, Destination>(),
             new Dictionary<int, Destination>(),
             new Dictionary<string, Destination>(StringComparer.Ordinal),
             [(redos, new Destination { Root = "P:never" })]);
 
-        // Must NOT throw, and the timed-out rule must NOT match → fall through to source-confine.
+        // Must not throw, and the timed-out rule must not match → fall through to source-confine.
         var r = DestinationResolver.Resolve(AtPath(evil), new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.Unmatched, r.Category);
@@ -327,7 +327,7 @@ public sealed class DestinationResolverRegexTimeoutTests
     [Fact]
     public void BacktrackingRegex_TimesOut_LaterStudioRuleStillWins_BatchContinues()
     {
-        // The timing-out source-path regex sits in the cascade, but a STUDIO rule (higher precedence)
+        // The timing-out source-path regex sits in the cascade, but a studio rule (higher precedence)
         // matches first — proving a routed item still routes and the timeout never aborts resolution.
         // (Studio outranks source-path, so the studio rule is reached before the regex; this asserts
         // the resolver returns cleanly with the studio route regardless of a pathological path rule.)
@@ -370,7 +370,7 @@ public sealed class DestinationResolverUnorganizedRouteTests
     [Fact]
     public void UnorganizedItem_WithoutUnorganizedDestination_FallsThrough()
     {
-        // No unorganized destination set → the unorganized slot does NOT fire; falls to source-confine.
+        // No unorganized destination set → the unorganized slot does not fire; falls to source-confine.
         var e = new RenamerEntity(1, RenamerFileKind.Video, "T", null, null, null, Organized: false,
             [], [], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "x")]);
 
@@ -384,7 +384,7 @@ public sealed class DestinationResolverUnorganizedRouteTests
 }
 
 /// <summary>
-/// An entity no rule matched carries NO destination of its own: the resolver labels it
+/// An entity no rule matched carries no destination of its own: the resolver labels it
 /// <see cref="RouteCategory.Unmatched"/> and the planner reads the default destination from the
 /// options, so the two never join two folder expressions.
 /// </summary>
@@ -413,11 +413,11 @@ public sealed class DestinationResolverUnmatchedTests
 }
 
 /// <summary>
-/// EXCL-01/02/03: excludes run FIRST in the resolver — a matching tag / studio (incl.
+/// Excludes run first in the resolver — a matching tag / studio (incl.
 /// parent, stable id) / source-path (exact + regex) returns <see cref="RouteCategory.Excluded"/>
-/// BEFORE any routing category (including Unorganized) is considered, with a clear label. A
+/// before any routing category (including Unorganized) is considered, with a clear label. A
 /// match-time ReDoS timeout on an exclude regex is treated as no-match (classify-not-throw), never
-/// aborting resolution. PURE — no DB, no disk.
+/// aborting resolution. pure — no DB, no disk.
 /// </summary>
 public sealed class DestinationResolverExcludeTests
 {
@@ -453,7 +453,7 @@ public sealed class DestinationResolverExcludeTests
     private static HashSet<string> PathSet(params string[] paths)
         => new(paths, DestinationResolver.SourcePathComparer);
 
-    // --- EXCL-01: tag ---------------------------------------------------------------------------
+    // --- tag ---------------------------------------------------------------------------
 
     [Fact]
     public void ExcludeByTag_Exact_ReturnsExcluded()
@@ -500,7 +500,7 @@ public sealed class DestinationResolverExcludeTests
         Assert.Null(r.Destination);
     }
 
-    // --- EXCL-02: studio (direct + ancestor, stable id) -----------------------------------------
+    // --- studio (direct + ancestor, stable id) -----------------------------------------
 
     [Fact]
     public void ExcludeByStudio_DirectId_ReturnsExcluded()
@@ -517,7 +517,7 @@ public sealed class DestinationResolverExcludeTests
     [Fact]
     public void ExcludeByStudio_AncestorId_ReturnsExcluded()
     {
-        // EXCL-02 "studio OR its parent": the direct studio (42) is NOT excluded, but a parent (7) is.
+        // "studio or its parent": the direct studio (42) is not excluded, but a parent (7) is.
         var e = Entity(studioId: 42, parentStudios: [(7, "Parent")]);
         var lk = Lookups(excludeStudios: new HashSet<int> { 7 });
 
@@ -527,7 +527,7 @@ public sealed class DestinationResolverExcludeTests
         Assert.Equal("Exclude:Studio:7(ancestor)", r.MatchedRule);
     }
 
-    // --- EXCL-03: source-path (exact + regex) ---------------------------------------------------
+    // --- source-path (exact + regex) ---------------------------------------------------
 
     [Fact]
     public void ExcludeByPath_Exact_ReturnsExcluded()
@@ -566,12 +566,12 @@ public sealed class DestinationResolverExcludeTests
         Assert.Equal("Exclude:Path:regex", r.MatchedRule);
     }
 
-    // --- precedence: excludes beat routes AND Unorganized ---------------------------------------
+    // --- precedence: excludes beat routes and Unorganized ---------------------------------------
 
     [Fact]
     public void Exclude_BeatsAMatchingTagRoute()
     {
-        // The SAME tag is both a route and an exclude → the exclude wins (runs first).
+        // The same tag is both a route and an exclude → the exclude wins (runs first).
         var e = Entity(tags: ["anime"]);
         var lk = Lookups(
             tags: TagMap(("anime", "T:anime")),
@@ -599,7 +599,7 @@ public sealed class DestinationResolverExcludeTests
     [Fact]
     public void Exclude_BeatsUnorganized()
     {
-        // An unorganized item that matches an exclude is Excluded, NOT routed to the unorganized dest.
+        // An unorganized item that matches an exclude is Excluded, not routed to the unorganized dest.
         var e = Entity(organized: false, tags: ["anime"]);
         var o = new RenamerOptions { UnorganizedDestination = new Destination { Root = "U:dest" } };
         var lk = Lookups(excludeTags: TagSet("anime"));
@@ -612,7 +612,7 @@ public sealed class DestinationResolverExcludeTests
     [Fact]
     public void NoExcludeMatch_FallsThroughToRoutingUnchanged()
     {
-        // An entity whose tag is NOT excluded still routes normally (additive / non-breaking).
+        // An entity whose tag is not excluded still routes normally (additive / non-breaking).
         var e = Entity(tags: ["keep"]);
         var lk = Lookups(
             tags: TagMap(("keep", "T:keep")),
@@ -646,8 +646,8 @@ public sealed class DestinationResolverExcludeTests
     public void ExcludeRegex_Backtracking_TimesOut_TreatedAsNoMatch_NotThrow()
     {
         // Classic ReDoS pattern + a long non-matching path → catastrophic backtracking. A tiny match
-        // timeout makes it fast/deterministic. The timeout must be a NO-MATCH (the item is NOT
-        // excluded by that rule) and must NOT throw — so resolution completes as Unmatched.
+        // timeout makes it fast/deterministic. The timeout must be a no-match (the item is not
+        // excluded by that rule) and must not throw — so resolution completes as Unmatched.
         var redos = new Regex("^(a+)+$", RegexOptions.None, TimeSpan.FromMilliseconds(50));
         string evil = new string('a', 40) + "!";
         var e = Entity(parentFolderPath: evil);

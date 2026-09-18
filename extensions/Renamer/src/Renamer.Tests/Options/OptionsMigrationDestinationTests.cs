@@ -21,7 +21,7 @@ public sealed class OptionsMigrationDestinationTests
 
     /// <summary>The stored blob a real install has: one rule under each library path, and one under none.</summary>
     /// <param name="unorganized">
-    /// The unorganized route as stored. It is the one member whose EMPTY value means "there is no route"
+    /// The unorganized route as stored. It is the one member whose empty value means "there is no route"
     /// rather than "this rule names no root of its own", so the two cases differ in exactly this member.
     /// </param>
     private static string Blob(string unorganized) =>
@@ -91,9 +91,9 @@ public sealed class OptionsMigrationDestinationTests
     public void AnEmptyUnorganizedDestination_IsRemoved_SoTheWholeBlobStillBinds()
     {
         // The failure here is total and silent: a bare JSON string cannot bind to Destination, so a
-        // conversion that leaves the member in place makes the WHOLE blob throw on load, and the options
+        // conversion that leaves the member in place makes the whole blob throw on load, and the options
         // store answers a throw with defaults - every setting the user configured reads as unset with
-        // nothing anywhere saying why. Removing the member is what makes the ABSENT key mean what the
+        // nothing anywhere saying why. Removing the member is what makes the absent key mean what the
         // empty value always meant: there is no unorganized route.
         var converted = OptionsMigration.ConvertDestinationsToRoots(Blob(string.Empty), LibraryPaths);
         var options = Reload(converted.Json);
@@ -124,7 +124,7 @@ public sealed class OptionsMigrationDestinationTests
     {
         // The same safety argument the name-to-id half makes about an empty entity table: an empty list is
         // indistinguishable from a host that has not supplied one yet, and converting against it would
-        // drop EVERY rule the user has.
+        // drop every rule the user has.
         var converted = OptionsMigration.ConvertDestinationsToRoots(Configured, []);
 
         Assert.True(converted.Deferred);
@@ -142,7 +142,7 @@ public sealed class OptionsMigrationDestinationTests
     [InlineData("[ \"D:/library/videos\" ]", false)]
     public void AStoredValue_IsWorkForThisHalf_ExactlyWhenItIsAString(string valueJson, bool isWork)
     {
-        // Asked with NO library paths, because Deferred is true for exactly "there is a site and
+        // Asked with no library paths, because Deferred is true for exactly "there is a site and
         // nothing to place it under" - so it reports the site walk's answer and no part of the
         // arithmetic that follows.
         //
@@ -178,7 +178,7 @@ public sealed class OptionsMigrationDestinationTests
     public void WhatThisHalfLeavesAlone_IsNotWork(string json)
     {
         // The global folder template and root head the list, and they are the reason this is a theory
-        // rather than one assertion: they are top-level STRINGS the conversion deliberately keeps as
+        // rather than one assertion: they are top-level strings the conversion deliberately keeps as
         // stored, so a walk that read either as a site would defer forever on any install that
         // configured a folder template.
         Assert.False(OptionsMigration.ConvertDestinationsToRoots(json, []).Deferred);

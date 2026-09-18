@@ -9,16 +9,16 @@ namespace Renamer.Tests.Execution.Collisions;
 
 /// <summary>
 /// The safety-spine rollback test the whole extension hinges on. Seed the SQLite + temp-dir state so the
-/// disk move SUCCEEDS but the subsequent SaveChangesAsync THROWS (a forced unique-index clash, with
-/// the pre-check bypassed via <see cref="CollisionBlindDataPort"/>). Assert that AFTER execution:
-/// (a) the file is back at its ORIGINAL on-disk path, (b) the moved sidecar (if any) is back, and
-/// (c) the DB row still carries the OLD basename — disk and DB consistent. Runs on SQLite-in-memory
+/// disk move succeeds but the subsequent SaveChangesAsync throws (a forced unique-index clash, with
+/// the pre-check bypassed via <see cref="CollisionBlindDataPort"/>). Assert that after execution:
+/// (a) the file is back at its original on-disk path, (b) the moved sidecar (if any) is back, and
+/// (c) the DB row still carries the old basename — disk and DB consistent. Runs on SQLite-in-memory
 /// because EF-InMemory enforces neither the unique index nor transaction rollback.
 ///
-/// The test FIRST proves the disk move really happened (it is observable via the executor having
+/// The test first proves the disk move really happened (it is observable via the executor having
 /// invoked DiskMover.Move — asserted by the file being momentarily at the new path is not possible
 /// post-rollback, so instead we assert the negative-control: a DiskMover spy is unnecessary because
-/// the only path that reaches SaveChangesAsync is AFTER a successful move; we additionally assert the
+/// the only path that reaches SaveChangesAsync is after a successful move; we additionally assert the
 /// failure reason names the rollback, proving the catch — not the move — produced the terminal state).
 /// </summary>
 public sealed class RollbackTests
@@ -36,7 +36,7 @@ public sealed class RollbackTests
             // A second row occupies "taken.mkv" so the save of a→taken hits the unique index.
             await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv");
 
-            // Disk: "a.mkv" exists; "taken.mkv" does NOT (so the disk move succeeds first).
+            // Disk: "a.mkv" exists; "taken.mkv" does not (so the disk move succeeds first).
             string oldA = Path.Combine(dir.Root, "a.mkv");
             File.WriteAllText(oldA, "A-bytes");
             string newPath = Path.Combine(dir.Root, "taken.mkv");
@@ -56,7 +56,7 @@ public sealed class RollbackTests
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             // The save threw after the move → item failed with a rollback reason (proving the catch,
-            // i.e. the move had ALREADY happened before the save error — not a pre-move skip).
+            // i.e. the move had already happened before the save error — not a pre-move skip).
             var failedItem = Assert.Single(result.Failed);
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
             Assert.Contains("rolled back", failedItem.Reason);
@@ -64,13 +64,13 @@ public sealed class RollbackTests
             Assert.Empty(journal.Rows);   // no success row written
             Assert.Empty(bus.Published);      // no event for a failed item
 
-            // (a) the file is restored to its ORIGINAL path with original content.
+            // (a) the file is restored to its original path with original content.
             Assert.True(File.Exists(oldA), "file must be rolled back to its old path");
             Assert.Equal("A-bytes", File.ReadAllText(oldA));
-            // and is NOT left at the new path.
+            // and is not left at the new path.
             Assert.False(File.Exists(newPath), "rolled-back file must not linger at the new path");
 
-            // (c) the DB row still has the OLD basename — disk and DB consistent.
+            // (c) the DB row still has the old basename — disk and DB consistent.
             var (basenameA, pathA) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
             Assert.Equal("a.mkv", basenameA);
             Assert.Equal(folderPath + "/a.mkv", pathA);
@@ -115,7 +115,7 @@ public sealed class RollbackTests
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             Assert.Single(result.Failed);
-            // Both the primary file AND the moved caption sidecar are restored to their old paths.
+            // Both the primary file and the moved caption sidecar are restored to their old paths.
             Assert.True(File.Exists(oldA), "primary file restored");
             Assert.True(File.Exists(oldCap), "sidecar caption restored");
             Assert.Equal("caption", File.ReadAllText(oldCap));
@@ -130,12 +130,12 @@ public sealed class RollbackTests
     }
 
     /// <summary>
-    /// The post-save consistency-assertion branch: the DB save SUCCEEDS (commits the new basename) but
-    /// the runtime "recomputed Path == on-disk path" assertion FAILS. The executor must roll the disk
-    /// back to the OLD path through the same mover the move used AND write the committed row back to
+    /// The post-save consistency-assertion branch: the DB save succeeds (commits the new basename) but
+    /// the runtime "recomputed Path == on-disk path" assertion fails. The executor must roll the disk
+    /// back to the old path through the same mover the move used and write the committed row back to
     /// the old location, so the branch ends with disk and database agreeing. Assert: (a) the item is
-    /// Failed with a path-mismatch + rolled-back reason, (b) the file is back at its OLD on-disk path,
-    /// (c) the row names the OLD basename again, (d) no revert-log row and no event were written.
+    /// Failed with a path-mismatch + rolled-back reason, (b) the file is back at its old on-disk path,
+    /// (c) the row names the old basename again, (d) no revert-log row and no event were written.
     /// </summary>
     [Fact]
     public async Task SaveSucceedsButRecomputedPathMismatch_FileAndRowBothRolledBack()
@@ -160,8 +160,8 @@ public sealed class RollbackTests
                     RenamerStatus.Renamer, "b.mkv", folderPath),
             ]);
 
-            // Port that COMMITS the real save (new basename persisted) but reports a RecomputedPath that
-            // does NOT match the on-disk destination, tripping the post-save assertion.
+            // Port that commits the real save (new basename persisted) but reports a RecomputedPath that
+            // does not match the on-disk destination, tripping the post-save assertion.
             var port = new MismatchedRecomputedPathDataPort(db);
             var bus = new CapturingEventBus();
             var journal = new FakeRevertJournal();
@@ -169,7 +169,7 @@ public sealed class RollbackTests
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
-            // (a) the item is Failed, and the reason names BOTH the path mismatch and the rollback.
+            // (a) the item is Failed, and the reason names both the path mismatch and the rollback.
             var failedItem = Assert.Single(result.Failed);
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
             Assert.Contains("recomputed Path", failedItem.Reason);
@@ -181,7 +181,7 @@ public sealed class RollbackTests
             Assert.Empty(journal.Rows);
             Assert.Empty(bus.Published);
 
-            // (b) the file is rolled back to its OLD path with original content, and NOT at the new path.
+            // (b) the file is rolled back to its old path with original content, and not at the new path.
             Assert.True(File.Exists(oldA), "file must be rolled back to its old path");
             Assert.Equal("A-bytes", File.ReadAllText(oldA));
             Assert.False(File.Exists(newPath), "rolled-back file must not linger at the new path");
@@ -198,7 +198,7 @@ public sealed class RollbackTests
     }
 
     /// <summary>
-    /// The save COMMITS but reports no row for the file at all. That is not a path mismatch — there is
+    /// The save commits but reports no row for the file at all. That is not a path mismatch — there is
     /// no recomputed path to disagree with — so the executor must say so and leave the committed move
     /// alone. Rolling back here would revert a save that succeeded.
     /// </summary>
@@ -255,7 +255,7 @@ public sealed class RollbackTests
     }
 
     /// <summary>
-    /// The journal append runs AFTER the save committed and the on-disk path was asserted, so a throw
+    /// The journal append runs after the save committed and the on-disk path was asserted, so a throw
     /// there is not a save failure: rolling the disk back would revert a move the database already
     /// agrees with, and would report the item failed for something the save did not do. The move stands
     /// and the failure is a warning on it.
@@ -319,7 +319,7 @@ public sealed class RollbackTests
     }
 
     /// <summary>
-    /// The mismatch branch when the file does NOT come back: the save commits, the recomputed path
+    /// The mismatch branch when the file does not come back: the save commits, the recomputed path
     /// disagrees, and the old slot is occupied by the time the rollback runs, so the media file stays
     /// at the new path. The committed row must then be left naming the new path - writing it back would
     /// point the database at a location the bytes are not at - and the reason must say so.
@@ -370,7 +370,7 @@ public sealed class RollbackTests
     }
 
     /// <summary>
-    /// The mismatch branch when the PRIMARY comes back but a sidecar does not: a rollback reports both
+    /// The mismatch branch when the primary comes back but a sidecar does not: a rollback reports both
     /// in one warning list, so reading the warnings would leave the committed row naming a location the
     /// media file has left. The row is put back, and the stuck sidecar is reported alongside it.
     /// </summary>
@@ -479,9 +479,9 @@ public sealed class RollbackTests
     }
 
     /// <summary>
-    /// Test-only port: performs the REAL save (so the DB row genuinely commits the new basename), then
+    /// Test-only port: performs the real save (so the DB row genuinely commits the new basename), then
     /// returns a <see cref="SavedFile"/> whose RecomputedPath is deliberately wrong, so the executor's
-    /// post-save "recomputed Path == on-disk path" assertion fails on the success path. Only the FIRST
+    /// post-save "recomputed Path == on-disk path" assertion fails on the success path. Only the first
     /// save is misreported; the executor's restore of the row is left to report itself truthfully.
     /// </summary>
     private sealed class MismatchedRecomputedPathDataPort(DbContext db) : CoveRenamerDataPort(db)
@@ -499,7 +499,7 @@ public sealed class RollbackTests
     }
 
     /// <summary>
-    /// Test-only port: commits the real save, occupies the OLD slot so the rollback cannot reclaim it,
+    /// Test-only port: commits the real save, occupies the old slot so the rollback cannot reclaim it,
     /// and misreports the recomputed path so the post-save assertion fails.
     /// </summary>
     private sealed class ReoccupyOldSlotThenMisreportDataPort(DbContext db, string oldSlot)
@@ -515,7 +515,7 @@ public sealed class RollbackTests
     }
 
     /// <summary>
-    /// Test-only port: performs the REAL save, then reports no rows at all. The production port throws
+    /// Test-only port: performs the real save, then reports no rows at all. The production port throws
     /// when a file id is absent, so a fake is the only way to reach the executor's missing-row arm.
     /// </summary>
     private sealed class EmptySaveResultDataPort(DbContext db) : CoveRenamerDataPort(db)

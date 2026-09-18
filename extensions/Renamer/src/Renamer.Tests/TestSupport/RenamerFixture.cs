@@ -10,7 +10,7 @@ namespace Renamer.Tests.TestSupport;
 /// <remarks>
 /// Every test that needs an extension instance has to build it through here. The extension declares no
 /// metadata in code, so an instance without an applied manifest has a null <c>Id</c> and registers its
-/// routes under the wrong prefix. The manifest read is the SHIPPED file next to the test assembly, not a
+/// routes under the wrong prefix. The manifest read is the shipped file next to the test assembly, not a
 /// stub, so a file that stops parsing or loses its id fails the suite rather than only a live install.
 /// </remarks>
 internal static class RenamerFixture

@@ -3,7 +3,7 @@
  * exhaustive over the wire's status union — so a status the server grows cannot reach a row with no
  * pill saying why it was skipped.
  *
- * Color is NEVER the only signal: amber/red badges lead with a lucide `AlertTriangle` glyph and
+ * Color is never the only signal: amber/red badges lead with a lucide `AlertTriangle` glyph and
  * always carry text (accessibility). Every label string is a React text node (auto-escaped).
  */
 import { AlertTriangle } from "lucide-react";

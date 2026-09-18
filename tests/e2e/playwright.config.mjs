@@ -44,7 +44,7 @@ export default defineConfig({
   // Safe because every test's data is isolated: worker-shared-harness test files (the default —
   // see fixtures.mjs) seed their own uniquely-named data per test (timestamp + random suffix), so
   // concurrent tests in different workers never collide even though a worker's own tests run one
-  // at a time against ITS instance. Files that mutate shared extension state itself (install/
+  // at a time against its instance. Files that mutate shared extension state itself (install/
   // enable/disable/uninstall — see extension-lifecycle.spec.mjs) opt out of the shared harness
   // entirely via their own `scope: 'test'` fixture, so parallel workers never race on those
   // mutations either.
@@ -64,11 +64,11 @@ export default defineConfig({
   // as a green run over work nothing checked. Keyed on CI so a local focused run stays possible.
   forbidOnly: !!process.env.CI,
   // A worker holds a Cove container and a database of its own, and a spec that takes an isolated
-  // harness starts a SECOND pair alongside its worker's for as long as that spec runs — so the peak
+  // harness starts a second pair alongside its worker's for as long as that spec runs — so the peak
   // is twice the worker count, not equal to it. The database keeps its data directory on tmpfs, which
   // is RAM, so that peak is paid in memory rather than on disk.
   //
-  // CI and a development machine do NOT answer to the same ceiling: a shared runner has to hold the
+  // CI and a development machine do not answer to the same ceiling: a shared runner has to hold the
   // build as well, and when it runs short the kernel kills a container rather than failing a test.
   // That arrives as a spec timing out against a host serving nothing, which reads as a UI defect and
   // costs the run twice — once in the red, once in the wrong diagnosis.

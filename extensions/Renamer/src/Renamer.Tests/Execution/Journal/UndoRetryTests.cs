@@ -16,14 +16,14 @@ namespace Renamer.Tests.Execution.Journal;
 /// come back — read back off the journal table each time, never off an in-memory mirror of it.
 /// </summary>
 /// <remarks>
-/// The defect these cases close: a partial undo used to spend the whole batch the moment one file came
-/// back, so the rows skipped for a lock or an unmounted drive could never be retried — precisely when
-/// a retry is what the user needs. The retryable stop driven here is a real occupied restore slot that
-/// the test CLEARS between the two attempts, so the second attempt genuinely succeeds rather than being
-/// asserted into success.
+/// A partial undo must not spend the whole batch the moment one file comes back, or the rows skipped
+/// for a lock or an unmounted drive can never be retried, which is exactly when a retry is what the
+/// user needs. The retryable stop driven here is a real occupied restore slot that the test clears
+/// between the two attempts, so the second attempt genuinely succeeds rather than being asserted into
+/// success.
 /// <para>
 /// The counter behaviour itself is already pinned at the port level by <c>RevertJournalTests</c>. What
-/// these cases add is the endpoint's USE of it: which rows it retires, with which flag, and what the
+/// these cases add is the endpoint's use of it: which rows it retires, with which flag, and what the
 /// table therefore still offers afterwards.
 /// </para>
 /// </remarks>
@@ -63,7 +63,7 @@ public sealed class UndoRetryTests
             Assert.True(File.Exists(stays.NewFull), "the blocked file never moved");
 
             // The table is the record of what is left — exactly the row that did not come back. The
-            // previous defect spent the whole batch on the FIRST partial success, which is what made
+            // previous defect spent the whole batch on the first partial success, which is what made
             // the remaining work unreachable; row presence is the state, so the read that feeds the
             // button must still return this batch.
             using var journal = new CoveRevertJournal(db);
@@ -97,7 +97,7 @@ public sealed class UndoRetryTests
 
             var second = UndoValue(await ext.UndoAsync(Write, default));
 
-            // ONE, not two: the row the first run retired is not offered again, so the second run acts
+            // one, not two: the row the first run retired is not offered again, so the second run acts
             // only on what the first left behind.
             Assert.Equal(1, second.Undone);
             Assert.Empty(second.SkippedSample);
@@ -137,7 +137,7 @@ public sealed class UndoRetryTests
             var undo = UndoValue(await ext.UndoAsync(Write, default));
 
             Assert.Equal(1, undo.Undone);
-            // The COUNT is what the response states and what a caller reads; the sample is only where
+            // The count is what the response states and what a caller reads; the sample is only where
             var stopped = Assert.Single(undo.SkippedSample);
             Assert.Equal(gone.FileId, stopped.FileId);
 
@@ -147,7 +147,7 @@ public sealed class UndoRetryTests
             // offering an undo that could never complete.
             Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
 
-            // …and the aggregate still says HOW it ended, on the counter that keeps the two apart.
+            // …and the aggregate still says how it ended, on the counter that keeps the two apart.
             var summary = await journal.ReadUndoTargetAsync();
             Assert.NotNull(summary);
             Assert.Equal(2, summary.Value.OriginalCount);
@@ -218,7 +218,7 @@ public sealed class UndoRetryTests
 
     private static FakePrincipalAccessor Write => FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
 
-    /// <summary>Seeds and forward-renames two files in ONE batch, returning them in seed order.</summary>
+    /// <summary>Seeds and forward-renames two files in one batch, returning them in seed order.</summary>
     private static async Task<(global::Renamer.Renamer ext, Seeded first, Seeded second)> RenameTwoAsync(
         DbContext db, TempDir dir)
     {
@@ -228,13 +228,13 @@ public sealed class UndoRetryTests
 
     /// <summary>
     /// Seeds one folder holding one video per <paramref name="stems"/> entry, then really renames each
-    /// into ONE journal batch — so the batch holds one row per file, which is what makes "acts only on
+    /// into one journal batch — so the batch holds one row per file, which is what makes "acts only on
     /// what is left" a statement about rows rather than about batches.
     /// </summary>
     /// <remarks>
     /// The forward half runs through the planner and executor directly rather than through the batch
     /// endpoint, because that endpoint fans its files out across per-worker scopes and every scope here
-    /// resolves the one seeded context. The subject of these cases is the UNDO endpoint, which is
+    /// resolves the one seeded context. The subject of these cases is the undo endpoint, which is
     /// exercised for real.
     /// </remarks>
     private static async Task<(global::Renamer.Renamer ext, IReadOnlyList<Seeded> seeded)> RenameManyAsync(

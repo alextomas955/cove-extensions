@@ -32,7 +32,7 @@ export function LivePreviewPane({ preview, previewError }: LivePreviewPaneProps)
           </div>
         ) : previewError ? null : (
           // Only while no failure has been reported. The hook keeps the last good preview on a failed
-          // refresh, so a null preview beside a raised error is the FIRST request having failed: there
+          // refresh, so a null preview beside a raised error is the first request having failed: there
           // is nothing further in flight, and a spinner beneath the error line above would promise a
           // render that never arrives.
           <div className="flex items-center gap-2 text-sm text-secondary">

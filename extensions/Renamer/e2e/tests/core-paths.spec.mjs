@@ -1,10 +1,10 @@
-// Core rename/undo/preview coverage driven through the REAL UI (Videos grid + Renamer settings
-// panel), not the REST API: "Rename selected" raises a native confirm() with the real computed
+// Core rename/undo/preview coverage driven through the real UI (Videos grid + Renamer settings
+// panel), not the rest API: "Rename selected" raises a native confirm() with the real computed
 // preview text, then a native alert() confirming the job was queued; "Undo last rename" opens an
 // in-app (React) confirm modal, not a native dialog. See lib/pages/ for the Page Object Model.
 // `@smoke` marks the six tests spanning install -> enable -> rename -> undo, one per contract in the
 // cheapest file that carries it. `build.yml` selects them with `--grep @smoke` on a leg whose role is
-// newest-GA and nothing else, and states there why that leg asks only this much. It is a SELECTION,
+// newest-GA and nothing else, and states there why that leg asks only this much. It is a selection,
 // never a tier: every one of these runs in the full suite too.
 import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
 import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
@@ -102,7 +102,7 @@ test(
 
     // A "$title"-only template over a safe title (letters + spaces only, which the sanitizer passes
     // through unchanged) makes the resulting name deterministic and independent of date/resolution
-    // metadata, so the EXACT resulting basename can be asserted, not merely "the path changed".
+    // metadata, so the exact resulting basename can be asserted, not merely "the path changed".
     const title = "Core Path Rename Test";
     const expectedBasename = `${title}.mp4`;
 
@@ -113,7 +113,7 @@ test(
 
     const videosPage = new VideosPage(page, baseUrl);
     await videosPage.goto();
-    // Select the card by its filename BEFORE setting a Title: the grid card's accessible name follows
+    // Select the card by its filename before setting a Title: the grid card's accessible name follows
     // the item's title once one is set, so selecting first keeps the filename-based lookup valid.
     await videosPage.selectCard(originalFilename);
 

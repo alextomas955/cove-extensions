@@ -4,7 +4,7 @@ namespace Renamer.Tests.Execution.Undo;
 
 /// <summary>
 /// The tolerant parsers that read a legacy stored journal — the only part of that type still reached,
-/// and the only reader the one-shot migration uses. Locating a batch finds the LAST still-replayable
+/// and the only reader the one-shot migration uses. Locating a batch finds the last still-replayable
 /// header and the line range holding its rows; parsing that range yields <c>entityId|fileId|old</c>
 /// rows in append order, each entity id distinct from its file id. A flat pre-header blob is one
 /// implicit Video batch with EntityId = FileId. Malformed and short lines are skipped, never thrown.
@@ -47,7 +47,7 @@ public sealed class RevertLogBatchTests
         Assert.Equal([9, 10], rows.Select(e => e.EntityId));
         Assert.Equal([90, 100], rows.Select(e => e.FileId));
 
-        // Each entry's EntityId is the PARENT entity (9), never its fileId (90). The earlier run's rows
+        // Each entry's EntityId is the parent entity (9), never its fileId (90). The earlier run's rows
         // are absent entirely, which is what makes this the located batch rather than the whole blob.
         Assert.All(rows, e => Assert.NotEqual(e.EntityId, e.FileId));
     }
@@ -65,7 +65,7 @@ public sealed class RevertLogBatchTests
     [Fact]
     public void FlatLegacyBlob_ReadsAsOneVideoBatch_EntityIdEqualsFileId()
     {
-        // An old flat blob: fileId|old|new rows, NO #batch headers.
+        // An old flat blob: fileId|old|new rows, no #batch headers.
         var (batch, rows) = Read("70|media/a.mkv|media/A.mkv\n80|media/b.mkv|media/B.mkv");
 
         Assert.True(batch.Headerless);
@@ -96,7 +96,7 @@ public sealed class RevertLogBatchTests
         Assert.Equal(7, only.EntityId);
         Assert.Equal(70, only.FileId);
 
-        // The path is the LAST field of a headered row, so everything past the second separator is
+        // The path is the last field of a headered row, so everything past the second separator is
         // part of it. Stopping at the next separator would hand undo a path the file never had.
         Assert.Equal("media/a|b.mkv", only.OldPath);
     }

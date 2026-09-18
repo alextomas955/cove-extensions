@@ -9,9 +9,9 @@ namespace Renamer.Tests.Api;
 
 /// <summary>
 /// Security-critical: the host's <c>[RequiresPermission]</c> filter is MVC-only and does
-/// NOTHING for minimal-API extension endpoints, so each handler enforces the permission itself via
-/// <see cref="ICurrentPrincipalAccessor"/>. These prove BOTH deny paths return 403 and — critically —
-/// that the <c>/renamer</c> deny path does NOT enqueue a job. The authorized path enqueues exactly one
+/// nothing for minimal-API extension endpoints, so each handler enforces the permission itself via
+/// <see cref="ICurrentPrincipalAccessor"/>. These prove both deny paths return 403 and — critically —
+/// that the <c>/renamer</c> deny path does not enqueue a job. The authorized path enqueues exactly one
 /// renamer-batch job and returns 202 {jobId}.
 /// </summary>
 public sealed class EndpointPermissionTests
@@ -70,7 +70,7 @@ public sealed class EndpointPermissionTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            // A principal with ONLY videos.read must be forbidden from previewing an IMAGE (F-02);
+            // A principal with only videos.read must be forbidden from previewing an image;
             // the matching images.read principal is allowed (200).
             var ext = NewExtension();
             var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
@@ -78,7 +78,7 @@ public sealed class EndpointPermissionTests
                 new global::Renamer.Api.RenamerRequest("image", [1]), db, videoOnly, default);
             Assert.Equal(403, StatusOf(denied));
 
-            // The matching images.read principal is NOT forbidden — the preview proceeds (a successful
+            // The matching images.read principal is not forbidden — the preview proceeds (a successful
             // preview returns a JSON value result with no explicit status code, i.e. 200, not 403).
             var imageOk = FakePrincipalAccessor.WithPermissions(Permissions.ImagesRead);
             var allowed = await ext.PreviewAsync(
@@ -124,7 +124,7 @@ public sealed class EndpointPermissionTests
 
         var (type, _, exclusive) = Assert.Single(jobs.Enqueued);
         Assert.Equal("ext:com.alextomas955.renamer:renamer-batch", type);
-        // F-04: the destructive renamer job must enqueue EXCLUSIVE so two batches cannot run at once.
+        // The destructive renamer job must enqueue exclusive so two batches cannot run at once.
         Assert.True(exclusive);
     }
 
@@ -134,7 +134,7 @@ public sealed class EndpointPermissionTests
         var ext = NewExtension();
         var jobs = new RecordingJobService();
 
-        // A principal holding ONLY videos.write must NOT be able to enqueue an IMAGE renamer (F-02).
+        // A principal holding only videos.write must not be able to enqueue an image renamer.
         var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
         var denied = ext.RenamerEnqueue(
             new global::Renamer.Api.RenamerRequest("image", [1]), videoOnly, jobs);
@@ -171,7 +171,7 @@ public sealed class EndpointPermissionTests
     [Fact]
     public async Task UndoAsync_WithoutVideosWrite_Returns403_BeforeAnyDiskOrDbTouch()
     {
-        // No scope factory / event bus is wired: UndoAsync must return 403 from the FIRST permission
+        // No scope factory / event bus is wired: UndoAsync must return 403 from the first permission
         // check, before it ever opens a scope or reads the RevertLog. If it touched the
         // scope factory it would NRE here — the absence of a throw proves the 403-first ordering.
         var ext = NewExtension();
@@ -195,7 +195,7 @@ public sealed class EndpointPermissionTests
     public void LibraryPaths_WithoutVideosRead_Returns403()
     {
         // This route answers with Cove's real filesystem layout, so the deny path has to be pinned on
-        // the STATUS: an anonymous 200 carrying those paths satisfies a route-resolves check exactly as
+        // the status: an anonymous 200 carrying those paths satisfies a route-resolves check exactly as
         // a 403 does.
         var ext = NewExtension();
 

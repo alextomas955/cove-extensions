@@ -3,8 +3,8 @@
  * per-studio and per-tag destination maps, advanced allowed-roots + source-path rules, the sidecar-
  * extension list, and the empty-folder cleanup toggle.
  *
- * Card ORDER is presentation only (unorganized first, then per-studio, per-tag, advanced,
- * then sidecar and empty-folder); it does NOT set the engine's rule-evaluation precedence, which is
+ * Card order is presentation only (unorganized first, then per-studio, per-tag, advanced,
+ * then sidecar and empty-folder); it does not set the engine's rule-evaluation precedence, which is
  * decided server-side, so reordering these cards is safe. Presentational — every field flows up
  * through `set`.
  */
@@ -73,7 +73,7 @@ export function DestinationRoutingSection({
           label="Route unorganized items to their own destination"
           checked={options.UnorganizedDestination !== null}
           onChange={(on) => {
-            // Off is the ABSENT destination, not one naming nothing: only the absent one falls
+            // Off is the absent destination, not one naming nothing: only the absent one falls
             // through to the only-organized gate, which is what decides whether the item is skipped.
             set("UnorganizedDestination", on ? { ...NO_DESTINATION } : null);
           }}

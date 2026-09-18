@@ -8,9 +8,8 @@ namespace Renamer.Tests;
 /// kind it does not rename is refused rather than answered for.
 /// </summary>
 /// <remarks>
-/// These mappings used to end in a fallback to video, so a kind added to the enum and missed in one
-/// switch produced a working build that checked the wrong permission or published the wrong event.
-/// Driving them from <see cref="RenamableKinds.All"/> is what turns that into a failure here.
+/// Driven from <see cref="RenamableKinds.All"/>, so a kind added to the enum and missed in one
+/// switch fails here rather than checking the wrong permission or publishing the wrong event.
 /// </remarks>
 public sealed class RenamableKindsTests
 {

@@ -22,7 +22,7 @@ import { useOrphanedRules } from "./useOrphanedRules";
  * The studio destination-rule editor. Accepts/emits the persisted `Record<number, Destination>`;
  * internally
  * the map editor works string-keyed, so every edit is converted back through `fromStringKeyed` before
- * reaching the parent. The id must stay a NUMBER end to end so the persisted map is value-equal with
+ * reaching the parent. The id must stay a number end to end so the persisted map is value-equal with
  * the backend field and normalizeOptions' coercion.
  *
  * A committed rule keys on the opaque studio id and the host resolves that id to a name, so this
@@ -67,7 +67,7 @@ export function StudioDestinationsEditor({
 
 /**
  * The add-row key cell: a single-select driven from the multi-value selector. It is fed the current
- * draft id (none or one) and on pick takes the LATEST id, the last element of the array, writing it
+ * draft id (none or one) and on pick takes the latest id, the last element of the array, writing it
  * back as the stringified key the map editor expects. Last-id-wins keeps a second pick from
  * accumulating a multi-selection the single-key map cannot hold.
  */

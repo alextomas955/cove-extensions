@@ -50,7 +50,7 @@ export function useRenameLibrary(): UseRenameLibrary {
   // Bumped on every in-panel rename success so UndoSection re-reads /last-batch (both the panel
   // button and the Dry Run modal's "Rename all" flow through renameLibrary below).
   const [undoRefreshKey, setUndoRefreshKey] = useState(0);
-  // Live rename-job progress, threaded from the SINGLE pollJob into the modal.
+  // Live rename-job progress, threaded from the single pollJob into the modal.
   // Null before/after the job (falls back to the bare spinner); a {progress, subTask, etaSeconds}
   // sample while it runs.
   const [renameProgress, setRenameProgress] = useState<RenameProgress | null>(null);
@@ -86,7 +86,7 @@ export function useRenameLibrary(): UseRenameLibrary {
   }, []);
 
   /**
-   * The SHARED "Rename all files" handler — called identically by the panel-level button and
+   * The shared "Rename all files" handler — called identically by the panel-level button and
    * the Dry Run modal's footer button. Enqueues the rename-library job, polls it to completion the
    * same way the modal polls its scan job, and reports renamed/skipped counts.
    *
@@ -94,7 +94,7 @@ export function useRenameLibrary(): UseRenameLibrary {
    * progress.Report(percent, message), no UnitsSucceeded/Summary), so the banner's counts come from
    * a scan: the modal already holds the scan's counts (`scanCounts` supplied), while the panel-direct
    * path has no scan yet and runs one first, then reads the counts off the scan's own aggregate — both
-   * paths execute the SAME server-derived id set either way, since the scan and the rename job
+   * paths execute the same server-derived id set either way, since the scan and the rename job
    * independently call the identical LoadAllEntityIdsAsync query.
    */
   const renameLibrary = useCallback(

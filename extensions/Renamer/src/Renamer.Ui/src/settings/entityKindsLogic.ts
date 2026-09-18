@@ -1,7 +1,7 @@
 /**
  * How one edit in the "Per kind" list changes the stored per-kind map.
  *
- * Pure, so the rule can be read and tested without a DOM: a kind at its defaults is ABSENT from the
+ * Pure, so the rule can be read and tested without a DOM: a kind at its defaults is absent from the
  * map rather than stored as an entry saying nothing, which is what keeps turning a setting on and
  * back off from leaving the blob different than it started.
  */

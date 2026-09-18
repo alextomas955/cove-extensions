@@ -4,12 +4,11 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Options;
 
 /// <summary>
-/// Pins the semantics of <see cref="RenamerOptions"/>' structural equality (the dirty-check the settings
-/// UI relies on) after folding the hand-rolled twin-list Equals/GetHashCode into a single
-/// EqualityComponents source. Two instances with the same field VALUES must be Equal (with equal hash)
-/// even though their collection members are distinct instances; any single collection-member difference
-/// — including a <see cref="MultiValueOptions"/> member — must flip equality. This is the exact footgun
-/// (45-R4): a collection member that compared by reference would break the save/load round-trip.
+/// Pins the semantics of <see cref="RenamerOptions"/>' structural equality, which is the dirty-check
+/// the settings UI relies on. Two instances with the same field values must be equal, with equal
+/// hash, even though their collection members are distinct instances; any single collection-member
+/// difference, a <see cref="MultiValueOptions"/> member included, must flip equality. A collection
+/// member compared by reference would break the save/load round-trip.
 /// </summary>
 public sealed class RenamerOptionsEqualityTests
 {

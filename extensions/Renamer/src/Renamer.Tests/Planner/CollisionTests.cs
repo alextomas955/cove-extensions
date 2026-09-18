@@ -10,7 +10,7 @@ namespace Renamer.Tests.Planner;
 /// counter until free and the resulting NewFullPath carries the suffix; if no free name is found
 /// within a sane bound the item is <see cref="RenamerStatus.SkipCollision"/>; and if the first free
 /// name is the one the file already carries the item is <see cref="RenamerStatus.NoOp"/> rather than a
-/// move onto itself. NO mutation.
+/// move onto itself. no mutation.
 /// </summary>
 public sealed class CollisionTests
 {
@@ -27,7 +27,7 @@ public sealed class CollisionTests
     {
         var port = new FakeRenamerDataPort();
         port.SeedEntity(Entity(File(1, "raw.mkv")));
-        // "My Film.mkv" is taken by some OTHER file (id 99) in folder 5 → suffix to " (1)".
+        // "My Film.mkv" is taken by some other file (id 99) in folder 5 → suffix to " (1)".
         port.SeedOccupied(folderId: 5, basename: "My Film.mkv", fileId: 99);
         var planner = new RenamerPlanner(port);
 
@@ -37,7 +37,6 @@ public sealed class CollisionTests
         Assert.Equal(RenamerStatus.Renamer, item.Status);
         Assert.Equal("My Film (1).mkv", item.NewBasename);
         Assert.EndsWith("My Film (1).mkv", item.NewFullPath);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -52,7 +51,6 @@ public sealed class CollisionTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
 
         Assert.Equal("My Film (2).mkv", Assert.Single(plan.Items).NewBasename);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -72,23 +70,22 @@ public sealed class CollisionTests
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipCollision, item.Status);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     /// <summary>
-    /// A settled candidate that is the file's OWN current name is a no-op, never a move onto itself.
+    /// A settled candidate that is the file's own current name is a no-op, never a move onto itself.
     /// </summary>
     /// <remarks>
-    /// The earlier no-op comparison runs on the RENDERED name, before the suffix loop. The loop then
+    /// The earlier no-op comparison runs on the rendered name, before the suffix loop. The loop then
     /// lengthens that name to free the slot a sibling holds, and the first free candidate can be the
     /// numbered name this file already carries. Classified as an act, such an item is executed and
-    /// SAVED, and on the auto-rename path a save is what makes the host re-raise the update event.
+    /// saved, and on the auto-rename path a save is what makes the host re-raise the update event.
     /// </remarks>
     [Fact]
     public async Task SettledCandidateIsTheFilesCurrentName_NoOp_NotAMoveToItself()
     {
         var port = new FakeRenamerDataPort();
-        // The file already carries the numbered form the loop settles on, while a DIFFERENT file (id 99)
+        // The file already carries the numbered form the loop settles on, while a different file (id 99)
         // holds the un-numbered name the template renders.
         port.SeedEntity(Entity(File(1, "My Film (1).mkv")));
         port.SeedOccupied(folderId: 5, basename: "My Film.mkv", fileId: 99);
@@ -98,11 +95,10 @@ public sealed class CollisionTests
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.NoOp, item.Status);
-        // Both sides carry the transcribed literal rather than each other, so two identical WRONG paths
+        // Both sides carry the transcribed literal rather than each other, so two identical wrong paths
         // cannot satisfy this either.
         Assert.Equal("media/videos/My Film (1).mkv", item.OldFullPath);
         Assert.Equal("media/videos/My Film (1).mkv", item.NewFullPath);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     /// <summary>
@@ -125,7 +121,7 @@ public sealed class CollisionTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
 
         // The fake hands back the entity's files as the fixture listed them, so first and second are
-        // deterministic HERE. The same assumption would be wrong at a tier reading a real database.
+        // deterministic here. The same assumption would be wrong at a tier reading a real database.
         Assert.Equal(2, plan.Items.Count);
         var first = plan.Items[0];
         var second = plan.Items[1];
@@ -142,6 +138,5 @@ public sealed class CollisionTests
         Assert.False(first.Suffixed);
         Assert.True(second.Suffixed);
 
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

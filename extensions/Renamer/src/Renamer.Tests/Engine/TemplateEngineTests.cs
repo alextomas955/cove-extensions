@@ -76,7 +76,7 @@ public class TemplateEngineTests
     [InlineData("1080", "1080p")]
     [InlineData("720", "720p")]
     [InlineData("480", "480p")]
-    // Sub-480 is progressive-scan-labelled ("{height}p"), NOT a bare number — otherwise an
+    // Sub-480 is progressive-scan-labelled ("{height}p"), not a bare number — otherwise an
     // already-correct "[368p]" filename would be rewritten down to "[368]" (a needless rename).
     [InlineData("432", "432p")]
     [InlineData("368", "368p")]
@@ -91,7 +91,7 @@ public class TemplateEngineTests
     [Fact]
     public void CoreTokens_Resolution_ZeroOrMissingHeight_RendersEmpty()
     {
-        // A zero/absent height must render NO resolution tag (empty), not a garbage "[0]" — the
+        // A zero/absent height must render no resolution tag (empty), not a garbage "[0]" — the
         // "{ [$resolution]}" group collapses when the token is empty.
         var zero = Render("X{ [$resolution]}", new Dictionary<string, string> { ["height"] = "0" });
         Assert.Equal("X", zero.Filename);
@@ -128,7 +128,7 @@ public class TemplateEngineTests
     [Fact]
     public void TrailingResolution_MidTitle_Untouched()
     {
-        // Only a tag at the very END is stripped; a resolution mentioned mid-title is left alone (and
+        // Only a tag at the very end is stripped; a resolution mentioned mid-title is left alone (and
         // the real appended resolution still renders).
         var tokens = new Dictionary<string, string>
         {
@@ -157,7 +157,7 @@ public class TemplateEngineTests
     public void TrailingResolution_SubBucketTag_NotDoubled()
     {
         // The doubled-tag regression: a title imported with a sub-480 "[368p]" tag (which the fixed
-        // KnownLabels list does NOT carry) plus a template that appends { [$resolution]} (now "368p")
+        // KnownLabels list does not carry) plus a template that appends { [$resolution]} (now "368p")
         // would yield "Nikki [368p] [368p]". The generic trailing-[<digits>p] strip de-dupes it.
         var tokens = new Dictionary<string, string> { ["title"] = "Nikki [368p]", ["height"] = "368" };
         var r = Render("$title{ [$resolution]}", tokens);
@@ -165,7 +165,7 @@ public class TemplateEngineTests
     }
 
     [Theory]
-    // A bracketed number with NO 'p' is a serial/index/scene number, NOT a resolution — never stripped.
+    // A bracketed number with no 'p' is a serial/index/scene number, not a resolution — never stripped.
     [InlineData("Calendar Audition [28]", "2160", "Calendar Audition [28] [4k]")]
     // A hash-like bracketed token is not a resolution tag.
     [InlineData("Blowjob [caufkb2cd9]", "1080", "Blowjob [caufkb2cd9] [1080p]")]
@@ -288,7 +288,7 @@ public class TemplateEngineTests
     [InlineData("", "", "Title")]                                   // bare title only
     public void DefaultGroupedTemplate_DegradesCleanly(string date, string height, string expected)
     {
-        // $height is the RAW numeric token (1080), distinct from the derived $resolution bucket
+        // $height is the raw numeric token (1080), distinct from the derived $resolution bucket
         // (which would render "1080p"); a date/height absent from the dict resolves empty so its
         // {} group collapses without leaving a dangling separator or empty brackets.
         var tokens = new Dictionary<string, string> { ["title"] = "Title" };
@@ -378,7 +378,7 @@ public class TemplateEngineTests
         Assert.Equal("Archive/CWindows", Render("x", tokens, folder: "Archive/$studio").FolderPath);
     }
 
-    // ---- FIELD-01: squeeze_studio_names (engine) ----
+    // ---- squeeze_studio_names (engine) ----
 
     [Fact]
     public void Squeeze_TwoStudioVariants_RenderToOneStableFolder()
@@ -405,8 +405,8 @@ public class TemplateEngineTests
     [Fact]
     public void DefaultOptions_RenderByteIdentical_ToPrePhaseEngine()
     {
-        // GATE: with NO field-rewrite settings, output must be byte-identical to the v1.3 engine.
-        // Expected values are the literal strings the engine produced before this phase.
+        // gate: with no field-rewrite settings, output must be byte-identical to the v1.3 engine.
+        // Expected values are the literal strings the engine produces, copied from its output.
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "The Movie",
@@ -432,7 +432,7 @@ public class TemplateEngineTests
     [Fact]
     public void FieldRewrites_FlowThroughRender_TitleArticleAndStudioSqueeze()
     {
-        // Combined: FIELD-03 strips the leading article from $title and FIELD-01 squeezes
+        // Combined: prepositions_removal strips the leading article from $title and squeeze_studio_names
         // the $studio spaces — both flow through the existing BuildResolvedMap -> render ->
         // sanitize pipeline via the extended RewriteScalar (no new wiring).
         var tokens = new Dictionary<string, string>
@@ -454,12 +454,12 @@ public class TemplateEngineTests
         Assert.Equal("RealityKings", r.FolderPath);
     }
 
-    // ---- FIELD-05: prevent_title_performer (engine) ----
+    // ---- prevent_title_performer (engine) ----
 
     [Fact]
     public void PreventTitlePerformer_DropsNameInTitle_FreesOverflowSlot()
     {
-        // Eve is named in the title -> dropped from the RAW performers list BEFORE the MaxCount cap,
+        // Eve is named in the title -> dropped from the raw performers list before the MaxCount cap,
         // so the cap (2, KeepFirst) now admits Carol: a dropped name freed an overflow slot.
         var tokens = new Dictionary<string, string> { ["title"] = "Eve Goes Home" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
@@ -490,7 +490,7 @@ public class TemplateEngineTests
     [Fact]
     public void PreventTitlePerformer_ComparesAgainstRewrittenTitle()
     {
-        // FIELD-03 strips the leading article: "The Eve" -> "Eve" BEFORE FIELD-05 compares,
+        // prepositions_removal strips the leading article: "The Eve" -> "Eve" before
         // so Eve (now a whole word in the rewritten title) is dropped.
         var tokens = new Dictionary<string, string> { ["title"] = "The Eve" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
@@ -511,7 +511,7 @@ public class TemplateEngineTests
         Assert.Equal("Bob", r.Filename);
     }
 
-    // ---- FIELD-06: prevent_consecutive (engine) ----
+    // ---- prevent_consecutive (engine) ----
 
     [Fact]
     public void PreventConsecutive_CollapsesConsecutiveFolderSegments()
@@ -548,7 +548,7 @@ public class TemplateEngineTests
     [Fact]
     public void PreventConsecutive_DoesNotCollapse_InFilename()
     {
-        // A filename is one segment with no '/', so the duplicate text is NOT collapsed.
+        // A filename is one segment with no '/', so the duplicate text is not collapsed.
         var tokens = new Dictionary<string, string> { ["studio"] = "Foo" };
         var o = new RenamerOptions
         {
@@ -566,7 +566,7 @@ public class TemplateEngineTests
     [Fact]
     public void Performers_RecordOrdering_AppliesBeforeTheLimit_EndToEnd()
     {
-        // A gender ignore should drop a performer BEFORE the max-count limit, so two non-ignored
+        // A gender ignore should drop a performer before the max-count limit, so two non-ignored
         // performers survive even though there were three candidates and the limit is two.
         var tokens = new Dictionary<string, string> { ["title"] = "Film" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
@@ -625,7 +625,7 @@ public class TemplateEngineTests
     [Fact]
     public void Performers_RecordPath_DropsTitlePerformer_ThenOrders()
     {
-        // FIELD-05 still drops a performer named in the title (by name) BEFORE the limit, and the
+        // prevent_title_performer still drops a performer named in the title (by name) before the limit, and the
         // record ordering then operates only on the survivors.
         var tokens = new Dictionary<string, string> { ["title"] = "Eve Goes Home" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
@@ -662,7 +662,7 @@ public class TemplateEngineTests
     public void Performers_RecordPath_DuplicateName_KeepsBothWhenNeitherInTitle()
     {
         // Two distinct performers share the name "Alex" (the DB does not enforce unique performer
-        // names). When neither is named in the title, BOTH survive the drop and both render — the
+        // names). When neither is named in the title, both survive the drop and both render — the
         // record channel preserves per-position multiplicity rather than collapsing duplicates by name.
         var tokens = new Dictionary<string, string> { ["title"] = "Bob Goes Home" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
@@ -708,7 +708,7 @@ public class TemplateEngineTests
         Assert.Equal([1, 2], survivors.Select(p => p.Id).ToArray());
     }
 
-    // ---- NormalizePunctuation: end-to-end render (default ON) ----
+    // ---- NormalizePunctuation: end-to-end render (default on) ----
 
     [Fact]
     public void NormalizePunctuation_On_FoldsCurlyApostrophe()

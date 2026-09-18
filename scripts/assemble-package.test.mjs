@@ -12,7 +12,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 // One module, reached both ways: assemblePackage is imported here exactly as the E2E harness imports
-// it, while the CLI cases below SPAWN the same file, so the command line is exercised as a caller
+// it, while the CLI cases below spawn the same file, so the command line is exercised as a caller
 // actually reaches it rather than by calling the function that sits behind it.
 import { assemblePackage } from "./assemble-package.mjs";
 
@@ -244,7 +244,7 @@ test("a packageDir pointed at a populated source tree is refused and destroys no
     assert.equal(fs.existsSync(full), true, "a refusal removed " + relative);
     assert.equal(fs.statSync(full).size, size, "a refusal rewrote " + relative);
   }
-  // Named as well as swept, because these are what each phase-22 reproduction was measured destroying.
+  // Named as well as swept, because these are the paths a reproduction was measured destroying.
   for (const survivor of ["extensions/catalog.json", "extensions/Fixture/README.md", "LICENSE"]) {
     assert.equal(fs.existsSync(path.join(fixture.root, survivor)), true, survivor + " was removed");
   }
@@ -516,8 +516,8 @@ test("a manifest declaring no stylesheet bundle is not failed for the field it d
   );
 });
 
-// The present half of the pair above. The ui-bundle rule covers BOTH bundle fields, and the assertion
-// is on the RESOLVED ROOT rather than on `ok`: a run that found the stylesheet in the publish directory
+// The present half of the pair above. The ui-bundle rule covers both bundle fields, and the assertion
+// is on the resolved root rather than on `ok`: a run that found the stylesheet in the publish directory
 // or beside the manifest would succeed just as happily, and that is exactly the resolution mistake this
 // case exists to pin.
 test("a declared stylesheet bundle resolves from the UI build output", () => {
@@ -558,7 +558,7 @@ test("fails: a declared cssBundle the artifacts array does not carry", () => {
 });
 
 // The loadability failures are pushed rather than returned, so one run still reports everything wrong
-// with a declaration. The two LEAK cases above are the other half of that cover: they declare a subset
+// with a declaration. The two leak cases above are the other half of that cover: they declare a subset
 // carrying no manifest, so a short-circuiting refusal would fire before the scan they exist to exercise.
 test("an unloadable declaration and an absolute path in a shipped json are reported in one result", () => {
   const driveRoot =
@@ -672,7 +672,7 @@ test("the three real caller shapes still assemble", () => {
 });
 
 // Resolution is an existence check and the copy happens later, so a source that resolves can still
-// fail to be written. The failure is REPORTED rather than thrown — a caller that reads failures would
+// fail to be written. The failure is reported rather than thrown — a caller that reads failures would
 // otherwise see an exception escape the exported function instead — and the loop stops there rather
 // than reporting a count for a package that is not on disk.
 test("a write that fails partway is a reported WRITE failure, not a throw, and stops the loop", () => {
@@ -702,7 +702,7 @@ test("a write that fails partway is a reported WRITE failure, not a throw, and s
 
 // The case above plants a .dll, which the pre-write json scan skips. A declared .json reaches that
 // scan first, and it reads the source rather than only testing that it exists — so the same planted
-// directory arrives at a read instead of at a copy, on the path that runs BEFORE anything is written.
+// directory arrives at a read instead of at a copy, on the path that runs before anything is written.
 test("a declared json whose source cannot be read is a reported failure, not a throw", () => {
   const planted = "Fixture.deps.json";
   const fixture = fixtureRoot();

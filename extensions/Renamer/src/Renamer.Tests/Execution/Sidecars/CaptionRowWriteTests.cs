@@ -9,7 +9,7 @@ namespace Renamer.Tests.Execution.Sidecars;
 
 /// <summary>
 /// Drives the real executor over SQLite and a real <see cref="TempDir"/> to prove a renamed caption's
-/// DATABASE ROW is written, not only that its file moved on disk.
+/// database row is written, not only that its file moved on disk.
 /// </summary>
 /// <remarks>
 /// The sibling sidecar tests assert the on-disk move, which the disk mover performs and which a lost
