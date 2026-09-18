@@ -59,4 +59,16 @@ public sealed class KindOptionsJsonTests
         Assert.True(reloaded.IsKindEnabled(RenamerFileKind.Video));
         Assert.True(reloaded.IsKindEnabled(RenamerFileKind.Image));
     }
+
+    [Fact]
+    public void AKindStoredWithNoSettings_ReadsAsTheDefault()
+    {
+        // Valid JSON, and the store's non-null restore does not reach inside a collection, so the null
+        // value arrives here. Read strictly it threw, taking the whole settings page with it.
+        var options = JsonSerializer.Deserialize<RenamerOptions>(
+            """{"Kinds":{"Text":null}}""", RenamerOptions.JsonOptions)!;
+
+        Assert.True(options.IsKindEnabled(RenamerFileKind.Text));
+        Assert.Null(options.KindDestination(RenamerFileKind.Text));
+    }
 }

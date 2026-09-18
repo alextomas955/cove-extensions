@@ -513,15 +513,20 @@ public sealed record RenamerOptions
     public Dictionary<RenamerFileKind, KindOptions> Kinds { get; init; } = [];
 
     /// <summary>Whether <paramref name="kind"/> is renamed at all; an unlisted kind is.</summary>
+    /// <remarks>
+    /// A null entry reads as unlisted. <c>{"Kinds":{"Text":null}}</c> is valid JSON that deserializes
+    /// to a present key with no value, and the store's non-null restore does not reach inside a
+    /// collection, so the value survives to here.
+    /// </remarks>
     public bool IsKindEnabled(RenamerFileKind kind)
-        => !Kinds.TryGetValue(kind, out var settings) || settings.Enabled;
+        => !Kinds.TryGetValue(kind, out var settings) || settings is null || settings.Enabled;
 
     /// <summary>
     /// The kind's own default destination, or <c>null</c> when it has none and the global
     /// <see cref="FolderRoot"/>/<see cref="FolderTemplate"/> pair applies.
     /// </summary>
     public Destination? KindDestination(RenamerFileKind kind)
-        => Kinds.TryGetValue(kind, out var settings) ? settings.Destination : null;
+        => Kinds.TryGetValue(kind, out var settings) ? settings?.Destination : null;
 
     /// <summary>
     /// Source-path routing rules, in user order. Each <see cref="PathDestinationRule"/> is an exact OR
