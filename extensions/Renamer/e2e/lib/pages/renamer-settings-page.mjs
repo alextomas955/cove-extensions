@@ -189,6 +189,40 @@ export class RenamerSettingsPage {
   }
 
   /**
+   * One row of the "Per kind" list, by the label the panel shows for that kind ("Videos", "Images",
+   * "Audio", "Text documents"). Every row draws the same two buttons, so a row's controls are only
+   * unambiguous through the row group that names them.
+   */
+  kindRow(kindLabel) {
+    return this.page.getByRole("group", { name: kindLabel, exact: true });
+  }
+
+  /** Gives the kind a folder of its own and fills in its template. Does not save. */
+  async setKindFolder(kindLabel, template) {
+    const row = this.kindRow(kindLabel);
+    const ownFolder = row.getByRole("button", { name: "Own folder" });
+    if (await ownFolder.isVisible()) {
+      await ownFolder.click();
+    }
+    await row.getByRole("textbox", { name: `${kindLabel} folder template` }).fill(template);
+  }
+
+  /** Stops the kind being renamed at all. Does not save. */
+  async excludeKind(kindLabel) {
+    await this.kindRow(kindLabel).getByRole("button", { name: "Exclude" }).click();
+  }
+
+  /** Renames the kind again, with whatever folder it had before it was excluded. Does not save. */
+  async includeKind(kindLabel) {
+    await this.kindRow(kindLabel).getByRole("button", { name: "Include" }).click();
+  }
+
+  /** Puts the kind back on the card's own destination, clearing any folder of its own. Does not save. */
+  async useDefaultForKind(kindLabel) {
+    await this.kindRow(kindLabel).getByRole("button", { name: "Use default" }).click();
+  }
+
+  /**
    * Clicks "Rename all files" and waits for the in-panel success banner. Saves first when the panel
    * is dirty: the button is disabled while there are unsaved edits (disabled={dirty || …}), because
    * a real whole-library rename must run the SAVED rules, not the in-flight ones — so a caller that
