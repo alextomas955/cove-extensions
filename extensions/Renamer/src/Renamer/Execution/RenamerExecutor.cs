@@ -300,22 +300,45 @@ public sealed class RenamerExecutor
                 // Disk and DB disagree after a SUCCESSFUL save. Roll the disk back to the OLD path
                 // through the SAME mover the move used (and the catch below uses), capturing rollback
                 // warnings so an INCOMPLETE rollback is surfaced rather than falsely claiming "rolled
-                // back" — mirroring the save-throw catch and the UndoReplayer's assertion branch. Do NOT
-                // write a revert-log row or publish an event on this path: the move is being undone, so
-                // there is nothing to reindex or to offer /undo.
-                //
-                // WHY this remains a reported inconsistency: the DB save already COMMITTED (the row now
-                // points at the NEW basename/folder), yet we roll the FILE back to the OLD path. Disk and
-                // DB therefore diverge — the row says NEW, the bytes are at OLD. This is deliberate: the
-                // fix's goal is that the file is no longer SILENTLY abandoned at the new path with no undo
-                // record (the pre-fix bug), and that the failure is fully surfaced. The operator must
-                // reconcile the committed DB row against the rolled-back file; the Failed reason names the
-                // exact path mismatch and any rollback warnings so the divergence is visible, not hidden.
+                // back". No revert-log row and no event on this path: the move is being undone, so there
+                // is nothing to reindex or to offer /undo.
                 IReadOnlyList<string> rbWarnings = await RollbackMove(sameVolume, nativeOld, nativeNew, movedSidecars, ct);
 
-                string note = rbWarnings.Count > 0
-                    ? $"recomputed Path '{recomputed}' != on-disk '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
-                    : $"recomputed Path '{recomputed}' != on-disk '{expected}'; rolled back";
+                string mismatch = $"recomputed Path '{recomputed}' != on-disk '{expected}'";
+                string warned = rbWarnings.Count > 0
+                    ? $"; rollback warnings: {string.Join("; ", rbWarnings)}"
+                    : "";
+
+                // Whether the row may be put back is read off the PRIMARY file's own location: a rollback
+                // reports its sidecars and the primary in one warning list, so a caption that could not
+                // come back would otherwise leave the row naming a location the media file has left. A
+                // case-only rename is its own target on a case-insensitive volume, so the vacated-target
+                // half of the check is skipped for one.
+                bool primaryBack = System.IO.File.Exists(nativeOld)
+                    && (IsSelfPath(newFull, item.OldFullPath) || !System.IO.File.Exists(nativeNew));
+
+                if (!primaryBack)
+                {
+                    failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed,
+                        $"{mismatch}; the file did NOT return to its old path, so the committed row is "
+                        + $"left naming the new one{warned}"));
+                    return;
+                }
+
+                // The file is back where it started, so the committed row is put back to match it.
+                string? restoreFailure = await RestoreSavedRowAsync(
+                    item.FileId, item.OldFullPath, srcFile, isMove, appliedCaptionRenames, ct);
+
+                // The title that rode in the same save is not part of the row's location and is not
+                // reverted with it, so a reader of this reason is told it is still there.
+                string titleKept = item.DerivedTitle is { Length: > 0 }
+                    ? "; the filename-derived title recorded in that save was not reverted"
+                    : "";
+
+                string note = restoreFailure is null
+                    ? $"{mismatch}; rolled back{titleKept}{warned}"
+                    : $"{mismatch}; file rolled back, database row NOT confirmed at the old path: "
+                      + $"{restoreFailure}{titleKept}{warned}";
                 failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed, note));
                 return;
             }
@@ -376,13 +399,22 @@ public sealed class RenamerExecutor
             var delta = BuildRevertDelta(srcFile, movedSidecars, appliedCaptionRenames);
             await _journal.AppendAsync(
                 new RevertRow(_runId, Seq: 0, plan.EntityId, item.FileId, item.OldFullPath, delta.Serialize()), ct);
-            _eventBus.Publish(new EntityEvent(EventTypeFor(plan.Kind), EntityTypeName(plan.Kind), plan.EntityId));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // A cancellation stays cancellation and aborts the run; what it must NOT do any more is roll
             // a committed move back, which is the whole reason this region sits outside the catch above.
             postCommitWarnings.Add($"revert-log entry not written: {ex.Message}");
+        }
+
+        // A throwing bus leaves the journal row standing, so its failure carries its own warning.
+        try
+        {
+            _eventBus.Publish(new EntityEvent(EventTypeFor(plan.Kind), EntityTypeName(plan.Kind), plan.EntityId));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            postCommitWarnings.Add($"rename event not published: {ex.Message}");
         }
 
         // (9) Opt-in empty-source-folder cleanup, LAST — never before the save (a failed save rolls the
@@ -642,7 +674,55 @@ public sealed class RenamerExecutor
             ? _disk.Rollback(nativeOld, nativeNew, [.. movedSidecars.Select(s => new DiskMover.SidecarMove(s.From, s.To))])
             : await _cross.RollbackAsync(nativeOld, nativeNew, [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
 
+    /// <summary>
+    /// Writes a committed rename back off the file row: the basename, the parent folder for a move,
+    /// and each caption filename the save changed. Returns null once the row recomputes to
+    /// <paramref name="oldFullPath"/>, or the reason it could not be confirmed there.
+    /// </summary>
+    private async Task<string?> RestoreSavedRowAsync(
+        int fileId, string oldFullPath, RenamerFile? srcFile, bool isMove,
+        IReadOnlyList<(int CaptionId, string NewFilename)> appliedCaptionRenames, CancellationToken ct)
+    {
+        if (srcFile is null)
+        {
+            return "the file's pre-rename row was not loaded";
+        }
 
+        var restoredCaptions = (srcFile.Captions ?? [])
+            .Where(c => appliedCaptionRenames.Any(cr => cr.CaptionId == c.CaptionId))
+            .Select(c => (c.CaptionId, NewFilename: c.Filename))
+            .ToList();
+
+        IReadOnlyList<SavedFile> saved;
+        try
+        {
+            saved = await _port.ApplyAndSaveAsync(
+                [new RenamerFileMutation(
+                    fileId, srcFile.Basename, isMove ? srcFile.ParentFolderId : null,
+                    restoredCaptions.Count > 0 ? restoredCaptions : null)],
+                ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return ex.Message;
+        }
+
+        // The same assertion the forward save gets, and the one the undo path makes after its own
+        // reverse save: a restore that recomputes somewhere else has not put the row back.
+        SavedFile? savedFile = saved
+            .Where(s => s.FileId == fileId)
+            .Select(s => (SavedFile?)s)
+            .FirstOrDefault();
+
+        if (savedFile is null)
+        {
+            return "the restore reported no row for this file";
+        }
+
+        return PathsEqual(savedFile.Value.RecomputedPath, oldFullPath)
+            ? null
+            : $"it recomputed to '{savedFile.Value.RecomputedPath}', not '{NormalizeSlash(oldFullPath)}'";
+    }
 
     /// <summary>
     /// Retargets a caption basename from the old stem to the new stem. A caption "video.en.vtt"

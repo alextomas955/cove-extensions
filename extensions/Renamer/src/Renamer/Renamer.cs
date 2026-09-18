@@ -454,22 +454,18 @@ public sealed partial class Renamer : FullExtensionBase
 
         LogBatchStarted(runId, kind, ids.Length);
 
-        // PHASE A — sequential, read-only: plan + classify every id, capture file sizes.
-        // Kept sequential (not parallelized) for deterministic preview ordering; planning mutates
-        // nothing the workers race (the port reads AsNoTracking). This single-threaded scope is ALSO
-        // where every distinct destination Folder row is resolved/created ONCE — folder creation is
-        // shared mutable DB state, so it must never run inside the parallel PHASE B. We collect the
-        // resolved TargetFolderPath → folderId map here and hand it to each worker's executor.
-        var acting = new List<BatchUnit>();
-        var folderIdByPath = new Dictionary<string, int>(DestinationResolver.SourcePathComparer);
+        // Planning runs sequentially and reads only: it plans and classifies every id and captures
+        // each file's size. Sequential for deterministic preview ordering; it mutates nothing the
+        // workers race (the port reads AsNoTracking) and writes nothing at all, so a batch refused
+        // below leaves the database as it found it.
+        var planned = new List<BatchUnit>();
 
         // PHASE A reports no progress percentage (that starts in PHASE B), so trace the planning loop to
         // the log — otherwise a large library sits at 0% here with no signal that it is still planning.
         LogPlanningStarted(runId, kind, ids.Length);
 
-        // ONE elevated span for the whole of PHASE A, rather than one per planned entity plus one for the
-        // folder pre-create. Nothing between the reads touches the database, so this widens no query's
-        // reach, and a single span cannot run half its work elevated and half not.
+        // ONE elevated span for the whole planning pass, not one per planned entity: the background
+        // principal is anonymous, and an unelevated read returns zero rows with no error.
         await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
         {
             var readDb = services.GetRequiredService<DbContext>();
@@ -502,7 +498,7 @@ public sealed partial class Renamer : FullExtensionBase
                     // (it reloads plan.EntityId and processes plan.Items); the parent entity id rides
                     // the unit for logging.
                     var unitPlan = new RenamerPlan(plan.EntityId, plan.Kind, [item]);
-                    acting.Add(new BatchUnit(plan.EntityId, unitPlan,
+                    planned.Add(new BatchUnit(plan.EntityId, unitPlan,
                         (item.OldFullPath, item.NewFullPath, size)));
                 }
 
@@ -515,27 +511,34 @@ public sealed partial class Renamer : FullExtensionBase
                     (double)planIndex / ids.Length * PlanningProgressShare,
                     $"Planning {planIndex}/{ids.Length}...");
             }
-
-            // Pre-create/resolve every DISTINCT destination folder ONCE, here, on the single
-            // read/write scope (no concurrency). A Move item's destination Folder row therefore EXISTS
-            // before any parallel worker runs, and each worker reads its id from this map instead of
-            // doing a check-then-act create on a shared row. An in-place Renamer uses the source folder
-            // id (no entry needed). This is the single source of folder creation for the batch.
-            foreach (var unit in acting)
-            {
-                var planItem = unit.Plan.Items[0];
-                if (planItem.Status != RenamerStatus.Move)
-                {
-                    continue;
-                }
-
-                if (!folderIdByPath.ContainsKey(planItem.TargetFolderPath))
-                {
-                    folderIdByPath[planItem.TargetFolderPath] =
-                        await port.GetOrCreateFolderIdAsync(planItem.TargetFolderPath, ct);
-                }
-            }
         });
+
+        // One acting unit per source file. Naming the same entity twice in one request plans its files
+        // twice, and both units are then the same work, so the file is scheduled once.
+        //
+        // Two DIFFERENT file rows naming one source path is database state a rename cannot arbitrate:
+        // acting on either moves the file the other row also claims. Every row of such a group is
+        // refused and named in the log, so the anomaly is reported rather than half-applied.
+        //
+        // Grouped by the slice's file-identity rule, which ignores case on Windows and macOS. On a
+        // volume formatted case-sensitive there, two rows differing only in case are two files and
+        // both are refused: the refusal is recoverable by hand, while renaming one row's file out from
+        // under another's is not.
+        var acting = new List<BatchUnit>(planned.Count);
+        int contestedFiles = 0;
+        foreach (var claimants in planned
+            .GroupBy(u => PathOps.NormalizeSlash(u.Move.OldFullPath), PathOps.PathComparer))
+        {
+            int rows = claimants.Select(u => u.Plan.Items[0].FileId).Distinct().Count();
+            if (rows == 1)
+            {
+                acting.Add(claimants.First());
+                continue;
+            }
+
+            contestedFiles += rows;
+            LogContestedSourcePath(runId, claimants.Key, rows);
+        }
 
         // UP-FRONT free-space refusal: sum the projected cross-volume bytes per destination volume and
         // refuse the whole batch before touching disk if a volume would not fit. Same-volume moves are
@@ -547,8 +550,8 @@ public sealed partial class Renamer : FullExtensionBase
         {
             string detail = string.Join("; ",
                 shortfall.Select(s => $"{s.Volume}: need {s.Needed} bytes, {s.Available} free"));
-            LogBatchDone(runId, 0, 0, 0);
-            progress.Report(1d, $"Refused: insufficient free space ({detail}).");
+            LogBatchDone(runId, 0, contestedFiles, 0);
+            progress.Report(1d, $"Refused: insufficient free space ({detail}).{RefusedNote(contestedFiles)}");
             return;
         }
 
@@ -556,10 +559,31 @@ public sealed partial class Renamer : FullExtensionBase
         // /undo). Report the final 1.0 and return as a clean no-op.
         if (acting.Count == 0)
         {
-            LogBatchDone(runId, 0, 0, 0);
-            progress.Report(1d, "Nothing to renamer.");
+            LogBatchDone(runId, 0, contestedFiles, 0);
+            progress.Report(1d, $"Nothing to renamer.{RefusedNote(contestedFiles)}");
             return;
         }
+
+        // Resolve or create every DISTINCT destination Folder row ONCE, single-threaded, after the
+        // refusals above: folder creation is persistent shared state, so it happens only for a batch
+        // that will now run, and never inside the parallel execution below. Each worker reads its
+        // Move's destination id from this map instead of doing a check-then-act create on a shared
+        // row; an in-place renamer uses the source folder id and needs no entry.
+        var folderIdByPath = new Dictionary<string, int>(DestinationResolver.SourcePathComparer);
+        await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
+        {
+            var port = new CoveRenamerDataPort(services.GetRequiredService<DbContext>(), _coveConfig);
+            foreach (var unit in acting)
+            {
+                var planItem = unit.Plan.Items[0];
+                if (planItem.Status == RenamerStatus.Move
+                    && !folderIdByPath.ContainsKey(planItem.TargetFolderPath))
+                {
+                    folderIdByPath[planItem.TargetFolderPath] =
+                        await port.GetOrCreateFolderIdAsync(planItem.TargetFolderPath, ct);
+                }
+            }
+        });
 
         // The journal gets its OWN scope, and therefore its own DbContext, for the whole batch: it is
         // shared by every parallel worker because it mints each row's sequence number, and a DbContext
@@ -580,18 +604,10 @@ public sealed partial class Renamer : FullExtensionBase
         // completed file, so a later stall is legible as "stuck partway through {Acting}", not silence.
         LogPlanningDone(runId, acting.Count, ids.Length);
 
-        // PHASE B — execute, partitioned + bounded, per-worker scope.
-        // Map a move back to its unit by the source full path so each partition group hands the worker
-        // the right single-file plan. A duplicate OldFullPath (e.g. two Folder rows sharing one Path,
-        // or two entities resolving to a colliding old path) would make ToDictionary throw an
-        // ArgumentException AFTER the header is open — aborting the whole batch and masking the prior
-        // undoable batch. Build it defensively (group + keep-first) so a duplicate source path is a
-        // tolerated anomaly, not an unhandled throw; the duplicate's move tuple still points at the same
-        // on-disk file, so the kept unit covers it.
-        var unitByOldPath = acting
-            .GroupBy(u => u.Move.OldFullPath)
-            .ToDictionary(g => g.Key, g => g.First());
-        var partitions = FreeSpaceGuard.PartitionByPair(moves);
+        // Execution: partitioned, bounded, one scope per worker. The partitions carry the units
+        // themselves, so every unit is scheduled exactly once whatever its paths are.
+        var partitions = FreeSpaceGuard.PartitionByPair(
+            acting, u => (u.Move.OldFullPath, u.Move.NewFullPath));
 
         // Serialize every concurrent progress.Report. The PHASE B workers call progress.Report
         // from many threads at once (same-volume runs unbounded), and nothing establishes that the
@@ -601,7 +617,7 @@ public sealed partial class Renamer : FullExtensionBase
         // is already Interlocked; this only serializes the host-facing Report invocation itself.
         var progressGate = new object();
 
-        int totalRenamed = 0, totalSkipped = 0, totalFailed = 0;
+        int totalRenamed = 0, totalSkipped = contestedFiles, totalFailed = 0;
         int done = 0;
         int totalUnits = Math.Max(acting.Count, 1);
 
@@ -672,7 +688,7 @@ public sealed partial class Renamer : FullExtensionBase
             }
         }
 
-        foreach (var (pair, pairMoves) in partitions)
+        foreach (var (pair, pairUnits) in partitions)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -684,16 +700,21 @@ public sealed partial class Renamer : FullExtensionBase
             int degree = pair == FreeSpaceGuard.SameVolumePair
                 ? sameVolumeDegree
                 : options.CrossVolumeConcurrency;
-            var units = pairMoves.Select(m => unitByOldPath[m.OldFullPath]).ToList();
-
-            await Parallel.ForEachAsync(units,
+            await Parallel.ForEachAsync(pairUnits,
                 new ParallelOptions { MaxDegreeOfParallelism = degree, CancellationToken = ct },
                 RunUnitAsync);
         }
 
         LogBatchDone(runId, totalRenamed, totalSkipped, totalFailed);
-        progress.Report(1d, "Rename complete.");
+        progress.Report(1d, $"Rename complete.{RefusedNote(contestedFiles)}");
     }
+
+    // The refusal has to reach the job's own message: its files rename nothing and produce no per-item
+    // result, so a log line is the only other place it appears.
+    private static string RefusedNote(int contestedFiles) =>
+        contestedFiles > 0
+            ? $" {contestedFiles} file(s) refused: more than one record names the same file."
+            : "";
 
     /// <summary>
     /// Opens <paramref name="runId"/>'s journal batch, or suppresses journalling for the whole batch
@@ -825,6 +846,10 @@ public sealed partial class Renamer : FullExtensionBase
         foreach (var r in result.Renamed)
         {
             LogItemRenamed(runId, kind, entityId, r.Status, r.OldPath, r.NewPath);
+            if (r.Reason is { Length: > 0 } warning)
+            {
+                LogItemRenamedWithWarning(runId, kind, entityId, warning);
+            }
         }
 
         foreach (var s in result.Skipped)

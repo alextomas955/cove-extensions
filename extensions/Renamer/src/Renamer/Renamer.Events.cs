@@ -151,6 +151,10 @@ public sealed partial class Renamer
                 foreach (var r in result.Renamed)
                 {
                     LogAutoRenamed(kind, entityId, r.Status, r.OldPath, r.NewPath);
+                    if (r.Reason is { Length: > 0 } warning)
+                    {
+                        LogAutoRenamedWithWarning(kind, entityId, warning);
+                    }
                 }
                 foreach (var f in result.Failed)
                 {

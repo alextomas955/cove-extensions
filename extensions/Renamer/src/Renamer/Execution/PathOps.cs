@@ -109,11 +109,15 @@ internal static class PathOps
     /// </para>
     /// A null <paramref name="a"/> compares as the empty string; this never throws.
     /// </remarks>
-    internal static bool PathsEqual(string? a, string b)
-    {
-        var cmp = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
-        return string.Equals(NormalizeSlash(a ?? ""), NormalizeSlash(b), cmp);
-    }
+    internal static bool PathsEqual(string? a, string b) =>
+        PathComparer.Equals(NormalizeSlash(a ?? ""), NormalizeSlash(b));
+
+    /// <summary>
+    /// The <see cref="PathsEqual"/> case rule as a comparer, for keying normalized paths in a
+    /// dictionary or a grouping. Its input must already be forward-slash form.
+    /// </summary>
+    internal static StringComparer PathComparer =>
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
 }
