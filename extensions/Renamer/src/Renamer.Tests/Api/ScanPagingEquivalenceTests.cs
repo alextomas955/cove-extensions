@@ -145,7 +145,7 @@ public sealed class ScanPagingEquivalenceTests
 
         foreach (var kind in RenamableKinds.All)
         {
-            var ids = await port.LoadAllEntityIdsAsync(kind);
+            var ids = port.SeededIds(kind);
             var loaded = await port.LoadEntitiesAsync(kind, ids);
             var byId = loaded.ToDictionary(e => e.EntityId);
 

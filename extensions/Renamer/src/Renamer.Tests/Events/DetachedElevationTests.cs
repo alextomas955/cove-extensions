@@ -110,7 +110,7 @@ public sealed class DetachedElevationTests
         await using var db = library.NewContext();
         var migrated = await new CoveRevertJournal(db).ReadUndoTargetAsync();
         Assert.NotNull(migrated);
-        Assert.Equal("R1", migrated.Value.RunId);
+        Assert.Equal("R1", migrated.Value.OperationId);
     }
 
     [Fact]

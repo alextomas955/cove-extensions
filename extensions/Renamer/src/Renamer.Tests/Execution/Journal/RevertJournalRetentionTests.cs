@@ -40,7 +40,7 @@ public sealed class RevertJournalRetentionTests
         await SeedBatchAsync(db, "run-old", Opened, rows: 3);
 
         // Opening the next batch is the only trigger — no timer, no scheduler, no second call site.
-        await new CoveRevertJournal(db).BeginBatchAsync("run-new", RenamerFileKind.Video, JustOutside);
+        await new CoveRevertJournal(db).BeginBatchAsync("run-new", "run-new", RenamerFileKind.Video, JustOutside);
 
         Assert.Empty(await BatchRunIdsAsync(db, "run-old"));
         Assert.Empty(await RowRunIdsAsync(db, "run-old"));
@@ -60,7 +60,7 @@ public sealed class RevertJournalRetentionTests
 
         await SeedBatchAsync(db, "run-old", Opened, rows: 3);
 
-        await new CoveRevertJournal(db).BeginBatchAsync("run-new", RenamerFileKind.Video, JustInside);
+        await new CoveRevertJournal(db).BeginBatchAsync("run-new", "run-new", RenamerFileKind.Video, JustInside);
 
         Assert.Single(await BatchRunIdsAsync(db, "run-old"));
         Assert.Equal(3, (await RowRunIdsAsync(db, "run-old")).Count);
@@ -80,7 +80,7 @@ public sealed class RevertJournalRetentionTests
         await journal.DeleteRowAsync("run-old", seq: 2, unrestorable: true);
         Assert.Equal(2, (await RowRunIdsAsync(db, "run-old")).Count);
 
-        await new CoveRevertJournal(db).BeginBatchAsync("run-new", RenamerFileKind.Video, JustOutside);
+        await new CoveRevertJournal(db).BeginBatchAsync("run-new", "run-new", RenamerFileKind.Video, JustOutside);
 
         Assert.Empty(await RowRunIdsAsync(db, "run-old"));
         Assert.Empty(await BatchRunIdsAsync(db, "run-old"));
@@ -163,7 +163,7 @@ public sealed class RevertJournalRetentionTests
         DbContext db, string runId, DateTime openedAt, int rows)
     {
         var journal = new CoveRevertJournal(db);
-        await journal.BeginBatchAsync(runId, RenamerFileKind.Video, openedAt);
+        await journal.BeginBatchAsync(runId, runId, RenamerFileKind.Video, openedAt);
 
         for (int i = 1; i <= rows; i++)
         {

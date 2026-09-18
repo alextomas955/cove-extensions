@@ -28,9 +28,11 @@ public sealed partial class Renamer
             batch.Property(b => b.RunId).HasColumnName("run_id");
             batch.Property(b => b.OpenedAtUtcTicks).HasColumnName("opened_at_utc_ticks");
             batch.Property(b => b.Kind).HasColumnName("kind");
+            batch.Property(b => b.OperationId).HasColumnName("operation_id");
             batch.Property(b => b.OriginalCount).HasColumnName("original_count");
             batch.Property(b => b.RestoredCount).HasColumnName("restored_count");
             batch.Property(b => b.UnrestorableCount).HasColumnName("unrestorable_count");
+            batch.HasIndex(b => b.OperationId).HasDatabaseName("ix_renamer_revert_batches_operation");
         });
 
         modelBuilder.Entity<RevertRowEntity>(row =>
@@ -47,6 +49,11 @@ public sealed partial class Renamer
         });
     }
 
-    protected override void DefineMigrations() =>
+    protected override void DefineMigrations()
+    {
+        // In order, and each one added rather than edited: the host applies a name once, so the second
+        // migration only ever sees a table the first one created.
         Migration(RevertJournalSchema.Migration001Name, RevertJournalSchema.Migration001UpSql);
+        Migration(RevertJournalSchema.Migration002Name, RevertJournalSchema.Migration002UpSql);
+    }
 }

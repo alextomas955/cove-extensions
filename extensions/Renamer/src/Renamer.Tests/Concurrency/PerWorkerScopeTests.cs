@@ -49,7 +49,7 @@ public sealed class PerWorkerScopeTests
         await using var seedDb = shared.NewContext();
 
         // Seed N same-volume videos in ONE folder so PHASE B fans out N parallel workers under the
-        // unthrottled same-volume group.
+        // same-volume group, bounded by SameVolumeConcurrency.
         const int n = 6;
         string folderPath = dir.Root.Replace('\\', '/');
         var (folderId, firstVideo, _) =

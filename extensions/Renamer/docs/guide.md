@@ -118,12 +118,11 @@ duplicate record and run again.
 The run leaves one of three banners behind, and the difference between the last two decides whether
 you have anything to check:
 
-- **The run finished**: "Rename finished. The scan found 412 files to rename, 9 skipped. Undo covers
-  only the last media kind in this run." Both figures are the scan's — what it planned to change, and
-  its _Needs attention_ count — because the run itself reports no totals. A file the scan planned can
-  still be skipped when the rename reaches it, so treat the first number as what was attempted rather
-  than what was renamed; dry-run again to see where the library now stands. The closing sentence is
-  explained under [Undo the last rename](#undo-the-last-rename).
+- **The run finished**: "Rename finished. The scan found 412 files to rename, 9 skipped." Both figures
+  are the scan's: what it planned to change, and its _Needs attention_ count. The run itself
+  reports no totals. A file the scan planned can still be skipped when the rename reaches it, so treat
+  the first number as what was attempted rather than what was renamed; dry-run again to see where the
+  library now stands.
 - **The job reported failure**: "Couldn't rename — [reason]. Nothing was changed; you can try again."
   Cove reported that the work stopped, so nothing was written. Fix the cause it names and run again.
 - **The outcome is unknown**: "Couldn't confirm the rename — [reason]." Renamer stopped watching before
@@ -150,9 +149,9 @@ Know what undo covers:
   where the rename left them, but the next rename drops that record with no further warning, so
   Renamer stops offering a restore it cannot promise. A record expires as a whole — including any
   part you had not restored yet.
-- **A whole-library rename records each media kind separately**, which is why its banner closes with
-  "Undo covers only the last media kind in this run." One undo restores that kind; the rule below
-  decides which record the button offers next.
+- **A whole-library rename is one record, however many media kinds it touched.** One undo puts back
+  everything that run renamed. You need write permission for every kind it touched; without one of
+  them the button refuses the whole record rather than restoring part of it.
 - Several renames can be waiting at once, and the button reaches the most recent one that **still has
   files to put back**. What you cannot do is reach past a newer rename to get to an older one.
 - **Undo is shared across everyone on the instance.** Renamer records a rename against the library,
@@ -165,7 +164,8 @@ Know what undo covers:
   itself instead of looking finished.
 - A rename of more than **5,000 files** is **not recorded at all**, and both the rename confirmation
   and the dry-run footer say so before it runs. A whole-library rename usually lands here. It also
-  clears any undo that was still pending, because a rename that large may have moved those files too.
+  clears whatever that same run had already recorded, because a rename that large may have moved those
+  files too. Records from other renames are left alone.
 - A file that cannot go back — something else now occupies the old name, the drive is unmounted, the
   file is locked — stays pending, so undoing again after you fix the cause finishes exactly the work
   that is left. One case is final rather than worth retrying: a file that is no longer in your library

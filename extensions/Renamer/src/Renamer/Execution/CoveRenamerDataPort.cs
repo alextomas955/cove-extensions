@@ -319,31 +319,82 @@ public class CoveRenamerDataPort : IRenamerDataPort
         StudioId: t.StudioId,
         ParentStudios: WalkParentStudios(t.Studio));
 
-    /// <summary>
-    /// An <c>AsNoTracking</c> id-only bulk query over the kind's table — Gallery (and any other
-    /// non-renamable kind) returns empty rather than throwing, mirroring <see cref="LoadEntityAsync"/>'s
-    /// own treatment of Gallery as "not yet a renamable kind."
-    /// </summary>
-    public async Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default)
+    /// <inheritdoc />
+    public async Task<int> CountEntitiesAsync(RenamerFileKind kind, CancellationToken ct = default) => kind switch
     {
-        // The ORDER BY is load-bearing, not tidiness: the whole-library dry run's paged readback walks
-        // this same id space as a keyset cursor (LoadEntityIdPageAsync), and the scan job re-orders its
-        // batch loads by this list. Without an explicit ordering the ids arrive in provider order — an
-        // implementation accident a cursor cannot rest on.
-        return kind switch
+        RenamerFileKind.Video => await _db.Set<Video>().AsNoTracking().CountAsync(ct),
+        RenamerFileKind.Image => await _db.Set<Image>().AsNoTracking().CountAsync(ct),
+        RenamerFileKind.Audio => await _db.Set<Audio>().AsNoTracking().CountAsync(ct),
+        RenamerFileKind.Text => await _db.Set<TextDocument>().AsNoTracking().CountAsync(ct),
+        _ => 0,
+    };
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<string, int>> CountSourcePathClaimsAsync(
+        IReadOnlyList<string> sourcePaths, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(sourcePaths);
+
+        var claims = new Dictionary<string, int>(PathOps.PathComparer);
+
+        // Chunked for the same reason LoadEntitiesAsync is: EF binds one parameter per element of an
+        // IN list, and a whole chunk of planned paths would approach the provider's parameter cap.
+        foreach (var chunk in sourcePaths.Distinct(PathOps.PathComparer).Chunk(LoadChunkSize))
         {
-            RenamerFileKind.Video => await _db.Set<Video>().AsNoTracking().OrderBy(v => v.Id).Select(v => v.Id).ToArrayAsync(ct),
-            RenamerFileKind.Image => await _db.Set<Image>().AsNoTracking().OrderBy(i => i.Id).Select(i => i.Id).ToArrayAsync(ct),
-            RenamerFileKind.Audio => await _db.Set<Audio>().AsNoTracking().OrderBy(a => a.Id).Select(a => a.Id).ToArrayAsync(ct),
-            RenamerFileKind.Text => await _db.Set<TextDocument>().AsNoTracking().OrderBy(t => t.Id).Select(t => t.Id).ToArrayAsync(ct),
-            _ => [],
-        };
+            // Where the volume treats a path and its case-variant as one file, so must this query.
+            // Equality here is the database collation's, and a case-sensitive collation over a
+            // case-insensitive volume would read a twin row differing only in case as a second path
+            // and report neither as contested. Cove indexes upper(Path), so the folded comparison is
+            // served by an index rather than a scan.
+            var rows = PathOps.PathsIgnoreCase
+                ? await FoldedClaimsAsync(chunk, ct)
+                : await ExactClaimsAsync(chunk, ct);
+
+            foreach (var row in rows)
+            {
+                claims[row.Path] = row.Claims;
+            }
+        }
+
+        return claims;
+    }
+
+    private sealed record PathClaims(string Path, int Claims);
+
+    private Task<List<PathClaims>> ExactClaimsAsync(string[] paths, CancellationToken ct) =>
+        _db.Set<BaseFileEntity>().AsNoTracking()
+            .Where(f => paths.Contains(f.Path))
+            .GroupBy(f => f.Path)
+            .Where(g => g.Count() > 1)
+            .Select(g => new PathClaims(g.Key, g.Count()))
+            .ToListAsync(ct);
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo",
+        Justification = "ToUpper() here is never executed in .NET - it is translated to the provider's " +
+            "own upper() in SQL, and the culture-taking overloads have no translation.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture",
+        Justification = "Same as CA1304: this call is translated to SQL, not run by the CLR.")]
+    private Task<List<PathClaims>> FoldedClaimsAsync(string[] paths, CancellationToken ct)
+    {
+        // The keys come back folded. The caller's dictionary compares with PathOps.PathComparer, which
+        // ignores case on exactly the platforms this branch runs on, so a folded key still answers a
+        // lookup by the path as planned.
+        var folded = Array.ConvertAll(paths, p => p.ToUpperInvariant());
+
+        return _db.Set<BaseFileEntity>().AsNoTracking()
+            .Where(f => folded.Contains(f.Path.ToUpper()))
+            .GroupBy(f => f.Path.ToUpper())
+            .Where(g => g.Count() > 1)
+            .Select(g => new PathClaims(g.Key, g.Count()))
+            .ToListAsync(ct);
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
         RenamerFileKind kind, int afterEntityId, int take, CancellationToken ct = default)
     {
+        // The ORDER BY below is load-bearing: it is the total order the caller's cursor rests on.
+        // In provider order a cursor skips and repeats entities across pages as rows change.
         if (take <= 0)
         {
             return [];

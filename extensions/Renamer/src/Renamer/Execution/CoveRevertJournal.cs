@@ -78,7 +78,8 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
     public CoveRevertJournal(DbContext db) => _db = db;
 
     public async Task BeginBatchAsync(
-        string runId, RenamerFileKind kind, DateTime nowUtc, CancellationToken ct = default)
+        string runId, string operationId, RenamerFileKind kind, DateTime nowUtc,
+        CancellationToken ct = default)
     {
         // Retention runs HERE and nowhere else. Opening a batch is the only place a batch is created,
         // so it is the only place the window can be crossed by new work — which is what lets the whole
@@ -96,6 +97,7 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
                 RunId = runId,
                 OpenedAtUtcTicks = nowUtc.Ticks,
                 Kind = kind.ToString(),
+                OperationId = operationId,
             };
             _db.Set<RevertBatchEntity>().Add(batch);
 
@@ -107,18 +109,25 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         }
     }
 
-    public async Task SuppressAsync(CancellationToken ct = default)
+    public async Task SuppressAsync(string operationId, CancellationToken ct = default)
     {
         await _writes.WaitAsync(ct);
         try
         {
             _suppressed = true;
 
+            // Filtered to the operation. Unfiltered, this deleted every batch in the table, so one
+            // over-cap kind took the same click's other kinds AND every unrelated auto-rename with it.
+            var batches = _db.Set<RevertBatchEntity>()
+                .Where(b => (b.OperationId == "" ? b.RunId : b.OperationId) == operationId);
+
             // Two set-based statements, never a materialized id list: how much the journal is holding is
             // itself unbounded input, so a delete per batch or per row would make the refusal the
             // O(library) work the refusal exists to avoid. Rows first, while their batch is still there.
-            await _db.Set<RevertRowEntity>().ExecuteDeleteAsync(ct);
-            await _db.Set<RevertBatchEntity>().ExecuteDeleteAsync(ct);
+            await _db.Set<RevertRowEntity>()
+                .Where(r => batches.Any(b => b.RunId == r.RunId))
+                .ExecuteDeleteAsync(ct);
+            await batches.ExecuteDeleteAsync(ct);
         }
         finally
         {
@@ -165,34 +174,106 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         }
     }
 
-    public async Task<RevertBatchSummary?> ReadUndoTargetAsync(CancellationToken ct = default)
+    public async Task<RevertOperationSummary?> ReadUndoTargetAsync(CancellationToken ct = default)
     {
         await _writes.WaitAsync(ct);
         try
         {
             var rows = _db.Set<RevertRowEntity>();
 
-            // ONE query, expressing "newest replayable, else newest" as an ordering rather than as two
-            // reads with a fallback between them. Having a row left is the FIRST sort key, so a batch
-            // that can still be replayed outranks a newer one that is settled; ties then fall back to
-            // the newest batch there is, which is what keeps a fully-settled rename describable.
+            // ONE grouped query, expressing "newest replayable, else newest" as an ordering rather than
+            // as two reads with a fallback between them. Having a row left is the FIRST sort key, so an
+            // operation that can still be replayed outranks a newer one that is settled; ties then fall
+            // back to the newest operation there is, which is what keeps a fully-settled rename
+            // describable.
+            var operation = await _db.Set<RevertBatchEntity>().AsNoTracking()
+                .Select(b => new
+                {
+                    OperationId = b.OperationId == "" ? b.RunId : b.OperationId,
+                    b.OpenedAtUtcTicks,
+                    b.OriginalCount,
+                    b.RestoredCount,
+                    b.UnrestorableCount,
+                    // Projected per batch and MAXed below, because "any of this operation's batches has
+                    // a row left" is the question, not "this batch has one".
+                    HasRows = rows.Any(r => r.RunId == b.RunId) ? 1 : 0,
+                })
+                .GroupBy(b => b.OperationId)
+                .Select(g => new
+                {
+                    OperationId = g.Key,
+                    // MIN opens the operation and MAX orders it: the panel states when the user clicked,
+                    // while the newest batch is what decides which operation is the most recent one.
+                    OpenedAtUtcTicks = g.Min(b => b.OpenedAtUtcTicks),
+                    NewestAtUtcTicks = g.Max(b => b.OpenedAtUtcTicks),
+                    OriginalCount = g.Sum(b => b.OriginalCount),
+                    RestoredCount = g.Sum(b => b.RestoredCount),
+                    UnrestorableCount = g.Sum(b => b.UnrestorableCount),
+                    HasRows = g.Max(b => b.HasRows),
+                })
+                .OrderByDescending(g => g.HasRows)
+                .ThenByDescending(g => g.NewestAtUtcTicks)
+                // Ties broken by operation id so "the newest operation" is one operation,
+                // deterministically, rather than whichever row the provider happened to return first.
+                .ThenByDescending(g => g.OperationId)
+                .FirstOrDefaultAsync(ct);
+
+            return operation is null
+                ? null
+                : new RevertOperationSummary(
+                    operation.OperationId,
+                    operation.OpenedAtUtcTicks,
+                    operation.OriginalCount,
+                    operation.RestoredCount,
+                    operation.UnrestorableCount);
+        }
+        finally
+        {
+            _writes.Release();
+        }
+    }
+
+    public async Task<RevertBatchSummary?> ReadNextBatchAsync(
+        string operationId, long beforeOpenedAtTicks, string beforeRunId, CancellationToken ct = default)
+    {
+        await _writes.WaitAsync(ct);
+        try
+        {
+            var rows = _db.Set<RevertRowEntity>();
+
             var batch = await _db.Set<RevertBatchEntity>().AsNoTracking()
-                .OrderByDescending(b => rows.Any(r => r.RunId == b.RunId))
-                .ThenByDescending(b => b.OpenedAtUtcTicks)
-                // Ties broken by run id so "the newest batch" is one batch, deterministically, rather
-                // than whichever row the provider happened to return first.
+                .Where(b => (b.OperationId == "" ? b.RunId : b.OperationId) == operationId)
+                // The keyset: strictly below the cursor on (opened, run id), so the caller's loop
+                // advances even when a batch it just tried still holds every row it started with.
+                .Where(b => b.OpenedAtUtcTicks < beforeOpenedAtTicks
+                    || (b.OpenedAtUtcTicks == beforeOpenedAtTicks
+                        && b.RunId.CompareTo(beforeRunId) < 0))
+                .Where(b => rows.Any(r => r.RunId == b.RunId))
+                .OrderByDescending(b => b.OpenedAtUtcTicks)
                 .ThenByDescending(b => b.RunId)
                 .FirstOrDefaultAsync(ct);
 
-            return batch is null
-                ? null
-                : new RevertBatchSummary(
-                    batch.RunId,
-                    ParseKind(batch.Kind),
-                    batch.OpenedAtUtcTicks,
-                    batch.OriginalCount,
-                    batch.RestoredCount,
-                    batch.UnrestorableCount);
+            return batch is null ? null : Summarize(batch);
+        }
+        finally
+        {
+            _writes.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<RenamerFileKind>> ReadOperationKindsAsync(
+        string operationId, CancellationToken ct = default)
+    {
+        await _writes.WaitAsync(ct);
+        try
+        {
+            var stored = await _db.Set<RevertBatchEntity>().AsNoTracking()
+                .Where(b => (b.OperationId == "" ? b.RunId : b.OperationId) == operationId)
+                .Select(b => b.Kind)
+                .Distinct()
+                .ToListAsync(ct);
+
+            return [.. stored.Select(ParseKind)];
         }
         finally
         {
@@ -293,6 +374,18 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
 
     /// <summary>Releases the write gate. The context is the scope's to dispose, never this instance's.</summary>
     public void Dispose() => _writes.Dispose();
+
+    private static RevertBatchSummary Summarize(RevertBatchEntity batch) =>
+        new(batch.RunId,
+            // Resolved here rather than backfilled in the database: a batch written before the column
+            // existed is an operation of one, and one read expressing that beats a migration that
+            // rewrites rows nobody will undo.
+            batch.OperationId.Length == 0 ? batch.RunId : batch.OperationId,
+            ParseKind(batch.Kind),
+            batch.OpenedAtUtcTicks,
+            batch.OriginalCount,
+            batch.RestoredCount,
+            batch.UnrestorableCount);
 
     private Task<RevertBatchEntity?> FindBatchAsync(string runId, CancellationToken ct) =>
         _db.Set<RevertBatchEntity>().FirstOrDefaultAsync(b => b.RunId == runId, ct);

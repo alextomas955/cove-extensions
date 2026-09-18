@@ -239,7 +239,7 @@ public sealed class ScanRowPagerTests
         Assert.Equal([7, 9], await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 5, 3));
         Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 0, 0));
         Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Gallery, 0, 10));
-        Assert.Empty(await port.LoadAllEntityIdsAsync(RenamerFileKind.Gallery));
+        Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Gallery, 0, int.MaxValue));
     }
 
     // The in-flight overflow flag, as a page reads it.

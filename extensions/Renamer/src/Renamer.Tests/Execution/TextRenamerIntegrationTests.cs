@@ -172,7 +172,7 @@ public sealed class TextRenamerIntegrationTests
             var journal = new FakeRevertJournal();
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
-            await journal.BeginBatchAsync("run-text", RenamerFileKind.Text, DateTime.UtcNow);
+            await journal.BeginBatchAsync("run-text", "run-text", RenamerFileKind.Text, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Text, textId, options, default);
             var forward = await new RenamerExecutor(
                 port, new CapturingEventBus(), journal, "run-text", new DiskMover())

@@ -12,10 +12,10 @@ namespace Renamer.Tests.Api;
 /// <see cref="RenamerStatus"/> member count and <see cref="ScanSummary.MaxVolumePairsPerKind"/> — at ten
 /// files and again at ten thousand.
 /// <para>
-/// What is asserted here is the PERSISTED size, not peak memory: the stored value's size is independent
-/// of N (at two sizes three orders of magnitude apart) and the store is written exactly once. Peak
-/// memory is not measured and is not bounded by the shape either, because the job still loads every
-/// candidate id per kind to compute a progress denominator. No assertion below says otherwise.
+/// What is asserted here is the PERSISTED size plus how wide each read of the library is: the stored
+/// value's size is independent of N (at two sizes three orders of magnitude apart), the store is written
+/// exactly once, and the walk asks for a page of ids at a time and never for a whole kind's. Peak
+/// managed memory itself is not measured.
 /// </para>
 /// <para>
 /// There is deliberately no million-file fixture: the ceiling is N-independent by construction, so a
@@ -131,6 +131,21 @@ public sealed class ScanAggregateScaleTests
         Assert.Equal(LargeFixture, summary.Kinds.Sum(k => k.Entities));
         Assert.Equal(LargeFixture, summary.Kinds.Sum(k => k.StatusCounts.Sum(c => c.Count)));
         Assert.All(summary.Kinds, k => Assert.Equal(k.Files, k.StatusCounts.Sum(c => c.Count)));
+    }
+
+    [Fact]
+    public async Task TenThousandFileScan_WalksPages_AndNeverAsksForEveryIdAtOnce()
+    {
+        var port = SeedLibrary(LargeFixture);
+        await ScanAsync(port);
+
+        int perKind = LargeFixture / RenamableKinds.All.Length;
+
+        // That no whole-kind read happens is the compiler's job now: IRenamerDataPort offers none.
+        // What is left to assert is that the pages are narrow and that there are several per kind.
+        Assert.True(port.IdPageRequests.Count > RenamableKinds.All.Length,
+            "a kind of 2500 entities cannot be walked in one page");
+        Assert.All(port.IdPageRequests, r => Assert.InRange(r.Take, 1, perKind - 1));
     }
 
     [Fact]

@@ -31,8 +31,16 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     /// <summary>Pre-registers a folder path → id mapping (otherwise <see cref="GetOrCreateFolderIdAsync"/> mints one).</summary>
     public void SeedFolder(string path, int id) => _folderIds[path] = id;
 
-    /// <summary>Seeds the id set <see cref="LoadAllEntityIdsAsync"/> returns for <paramref name="kind"/>.</summary>
+    /// <summary>Seeds the ids <paramref name="kind"/>'s pages walk.</summary>
     public void SeedAllIds(RenamerFileKind kind, params int[] ids) => _allIds[kind] = [.. ids];
+
+    /// <summary>Every seeded id of <paramref name="kind"/>, ascending.</summary>
+    /// <remarks>
+    /// Test support, not a port member: the production interface offers no whole-kind read, so a
+    /// reference sequence for a paging-equivalence comparison has to come from the fake's own state.
+    /// </remarks>
+    public IReadOnlyList<int> SeededIds(RenamerFileKind kind) =>
+        _allIds.TryGetValue(kind, out var seeded) ? [.. seeded.OrderBy(id => id)] : [];
 
     /// <summary>Forward-slash source paths the test declares absent on disk; everything else reports present.</summary>
     public HashSet<string> MissingSources { get; } = new(StringComparer.Ordinal);
@@ -86,13 +94,14 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
         return Task.FromResult<IReadOnlyList<RenamerEntity>>(found);
     }
 
-    public Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<int>>(
-            _allIds.TryGetValue(kind, out var ids) ? [.. ids.OrderBy(id => id)] : []);
+    /// <summary>Every <see cref="LoadEntityIdPageAsync"/> call, in order, so a test can see how wide each ask was.</summary>
+    public List<(RenamerFileKind Kind, int After, int Take)> IdPageRequests { get; } = [];
 
     public Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
         RenamerFileKind kind, int afterEntityId, int take, CancellationToken ct = default)
     {
+        IdPageRequests.Add((kind, afterEntityId, take));
+
         if (take <= 0 || !_allIds.TryGetValue(kind, out var ids))
         {
             return Task.FromResult<IReadOnlyList<int>>([]);
@@ -101,6 +110,20 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
         return Task.FromResult<IReadOnlyList<int>>(
             [.. ids.Where(id => id > afterEntityId).OrderBy(id => id).Take(take)]);
     }
+
+    public Task<int> CountEntitiesAsync(RenamerFileKind kind, CancellationToken ct = default)
+        => Task.FromResult(_allIds.TryGetValue(kind, out var ids) ? ids.Count : 0);
+
+    /// <summary>Source paths the test declares as named by more than one file row.</summary>
+    public Dictionary<string, int> SourcePathClaims { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Task<IReadOnlyDictionary<string, int>> CountSourcePathClaimsAsync(
+        IReadOnlyList<string> sourcePaths, CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyDictionary<string, int>>(
+            sourcePaths
+                .Where(SourcePathClaims.ContainsKey)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(p => p, p => SourcePathClaims[p], StringComparer.OrdinalIgnoreCase));
 
     public Task<bool> CollisionExistsAsync(int folderId, string basename, int selfFileId, CancellationToken ct = default)
     {

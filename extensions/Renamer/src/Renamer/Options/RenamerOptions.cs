@@ -590,11 +590,16 @@ public sealed record RenamerOptions
     public long FreeSpaceHeadroomBytes { get; init; } = 1L << 30;
 
     /// <summary>
-    /// Cross-drive concurrency bound: the maximum number of simultaneous cross-drive transfers per
-    /// (source,destination) disk pair. Same-volume renames are unthrottled (an atomic
-    /// <c>File.Move</c> consumes no extra space). Default <c>2</c> — conservative, to avoid thrashing
-    /// two spinning disks with too many concurrent copies.
+    /// Cross-drive concurrency bound: the maximum number of simultaneous cross-drive transfers within
+    /// one (source,destination) disk pair. Same-volume renames are bounded separately, by
+    /// <see cref="SameVolumeConcurrency"/>. Default <c>2</c> — conservative, to avoid thrashing two
+    /// spinning disks with too many concurrent copies.
     /// </summary>
+    /// <remarks>
+    /// A batch runs its disk pairs one after another, so this value is also the batch's peak
+    /// cross-drive concurrency and never the sum over the pairs it found. Sequential pairs keep the
+    /// disk pressure a user asks for true; a real library has one or two pairs.
+    /// </remarks>
     public int CrossVolumeConcurrency { get; init; } = 2;
 
     /// <summary>

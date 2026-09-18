@@ -92,7 +92,7 @@ public sealed class DerivedTitleWriteTests
             var planner = new RenamerPlanner(port);
             var journal = new FakeRevertJournal();
 
-            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var forward = await new RenamerExecutor(
                     port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                 .ExecuteAsync(

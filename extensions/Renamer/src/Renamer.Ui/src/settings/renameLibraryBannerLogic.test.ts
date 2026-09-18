@@ -7,7 +7,6 @@ import {
   buildRenameLibraryError,
   buildRenameLibrarySuccess,
   buildRenameLibraryUnconfirmed,
-  UNDO_REACH_CLAUSE,
 } from "./renameLibraryBannerLogic";
 import type { DryRunCounts } from "./dry-run/dryRunLogic";
 
@@ -15,31 +14,31 @@ function counts(willChange: number, attention: number): DryRunCounts {
   return { willChange, attention, noChange: 0, scanned: willChange + attention };
 }
 
-test("a run with nothing skipped states the scan's count and undo's reach", () => {
+test("a run with nothing skipped states the scan's count", () => {
   assert.equal(
     buildRenameLibrarySuccess(counts(1200, 0)),
-    "Rename finished. The scan found 1200 files to rename. Undo covers only the last media kind in this run.",
+    "Rename finished. The scan found 1200 files to rename.",
   );
 });
 
 test("one planned file is one file", () => {
   assert.equal(
     buildRenameLibrarySuccess(counts(1, 0)),
-    "Rename finished. The scan found 1 file to rename. Undo covers only the last media kind in this run.",
+    "Rename finished. The scan found 1 file to rename.",
   );
 });
 
 test("a run that changed nothing still reports its size", () => {
   assert.equal(
     buildRenameLibrarySuccess(counts(0, 0)),
-    "Rename finished. The scan found 0 files to rename. Undo covers only the last media kind in this run.",
+    "Rename finished. The scan found 0 files to rename.",
   );
 });
 
 test("skipped files are stated only when there are some", () => {
   assert.equal(
     buildRenameLibrarySuccess(counts(1200, 30)),
-    "Rename finished. The scan found 1200 files to rename, 30 skipped. Undo covers only the last media kind in this run.",
+    "Rename finished. The scan found 1200 files to rename, 30 skipped.",
   );
   assert.ok(!buildRenameLibrarySuccess(counts(1200, 0)).includes("skipped"));
 });
@@ -54,12 +53,6 @@ test("the success sentence never states how many files were renamed", () => {
       success.includes("The scan found"),
       `does not name the scan as the source: ${success}`,
     );
-  }
-});
-
-test("the reach clause is on every success, whatever the counts", () => {
-  for (const c of [counts(0, 0), counts(1, 0), counts(1200, 30), counts(0, 42)]) {
-    assert.ok(buildRenameLibrarySuccess(c).endsWith(UNDO_REACH_CLAUSE));
   }
 });
 

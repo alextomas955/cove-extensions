@@ -65,7 +65,7 @@ public sealed class RevertJournalDdlTests
         await using var _ = db;
         await using var __ = conn;
 
-        await db.Database.ExecuteSqlRawAsync(RevertJournalSchema.Migration001UpSql);
+        await ApplyShippedMigrationsAsync(db);
 
         db.Set<RevertRowEntity>().Add(new RevertRowEntity
         {
@@ -97,7 +97,7 @@ public sealed class RevertJournalDdlTests
         await using var _ = db;
         await using var __ = conn;
 
-        await db.Database.ExecuteSqlRawAsync(RevertJournalSchema.Migration001UpSql);
+        await ApplyShippedMigrationsAsync(db);
         await db.Database.ExecuteSqlRawAsync(
             "INSERT INTO renamer_revert_batches (run_id, opened_at_utc_ticks, kind) VALUES ('run-1', 42, 'Video')");
         await db.Database.ExecuteSqlRawAsync(
@@ -108,9 +108,41 @@ public sealed class RevertJournalDdlTests
         Assert.Equal(0, batch.OriginalCount);
         Assert.Equal(0, batch.RestoredCount);
         Assert.Equal(0, batch.UnrestorableCount);
+        Assert.Equal("", batch.OperationId);
 
         Assert.Equal("", (await db.Set<RevertRowEntity>().AsNoTracking().SingleAsync()).SidecarsJson);
     }
+
+    /// <summary>
+    /// The operation column lands on a table that already holds a batch, and that batch keeps no
+    /// operation of its own.
+    /// </summary>
+    /// <remarks>
+    /// The column is added by <see cref="SqliteJournalSchema"/>, not by the shipped second migration,
+    /// which is PostgreSQL-only. What is asserted is the shape readers depend on, not the string.
+    /// </remarks>
+    [Fact]
+    public async Task TheOperationColumn_LandsBesideAnExistingBatch_AndLeavesItWithNoOperation()
+    {
+        var (db, conn) = CoveContextFactory.CreateSqliteContextWithoutSchema();
+        await using var _ = db;
+        await using var __ = conn;
+
+        await db.Database.ExecuteSqlRawAsync(RevertJournalSchema.Migration001UpSql);
+        await db.Database.ExecuteSqlRawAsync(
+            "INSERT INTO renamer_revert_batches (run_id, opened_at_utc_ticks, kind) VALUES ('legacy', 42, 'Video')");
+
+        await SqliteJournalSchema.AddOperationColumnAsync(db);
+
+        Assert.Contains("ix_renamer_revert_batches_operation", await ObjectNamesAsync(conn));
+
+        // A batch written before the column existed carries no operation of its own. Readers resolve
+        // that to the batch's own run id, so it stays undoable as an operation of one.
+        var batch = await db.Set<RevertBatchEntity>().AsNoTracking().SingleAsync();
+        Assert.Equal("", batch.OperationId);
+    }
+
+    private static Task ApplyShippedMigrationsAsync(DbContext db) => SqliteJournalSchema.CreateAsync(db);
 
     private static async Task<List<string>> ObjectNamesAsync(SqliteConnection conn)
     {

@@ -126,9 +126,13 @@ public sealed partial class Renamer
                 // from /undo). The SAME journal instance is handed to the executor so its AppendAsync rows
                 // land under this batch. The row cap applies here too — one entity can hold more files than
                 // the journal takes.
+                // Each edit is its own user action, so each gets its own operation id and its undo
+                // reaches that edit alone.
                 var runId = Guid.NewGuid().ToString("N");
                 using var journal = new CoveRevertJournal(db);
-                await OpenOrSuppressBatchAsync(journal, runId, kind, actingFiles, DateTime.UtcNow, ct);
+                await OpenOrSuppressBatchAsync(
+                    journal, runId, new OperationJournalBudget(runId), kind, actingFiles,
+                    DateTime.UtcNow, ct);
 
                 // Claimed BEFORE the save that raises the event, never after: the host dispatches
                 // fire-and-forget, so the event can re-enter this handler before ExecuteAsync returns.
