@@ -103,6 +103,34 @@ alias rather than installed, so it has no dependencies of its own and cannot hos
 install and one runner serve both surfaces. The project names are declared in that extension's
 `vite.config.ts`.
 
+## Measure coverage
+
+Both suites can report coverage. The Sonar workflow collects it this way, and either command works
+on its own.
+
+From the extension's UI directory:
+
+```sh
+npm run test:coverage
+```
+
+That writes `coverage/lcov.info`. The records name each file relative to the directory the Vitest
+config sits in, so anything reading the report from the repository root runs
+`node scripts/normalize-lcov-paths.mjs` first.
+
+For the C# suite, from the repo root:
+
+```sh
+dotnet test --project extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj -c Release \
+  -- --coverage --coverage-output-format xml --coverage-output coverage.xml
+```
+
+That writes `TestResults/coverage.xml` in the Visual Studio coverage format. Sonar's C# analyzer
+reads that format and does not read Cobertura.
+
+Neither number gates anything locally. `coverage/` and `.sonarqube/` are build output and are
+gitignored.
+
 ## Run the end-to-end suite
 
 This tier needs Docker running. From `tests/e2e`:
