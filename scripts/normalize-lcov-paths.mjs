@@ -22,8 +22,8 @@ export function normalizeLcov(text, uiPath) {
   const lines = text.split(/\r?\n/).map((line) => {
     if (!line.startsWith("SF:")) return line;
     rewritten += 1;
-    const recorded = line.slice(3).trim().split("\\").join("/");
-    const absolute = path.posix.resolve("/", uiPath.split(path.sep).join("/"), recorded);
+    const recorded = line.slice(3).trim().replaceAll("\\", "/");
+    const absolute = path.posix.resolve("/", uiPath.replaceAll(path.sep, "/"), recorded);
     return `SF:${absolute.slice(1)}`;
   });
   return { text: lines.join("\n"), rewritten };

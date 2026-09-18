@@ -21,7 +21,7 @@ export default defineConfig({
       // the project root only with allowExternal, and matches it only against an absolute glob;
       // without both its files carry no record and a scanner reads that as nought per cent.
       allowExternal: true,
-      include: ["src/**/*.{ts,tsx}", `${sharedUiRoot.split(path.sep).join("/")}/src/**/*.{ts,tsx}`],
+      include: ["src/**/*.{ts,tsx}", `${sharedUiRoot.replaceAll(path.sep, "/")}/src/**/*.{ts,tsx}`],
       exclude: ["**/src/wire/**", "**/*.test.ts", "**/*.test.tsx"],
     },
     projects: [
