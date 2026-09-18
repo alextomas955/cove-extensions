@@ -14,12 +14,11 @@
  * path shape that could then drift.
  *
  * A DOM is needed because the subject is a hook and the refusal is observable only once React has run
- * its effects. React arrives as its production build (the bundle's `process.env.NODE_ENV` define
- * applies here too), which has no `act`, so renders are flushed by waiting rather than by wrapping,
- * and `node:assert` is unreachable, so the assertions are vitest's `expect`.
+ * its effects. Renders are flushed with `act`, which returns when React has committed and the effects
+ * it started have settled. `node:assert` is unreachable here, so the assertions are vitest's `expect`.
  */
 import { test, expect, vi, beforeEach } from "vitest";
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { useRenamerOptions, type UseRenamerOptions } from "./useRenamerOptions";
@@ -50,13 +49,22 @@ vi.mock("@cove-extensions/ui-shared", async () => ({
   extensionApi: (await import("../../../../../../shared/ui-shared/src/actions")).extensionApi,
 }));
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+// `act` refuses to run without it, and React reads it off the global rather than from an import.
+declare global {
+  var IS_REACT_ACT_ENVIRONMENT: boolean;
+}
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
+/**
+ * Apply a synchronous change and return once React has committed it and the effects it started have
+ * settled. The yield is what lets a load the change kicks off resolve inside the same `act`, so a
+ * caller reads committed state rather than whatever a fixed wait happened to catch.
+ */
+const commit = (change: () => void) =>
+  act(async () => {
+    change();
+    await Promise.resolve();
+  });
 
 /** Mount the hook and hand back its latest return value plus a teardown. */
 async function mountHook() {
@@ -69,16 +77,19 @@ async function mountHook() {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
-  root.render(createElement(Probe));
-  await sleep(COMMIT_MS);
+  await commit(() => {
+    root.render(createElement(Probe));
+  });
 
   return {
     get current(): UseRenamerOptions {
       expect(latest, "the probe never rendered").not.toBeNull();
       return latest as unknown as UseRenamerOptions;
     },
-    unmount: () => {
-      root.unmount();
+    unmount: async () => {
+      await commit(() => {
+        root.unmount();
+      });
       container.remove();
     },
   };
@@ -120,20 +131,22 @@ test("an unconverted blob refuses the save that would erase its name-keyed rules
   expect(hook.current.options.TagDestinations).toEqual({});
 
   // Editing must not unblock it: `dirty` is the usual reason Save lights up.
-  hook.current.set("FilenameTemplate", "$studio - $title");
-  await sleep(COMMIT_MS);
+  await commit(() => {
+    hook.current.set("FilenameTemplate", "$studio - $title");
+  });
   expect(hook.current.dirty).toBe(true);
   expect(hook.current.canSave).toBe(false);
 
   // And the store write is refused at the hook, not only at the button.
-  await hook.current.onSave();
-  await sleep(COMMIT_MS);
+  await act(async () => {
+    await hook.current.onSave();
+  });
 
   expect(store.writes, "a save reached the store over an unconverted blob").toEqual([]);
   expect(hook.current.savedFlash).toBe(false);
 
-  hook.unmount();
-}, 30_000);
+  await hook.unmount();
+});
 
 test("the same install saves normally once the conversion has run", async () => {
   // The refusal above must not be reachable by refusing everything, so the converted blob is driven
@@ -144,12 +157,14 @@ test("the same install saves normally once the conversion has run", async () => 
   expect(hook.current.pendingNameMigration).toBe(false);
   expect(hook.current.options.Tags.WhitelistIds).toEqual([11]);
 
-  hook.current.set("FilenameTemplate", "$studio - $title");
-  await sleep(COMMIT_MS);
+  await commit(() => {
+    hook.current.set("FilenameTemplate", "$studio - $title");
+  });
   expect(hook.current.canSave).toBe(true);
 
-  await hook.current.onSave();
-  await sleep(COMMIT_MS);
+  await act(async () => {
+    await hook.current.onSave();
+  });
 
   expect(store.writes).toHaveLength(1);
   const [key, value] = store.writes[0];
@@ -158,8 +173,8 @@ test("the same install saves normally once the conversion has run", async () => 
   expect(written.FilenameTemplate).toBe("$studio - $title");
   expect(written.ExcludeTagIds).toEqual([44]);
 
-  hook.unmount();
-}, 30_000);
+  await hook.unmount();
+});
 
 test("a blob storing the empty legacy keys is not held back by them", async () => {
   // The pre-migration panel serialised its whole defaults object, so an install that configured
@@ -176,15 +191,17 @@ test("a blob storing the empty legacy keys is not held back by them", async () =
 
   expect(hook.current.pendingNameMigration).toBe(false);
 
-  hook.current.set("FilenameTemplate", "$studio");
-  await sleep(COMMIT_MS);
-  await hook.current.onSave();
-  await sleep(COMMIT_MS);
+  await commit(() => {
+    hook.current.set("FilenameTemplate", "$studio");
+  });
+  await act(async () => {
+    await hook.current.onSave();
+  });
 
   expect(store.writes).toHaveLength(1);
 
-  hook.unmount();
-}, 30_000);
+  await hook.unmount();
+});
 
 /**
  * A blob whose destinations are still the bare absolute paths an install before them stored. The
@@ -222,19 +239,21 @@ test("an unconverted blob refuses the save that would erase its destination fold
   expect(hook.current.options.UnorganizedDestination).toBeNull();
 
   // Editing must not unblock it: `dirty` is the usual reason Save lights up.
-  hook.current.set("FilenameTemplate", "$studio - $title");
-  await sleep(COMMIT_MS);
+  await commit(() => {
+    hook.current.set("FilenameTemplate", "$studio - $title");
+  });
   expect(hook.current.dirty).toBe(true);
   expect(hook.current.canSave).toBe(false);
 
-  await hook.current.onSave();
-  await sleep(COMMIT_MS);
+  await act(async () => {
+    await hook.current.onSave();
+  });
 
   expect(store.writes, "a save reached the store over unconverted destinations").toEqual([]);
   expect(hook.current.savedFlash).toBe(false);
 
-  hook.unmount();
-}, 30_000);
+  await hook.unmount();
+});
 
 test("the same install saves normally once the destination conversion has run", async () => {
   // The refusal above must not be reachable by refusing everything, so the converted blob is driven
@@ -248,12 +267,14 @@ test("the same install saves normally once the destination conversion has run", 
     Template: "videos/$studio",
   });
 
-  hook.current.set("FilenameTemplate", "$studio - $title");
-  await sleep(COMMIT_MS);
+  await commit(() => {
+    hook.current.set("FilenameTemplate", "$studio - $title");
+  });
   expect(hook.current.canSave).toBe(true);
 
-  await hook.current.onSave();
-  await sleep(COMMIT_MS);
+  await act(async () => {
+    await hook.current.onSave();
+  });
 
   expect(store.writes).toHaveLength(1);
   const written = store.writes[0][1] as Record<string, unknown>;
@@ -262,8 +283,8 @@ test("the same install saves normally once the destination conversion has run", 
     Template: "unsorted/$studio",
   });
 
-  hook.unmount();
-}, 30_000);
+  await hook.unmount();
+});
 
 test("an install that configured no destination at all is not held back", async () => {
   // The state a fresh install saves: no routing map, no path rule, no unorganized route. The backend
@@ -277,12 +298,14 @@ test("an install that configured no destination at all is not held back", async 
 
   expect(hook.current.pendingDestinationMigration).toBe(false);
 
-  hook.current.set("FilenameTemplate", "$studio");
-  await sleep(COMMIT_MS);
-  await hook.current.onSave();
-  await sleep(COMMIT_MS);
+  await commit(() => {
+    hook.current.set("FilenameTemplate", "$studio");
+  });
+  await act(async () => {
+    await hook.current.onSave();
+  });
 
   expect(store.writes).toHaveLength(1);
 
-  hook.unmount();
-}, 30_000);
+  await hook.unmount();
+});
