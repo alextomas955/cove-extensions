@@ -360,8 +360,8 @@ public sealed partial class Renamer : FullExtensionBase
     }
 
     /// <summary>
-    /// One acting file's unit of work for PHASE B: a single-file plan the worker hands the executor,
-    /// the projected move tuple (used to partition same- vs cross-volume and to re-check free space in
+    /// One acting file's unit of execution work: a single-file plan the worker hands the executor, the
+    /// projected move tuple (used to partition same- from cross-volume and to re-check free space in
     /// flight), and the parent entity id for per-item logging.
     /// </summary>
     private readonly record struct BatchUnit(
@@ -370,43 +370,94 @@ public sealed partial class Renamer : FullExtensionBase
         (string OldFullPath, string NewFullPath, long SizeBytes) Move);
 
     /// <summary>
-    /// The fraction of the progress bar the PHASE A planning pass owns. Planning every id in a large
-    /// library is slow and reported nothing before, so the bar sat at 0% for the whole pass; splitting
-    /// the bar (planning 0 → this, executing this → 1.0) keeps it moving throughout. 0.5 splits it evenly;
-    /// the exact split is cosmetic — both phases scale linearly, so the bar only ever advances.
+    /// The fraction of a chunk's progress bar the planning pass owns, the rest belonging to execution.
+    /// Planning a full chunk is slow, so it needs a share of the bar to report into. The exact split is
+    /// cosmetic: both passes scale linearly, so the bar only ever advances.
     /// </summary>
     private const double PlanningProgressShare = 0.5;
 
-    /// <summary>
-    /// Renames every id in the decoded batch in two phases. PHASE A plans + classifies ALL ids
-    /// sequentially over ONE read-only scope (deterministic preview ordering) and refuses the batch up
-    /// front if a destination volume would not fit. PHASE B executes the acting items in parallel:
-    /// same-volume renames run bounded by <c>SameVolumeConcurrency</c>, cross-volume copies bounded by
-    /// <c>CrossVolumeConcurrency</c> within one (source,dest) disk pair. The pairs themselves run one
-    /// after another, so peak concurrency is one pair's bound and never the sum over pairs. EACH
-    /// worker opens its OWN scope and resolves its OWN <see cref="DbContext"/> — a <c>DbContext</c> is
-    /// not thread-safe and Cove disables EF's thread-safety checks, so a shared context would corrupt
-    /// silently; per-worker scopes make isolation structural. The ONE shared object is the
-    /// <see cref="CoveRevertJournal"/>, which is shared because it mints each row's sequence number,
-    /// and whose writes are serialized so the undo record never tears. Bad/empty/unsupported input is a
-    /// clean no-op that still reports the final <c>1.0</c> — never throws on untrusted job parameters.
-    /// </summary>
-    /// <param name="parameters">The host's string-only job parameter map (entity type + id list).</param>
-    /// <param name="progress">The job-progress sink reported during PHASE B and a final <c>1.0</c>.</param>
+    /// <summary>The entities a rename run plans and executes before it starts the next chunk.</summary>
+    /// <remarks>
+    /// Equal to <see cref="MaxEntityIdsPerRequest"/>, so one selection is always one chunk. Nothing a
+    /// run holds grows past a chunk — its plans, projected moves and destination-folder map are
+    /// released when the chunk ends — so a whole-library run costs what one full selection costs.
+    /// </remarks>
+    internal const int RenameChunkEntities = MaxEntityIdsPerRequest;
+
+    /// <summary>What one chunk did, and the free-space refusal that stops the run when it is set.</summary>
+    private readonly record struct ChunkOutcome(
+        int Renamed, int Skipped, int Failed, int ContestedFiles, string? Shortfall);
+
+    /// <summary>The acting files one operation has offered the journal, and the latch its cap trips.</summary>
+    /// <remarks>
+    /// The cap bounds a user action, not a chunk: measured per chunk, a whole-library run would never
+    /// reach it and the undo it protects would be the partial record the cap exists to refuse. Once
+    /// tripped it stays tripped for the rest of the operation, so a later chunk cannot journal the tail
+    /// of a run whose head has already been dropped.
+    /// </remarks>
+    internal sealed class OperationJournalBudget(string operationId)
+    {
+        private int _actingFiles;
+
+        public string OperationId { get; } = operationId;
+
+        public bool Suppressed { get; private set; }
+
+        /// <summary>Adds a chunk's acting files and returns the operation's running total.</summary>
+        public int Add(int actingFiles) => _actingFiles += actingFiles;
+
+        public void Suppress() => Suppressed = true;
+    }
+
+    /// <summary>Maps one chunk's own progress onto its share of a run over <paramref name="total"/> entities.</summary>
+    private sealed class ChunkSliceProgress(IJobProgress inner, int offset, int share, int total) : IJobProgress
+    {
+        public void Report(double percent, string? message = null)
+            => inner.Report(
+                Math.Clamp((offset + (Math.Clamp(percent, 0d, 1d) * share)) / Math.Max(total, 1), 0d, 1d),
+                message);
+    }
+
+    /// <summary>The free-space reading the up-front refusal and the in-flight re-check share.</summary>
+    /// <remarks>
+    /// An unprobeable volume reads as <see cref="long.MaxValue"/> and never blocks a run: the reading is
+    /// a pre-flight courtesy, and the cross-volume mover verifies every copy and fails each item safely
+    /// when the disk really is full. <c>DriveInfo</c> throws for a root that is not a drive letter, such
+    /// as a UNC share reached through an allowed root, and the reading itself can hit a transient IO
+    /// error on an offline volume.
+    /// </remarks>
+    private static long AvailableFreeSpace(string volume)
+    {
+        try
+        {
+            return new DriveInfo(volume).AvailableFreeSpace;
+        }
+        catch (ArgumentException)
+        {
+            return long.MaxValue;
+        }
+        catch (IOException)
+        {
+            return long.MaxValue;
+        }
+    }
+
+    /// <summary>Renames every id in the decoded batch and reports a final <c>1.0</c>.</summary>
+    /// <remarks>
+    /// One selection is one user action, so this call is its own operation and everything it renames
+    /// comes back from a single undo. Bad, empty or unsupported input is a clean no-op that still
+    /// reports the final <c>1.0</c>: job parameters are untrusted, and this never throws on them.
+    /// </remarks>
+    /// <param name="parameters">The host's string-only job parameter map (entity type plus id list).</param>
+    /// <param name="progress">The job-progress sink, reported through the run and a final <c>1.0</c>.</param>
     /// <param name="ct">Cancellation token; a genuine cancellation aborts the run.</param>
     /// <param name="freeSpaceProbe">
-    /// The available-free-space probe used by both the up-front refusal and the in-flight re-check.
-    /// Defaults to the real <c>vol =&gt; new DriveInfo(vol).AvailableFreeSpace</c>; tests inject a
-    /// deterministic fake so the free-space paths are exercisable with no real second drive.
-    /// </param>
-    /// <param name="operationId">
-    /// The user action this call is part of. Null — the single-selection case — mints one, because that
-    /// click is its own action. The whole-library job passes ONE id for every kind it runs, which is
-    /// what makes a click that opens four batches a single thing to undo.
+    /// The available-free-space reading both the up-front refusal and the in-flight re-check take;
+    /// defaults to <see cref="AvailableFreeSpace"/>.
     /// </param>
     internal async Task RunRenamerBatchAsync(
         IReadOnlyDictionary<string, string>? parameters, IJobProgress progress, CancellationToken ct,
-        Func<string, long>? freeSpaceProbe = null, string? operationId = null)
+        Func<string, long>? freeSpaceProbe = null)
     {
         var (entityType, ids) = RenamerJob.Decode(parameters);
 
@@ -416,65 +467,191 @@ public sealed partial class Renamer : FullExtensionBase
             return;
         }
 
-        // The only disk touch of the free-space guard. The public job-facing call path passes no probe
-        // and gets the real DriveInfo reading; tests pass a controlled function. DriveInfo's ctor
-        // throws ArgumentException for a non-drive-letter root (e.g. a UNC \\server\share destination
-        // reachable via an AllowedRoot), and the probe can hit transient IO errors. This guard is a
-        // best-effort pre-flight courtesy — the cross-volume mover still verifies every copy and fails
-        // each item safely on a real ENOSPC (copy→verify→delete-source-last never loses the source).
-        // So an unprobeable volume returns long.MaxValue ("don't block here; let the mover handle it")
-        // rather than throwing out and failing the whole batch.
-        freeSpaceProbe ??= vol =>
-        {
-            try
-            {
-                return new DriveInfo(vol).AvailableFreeSpace;
-            }
-            catch (ArgumentException)
-            {
-                return long.MaxValue; // non-drive-letter root (UNC/rootless) — not probeable via DriveInfo
-            }
-            catch (IOException)
-            {
-                return long.MaxValue; // transient/offline volume — defer to the mover's per-item verify
-            }
-        };
-
         var options = await new OptionsStore(Store, _log).LoadAsync(ct);
 
-        // Hoist the routing lookups ONCE per batch: the studio-id / tag-name / exact-path dicts and
-        // the PRE-PARSED source-path regex set, so the resolver never re-walks/re-compiles per entity.
-        // An invalid user regex is caught HERE (build time) and skipped-with-a-log, never thrown
-        // mid-match (classify, don't throw at the batch boundary).
+        int taken = 0;
+        Task<IReadOnlyList<int>> NextChunk(CancellationToken token)
+        {
+            IReadOnlyList<int> chunk = [.. ids.Skip(taken).Take(RenameChunkEntities)];
+            taken += chunk.Count;
+            return Task.FromResult(chunk);
+        }
+
+        await RunRenameChunksAsync(
+            kind, NextChunk, ids.Length, new OperationJournalBudget(Guid.NewGuid().ToString("N")),
+            options, freeSpaceProbe ?? AvailableFreeSpace, RenameChunkEntities, progress, ct);
+    }
+
+    /// <summary>
+    /// Renames every entity of <paramref name="kind"/>, walking the kind's ids a page at a time through
+    /// the same chunk the selection path drives.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="totalEntities"/> is a snapshot taken before the walk, so the fraction it scales
+    /// can drift from what the pages yield; the caller's own final report is what lands the bar. The
+    /// walk's cursor is the entity id, which a rename never changes, so the run's own writes can
+    /// neither skip a page nor repeat one.
+    /// </remarks>
+    /// <param name="kind">The media kind to walk.</param>
+    /// <param name="totalEntities">The progress denominator, counted before the walk starts.</param>
+    /// <param name="budget">The journal budget of the operation this walk belongs to.</param>
+    /// <param name="options">The options the whole run plans with, read once by the caller.</param>
+    /// <param name="progress">The sink this kind's share of the run reports into.</param>
+    /// <param name="ct">Cancellation token; a cancellation between chunks leaves earlier chunks done and undoable.</param>
+    /// <param name="freeSpaceProbe">The free-space reading; defaults to <see cref="AvailableFreeSpace"/>.</param>
+    /// <param name="chunkEntities">The entities one chunk covers.</param>
+    internal Task RunRenamerKindAsync(
+        RenamerFileKind kind, int totalEntities, OperationJournalBudget budget, RenamerOptions options,
+        IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null,
+        int chunkEntities = RenameChunkEntities)
+    {
+        int after = 0;
+        async Task<IReadOnlyList<int>> NextPageAsync(CancellationToken token)
+        {
+            var page = await RunAsSystem.RunInSystemScopeAsync(
+                ScopeFactory,
+                services => new CoveRenamerDataPort(services.GetRequiredService<DbContext>(), _coveConfig)
+                    .LoadEntityIdPageAsync(kind, after, chunkEntities, token));
+
+            if (page.Count > 0)
+            {
+                after = page[^1];
+            }
+
+            return page;
+        }
+
+        return RunRenameChunksAsync(
+            kind, NextPageAsync, totalEntities, budget, options,
+            freeSpaceProbe ?? AvailableFreeSpace, chunkEntities, progress, ct);
+    }
+
+    /// <summary>
+    /// Drives <paramref name="nextChunk"/> to exhaustion through the shared chunk body, tallies what
+    /// the chunks did and reports the run's final <c>1.0</c> with what happened.
+    /// </summary>
+    private async Task RunRenameChunksAsync(
+        RenamerFileKind kind,
+        Func<CancellationToken, Task<IReadOnlyList<int>>> nextChunk,
+        int totalEntities,
+        OperationJournalBudget budget,
+        RenamerOptions options,
+        Func<string, long> freeSpaceProbe,
+        int chunkEntities,
+        IJobProgress progress,
+        CancellationToken ct)
+    {
+        // Hoisted once for the whole run: the studio-id, tag-name and exact-path dictionaries and the
+        // pre-parsed source-path regex set, so the resolver never re-walks or re-compiles them per
+        // entity. An invalid user regex is caught at this build step and skipped with a log, so it can
+        // never throw mid-match.
         var lookups = BuildLookups(options);
 
-        // One action click = one selection = one /renamer = one job = one batch, all one kind.
-        // Mint a fresh runId AFTER the kind/ids validation passed (so the early no-op return above
-        // opens no batch). The batch is NOT opened yet: a batch opened before PHASE A knows whether
-        // anything acts would leave an EMPTY batch behind, shadowing a genuinely-replayable earlier
-        // batch from /undo. We defer BeginBatchAsync until PHASE A has produced at least one acting
-        // unit AND the batch cleared the free-space refusal, so an all-skip or refused batch opens
-        // nothing at all. The same runId + journal is then passed into EVERY worker's executor so
-        // every per-success AppendAsync row accumulates under this single batch.
+        // The journal gets its own scope, and therefore its own DbContext, for the whole run: every
+        // parallel worker of every chunk shares it because it mints each row's sequence number, and a
+        // DbContext is not thread-safe, so it cannot ride on a worker's scope. Its writes need no
+        // elevation because its two tables are extension-owned and carry none of CoveContext's
+        // per-principal query filters.
+        await using var journalScope = ScopeFactory.CreateAsyncScope();
+        using var journal = new CoveRevertJournal(journalScope.ServiceProvider.GetRequiredService<DbContext>());
+
+        int renamed = 0, skipped = 0, failed = 0, contested = 0, entitiesDone = 0;
+        string? shortfall = null;
+
+        while (true)
+        {
+            // Checked between chunks as well as inside them, so a cancellation stops the run cleanly
+            // with everything already renamed still renamed and still journalled.
+            ct.ThrowIfCancellationRequested();
+
+            var chunk = await nextChunk(ct);
+            if (chunk.Count == 0)
+            {
+                break;
+            }
+
+            var outcome = await RunRenameChunkAsync(
+                chunk, kind, options, lookups, budget, journal, freeSpaceProbe,
+                new ChunkSliceProgress(progress, entitiesDone, chunk.Count, totalEntities), ct);
+
+            renamed += outcome.Renamed;
+            skipped += outcome.Skipped;
+            failed += outcome.Failed;
+            contested += outcome.ContestedFiles;
+            entitiesDone += chunk.Count;
+
+            if (outcome.Shortfall is not null)
+            {
+                shortfall = outcome.Shortfall;
+                break;
+            }
+
+            if (chunk.Count < chunkEntities)
+            {
+                break;
+            }
+        }
+
+        if (shortfall is not null)
+        {
+            // What the run did before it stopped stays done and stays undoable, so the message names it:
+            // a bare refusal would read as though the whole run had been declined.
+            progress.Report(
+                1d,
+                $"Refused: insufficient free space ({shortfall}). {renamed} file(s) renamed before the run stopped.{RefusedNote(contested)}");
+            return;
+        }
+
+        if (renamed == 0 && failed == 0 && skipped == contested)
+        {
+            progress.Report(1d, $"Nothing to renamer.{RefusedNote(contested)}");
+            return;
+        }
+
+        progress.Report(1d, $"Rename complete.{RefusedNote(contested)}");
+    }
+
+    /// <summary>
+    /// Plans one chunk of ids over a single read-only scope, refuses it if a destination volume would
+    /// not fit, then executes what acts in parallel.
+    /// </summary>
+    /// <remarks>
+    /// The one implementation both a selection and a whole-library walk run through. Same-volume
+    /// renames run bounded by <c>SameVolumeConcurrency</c> and cross-volume copies by
+    /// <c>CrossVolumeConcurrency</c> within one (source,destination) disk pair; the pairs themselves run
+    /// one after another, so peak concurrency is one pair's bound and never the sum over pairs. Each
+    /// worker opens its own scope and resolves its own <see cref="DbContext"/>, because a
+    /// <c>DbContext</c> is not thread-safe and Cove disables EF's thread-safety checks, so a shared one
+    /// would corrupt silently.
+    /// </remarks>
+    private async Task<ChunkOutcome> RunRenameChunkAsync(
+        IReadOnlyList<int> ids,
+        RenamerFileKind kind,
+        RenamerOptions options,
+        RouteLookups lookups,
+        OperationJournalBudget budget,
+        IRevertJournal journal,
+        Func<string, long> freeSpaceProbe,
+        IJobProgress progress,
+        CancellationToken ct)
+    {
+        // A fresh run id per chunk, and the operation id constant across the run. An undo acts on the
+        // operation, so however many batches a run opens, the user has one action to reverse.
         var runId = Guid.NewGuid().ToString("N");
 
-        // One selection is one user action, so with no operation handed down this call IS the operation.
-        var operation = operationId ?? Guid.NewGuid().ToString("N");
+        LogBatchStarted(runId, kind, ids.Count);
 
-        LogBatchStarted(runId, kind, ids.Length);
-
-        // Planning runs sequentially and reads only: it plans and classifies every id and captures
-        // each file's size. Sequential for deterministic preview ordering; it mutates nothing the
-        // workers race (the port reads AsNoTracking) and writes nothing at all, so a batch refused
-        // below leaves the database as it found it.
+        // Planning reads only. It is sequential for deterministic preview ordering, it mutates nothing
+        // the workers race, and it writes nothing at all, so a chunk refused below leaves the database
+        // as it found it.
         var planned = new List<BatchUnit>();
 
-        // PHASE A reports no progress percentage (that starts in PHASE B), so trace the planning loop to
-        // the log — otherwise a large library sits at 0% here with no signal that it is still planning.
-        LogPlanningStarted(runId, kind, ids.Length);
+        // Planning reports no percentage of its own until the loop starts, so trace it to the log —
+        // otherwise a large chunk sits at its opening percentage with no signal that it is still planning.
+        LogPlanningStarted(runId, kind, ids.Count);
 
-        // ONE elevated span for the whole planning pass, not one per planned entity: the background
-        // principal is anonymous, and an unelevated read returns zero rows with no error.
+        // One elevated span for the whole planning pass, not one per entity: the background principal is
+        // anonymous, and an unelevated read returns zero rows with no error.
         await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
         {
             var readDb = services.GetRequiredService<DbContext>();
@@ -488,9 +665,7 @@ public sealed partial class Renamer : FullExtensionBase
                 var (plan, entity) = await planner.PlanWithEntityAsync(kind, id, options, lookups, ct);
 
                 // File sizes for the free-space sum live on the loaded entity's files, not on the plan
-                // item — so read them off the entity the planner just loaded rather than loading it a
-                // second time. (A chunked WHERE-Id-IN load is a possible future win but was deferred:
-                // it would change the single-entity LoadEntityAsync contract PHASE B and the tests rely on.)
+                // item, so they are read off the entity the planner just loaded.
                 var sizeByFileId = entity?.Files.ToDictionary(f => f.FileId, f => f.SizeBytes) ?? [];
 
                 int actingThisItem = 0;
@@ -503,81 +678,89 @@ public sealed partial class Renamer : FullExtensionBase
 
                     actingThisItem++;
                     long size = sizeByFileId.GetValueOrDefault(item.FileId);
-                    // Hand each worker a single-file plan so the executor acts on exactly this file
-                    // (it reloads plan.EntityId and processes plan.Items); the parent entity id rides
-                    // the unit for logging.
+                    // Each worker is handed a single-file plan so the executor acts on exactly this file;
+                    // the parent entity id rides the unit for logging.
                     var unitPlan = new RenamerPlan(plan.EntityId, plan.Kind, [item]);
                     planned.Add(new BatchUnit(plan.EntityId, unitPlan,
                         (item.OldFullPath, item.NewFullPath, size)));
                 }
 
-                LogItemPlanned(runId, ++planIndex, ids.Length, id, actingThisItem);
-                // Planning drives the FIRST half of the bar (0 -> PlanningProgressShare). ids.Length is
-                // known here, so the fraction is exact; the message names the phase so the UI reads
-                // "Planning 6769/8238" rather than a silent 0%. PHASE B's reporter continues from
-                // PlanningProgressShare to 1.0, so the bar only ever advances.
+                LogItemPlanned(runId, ++planIndex, ids.Count, id, actingThisItem);
+                // Planning drives the first half of the chunk's bar; execution drives the second, so the
+                // bar only ever advances. The message names the phase, so the UI reads "Planning 769/1000"
+                // rather than a silent 0%.
                 progress.Report(
-                    (double)planIndex / ids.Length * PlanningProgressShare,
-                    $"Planning {planIndex}/{ids.Length}...");
+                    (double)planIndex / ids.Count * PlanningProgressShare,
+                    $"Planning {planIndex}/{ids.Count}...");
             }
         });
 
         // One acting unit per source file. Naming the same entity twice in one request plans its files
         // twice, and both units are then the same work, so the file is scheduled once.
         //
-        // Two DIFFERENT file rows naming one source path is database state a rename cannot arbitrate:
-        // acting on either moves the file the other row also claims. Every row of such a group is
-        // refused and named in the log, so the anomaly is reported rather than half-applied.
-        //
         // Grouped by the slice's file-identity rule, which ignores case on Windows and macOS. On a
-        // volume formatted case-sensitive there, two rows differing only in case are two files and
-        // both are refused: the refusal is recoverable by hand, while renaming one row's file out from
-        // under another's is not.
+        // volume formatted case-sensitive there, two rows differing only in case are two files and both
+        // are refused: the refusal is recoverable by hand, while renaming one row's file out from under
+        // another's is not.
+        var bySourcePath = planned
+            .GroupBy(u => PathOps.NormalizeSlash(u.Move.OldFullPath), PathOps.PathComparer)
+            .ToList();
+
+        // Two different file rows naming one source path is database state a rename cannot arbitrate:
+        // acting on either moves the file the other row also claims. Every row of such a group is
+        // refused and named in the log, so the anomaly is reported rather than half-applied. The
+        // database answers this, because the twin row can sit in another chunk or under another kind,
+        // where a grouping over what was just planned cannot see it.
+        IReadOnlyDictionary<string, int> claimsByPath = new Dictionary<string, int>();
+        if (bySourcePath.Count > 0)
+        {
+            claimsByPath = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
+                new CoveRenamerDataPort(services.GetRequiredService<DbContext>(), _coveConfig)
+                    .CountSourcePathClaimsAsync([.. bySourcePath.Select(g => g.Key)], ct));
+        }
+
         var acting = new List<BatchUnit>(planned.Count);
         int contestedFiles = 0;
-        foreach (var claimants in planned
-            .GroupBy(u => PathOps.NormalizeSlash(u.Move.OldFullPath), PathOps.PathComparer))
+        foreach (var claimants in bySourcePath)
         {
             int rows = claimants.Select(u => u.Plan.Items[0].FileId).Distinct().Count();
-            if (rows == 1)
+            int claims = Math.Max(rows, claimsByPath.GetValueOrDefault(claimants.Key));
+            if (claims == 1)
             {
                 acting.Add(claimants.First());
                 continue;
             }
 
             contestedFiles += rows;
-            LogContestedSourcePath(runId, claimants.Key, rows);
+            LogContestedSourcePath(runId, claimants.Key, claims);
         }
 
-        // UP-FRONT free-space refusal: sum the projected cross-volume bytes per destination volume and
-        // refuse the whole batch before touching disk if a volume would not fit. Same-volume moves are
-        // excluded from the sum by the guard. This runs BEFORE BeginBatchAsync, so a refused batch
-        // opens no journal batch (and can never shadow a prior replayable batch).
-        var moves = acting.Select(u => u.Move).ToList();
-        var shortfall = FreeSpaceGuard.Shortfall(moves, options.FreeSpaceHeadroomBytes, freeSpaceProbe);
+        // Sum the projected cross-volume bytes per destination volume and refuse before touching disk if
+        // a volume would not fit. Same-volume moves are excluded from the sum by the guard. This runs
+        // before any batch is opened, so a refused chunk opens no journal batch.
+        var shortfall = FreeSpaceGuard.Shortfall(
+            acting.Select(u => u.Move), options.FreeSpaceHeadroomBytes, freeSpaceProbe);
         if (shortfall.Count > 0)
         {
             string detail = string.Join("; ",
                 shortfall.Select(s => $"{s.Volume}: need {s.Needed} bytes, {s.Available} free"));
             LogBatchDone(runId, 0, contestedFiles, 0);
-            progress.Report(1d, $"Refused: insufficient free space ({detail}).{RefusedNote(contestedFiles)}");
-            return;
+            return new ChunkOutcome(0, contestedFiles, 0, contestedFiles, detail);
         }
 
-        // Nothing acts → open NO batch (an empty batch would shadow the previous replayable one from
-        // /undo). Report the final 1.0 and return as a clean no-op.
+        // Nothing acts, so open no batch: an empty batch would shadow the operation's earlier replayable
+        // one when /undo looks for work.
         if (acting.Count == 0)
         {
             LogBatchDone(runId, 0, contestedFiles, 0);
-            progress.Report(1d, $"Nothing to renamer.{RefusedNote(contestedFiles)}");
-            return;
+            return new ChunkOutcome(0, contestedFiles, 0, contestedFiles, null);
         }
 
-        // Resolve or create every DISTINCT destination Folder row ONCE, single-threaded, after the
-        // refusals above: folder creation is persistent shared state, so it happens only for a batch
-        // that will now run, and never inside the parallel execution below. Each worker reads its
-        // Move's destination id from this map instead of doing a check-then-act create on a shared
-        // row; an in-place renamer uses the source folder id and needs no entry.
+        // Resolve or create every distinct destination folder once, single-threaded, after the refusals
+        // above: folder creation is persistent shared state, so it happens only for a chunk that will now
+        // run, and never inside the parallel execution below. Each worker reads its move's destination id
+        // from this map, so no two of them check-then-act on a shared Folder row. An in-place rename uses
+        // the source folder id and needs no entry.
         var folderIdByPath = new Dictionary<string, int>(DestinationResolver.SourcePathComparer);
         await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
         {
@@ -594,37 +777,23 @@ public sealed partial class Renamer : FullExtensionBase
             }
         });
 
-        // The journal gets its OWN scope, and therefore its own DbContext, for the whole batch: it is
-        // shared by every parallel worker because it mints each row's sequence number, and a DbContext
-        // is not thread-safe, so it cannot ride on a worker's scope. What makes its writes need no
-        // elevation is that the journal's two tables are extension-owned and carry none of
-        // CoveContext's per-principal query filters.
-        await using var journalScope = ScopeFactory.CreateAsyncScope();
-        using var journal = new CoveRevertJournal(journalScope.ServiceProvider.GetRequiredService<DbContext>());
+        // Now, and only now, open exactly one batch: the chunk produced acting work and it fits. The cap
+        // is measured in files, so it takes acting.Count and not the entity count.
+        await OpenOrSuppressBatchAsync(journal, runId, budget, kind, acting.Count, DateTime.UtcNow, ct);
 
-        // Now — and only now — open exactly one batch: PHASE A produced acting work and the batch
-        // fits. Opened ONCE here, single-threaded, never per worker.
-        //
-        // acting.Count is the FILE count (one unit per acting file); the id array counts entities, so
-        // the cap is applied to the former.
-        await OpenOrSuppressBatchAsync(
-            journal, runId, operation, kind, acting.Count, DateTime.UtcNow, ct);
+        // Marks the planning/execution boundary in the log: the percentage now advances per completed
+        // file, so a later stall is legible as "stuck partway through {Acting}", not as silence.
+        LogPlanningDone(runId, acting.Count, ids.Count);
 
-        // Marks the PHASE A → PHASE B boundary in the log: PHASE B's percentage now advances per
-        // completed file, so a later stall is legible as "stuck partway through {Acting}", not silence.
-        LogPlanningDone(runId, acting.Count, ids.Length);
-
-        // Execution: partitioned, bounded, one scope per worker. The partitions carry the units
-        // themselves, so every unit is scheduled exactly once whatever its paths are.
+        // Partitioned, bounded, one scope per worker. The partitions carry the units themselves, so every
+        // unit is scheduled exactly once whatever its paths are.
         var partitions = FreeSpaceGuard.PartitionByPair(
             acting, u => (u.Move.OldFullPath, u.Move.NewFullPath));
 
-        // Serialize every concurrent progress.Report. The PHASE B workers call progress.Report
-        // from many threads at once, and nothing establishes that the
-        // host's IJobProgress sink is thread-safe — a host that appends to a list or writes a SignalR
-        // message without its own lock could corrupt state or interleave messages under concurrency.
-        // Guard the call with a lightweight lock so reports are mutually exclusive. The `done` counter
-        // is already Interlocked; this only serializes the host-facing Report invocation itself.
+        // Serializes every concurrent progress report. The workers call Report from many threads at once,
+        // and nothing establishes that the host's sink is thread-safe — a host that appends to a list or
+        // writes a SignalR message without its own lock could corrupt state or interleave messages. The
+        // done counter is already interlocked; this guards only the host-facing call itself.
         var progressGate = new object();
 
         int totalRenamed = 0, totalSkipped = contestedFiles, totalFailed = 0;
@@ -633,16 +802,15 @@ public sealed partial class Renamer : FullExtensionBase
 
         async ValueTask RunUnitAsync(BatchUnit unit, CancellationToken token)
         {
-            // Cross-volume only: re-check free space just before the copy so a concurrent scanner that
-            // shrank the destination since PHASE A skips this item gracefully instead of filling the
-            // disk. Same-volume moves consume ~no space and are excluded by the guard, so this is a
-            // no-op for them.
+            // Cross-volume only: re-check free space just before the copy, so a concurrent scanner that
+            // shrank the destination since planning skips this item gracefully rather than filling the
+            // disk. Same-volume moves consume ~no space and are excluded by the guard.
             var inFlight = FreeSpaceGuard.Shortfall([unit.Move], options.FreeSpaceHeadroomBytes, freeSpaceProbe);
             if (inFlight.Count > 0)
             {
                 Interlocked.Increment(ref totalSkipped);
-                // A free-space refusal is neither a lock nor a collision — use the dedicated
-                // SkipNoSpace status so log/monitor output attributes a disk-full skip correctly.
+                // A free-space refusal is neither a lock nor a collision, so it carries the dedicated
+                // SkipNoSpace status and log output attributes a disk-full skip correctly.
                 LogItemSkipped(runId, kind, unit.EntityId, RenamerStatus.SkipNoSpace,
                     "skipped: destination volume dropped below free-space headroom in flight");
                 Interlocked.Increment(ref done);
@@ -650,14 +818,13 @@ public sealed partial class Renamer : FullExtensionBase
                 return;
             }
 
-            // OWN scope per worker → OWN DbContext → OWN port + executor. The shared journal is
-            // passed in (its writes are serialized). The executor classifies-not-throws, so a per-item
-            // fault is a skip/failure recorded below — only a genuine cancellation propagates. The
-            // pre-resolved folderIdByPath is handed in so the executor reads each Move's destination
-            // folder id from the map instead of doing a check-then-act create on a shared Folder row.
-            // Log the move ABOUT to run: a cross-volume copy of a large file can take many seconds, and
-            // PHASE B only logged COMPLETIONS — so a long gap read as a freeze. This "starting" line makes
-            // an in-flight copy visible. crossVolume/size come from the already-known move tuple (no extra IO).
+            // Own scope per worker, so own DbContext, port and executor. The shared journal is passed in
+            // and its writes are serialized. The executor classifies rather than throws, so a per-item
+            // fault is a skip or a failure recorded below and only a genuine cancellation propagates.
+            //
+            // The move is logged before it runs: a cross-volume copy of a large file can take many
+            // seconds, and completions alone make a long gap read as a freeze. The cross-volume flag and
+            // the size come from the already-known move tuple, so this costs no extra IO.
             bool crossVolume = !VolumeClassifier.SameVolume(unit.Move.OldFullPath, unit.Move.NewFullPath);
             long sizeMb = unit.Move.SizeBytes / (1024 * 1024);
             int doneNow = Volatile.Read(ref done);
@@ -682,15 +849,11 @@ public sealed partial class Renamer : FullExtensionBase
             ReportProgress((double)Volatile.Read(ref done) / totalUnits);
         }
 
-        // The single serialized entry point for every concurrent progress report (see the
-        // progressGate comment above). Holding the gate makes the host-facing Report call mutually
-        // exclusive across PHASE B workers.
         void ReportProgress(double percent)
         {
-            // PHASE B owns the SECOND half of the bar: map its own [0,1] completion fraction into
-            // [PlanningProgressShare, 1.0] so it picks up exactly where planning left off and never jumps
-            // backwards. A same-message-less report keeps the host's own phase label; the final 1.0 after
-            // the loop lands at exactly 1.0.
+            // Execution owns the second half of the chunk's bar: its own [0,1] completion fraction maps
+            // into [PlanningProgressShare, 1.0], so it picks up where planning left off and never jumps
+            // backwards. A message-less report keeps the host's own phase label.
             double scaled = PlanningProgressShare + percent * (1d - PlanningProgressShare);
             lock (progressGate)
             {
@@ -702,10 +865,10 @@ public sealed partial class Renamer : FullExtensionBase
         {
             ct.ThrowIfCancellationRequested();
 
-            // Same-volume group is bounded by SameVolumeConcurrency (a pressure bound, not a space
-            // guard — same-drive moves are instant metadata renames). A value <= 0 means unbounded
-            // (legacy behavior), mapped to Parallel's -1 sentinel. Each cross-volume (src,dst) pair is
-            // bounded by the configured per-pair concurrency.
+            // The same-volume group is bounded by SameVolumeConcurrency, a pressure bound and not a space
+            // guard, since same-drive moves are instant metadata renames. A value <= 0 means unbounded and
+            // maps to Parallel's -1 sentinel. Each cross-volume (source,destination) pair is bounded by
+            // the configured per-pair concurrency.
             int sameVolumeDegree = options.SameVolumeConcurrency > 0 ? options.SameVolumeConcurrency : -1;
             int degree = pair == FreeSpaceGuard.SameVolumePair
                 ? sameVolumeDegree
@@ -716,7 +879,7 @@ public sealed partial class Renamer : FullExtensionBase
         }
 
         LogBatchDone(runId, totalRenamed, totalSkipped, totalFailed);
-        progress.Report(1d, $"Rename complete.{RefusedNote(contestedFiles)}");
+        return new ChunkOutcome(totalRenamed, totalSkipped, totalFailed, contestedFiles, null);
     }
 
     // The refusal has to reach the job's own message: its files rename nothing and produce no per-item
@@ -727,41 +890,46 @@ public sealed partial class Renamer : FullExtensionBase
             : "";
 
     /// <summary>
-    /// Opens <paramref name="runId"/>'s journal batch, or suppresses journalling for the whole batch
-    /// when <paramref name="actingFiles"/> is past the row cap.
+    /// Opens <paramref name="runId"/>'s journal batch, or suppresses journalling for the whole operation
+    /// once its running acting-file total is past the row cap.
     /// </summary>
     /// <remarks>
-    /// Suppressing takes the whole batch out rather than recording part of it — a partly-journalled
-    /// rename reads exactly like a whole one, and the undo after it is quietly partial.
+    /// Suppressing takes the operation out rather than recording part of it: a partly-journalled rename
+    /// reads exactly like a whole one, and the undo after it is quietly partial. A whole-library run over
+    /// the cap is therefore not undoable at all, which the log says once per chunk that meets the latch.
     /// <para>
-    /// Both the manual batch and the per-edit auto-renamer decide this, and a decision that differed
-    /// between them would make a rename's undoability depend on which path performed it. One method
-    /// also gives the branch a seam a test can reach: the cap is thousands of files, so driving the
-    /// suppressed side through either caller would mean seeding that many files on disk.
+    /// Both the manual run and the per-edit auto-renamer decide this here, so a rename's undoability
+    /// never depends on which path performed it. One method also gives the branch a seam a test can
+    /// reach: the cap is thousands of files, so driving the suppressed side through either caller would
+    /// mean seeding that many files on disk.
     /// </para>
     /// </remarks>
     internal async Task OpenOrSuppressBatchAsync(
         IRevertJournal journal,
         string runId,
-        string operationId,
+        OperationJournalBudget budget,
         RenamerFileKind kind,
         int actingFiles,
         DateTime nowUtc,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(journal);
+        ArgumentNullException.ThrowIfNull(budget);
 
-        if (IRevertJournal.ExceedsCap(actingFiles))
+        int operationTotal = budget.Add(actingFiles);
+
+        if (budget.Suppressed || IRevertJournal.ExceedsCap(operationTotal))
         {
-            // Scoped to the operation, so a whole-library run that goes over the cap on its third kind
-            // drops its own first two kinds — the same click's work, which that run may since have moved
-            // — and leaves every other operation's journal alone.
-            await journal.SuppressAsync(operationId, ct);
-            LogBatchNotJournalled(runId, actingFiles, IRevertJournal.MaxJournalledFiles);
+            budget.Suppress();
+            // Latches this journal instance and deletes what the operation already wrote. A run spanning
+            // several kinds opens a journal per kind, so a later kind's instance has to be latched too.
+            // The delete is scoped to the operation, so every other action's undo survives.
+            await journal.SuppressAsync(budget.OperationId, ct);
+            LogBatchNotJournalled(runId, operationTotal, IRevertJournal.MaxJournalledFiles);
             return;
         }
 
-        await journal.BeginBatchAsync(runId, operationId, kind, nowUtc, ct);
+        await journal.BeginBatchAsync(runId, budget.OperationId, kind, nowUtc, ct);
     }
 
     /// <summary>

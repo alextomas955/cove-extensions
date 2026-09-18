@@ -228,6 +228,34 @@ public interface IRenamerDataPort
     Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default);
 
     /// <summary>
+    /// The number of entities of <paramref name="kind"/> currently in the library.
+    /// </summary>
+    /// <remarks>
+    /// The progress denominator a paged walk needs before it starts. A non-renamable kind counts 0
+    /// rather than throwing, mirroring <see cref="LoadAllEntityIdsAsync"/>. The count is a snapshot,
+    /// so rows inserted or deleted while the walk runs make it drift from what the pages yield; a
+    /// caller reporting a fraction from it has to tolerate that.
+    /// </remarks>
+    Task<int> CountEntitiesAsync(RenamerFileKind kind, CancellationToken ct = default);
+
+    /// <summary>
+    /// Of <paramref name="sourcePaths"/>, the ones more than one file row names, each with how many
+    /// rows name it.
+    /// </summary>
+    /// <remarks>
+    /// Two file rows naming one path is state a rename cannot arbitrate, and the twin can sit in
+    /// another page of the walk or under another media kind, where a grouping over what was just
+    /// planned cannot see it. A path named by one row, or by none, is absent from the result.
+    /// <para>
+    /// Case sensitivity is the database collation's, which is not always the volume's: on a host whose
+    /// collation is case-sensitive over a case-insensitive volume, two rows differing only in case
+    /// read as two paths here.
+    /// </para>
+    /// </remarks>
+    Task<IReadOnlyDictionary<string, int>> CountSourcePathClaimsAsync(
+        IReadOnlyList<string> sourcePaths, CancellationToken ct = default);
+
+    /// <summary>
     /// Returns the next page of <paramref name="kind"/>'s entity ids after
     /// <paramref name="afterEntityId"/>, at most <paramref name="take"/> long.
     /// </summary>

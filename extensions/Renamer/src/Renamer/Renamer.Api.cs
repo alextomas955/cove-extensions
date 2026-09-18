@@ -782,7 +782,7 @@ public sealed partial class Renamer
     /// Enqueues the whole-library scan job. Takes an OPTIONAL <see cref="ScanLibraryRequest"/> body
     /// carrying the caller's current options (for a dry run on unsaved edits); with no body it scans the
     /// saved options. Takes NO caller-supplied id array — the candidate ids are server-derived per kind
-    /// via <see cref="IRenamerDataPort.LoadAllEntityIdsAsync"/> inside the job, so
+    /// via <see cref="IRenamerDataPort.LoadEntityIdPageAsync"/> inside the job, so
     /// <see cref="MaxEntityIdsPerRequest"/> does not apply here (there is nothing for it to bound).
     /// Coarse-gates on ANY renamer-read permission — 403 BEFORE any enqueue — then captures
     /// the principal's held read kinds into the job closure so the job body can apply the SAME per-kind
@@ -1024,19 +1024,18 @@ public sealed partial class Renamer
         var planner = new RenamerPlanner(port);
         var aggregator = new ScanAggregator(options.FullPathMax);
 
-        // Load every kind's ids up front so the TOTAL is known before planning — the scan previously
-        // reported only a single Report(1.0) at the end, so the job jumped 0%→100% with no intermediate
-        // feedback. A denominator lets each planned entity advance the bar. The id-only queries are cheap
-        // (they were already run one-per-kind below; this just hoists them so the total is available).
-        var idsByKind = new List<(RenamerFileKind Kind, IReadOnlyList<int> Ids)>(kinds.Count);
+        // A count per kind, taken before the walk, so each planned entity can advance the bar. A count
+        // can drift from what the pages yield while the scan runs, which is why the fraction below is
+        // capped short of 1.0.
+        var countByKind = new List<(RenamerFileKind Kind, int Count)>(kinds.Count);
         foreach (var kind in kinds)
         {
             ct.ThrowIfCancellationRequested();
-            idsByKind.Add((kind, await port.LoadAllEntityIdsAsync(kind, ct)));
+            countByKind.Add((kind, await port.CountEntitiesAsync(kind, ct)));
         }
 
-        int total = idsByKind.Sum(k => k.Ids.Count);
-        LogScanStarted(total, idsByKind.Count);
+        int total = countByKind.Sum(k => k.Count);
+        LogScanStarted(total, countByKind.Count);
 
         // total can be 0 (an empty library / no readable kinds): guard the divisor and report 1.0 so the
         // UI completes instead of dividing by zero or hanging at 0%.
@@ -1049,16 +1048,24 @@ public sealed partial class Renamer
         }
 
         int done = 0;
-        foreach (var (kind, ids) in idsByKind)
+        foreach (var (kind, _) in countByKind)
         {
-            // The scan previously issued one heavy multi-Include query per entity (100K entities = 100K
-            // sequential round-trips — the scan bottleneck). Batch-load instead, one chunk at a time:
-            // the loaded entities AND their file-size map are released with each chunk, so neither the
-            // graphs nor the sizes are ever held for the whole library. The chunk size is the port's own
-            // single decision. Each chunk's entities are re-ordered by the (ascending) id list because
-            // the batch load returns DB order, preserving the per-id order and the progress cadence.
-            foreach (var chunk in ids.Chunk(CoveRenamerDataPort.LoadChunkSize))
+            // Walked a page of ids at a time, keyed on the entity id, so no collection here grows with
+            // the library. One heavy multi-Include query per entity would cost one sequential round-trip
+            // per row, so each page is batch-loaded: the loaded entities and their file-size map are
+            // released with each page, and neither the graphs nor the sizes are ever held for the whole
+            // library. Each page's entities are re-ordered by the ascending id list, because the batch
+            // load returns database order, which preserves the per-id order and the progress cadence.
+            int afterId = 0;
+            while (true)
             {
+                var chunk = await port.LoadEntityIdPageAsync(kind, afterId, CoveRenamerDataPort.LoadChunkSize, ct);
+                if (chunk.Count == 0)
+                {
+                    break;
+                }
+
+                afterId = chunk[^1];
                 var loaded = await port.LoadEntitiesAsync(kind, chunk, ct);
                 var byId = loaded.ToDictionary(e => e.EntityId);
                 var sizeByFileId = loaded
@@ -1127,70 +1134,68 @@ public sealed partial class Renamer
     }
 
     /// <summary>
-    /// The whole-library renamer job body: for each kind the caller can write, loads every candidate id
-    /// and — when the list is non-empty — calls the EXISTING <see cref="RunRenamerBatchAsync"/> ONCE for
-    /// that kind, exactly as <c>/renamer</c> already does for a single-kind selection. A kind with zero
-    /// candidate ids is skipped entirely (no call into <see cref="RunRenamerBatchAsync"/> for it), so no
-    /// empty <c>RevertLog</c> batch header opens for it — matching that method's own "nothing acts → no
-    /// batch" behavior. Never combines kinds into one call: <c>RevertLog</c>'s batch header is one
-    /// <see cref="RenamerFileKind"/> per batch by design, so a whole-library renamer naturally opens one
-    /// batch/runId per acting kind — this introduces NO
-    /// multi-kind batch format and NO engine/executor/<c>RevertLog</c> change. Every batch this run
-    /// opens carries ONE operation id, which is what <c>/undo</c> acts on, so the whole run is one
-    /// undoable action however many kinds it spanned.
+    /// The whole-library renamer job body: for each kind the caller can write, walks the kind's entity
+    /// ids a chunk at a time through <see cref="RunRenamerKindAsync"/>, which drives the same chunk
+    /// <c>/renamer</c> drives for a single-kind selection. A kind with no entities is skipped entirely,
+    /// so no empty batch header opens for it.
     /// </summary>
+    /// <remarks>
+    /// Every batch this run opens carries one operation id, which is what <c>/undo</c> acts on, so the
+    /// whole run is one undoable action however many kinds and chunks it spanned. Ids never reach the
+    /// host's parameter map on this path: the job is enqueued as a closure, so nothing here has to
+    /// serialize a list that grows with the library.
+    /// <para>
+    /// The denominator is a count per kind, taken before the walk. A count can drift from what the pages
+    /// yield, so the reported fraction stays below 1.0 and the run's own final report lands the bar.
+    /// </para>
+    /// </remarks>
     /// <param name="writableKinds">The kinds the enqueuing principal held write permission for, captured at enqueue time (same rationale as <see cref="RunScanLibraryJobAsync"/>'s <c>readableKinds</c> parameter).</param>
     /// <param name="progress">The job-progress sink; each kind reports into its own slice of it (see <see cref="KindSliceProgress"/>).</param>
     /// <param name="ct">Cancellation token; a genuine cancellation aborts the remaining kinds.</param>
     internal async Task RunRenamerLibraryJobAsync(
         IReadOnlyList<RenamerFileKind> writableKinds, Cove.Plugins.IJobProgress progress, CancellationToken ct)
     {
-        // Every kind's ids are loaded before the first batch runs so the SUM is known: a batch scales
-        // its own [0,1] bar, so without a whole-run denominator there is nothing to map a kind onto and
-        // the second one restarts below where the first finished. RunScanCoreAsync hoists the same
-        // per-kind id queries for the same reason.
         // Read the options once, for the same reason the scan does: a kind turned off is dropped before
-        // its ids are loaded and a batch enqueued for it, rather than planned into a run of skips.
+        // it is walked at all, rather than planned into a run of skips.
         var options = await new OptionsStore(Store, _log).LoadAsync(ct);
 
-        var idsByKind = new List<(RenamerFileKind Kind, IReadOnlyList<int> Ids)>(writableKinds.Count);
+        var countByKind = new List<(RenamerFileKind Kind, int Count)>(writableKinds.Count);
         foreach (var kind in writableKinds.Where(options.IsKindEnabled))
         {
             ct.ThrowIfCancellationRequested();
 
-            var ids = await RunAsSystem.RunInSystemScopeAsync(
+            int count = await RunAsSystem.RunInSystemScopeAsync(
                 ScopeFactory,
                 services =>
                 {
                     var db = services.GetRequiredService<DbContext>();
-                    return new CoveRenamerDataPort(db, _coveConfig).LoadAllEntityIdsAsync(kind, ct);
+                    return new CoveRenamerDataPort(db, _coveConfig).CountEntitiesAsync(kind, ct);
                 });
 
-            if (ids.Count > 0)
+            if (count > 0)
             {
-                idsByKind.Add((kind, ids));
+                countByKind.Add((kind, count));
             }
         }
 
-        int total = idsByKind.Sum(k => k.Ids.Count);
+        int total = countByKind.Sum(k => k.Count);
         int planned = 0;
 
-        // One click, one operation, however many kinds it spans. Each kind still opens its own batch —
+        // One click, one operation, however many kinds it spans. Each kind still opens its own batches —
         // a journal row carries no kind — but the operation is what /undo acts on, so the whole run
-        // comes back or none of it does.
-        var operationId = Guid.NewGuid().ToString("N");
+        // comes back or none of it does. The journal cap is measured over that same operation, so a run
+        // too large to journal drops all of itself rather than part of itself.
+        var budget = new OperationJournalBudget(Guid.NewGuid().ToString("N"));
 
-        foreach (var (kind, ids) in idsByKind)
+        foreach (var (kind, count) in countByKind)
         {
             ct.ThrowIfCancellationRequested();
 
-            LogLibraryKind(kind, ids.Count);
+            LogLibraryKind(kind, count);
 
-            var parameters = RenamerJob.Encode(EntityTypeFor(kind), ids);
-            await RunRenamerBatchAsync(
-                parameters, new KindSliceProgress(progress, planned, ids.Count, total), ct,
-                operationId: operationId);
-            planned += ids.Count;
+            await RunRenamerKindAsync(
+                kind, count, budget, options, new KindSliceProgress(progress, planned, count, total), ct);
+            planned += count;
         }
 
         progress.Report(1d, "Library rename complete.");
@@ -1225,21 +1230,6 @@ public sealed partial class Renamer
             inner.Report(scaled, message);
         }
     }
-
-    /// <summary>
-    /// The reverse of <see cref="TryParseKind"/>: maps a <see cref="RenamerFileKind"/> back to the
-    /// lowercase-singular Cove entity-type string <see cref="RenamerJob.Encode"/> expects. Only the
-    /// renamable kinds round-trip (Gallery never reaches this method — <see cref="RenamableKinds.All"/>
-    /// excludes it).
-    /// </summary>
-    private static string EntityTypeFor(RenamerFileKind kind) => kind switch
-    {
-        RenamerFileKind.Video => "video",
-        RenamerFileKind.Image => "image",
-        RenamerFileKind.Audio => "audio",
-        RenamerFileKind.Text => "text",
-        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "not a renamable kind"),
-    };
 
     /// <summary>
     /// The live-preview endpoint: runs the REAL <see cref="TemplateEngine"/> over the

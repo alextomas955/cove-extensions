@@ -108,8 +108,9 @@ public static class FreeSpaceGuard
 
     /// <summary>
     /// The sentinel (source,dest) pair under which all same-volume moves are grouped by
-    /// <see cref="PartitionByPair"/>. Same-volume renames are unthrottled, so they share one group
-    /// regardless of which drive they live on.
+    /// <see cref="PartitionByPair"/>. Same-volume renames are bounded by one setting,
+    /// <c>RenamerOptions.SameVolumeConcurrency</c>, so they share one group regardless of which drive
+    /// they live on.
     /// </summary>
     public static (string SourceRoot, string DestRoot) SameVolumePair => (string.Empty, string.Empty);
 }

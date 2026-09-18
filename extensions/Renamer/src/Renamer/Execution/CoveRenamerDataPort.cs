@@ -341,6 +341,44 @@ public class CoveRenamerDataPort : IRenamerDataPort
     }
 
     /// <inheritdoc />
+    public async Task<int> CountEntitiesAsync(RenamerFileKind kind, CancellationToken ct = default) => kind switch
+    {
+        RenamerFileKind.Video => await _db.Set<Video>().AsNoTracking().CountAsync(ct),
+        RenamerFileKind.Image => await _db.Set<Image>().AsNoTracking().CountAsync(ct),
+        RenamerFileKind.Audio => await _db.Set<Audio>().AsNoTracking().CountAsync(ct),
+        RenamerFileKind.Text => await _db.Set<TextDocument>().AsNoTracking().CountAsync(ct),
+        _ => 0,
+    };
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<string, int>> CountSourcePathClaimsAsync(
+        IReadOnlyList<string> sourcePaths, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(sourcePaths);
+
+        var claims = new Dictionary<string, int>(PathOps.PathComparer);
+
+        // Chunked for the same reason LoadEntitiesAsync is: EF binds one parameter per element of an
+        // IN list, and a whole chunk of planned paths would approach the provider's parameter cap.
+        foreach (var chunk in sourcePaths.Distinct(PathOps.PathComparer).Chunk(LoadChunkSize))
+        {
+            var rows = await _db.Set<BaseFileEntity>().AsNoTracking()
+                .Where(f => chunk.Contains(f.Path))
+                .GroupBy(f => f.Path)
+                .Where(g => g.Count() > 1)
+                .Select(g => new { Path = g.Key, Claims = g.Count() })
+                .ToListAsync(ct);
+
+            foreach (var row in rows)
+            {
+                claims[row.Path] = row.Claims;
+            }
+        }
+
+        return claims;
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
         RenamerFileKind kind, int afterEntityId, int take, CancellationToken ct = default)
     {

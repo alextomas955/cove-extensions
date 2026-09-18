@@ -73,6 +73,37 @@ public sealed class RevertJournalCapTests
         Assert.Single(await refused.ReadBatchPageAsync("run-other", long.MaxValue, limit: 100));
     }
 
+    /// <summary>
+    /// The cap counts the operation, so two chunks each under it but over it together journal nothing,
+    /// and the first chunk's batch goes with the refusal.
+    /// </summary>
+    [Fact]
+    public async Task TwoChunksOverTheCapTogether_LeaveTheOperationWithNoJournalAtAll()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        await using var _ = db;
+        await using var __ = conn;
+
+        using var journal = new CoveRevertJournal(db);
+        var ext = RenamerFixture.Create();
+        var budget = new global::Renamer.Renamer.OperationJournalBudget("op");
+        int half = (IRevertJournal.MaxJournalledFiles / 2) + 1;
+
+        await ext.OpenOrSuppressBatchAsync(
+            journal, "run-1", budget, RenamerFileKind.Video, half, Opened, default);
+        await journal.AppendAsync(new RevertRow("run-1", Seq: 0, 11, 21, "/media/old/a.mkv", ""));
+
+        Assert.Single(await journal.ReadBatchPageAsync("run-1", long.MaxValue, limit: 100));
+
+        await ext.OpenOrSuppressBatchAsync(
+            journal, "run-2", budget, RenamerFileKind.Video, half, Opened, default);
+        await journal.AppendAsync(new RevertRow("run-2", Seq: 0, 12, 22, "/media/old/b.mkv", ""));
+
+        Assert.Null(await journal.ReadUndoTargetAsync());
+        Assert.Empty(await journal.ReadBatchPageAsync("run-1", long.MaxValue, limit: 100));
+        Assert.Empty(await journal.ReadBatchPageAsync("run-2", long.MaxValue, limit: 100));
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(IRevertJournal.MaxJournalledFiles - 1)]
@@ -82,7 +113,8 @@ public sealed class RevertJournalCapTests
         var journal = new FakeRevertJournal();
 
         await RenamerFixture.Create().OpenOrSuppressBatchAsync(
-            journal, "run", "op", RenamerFileKind.Video, actingFiles, Opened, default);
+            journal, "run", new global::Renamer.Renamer.OperationJournalBudget("op"), RenamerFileKind.Video,
+            actingFiles, Opened, default);
 
         await journal.AppendAsync(new RevertRow("run", Seq: 0, 11, 21, "/media/old/a.mkv", ""));
 
@@ -100,7 +132,8 @@ public sealed class RevertJournalCapTests
         var journal = new FakeRevertJournal();
 
         await RenamerFixture.Create().OpenOrSuppressBatchAsync(
-            journal, "run", "op", RenamerFileKind.Video, actingFiles, Opened, default);
+            journal, "run", new global::Renamer.Renamer.OperationJournalBudget("op"), RenamerFileKind.Video,
+            actingFiles, Opened, default);
 
         // Workers already in flight when the decision was taken still call AppendAsync.
         await journal.AppendAsync(new RevertRow("run", Seq: 0, 11, 21, "/media/old/a.mkv", ""));
