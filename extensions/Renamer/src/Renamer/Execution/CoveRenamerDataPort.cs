@@ -341,12 +341,14 @@ public class CoveRenamerDataPort : IRenamerDataPort
         // IN list, and a whole chunk of planned paths would approach the provider's parameter cap.
         foreach (var chunk in sourcePaths.Distinct(PathOps.PathComparer).Chunk(LoadChunkSize))
         {
-            var rows = await _db.Set<BaseFileEntity>().AsNoTracking()
-                .Where(f => chunk.Contains(f.Path))
-                .GroupBy(f => f.Path)
-                .Where(g => g.Count() > 1)
-                .Select(g => new { Path = g.Key, Claims = g.Count() })
-                .ToListAsync(ct);
+            // Where the volume treats a path and its case-variant as one file, so must this query.
+            // Equality here is the database collation's, and a case-sensitive collation over a
+            // case-insensitive volume would read a twin row differing only in case as a second path
+            // and report neither as contested. Cove indexes upper(Path), so the folded comparison is
+            // served by an index rather than a scan.
+            var rows = PathOps.PathsIgnoreCase
+                ? await FoldedClaimsAsync(chunk, ct)
+                : await ExactClaimsAsync(chunk, ct);
 
             foreach (var row in rows)
             {
@@ -355,6 +357,36 @@ public class CoveRenamerDataPort : IRenamerDataPort
         }
 
         return claims;
+    }
+
+    private sealed record PathClaims(string Path, int Claims);
+
+    private Task<List<PathClaims>> ExactClaimsAsync(string[] paths, CancellationToken ct) =>
+        _db.Set<BaseFileEntity>().AsNoTracking()
+            .Where(f => paths.Contains(f.Path))
+            .GroupBy(f => f.Path)
+            .Where(g => g.Count() > 1)
+            .Select(g => new PathClaims(g.Key, g.Count()))
+            .ToListAsync(ct);
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo",
+        Justification = "ToUpper() here is never executed in .NET - it is translated to the provider's " +
+            "own upper() in SQL, and the culture-taking overloads have no translation.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture",
+        Justification = "Same as CA1304: this call is translated to SQL, not run by the CLR.")]
+    private Task<List<PathClaims>> FoldedClaimsAsync(string[] paths, CancellationToken ct)
+    {
+        // The keys come back folded. The caller's dictionary compares with PathOps.PathComparer, which
+        // ignores case on exactly the platforms this branch runs on, so a folded key still answers a
+        // lookup by the path as planned.
+        var folded = Array.ConvertAll(paths, p => p.ToUpperInvariant());
+
+        return _db.Set<BaseFileEntity>().AsNoTracking()
+            .Where(f => folded.Contains(f.Path.ToUpper()))
+            .GroupBy(f => f.Path.ToUpper())
+            .Where(g => g.Count() > 1)
+            .Select(g => new PathClaims(g.Key, g.Count()))
+            .ToListAsync(ct);
     }
 
     /// <inheritdoc />

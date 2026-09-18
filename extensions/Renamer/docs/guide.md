@@ -119,7 +119,7 @@ The run leaves one of three banners behind, and the difference between the last 
 you have anything to check:
 
 - **The run finished**: "Rename finished. The scan found 412 files to rename, 9 skipped." Both figures
-  are the scan's — what it planned to change, and its _Needs attention_ count — because the run itself
+  are the scan's: what it planned to change, and its _Needs attention_ count. The run itself
   reports no totals. A file the scan planned can still be skipped when the rename reaches it, so treat
   the first number as what was attempted rather than what was renamed; dry-run again to see where the
   library now stands.

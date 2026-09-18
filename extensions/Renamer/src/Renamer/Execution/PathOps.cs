@@ -117,7 +117,15 @@ internal static class PathOps
     /// dictionary or a grouping. Its input must already be forward-slash form.
     /// </summary>
     internal static StringComparer PathComparer =>
-        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
-            ? StringComparer.OrdinalIgnoreCase
-            : StringComparer.Ordinal;
+        PathsIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+    /// <summary>
+    /// Whether a path and its case-variant name one physical file on this platform.
+    /// </summary>
+    /// <remarks>
+    /// The same rule <see cref="PathComparer"/> selects on, as a value, for a caller that has to
+    /// express the comparison somewhere a <see cref="StringComparer"/> does not reach — a database
+    /// query, for one, where the collation decides and need not agree with the volume.
+    /// </remarks>
+    internal static bool PathsIgnoreCase => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
 }
