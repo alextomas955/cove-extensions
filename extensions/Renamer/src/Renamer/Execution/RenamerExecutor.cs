@@ -191,7 +191,7 @@ public sealed class RenamerExecutor
         string nativeNew = ToNative(newFull);
         bool sameVolume = VolumeClassifier.SameVolume(item.OldFullPath, newFull);
 
-        var (moved, moveReason, moveOutcome, movedSidecars) =
+        var (moved, moveReason, moveOutcome, movedSidecars, moverWarnings) =
             await MoveOnDisk(sameVolume, nativeOld, nativeNew, plannedSidecars, ct);
 
         if (!moved)
@@ -381,7 +381,7 @@ public sealed class RenamerExecutor
             }
         }
 
-        var itemWarnings = sidecarWarnings.Concat(postCommitWarnings).ToList();
+        var itemWarnings = sidecarWarnings.Concat(moverWarnings).Concat(postCommitWarnings).ToList();
         renamed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, item.Status,
             itemWarnings.Count > 0 ? string.Join("; ", itemWarnings) : null));
     }
@@ -560,7 +560,8 @@ public sealed class RenamerExecutor
     // A same-volume rename takes the atomic DiskMover.Move; a cross-volume move takes the copy, verify,
     // promote, delete-source-last CrossVolumeMover.MoveAsync. Both tiers return the same shape.
     private async Task<(bool moved, string? reason, MoveOutcome outcome,
-        IReadOnlyList<(string From, string To)> movedSidecars)> MoveOnDisk(
+        IReadOnlyList<(string From, string To)> movedSidecars,
+        IReadOnlyList<string> warnings)> MoveOnDisk(
         bool sameVolume, string nativeOld, string nativeNew,
         IReadOnlyList<DiskMover.SidecarMove> plannedSidecars, CancellationToken ct)
     {
@@ -568,12 +569,14 @@ public sealed class RenamerExecutor
         {
             var move = _disk.Move(nativeOld, nativeNew,
                 [.. plannedSidecars.Select(s => new DiskMover.SidecarMove(ToNative(s.From), ToNative(s.To)))]);
-            return (move.Moved, move.Reason, move.Outcome, [.. move.MovedSidecars.Select(s => (s.From, s.To))]);
+            return (move.Moved, move.Reason, move.Outcome,
+                [.. move.MovedSidecars.Select(s => (s.From, s.To))], move.Warnings);
         }
 
         var cross = await _cross.MoveAsync(nativeOld, nativeNew,
             [.. plannedSidecars.Select(s => new CrossVolumeMover.SidecarMove(ToNative(s.From), ToNative(s.To)))], ct);
-        return (cross.Moved, cross.Reason, cross.Outcome, [.. cross.MovedSidecars.Select(s => (s.From, s.To))]);
+        return (cross.Moved, cross.Reason, cross.Outcome,
+            [.. cross.MovedSidecars.Select(s => (s.From, s.To))], cross.Warnings);
     }
 
     // Rolls a completed move back through the mover tier that performed it. A non-empty warning list

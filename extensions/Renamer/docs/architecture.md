@@ -278,7 +278,9 @@ These are the guarantees the design exists to protect. Preserve them when you ch
   force-kills the locking process.
 - **A move between volumes is copied, verified, then deleted.** There is no atomic rename across
   volumes, so a cross-volume move copies the file, verifies the copy (size plus an XxHash3 content
-  hash), and only then removes the source. This is also what arms the free-space check and the
+  hash), and only then removes the source. Once the copy is in place the move has happened, so a
+  source that cannot be removed - locked, or denied by permissions - leaves the rename done and
+  reports a warning naming the file left behind. This is also what arms the free-space check and the
   heavy-batch confirmation, so which moves count as cross-volume decides whether those run at all.
   A volume is identified by its drive root on Windows and by its **mount point** on Linux and macOS —
   two different mounts are two volumes even though they share the `/` root.
