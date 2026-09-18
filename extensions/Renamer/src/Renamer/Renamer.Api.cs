@@ -746,7 +746,7 @@ public sealed partial class Renamer
     /// Every renamable kind, in a fixed iteration order. Gallery is excluded — it is not yet a
     /// renamable kind (<see cref="TryParseKind"/> never produces it, <c>LoadEntityAsync</c> returns
     /// null for it). Shared by the whole-library scan and renamer-library job loops so both iterate
-    /// the same three kinds in the same order.
+    /// the same kinds in the same order.
     /// </summary>
     private static readonly RenamerFileKind[] RenamableKinds =
         [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio, RenamerFileKind.Text];
