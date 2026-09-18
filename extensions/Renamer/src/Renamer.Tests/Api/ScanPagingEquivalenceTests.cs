@@ -53,7 +53,7 @@ public sealed class ScanPagingEquivalenceTests
     /// <summary>
     /// Seeds a fixture that reaches every planner branch: a plain rename, a multi-file rename, a folder
     /// move, a routed cross-root move, a no-op, an excluded entity, a gate failure, a missing source, and
-    /// an occupied target that forces the suffix loop — across all three kinds.
+    /// an occupied target that forces the suffix loop — across every renamable kind.
     /// </summary>
     private static FakeRenamerDataPort BuildFixture()
     {
@@ -64,7 +64,7 @@ public sealed class ScanPagingEquivalenceTests
         {
             // A distinct id block per kind, derived from its position so a kind added to the set gets
             // its own block instead of sharing one and colliding.
-            int baseId = (Array.IndexOf(RenamableKinds.All, kind) + 1) * 1000;
+            int baseId = (RenamableKinds.All.IndexOf(kind) + 1) * 1000;
             string folder = $"{LibRoot}/{kind.ToString().ToLowerInvariant()}";
             var ids = new List<int>(EntitiesPerKind);
 

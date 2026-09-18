@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
 
@@ -34,9 +35,9 @@ public static class RenamableKinds
     /// Every renamable kind, in the fixed order every whole-library path walks. Gallery is absent: it
     /// is not renamable, <c>LoadEntityAsync</c> returns null for it, and no endpoint accepts it.
     /// </summary>
-    public static readonly RenamerFileKind[] All =
+    public static readonly ImmutableArray<RenamerFileKind> All =
         [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio, RenamerFileKind.Text];
 
     /// <summary>Whether this extension renames <paramref name="kind"/> at all.</summary>
-    public static bool Includes(RenamerFileKind kind) => Array.IndexOf(All, kind) >= 0;
+    public static bool Includes(RenamerFileKind kind) => All.Contains(kind);
 }

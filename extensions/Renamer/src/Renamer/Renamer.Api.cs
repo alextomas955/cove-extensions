@@ -730,11 +730,11 @@ public sealed partial class Renamer
     /// handler directly.
     /// </remarks>
     private static readonly string[] AnyReadPermissions =
-        [Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead, Permissions.TextsRead];
+        [.. RenamableKinds.All.Select(k => PermissionsFor(k).Read)];
 
     /// <summary>The write gate, on the same terms as <see cref="AnyReadPermissions"/>.</summary>
     private static readonly string[] AnyWritePermissions =
-        [Permissions.VideosWrite, Permissions.ImagesWrite, Permissions.AudiosWrite, Permissions.TextsWrite];
+        [.. RenamableKinds.All.Select(k => PermissionsFor(k).Write)];
 
     private static bool HasAnyReadPermission(ICurrentPrincipalAccessor principal)
         => principal.Current is { } current && Array.Exists(AnyReadPermissions, current.Has);
