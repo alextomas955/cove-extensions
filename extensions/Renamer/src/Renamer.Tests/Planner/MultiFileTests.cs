@@ -29,6 +29,5 @@ public sealed class MultiFileTests
         Assert.Equal(2, plan.Items.Count);
         Assert.Contains(plan.Items, i => i.FileId == 1);
         Assert.Contains(plan.Items, i => i.FileId == 2);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

@@ -45,7 +45,7 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     /// <summary>Declares <paramref name="fullPath"/> absent on disk for <see cref="SourceExistsAsync"/>.</summary>
     public void SeedMissingSource(string fullPath) => MissingSources.Add(fullPath);
 
-    /// <summary>Number of <see cref="LoadEntityAsync"/> calls — lets a test prove PHASE A loads each id once, not twice.</summary>
+    /// <summary>Number of <see cref="LoadEntityAsync"/> calls — lets a test prove the planning pass loads each id once, not twice.</summary>
     public int LoadEntityCallCount { get; private set; }
 
     /// <summary>Number of <see cref="LoadEntitiesAsync"/> calls — one per CALL (not per id), so a scan test can prove batching issues far fewer than N loads.</summary>

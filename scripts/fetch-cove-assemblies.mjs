@@ -775,16 +775,14 @@ async function extract({ out, tag }) {
 
   // Pulled explicitly rather than left to `docker create`'s implicit pull. `create` is satisfied by
   // whatever image already carries the tag locally, so on a machine holding a stale copy it would
-  // extract bytes the registry no longer serves — silently, and the registry-protocol reader this
-  // replaces always read the registry. A no-op "Image is up to date" is the cost of keeping that.
+  // extract bytes the registry no longer serves, silently. A no-op "Image is up to date" is the
+  // cost of always reading the registry.
   runDocker(["pull", reference]);
 
-  // The manifest-list (image index) digest, NOT the platform-manifest digest the registry-protocol
-  // reader used to record: `RepoDigests` is what the daemon stored for the reference it pulled, and
-  // for a multi-platform tag that is the index. Both identify the same pull and neither is
-  // hand-maintained, and Directory.Build.targets compares the TAG rather than this — the digest rides
-  // as provenance. So the value here is self-consistent but is NOT byte-comparable with a digest
-  // captured before this rewrite; a diff of exactly this line between the two is expected.
+  // The manifest-list (image index) digest, not the platform-manifest digest: `RepoDigests` is what
+  // the daemon stored for the reference it pulled, and for a multi-platform tag that is the index.
+  // Directory.Build.targets compares the tag, not this, so the digest rides as provenance only and is
+  // not byte-comparable with a platform-manifest digest from another source.
   const digest = selectRepoDigest(
     JSON.parse(runDocker(["image", "inspect", reference, "--format", "{{json .RepoDigests}}"])),
     repository,

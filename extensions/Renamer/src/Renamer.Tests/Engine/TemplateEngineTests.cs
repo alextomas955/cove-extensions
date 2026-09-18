@@ -406,7 +406,7 @@ public class TemplateEngineTests
     public void DefaultOptions_RenderByteIdentical_ToPrePhaseEngine()
     {
         // GATE: with NO field-rewrite settings, output must be byte-identical to the v1.3 engine.
-        // Expected values are the literal strings the engine produced before this phase.
+        // Expected values are the literal strings the engine produces, copied from its output.
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "The Movie",

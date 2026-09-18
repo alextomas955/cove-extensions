@@ -6,7 +6,7 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Execution.Undo;
 
 /// <summary>
-/// The write-seam rollback proof this phase unlocked. Because <see cref="IRenamerDataPort.ApplyAndSaveAsync"/>
+/// The write-seam rollback proof. Because <see cref="IRenamerDataPort.ApplyAndSaveAsync"/>
 /// is now on the INTERFACE (not just the concrete <c>CoveRenamerDataPort</c>), the executor's
 /// disk-first/DB-second rollback spine can be driven by a pure in-memory <see cref="FakeRenamerDataPort"/>
 /// with a real on-disk move and NO live database — the L0 test that was impossible while the executor

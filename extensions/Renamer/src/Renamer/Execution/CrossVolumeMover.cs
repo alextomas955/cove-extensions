@@ -31,11 +31,9 @@ namespace Renamer.Execution;
 // The source delete is the one step outside the all-or-nothing try. Past the promote the
 // destination is the verified, media-durable copy, so the move has happened whatever the delete
 // does: a delete refused by a lock or a permission returns Moved and adds a warning naming the
-// source it could not remove. Classifying it as a skip instead left RenamerExecutor taking the
-// no-database-write path with Cove's row still naming the source, so the next run copied the file
-// again and its collision loop suffixed past the survivor, and nothing bounded the pile. The same
-// engine backs SafeCopyBackAsync, so a rollback whose source delete fails is reported as the
-// completed rollback it is, with the stranded source named in the warnings.
+// source it could not remove. SafeCopyBackAsync runs the same engine, so a rollback whose source
+// delete fails is reported as the completed rollback it is, with the stranded source named in the
+// warnings.
 //
 // Failures are classified, not thrown: a locked source (IOException) is a Locked skip; an occupied
 // destination, from the up-front check or from the same IOException resolved by testing the
@@ -51,8 +49,6 @@ namespace Renamer.Execution;
 // a real temp directory whatever the volume layout is.
 //
 // Both sides are self-hashed with XxHash3, a fast integrity check and not a security control.
-// Reusing Cove's stored MD5 to skip the source read is deferred: that MD5 lives in a FileFingerprint
-// row the renamer data port does not load, so it is invisible here.
 public sealed class CrossVolumeMover
 {
     // A 1 MiB copy and hash buffer matches File.Copy throughput on multi-GB sequential I/O, where the
@@ -67,12 +63,9 @@ public sealed class CrossVolumeMover
 
     // How many characters MintInFlightPath appends to the final path.
     //
-    // internal so the planner's in-flight overflow warning derives the length from this declaration and
-    // does not restate it. A hand-mirrored copy that missed a narrowing of the minted segment would
-    // leave the preview warning on a band that no longer overruns, warning on a correct plan.
-    //
-    // static readonly and not const, because string.Length is not a compile-time constant expression in
-    // C# and writing the sum out as a literal is the mirroring this member removes.
+    // internal so the planner's in-flight overflow warning derives the length here rather than
+    // restating it: a hand-mirrored copy that missed a narrowing of the minted segment would warn on
+    // a correct plan.
     internal static readonly int InFlightSuffixLength = InFlightMarker.Length + InFlightRandomChars;
 
     // Test-only fault-injection seam, invoked on the closed in-flight copy after the copy and before

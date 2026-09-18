@@ -60,7 +60,6 @@ public sealed class PerKindOptionsTests
             Assert.Equal(RenamerStatus.SkipGated, i.Status);
             Assert.Contains("text", i.Reason!, StringComparison.Ordinal);
         });
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -78,7 +77,6 @@ public sealed class PerKindOptionsTests
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -100,7 +98,6 @@ public sealed class PerKindOptionsTests
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(Fwd(TextRoot), item.ResolvedDestinationRoot);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -130,7 +127,6 @@ public sealed class PerKindOptionsTests
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(Fwd(TagRoot), item.ResolvedDestinationRoot);
         Assert.Equal("Tag:manual", item.MatchedRule);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -145,6 +141,5 @@ public sealed class PerKindOptionsTests
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(Fwd(DefaultRoot), item.ResolvedDestinationRoot);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

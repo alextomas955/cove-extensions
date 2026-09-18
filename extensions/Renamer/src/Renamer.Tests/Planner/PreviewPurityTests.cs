@@ -5,12 +5,12 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Planner;
 
 /// <summary>
-/// F-01 regression: a dry-run plan (what <c>/preview</c> runs) must perform ZERO DB mutation — in
-/// particular it must NOT create a destination <see cref="Cove.Core.Entities.Folder"/> row when a
+/// A dry-run plan, which is what <c>/preview</c> runs, performs no database mutation. In
+/// particular it does not create a destination <see cref="Cove.Core.Entities.Folder"/> row when a
 /// move/route targets a folder that does not exist yet. The planner resolves the target folder id
 /// READ-ONLY (<see cref="IRenamerDataPort.TryGetFolderIdAsync"/>); an absent folder holds no files, so
 /// the candidate name is collision-free and the item still plans as a Move. Folder creation is the
-/// executor's job, exercised only on a real renamer.
+/// executor's job.
 /// </summary>
 public sealed class PreviewPurityTests
 {
@@ -41,7 +41,7 @@ public sealed class PreviewPurityTests
         // It still plans as a Move to the (not-yet-existing) destination folder...
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.EndsWith("Archive/My Film.mkv", item.NewFullPath);
-        // ...but planning created NO folder and saved NOTHING — the preview-mutation bug is gone.
+        // ...and planning created no folder and saved nothing.
         Assert.Empty(port.CreatedFolderPaths);
         Assert.Empty(port.ApplyAndSaveCalls);
     }

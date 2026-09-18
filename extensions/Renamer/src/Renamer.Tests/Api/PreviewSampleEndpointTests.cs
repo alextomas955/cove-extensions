@@ -12,7 +12,7 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 namespace Renamer.Tests.Api;
 
 /// <summary>
-/// UI-02 backend core: <c>PreviewSampleAsync</c> runs the real <c>TemplateEngine</c> over the fixed
+/// <c>PreviewSampleAsync</c> runs the real <c>TemplateEngine</c> over the fixed
 /// <see cref="SampleTokenSets"/> + the posted (unsaved) options and returns per-sample old→new + folder
 /// + advisory flags — single-sourcing the naming logic so the React panel never re-implements it. The
 /// length-reduced flag is asserted by its NAMED dropped fields (truthful, not a generic boolean),
@@ -220,7 +220,7 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public void PreviewSample_StringEnumBody_Parses_Returns200_WithRenderedNames()
     {
-        // REGRESSION (UI-02 gap): the panel posts string enum values. The host's default minimal-API
+        // The panel posts string enum values. The host's default minimal-API
         // JsonSerializerOptions has no JsonStringEnumConverter, so typed binding would 400. The endpoint
         // now parses with RenamerOptions.JsonOptions, so this MUST succeed and render the expected name.
         const string body = """

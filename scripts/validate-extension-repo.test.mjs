@@ -419,9 +419,9 @@ test("a manifest id disagreeing with its catalog entry fails, naming both ids", 
 
 test("a declared catalog path that does not exist fails, naming the field", () => {
   // uiPath/testProjectPath/e2ePath/e2eNodeTestsPath are consumed by the CI build matrix but by none
-  // of the convention-derived checks, so a typo in one used to surface only inside a matrix leg — an
-  // `npm ci` in a directory that is not there, or a dotnet restore several steps in. The error must
-  // name the FIELD: the path value alone does not say which CI step is about to break.
+  // of the convention-derived checks, so without this a typo in one surfaces only inside a matrix
+  // leg: an `npm ci` in a directory that is not there, or a dotnet restore several steps in. The
+  // error must name the field, because the path value alone does not say which CI step will break.
   const entry = validEntry("com.example.foo", "Foo", { uiPath: "extensions/Foo/DoesNotExist.Ui" });
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },

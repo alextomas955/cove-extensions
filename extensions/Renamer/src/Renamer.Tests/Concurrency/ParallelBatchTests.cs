@@ -11,7 +11,7 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Concurrency;
 
 /// <summary>
-/// Parallel-batch correctness under the two-phase rewrite. Proves: every acting item
+/// Parallel-batch correctness. Proves: every acting item
 /// renames and the shared journal holds exactly one well-formed row per success (no torn/lost
 /// append under real parallel workers); a per-item fault is an isolated skip while the rest succeed
 /// and the batch still reports the final <c>1.0</c> (classify-not-throw under parallelism); a
@@ -95,8 +95,8 @@ public sealed class ParallelBatchTests
 
             Assert.Equal(1d, progress.LastPercent);
 
-            // Progress must move during BOTH phases, not jump from 0% to done. PHASE A (planning) drives
-            // the bar into (0, 0.5] and PHASE B (executing) carries it past 0.5 to 1.0 — so there must be
+            // Progress must move during BOTH phases, not jump from 0% to done. The planning pass drives
+            // the bar into (0, 0.5] and the execution pass carries it past 0.5 to 1.0 — so there must be
             // at least one report in each band, every report is in [0,1], and the sequence never regresses.
             Assert.Contains(progress.Reports, r => r.Percent is > 0d and <= 0.5d);
             Assert.Contains(progress.Reports, r => r.Percent is > 0.5d and < 1d);
@@ -263,8 +263,8 @@ public sealed class ParallelBatchTests
             };
             var (ext, _, _) = await BuildAsync(shared, options, srcPathFwd, destRootFwd);
 
-            // Stateful TOCTOU probe: the FIRST reading (PHASE A up-front check) reports ample free space
-            // so the batch is accepted; the SECOND reading (PHASE B in-flight re-check, just before the
+            // Stateful TOCTOU probe: the FIRST reading (the up-front check) reports ample free space
+            // so the batch is accepted; the SECOND reading (the in-flight re-check, just before the
             // copy) reports near-zero, modelling a concurrent scanner that filled the destination. The
             // cross-volume item must then be skipped gracefully — never thrown, batch still completes.
             int calls = 0;

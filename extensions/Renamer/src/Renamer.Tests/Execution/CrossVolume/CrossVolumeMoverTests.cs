@@ -406,17 +406,14 @@ public sealed class CrossVolumeMoverTests
         Assert.False(File.Exists(inFlight), "no in-flight copy left behind");
     }
 
-    // The regression for the silent data loss this design removed: the mover used to derive one fixed,
-    // guessable in-flight path from the destination and delete it before every copy, so a user's own
-    // file sitting at that name was destroyed without a word.
+    // A file already present in the destination directory is untouched by a cross-volume move,
+    // whether the move succeeds or its verify fails. The mover deletes only paths it minted inside
+    // that same call.
     //
-    // PROPERTY PINNED: a file already present in the destination directory is untouched by a
-    // cross-volume move, whether the move succeeds or its verify fails. The mover deletes only paths it
-    // minted inside that same call. Be honest about what a random name lets a test assert: because the
-    // in-flight name is minted per call from a cryptographic random source, no fixed path can be
-    // pre-planted to collide with the next one — so these cases cannot demonstrate a near-miss and do
-    // not pretend to. The planted files are named in the SHAPE a minted in-flight file takes, so they
-    // would have failed loudly against the fixed-suffix code this replaced.
+    // What a random in-flight name lets these cases assert: the name is minted per call from a
+    // cryptographic random source, so no fixed path can be pre-planted to collide with the next one.
+    // These cases cannot demonstrate a near-miss. The planted files are named in the shape a minted
+    // in-flight file takes, which is the most a test can pin here.
 
     private const string UserContent = "a user's own file, valid data the mover has no claim on";
 

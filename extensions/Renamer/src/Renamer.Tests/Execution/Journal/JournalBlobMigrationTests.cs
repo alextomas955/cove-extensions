@@ -86,7 +86,7 @@ public sealed class JournalBlobMigrationTests
         Assert.Equal(["/lib/b.mkv", "/lib/a.mkv"], batch.Rows.Select(r => r.OldPath));
 
         // No header means no timestamp to inherit. Treating an unknown age as EXPIRED would delete a
-        // pending undo on the next batch open with nothing to say so, which is the outcome this phase
+        // pending undo on the next batch open with nothing to say so, which is the outcome this
         // exists to make impossible — so an unknown age gets the full window instead.
         var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);

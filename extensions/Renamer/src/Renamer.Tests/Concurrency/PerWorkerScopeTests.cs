@@ -11,7 +11,7 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Concurrency;
 
 /// <summary>
-/// The SPACE-04 structural isolation proof. The batch's PHASE B opens a per-worker
+/// The structural isolation proof. The batch's execution pass opens a per-worker
 /// <c>CreateAsyncScope()</c> so no <see cref="DbContext"/> instance is shared across parallel
 /// workers. Cove disables EF's thread-safety checks (<c>EnableThreadSafetyChecks(false)</c>), so a
 /// shared-context bug does NOT throw — it corrupts silently. This proof is therefore STRUCTURAL: an
@@ -48,7 +48,7 @@ public sealed class PerWorkerScopeTests
         await using var shared = await SharedCacheSqlite.CreateAsync();
         await using var seedDb = shared.NewContext();
 
-        // Seed N same-volume videos in ONE folder so PHASE B fans out N parallel workers under the
+        // Seed N same-volume videos in ONE folder so the execution pass fans out N parallel workers under the
         // same-volume group, bounded by SameVolumeConcurrency.
         const int n = 6;
         string folderPath = dir.Root.Replace('\\', '/');
@@ -80,7 +80,7 @@ public sealed class PerWorkerScopeTests
         var progress = new FakeJobProgress();
         await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
 
-        // STRUCTURAL proof: PHASE A opens one read scope; PHASE B opens one scope per acting unit.
+        // Structural proof: the planning pass opens one read scope; the execution pass opens one scope per acting unit.
         // The distinct-instance count must be at least the worker count (n acting items), and every
         // recorded context is a distinct reference — NO instance was shared across workers.
         var distinct = new HashSet<DbContext>(constructed, ReferenceEqualityComparer.Instance);

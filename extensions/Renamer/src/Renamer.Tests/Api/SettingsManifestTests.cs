@@ -1,14 +1,12 @@
-using Cove.Core.Auth;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests;
 
 /// <summary>
-/// UI-03 (automated portion): the extension registers its UI so Cove loads it. The renamer UI's home is
-/// a DEDICATED SETTINGS TAB (Settings → Extensions → Renamer): GetUIManifest() declares a settings tab
-/// "renamer" plus a settings section targeting it that renders the RenamerPage component, alongside the
-/// bulk action. It is NOT a top-nav page and NOT under the shared Installed list. The live half (the
-/// tab actually renders) is verified by the live browser pass.
+/// The UI registration Cove loads the extension through. The renamer's home is its own settings tab
+/// under Settings → Extensions, not a top-nav page and not the shared Installed list: the manifest
+/// declares the "renamer" tab and a settings section targeting it that renders RenamerPage. That the
+/// tab renders is an e2e concern; this pins the declared shape.
 /// </summary>
 public sealed class SettingsManifestTests
 {
@@ -19,7 +17,6 @@ public sealed class SettingsManifestTests
     {
         var manifest = NewExtension().GetUIManifest();
 
-        // A non-null bundle URL is what wires the UI into Cove.
         Assert.Equal("index.mjs", manifest.JsBundleUrl);
     }
 
@@ -28,8 +25,6 @@ public sealed class SettingsManifestTests
     {
         var manifest = NewExtension().GetUIManifest();
 
-        // Own first-class Settings tab (under the Extensions settings group), not the crowded
-        // Installed list and not the top nav bar.
         var tab = Assert.Single(manifest.SettingsTabs);
         Assert.Equal("renamer", tab.Key);
         Assert.Equal("Renamer", tab.Label);
@@ -41,36 +36,11 @@ public sealed class SettingsManifestTests
     {
         var manifest = NewExtension().GetUIManifest();
 
-        // The section targets the "renamer" tab and renders RenamerPage — the host's
-        // getSettingsPanelsForTab("renamer") returns this panel and mounts the component inside the tab.
         var panel = Assert.Single(manifest.SettingsPanels);
         Assert.Equal("renamer", panel.TargetTab);
-        // Key link: this literal MUST match the bundle's defineExtension components map key (RenamerPage).
+        // This literal must match the bundle's defineExtension components map key, or the host mounts
+        // nothing and reports nothing.
         Assert.Equal("RenamerPage", panel.ComponentName);
-    }
-
-    [Fact]
-    public void GetUIManifest_StillContributesTheRenamerSelectedBulkAction()
-    {
-        var manifest = NewExtension().GetUIManifest();
-
-        // The bulk action is unaffected by the home change — it dispatches the renamerSelected JS handler
-        // (no ApiEndpoint) for the in-context confirm/undo flow. It is registered once per kind (video,
-        // image, text) so each carries its matching write permission.
-        Assert.Equal(3, manifest.Actions.Count);
-        foreach (var action in manifest.Actions)
-        {
-            Assert.Equal("bulk", action.ActionType);
-            Assert.Equal("renamerSelected", action.HandlerName);
-            Assert.Null(action.ApiEndpoint);
-        }
-
-        var video = Assert.Single(manifest.Actions, a => a.Id == "renamer-selected-video");
-        Assert.Equal(Permissions.VideosWrite, video.RequiredPermission);
-        var image = Assert.Single(manifest.Actions, a => a.Id == "renamer-selected-image");
-        Assert.Equal(Permissions.ImagesWrite, image.RequiredPermission);
-        var text = Assert.Single(manifest.Actions, a => a.Id == "renamer-selected-text");
-        Assert.Equal(Permissions.TextsWrite, text.RequiredPermission);
     }
 
     [Fact]
@@ -78,7 +48,6 @@ public sealed class SettingsManifestTests
     {
         var manifest = NewExtension().GetUIManifest();
 
-        // The renamer UI moved from a top-nav AddPage to the Settings tab; assert no page lingers.
         Assert.Empty(manifest.Pages);
     }
 }

@@ -240,7 +240,7 @@ test("a stored blob with the old defaults survives load → save unchanged", () 
 });
 
 test("a blob predating the three gate flags normalizes them to false", () => {
-  // A blob saved before this phase has no EnableStudioDestinations/EnableTagDestinations/
+  // A blob saved before these keys existed has no EnableStudioDestinations/EnableTagDestinations/
   // EnableAdvancedRouting keys at all. Their absence must fall back to the DEFAULT_OPTIONS false,
   // not error and not spuriously turn a gate on.
   const oldBlob = {

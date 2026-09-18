@@ -679,7 +679,3 @@ jobs:
         with:
           files: "*.zip"
           generate_release_notes: true
-
-  # csharp-format, windows-build-test, and markdown-lint moved to lint.yml — none of them have a
-  # `needs:` link into this file's validate/build/e2e/release chain, so they gained nothing from
-  # co-location and were missing main-push coverage that lint.yml now has (see lint.yml's header).

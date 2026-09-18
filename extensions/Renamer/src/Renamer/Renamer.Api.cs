@@ -356,7 +356,7 @@ public sealed partial class Renamer
 
             // File sizes for the blast-radius byte sums live on the loaded entity's files, not on the
             // plan item. Load the entity once (AsNoTracking — still zero mutation) and record each
-            // file's bytes by id; the aggregate reads them per acting item. Mirrors the batch's PHASE A.
+            // file's bytes by id; the aggregate reads them per acting item. Mirrors the batch's planning pass.
             var entity = await port.LoadEntityAsync(kind, id, ct);
             if (entity is not null)
             {

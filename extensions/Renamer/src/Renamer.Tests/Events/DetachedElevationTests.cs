@@ -260,15 +260,14 @@ public sealed class DetachedElevationTests
     }
 
     /// <summary>
-    /// The classification the verdict rests on, at the shape that used to escape it: one statement
-    /// reaching BOTH a table this extension owns and a table Cove owns is a Cove read.
+    /// The classification the verdict rests on, at its hardest shape: one statement reaching both a
+    /// table this extension owns and a table Cove owns is a Cove read.
     /// </summary>
     /// <remarks>
-    /// Not a duplicate of the entry-point cases above and not keyed to an entry point at all. Those assert
-    /// what the code did; this asserts that the instrument they are read through can see the dangerous
-    /// class of command. A join, or any statement touching both kinds of table at once, satisfied the
-    /// predicate this class used to filter with — so it was dropped from the Cove-read set and excused
-    /// from the unelevated-command clause together, and every verdict above was blind to it.
+    /// Not keyed to an entry point at all. The cases above assert what the code did; this asserts
+    /// that the instrument they are read through can see the dangerous class of command. A statement
+    /// touching both kinds of table at once must not fall out of the Cove-read set, because dropping
+    /// it there also excuses it from the unelevated-command clause and blinds every verdict above.
     /// </remarks>
     [Fact]
     public async Task ACommandReachingAnOwnTableAndACoveTable_IsClassifiedAsACoveRead()

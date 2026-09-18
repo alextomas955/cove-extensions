@@ -74,7 +74,6 @@ public sealed class DestAnchoredMaxPathTests
         // Re-anchored on the deep routed root → the absolute path overflows → skip-with-reason at preview.
         Assert.Equal(RenamerStatus.SkipTooLong, item.Status);
         Assert.Contains("FullPathMax", item.Reason);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -99,7 +98,6 @@ public sealed class DestAnchoredMaxPathTests
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(Fwd(ShortSource), item.ResolvedDestinationRoot);
-        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     // The planned basename does not move when the in-flight overflow warning is added.

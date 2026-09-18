@@ -12,13 +12,13 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Concurrency;
 
 /// <summary>
-/// Regression locks for the two-phase parallel batch. Concurrent-folder lock: many parallel workers
+/// Regression locks for the parallel batch. Concurrent-folder lock: many parallel workers
 /// routing MULTIPLE items to the SAME not-yet-created destination folder must end with EXACTLY ONE
 /// <see cref="Folder"/> row for that path — never a duplicate row (silent disk/DB divergence) and
 /// never an unhandled throw. The fix pre-creates every distinct destination folder ONCE in the
-/// sequential PHASE A and hands the resolved id to each worker, so the parallel PHASE B never does a
+/// sequential planning pass and hands the resolved id to each worker, so the parallel execution pass never does a
 /// check-then-act create on a shared <see cref="Folder"/> row. Duplicate-path lock: a duplicate <c>OldFullPath</c>
-/// across acting units must not make the PHASE B lookup throw and abort the whole batch after the
+/// across acting units must not make the execution pass's lookup throw and abort the whole batch after the
 /// journal batch is open.
 /// </summary>
 public sealed class ParallelFolderCreationTests
@@ -163,7 +163,7 @@ public sealed class ParallelFolderCreationTests
         {
             // The same entity id listed twice in one batch (a caller / host re-enqueue passing a
             // duplicate id — Decode does NOT dedupe) plans the SAME file twice, producing two acting
-            // units with the IDENTICAL OldFullPath. PHASE B used to build its move→unit lookup with
+            // units with the IDENTICAL OldFullPath. The execution pass builds its move→unit lookup with
             // ToDictionary, which throws ArgumentException on the duplicate key and aborts the WHOLE
             // batch AFTER the journal batch was opened (violating classify-not-throw and masking the
             // prior undoable batch from /undo). The defensive group/keep-first build must tolerate the

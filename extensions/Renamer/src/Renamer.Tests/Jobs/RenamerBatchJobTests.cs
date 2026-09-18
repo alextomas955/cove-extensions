@@ -102,7 +102,7 @@ public sealed class RenamerBatchJobTests
             Assert.Equal("First Film.mkv", b1);
             Assert.Equal("Second Film.mkv", b2);
 
-            // Progress: PHASE B reports per COMPLETED unit (done/total), so a 2-item batch emits a
+            // Progress: The execution pass reports per completed unit (done/total), so a 2-item batch emits a
             // sub-1.0 progress tick before the final 1.0. Under parallelism the exact fraction order is
             // nondeterministic; assert that per-item progress is emitted and the run ends at 1.0.
             Assert.Contains(progress.Reports, r => r.Percent is > 0d and < 1d);

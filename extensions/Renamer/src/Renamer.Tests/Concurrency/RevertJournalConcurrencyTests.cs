@@ -11,11 +11,8 @@ namespace Renamer.Tests.Concurrency;
 /// with their own number, and none may be lost.
 /// </summary>
 /// <remarks>
-/// This replaces the suite that proved the blob's single-writer gate. That gate covered a
-/// read-modify-write of one stored value, which a row insert makes structurally impossible, and an
-/// in-memory row list the executor no longer keeps — so the property it asserted no longer exists to
-/// be broken. What is asserted here is read BACK from the journal, never from an in-memory mirror of
-/// it: a mirror would only prove that the mirror agrees with itself.
+/// Every assertion reads back from the journal, never from an in-memory mirror of it, because a
+/// mirror would only prove that the mirror agrees with itself.
 /// <para>
 /// Cove disables EF's thread-safety checks, so getting this wrong corrupts silently rather than
 /// throwing. Every assertion is therefore on the rows that came back, never on an exception.

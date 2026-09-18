@@ -244,7 +244,7 @@ test("a packageDir pointed at a populated source tree is refused and destroys no
     assert.equal(fs.existsSync(full), true, "a refusal removed " + relative);
     assert.equal(fs.statSync(full).size, size, "a refusal rewrote " + relative);
   }
-  // Named as well as swept, because these are what each phase-22 reproduction was measured destroying.
+  // Named as well as swept, because these are the paths a reproduction was measured destroying.
   for (const survivor of ["extensions/catalog.json", "extensions/Fixture/README.md", "LICENSE"]) {
     assert.equal(fs.existsSync(path.join(fixture.root, survivor)), true, survivor + " was removed");
   }
