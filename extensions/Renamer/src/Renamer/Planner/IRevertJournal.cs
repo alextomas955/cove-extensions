@@ -180,8 +180,10 @@ public sealed record RevertBatch(string RunId, RenamerFileKind Kind, IReadOnlyLi
 /// <summary>One user action's aggregate, summed over every batch it opened.</summary>
 /// <param name="OperationId">The operation's id, which is what an undo acts on.</param>
 /// <param name="OpenedAtUtcTicks">
-/// The earliest of its batches' open timestamps, which is the moment the user clicked. The retention
-/// window is measured from it, or a long run's first kind would expire before its last.
+/// The earliest of its batches' open timestamps, which is the moment the user clicked rather than the
+/// moment its last kind started. The purge still measures the retention window from each batch's own
+/// timestamp, so a run spanning the cutoff loses its earliest batches while later ones remain and a
+/// later undo restores only part of it.
 /// </param>
 /// <param name="OriginalCount">How many files the operation journalled, over all its batches.</param>
 /// <param name="RestoredCount">How many have been put back.</param>
