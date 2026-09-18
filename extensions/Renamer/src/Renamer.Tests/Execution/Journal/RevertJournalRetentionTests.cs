@@ -52,8 +52,8 @@ public sealed class RevertJournalRetentionTests
     [Fact]
     public async Task ABatchOneHourInsideTheWindow_SurvivesTheNextBatchOpening()
     {
-        // The live defect this closes: opening a batch used to REPLACE the stored journal, so one
-        // background auto-rename destroyed the undo record of a deliberate 500-file run.
+        // Opening a batch must not replace the stored journal: one background auto-rename would
+        // otherwise destroy the undo record of a deliberate 500-file run.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         await using var _ = db;
         await using var __ = conn;

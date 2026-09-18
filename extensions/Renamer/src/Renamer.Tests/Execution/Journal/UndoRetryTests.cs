@@ -16,14 +16,14 @@ namespace Renamer.Tests.Execution.Journal;
 /// come back — read back off the journal table each time, never off an in-memory mirror of it.
 /// </summary>
 /// <remarks>
-/// The defect these cases close: a partial undo used to spend the whole batch the moment one file came
-/// back, so the rows skipped for a lock or an unmounted drive could never be retried — precisely when
-/// a retry is what the user needs. The retryable stop driven here is a real occupied restore slot that
-/// the test CLEARS between the two attempts, so the second attempt genuinely succeeds rather than being
-/// asserted into success.
+/// A partial undo must not spend the whole batch the moment one file comes back, or the rows skipped
+/// for a lock or an unmounted drive can never be retried, which is exactly when a retry is what the
+/// user needs. The retryable stop driven here is a real occupied restore slot that the test clears
+/// between the two attempts, so the second attempt genuinely succeeds rather than being asserted into
+/// success.
 /// <para>
 /// The counter behaviour itself is already pinned at the port level by <c>RevertJournalTests</c>. What
-/// these cases add is the endpoint's USE of it: which rows it retires, with which flag, and what the
+/// these cases add is the endpoint's use of it: which rows it retires, with which flag, and what the
 /// table therefore still offers afterwards.
 /// </para>
 /// </remarks>

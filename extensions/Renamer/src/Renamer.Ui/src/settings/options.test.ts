@@ -194,9 +194,9 @@ test("FreeSpaceHeadroomBytes stays the only unmodeled knob; concurrency is model
 });
 
 test("a concurrency value stored before it was modeled still loads (not the 2/8 defaults)", () => {
-  // These keys used to be UNMODELED (carried by extractUnmodeledFields). A blob saved back then can
-  // hold a hand-tuned value; now that the fields are modeled, normalizeOptions must read that stored
-  // value rather than reverting it to the 2/8 defaults, and the save merge must not drift it.
+  // A blob saved before these keys were modeled carries them through extractUnmodeledFields and can
+  // hold a hand-tuned value. normalizeOptions must read that stored value rather than reverting it to
+  // the 2/8 defaults, and the save merge must not drift it.
   const preExposureBlob = { CrossVolumeConcurrency: 4, SameVolumeConcurrency: 16 };
 
   const loaded = normalizeOptions(preExposureBlob);
