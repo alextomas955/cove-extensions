@@ -3,51 +3,31 @@ using Renamer.Planner;
 
 namespace Renamer.Execution;
 
-/// <summary>
-/// Moves an existing installation's stored undo journal into the journal table exactly once, then
-/// deletes both legacy keys.
-/// </summary>
-/// <remarks>
-/// ONE-WAY. The source keys are deleted, and that deletion IS the idempotency marker — a second run
-/// finds nothing and does nothing. A separate "already migrated" flag was declined: a second marker is
-/// a second thing that can disagree with the first, and the state it would describe is already visible.
-/// <para>
-/// It reads through <see cref="RevertLog"/>'s existing tolerant parsers rather than a reader of its
-/// own. A one-shot path that runs on somebody else's data is the worst possible place to have two
-/// implementations of one format.
-/// </para>
-/// </remarks>
+// Moves an existing installation's stored undo journal into the journal table once, then deletes both
+// legacy keys. The deletion is the idempotency marker: a second run finds nothing and does nothing.
+//
+// It reads through RevertLog's tolerant parsers, so this one-shot path over somebody else's data has
+// one implementation of the legacy format.
 public static class JournalBlobMigration
 {
-    /// <summary>How many stored lines are parsed, and inserted, before the next slice is looked at.</summary>
-    /// <remarks>
-    /// The stored value is unbounded input — an unbounded journal is the incident the row cap was added
-    /// for — and the tolerant reader has to hold it whole to parse it at all. Slicing the insert is what
-    /// stops a SECOND structure of that size existing beside it. 500 keeps the live slice trivially
-    /// small while making even a full legacy journal a handful of passes rather than one huge one.
-    /// </remarks>
+    // How many stored lines are parsed, and inserted, before the next slice is looked at. The stored
+    // value is unbounded input and the tolerant reader has to hold it whole to parse it, so slicing the
+    // insert keeps a second structure of that size from existing beside it.
     public const int LinesPerChunk = 500;
 
-    /// <summary>Runs the one-shot migration and returns how many rows it moved.</summary>
-    /// <param name="store">The host key-value store holding the two legacy keys.</param>
-    /// <param name="journal">The journal the parsed rows are inserted through.</param>
-    /// <param name="nowUtc">The moment a batch is stamped with when it carries no timestamp of its own.</param>
-    /// <param name="ct">Cancellation.</param>
-    /// <remarks>
-    /// BOTH KEYS ARE DELETED WHATEVER HAPPENS, including on a parse or insert failure. Leaving them is
-    /// not the safe fallback it looks like: the host serves every value an extension owns as one
-    /// payload, so an oversized leftover makes every settings read for this extension fail — a state
-    /// that survives uninstall and reinstall and has needed SQL to clear. A migration that gives up and
-    /// leaves the data behind chooses the worse of the two outcomes.
-    /// </remarks>
+    // Runs the one-shot migration and returns how many rows it moved. nowUtc stamps a batch that
+    // carries no timestamp of its own.
+    //
+    // Both keys are deleted whatever happens, including on a parse or insert failure. The host serves
+    // every value an extension owns as one payload, so an oversized leftover makes every settings read
+    // for this extension fail, in a state that survives uninstall and reinstall.
     public static async Task<int> RunAsync(
         IExtensionStore store, IRevertJournal journal, DateTime nowUtc, CancellationToken ct = default)
     {
         try
         {
-            // The stamp says whether the stored journal may be PARSED, which is what it has always
-            // meant. One written under a shape this code does not read is discarded rather than guessed
-            // at — and it is never read, because a pre-cap value is exactly the thing not to load.
+            // The stamp says whether the stored journal may be parsed. One written under a shape this
+            // code does not read is discarded unread, because a pre-cap value is the thing not to load.
             if (await store.GetAsync(RevertLog.SchemaKey, ct) != RevertLog.CurrentSchema)
             {
                 return 0;
@@ -79,11 +59,11 @@ public static class JournalBlobMigration
                     continue;
                 }
 
-                // Opened on the first slice that actually yields a row, so a value with nothing
-                // readable in it leaves no empty batch behind claiming an undo it cannot deliver.
+                // Opened on the first slice that yields a row, so a value with nothing readable in it
+                // leaves no empty batch claiming an undo it cannot deliver.
                 if (moved == 0)
                 {
-                    // A migrated blob held one run, so the run IS the operation it belongs to.
+                    // A migrated blob held one run, so the run is the operation it belongs to.
                     await journal.BeginBatchAsync(
                         runId, runId, located.Kind, OpenedAt(located, nowUtc), ct);
                 }
@@ -106,15 +86,10 @@ public static class JournalBlobMigration
         }
     }
 
-    /// <summary>The moment the migrated batch is stamped with.</summary>
-    /// <remarks>
-    /// The header's OWN timestamp wherever there is one: a pending undo has to keep its real age against
-    /// the retention window, and restamping it now would silently extend a batch that should already
-    /// have expired. Where the stored form carried no timestamp — the pre-header shape did not — the age
-    /// is unknown, and an unknown age is given the full window rather than none. Treating it as expired
-    /// would delete a live undo on the next batch open with nothing anywhere to say so, which is exactly
-    /// the silent loss this journal exists to prevent.
-    /// </remarks>
+    // The header's own timestamp wherever there is one: a pending undo keeps its real age against the
+    // retention window, and restamping it now would extend a batch that should already have expired.
+    // The pre-header stored shape carried no timestamp, and an unknown age is given the full window.
+    // Treating it as expired would delete a live undo at the next batch open with nothing to say so.
     private static DateTime OpenedAt(RevertLog.LegacyBatch located, DateTime nowUtc) =>
         located.WrittenAtUtcTicks > 0 && located.WrittenAtUtcTicks <= DateTime.MaxValue.Ticks
             ? new DateTime(located.WrittenAtUtcTicks, DateTimeKind.Utc)

@@ -4,19 +4,13 @@ using Renamer.Options;
 
 namespace Renamer.Engine;
 
-/// <summary>
-/// Pure, static filename-segment sanitization + case/transliteration transforms.
-/// Operates on ONE path segment at a time —
-/// it does NOT special-case <c>/</c> beyond the illegal set, because the engine splits the
-/// folder template on <c>/</c>, cleans each segment, then rejoins (keeping <c>/</c> only
-/// as the path separator). No I/O, no host types.
-/// </summary>
+// Cleans one path segment at a time. '/' is treated as an ordinary illegal char here, because the
+// engine splits the folder template on '/' before calling in and rejoins afterwards.
 public static class Sanitizer
 {
-    /// <summary>The Windows-illegal filename character set. Control chars are handled separately.</summary>
+    // Illegal in a Windows filename. Control chars are handled separately.
     private static readonly char[] Illegal = { '<', '>', ':', '"', '/', '\\', '|', '?', '*' };
 
-    /// <summary>Chars trimmed from the leading/trailing edges of a cleaned segment.</summary>
     private static readonly char[] TrimEdge = { ' ', '.' };
 
     private static readonly HashSet<string> ReservedDeviceNames = new(StringComparer.OrdinalIgnoreCase)
@@ -26,19 +20,16 @@ public static class Sanitizer
         "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
     };
 
-    /// <summary>
-    /// Cleans a single path segment: drops control chars, strips-or-replaces the illegal
-    /// set per <see cref="RenamerOptions.IllegalReplacement"/>, replaces spaces per
-    /// <see cref="RenamerOptions.SpaceReplacement"/>, collapses runs of the active
-    /// separator/space chars, then trims leading/trailing separators, spaces, and dots.
-    /// </summary>
+    // Order: drop control chars, strip or replace the illegal set per IllegalReplacement, replace
+    // spaces per SpaceReplacement, collapse runs of the active separator, then trim leading and
+    // trailing separators, spaces and dots.
     public static string CleanSegment(string s, RenamerOptions o)
     {
         var sb = new StringBuilder(s.Length);
         foreach (var ch in s)
         {
-            // A removed char is dropped before the illegal/space checks, so a char that is both in
-            // the remove-set and OS-illegal is simply gone rather than first becoming IllegalReplacement.
+            // A removed char goes before the illegal and space checks, so a char that is both in the
+            // remove set and illegal disappears rather than becoming IllegalReplacement.
             if (o.RemoveCharacters.Length > 0 && o.RemoveCharacters.Contains(ch))
             {
                 continue;
@@ -46,7 +37,7 @@ public static class Sanitizer
 
             if (char.IsControl(ch))
             {
-                continue; // strip control chars (always)
+                continue;
             }
 
             if (Array.IndexOf(Illegal, ch) >= 0)
@@ -56,7 +47,8 @@ public static class Sanitizer
                     sb.Append(r);
                 }
 
-                continue; // default: strip
+                // An empty IllegalReplacement strips the char.
+                continue;
             }
 
             if (ch == ' ' && o.SpaceReplacement is { Length: > 0 } sr)
@@ -73,8 +65,8 @@ public static class Sanitizer
 
         if (IsReservedDeviceName(trimmed))
         {
-            // Windows refuses a reserved device name regardless of extension (CON, CON.mkv both
-            // resolve to the device), so a same-name title must be disambiguated or the OS move fails.
+            // Windows refuses a reserved device name whatever the extension: CON and CON.mkv both
+            // resolve to the device, so a same-name title needs disambiguating or the move fails.
             int dot = trimmed.IndexOf('.');
             return dot < 0 ? trimmed + "_" : trimmed.Insert(dot, "_");
         }
@@ -89,18 +81,13 @@ public static class Sanitizer
         return stem.Length > 0 && ReservedDeviceNames.Contains(stem);
     }
 
-    /// <summary>
-    /// Collapses consecutive runs of a "separator" token (a space, or the configured
-    /// space-replacement string) down to a single occurrence.
-    /// </summary>
+    // Spaces always collapse. A configured space-replacement token collapses as well, including a
+    // multi-char one.
     private static string CollapseRuns(string s, RenamerOptions o)
     {
-        // Spaces always collapse. When a multi-char space-replacement is configured,
-        // collapse repeated occurrences of that exact token too.
         var spaceRepl = o.SpaceReplacement;
         if (spaceRepl is { Length: > 0 })
         {
-            // Collapse repeated replacement tokens (e.g. "_ _ _" -> "_") to a single token.
             string doubled = spaceRepl + spaceRepl;
             while (s.Contains(doubled))
             {
@@ -108,7 +95,6 @@ public static class Sanitizer
             }
         }
 
-        // Collapse runs of literal spaces.
         if (s.Contains("  "))
         {
             var sb = new StringBuilder(s.Length);
@@ -136,10 +122,7 @@ public static class Sanitizer
         return s;
     }
 
-    /// <summary>
-    /// Trims leading/trailing spaces, dots, and any configured space-replacement token
-    /// from a cleaned segment.
-    /// </summary>
+    // Trims leading and trailing spaces, dots and any configured space-replacement token.
     private static string TrimEdges(string s, RenamerOptions o)
     {
         var spaceRepl = o.SpaceReplacement;
@@ -159,11 +142,7 @@ public static class Sanitizer
         return s.Trim(TrimEdge);
     }
 
-    /// <summary>
-    /// Applies the configured case transform: <see cref="CaseTransform.None"/> is identity,
-    /// <see cref="CaseTransform.Lower"/> uses <c>ToLowerInvariant</c>, <see cref="CaseTransform.Title"/>
-    /// uses <c>InvariantCulture.TextInfo.ToTitleCase</c>.
-    /// </summary>
+    // The invariant culture is used throughout, so the transform does not vary by host locale.
     public static string ApplyCase(string s, CaseTransform c) => c switch
     {
         CaseTransform.Lower => s.ToLowerInvariant(),
@@ -171,14 +150,9 @@ public static class Sanitizer
         _ => s,
     };
 
-    /// <summary>
-    /// Folds Latin diacritics to their base letter (e.g. <c>é</c>→<c>e</c>, <c>ñ</c>→<c>n</c>) via
-    /// Unicode decomposition (<see cref="NormalizationForm.FormD"/>) + stripping
-    /// <see cref="UnicodeCategory.NonSpacingMark"/> chars, then re-composing.
-    /// CAVEAT: this folds diacritics ONLY — it does not romanize non-Latin scripts.
-    /// A Cyrillic/Kanji/Arabic string has no diacritics to fold and survives non-empty;
-    /// callers MUST NOT additionally strip surviving non-ASCII (that would empty those titles).
-    /// </summary>
+    // Folds Latin diacritics to their base letter. It does not romanize non-Latin scripts: a
+    // Cyrillic, Kanji or Arabic string has no diacritics to fold and comes back unchanged. A caller
+    // that then stripped surviving non-ASCII would empty those titles.
     public static string Transliterate(string s)
     {
         var decomposed = s.Normalize(NormalizationForm.FormD);
@@ -193,17 +167,12 @@ public static class Sanitizer
         return sb.ToString().Normalize(NormalizationForm.FormC);
     }
 
-    /// <summary>
-    /// Folds a small, punctuation-only set of typographic characters to their ASCII equivalents:
-    /// curly single quotes (U+2018/U+2019) → <c>'</c>, curly double quotes (U+201C/U+201D) → <c>"</c>,
-    /// en/em dashes (U+2013/U+2014) → <c>-</c>, and the ellipsis (U+2026) → three ASCII dots. Every
-    /// other character (letters, diacritics, non-Latin scripts) is left verbatim — folding accented
-    /// letters is <see cref="Transliterate"/>'s job, not this method's.
-    /// </summary>
+    // Folds typographic punctuation to ASCII and leaves every other character alone. Accented
+    // letters are Transliterate's job.
     public static string NormalizePunctuation(string s)
     {
-        // Scrapers store smart quotes/dashes in metadata while the files on disk are plain ASCII;
-        // folding punctuation back to ASCII keeps those straight-quote files as no-ops instead of moves.
+        // Scrapers store smart quotes and dashes in metadata while the files on disk are plain ASCII.
+        // Folding the punctuation back keeps those straight-quote files as no-ops instead of moves.
         var sb = new StringBuilder(s.Length);
         foreach (var ch in s)
         {

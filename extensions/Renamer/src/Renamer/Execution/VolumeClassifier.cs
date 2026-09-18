@@ -1,28 +1,19 @@
 namespace Renamer.Execution;
 
-/// <summary>
-/// Same-vs-cross-volume decision, and the volume key every cross-volume grouping is keyed on.
-/// <para>
-/// A <c>true</c> <see cref="SameVolume"/> result routes a move to the atomic <see cref="DiskMover"/>
-/// <c>File.Move</c> fast path; <c>false</c> routes it to the verified cross-volume copy path (the
-/// <see cref="CrossVolumeMover"/>), which is also what arms the free-space guard and the preview's heavy-batch
-/// warning.
-/// </para>
-/// </summary>
-/// <remarks>
-/// The volume key is per-platform because the two express volume identity differently:
-/// <list type="bullet">
-/// <item>Windows — the path root (<c>C:\</c>), compared case-insensitively.</item>
-/// <item>Unix — the MOUNT POINT containing the path. <see cref="Path.GetPathRoot(string)"/> returns <c>/</c> for
-/// every Unix path, so keying on it alone classified two distinct mounts as one volume: on Linux (Cove's usual
-/// host) a move between mounts silently took the atomic path, skipping the free-space pre-check, the copy
-/// verification, and the heavy-batch warning. <c>File.Move</c> still completes such a move — .NET falls back to
-/// copy internally — so what was lost was the safety spine, not the move.</item>
-/// </list>
-/// Pass <c>mountPoints</c> to keep a caller deterministic and disk-free; omit it and the real mount table is read
-/// once per process. A path under a mount that appears after that snapshot resolves to a shorter enclosing mount,
-/// which is the pre-existing same-volume answer — never a worse one.
-/// </remarks>
+// The same-volume decision, and the volume key every cross-volume grouping is keyed on. A same-volume
+// result routes a move to the atomic File.Move path; a cross-volume result routes it to the verified
+// copy path, and is also what arms the free-space guard and the preview's heavy-batch warning.
+//
+// The volume key is per-platform, because the two platforms express volume identity differently. On
+// Windows it is the path root, compared case-insensitively. On Unix it is the mount point containing
+// the path: Path.GetPathRoot returns "/" for every Unix path, so keying on it classifies two distinct
+// mounts as one volume, and a move between mounts takes the atomic path with no free-space pre-check,
+// no copy verification and no heavy-batch warning. File.Move still completes such a move, since .NET
+// falls back to a copy, so what is lost is the checking and not the move.
+//
+// Passing mountPoints keeps a caller deterministic and off the disk; omitting it reads the real mount
+// table once per process. A path under a mount that appears after that snapshot resolves to a shorter
+// enclosing mount, which is a same-volume answer.
 public static class VolumeClassifier
 {
     private const string UnixRoot = "/";
@@ -31,18 +22,11 @@ public static class VolumeClassifier
     // classification free of syscalls.
     private static readonly Lazy<IReadOnlyCollection<string>> RealMountPoints = new(ReadMountPoints);
 
-    /// <summary>
-    /// Returns <c>true</c> when <paramref name="pathA"/> and <paramref name="pathB"/> live on the same volume,
-    /// <c>false</c> when they are cross-volume.
-    /// </summary>
-    /// <remarks>
-    /// Comparison is case-insensitive on Windows and case-sensitive elsewhere. This deliberately does
-    /// NOT track <c>PathOps.PathsEqual</c>, which also ignores case on macOS: that comparer asks
-    /// whether two paths name one FILE (a question the volume's case-folding answers), while this one
-    /// compares mount-table VOLUME KEYS, which are distinct entries even when they differ only by
-    /// case. Widening it would merge two real mounts into one and silently disable the cross-volume
-    /// copy-verify-delete path between them.
-    /// </remarks>
+    // The comparison is case-insensitive on Windows and case-sensitive elsewhere. It does not follow
+    // PathOps.PathsEqual, which also ignores case on macOS: that comparer asks whether two paths name
+    // one file, while this one compares mount-table volume keys, which are distinct entries even when
+    // they differ only by case. Widening it would merge two real mounts and disable the cross-volume
+    // copy, verify and delete path between them.
     public static bool SameVolume(string pathA, string pathB, IReadOnlyCollection<string>? mountPoints = null)
     {
         var cmp = OperatingSystem.IsWindows()
@@ -51,15 +35,9 @@ public static class VolumeClassifier
         return string.Equals(VolumeKey(pathA, mountPoints), VolumeKey(pathB, mountPoints), cmp);
     }
 
-    /// <summary>
-    /// The volume <paramref name="path"/> resides on: its path root on Windows, its enclosing mount point on Unix.
-    /// </summary>
-    /// <remarks>
-    /// Every cross-volume grouping (the free-space guard's per-destination sums, the batch runner's
-    /// source/destination pair partition, the preview's volume-pair deltas) keys on this, so all of them agree with
-    /// the same/cross split. A relative or rootless path yields the empty string and is never resolved against the
-    /// mount table.
-    /// </remarks>
+    // The volume a path resides on: its path root on Windows, its enclosing mount point on Unix. Every
+    // cross-volume grouping keys on this, so all of them agree with the same-volume split. A relative
+    // or rootless path yields the empty string and is never resolved against the mount table.
     public static string VolumeKey(string path, IReadOnlyCollection<string>? mountPoints = null)
     {
         string root = Path.GetPathRoot(path) ?? string.Empty;
@@ -101,7 +79,7 @@ public static class VolumeClassifier
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // An unreadable mount table degrades to root-only, which is the pre-existing classification.
+            // An unreadable mount table degrades to root-only, so everything classifies as one volume.
             return [UnixRoot];
         }
     }

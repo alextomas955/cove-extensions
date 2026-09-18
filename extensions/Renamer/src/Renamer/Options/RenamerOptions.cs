@@ -4,7 +4,6 @@ using Cove.Extensions.Shared;
 
 namespace Renamer.Options;
 
-/// <summary>Optional case transform applied to a rendered name.</summary>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum CaseTransform { None, Lower, Title }
 
@@ -12,43 +11,35 @@ public enum CaseTransform { None, Lower, Title }
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum OverflowPolicy { DropAll, KeepFirst }
 
-/// <summary>
-/// Sort order for a multi-value field's items.
-/// <see cref="IdAsc"/> and <see cref="FavoriteFirst"/> apply only to performers (they need the
-/// per-performer id/favorite data); tags fall back to name ordering for them. There is
-/// deliberately no rating order: performer rating is per-user data and the detached renamer job
-/// runs without a signed-in user, so there is no defined rating to order by.
-/// </summary>
+/// <summary>Sort order for a multi-value field's items.</summary>
+/// <remarks>
+/// <see cref="IdAsc"/> and <see cref="FavoriteFirst"/> apply only to performers, which are the only
+/// items carrying id and favorite data; tags fall back to name ordering for them. There is no rating
+/// order: performer rating is per-user data and the detached renamer job runs with no signed-in user.
+/// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum SortOrder
 {
-    /// <summary>Order by name, case-insensitively (the default).</summary>
+    /// <summary>Order by name, case-insensitively.</summary>
     NameAsc,
 
     /// <summary>Preserve the input order.</summary>
     None,
 
-    /// <summary>Order performers by ascending id.</summary>
     IdAsc,
 
     /// <summary>Order performers with favorites first, then by name.</summary>
     FavoriteFirst,
 }
 
-/// <summary>
-/// Per-field controls for a multi-value token (performers, tags).
-/// A C# record with <c>init</c> properties + default initializers so a missing
-/// JSON property naturally falls back to its default and the instance is immutable.
-/// </summary>
+/// <summary>Per-field controls for a multi-value token (performers, tags).</summary>
 public sealed record MultiValueOptions
 {
-    /// <summary>String inserted between joined items.</summary>
     public string Separator { get; init; } = ", ";
 
     /// <summary>Maximum items to emit; <c>0</c> = unlimited.</summary>
     public int MaxCount { get; init; }
 
-    /// <summary>Behavior when <see cref="MaxCount"/> is exceeded.</summary>
     public OverflowPolicy OnOverflow { get; init; } = OverflowPolicy.DropAll;
 
     /// <summary>Sort applied before joining.</summary>
@@ -56,34 +47,33 @@ public sealed record MultiValueOptions
 
     /// <summary>If non-empty, only the entities with these stable ids are kept.</summary>
     /// <remarks>
-    /// Keyed on the id rather than the name so renaming a tag or performer in Cove cannot silently
-    /// stop a rule from matching. The token still renders the current name, so a rename is picked up
-    /// in the output while the rule keeps applying to the same entity.
+    /// Keyed on the id, so renaming a tag or performer in Cove cannot silently stop a rule from
+    /// matching. The token still renders the current name, so a rename shows up in the output while the
+    /// rule keeps applying to the same entity.
     /// </remarks>
     public List<int> WhitelistIds { get; init; } = [];
 
     /// <summary>If non-empty, the entities with these stable ids are removed.</summary>
     public List<int> BlacklistIds { get; init; } = [];
 
-    /// <summary>
-    /// Performer-only: genders to drop entirely (case-insensitive). Applied BEFORE the max-count
-    /// limit, so dropping a gender frees an overflow slot for another performer. A performer with no
-    /// gender set is always kept. Empty = no gender filtering.
-    /// </summary>
+    /// <summary>Performer-only: genders to drop entirely, case-insensitive.</summary>
+    /// <remarks>
+    /// Applied before the max-count limit, so dropping a gender frees an overflow slot for another
+    /// performer. A performer with no gender set is always kept. Empty does no gender filtering.
+    /// </remarks>
     public List<string> IgnoreGenders { get; init; } = [];
 
-    /// <summary>
-    /// Performer-only: a preferred gender ordering, most-preferred first (case-insensitive). When
-    /// non-empty it reorders performers so the listed genders come first in this order; any gender
-    /// not listed (and the no-gender case) sorts last. Applied as a stable order AFTER the chosen
-    /// <see cref="Sort"/> and BEFORE the max-count limit, so it controls which performers survive the
-    /// limit. Empty = no gender ordering.
-    /// </summary>
+    /// <summary>Performer-only: a preferred gender ordering, most-preferred first, case-insensitive.</summary>
+    /// <remarks>
+    /// Applied as a stable order after the chosen <see cref="Sort"/> and before the max-count limit, so
+    /// it controls which performers survive the limit. Any gender not listed, and the no-gender case,
+    /// sorts last. Empty does no gender ordering.
+    /// </remarks>
     public List<string> GenderOrder { get; init; } = [];
 
-    // Record value equality compares List<string> members by reference, so a JSON round-trip (which
-    // allocates fresh lists) would never be Equal to the original. Both Equals and GetHashCode run off
-    // the SAME EqualityComponents list, whose collection members are wrapped to compare by VALUE.
+    // Record value equality compares the list members by reference, so a JSON round-trip would never be
+    // equal. Equals and GetHashCode both run off EqualityComponents, whose collection members are
+    // wrapped to compare by value.
     public bool Equals(MultiValueOptions? other)
         => other is not null && StructuralEquality.Members(EqualityComponents(), other.EqualityComponents());
 
@@ -103,23 +93,21 @@ public sealed record MultiValueOptions
 }
 
 /// <summary>
-/// One per-field literal find/replace rule: replaces every literal occurrence of
-/// <see cref="Find"/> with <see cref="Replace"/> in the value of the <see cref="TargetToken"/>
-/// token (matched case-insensitively against the canonical <c>Tokens</c> names). This is a
-/// literal substring replace — NOT a regex — so an arbitrary user <see cref="Find"/> can
-/// never trigger catastrophic-backtracking. A record with <c>init</c> props + default
-/// initializers + a hand-written structural <c>Equals</c>/<c>GetHashCode</c> so a JSON round-trip
-/// (which allocates a fresh instance) compares value-equal.
+/// One per-field literal find/replace rule: every occurrence of <see cref="Find"/> in the
+/// <see cref="TargetToken"/> token's value becomes <see cref="Replace"/>.
 /// </summary>
+/// <remarks>
+/// <see cref="TargetToken"/> is matched case-insensitively against the canonical <c>Tokens</c> names.
+/// The replace is a literal substring replace, not a regex, so a user-authored <see cref="Find"/>
+/// cannot trigger catastrophic backtracking.
+/// </remarks>
 public sealed record FieldReplaceRule
 {
-    /// <summary>Canonical token name (case-insensitive) whose value this rule rewrites.</summary>
     public string TargetToken { get; init; } = "";
 
-    /// <summary>Literal substring to find (NOT a regex). An empty find is a no-op (skipped).</summary>
+    /// <summary>Literal substring to find; an empty find is skipped.</summary>
     public string Find { get; init; } = "";
 
-    /// <summary>Literal replacement substring.</summary>
     public string Replace { get; init; } = "";
 
     public bool Equals(FieldReplaceRule? other)
@@ -140,30 +128,19 @@ public sealed record FieldReplaceRule
 
 /// <summary>
 /// Where a matched item lands: a <see cref="Root"/> chosen from Cove's own library paths, plus a
-/// relative <see cref="Template"/> rendered underneath it. Every destination in this extension has
-/// this one shape, so there is nothing to combine and no precedence to teach.
+/// relative <see cref="Template"/> rendered underneath it.
 /// </summary>
 /// <remarks>
-/// <see cref="Root"/> is a REFERENCE into Cove's library paths rather than a typed path, and it is
-/// re-read on every plan: a root the user has since removed from Cove stops the rule with
-/// <see cref="Planner.RenamerStatus.SkipRootMissing"/> instead of writing somewhere nobody chose.
-/// <para>
-/// The two empty values are defaults, not two spellings of "unset". An empty <see cref="Root"/>
-/// means the library path CONTAINING the file, so a rule can tidy each library path in place. An
-/// empty <see cref="Template"/> means the root itself. Both empty moves nothing.
-/// </para>
-/// <para>
-/// Hand-written structural <c>Equals</c>/<c>GetHashCode</c> for the same reason
-/// <see cref="PathDestinationRule"/> has them: a JSON round-trip allocates a fresh instance and the
-/// settings panel's dirty check compares by value.
-/// </para>
+/// <see cref="Root"/> is a reference into Cove's library paths, re-read on every plan, so a root the
+/// user has since removed from Cove stops the rule with
+/// <see cref="Planner.RenamerStatus.SkipRootMissing"/>. The two empty values are defaults, not two
+/// spellings of "unset": an empty <see cref="Root"/> means the library path containing the file, and
+/// an empty <see cref="Template"/> means the root itself. Both empty moves nothing.
 /// </remarks>
 public sealed record Destination
 {
-    /// <summary>The chosen Cove library path, or <c>""</c> = the library path containing the file.</summary>
     public string Root { get; init; } = "";
 
-    /// <summary>The relative folder template rendered under <see cref="Root"/>; <c>""</c> = the root itself.</summary>
     public string Template { get; init; } = "";
 
     public bool Equals(Destination? other)
@@ -183,23 +160,16 @@ public sealed record Destination
 /// destination its items take when no routing rule matches them.
 /// </summary>
 /// <remarks>
-/// An absent entry means "enabled, with no destination of its own", so an options blob written before
-/// this record existed reads back as the behavior it had. <see cref="Destination"/> is nullable for
-/// the reason <see cref="RenamerOptions.UnorganizedDestination"/> is: a present destination naming
-/// neither root nor folder is a real instruction (rename in place, under the library path the file is
-/// already in), and only <c>null</c> means "fall through to the global default".
-/// <para>
-/// A kind destination is the DEFAULT for the kind, not an override of a matched rule. A tag, studio,
-/// source-path or unorganized rule still wins, so turning one on does not silently redirect the items
-/// a person has already routed somewhere by hand.
-/// </para>
+/// An absent entry means enabled with no destination of its own. <see cref="Destination"/> is nullable
+/// because a present destination naming neither root nor folder is a real instruction, rename in place
+/// under the library path the file is already in, and only <c>null</c> falls through to the global
+/// default. A kind destination is the default for the kind, not an override of a matched rule: a tag,
+/// studio, source-path or unorganized rule still wins.
 /// </remarks>
 public sealed record KindOptions
 {
-    /// <summary>Whether this extension renames items of the kind. Default <c>true</c>.</summary>
     public bool Enabled { get; init; } = true;
 
-    /// <summary>The kind's default destination, or <c>null</c> to use the global one.</summary>
     public Destination? Destination { get; init; }
 
     public bool Equals(KindOptions? other)
@@ -215,30 +185,22 @@ public sealed record KindOptions
 }
 
 /// <summary>
-/// One source-path destination rule: when the entity's source path matches
-/// <see cref="Pattern"/>, the item routes to <see cref="Dest"/>.
-/// <see cref="IsRegex"/> selects how <see cref="Pattern"/> is interpreted:
-/// <c>false</c> = an EXACT source-path match (the common, safe case); <c>true</c> = the pattern is
-/// a .NET regex matched against the source path.
-///
-/// The regex variant is a user-authored pattern interpreted as a regex. To bound
-/// catastrophic-backtracking (ReDoS) — the same caution <see cref="FieldReplaceRule"/> avoided
-/// entirely by using LITERAL replace — the regex is PRE-PARSED and VALIDATED exactly once when the
-/// per-batch <c>RouteLookups</c> is built: an invalid regex rule is rejected at parse/build time, not
-/// at match time, and the resolver only ever calls <c>IsMatch</c> on an already-compiled pattern
-/// (with a match timeout applied at build time). A record with <c>init</c> props + a hand-written
-/// structural <c>Equals</c>/<c>GetHashCode</c> so a JSON round-trip (which allocates a fresh instance)
-/// compares value-equal.
+/// One source-path destination rule: an item whose source path matches <see cref="Pattern"/> routes to
+/// <see cref="Dest"/>.
 /// </summary>
+/// <remarks>
+/// <see cref="IsRegex"/> selects how <see cref="Pattern"/> is read: an exact source-path match, or a
+/// .NET regex matched against the source path. A regex is user-authored, so it is parsed, validated and
+/// given a match timeout exactly once when the per-batch <c>RouteLookups</c> is built; an invalid rule
+/// is rejected there, and the resolver only ever calls <c>IsMatch</c> on an already-compiled pattern.
+/// That bounds catastrophic backtracking.
+/// </remarks>
 public sealed record PathDestinationRule
 {
-    /// <summary>Source-path pattern: an exact path when <see cref="IsRegex"/> is false, else a .NET regex (pre-parsed/validated at build time).</summary>
     public string Pattern { get; init; } = "";
 
-    /// <summary>Where a matched item lands: a library root plus a relative template.</summary>
     public Destination Dest { get; init; } = new();
 
-    /// <summary>When <c>true</c>, <see cref="Pattern"/> is interpreted as a regex; otherwise an exact source-path match.</summary>
     public bool IsRegex { get; init; }
 
     public bool Equals(PathDestinationRule? other)
@@ -258,26 +220,20 @@ public sealed record PathDestinationRule
 }
 
 /// <summary>
-/// One source-path exclude rule: when the entity's source path matches <see cref="Pattern"/>,
-/// the item is EXCLUDED from renamer/move (a visible skip-with-reason for every file), regardless of
-/// any routing rule it would otherwise match. <see cref="IsRegex"/> selects interpretation:
-/// <c>false</c> = an EXACT source-path match (the common, safe case); <c>true</c> = the pattern is a
-/// .NET regex matched against the source path.
-///
-/// Like <see cref="PathDestinationRule"/>, the regex variant is a user-authored pattern: it is
-/// PRE-PARSED and VALIDATED exactly once when the per-batch exclude lookups are built (an invalid
-/// regex is skipped-with-a-log at build time, never at match time, and a match-time
-/// catastrophic-backtracking timeout is treated as no-match — never thrown). A record with
-/// <c>init</c> props + a hand-written structural <c>Equals</c>/<c>GetHashCode</c> so a JSON
-/// round-trip (which allocates a fresh instance) compares value-equal. Carries NO destination —
-/// an excluded item is never moved.
+/// One source-path exclude rule: an item whose source path matches <see cref="Pattern"/> is excluded
+/// from rename and move, whatever routing rule it would otherwise match.
 /// </summary>
+/// <remarks>
+/// <see cref="IsRegex"/> selects how <see cref="Pattern"/> is read: an exact source-path match, or a
+/// .NET regex parsed and validated exactly once when the per-batch exclude lookups are built. An
+/// invalid regex is skipped with a log at build time, and a match-time backtracking timeout counts as
+/// no match and is never thrown. The rule carries no destination, since an excluded item is never
+/// moved.
+/// </remarks>
 public sealed record ExcludeRule
 {
-    /// <summary>Source-path pattern: an exact path when <see cref="IsRegex"/> is false, else a .NET regex (pre-parsed/validated at build time).</summary>
     public string Pattern { get; init; } = "";
 
-    /// <summary>When <c>true</c>, <see cref="Pattern"/> is interpreted as a regex; otherwise an exact source-path match.</summary>
     public bool IsRegex { get; init; }
 
     public bool Equals(ExcludeRule? other)
@@ -294,28 +250,28 @@ public sealed record ExcludeRule
     }
 }
 
-/// <summary>
-/// All renamer settings (template + sanitization + length + multi-value), with sensible defaults.
-/// Serialized as a single forward-compatible System.Text.Json blob (unknown props ignored on load,
-/// missing props default).
-/// </summary>
+/// <summary>All renamer settings, with defaults.</summary>
+/// <remarks>
+/// Serialized as a single forward-compatible System.Text.Json blob: unknown properties are ignored on
+/// load and missing properties take their default.
+/// </remarks>
 public sealed record RenamerOptions
 {
     public string FilenameTemplate { get; init; } = "{$date - }$title{ [$resolution]}";
+
     /// <summary>
-    /// The DEFAULT destination's relative folder template, applied to an item no destination rule
-    /// matched. Rendered under <see cref="FolderRoot"/>; empty = the root itself.
+    /// The default destination's relative folder template, rendered under <see cref="FolderRoot"/>;
+    /// empty means the root itself.
     /// </summary>
     /// <remarks>
     /// Also the effective template the engine renders: the planner substitutes a matched rule's own
-    /// template into it, so every downstream consumer reads the one value rather than each deciding
-    /// for itself which template applies.
+    /// template into it, so every downstream consumer reads this one value.
     /// </remarks>
     public string FolderTemplate { get; init; } = "";
 
     /// <summary>
-    /// The DEFAULT destination's root: a Cove library path, or <c>""</c> = the library path containing
-    /// the file. Pairs with <see cref="FolderTemplate"/> to make one <see cref="Destination"/>.
+    /// The default destination's root: a Cove library path, or <c>""</c> for the library path containing
+    /// the file.
     /// </summary>
     public string FolderRoot { get; init; } = "";
     public string DateFormat { get; init; } = "yyyy-MM-dd";
@@ -326,47 +282,49 @@ public sealed record RenamerOptions
     public string SpaceReplacement { get; init; } = "";      // "" = keep spaces
     public CaseTransform Case { get; init; } = CaseTransform.None;
 
-    /// <summary>
-    /// A literal set of characters dropped from the rendered name, distinct from the OS-illegal
-    /// strip: a char listed here is removed outright before the illegal/space handling runs, so a
-    /// char that is both listed and OS-illegal is removed rather than first becoming the
-    /// <see cref="IllegalReplacement"/>. Not a regex (literal membership, ReDoS-free). Empty = no-op.
-    /// </summary>
-    public string RemoveCharacters { get; init; } = ",#";  // default strips comma + hash; "" = remove nothing
+    /// <summary>A literal set of characters dropped from the rendered name.</summary>
+    /// <remarks>
+    /// Removed outright before the illegal and space handling runs, so a character that is both listed
+    /// here and OS-illegal is removed and never becomes <see cref="IllegalReplacement"/>. Literal
+    /// membership, not a regex. Empty is a no-op.
+    /// </remarks>
+    public string RemoveCharacters { get; init; } = ",#";
 
     /// <summary>
-    /// Fallback: when an item has no title, derive <c>$title</c> from the item's first file's basename
-    /// (extension stripped) instead of omitting the token - and RECORD that title on the item, which is
-    /// what stops the derivation re-reading its own output (see <c>MetadataProjector.DerivedTitle</c>).
-    /// Default <c>true</c> = a fresh install gives a title-less item a name from its basename rather
-    /// than skipping it under the <c>title</c>-required gate. A previously-saved value is preserved on
-    /// load (the default applies only to a first run); set it <c>false</c> to keep the strict
-    /// omit-not-blank behavior, which also writes nothing.
+    /// When <c>true</c>, an item with no title derives <c>$title</c> from its first file's basename with
+    /// the extension stripped.
     /// </summary>
+    /// <remarks>
+    /// The derived title is recorded on the item, which is what stops the derivation re-reading its own
+    /// output (see <c>MetadataProjector.DerivedTitle</c>). Set <c>false</c> to keep the strict
+    /// omit-not-blank behavior, under which a title-less item is skipped by the <c>title</c>-required
+    /// gate and nothing is written.
+    /// </remarks>
     public bool FilenameAsTitle { get; init; } = true;
 
     /// <summary>
-    /// Opt-in: after a move relocates a file out of its source directory, delete that source directory
-    /// when the move leaves it completely empty. Default <c>false</c>. The delete is only-if-empty and
-    /// non-recursive, never touches a non-empty or root directory, and a failed delete never fails the
-    /// move (the move already succeeded). Has no effect on a same-folder renamer (the source dir still
-    /// holds the file).
+    /// When <c>true</c>, a move that leaves the file's source directory completely empty deletes that
+    /// directory.
     /// </summary>
+    /// <remarks>
+    /// The delete is only-if-empty and non-recursive, never touches a non-empty or root directory, and a
+    /// failed delete never fails the move. A same-folder rename leaves the file in its source directory,
+    /// so nothing is deleted.
+    /// </remarks>
     public bool RemoveEmptyFolder { get; init; }
 
     public bool AsciiTransliterate { get; init; }
 
     /// <summary>
-    /// When <c>true</c>, a small punctuation-only set of typographic characters is folded to ASCII in
-    /// the rendered name (curly quotes → straight quotes, en/em dashes → hyphen, ellipsis → three dots).
-    /// <remarks>
-    /// Punctuation-only — accented letters and non-Latin scripts are untouched (that is
-    /// <c>AsciiTransliterate</c>). Default <c>true</c> because scrapers store smart quotes/dashes in
-    /// metadata while the on-disk basenames are plain ASCII, so folding punctuation back keeps those
-    /// straight-quote files as no-ops rather than rewriting them to carry curly punctuation. A
-    /// previously-saved value is preserved on load (the default applies only to a first run).
-    /// </remarks>
+    /// When <c>true</c>, typographic punctuation in the rendered name is folded to ASCII: curly quotes
+    /// to straight quotes, en and em dashes to a hyphen, an ellipsis to three dots.
     /// </summary>
+    /// <remarks>
+    /// Punctuation only. Accented letters and non-Latin scripts are untouched, which is
+    /// <see cref="AsciiTransliterate"/>. Scrapers store smart quotes and dashes in metadata while the
+    /// on-disk basenames are plain ASCII, so folding punctuation back keeps those straight-quote files
+    /// as no-ops.
+    /// </remarks>
     public bool NormalizePunctuation { get; init; } = true;
 
     public int FilenameMax { get; init; } = 255;
@@ -374,15 +332,12 @@ public sealed record RenamerOptions
     public List<string> DropOrder { get; init; } =
         ["videoCodec", "audioCodec", "frameRate", "resolution", "tags", "studioCode", "studio", "performers", "date"];
 
-    /// <summary>
-    /// These options with any length cap that cannot be a budget replaced by its default. Applied by
-    /// <c>OptionsStore</c> to a blob that bound, so the rule is stated here once instead of at each read.
-    /// </summary>
+    /// <summary>These options with any length cap that cannot be a budget replaced by its default.</summary>
     /// <remarks>
     /// <see cref="Engine.LengthReducer"/> clamps a negative budget to zero and hard-truncates the
-    /// basename to nothing, which is worse than a throw because an empty name looks like a result. A
-    /// cap that is merely tight is left alone — a small positive budget is a configuration, and
-    /// widening it would overrule a value a user chose.
+    /// basename to nothing, and an empty name looks like a result. A cap that is merely tight is left
+    /// alone, since a small positive budget is a configuration a user chose. <c>OptionsStore</c> applies
+    /// this to a blob that bound.
     /// </remarks>
     public RenamerOptions WithUsableLengthCaps()
     {
@@ -400,115 +355,109 @@ public sealed record RenamerOptions
     }
 
     /// <summary>
-    /// File extensions whose same-basename neighbor files move and renamer alongside the primary,
-    /// supplementing the DB-tracked caption sidecars Cove already follows. A neighbor is taken only
-    /// when it shares the primary's exact stem AND its extension is listed here, so this never widens
-    /// into a broad directory sweep. Extensions are normalized at use (a single leading <c>.</c> is
-    /// stripped and the compare is ordinal-ignore-case), so <c>srt</c>, <c>.srt</c> and <c>SRT</c> all
-    /// match the same file. Stored raw (no normalization on the option itself) so a UI round-trip stays
-    /// value-equal. Empty default = no extension sidecars discovered (byte-identical to caption-only).
+    /// File extensions whose same-basename neighbor files move and rename alongside the primary,
+    /// supplementing the caption sidecars Cove already tracks in the database.
     /// </summary>
+    /// <remarks>
+    /// A neighbor is taken only when it shares the primary's exact stem and its extension is listed
+    /// here, so this never widens into a directory sweep. Extensions are normalized at use, one leading
+    /// <c>.</c> stripped and the compare ordinal-ignore-case, and stored raw so a UI round-trip stays
+    /// value-equal. Empty discovers no extension sidecars.
+    /// </remarks>
     public List<string> AssociatedExtensions { get; init; } = [];
 
-    /// <summary>
-    /// Gating: when <c>true</c>, an item whose <c>Organized</c> flag is false is skipped
-    /// (not renamed), so un-curated items don't get junk names. Default <c>false</c> = renamer all.
-    /// <para>
-    /// A configured <see cref="UnorganizedDestination"/> takes PRECEDENCE over this gate. When an
-    /// unorganized destination is set, an unorganized item is NOT skipped — it routes to that
-    /// destination, since routing unorganized items is the whole point of that destination. This gate
-    /// skips unorganized items only when no <see cref="UnorganizedDestination"/> is configured.
-    /// </para>
-    /// </summary>
+    /// <summary>When <c>true</c>, an item whose <c>Organized</c> flag is false is skipped.</summary>
+    /// <remarks>
+    /// A configured <see cref="UnorganizedDestination"/> takes precedence over this gate: an unorganized
+    /// item then routes to that destination, and the gate applies only when no unorganized destination
+    /// is set.
+    /// </remarks>
     public bool OnlyOrganized { get; init; }
 
     /// <summary>
-    /// Gating: token names (case-insensitive) that must resolve non-empty or the item is
-    /// skipped. Default <c>["title"]</c> — a Title-less item is skipped. An empty list = no
-    /// required-field gate.
+    /// Token names, case-insensitive, that must resolve non-empty or the item is skipped; an empty list
+    /// removes the gate.
     /// </summary>
     public List<string> RequiredFields { get; init; } = ["title"];
 
     /// <summary>
-    /// Collision suffix: a format string whose <c>{n}</c> placeholder is replaced by the
-    /// collision counter (1, 2, …) and inserted before the extension when a target name is taken.
-    /// Default <c>" ({n})"</c> → <c>"name.mp4" → "name (1).mp4"</c>.
+    /// Suffix inserted before the extension when a target name is taken; <c>{n}</c> is replaced by the
+    /// collision counter.
     /// </summary>
     public string DuplicateSuffixFormat { get; init; } = " ({n})";
 
     /// <summary>
-    /// Auto-renamer hook opt-in: when <c>true</c>, the <c>video.updated</c>/<c>image.updated</c>
-    /// event handler re-renames the item (respecting gating). Default <c>false</c> = the hook is a no-op.
+    /// When <c>true</c>, the <c>video.updated</c> and <c>image.updated</c> handler re-renames the item,
+    /// respecting the gates.
     /// </summary>
     public bool AutoRenamerOnUpdate { get; init; }
 
     /// <summary>
-    /// When <c>true</c>, all space characters are removed from the <c>$studio</c> token's value
-    /// (e.g. <c>Reality Kings</c> → <c>RealityKings</c>) so one logical studio renders to one stable
-    /// folder name and never splits across destination trees. Targets the <c>$studio</c> token
-    /// specifically. Default <c>false</c> = output unchanged.
+    /// When <c>true</c>, all space characters are removed from the <c>$studio</c> token's value.
     /// </summary>
+    /// <remarks>
+    /// One logical studio then renders to one stable folder name and never splits across destination
+    /// trees.
+    /// </remarks>
     public bool SqueezeStudioNames { get; init; }
 
-    /// <summary>
-    /// A list of per-token literal find/replace rules applied to a scalar token's value (e.g. strip
-    /// <c>'</c> from <c>$studio</c> only) BEFORE the squeeze and article steps, independent of the
-    /// global illegal/space replacement. Literal substring replace, NOT a regex. Default empty =
-    /// output unchanged.
-    /// </summary>
+    /// <summary>Per-token literal find/replace rules applied to a scalar token's value.</summary>
+    /// <remarks>
+    /// Applied before the squeeze and article steps, and independent of the global illegal and space
+    /// replacement. Literal substring replace, not a regex.
+    /// </remarks>
     public List<FieldReplaceRule> FieldReplacers { get; init; } = [];
 
     /// <summary>
-    /// When <c>true</c>, a single LEADING article (see <see cref="Articles"/>) followed by whitespace
-    /// is stripped from the <c>$title</c> token's value (<c>The Matrix</c> → <c>Matrix</c>), at most
-    /// once, with the remaining leading whitespace re-trimmed. Default <c>false</c> = output unchanged.
+    /// When <c>true</c>, a single leading article from <see cref="Articles"/> followed by whitespace is
+    /// stripped from the <c>$title</c> token's value.
     /// </summary>
+    /// <remarks>At most one article is stripped, and the remaining leading whitespace is re-trimmed.</remarks>
     public bool StripLeadingArticles { get; init; }
 
-    /// <summary>
-    /// The leading articles eligible for <see cref="StripLeadingArticles"/>. Matching is
-    /// case-insensitive and only a single leading article followed by whitespace is stripped, so
-    /// <c>Theatre</c> and a mid-title <c>The</c> are untouched. Default <c>["The", "A", "An"]</c>.
-    /// </summary>
+    /// <summary>The leading articles eligible for <see cref="StripLeadingArticles"/>.</summary>
+    /// <remarks>
+    /// Matching is case-insensitive and needs the trailing whitespace, so <c>Theatre</c> and a mid-title
+    /// <c>The</c> are untouched.
+    /// </remarks>
     public List<string> Articles { get; init; } = ["The", "A", "An"];
 
     /// <summary>
-    /// When <c>true</c>, a performer whose (trimmed) name appears as a whole-word, case-insensitive
-    /// occurrence in the resolved <c>$title</c> is dropped from the performers list BEFORE the
-    /// <c>MultiValue.Resolve</c> join (so a dropped name also frees an overflow slot). Default
-    /// <c>false</c> = output unchanged.
+    /// When <c>true</c>, a performer whose trimmed name occurs as a whole word in the resolved
+    /// <c>$title</c> is dropped from the performers list.
     /// </summary>
+    /// <remarks>
+    /// The occurrence is matched case-insensitively, and the drop happens before the
+    /// <c>MultiValue.Resolve</c> join, so a dropped name also frees an overflow slot.
+    /// </remarks>
     public bool PreventTitlePerformer { get; init; }
 
     /// <summary>
-    /// When <c>true</c>, consecutive duplicate segments in the rendered FOLDER path collapse to one
-    /// (<c>/Foo/Foo/Bar</c> → <c>/Foo/Bar</c>, case-insensitive, first kept), applied in
-    /// <c>RenderFolder</c> after per-segment sanitize and before the <c>/</c>-join; the filename render
-    /// is untouched. Default <c>true</c> = a fresh install collapses a duplicated folder segment
-    /// (cosmetic, folder-path only). A previously-saved value is preserved on load (the default applies
-    /// only to a first run).
+    /// When <c>true</c>, consecutive duplicate segments in the rendered folder path collapse to one.
     /// </summary>
+    /// <remarks>
+    /// Case-insensitive with the first kept, applied in <c>RenderFolder</c> after the per-segment
+    /// sanitize and before the <c>/</c>-join. The filename render is untouched.
+    /// </remarks>
     public bool PreventConsecutiveSegments { get; init; } = true;
 
-    /// <summary>
-    /// Studio routing map: stable studio <c>Id</c> → <see cref="Destination"/>. The studio
-    /// cascade keys on this id (never the name) so a name typo/sanitization variant can never split
-    /// one studio across two destination trees. Default empty = no studio routing.
-    /// </summary>
+    /// <summary>Studio routing map: stable studio <c>Id</c> to <see cref="Destination"/>.</summary>
+    /// <remarks>
+    /// The studio cascade keys on this id, never the name, so a name typo or sanitization variant can
+    /// never split one studio across two destination trees.
+    /// </remarks>
     public Dictionary<int, Destination> StudioDestinations { get; init; } = [];
 
-    /// <summary>
-    /// Tag routing map: stable tag <c>Id</c> → <see cref="Destination"/>. The tag cascade
-    /// keys on this id (never the name), exactly like <see cref="StudioDestinations"/>, so renaming a
-    /// tag in Cove cannot break its rule and two case variants of one name cannot route to two
-    /// destination trees. Default empty = no tag routing.
-    /// </summary>
+    /// <summary>Tag routing map: stable tag <c>Id</c> to <see cref="Destination"/>.</summary>
+    /// <remarks>
+    /// The tag cascade keys on this id, never the name, so renaming a tag in Cove cannot break its rule
+    /// and two case variants of one name cannot route to two destination trees.
+    /// </remarks>
     public Dictionary<int, Destination> TagDestinations { get; init; } = [];
 
     /// <summary>
-    /// Per-entity-kind settings: entity kind → <see cref="KindOptions"/>. A kind with no entry is
-    /// renamed, with the global folder template and root. Default empty = every kind renamed the same
-    /// way, which is what this extension did before the map existed.
+    /// Per-entity-kind settings; a kind with no entry is renamed, with the global folder template and
+    /// root.
     /// </summary>
     public Dictionary<RenamerFileKind, KindOptions> Kinds { get; init; } = [];
 
@@ -528,99 +477,86 @@ public sealed record RenamerOptions
     public Destination? KindDestination(RenamerFileKind kind)
         => Kinds.TryGetValue(kind, out var settings) ? settings?.Destination : null;
 
-    /// <summary>
-    /// Source-path routing rules, in user order. Each <see cref="PathDestinationRule"/> is an exact OR
-    /// regex source-path match → destination; the resolver tries exact rules before regex rules within
-    /// the source-path category. The regex variant is a user-interpreted pattern — pre-parsed/validated
-    /// once at build time, ReDoS-bounded by a match timeout (see <see cref="PathDestinationRule"/>).
-    /// Default empty = no source-path routing.
-    /// </summary>
+    /// <summary>Source-path routing rules, in user order.</summary>
+    /// <remarks>
+    /// Within the source-path category the resolver tries exact rules before regex rules. A regex
+    /// pattern is bounded as <see cref="PathDestinationRule"/> describes.
+    /// </remarks>
     public List<PathDestinationRule> PathDestinations { get; init; } = [];
 
-    /// <summary>
-    /// Tag excludes: STABLE tag ids (never the name), keyed exactly like
-    /// <see cref="TagDestinations"/> and mirroring <see cref="ExcludeStudioIds"/>. An item carrying
-    /// any of these tags is EXCLUDED from renamer/move BEFORE any routing category is considered
-    /// (excludes are evaluated first), surfaced as a visible <c>SkipExcluded</c> in the preview.
-    /// Default empty = no tag excludes (legacy behavior, no regression).
-    /// </summary>
+    /// <summary>Stable tag ids whose items are excluded from rename and move.</summary>
+    /// <remarks>
+    /// Keyed on the id like <see cref="TagDestinations"/>. Excludes are evaluated before any routing
+    /// category and surface as a visible <c>SkipExcluded</c> in the preview.
+    /// </remarks>
     public List<int> ExcludeTagIds { get; init; } = [];
 
-    /// <summary>
-    /// Studio excludes: STABLE studio ids (never the name). An item is excluded when its own
-    /// <c>StudioId</c> OR any of its <c>ParentStudios</c> ancestor ids is in this set ("studio or its
-    /// parent"), keyed on the stable id exactly like <see cref="StudioDestinations"/> so a name
-    /// typo/variant can never mis-target an exclude. Excludes run FIRST. Default empty.
-    /// </summary>
+    /// <summary>Stable studio ids whose items are excluded from rename and move.</summary>
+    /// <remarks>
+    /// An item is excluded when its own <c>StudioId</c> or any of its <c>ParentStudios</c> ancestor ids
+    /// is in this set. Keyed on the id like <see cref="StudioDestinations"/>, and evaluated before any
+    /// routing category.
+    /// </remarks>
     public List<int> ExcludeStudioIds { get; init; } = [];
 
-    /// <summary>
-    /// Source-path excludes, in user order: each <see cref="ExcludeRule"/> is an exact OR regex
-    /// source-path match (mirroring <see cref="PathDestinations"/>); a matching item is excluded from
-    /// renamer/move. The regex variant is pre-parsed/validated once at build time and ReDoS-bounded by a
-    /// match timeout (see <see cref="ExcludeRule"/>). Excludes run FIRST. Default empty.
-    /// </summary>
+    /// <summary>Source-path exclude rules, in user order.</summary>
+    /// <remarks>
+    /// Evaluated before any routing category. A regex pattern is bounded as <see cref="ExcludeRule"/>
+    /// describes.
+    /// </remarks>
     public List<ExcludeRule> ExcludePaths { get; init; } = [];
 
     /// <summary>
-    /// Unorganized destination: the route for an item whose <c>Organized</c> flag is false. Resolved
-    /// at the unorganized precedence slot (before the tag/studio/path cascade), so an unorganized item
-    /// routes here rather than being skipped. Default <c>null</c> = no unorganized route.
-    /// <para>
-    /// When set, this OVERRIDES <see cref="OnlyOrganized"/> for unorganized items — the item routes
-    /// here instead of being gated out, so the unorganized route is never silently nullified by the
-    /// only-organized gate.
-    /// </para>
-    /// <para>
-    /// Nullable rather than a <see cref="Destination"/> whose emptiness means "off", because the two
-    /// states answer different questions: <c>null</c> is "there is no unorganized route", while a
-    /// present destination naming neither root nor folder is a route that moves nothing. Only the
-    /// first falls through to the only-organized gate.
-    /// </para>
+    /// The route for an item whose <c>Organized</c> flag is false, or <c>null</c> when there is no
+    /// unorganized route.
     /// </summary>
+    /// <remarks>
+    /// Resolved before the tag, studio and path cascade, and it overrides <see cref="OnlyOrganized"/>
+    /// for unorganized items, so an unorganized route is never nullified by the only-organized gate. The
+    /// nullability carries a distinction the emptiness of a <see cref="Destination"/> cannot:
+    /// <c>null</c> is "there is no unorganized route", while a present destination naming neither root
+    /// nor folder is a route that moves nothing, and only the first falls through to the gate.
+    /// </remarks>
     public Destination? UnorganizedDestination { get; init; }
 
     /// <summary>
-    /// Free-space safety margin: the number of bytes left FREE on each destination volume
-    /// beyond the projected file bytes before a cross-drive batch is allowed to proceed. The
-    /// free-space guard adds this to a volume's summed need before comparing against its available
-    /// space, so a batch never fills a disk to the brim. Default <c>1 GiB</c> (<c>1L &lt;&lt; 30</c>).
-    /// Same-volume renames are excluded from the sum, so this margin only gates cross-drive moves.
+    /// The bytes left free on each destination volume beyond the projected file bytes before a
+    /// cross-drive batch is allowed to proceed.
     /// </summary>
+    /// <remarks>
+    /// The free-space guard adds this to a volume's summed need before comparing against its available
+    /// space, so a batch never fills a disk to the brim. Same-volume renames are excluded from the sum,
+    /// so this margin gates only cross-drive moves.
+    /// </remarks>
     public long FreeSpaceHeadroomBytes { get; init; } = 1L << 30;
 
     /// <summary>
-    /// Cross-drive concurrency bound: the maximum number of simultaneous cross-drive transfers within
-    /// one (source,destination) disk pair. Same-volume renames are bounded separately, by
-    /// <see cref="SameVolumeConcurrency"/>. Default <c>2</c> — conservative, to avoid thrashing two
-    /// spinning disks with too many concurrent copies.
+    /// The maximum number of simultaneous cross-drive transfers within one source-destination disk pair.
     /// </summary>
     /// <remarks>
-    /// A batch runs its disk pairs one after another, so this value is also the batch's peak
-    /// cross-drive concurrency and never the sum over the pairs it found. Sequential pairs keep the
-    /// disk pressure a user asks for true; a real library has one or two pairs.
+    /// A batch runs its disk pairs one after another, so this value is also the batch's peak cross-drive
+    /// concurrency and never the sum over the pairs it found. Same-volume renames are bounded separately
+    /// by <see cref="SameVolumeConcurrency"/>.
     /// </remarks>
     public int CrossVolumeConcurrency { get; init; } = 2;
 
     /// <summary>
-    /// Same-volume parallelism bound: the maximum number of simultaneous same-drive renames within one
-    /// batch. A same-drive renamer is an instant metadata <c>File.Move</c> that consumes no extra space,
-    /// so this is not a space guard — it is a pressure bound. An unbounded fan-out (the old <c>-1</c>)
-    /// let a large selection issue thousands of concurrent <c>File.Move</c> + per-worker DB scope +
-    /// event-bus operations at once; this caps the in-flight count while staying high enough that a
-    /// normal batch sees full parallelism. The default is a fixed <c>8</c> (not
-    /// <c>Environment.ProcessorCount</c>, so the serialized default stays byte-identical across
-    /// machines). A value &lt;= 0 is treated as unbounded for backward compatibility.
+    /// The maximum number of simultaneous same-drive renames within one batch.
     /// </summary>
+    /// <remarks>
+    /// A same-drive rename is an instant metadata <c>File.Move</c> that consumes no extra space, so this
+    /// is a pressure bound, not a space guard: it caps the in-flight <c>File.Move</c>, per-worker DB
+    /// scope and event-bus operations a large selection would otherwise issue at once. The default is a
+    /// fixed value, not <c>Environment.ProcessorCount</c>, so the serialized default stays
+    /// byte-identical across machines. A value &lt;= 0 is treated as unbounded.
+    /// </remarks>
     public int SameVolumeConcurrency { get; init; } = 8;
 
-    // Record value equality would compare the List/Dictionary members by REFERENCE, so a JSON round-trip
-    // (fresh instances) would never be Equal. Both Equals and GetHashCode run off the SAME
-    // EqualityComponents list — the single source of truth that replaces the old twin member lists, so a
-    // new member added to one can never be forgotten in the other (the twin-list footgun, 45-R4). Each
-    // collection member is wrapped to compare by VALUE: order-SENSITIVE for lists, order-INDEPENDENT for
-    // the destination maps (a Dictionary has no guaranteed order and a round-trip may reorder keys), with
-    // the map's original key comparer (ordinal ids, OrdinalIgnoreCase tag names) preserved.
+    // Record value equality compares the list and dictionary members by reference, so a JSON round-trip
+    // would never be equal. Equals and GetHashCode both run off EqualityComponents, and each collection
+    // member is wrapped to compare by value: order-sensitive for lists, order-independent for the
+    // destination maps, since a Dictionary has no guaranteed order and a round-trip may reorder keys.
+    // The map's original key comparer is preserved.
     public bool Equals(RenamerOptions? other)
         => other is not null && StructuralEquality.Members(EqualityComponents(), other.EqualityComponents());
 
@@ -670,11 +606,11 @@ public sealed record RenamerOptions
         yield return SameVolumeConcurrency;
     }
 
-    /// <summary>
-    /// Shared serializer settings used by both save and load so the round-trip is symmetric:
-    /// case-insensitive property names (forward-compat for hand-edited blobs) and
-    /// enums as stable strings. <c>OptionsStore</c> reuses this exact instance.
-    /// </summary>
+    /// <summary>Serializer settings shared by save and load, so the round-trip is symmetric.</summary>
+    /// <remarks>
+    /// Case-insensitive property names keep a hand-edited blob readable, and enums serialize as stable
+    /// strings. <c>OptionsStore</c> reuses this exact instance.
+    /// </remarks>
     public static JsonSerializerOptions JsonOptions { get; } = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -682,19 +618,13 @@ public sealed record RenamerOptions
     };
 }
 
-/// <summary>
-/// Drives a record's <c>Equals</c>/<c>GetHashCode</c> from ONE component list instead of a
-/// hand-maintained twin member list — a new member added to one but forgotten in the other (the
-/// twin-list footgun) is impossible when both consume the same <c>EqualityComponents()</c>. Collection
-/// members are wrapped so they compare by VALUE, not by reference, which is what a JSON round-trip
-/// (fresh instances) needs to stay Equal to the original.
-/// </summary>
+// Drives a record's Equals and GetHashCode from one component list, so a member added to one can never
+// be forgotten in the other. Collection members are wrapped to compare by value, which is what a JSON
+// round-trip needs to stay equal to the original.
 internal static class StructuralEquality
 {
-    /// <summary>Value-compares two component sequences position by position (an order-sensitive AND of the members).</summary>
     public static bool Members(IEnumerable<object?> a, IEnumerable<object?> b) => a.SequenceEqual(b);
 
-    /// <summary>Hashes a component sequence; consistent with <see cref="Members"/> because both consume the same components.</summary>
     public static int Hash(IEnumerable<object?> components)
     {
         var hc = new HashCode();
@@ -706,10 +636,10 @@ internal static class StructuralEquality
         return hc.ToHashCode();
     }
 
-    /// <summary>Wraps an ordered collection so equality is an order-SENSITIVE element compare (mirrors <c>SequenceEqual</c>).</summary>
+    // Order-sensitive element compare.
     public static object Sequence<T>(IReadOnlyCollection<T> items) => new SeqKey<T>(items);
 
-    /// <summary>Wraps a map so equality is an ORDER-INDEPENDENT compare under <paramref name="keyComparer"/> (a round-trip may reorder keys).</summary>
+    // Order-independent compare under keyComparer; a round-trip may reorder a map's keys.
     public static object Map<TKey, TValue>(Dictionary<TKey, TValue> map, IEqualityComparer<TKey> keyComparer)
         where TKey : notnull => new MapKey<TKey, TValue>(map, keyComparer);
 
@@ -752,9 +682,7 @@ internal static class StructuralEquality
                 return false;
             }
 
-            // Build the lookup by assignment (last write wins on a key collision under the comparer),
-            // matching the prior hand-rolled comparison rather than the throwing dictionary(source,
-            // comparer) constructor.
+            // Built by assignment, so a key collision under the comparer keeps the last write.
             var lookup = new Dictionary<TKey, TValue>(other._map.Count, _keyComparer);
             foreach (var kv in other._map)
             {
@@ -778,7 +706,7 @@ internal static class StructuralEquality
         public override int GetHashCode()
         {
             // Order-independent XOR accumulator, keyed through the comparer so it stays consistent with
-            // the order-independent, comparer-aware Equals above.
+            // Equals.
             int acc = 0;
             foreach (var kv in _map)
             {

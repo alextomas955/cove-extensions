@@ -4,11 +4,8 @@ using Renamer.Planner;
 
 namespace Renamer.Engine;
 
-/// <summary>
-/// Canonical core token names so the metadata projector and the UI agree on
-/// the exact strings the engine resolves. Lookups are case-insensitive; these are the
-/// canonical spellings.
-/// </summary>
+// Canonical token spellings shared with the metadata projector and the UI. Token lookups are
+// case-insensitive.
 public static class Tokens
 {
     public const string Title = "title";
@@ -31,25 +28,14 @@ public static class Tokens
     public const string Ext = "ext";
 }
 
-/// <summary>
-/// The pure <see cref="Render"/> orchestrator:
-/// it composes the primitives (<see cref="Tokenizer"/>, <see cref="Sanitizer"/>,
-/// <see cref="MultiValue"/>, <see cref="ResolutionLabel"/>) and <see cref="RenamerOptions"/>
-/// to turn a token dictionary into a sanitized, length-safe <see cref="RenamerResult"/>.
-///
-/// Pipeline: (1) build the effective resolved token map (scalar tokens, multi-value
-/// performers/tags via <see cref="MultiValue.Resolve(IReadOnlyList{string}, Options.MultiValueOptions)"/>,
-/// derived <c>$resolution</c>);
-/// (2) render the filename and folder templates independently — walk the <see cref="Segment"/>
-/// list, collapse <c>{}</c> spans whose every inner token resolved empty; (3) apply
-/// the case/transliteration transforms; (4) sanitize per segment (filename as one segment so
-/// <c>/</c> is stripped; folder split on <c>/</c>, each piece cleaned, rejoined with <c>/</c>);
-/// (5) resolve the extension (never duplicated); (6) <see cref="LengthReducer.Fit"/>.
-///
-/// 100% pure: no <c>Path</c>/<c>File</c>/DB calls. Path-traversal confinement (<c>..</c>,
-/// absolute paths) is deliberately the executor's job, not the engine's — the engine never
-/// sees the library root.
-/// </summary>
+// Evaluation order: (1) build the resolved token map (scalars, multi-value performers/tags,
+// derived $resolution); (2) render the filename and folder templates independently, collapsing
+// {} spans whose every inner token resolved empty; (3) apply case and transliteration transforms;
+// (4) sanitize per segment (filename as one segment so '/' is stripped; folder split on '/', each
+// piece cleaned, rejoined with '/'); (5) resolve the extension; (6) length-fit.
+//
+// The engine is pure: no Path, File or database access. Path-traversal confinement ('..',
+// absolute paths) belongs to the executor, because the engine never sees the library root.
 public static class TemplateEngine
 {
     public static RenamerResult Render(
@@ -61,13 +47,8 @@ public static class TemplateEngine
         IReadOnlyList<(int Id, string Name)>? tags = null)
         => RenderWithDropped(tokens, multiValues, options, logUnbalanced, performers, tags).result;
 
-    /// <summary>
-    /// Identical to <see cref="Render"/>, but also returns the set of <see cref="RenamerOptions.DropOrder"/>
-    /// fields the length reducer actually dropped to make the name fit (empty when nothing was dropped).
-    /// <see cref="Render"/> delegates here and discards the dropped list, so there is ONE rendering path
-    /// and the two methods can never diverge. The dropped list is the engine's own signal from
-    /// <see cref="LengthReducer.FitWithDropped"/> — NOT a diff of output strings.
-    /// </summary>
+    // Also returns the DropOrder fields the length reducer dropped to make the name fit, as
+    // reported by LengthReducer itself. Render delegates here, so there is one rendering path.
     public static (RenamerResult result, IReadOnlyList<string> dropped) RenderWithDropped(
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
@@ -76,25 +57,19 @@ public static class TemplateEngine
         IReadOnlyList<RenamerPerformer>? performers = null,
         IReadOnlyList<(int Id, string Name)>? tags = null)
     {
-        // (1) Build the effective resolved token map (case-insensitive keys).
         var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tags);
 
-        // (5, partial) Resolve the extension up front so the filename template can reference
-        // $ext without it appearing twice: the $ext token resolves empty during the
-        // filename render, and the extension is appended as RenamerResult.Ext.
+        // Resolved up front so a template referencing $ext does not emit it twice: $ext resolves
+        // empty during the filename render, and the extension is appended as RenamerResult.Ext.
         string ext = NormalizeExt(Resolve(resolved, Tokens.Ext));
 
-        // (2)+(3)+(4) Render filename: $ext suppressed inside the name; '/' stripped.
         string filename = RenderFilename(options.FilenameTemplate, resolved, options, logUnbalanced);
 
-        // (2)+(3)+(4) Render folder independently: keeps '/' as a path separator.
         string folder = RenderFolder(options.FolderTemplate, resolved, options, logUnbalanced);
 
-        // (6) Length-fit against BOTH caps (re-renders without dropped fields).
         return LengthReducer.FitWithDropped(
             folder, filename, ext, options,
-            // re-render delegate: produce (folder, name) with the cumulative set of dropped
-            // fields forced empty.
+            // Re-render with the cumulative set of dropped fields forced empty.
             droppedFields =>
             {
                 var reduced = new Dictionary<string, string>(resolved, StringComparer.OrdinalIgnoreCase);
@@ -109,11 +84,8 @@ public static class TemplateEngine
             });
     }
 
-    /// <summary>
-    /// Builds the effective resolved scalar token map: copies the caller's scalar tokens
-    /// (case-insensitive), overrides <c>$performers</c>/<c>$tags</c> with the joined
-    /// multi-value resolution, and derives <c>$resolution</c> from the height token when present.
-    /// </summary>
+    // Copies the caller's scalar tokens, overrides $performers and $tags with the joined
+    // multi-value resolution, and derives $resolution from the height token when present.
     private static Dictionary<string, string> BuildResolvedMap(
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
@@ -127,20 +99,16 @@ public static class TemplateEngine
             map[kv.Key] = kv.Value;
         }
 
-        // Apply pure value-level field rewrites (e.g. squeezing spaces out of studio names) to the
-        // scalar map BEFORE the multi-value overrides and render. Materialize the keys first so we do
-        // not mutate the dictionary while enumerating it.
+        // Field rewrites run before the multi-value overrides and the render. The keys are
+        // materialized so the dictionary is not mutated while enumerating it.
         foreach (var key in map.Keys.ToList())
         {
             map[key] = FieldRewriter.RewriteScalar(key, map[key], options);
         }
 
-        // De-double the resolution: when the filename template renders $resolution AND the title
-        // already ends in a resolution tag (common for libraries whose titles were imported from
-        // filenames, e.g. "… [1080p]"), strip that trailing tag so the template's own [$resolution]
-        // is the single source — otherwise the name would carry "[1080p] [1080p]". Only stripped when
-        // the template actually appends a resolution; a template without $resolution keeps whatever the
-        // title carries. Not a user option: there is no sensible reason to want the doubled tag.
+        // Titles imported from filenames often already end in a resolution tag. When the template
+        // also appends $resolution, that trailing tag is stripped so the name carries one tag. A
+        // template without $resolution keeps whatever the title carries.
         if (map.TryGetValue(Tokens.Title, out var titleValue)
             && TemplateRendersResolution(options.FilenameTemplate))
         {
@@ -149,18 +117,14 @@ public static class TemplateEngine
 
         if (TryGetMulti(multiValues, Tokens.Performers, out var performers))
         {
-            // Drop performers already named in the RESOLVED title (after the scalar rewrites above)
-            // BEFORE MultiValue.Resolve applies MaxCount, so a dropped name frees an overflow slot.
-            // Compare against the rewritten $title from the map.
+            // Performers already named in the resolved title are dropped before MultiValue.Resolve
+            // applies MaxCount, so a dropped name frees an overflow slot.
             string resolvedTitle = map.TryGetValue(Tokens.Title, out var t) ? t : string.Empty;
 
             if (performerRecords is not null)
             {
-                // Filter the RECORDS directly with the same whole-word title predicate, then feed the
-                // survivors (in order, including duplicate names) to the record resolver. Filtering the
-                // records themselves — rather than reselecting them from the surviving NAME list via a
-                // name-keyed set — preserves per-position multiplicity, so when two performers share a
-                // name only the matching positions are dropped and a surviving duplicate is kept.
+                // Filtering the records preserves per-position multiplicity, so when two performers
+                // share a name only the matching positions drop and a surviving duplicate is kept.
                 var survivors = FieldRewriter.DropPerformersInTitle(performerRecords, resolvedTitle, options);
                 map[Tokens.Performers] = MultiValue.Resolve(survivors, options.Performers);
             }
@@ -171,9 +135,8 @@ public static class TemplateEngine
             }
         }
 
-        // The pairs are preferred whenever the caller has them, because only they carry the ids the
-        // tag whitelist/blacklist matches on; the name list alone can be sorted and joined but not
-        // filtered. A caller without ids is rendering a value that names no library tag.
+        // The id pairs take precedence: the tag whitelist and blacklist match on ids, so a name-only
+        // list can be sorted and joined but not filtered.
         if (tagRefs is not null)
         {
             map[Tokens.Tags] = MultiValue.Resolve(tagRefs, options.Tags);
@@ -183,7 +146,7 @@ public static class TemplateEngine
             map[Tokens.Tags] = MultiValue.Resolve(tags, options.Tags);
         }
 
-        // Derive $resolution from height only if the caller didn't already supply it.
+        // A caller-supplied $resolution wins over the height-derived one.
         if (!map.ContainsKey(Tokens.Resolution)
             && map.TryGetValue(Tokens.Height, out var h)
             && int.TryParse(h, out var height))
@@ -211,20 +174,16 @@ public static class TemplateEngine
         return false;
     }
 
-    /// <summary>Case-insensitive token lookup; unknown/absent → empty.</summary>
+    // Case-insensitive token lookup. An unknown or absent token resolves to empty.
     private static string Resolve(IReadOnlyDictionary<string, string> resolved, string name)
         => resolved.TryGetValue(name, out var v) ? v ?? string.Empty : string.Empty;
 
-    /// <summary>
-    /// True iff <paramref name="template"/> references the <c>$resolution</c> token, so the render will
-    /// append a resolution and a trailing one already in the title would be a duplicate. Matches the
-    /// bare <c>$resolution</c> the engine supports (there is no <c>${…}</c> form), case-insensitively,
-    /// and only when the char after the token is not another token-name char (so <c>$resolutionx</c>
-    /// does not match). Pure string scan — no regex.
-    /// </summary>
+    // Matches the bare $resolution token the engine supports; there is no ${...} form. The match is
+    // case-insensitive and only counts when the next char is not a token-name char, so $resolutionx
+    // does not match.
     private static bool TemplateRendersResolution(string template)
     {
-        const string tok = "$" + Tokens.Resolution; // "$resolution"
+        const string tok = "$" + Tokens.Resolution;
         int from = 0;
         while (from <= template.Length - tok.Length)
         {
@@ -247,25 +206,14 @@ public static class TemplateEngine
         return false;
     }
 
-    /// <summary>
-    /// Removes a single trailing resolution tag from <paramref name="value"/>, then re-trims trailing
-    /// whitespace. A tag is a bracketed resolution label: either a fixed
-    /// <see cref="ResolutionLabel.KnownLabels"/> entry (e.g. <c>[1080p]</c>, <c>[4k]</c>) OR a bare
-    /// numeric-height progressive-scan label (<c>[368p]</c>, <c>[240p]</c>) — the sub-480 form
-    /// <see cref="ResolutionLabel.FromHeight"/> now emits. Only a tag at the very END is removed
-    /// (a bounded suffix scan, no regex), so a resolution mentioned mid-title is left untouched.
-    /// </summary>
-    /// <remarks>
-    /// The generic <c>[&lt;digits&gt;p]</c> arm is what stops a doubled tag: a title imported as
-    /// "Nikki [368p]" plus a template that appends <c>{ [$resolution]}</c> (which now renders "368p")
-    /// would otherwise yield "Nikki [368p] [368p]" — matching ONLY the five fixed labels missed the
-    /// sub-480 tag and left it to double. Matching any bracketed numeric-p (or 4k) suffix de-dupes it.
-    /// </remarks>
+    // Removes one trailing resolution tag: a bracketed ResolutionLabel.KnownLabels entry such as
+    // [1080p] or [4k], or a bare numeric progressive-scan label such as [368p], which is the sub-480
+    // form FromHeight emits. Only a tag at the end is removed, so a resolution named mid-title stays.
     private static string StripTrailingResolutionTag(string value)
     {
         string trimmed = value.TrimEnd();
 
-        // Fixed labels first (covers "4k" and the ≥480 buckets).
+        // The fixed labels cover "4k" and the 480-and-above buckets.
         foreach (var label in ResolutionLabel.KnownLabels)
         {
             string tag = "[" + label + "]";
@@ -275,7 +223,7 @@ public static class TemplateEngine
             }
         }
 
-        // Generic trailing "[<digits>p]" (the sub-480 form, e.g. "[368p]") the fixed list does not carry.
+        // The sub-480 form, such as "[368p]", which the fixed list does not carry.
         if (trimmed.EndsWith(']') && TryStripTrailingNumericResTag(trimmed, out var stripped))
         {
             return stripped.TrimEnd();
@@ -284,26 +232,22 @@ public static class TemplateEngine
         return value;
     }
 
-    /// <summary>
-    /// Strips a trailing <c>[&lt;digits&gt;p]</c> tag (one or more ASCII digits, then a <c>p</c>, in
-    /// brackets) from <paramref name="s"/>, which MUST already end in <c>']'</c>. Returns false when the
-    /// suffix is not that exact shape (e.g. <c>[POV]</c>, <c>[caufkb2cd9]</c>, <c>[28]</c> — a
-    /// bracketed number with NO <c>p</c> is a serial/index, not a resolution, and must NOT be stripped).
-    /// Bounded backward scan, no regex.
-    /// </summary>
+    // Strips a trailing bracketed tag of one or more ASCII digits followed by 'p'. The caller passes a
+    // string already ending in ']'. A bracketed number with no 'p', such as [28], is a serial or index
+    // and is left alone.
     private static bool TryStripTrailingNumericResTag(string s, out string stripped)
     {
         stripped = s;
-        int close = s.Length - 1;              // index of ']'
+        int close = s.Length - 1;
         if (close < 3)
         {
-            return false;                      // need at least "[Np]"
+            return false;
         }
 
         int i = close - 1;
         if (s[i] is not ('p' or 'P'))
         {
-            return false;                      // must end "...p]"
+            return false;
         }
 
         i--;
@@ -315,19 +259,15 @@ public static class TemplateEngine
 
         if (i == digitsEnd || i < 0 || s[i] != '[')
         {
-            return false;                      // no digits, or no matching '[' immediately before them
+            return false;
         }
 
-        stripped = s[..i];                     // everything before the '['
+        stripped = s[..i];
         return true;
     }
 
-    /// <summary>
-    /// Live-preview helper for the required-field gate: resolves a single token name against the SAME
-    /// effective token map the renderer uses (scalar tokens + joined multi-value performers/tags +
-    /// derived <c>$resolution</c>), so a "required field" gate check matches what the engine would
-    /// actually render. Case-insensitive; unknown/absent → empty. Pure: no I/O.
-    /// </summary>
+    // Resolves one token against the same map the renderer uses, so the required-field gate sees
+    // what a render would produce. An unknown or absent token resolves to empty.
     public static string ResolveField(
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
@@ -338,13 +278,8 @@ public static class TemplateEngine
         return Resolve(resolved, field);
     }
 
-    /// <summary>
-    /// Live-preview helper: renders the filename through the SAME pipeline as
-    /// <see cref="RenderFilename"/> and reports whether the sanitize step actually changed the name
-    /// — i.e. illegal chars were stripped/replaced or spaces replaced/collapsed/trimmed under the
-    /// active options. Reuses the engine's own render+transform+clean steps (single source of truth);
-    /// it does NOT diff against a TS re-implementation. Pure: no I/O.
-    /// </summary>
+    // Reports whether the sanitize step changes the rendered filename, by running the same render,
+    // transform and clean steps the engine uses.
     public static bool WouldSanitizeFilename(
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
@@ -358,11 +293,8 @@ public static class TemplateEngine
         return Sanitizer.CleanSegment(raw, options) != raw;
     }
 
-    /// <summary>
-    /// Renders the filename template: emits the raw text (tokens resolved, <c>$ext</c> suppressed,
-    /// <c>{}</c> groups collapsed), applies case/transliteration, then sanitizes the whole result
-    /// as ONE segment so any <c>/</c> is stripped.
-    /// </summary>
+    // Renders with $ext suppressed and {} groups collapsed, then sanitizes the whole result as one
+    // segment, so any '/' is stripped rather than treated as a separator.
     private static string RenderFilename(
         string template,
         IReadOnlyDictionary<string, string> resolved,
@@ -374,11 +306,8 @@ public static class TemplateEngine
         return Sanitizer.CleanSegment(raw, options);
     }
 
-    /// <summary>
-    /// Renders the folder template: emits the raw text, applies transforms, then splits on
-    /// <c>/</c>, cleans each segment, drops empties, and rejoins with <c>/</c> — keeping <c>/</c>
-    /// only as the path separator. An empty template → empty (no folder move).
-    /// </summary>
+    // Splits the rendered text on '/', cleans each segment, drops empties and rejoins, so '/' stays
+    // the path separator. An empty template renders empty, which means no folder move.
     private static string RenderFolder(
         string template,
         IReadOnlyDictionary<string, string> resolved,
@@ -398,20 +327,15 @@ public static class TemplateEngine
             .Select(seg => Sanitizer.CleanSegment(seg, options))
             .Where(seg => seg.Length > 0);
 
-        // Collapse consecutive duplicate folder segments AFTER per-segment clean + empty-drop and
-        // BEFORE the '/'-join (no-op when the flag is off). The filename render never reaches here.
+        // Consecutive duplicate segments collapse after the per-segment clean and empty-drop, so the
+        // comparison runs on the cleaned text.
         var collapsed = FieldRewriter.CollapseConsecutive(cleaned, options);
         return string.Join("/", collapsed);
     }
 
-    /// <summary>
-    /// Walks the <see cref="Tokenizer.Scan"/> segment list, resolving tokens and collapsing
-    /// <c>{}</c> groups: a group span is dropped entirely (including its inner literals) iff
-    /// EVERY token inside it resolved empty; otherwise the group renders with empty tokens
-    /// collapsed (their inner literals stay). Unbalanced braces are already
-    /// degraded by the tokenizer (GroupOpen with no matching GroupClose at EOF is treated as a
-    /// normal group here; a stray GroupClose cannot occur because the scanner literalizes it).
-    /// </summary>
+    // A {} group span is dropped whole, inner literals included, when every token inside it resolved
+    // empty. Otherwise the group renders and only the empty tokens collapse, keeping their literals.
+    // An unclosed GroupOpen renders as a normal group; the tokenizer literalizes a stray GroupClose.
     private static string RenderRaw(
         string template,
         IReadOnlyDictionary<string, string> resolved,
@@ -439,8 +363,7 @@ public static class TemplateEngine
                     break;
 
                 case SegKind.GroupClose:
-                    // Unreachable at depth 0 (scanner only emits GroupClose when balanced and
-                    // a matching GroupOpen consumed it via RenderGroup). Ignore defensively.
+                    // Unreachable at depth 0: a matching GroupOpen already consumed it.
                     break;
             }
         }
@@ -448,11 +371,8 @@ public static class TemplateEngine
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Renders a single <c>{...}</c> group starting at <paramref name="openIdx"/> (a GroupOpen).
-    /// Returns the index of the matching GroupClose (or the last consumed segment if unclosed),
-    /// so the caller's loop continues after it. Appends nothing if every inner token is empty.
-    /// </summary>
+    // Returns the index of the matching GroupClose, or the last consumed segment when unclosed, so
+    // the caller's loop continues past the group. Appends nothing when every inner token is empty.
     private static int RenderGroup(
         List<Segment> segs,
         int openIdx,
@@ -489,26 +409,23 @@ public static class TemplateEngine
             }
             else if (seg.Kind == SegKind.GroupOpen)
             {
-                // Groups are flat; a nested open is not expected, but render it inline
-                // defensively so we never crash.
+                // Groups are flat, so a nested open is not expected; render it inline.
                 i = RenderGroup(segs, i, resolved, suppressExt, inner);
             }
         }
 
-        // Drop the WHOLE span (incl. inner literals) iff the group had tokens and all were empty.
+        // The span drops with its inner literals only when the group had tokens and all were empty.
         bool drop = sawToken && !anyTokenNonEmpty;
         if (!drop)
         {
             outer.Append(inner);
         }
 
-        return i; // i points at the GroupClose (or segs.Count if unclosed) — loop's i++ moves past it.
+        return i;
     }
 
-    /// <summary>
-    /// Resolves a single token name. <c>$ext</c> resolves empty when <paramref name="suppressExt"/>
-    /// is set (the filename render) so the extension is never duplicated.
-    /// </summary>
+    // $ext resolves empty under suppressExt, which the filename render sets, so the extension is
+    // not duplicated.
     private static string ResolveToken(string name, IReadOnlyDictionary<string, string> resolved, bool suppressExt)
     {
         if (suppressExt && string.Equals(name, Tokens.Ext, StringComparison.OrdinalIgnoreCase))
@@ -519,11 +436,11 @@ public static class TemplateEngine
         return Resolve(resolved, name);
     }
 
-    /// <summary>Applies the configured punctuation normalization, then ASCII transliteration, then case transform.</summary>
+    // Order: punctuation normalization, then ASCII transliteration, then the case transform.
     private static string ApplyTransforms(string s, RenamerOptions options)
     {
-        // Punctuation normalization runs FIRST so a folded straight double-quote is still subsequently
-        // stripped by the illegal-char step in CleanSegment (every render path calls this before it).
+        // Punctuation normalization runs first so a folded straight double-quote still reaches the
+        // illegal-char step in CleanSegment, which every render path calls after this.
         if (options.NormalizePunctuation)
         {
             s = Sanitizer.NormalizePunctuation(s);
@@ -537,7 +454,7 @@ public static class TemplateEngine
         return Sanitizer.ApplyCase(s, options.Case);
     }
 
-    /// <summary>Normalizes a raw extension token (e.g. <c>mkv</c> or <c>.mkv</c>) to a leading-dot form, or empty.</summary>
+    // Normalizes a raw extension token, with or without a leading dot, to the leading-dot form.
     private static string NormalizeExt(string ext)
     {
         if (string.IsNullOrEmpty(ext))

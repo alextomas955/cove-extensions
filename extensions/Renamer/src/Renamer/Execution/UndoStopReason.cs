@@ -1,86 +1,63 @@
 namespace Renamer.Execution;
 
-/// <summary>
-/// Why one entry of a reverse replay stopped short of being restored, as a value rather than as prose.
-/// </summary>
-/// <remarks>
-/// Each member names an arm that already exists on the undo path, and each is produced from the typed
-/// outcome that arm already has — never parsed back out of the human-readable note that rides alongside
-/// it. That note is for a person reading the undo panel; this is what
-/// <see cref="UndoTerminalClassifier"/> reads to decide whether the entry's journal row may be retired.
-/// <para>
-/// <see cref="UnexpectedError"/> is the zero value deliberately. A reason that was never set therefore
-/// classifies as retryable, so the failure mode of forgetting to assign one is a row that is offered
-/// again — not a row that is silently retired and can never be recovered.
-/// </para>
-/// </remarks>
+// Why one entry of a reverse replay stopped short of being restored, as a value and not as prose. Each
+// member is produced from the typed outcome its arm already has, and never parsed back out of the
+// human-readable note beside it. UndoTerminalClassifier reads this to decide whether the entry's
+// journal row may be retired.
+//
+// UnexpectedError is the zero value, so a reason that was never set classifies as retryable: forgetting
+// to assign one offers the row again instead of silently retiring it.
 public enum UndoStopReason
 {
-    /// <summary>An unanticipated throw outside the save path, reported for that entry alone.</summary>
+    // An unanticipated throw outside the save path, reported for that entry alone.
     UnexpectedError = 0,
 
-    /// <summary>
-    /// The row outlived its file: nothing in the library carries the id any more, so there is no current
-    /// path to move back from. The one reason a later attempt cannot improve on.
-    /// </summary>
+    // The row outlived its file: nothing in the library carries the id any more, so there is no current
+    // path to move back from. The one reason a later attempt cannot improve on.
     FileNoLongerInLibrary,
 
-    /// <summary>The original directory is gone, or its volume is not mounted right now.</summary>
+    // The original directory is gone, or its volume is not mounted right now.
     OriginalDirectoryUnavailable,
 
-    /// <summary>The original slot is taken on disk or in the database, and undo never clobbers.</summary>
+    // The original slot is taken on disk or in the database, and undo never clobbers.
     OriginalLocationOccupied,
 
-    /// <summary>The reverse move found the source locked or the destination already present.</summary>
+    // The reverse move found the source locked or the destination already present.
     ReverseMoveLockedOrTargetExists,
 
-    /// <summary>The operating system refused the reverse move.</summary>
+    // The operating system refused the reverse move.
     ReverseMovePermissionDenied,
 
-    /// <summary>A cross-volume reverse move's read-back did not match the source, so the copy was rejected.</summary>
+    // A cross-volume reverse move's read-back did not match the source, so the copy was rejected.
     ReverseMoveVerifyFailed,
 
-    /// <summary>The reverse move was cancelled mid-flight; the source was left untouched.</summary>
+    // The reverse move was cancelled mid-flight; the source was left untouched.
     ReverseMoveCancelled,
 
-    /// <summary>The path recomputed after the save did not equal the restored path, so the move was rolled back.</summary>
+    // The path recomputed after the save did not equal the restored path, so the move was rolled back.
     RestoredPathMismatch,
 
-    /// <summary>
-    /// The save returned no row for this file, so the restored path could not be checked at all and the
-    /// move was rolled back.
-    /// </summary>
-    /// <remarks>
-    /// Distinct from <see cref="RestoredPathMismatch"/> because nothing was compared: reporting a
-    /// mismatch here would name a path the save never reported.
-    /// </remarks>
+    // The save returned no row for this file, so the restored path could not be checked at all and the
+    // move was rolled back. Distinct from RestoredPathMismatch because nothing was compared: reporting
+    // a mismatch would name a path the save never reported.
     SaveReportedNoRow,
 
-    /// <summary>The database save threw after a successful reverse move, which was then rolled back.</summary>
+    // The database save threw after a successful reverse move, which was then rolled back.
     DatabaseSaveFailed,
 }
 
-/// <summary>
-/// Decides whether an entry that stopped short of being restored can still be retried, or never can.
-/// </summary>
-/// <remarks>
-/// Pure by construction: no filesystem, no database, no host runtime, and no matching on the
-/// human-readable note that accompanies a stop reason — that note is prose written for a person, and a
-/// decision keyed on it changes meaning the moment someone rewords it.
-/// <para>
-/// EXACTLY ONE reason is terminal, and the asymmetry is a product judgement rather than a technical
-/// one. Every other reason describes a condition the world can clear on its own or the owner can
-/// correct: a lock is released, a drive is remounted, an occupied slot is
-/// emptied. Keeping those rows pending costs nothing but a row, while retiring one wrongly removes the
-/// only recovery path the user has for that file. The retention window sweeps whatever never resolves,
-/// so erring this way cannot leak rows forever.
-/// </para>
-/// </remarks>
+// Decides whether an entry that stopped short of being restored can still be retried.
+//
+// The human-readable note beside a stop reason is never matched on: it is prose, and a decision keyed
+// on it changes meaning when someone rewords it.
+//
+// Exactly one reason is terminal. Every other reason describes a condition the world can clear or the
+// owner can correct: a lock is released, a drive is remounted, an occupied slot is emptied. Keeping
+// those rows pending costs a row, while retiring one wrongly removes the user's only recovery path for
+// that file. The retention window sweeps whatever never resolves.
 public static class UndoTerminalClassifier
 {
-    /// <summary>
-    /// True when <paramref name="reason"/> can never be improved on by attempting the undo again, so
-    /// the entry's journal row may be retired as unrestorable rather than offered as pending work.
-    /// </summary>
+    // True when no later attempt can improve on the reason, so the entry's journal row may be retired
+    // as unrestorable instead of offered as pending work.
     public static bool IsTerminal(UndoStopReason reason) => reason == UndoStopReason.FileNoLongerInLibrary;
 }

@@ -4,33 +4,20 @@ using Renamer.Options;
 
 namespace Renamer.Planner;
 
-/// <summary>
-/// The seam between Cove's entity model (already mapped to Renamer-owned DTOs by
-/// <see cref="IRenamerDataPort"/>) and the pure <see cref="TemplateEngine"/>. For one
-/// <see cref="RenamerFile"/> of a <see cref="RenamerEntity"/> it builds the
-/// <c>(tokens, multiValues)</c> pair <see cref="TemplateEngine.Render"/> consumes. Each file
-/// projects independently (an item can have many files).
-///
-/// PURE: no <c>System.IO</c>, no DB. Entity-type-aware degradation: a media token is emitted ONLY
-/// when the file kind actually carries it (its DTO field is non-null). Absent scalar/media tokens
-/// are OMITTED from the dict — never emitted as <c>""</c> — so the engine's <c>{}</c> groups
-/// collapse cleanly. <c>$resolution</c> is NOT derived here; the engine derives it from
-/// <c>$height</c> when present, so a heightless kind (audio) naturally never gets it.
-/// </summary>
+// The seam between Cove's entity model, already mapped to Renamer-owned DTOs by IRenamerDataPort, and
+// the pure template engine. For one file of an entity it builds the token inputs the engine consumes.
+// Each file projects independently, because an item can have many files.
+//
+// Pure: no System.IO, no DB. A media token is emitted only when the file kind actually carries it, and
+// an absent token is omitted from the dictionary rather than emitted as "", so the engine's {} groups
+// collapse cleanly. $resolution is not derived here; the engine derives it from $height, so a heightless
+// kind never gets it.
 public static class MetadataProjector
 {
-    /// <summary>
-    /// Projects one file of <paramref name="entity"/> into the engine's token inputs.
-    /// </summary>
-    /// <returns>
-    /// <c>tokens</c>: case-insensitive single-value token map (keyed by <see cref="Tokens"/>
-    /// constants, absent tokens omitted). <c>multiValues</c>: the performer/tag NAME side-input
-    /// (so <c>$performers</c> rendering and the title-performer drop stay name-based).
-    /// <c>performers</c>: the per-performer records carried alongside the names so the engine can
-    /// order/filter performers by id/favorite/gender before the max-count limit.
-    /// <c>tagRefs</c>: the tag id/name pairs, carried for the same reason - the tag
-    /// whitelist/blacklist matches on the id, which the name side-input does not carry.
-    /// </returns>
+    // Projects one file into the engine's token inputs: the case-insensitive single-value token map, the
+    // performer and tag name side-input that keeps $performers rendering and the title-performer drop
+    // name-based, the per-performer records the engine orders and filters by before the max-count limit,
+    // and the tag id/name pairs the tag whitelist and blacklist match on by id.
     public static (IReadOnlyDictionary<string, string> tokens,
                    IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
                    IReadOnlyList<RenamerPerformer> performers,
@@ -39,30 +26,27 @@ public static class MetadataProjector
     {
         var tokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        // --- Entity-level scalar tokens (omit when empty so {} groups degrade). ---
         var title = string.IsNullOrEmpty(entity.Title) ? DerivedTitle(entity, options) : entity.Title;
         Put(tokens, Tokens.Title, title);
         Put(tokens, Tokens.StudioCode, entity.Code);
         Put(tokens, Tokens.Studio, entity.StudioName);
 
-        // $parent_studio: the studio's NEAREST parent name (ParentStudios is nearest-first); omitted
-        // when the studio has no parent so a `{}` group collapses cleanly.
+        // ParentStudios is nearest-first, so $parent_studio is the studio's nearest parent name.
         if (entity.ParentStudios is { Count: > 0 } parents)
         {
             Put(tokens, Tokens.ParentStudio, parents[0].Name);
         }
 
-        // $director: the video's director (Video-only; null for other kinds).
+        // Video-only; null for other kinds.
         Put(tokens, Tokens.Director, entity.Director);
 
         if (entity.Date is DateOnly date)
         {
-            // $date honors the configured DateFormat; $year is the calendar year.
             Put(tokens, Tokens.Date, date.ToString(options.DateFormat, CultureInfo.InvariantCulture));
             Put(tokens, Tokens.Year, date.Year.ToString(CultureInfo.InvariantCulture));
         }
 
-        // --- Per-file media tokens: emitted ONLY when the kind carries them (nullable DTO). ---
+        // Per-file media tokens, emitted only when the kind carries them.
         if (file.Width is int w)
         {
             Put(tokens, Tokens.Width, w.ToString(CultureInfo.InvariantCulture));
@@ -90,24 +74,19 @@ public static class MetadataProjector
 
         if (file.Duration is double dur)
         {
-            // $duration honors the configured DurationFormat, like $date above; see FormatDuration for
-            // what a malformed format or a nonsense stored duration degrades to.
             Put(tokens, Tokens.Duration, FormatDuration(dur, options.DurationFormat));
         }
 
-        // $bitrate: the file's stored overall bitrate, rendered in kbps (Cove stores bits/sec on
-        // VideoFile.BitRate). Omitted when absent / non-video so a `{}` group collapses.
+        // Cove stores overall bitrate in bits per second; $bitrate renders kbps.
         if (file.BitRate is long bps && bps > 0)
         {
             Put(tokens, Tokens.Bitrate, (bps / 1000).ToString(CultureInfo.InvariantCulture));
         }
 
-        // --- Extension: from the file Format if set, else the basename's extension. ---
         Put(tokens, Tokens.Ext, ResolveExt(file));
 
-        // --- Multi-value side-input: performer/tag NAME lists (already JOIN-resolved upstream). ---
-        // $performers keeps a plain name list so rendering and the title-performer drop stay
-        // name-based; the per-performer records travel as a separate channel for ordering/filtering.
+        // $performers keeps a plain name list so rendering and the title-performer drop stay name-based;
+        // the per-performer records travel as a separate channel for ordering and filtering.
         var multi = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
         {
             [Tokens.Performers] = [.. entity.Performers.Select(p => p.Name)],
@@ -117,47 +96,33 @@ public static class MetadataProjector
         return (tokens, multi, entity.Performers, entity.TagRefs);
     }
 
-    /// <summary>
-    /// The title an item with none falls back to: its FIRST file's basename without the extension, or
-    /// <c>null</c> when the item already has a title, the <c>FilenameAsTitle</c> fallback is off, or the
-    /// item has no files.
-    /// </summary>
-    /// <remarks>
-    /// The canonical statement of why this fallback is RECORDED rather than repeated; the sites that
-    /// carry the value onward (<see cref="RenamerPlanItem.DerivedTitle"/>,
-    /// <see cref="RenamerEntityTitleWrite"/>) point here.
-    /// <para>
-    /// Derived per run, the title is a function of the basename the PREVIOUS run wrote, and the rename
-    /// is a function of the title - so any template rendering more than a bare <c>$title</c> wraps its
-    /// own decorations again on every pass and the name grows without bound. No cure keeps both
-    /// directions live: parsing the template back out of its own output is post-hoc cleanup, and
-    /// refusing the fallback for a decorated template only converts the runaway into a required-fields
-    /// skip. So the derivation is broken instead - the executor records this value on the entity in the
-    /// same save as the rename, after which the item HAS a title and this path never runs for it again.
-    /// </para>
-    /// <para>
-    /// Entity-level, not per-file: a title belongs to the ITEM, so deriving it from the file being
-    /// projected gives a multi-file item as many titles as it has files, and leaves the recorded one
-    /// decided by whichever file the executor saved last.
-    /// </para>
-    /// </remarks>
+    // The title an item with none falls back to: its first file's basename without the extension, or
+    // null when the item already has a title, the FilenameAsTitle fallback is off, or the item has no
+    // files. This is the canonical statement of why the fallback is recorded rather than repeated; the
+    // sites that carry the value onward point here.
+    //
+    // Derived per run, the title is a function of the basename the previous run wrote, and the rename is
+    // a function of the title, so any template rendering more than a bare $title wraps its own
+    // decorations again on every pass and the name grows without bound. No cure keeps both directions
+    // live: parsing the template back out of its own output is post-hoc cleanup, and refusing the
+    // fallback for a decorated template only converts the runaway into a required-fields skip. So the
+    // derivation is broken: the executor records this value on the entity in the same save as the
+    // rename, after which the item has a title and this path never runs for it again.
+    //
+    // Entity-level, not per-file: a title belongs to the item, so deriving it from the file being
+    // projected gives a multi-file item as many titles as it has files, and leaves the recorded one
+    // decided by whichever file the executor saved last.
     internal static string? DerivedTitle(RenamerEntity entity, RenamerOptions options)
         => string.IsNullOrEmpty(entity.Title) && options.FilenameAsTitle && entity.Files.Count > 0
             ? BasenameStem(entity.Files[0].Basename)
             : null;
 
-    /// <summary>
-    /// Renders a stored duration in seconds through the user-configured <c>DurationFormat</c>.
-    /// </summary>
-    /// <remarks>
-    /// Both inputs are untrusted and this runs once per file of every item in a plan, so a throw here
-    /// would abort a whole plan or batch over one bad setting instead of spoiling one token: a malformed
-    /// format string throws <see cref="FormatException"/>, and a non-finite or out-of-range stored
-    /// duration throws out of <see cref="TimeSpan.FromSeconds(double)"/>. Either way the token degrades
-    /// to the raw invariant seconds — the one rendering that cannot itself fail for any
-    /// <see cref="double"/>. The format is NOT pre-validated: only actually formatting it can decide
-    /// whether .NET accepts it.
-    /// </remarks>
+    // Renders a stored duration in seconds through the user-configured format. Both inputs are untrusted
+    // and this runs once per file of every item in a plan, so a throw would abort a whole plan over one
+    // bad setting: a malformed format string throws FormatException, and a non-finite or out-of-range
+    // stored duration throws out of TimeSpan.FromSeconds. Either way the token degrades to the raw
+    // invariant seconds, the one rendering that cannot itself fail for any double. The format is not
+    // pre-validated, because only formatting it can decide whether .NET accepts it.
     private static string FormatDuration(double seconds, string format)
     {
         try
@@ -170,7 +135,7 @@ public static class MetadataProjector
         }
     }
 
-    /// <summary>Adds <paramref name="value"/> under <paramref name="key"/> only when non-empty (omit-not-blank).</summary>
+    // Omit rather than blank, so the engine's {} groups collapse.
     private static void Put(Dictionary<string, string> tokens, string key, string? value)
     {
         if (!string.IsNullOrEmpty(value))
@@ -179,33 +144,22 @@ public static class MetadataProjector
         }
     }
 
-    /// <summary>
-    /// The basename with its extension stripped, for use as a fallback title. The extension is
-    /// dropped only when a non-empty stem precedes the last dot (<c>dot &gt; 0</c>), so a dotless name
-    /// (<c>README</c>) and a leading-dot name (<c>.gitignore</c>) keep their whole basename as the
-    /// title — a leading-dot title reads better whole than split. (This is a title-readability rule,
-    /// NOT the same split as <see cref="ResolveExt"/>, which treats a leading dot as the extension
-    /// boundary; the two intentionally differ on that edge.) Pure string op — no <c>System.IO</c>.
-    /// </summary>
+    // The basename with its extension stripped, for use as a fallback title. The extension is dropped
+    // only when a non-empty stem precedes the last dot, so a dotless name ("README") and a leading-dot
+    // name (".gitignore") keep their whole basename: a leading-dot title reads better whole than split.
+    // This is a title-readability rule, and it differs on that edge from ResolveExt, which treats a
+    // leading dot as the extension boundary.
     private static string BasenameStem(string basename)
     {
         var dot = basename.LastIndexOf('.');
         return dot > 0 ? basename[..dot] : basename;
     }
 
-    /// <summary>
-    /// Resolves the extension token: the file's ACTUAL on-disk extension (from the basename),
-    /// falling back to the metadata <c>Format</c> only when the basename has no extension.
-    /// </summary>
-    /// <remarks>
-    /// The on-disk extension is authoritative and is preferred deliberately. Cove's <c>Format</c>
-    /// field is the container/format NAME, which is often NOT the file extension — e.g. an
-    /// <c>.mkv</c> file reports <c>Format = "matroska"</c>. Using <c>Format</c> as the extension
-    /// rewrote <c>movie.mkv</c> → <c>movie.matroska</c>, a non-standard extension that breaks
-    /// player/OS association and Cove's own kind detection. A rename should change the NAME, not the
-    /// container type, so the real extension always wins; <c>Format</c> is only a fallback for the
-    /// rare extensionless file. Pure string op (no <c>System.IO</c>) to preserve projector purity.
-    /// </remarks>
+    // The file's actual on-disk extension, falling back to the metadata Format only when the basename
+    // has none. Cove's Format field is the container name, which is often not the file extension: an
+    // .mkv file reports Format "matroska", and using it as the extension produces a non-standard
+    // extension that breaks player and OS association and Cove's own kind detection. A rename changes
+    // the name, not the container type. A pure string op, to preserve projector purity.
     private static string ResolveExt(RenamerFile file)
     {
         var dot = file.Basename.LastIndexOf('.');

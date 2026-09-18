@@ -1,37 +1,24 @@
 namespace Renamer.Execution;
 
-/// <summary>
-/// The EF shapes behind <c>IRevertJournal</c>, mapped to the extension-owned tables in
-/// <c>Renamer.Data.cs</c> and created by <see cref="RevertJournalSchema"/>'s migration.
-///
-/// These are storage types, not a domain model: nothing outside <see cref="CoveRevertJournal"/> and
-/// the model configuration should name them, because the port's records are what the rest of the
-/// extension speaks in.
-/// </summary>
-/// <remarks>
-/// Mutable properties with EF-friendly defaults, not records: the change tracker sets them on
-/// materialization and the counter updates below are in-place writes on a tracked entity.
-/// </remarks>
+// The EF shapes behind IRevertJournal, mapped to the extension-owned tables in Renamer.Data.cs and
+// created by RevertJournalSchema's migration. These are storage types: the rest of the extension
+// speaks in the port's records.
+//
+// Mutable properties with EF-friendly defaults, because the change tracker sets them on
+// materialization and the counter updates are in-place writes on a tracked entity.
 public sealed class RevertBatchEntity
 {
     public string RunId { get; set; } = "";
 
-    /// <summary>Server UTC ticks at which the batch opened.</summary>
-    /// <remarks>
-    /// Ticks in an integer column rather than a timestamp type, because the same DDL has to run on
-    /// both the provider production uses and the one the tests use.
-    /// </remarks>
+    // Ticks in an integer column, because the same DDL has to run on the provider production uses and
+    // on the one the tests use.
     public long OpenedAtUtcTicks { get; set; }
 
-    /// <summary>The run's <c>RenamerFileKind</c> by name.</summary>
+    // The run's RenamerFileKind by name.
     public string Kind { get; set; } = "";
 
-    /// <summary>The user action this batch belongs to; several batches can share one.</summary>
-    /// <remarks>
-    /// Empty on every batch written before the column existed. A reader treats an empty value as an
-    /// operation of one — the batch's own <see cref="RunId"/> — rather than backfilling it, so there
-    /// is one way to be wrong about an old row instead of two.
-    /// </remarks>
+    // The user action this batch belongs to; several batches can share one. Empty on every batch
+    // written before the column existed, which a reader resolves to that batch's own RunId.
     public string OperationId { get; set; } = "";
 
     public int OriginalCount { get; set; }
@@ -41,7 +28,7 @@ public sealed class RevertBatchEntity
     public int UnrestorableCount { get; set; }
 }
 
-/// <summary>One pending restore. Its identity is (<see cref="RunId"/>, <see cref="Seq"/>).</summary>
+// One pending restore. Its identity is (RunId, Seq).
 public sealed class RevertRowEntity
 {
     public string RunId { get; set; } = "";
@@ -57,44 +44,22 @@ public sealed class RevertRowEntity
     public string SidecarsJson { get; set; } = "";
 }
 
-/// <summary>
-/// The revert journal's physical schema: the migration the host applies, exactly as it ships.
-///
-/// The host — not this extension — executes this SQL, receipts it by name, and never re-runs a name
-/// it has already receipted. Everything about the statements below follows from that plus one more
-/// constraint: the same string has to run on the database production uses and on the one the tests
-/// use, so nothing provider-specific may appear in it.
-/// </summary>
+// The revert journal's physical schema: the migration the host applies, exactly as it ships. The
+// host executes this SQL, receipts it by name, and never re-runs a name it has already receipted.
 public static class RevertJournalSchema
 {
-    /// <summary>The migration's name, which is FROZEN: it must never change, and neither must its SQL.</summary>
-    /// <remarks>
-    /// The host receipts a migration by NAME and skips any name it has already applied, whatever the
-    /// content now says. So editing this migration's statements later would reach a fresh install and
-    /// never reach an existing one, and the two populations would diverge with nothing to notice.
-    /// A schema change is therefore a NEW constant with a NEW name, added beside this one — never an
-    /// edit to it.
-    /// </remarks>
+    // The migration name is frozen, and so is its SQL. The host receipts a migration by name and skips
+    // a name it has already applied, whatever the content now says, so an edit here would reach a
+    // fresh install and never reach an existing one. A schema change is a new constant with a new name.
     public const string Migration001Name = "001_create_revert_journal";
 
-    /// <summary>
-    /// The statements that create the journal. Every one is create-if-absent, because the table can
-    /// outlive its receipt in both directions: an uninstall deletes the extension's directory and
-    /// nothing deletes the receipt, while a restored database can carry the tables with no receipt at
-    /// all. Re-running has to be harmless, and a failure here would only be a host log line.
-    /// </summary>
-    /// <remarks>
-    /// Two choices in here are load-bearing and easy to undo by accident.
-    /// <para>
-    /// The row sequence is minted by the extension, never by the database. An auto-numbering column
-    /// is spelled differently on every provider, and taking one would cost the whole tier of tests
-    /// that runs these exact statements.
-    /// </para>
-    /// <para>
-    /// <c>old_path</c> is in no key and no index. It is the one column whose length a user controls,
-    /// and keeping it out of every key means its length can never be a limit.
-    /// </para>
-    /// </remarks>
+    // Every statement is create-if-absent, because the tables can outlive their receipt in both
+    // directions: an uninstall deletes the extension's directory and leaves the receipt, and a restored
+    // database can carry the tables with no receipt. A failure here would only be a host log line.
+    //
+    // The row sequence is minted by the extension, because an auto-numbering column is spelled
+    // differently on every provider. old_path is in no key and no index: it is the one column whose
+    // length a user controls, so its length can never hit a key limit.
     public const string Migration001UpSql =
         """
         CREATE TABLE IF NOT EXISTS renamer_revert_batches (
@@ -118,27 +83,19 @@ public static class RevertJournalSchema
         CREATE INDEX IF NOT EXISTS ix_renamer_revert_rows_run ON renamer_revert_rows (run_id);
         """;
 
-    /// <summary>The second migration's name, frozen on the same terms as <see cref="Migration001Name"/>.</summary>
+    // Frozen on the same terms as Migration001Name.
     public const string Migration002Name = "002_add_operation_id";
 
-    /// <summary>
-    /// Adds the column that groups a user action's batches. One click over several media kinds opens
-    /// one batch per kind, and undo has to reach all of them or none.
-    /// </summary>
-    /// <remarks>
-    /// Create-if-absent throughout, for the reason <see cref="Migration001UpSql"/> gives: a table can
-    /// outlive its receipt, and a migration whose re-run fails is worse here than a wasted statement.
-    /// The host stops applying an extension's remaining migrations after one failure, so a single
-    /// unrunnable statement would block every later migration on that database, on every start.
-    /// <para>
-    /// PostgreSQL syntax. The host runs on PostgreSQL alone, so that is the only dialect a shipped
-    /// migration has to satisfy; SQLite has no <c>ADD COLUMN IF NOT EXISTS</c> and the tests build
-    /// their journal schema rather than executing this string.
-    /// </para>
-    /// <para>
-    /// An existing row takes <c>''</c>, which readers resolve to that batch's own run id.
-    /// </para>
-    /// </remarks>
+    // Adds the column that groups a user action's batches. One click over several media kinds opens one
+    // batch per kind, and undo has to reach all of them or none.
+    //
+    // Create-if-absent for the reason Migration001UpSql gives. The host stops applying an extension's
+    // remaining migrations after one failure, so a single unrunnable statement would block every later
+    // migration on that database, on every start.
+    //
+    // PostgreSQL syntax, which is the only dialect the host runs. SQLite has no ADD COLUMN IF NOT
+    // EXISTS, and the tests build their journal schema without executing this string. An existing row
+    // takes '', which readers resolve to that batch's own run id.
     public const string Migration002UpSql =
         """
         ALTER TABLE renamer_revert_batches ADD COLUMN IF NOT EXISTS operation_id TEXT NOT NULL DEFAULT '';

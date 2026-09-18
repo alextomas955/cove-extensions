@@ -1,54 +1,27 @@
 namespace Renamer.Execution;
 
-/// <summary>
-/// Pure-except-for-the-injected-probe cross-drive free-space decision. Sums the
-/// projected file bytes PER DESTINATION VOLUME for a planned cross-drive batch and reports the
-/// volumes whose need (summed bytes + a headroom margin) exceeds their available free space, so the
-/// batch loop can refuse with a clear per-volume message rather than fill a disk.
-/// <para>
-/// The ONLY disk touch is the injected <see cref="System.Func{T,TResult}"/> free-space probe
-/// (production: <c>vol =&gt; new System.IO.DriveInfo(vol).AvailableFreeSpace</c>); everything else is
-/// <see cref="VolumeClassifier.VolumeKey"/> string math. The guard is fully unit-testable with NO
-/// real second drive. Like <see cref="VolumeClassifier"/> it touches no host types (no CoveContext).
-/// </para>
-/// <para>
-/// Same-volume moves are EXCLUDED from every sum via <see cref="VolumeClassifier.SameVolume"/>
-/// (REUSED — no hand-rolled root compare): an in-place/same-drive renamer consumes ~no extra space,
-/// so a same-drive-only batch is never falsely refused.
-/// </para>
-/// <para>
-/// <see cref="Shortfall"/> is a stateless decision over the projected moves and is safe to call
-/// repeatedly — both for an up-front check and for an in-flight re-check (re-calling it mid-batch to
-/// catch a concurrent scan shrinking the volume). The thread-safe parallel batch loop that consumes
-/// <c>RenamerOptions.CrossVolumeConcurrency</c> + <see cref="PartitionByPair"/> lives in the batch
-/// runner. Delete-as-you-go — the per-item copy→verify→delete primitive (<see cref="CrossVolumeMover"/>)
-/// that frees each source as it goes, bounding peak extra space by the in-flight files — is
-/// relied upon, not re-implemented here.
-/// </para>
-/// </summary>
+// The cross-drive free-space decision. It sums the projected file bytes per destination volume and
+// reports the volumes whose need, the summed bytes plus a headroom margin, exceeds their available
+// free space, so the batch loop can refuse per volume instead of filling a disk.
+//
+// The only disk touch is the injected free-space probe; everything else is VolumeClassifier string
+// math, so the guard is testable with no second drive.
+//
+// Same-volume moves are excluded from every sum, because an in-place rename consumes no extra space
+// and a same-drive-only batch must never be refused.
+//
+// Shortfall is stateless over the projected moves and safe to call repeatedly, both up front and
+// mid-batch to catch a concurrent scan shrinking the volume. CrossVolumeMover frees each source as it
+// goes, which bounds peak extra space by the files in flight.
 public static class FreeSpaceGuard
 {
-    /// <summary>
-    /// Returns the per-destination-volume shortfall for a planned cross-drive batch: for each
-    /// destination volume whose summed projected bytes plus <paramref name="headroomBytes"/> exceed
-    /// the volume's available free space, an entry of (Volume, Needed, Available). An EMPTY result
-    /// means the whole batch fits.
-    /// <list type="bullet">
-    /// <item>Same-volume moves (<see cref="VolumeClassifier.SameVolume"/> is <c>true</c>) are
-    /// excluded from every sum — they consume ~no extra space.</item>
-    /// <item>Cross-volume moves are grouped by destination volume
-    /// (<see cref="VolumeClassifier.VolumeKey"/> of the new path).</item>
-    /// <item><c>Needed = sum(SizeBytes) + headroomBytes</c>; <c>Available =
-    /// availableFreeSpace(volume)</c>; only volumes where <c>Needed &gt; Available</c> are returned.</item>
-    /// </list>
-    /// classify-not-throw: a malformed/rootless new path simply groups under its
-    /// <see cref="VolumeClassifier.VolumeKey"/> value (possibly <c>""</c>); the method never throws on
-    /// path content.
-    /// </summary>
-    /// <param name="moves">The projected moves — each a (current full path, new full path, file size in bytes) tuple. Decoupled from the planner's RenamerPlanItem so the guard needs no FileId→size lookup.</param>
-    /// <param name="headroomBytes">The safety margin added to each volume's summed need before the comparison (<c>RenamerOptions.FreeSpaceHeadroomBytes</c>).</param>
-    /// <param name="availableFreeSpace">The injected free-space probe (production: <c>vol =&gt; new DriveInfo(vol).AvailableFreeSpace</c>) — the ONLY disk touch.</param>
-    /// <param name="mountPoints">Mount table to resolve Unix volumes against; omit for the real one.</param>
+    // Returns (Volume, Needed, Available) for each destination volume whose summed projected bytes plus
+    // headroomBytes exceed its available free space. An empty result means the whole batch fits.
+    //
+    // A malformed or rootless new path groups under its VolumeClassifier key, which may be empty; the
+    // method never throws on path content.
+    //
+    // The moves are decoupled from the planner's plan item so the guard needs no file-id-to-size lookup.
     public static IReadOnlyList<(string Volume, long Needed, long Available)> Shortfall(
         IEnumerable<(string OldFullPath, string NewFullPath, long SizeBytes)> moves,
         long headroomBytes,
@@ -59,7 +32,7 @@ public static class FreeSpaceGuard
         ArgumentNullException.ThrowIfNull(availableFreeSpace);
 
         var perVolume = moves
-            .Where(m => !VolumeClassifier.SameVolume(m.OldFullPath, m.NewFullPath, mountPoints))   // cross-volume only
+            .Where(m => !VolumeClassifier.SameVolume(m.OldFullPath, m.NewFullPath, mountPoints))
             .GroupBy(m => VolumeClassifier.VolumeKey(m.NewFullPath, mountPoints))
             .Select(g => (
                 Volume: g.Key,
@@ -69,23 +42,12 @@ public static class FreeSpaceGuard
         return [.. perVolume.Where(v => v.Needed > v.Available)];
     }
 
-    /// <summary>
-    /// Partitions the projected moves into groups the batch runner's bounded loop can throttle
-    /// independently. Cross-volume moves are grouped by their
-    /// (source-root, destination-root) disk pair so the runner can bound concurrency per pair
-    /// (<c>RenamerOptions.CrossVolumeConcurrency</c>); same-volume moves are returned together under a
-    /// single group (<see cref="SameVolumePair"/>) bounded by
-    /// <c>RenamerOptions.SameVolumeConcurrency</c>. Grouping keys on
-    /// <see cref="VolumeClassifier.VolumeKey"/> — the value the same/cross split reads too.
-    /// This only exposes the grouping; the consuming parallel loop lives in the batch runner.
-    /// </summary>
-    /// <remarks>
-    /// The runner processes the returned groups IN SEQUENCE, so a batch's peak concurrency is one
-    /// group's bound and never the sum over the groups.
-    /// </remarks>
-    /// <param name="items">The units of work to partition.</param>
-    /// <param name="move">Reads the (current path, new path) an item would perform.</param>
-    /// <param name="mountPoints">Mount table to resolve Unix volumes against; omit for the real one.</param>
+    // Partitions the projected moves into groups the batch runner's bounded loop throttles
+    // independently. Cross-volume moves group by their (source root, destination root) disk pair;
+    // same-volume moves share one group under SameVolumePair.
+    //
+    // The runner processes the returned groups in sequence, so a batch's peak concurrency is one
+    // group's bound and never the sum over the groups.
     public static IReadOnlyList<((string SourceRoot, string DestRoot) Pair, IReadOnlyList<T> Items)> PartitionByPair<T>(
         IEnumerable<T> items,
         Func<T, (string OldFullPath, string NewFullPath)> move,
@@ -106,11 +68,7 @@ public static class FreeSpaceGuard
             .Select(g => (Pair: g.Key, Items: (IReadOnlyList<T>)[.. g]))];
     }
 
-    /// <summary>
-    /// The sentinel (source,dest) pair under which all same-volume moves are grouped by
-    /// <see cref="PartitionByPair"/>. Same-volume renames are bounded by one setting,
-    /// <c>RenamerOptions.SameVolumeConcurrency</c>, so they share one group regardless of which drive
-    /// they live on.
-    /// </summary>
+    // The sentinel pair every same-volume move groups under. Same-volume renames are bounded by one
+    // concurrency setting, so they share one group whichever drive they live on.
     public static (string SourceRoot, string DestRoot) SameVolumePair => (string.Empty, string.Empty);
 }

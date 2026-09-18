@@ -5,42 +5,30 @@ using Renamer.Planner;
 
 namespace Renamer.Execution;
 
-/// <summary>
-/// The ONE class that speaks to a live Cove database. It implements <see cref="IRenamerDataPort"/>
-/// (the planner's read seam) AND exposes the executor-facing primitives the mutating
-/// <c>RenamerExecutor</c> composes: load a tracked file row, re-check a collision, resolve-or-create
-/// a destination folder, and apply Basename/ParentFolderId/caption mutations with a single
-/// <see cref="DbContext.SaveChangesAsync(CancellationToken)"/>. It sets <c>Basename</c>/
-/// <c>ParentFolderId</c> ONLY — NEVER <c>BaseFileEntity.Path</c>, which Cove's
-/// <c>ComputeFilePaths</c> recomputes inside the overridden save.
-///
-/// WHY <see cref="DbContext"/> and not the concrete <c>CoveContext</c>: the production
-/// <c>Renamer.csproj</c> references <c>Cove.Plugins</c>/<c>Cove.Sdk</c> (compile-time, runtime
-/// excluded) which transitively expose <c>Cove.Core</c> entities + EF Core — but NOT
-/// <c>Cove.Data</c> where <c>CoveContext</c> lives. The host registers its <c>CoveContext</c> in DI
-/// resolvable as the base <see cref="DbContext"/> (its <c>ExtensionManager</c> resolves
-/// <c>GetService&lt;DbContext&gt;()</c>), so this class works against the base type +
-/// <c>db.Set&lt;BaseFileEntity&gt;()</c>. The overridden <c>SaveChangesAsync</c> (and its
-/// <c>ComputeFilePaths</c>) still runs because the runtime instance is the real <c>CoveContext</c>.
-/// Tests inject a SQLite-in-memory <c>CoveContext</c> (which IS-A <see cref="DbContext"/>) directly.
-///
-/// One instance wraps one context (a scope's context). In production the executor opens a scope per
-/// run via <c>IServiceScopeFactory.CreateAsyncScope()</c> and constructs this over the scoped
-/// <see cref="DbContext"/>.
-/// </summary>
+// The one class that speaks to a live Cove database. It is the planner's read seam and the
+// executor's write primitives: load a tracked file row, re-check a collision, resolve or create a
+// destination folder, and apply Basename, ParentFolderId and caption mutations under one
+// SaveChangesAsync. It sets Basename and ParentFolderId and never BaseFileEntity.Path, which Cove's
+// ComputeFilePaths recomputes inside the overridden save.
+//
+// It works against the base DbContext and not the concrete CoveContext. Renamer.csproj references
+// Cove.Plugins and Cove.Sdk, which expose Cove.Core entities and EF Core but not the Cove.Data
+// assembly where CoveContext lives. The host registers its CoveContext resolvable as DbContext, so
+// this class reaches its rows through db.Set<BaseFileEntity>(). The overridden SaveChangesAsync, and
+// with it ComputeFilePaths, still runs because the runtime instance is the real CoveContext. Tests
+// inject a SQLite in-memory CoveContext directly.
+//
+// One instance wraps one scope's context, and a DbContext is not thread-safe. In production the
+// executor opens a scope per run with IServiceScopeFactory.CreateAsyncScope and constructs this over
+// that scoped context.
 public class CoveRenamerDataPort : IRenamerDataPort
 {
     private readonly DbContext _db;
     private readonly CoveConfiguration? _config;
 
-    /// <summary>Wraps one scope's context, and the host configuration the library anchor is read from.</summary>
-    /// <param name="db">The scope's context (the real <c>CoveContext</c> at runtime).</param>
-    /// <param name="config">
-    /// Cove's own configuration singleton, the source of <see cref="LibraryRoots"/>. Optional so a
-    /// caller with no library map constructs the port unchanged; omitting it in production is visible
-    /// rather than silent, since an item with a folder template then plans as
-    /// <see cref="RenamerStatus.SkipUnanchored"/> and says so.
-    /// </param>
+    // config is Cove's own configuration singleton, the source of LibraryRoots. It is optional so a
+    // caller with no library map can construct the port; omitting it in production is visible, because
+    // an item with a folder template then plans as SkipUnanchored and says so.
     public CoveRenamerDataPort(DbContext db, CoveConfiguration? config = null)
     {
         _db = db;
@@ -50,17 +38,13 @@ public class CoveRenamerDataPort : IRenamerDataPort
     /// <inheritdoc />
     public IReadOnlyList<string> LibraryRoots => ReadLibraryRoots(_config);
 
-    /// <summary>
-    /// The one reading of <c>CoveConfiguration.CovePaths</c> into the library paths this extension
-    /// works from: blank entries dropped, each survivor spelled canonically, absent configuration an
-    /// empty list.
-    /// </summary>
-    /// <remarks>
-    /// Static and shared because the port is not the only caller: the one-time options conversion runs
-    /// at initialize, before any scope or port exists, and has to place stored rules under the SAME
-    /// paths the planner will later anchor on. A second projection there could disagree about a blank
-    /// entry, which is the difference between preserving a rule and dropping it.
-    /// </remarks>
+    // The one reading of CoveConfiguration.CovePaths into the library paths this extension works from:
+    // blank entries dropped, each survivor spelled canonically, absent configuration an empty list.
+    //
+    // Static and shared because the port is not the only caller: the one-time options conversion runs at
+    // initialize, before any scope or port exists, and has to place stored rules under the same paths
+    // the planner later anchors on. A second projection there could disagree about a blank entry, which
+    // is the difference between preserving a rule and dropping it.
     public static IReadOnlyList<string> ReadLibraryRoots(CoveConfiguration? config) =>
         config is null
             ? []
@@ -69,24 +53,18 @@ public class CoveRenamerDataPort : IRenamerDataPort
                 .Where(p => !string.IsNullOrWhiteSpace(p))
                 .Select(Canonical)];
 
-    /// <summary>
-    /// The one spelling of a Cove library path this extension uses: forward slashes, no trailing
-    /// separator.
-    /// </summary>
-    /// <remarks>
-    /// Cove hands its paths back in the platform's own spelling, and this list leaves over the wire:
-    /// the settings panel stores a destination root as the very string this list gave it and re-checks
-    /// membership against it, so two spellings of one folder would read as two folders. Normalizing at
-    /// the one place the host's value enters leaves a single spelling for the panel to store and the
-    /// planner to re-check.
-    /// <para>
-    /// <see cref="Planner.PathConfinement.ContainingRoot"/> re-trims the entry it returns, so a
-    /// root-only library path spelled <c>"/"</c> here comes back from it as <c>""</c>, which is how a
-    /// destination says "the file's own library path". Reaching that needs a Cove library path spelled
-    /// exactly <c>/</c>, <c>\</c> or <c>//</c>, and any longer sibling root wins the longest match
-    /// first.
-    /// </para>
-    /// </remarks>
+    // The one spelling of a Cove library path this extension uses: forward slashes, no trailing
+    // separator.
+    //
+    // Cove hands its paths back in the platform's own spelling, and this list leaves over the wire: the
+    // settings panel stores a destination root as the very string this list gave it and re-checks
+    // membership against it, so two spellings of one folder would read as two folders. Normalizing where
+    // the host's value enters leaves one spelling for the panel to store and the planner to re-check.
+    //
+    // PathConfinement.ContainingRoot re-trims the entry it returns, so a root-only library path spelled
+    // "/" here comes back from it as "", which is how a destination says "the file's own library path".
+    // Reaching that needs a Cove library path spelled exactly /, \ or //, and any longer sibling root
+    // wins the longest match first.
     private static string Canonical(string path)
     {
         string normalized = PathOps.NormalizeSlash(path).TrimEnd('/');
@@ -117,10 +95,10 @@ public class CoveRenamerDataPort : IRenamerDataPort
             return new NameResolution(hasRows, []);
         }
 
-        // Lowercased on both sides rather than compared with a culture-aware collation: the provider
-        // decides what a case-insensitive string comparison means, and Postgres's default collation is
-        // case-SENSITIVE, so an EF `string.Equals(a, b, OrdinalIgnoreCase)` would not translate and a
-        // plain `Contains` would silently miss the case variants this resolution exists to find.
+        // Both sides are lowercased in the query. The provider decides what a case-insensitive string
+        // comparison means, and Postgres's default collation is case-sensitive, so an EF
+        // `string.Equals(a, b, OrdinalIgnoreCase)` does not translate and a plain `Contains` would miss
+        // the case variants this resolution exists to find.
         var wanted = names.Select(n => n.ToLowerInvariant()).Distinct().ToList();
 
         IReadOnlyList<(int Id, string Name)> matches = kind switch
@@ -139,16 +117,9 @@ public class CoveRenamerDataPort : IRenamerDataPort
         return new NameResolution(hasRows, matches);
     }
 
-    /// <summary>
-    /// Loads a media item's full file graph (via the EF Include chain) and maps it into the
-    /// Renamer-owned <see cref="RenamerEntity"/> DTO. Returns null when the item does not exist.
-    /// <para>
-    /// Read-only: the result is mapped straight into a DTO and never saved, so every query here is
-    /// <c>AsNoTracking()</c> — no change tracker entries, no accidental write-back. This mirrors the
-    /// host's own read paths (e.g. <c>EfExtensionStore</c>'s <c>GetAsync</c>/<c>GetAllAsync</c>). The
-    /// mutating executor re-loads tracked rows separately in <see cref="ApplyAndSaveAsync"/>.
-    /// </para>
-    /// </summary>
+    // Returns null when the item does not exist. The result is mapped straight into a DTO and never
+    // saved, so every query here is AsNoTracking: no change tracker entries and no write-back. The
+    // mutating path re-loads tracked rows separately in ApplyAndSaveAsync.
     public async Task<RenamerEntity?> LoadEntityAsync(RenamerFileKind kind, int entityId, CancellationToken ct = default)
     {
         switch (kind)
@@ -179,21 +150,18 @@ public class CoveRenamerDataPort : IRenamerDataPort
         }
     }
 
-    // EF Core translates "WHERE Id IN (@p0..@pN)" to one bound parameter per id, so a huge N would
-    // blow Postgres's ~65535-parameter cap and generate pathological SQL. Ids are therefore loaded
-    // ~200 at a time — a bounded parameter count and one heavy round-trip per chunk instead of one per
-    // entity. IN-list over "= ANY(@ids)" is deliberate: the provider is host-supplied (Postgres in
-    // prod, SQLite in tests) and a raw Npgsql array param would not translate on SQLite and would need
-    // provider-conditional SQL; the fixed IN-list chunk is provider-agnostic.
+    // EF Core translates an IN list to one bound parameter per id, so an unchunked load would exceed
+    // Postgres's parameter cap and generate pathological SQL. Chunking keeps the parameter count bounded
+    // at one round-trip per chunk. The IN list is provider-agnostic: the provider is host-supplied,
+    // Postgres in production and SQLite in tests, and a raw Npgsql array parameter would not translate
+    // on SQLite.
     internal const int LoadChunkSize = 200;
 
-    // The single source of truth for studio-hierarchy depth. Two things MUST stay bound to it: the
-    // WalkParentStudios ancestor-hop bound, and — because EF's Studio→Studio .ThenInclude cannot be
-    // parameterized by a runtime count — the literal number of ".ThenInclude(s => s!.Parent)" hops each
-    // per-kind query below carries after ".Include(x => x.Studio)". StudioDepthLockstepTests seeds
-    // MaxParentDepth+1 ancestors and asserts exactly MaxParentDepth load through the real chain, so
-    // changing this constant OR a query's hop count without the other fails that test — the coupling is
-    // enforced mechanically, not by memory.
+    // The single source of truth for studio-hierarchy depth. Two things stay bound to it: the
+    // WalkParentStudios ancestor-hop bound, and the number of ".ThenInclude(s => s!.Parent)" hops each
+    // per-kind query below carries, because EF's Studio-to-Studio ThenInclude cannot be parameterized by
+    // a runtime count. StudioDepthLockstepTests seeds one more ancestor than this depth and asserts how
+    // many load through the real chain, so changing the constant or a query's hop count alone fails it.
     internal const int MaxParentDepth = 3;
 
     public async Task<IReadOnlyList<RenamerEntity>> LoadEntitiesAsync(
@@ -243,11 +211,11 @@ public class CoveRenamerDataPort : IRenamerDataPort
         return result;
     }
 
-    // Single-load and batch-load share BOTH the per-kind query and its mapper below, so their DTOs
-    // cannot drift apart.
+    // Single-load and batch-load share the per-kind query and its mapper below, so their DTOs cannot
+    // drift apart.
 
-    // Each query's ancestor Include hop count is bound to MaxParentDepth (== 3) and guarded by
-    // StudioDepthLockstepTests — add or drop a ".ThenInclude(s => s!.Parent)" here without matching the
+    // Each query's ancestor Include hop count is bound to MaxParentDepth and guarded by
+    // StudioDepthLockstepTests: add or drop a ".ThenInclude(s => s!.Parent)" here without matching the
     // constant and that test fails.
     private IQueryable<Video> VideoQuery() => _db.Set<Video>()
         .AsNoTracking()
@@ -337,15 +305,15 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
         var claims = new Dictionary<string, int>(PathOps.PathComparer);
 
-        // Chunked for the same reason LoadEntitiesAsync is: EF binds one parameter per element of an
-        // IN list, and a whole chunk of planned paths would approach the provider's parameter cap.
+        // Chunked for the same reason LoadEntitiesAsync is: EF binds one parameter per element of an IN
+        // list, and a whole run of planned paths would approach the provider's parameter cap.
         foreach (var chunk in sourcePaths.Distinct(PathOps.PathComparer).Chunk(LoadChunkSize))
         {
             // Where the volume treats a path and its case-variant as one file, so must this query.
             // Equality here is the database collation's, and a case-sensitive collation over a
             // case-insensitive volume would read a twin row differing only in case as a second path
-            // and report neither as contested. Cove indexes upper(Path), so the folded comparison is
-            // served by an index rather than a scan.
+            // and report neither as contested. Cove indexes upper(Path), so an index serves the folded
+            // comparison.
             var rows = PathOps.PathsIgnoreCase
                 ? await FoldedClaimsAsync(chunk, ct)
                 : await ExactClaimsAsync(chunk, ct);
@@ -414,29 +382,20 @@ public class CoveRenamerDataPort : IRenamerDataPort
         };
     }
 
-    /// <summary>
-    /// The <c>(ParentFolderId, Basename)</c> unique-index pre-check: true iff some OTHER file row
-    /// already occupies the slot.
-    /// </summary>
+    // The (ParentFolderId, Basename) unique-index pre-check: true when another file row already
+    // occupies the slot. The source row is excluded, so a case-only rename onto itself is not a
+    // collision.
     public virtual async Task<bool> CollisionExistsAsync(int folderId, string basename, int selfFileId, CancellationToken ct = default)
         => await _db.Set<BaseFileEntity>()
             .AnyAsync(f => f.ParentFolderId == folderId && f.Basename == basename && f.Id != selfFileId, ct);
 
-    /// <summary>
-    /// Resolves a destination <see cref="Folder"/> by its (forward-slash) path, creating it (with
-    /// its own <see cref="DbContext.SaveChangesAsync(CancellationToken)"/> to obtain the Id) when
-    /// absent — mirrors Cove's own <c>FileOpsController.MoveFiles</c>.
-    /// </summary>
+    // Resolves a destination folder by its forward-slash path, creating it with its own save to obtain
+    // the id when absent, as Cove's own FileOpsController.MoveFiles does.
     public async Task<int> GetOrCreateFolderIdAsync(string folderPath, CancellationToken ct = default)
         => (await GetOrCreateFolderAsync(folderPath, ct)).Id;
 
-    /// <summary>
-    /// Read-only counterpart to <see cref="GetOrCreateFolderIdAsync"/>: returns the existing folder's
-    /// id or <c>null</c> when absent. Same path normalization and lookup as
-    /// <see cref="GetOrCreateFolderAsync"/>, but it never <c>Add</c>s or
-    /// <see cref="DbContext.SaveChangesAsync(CancellationToken)"/>s — so the planner can run a
-    /// dry-run preview without persisting a destination folder.
-    /// </summary>
+    // The read-only counterpart: the existing folder's id, or null when absent. It adds and saves
+    // nothing, so a preview does not persist a destination folder.
     public async Task<int?> TryGetFolderIdAsync(string folderPath, CancellationToken ct = default)
     {
         var normalized = folderPath.Replace('\\', '/');
@@ -445,14 +404,14 @@ public class CoveRenamerDataPort : IRenamerDataPort
         return existing?.Id;
     }
 
-    /// <summary>The read-only disk probe backing the preview's missing-source warning; never mutates.</summary>
+    // The read-only disk probe backing the preview's missing-source warning.
     public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
     {
         var native = fullPath.Replace('/', Path.DirectorySeparatorChar);
         return Task.FromResult(System.IO.File.Exists(native));
     }
 
-    /// <summary>Resolves an existing <see cref="Folder"/> by path or creates+saves one for its Id. Returns the tracked entity.</summary>
+    // Returns the tracked folder entity, creating and saving one when the path has none.
     private async Task<Folder> GetOrCreateFolderAsync(string folderPath, CancellationToken ct = default)
     {
         var normalized = folderPath.Replace('\\', '/');
@@ -464,25 +423,19 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
         var folder = new Folder { Path = normalized, ModTime = DateTime.UtcNow };
         _db.Set<Folder>().Add(folder);
-        await _db.SaveChangesAsync(ct);  // obtain the Id, mirroring FileOpsController
+        await _db.SaveChangesAsync(ct);  // the row has to be saved for its Id
         return folder;
     }
 
-    /// <summary>
-    /// Applies each mutation to its tracked file row — sets <c>Basename</c>, optionally
-    /// <c>ParentFolderId</c> + the <c>ParentFolder</c> navigation (so the recompute resolves the new
-    /// folder path), and each moved caption's <c>Filename</c> — then calls a single
-    /// <see cref="DbContext.SaveChangesAsync(CancellationToken)"/>. NEVER sets <c>Path</c>. Returns
-    /// the recomputed Path of each saved file. Throws on a save failure (e.g. the unique-index
-    /// violation) so the executor's catch can roll the disk back.
-    /// </summary>
-    /// <remarks>
-    /// SINGLE-MUTATION IN PRACTICE. This costs a tracked query per mutation, and another per mutation
-    /// that changes folder, deduping neither; both callers — <see cref="RenamerExecutor"/> and
-    /// <see cref="UndoReplayer"/> — pass exactly one, so no batch shape is exercised. A batching caller
-    /// wants the chunked <c>WHERE Id IN (…)</c> of <see cref="LoadEntitiesAsync"/>, which is
-    /// deliberately not built ahead of one existing.
-    /// </remarks>
+    // Applies each mutation to its tracked file row: Basename, optionally ParentFolderId and the
+    // ParentFolder navigation so the recompute resolves the new folder path, and each moved caption's
+    // Filename. Path is never set; Cove recomputes it in the one SaveChangesAsync, whose result is the
+    // recomputed Path of each saved file. A save failure, such as the unique-index violation, throws so
+    // the executor's catch rolls the disk back.
+    //
+    // Every caller passes a single mutation today, so no batch shape is exercised: this costs a tracked
+    // query per mutation, and another per mutation that changes folder, deduping neither. A batching
+    // caller wants the chunked IN list of LoadEntitiesAsync.
     public virtual async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
         IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
     {
@@ -495,24 +448,23 @@ public class CoveRenamerDataPort : IRenamerDataPort
                 .FirstOrDefaultAsync(f => f.Id == m.FileId, ct)
                 ?? throw new InvalidOperationException($"file {m.FileId} not found");
 
-            file.Basename = m.NewBasename;     // NEVER file.Path — ComputeFilePaths recomputes it.
+            file.Basename = m.NewBasename;     // not file.Path, which ComputeFilePaths recomputes
 
             if (m.NewParentFolderId is int newFolderId && newFolderId != file.ParentFolderId)
             {
                 file.ParentFolderId = newFolderId;
-                // Set the navigation too so ComputeFilePaths resolves the new folder path in-memory.
+                // The navigation is set too, so ComputeFilePaths resolves the new folder path in memory.
                 file.ParentFolder = await _db.Set<Folder>().FirstOrDefaultAsync(f => f.Id == newFolderId, ct);
             }
 
             if (m.CaptionRenames is { Count: > 0 } && file is VideoFile vf)
             {
-                // The rows are QUERIED, never reached through file.Captions. Every read this port
-                // makes is AsNoTracking, so in production nothing has put this file's captions in the
-                // change tracker and the navigation is an empty collection — a lookup through it finds
-                // nothing and each rename is dropped in silence, leaving the row naming a file the move
-                // has just taken away. It survived because a test that seeds a caption through the same
-                // context gets the navigation populated by relationship fix-up, so the fixture supplied
-                // the state production does not have.
+                // The rows are queried and not reached through file.Captions. Every read this port makes
+                // is AsNoTracking, so in production nothing has put this file's captions in the change
+                // tracker and the navigation is empty: a lookup through it finds nothing and each rename
+                // is dropped in silence, leaving the row naming a file the move has taken away. A test
+                // that seeds a caption through the same context gets the navigation populated by
+                // relationship fix-up, so a fixture hides this.
                 var captionIds = m.CaptionRenames.Select(cr => cr.CaptionId).ToList();
                 var captions = await _db.Set<VideoCaption>()
                     .Where(c => c.FileId == vf.Id && captionIds.Contains(c.Id))
@@ -536,23 +488,20 @@ public class CoveRenamerDataPort : IRenamerDataPort
             touched.Add(file);
         }
 
-        await _db.SaveChangesAsync(ct);  // ComputeFilePaths recomputes every touched file's Path here.
+        await _db.SaveChangesAsync(ct);  // ComputeFilePaths recomputes every touched file's Path here
 
         return [.. touched.Select(f => new SavedFile(f.Id, f.Path))];
     }
 
-    /// <summary>
-    /// Records a filename-derived title on its media entity, and only on one that still has none.
-    /// </summary>
-    /// <remarks>
-    /// This is the ONE place this extension writes metadata rather than location, and the emptiness
-    /// re-check against the TRACKED row is what keeps that safe: the planner derives a title only for a
-    /// title-less item, but a person can type one between the preview and the run, and a rename must
-    /// never overwrite what they wrote. The same check makes the write idempotent across the files of a
-    /// multi-file item, which save one at a time. No <c>SaveChangesAsync</c> here - the caller's single
-    /// save carries it, so a recorded title and its rename cannot come apart. Why record it at all:
-    /// <c>MetadataProjector.DerivedTitle</c>.
-    /// </remarks>
+    // Records a filename-derived title on its media entity, and only on one that still has none.
+    //
+    // This is the one place this extension writes metadata and not location, and the emptiness re-check
+    // against the tracked row is what keeps it safe: the planner derives a title only for a title-less
+    // item, but a person can type one between the preview and the run, and a rename does not overwrite
+    // what they wrote. The same check makes the write idempotent across the files of a multi-file item,
+    // which save one at a time. There is no SaveChangesAsync here: the caller's single save carries it,
+    // so a recorded title and its rename cannot come apart. MetadataProjector.DerivedTitle covers why it
+    // is recorded at all.
     private async Task ApplyDerivedTitleAsync(RenamerEntityTitleWrite write, CancellationToken ct)
     {
         switch (write.Kind)
@@ -595,18 +544,13 @@ public class CoveRenamerDataPort : IRenamerDataPort
         }
     }
 
-    /// <summary>
-    /// Walks the loaded studio's parent navigation into the Renamer-owned, NEAREST-FIRST
-    /// <c>(int Id, string Name)</c> tuple chain: index 0 is <paramref name="studio"/>'s immediate
-    /// parent, walking toward the root. The walk is bounded to <c>MaxParentDepth</c> ancestor hops,
-    /// and the eager-load <c>.Include(...).ThenInclude(Parent)</c> chain in <see cref="LoadEntityAsync"/>
-    /// loads exactly that many ancestor levels, so the walk never references an ancestor that was not
-    /// loaded. The cap is a deliberate hard product limit on studio-hierarchy depth: an ancestor beyond
-    /// it simply goes unmatched (equivalent to no rule), and a pathological self-referencing chain can
-    /// never loop unbounded. Returns an empty list when the studio is null or top-level (no parent).
-    /// <c>Cove.Core.Entities.Studio</c> is touched ONLY here; the boundary holds because this returns
-    /// the Renamer-owned tuple shape, never the Cove type.
-    /// </summary>
+    // Walks the loaded studio's parent navigation into a nearest-first chain: index 0 is the studio's
+    // immediate parent, walking toward the root. The walk is bounded to MaxParentDepth hops, and the
+    // Include chain loads exactly that many ancestor levels, so the walk never references an ancestor
+    // that was not loaded. The cap is a hard limit on studio-hierarchy depth: an ancestor beyond it goes
+    // unmatched, and a self-referencing chain cannot loop unbounded. A null or top-level studio yields
+    // an empty list. Cove's Studio type is touched only here, and the tuple shape returned is the
+    // renamer's own.
     private static List<(int Id, string Name)> WalkParentStudios(Studio? studio)
     {
         var chain = new List<(int Id, string Name)>(MaxParentDepth);

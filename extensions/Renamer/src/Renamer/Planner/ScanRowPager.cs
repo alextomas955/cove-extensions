@@ -4,23 +4,17 @@ using Renamer.Options;
 
 namespace Renamer.Planner;
 
-/// <summary>
-/// Serves one page of a whole-library dry run, planning only the entities that page needs.
-/// </summary>
-/// <remarks>
-/// Pages through <see cref="IRenamerDataPort.LoadEntityIdPageAsync"/>'s ascending keyset and plans each
-/// entity with <see cref="RenamerPlanner.PlanLoadedEntity"/> — the SAME method the scan job calls. A
-/// slice therefore equals the corresponding slice of a full plan because there is one planner, not
-/// because two paths were written to agree; <c>ScanPagingEquivalenceTests</c> is what holds that.
-/// </remarks>
-/// <param name="planner">The one planner; a second planning path would break the equivalence this rests on.</param>
-/// <param name="port">The read seam ids and entity graphs come from.</param>
-/// <param name="mountPoints">
-/// Mount table to resolve Unix volumes against; omit for the real one. Carried for the same reason
-/// <see cref="ScanAggregator"/> and <see cref="BatchPreview.Summarize"/> carry it: a page's in-flight
-/// overflow flag is a cross-volume decision, and on Unix volume identity comes from the RUNNER's mount
-/// table, so a flagged row is otherwise not reproducible off the machine that produced it.
-/// </param>
+// Serves one page of a whole-library dry run, planning only the entities that page needs.
+//
+// It pages through the port's ascending keyset of entity ids and plans each entity with
+// RenamerPlanner.PlanLoadedEntity, the same method the scan job calls, so a slice equals the
+// corresponding slice of a full plan because there is one planner. ScanPagingEquivalenceTests is what
+// holds that.
+//
+// mountPoints resolves Unix volumes; omit for the real table. It is carried for the same reason
+// ScanAggregator and BatchPreview.Summarize carry it: a page's in-flight overflow flag is a cross-volume
+// decision, and on Unix volume identity comes from the runner's mount table, so a flagged row is
+// otherwise not reproducible off the machine that produced it.
 public sealed class ScanRowPager(
     RenamerPlanner planner, IRenamerDataPort port, IReadOnlyCollection<string>? mountPoints = null)
 {
@@ -37,15 +31,9 @@ public sealed class ScanRowPager(
     // library; with it the request stops and says so (ScanRowsPage.BudgetExhausted).
     public const int MaxEntitiesPerRequest = 500;
 
-    /// <summary>Reads the next page of rows.</summary>
-    /// <param name="readableKinds">The kinds the caller may read; no other kind is walked or cursored into.</param>
-    /// <param name="cursor">Where to resume, or null to start at the first readable kind.</param>
-    /// <param name="take">Requested row count; clamped to <see cref="MaxTake"/>, non-positive falls back to <see cref="DefaultTake"/>.</param>
-    /// <param name="query">Case-insensitive path substring filter, or null/blank for no filter.</param>
-    /// <param name="bucket">Bucket filter, or null for no filter.</param>
-    /// <param name="options">The options to plan with.</param>
-    /// <param name="lookups">The routing lookups built once from <paramref name="options"/>.</param>
-    /// <param name="ct">Cancellation token.</param>
+    // Reads the next page of rows. Only readableKinds are walked or cursored into. A null cursor starts
+    // at the first readable kind. take is clamped to MaxTake, and a non-positive value falls back to
+    // DefaultTake. A null or blank query means no filter, as does a null bucket.
     public async Task<ScanRowsPage> PageAsync(
         IReadOnlyList<RenamerFileKind> readableKinds, ScanCursor? cursor, int take,
         string? query, ScanBucketKind? bucket, RenamerOptions options, RouteLookups lookups,
@@ -63,8 +51,8 @@ public sealed class ScanRowPager(
         int startAfter = 0;
         if (cursor is not null)
         {
-            // A cursor naming a kind the caller cannot read (a stale cursor, or one hand-crafted) resumes
-            // at the next kind they CAN read, from its beginning — never inside the unreadable kind.
+            // A cursor naming a kind the caller cannot read, whether stale or hand-crafted, resumes at
+            // the next kind they can read, from its beginning, never inside the unreadable kind.
             startIndex = order.FindIndex(k => k >= cursor.Kind);
             if (startIndex < 0)
             {
@@ -108,8 +96,8 @@ public sealed class ScanRowPager(
                         var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
                         foreach (var item in plan.Items)
                         {
-                            // The budget comes from the SAME options instance the planner just planned
-                            // against, so the row cannot be measured against a separately-sourced one.
+                            // The budget comes from the same options instance the planner just planned
+                            // against, so the row cannot be measured against a separately sourced one.
                             var row = ScanRow.From(
                                 kind, plan.EntityId, item,
                                 BatchPreview.InFlightPathOverflows(item, options.FullPathMax, mountPoints));
@@ -130,10 +118,10 @@ public sealed class ScanRowPager(
                     after = id;
                     examined++;
 
-                    // Both stops are tested at an ENTITY boundary: an entity's files are planned together
+                    // Both stops are tested at an entity boundary: an entity's files are planned together
                     // and the cursor addresses entities, so splitting one would make the cursor ambiguous
-                    // about which of its rows were already served. A page may therefore overshoot pageSize
-                    // by the last entity's file count.
+                    // about which of its rows were already served. A page may therefore overshoot
+                    // pageSize by the last entity's file count.
                     if (rows.Count >= pageSize)
                     {
                         return new ScanRowsPage(rows, new ScanCursor(kind, after), examined, false);
@@ -155,12 +143,12 @@ public sealed class ScanRowPager(
         return new ScanRowsPage(rows, null, examined, false);
     }
 
-    // Ids are pulled in batches so a filtered page issues one id query per ~200 entities rather than one
-    // per entity; the same batch feeds one chunked graph load. Bound to the port's own chunk decision so
+    // Ids are pulled in batches so a filtered page issues one id query per batch rather than one per
+    // entity, and the same batch feeds one chunked graph load. Bound to the port's own chunk decision so
     // there is a single number.
     private const int IdBatchSize = CoveRenamerDataPort.LoadChunkSize;
 
-    /// <summary>Trims and lower-cases a search query; a blank query becomes null, meaning no filter.</summary>
+    // Trims and lower-cases a search query; a blank query becomes null, meaning no filter.
     internal static string? NormalizeQuery(string? query)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -171,13 +159,11 @@ public sealed class ScanRowPager(
         return query.Trim().ToLowerInvariant();
     }
 
-    /// <summary>True iff <paramref name="row"/> matches <paramref name="needle"/> (null matches everything).</summary>
-    /// <remarks>
-    /// Reproduces the client's in-table search exactly — the same four haystack fields joined the same
-    /// way, the same trim, the same case-insensitive substring test — because a user must not see their
-    /// result set change under them now that the box filters server-side. The basename and folder are
-    /// derived from <see cref="ScanRow.NewFullPath"/>, which is where the client reads them from too.
-    /// </remarks>
+    // True when the row matches the needle; a null needle matches everything. Reproduces the client's
+    // in-table search exactly - the same four haystack fields joined the same way, the same trim, the
+    // same case-insensitive substring test - because a user must not see their result set change under
+    // them now that the box filters server-side. The basename and folder are derived from NewFullPath,
+    // which is where the client reads them from too.
     internal static bool Matches(ScanRow row, string? needle)
     {
         ArgumentNullException.ThrowIfNull(row);

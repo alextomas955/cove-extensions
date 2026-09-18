@@ -3,31 +3,15 @@ using Renamer.Planner;
 
 namespace Renamer.Engine;
 
-/// <summary>
-/// Pure, static, host-free per-field VALUE rewriter. Operates on raw resolved token values
-/// inside <see cref="TemplateEngine.BuildResolvedMap"/>, BEFORE <see cref="Sanitizer.CleanSegment"/>
-/// — field rewrites are value-level transforms, sanitize is a segment-level transform; the two are
-/// kept separate and do NOT merge. This class does NOT re-implement the sanitizer's
-/// illegal/space/collapse logic. No I/O, no host types.
-///
-/// Per-field rules key off the canonical <see cref="Tokens"/> names case-insensitively
-/// (never raw literals). <see cref="RewriteScalar"/> applies the value-level transforms in this
-/// fixed order: field_replacer → squeeze_studio_names → prepositions_removal.
-/// </summary>
+// Value-level rewrites of resolved token values, applied before the segment-level sanitize step.
+// Rules key off the canonical Tokens names, case-insensitively.
 public static class FieldRewriter
 {
-    /// <summary>
-    /// Applies the value-level rewrites for one scalar token in this fixed order:
-    /// (1) literal find/replace (<see cref="RenamerOptions.FieldReplacers"/>),
-    /// (2) squeeze_studio_names (<see cref="RenamerOptions.SqueezeStudioNames"/>),
-    /// (3) leading-article strip (<see cref="RenamerOptions.StripLeadingArticles"/>).
-    /// Pure: no I/O, no host types, no regex.
-    /// </summary>
+    // Order: literal find/replace, then the studio-name squeeze, then the leading-article strip.
     public static string RewriteScalar(string tokenName, string value, RenamerOptions o)
     {
-        // Step 1 — per-field literal find/replace (literal, NOT regex), in list
-        // order, for rules targeting this token. Skip rules with an empty Find so adversarial /
-        // empty config cannot loop or throw.
+        // Find and Replace are literal, not regex. A rule with an empty Find is skipped so a stored
+        // empty rule cannot loop or throw.
         foreach (var rule in o.FieldReplacers)
         {
             if (rule.Find.Length == 0)
@@ -41,15 +25,13 @@ public static class FieldRewriter
             }
         }
 
-        // Step 2 — squeeze_studio_names: remove all spaces from the $studio value.
         if (o.SqueezeStudioNames
             && string.Equals(tokenName, Tokens.Studio, StringComparison.OrdinalIgnoreCase))
         {
             value = value.Replace(" ", string.Empty);
         }
 
-        // Step 3 — strip at most ONE leading article (The/A/An, configurable,
-        // case-insensitive) followed by whitespace, from $title by default.
+        // At most one leading article is stripped, and only from $title.
         if (o.StripLeadingArticles
             && string.Equals(tokenName, Tokens.Title, StringComparison.OrdinalIgnoreCase))
         {
@@ -59,14 +41,8 @@ public static class FieldRewriter
         return value;
     }
 
-    /// <summary>
-    /// When <see cref="RenamerOptions.PreventTitlePerformer"/> is set, drops any performer whose
-    /// TRIMMED name appears as a whole-word, case-insensitive occurrence inside
-    /// <paramref name="resolvedTitle"/> (the title after the scalar rewrites). Whole-word boundaries
-    /// mean <c>Eve</c> is dropped from "Eve Goes Home" but NOT from "Evelyn Goes Home". A
-    /// trimmed-empty performer name is never dropped. Returns the list unchanged when the flag is off.
-    /// Pure: no I/O, no user-compiled regex.
-    /// </summary>
+    // Whole-word boundaries mean "Eve" is dropped from "Eve Goes Home" but kept for "Evelyn Goes
+    // Home". A performer whose name trims to empty is never dropped.
     public static IReadOnlyList<string> DropPerformersInTitle(
         IReadOnlyList<string> performers, string resolvedTitle, RenamerOptions o)
     {
@@ -78,14 +54,8 @@ public static class FieldRewriter
         return performers.Where(p => !NameIsWholeWordInTitle(p, resolvedTitle)).ToList();
     }
 
-    /// <summary>
-    /// Record-channel counterpart of <see cref="DropPerformersInTitle(IReadOnlyList{string}, string, RenamerOptions)"/>:
-    /// drops performer RECORDS whose name appears as a whole word in the resolved title, using the
-    /// same predicate. Filtering the records directly (rather than rebuilding from a deduped name set)
-    /// keeps per-position semantics — when two performers share a name, only the matching positions
-    /// are dropped, and surviving duplicates are preserved in order. Returns the list unchanged when
-    /// the flag is off. Pure: no I/O, no user-compiled regex.
-    /// </summary>
+    // Filtering records keeps per-position semantics: when two performers share a name, only the
+    // matching positions drop and surviving duplicates stay in order.
     public static IReadOnlyList<RenamerPerformer> DropPerformersInTitle(
         IReadOnlyList<RenamerPerformer> performers, string resolvedTitle, RenamerOptions o)
     {
@@ -97,12 +67,8 @@ public static class FieldRewriter
         return performers.Where(p => !NameIsWholeWordInTitle(p.Name, resolvedTitle)).ToList();
     }
 
-    /// <summary>
-    /// True iff the trimmed <paramref name="name"/> occurs as a whole word (case-insensitive) in
-    /// <paramref name="title"/>. A trimmed-empty name short-circuits to false so an empty performer
-    /// can never match everything (bounded, ReDoS-free — an <c>IndexOf</c> scan with explicit
-    /// non-letter-or-digit boundary checks, NOT a user-compiled regex).
-    /// </summary>
+    // An IndexOf scan with explicit non-letter-or-digit boundary checks, so no user-supplied string
+    // is ever compiled as a regex. A name that trims to empty returns false so it matches nothing.
     private static bool NameIsWholeWordInTitle(string name, string title)
     {
         string trimmed = name.Trim();
@@ -134,14 +100,8 @@ public static class FieldRewriter
         return false;
     }
 
-    /// <summary>
-    /// <c>prevent_consecutive</c>: when <see cref="RenamerOptions.PreventConsecutiveSegments"/>
-    /// is set, walks the cleaned folder segments and drops any segment equal to its immediate
-    /// predecessor under <see cref="StringComparison.OrdinalIgnoreCase"/>, keeping the first
-    /// occurrence (<c>Foo/Foo/Bar</c> → <c>Foo/Bar</c>; non-consecutive <c>Foo/Bar/Foo</c>
-    /// untouched). Returns the segments unchanged (materialized) when the flag is off. A single
-    /// linear pass — bounded, no I/O.
-    /// </summary>
+    // Drops a folder segment equal to its immediate predecessor, ignoring case, keeping the first
+    // occurrence: "Foo/Foo/Bar" becomes "Foo/Bar". Non-consecutive repeats such as "Foo/Bar/Foo" stay.
     public static List<string> CollapseConsecutive(IEnumerable<string> segments, RenamerOptions o)
     {
         if (!o.PreventConsecutiveSegments)
@@ -162,11 +122,8 @@ public static class FieldRewriter
         return result;
     }
 
-    /// <summary>
-    /// Removes a single leading article followed by a whitespace char (case-insensitive),
-    /// then re-trims the remaining leading whitespace. Stops after the first match.
-    /// "Theatre" is untouched (the char after the article must be whitespace, not a letter).
-    /// </summary>
+    // The char after the article must be whitespace, so "Theatre" is left alone. Stops at the first
+    // match.
     private static string StripLeadingArticle(string value, List<string> articles)
     {
         foreach (var article in articles)
@@ -176,7 +133,6 @@ public static class FieldRewriter
                 continue;
             }
 
-            // value must start with the article followed by at least one whitespace char.
             if (value.Length > article.Length
                 && value.AsSpan(0, article.Length).Equals(article, StringComparison.OrdinalIgnoreCase)
                 && char.IsWhiteSpace(value[article.Length]))

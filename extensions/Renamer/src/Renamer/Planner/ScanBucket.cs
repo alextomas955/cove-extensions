@@ -1,29 +1,21 @@
 namespace Renamer.Planner;
 
-/// <summary>
-/// The three groups a dry-run row falls into for filtering and for the summary's headline counts.
-/// </summary>
+// The three groups a dry-run row falls into for filtering and for the summary's headline counts.
 public enum ScanBucketKind
 {
-    /// <summary>The file would be renamed or moved.</summary>
     WillChange,
 
-    /// <summary>The file would be skipped, blocked or failed — the rows a user must look at.</summary>
+    // The rows a user must look at: skipped, blocked or failed.
     Attention,
 
-    /// <summary>The file is already where the template puts it.</summary>
     NoChange,
 }
 
-/// <summary>Maps a <see cref="RenamerStatus"/> to the bucket the dry run groups it under.</summary>
 public static class ScanBucket
 {
-    /// <summary>The bucket <paramref name="status"/> belongs to.</summary>
-    /// <remarks>
-    /// Anything that is not an acting status or a no-op buckets as <see cref="ScanBucketKind.Attention"/>,
-    /// including a status added after this method was written — a new skip reason must surface for review,
-    /// never be hidden or throw, so the default arm catches it deliberately.
-    /// </remarks>
+    // Anything that is neither an acting status nor a no-op buckets as Attention, including a status
+    // added after this method was written: a new skip reason must surface for review, never be hidden or
+    // throw, so the default arm catches it deliberately.
     public static ScanBucketKind Of(RenamerStatus status) => status switch
     {
         RenamerStatus.Renamer or RenamerStatus.Move => ScanBucketKind.WillChange,
@@ -31,11 +23,8 @@ public static class ScanBucket
         _ => ScanBucketKind.Attention,
     };
 
-    /// <summary>
-    /// Parses a wire bucket name; <c>null</c>, blank and <c>all</c> all yield a null
-    /// <paramref name="bucket"/>, meaning no filter.
-    /// </summary>
-    /// <returns>False iff <paramref name="wire"/> is a non-blank value that names no bucket.</returns>
+    // Parses a wire bucket name. Null, blank and "all" all yield a null bucket, meaning no filter.
+    // Returns false only for a non-blank value that names no bucket.
     public static bool TryParse(string? wire, out ScanBucketKind? bucket)
     {
         bucket = null;

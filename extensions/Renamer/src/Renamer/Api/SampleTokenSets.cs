@@ -2,30 +2,20 @@ using Renamer.Engine;
 
 namespace Renamer.Api;
 
-/// <summary>
-/// Fixed, server-side representative token sets the live preview renders against. Defined here —
-/// NOT supplied by the request — so the sample count is bounded (3) and a hostile preview template
-/// cannot amplify work, and so the samples stay in sync with the real engine's token names
-/// (<see cref="Tokens"/>) rather than a TS re-implementation.
-///
-/// The three shapes deliberately exercise the engine's empty-token / <c>{}</c>-drop behavior:
-/// the Image set has NO codecs/duration (so <c>$videoCodec</c>/<c>$audioCodec</c>/<c>$duration</c>
-/// resolve empty), and the Audio set has NO video tokens.
-/// </summary>
+// Fixed token sets the live preview renders against, held server-side so the sample count is bounded
+// and a preview request cannot amplify work, and so the samples use the engine's own token names.
+//
+// The shapes exercise the engine's empty-token and {}-drop behavior: the Image set carries no codecs
+// or duration, and the Audio set carries no video tokens.
 public static class SampleTokenSets
 {
-    /// <summary>
-    /// One representative sample: a human <see cref="Label"/>, the synthetic "before" filename
-    /// (<see cref="OldName"/>), the scalar token dict (<see cref="Tokens"/>), and the multi-value
-    /// dict (<see cref="MultiValues"/>) the engine consumes.
-    /// </summary>
     public sealed record Sample(
         string Label,
         string OldName,
         IReadOnlyDictionary<string, string> Tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> MultiValues);
 
-    /// <summary>The three fixed samples (Video / Image / Audio), in display order.</summary>
+    // In display order.
     public static IReadOnlyList<Sample> All { get; } =
     [
         new Sample(
@@ -38,7 +28,7 @@ public static class SampleTokenSets
                 [Tokens.StudioCode] = "ACM-042",
                 [Tokens.Date] = "2021-03-14",
                 [Tokens.Year] = "2021",
-                [Tokens.Height] = "2160",        // → $resolution 2160p (derived by the engine)
+                [Tokens.Height] = "2160",
                 [Tokens.VideoCodec] = "h264",
                 [Tokens.AudioCodec] = "aac",
                 [Tokens.FrameRate] = "60",
@@ -61,7 +51,7 @@ public static class SampleTokenSets
                 [Tokens.Date] = "2022-07-01",
                 [Tokens.Year] = "2022",
                 [Tokens.Width] = "6000",
-                [Tokens.Height] = "4000",        // → $resolution (derived); no codecs/duration
+                [Tokens.Height] = "4000",
                 [Tokens.Ext] = "jpg",
             },
             MultiValues: new Dictionary<string, IReadOnlyList<string>>
@@ -79,7 +69,7 @@ public static class SampleTokenSets
                 [Tokens.Date] = "2020-01-09",
                 [Tokens.Year] = "2020",
                 [Tokens.Duration] = "00-03-30",
-                [Tokens.AudioCodec] = "flac",    // no video tokens (resolution/videoCodec/frameRate)
+                [Tokens.AudioCodec] = "flac",
                 [Tokens.Ext] = "flac",
             },
             MultiValues: new Dictionary<string, IReadOnlyList<string>>
