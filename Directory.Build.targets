@@ -59,6 +59,24 @@
           Condition="'$(CoveSourceMode)' == 'source' AND !$(MSBuildProjectName.EndsWith('.Tests')) AND Exists('$(CoveSdkTargetsPath)')" />
 
   <!--
+    Whether the Cove.Sdk host-assembly strip applies. A published extension wants it: the host loads
+    its own Cove.Core, EF Core and Npgsql, and a bundled second copy gives those types a second
+    identity, after which casts and DI fail with no error. A test project wants the opposite, because
+    it must RUN, and a stripped output makes xUnit fail to reflect over the assembly.
+
+    Cove.Sdk offers no switch for this. Its targets re-apply the whole default denylist whenever
+    $(CoveHostProvidedAssemblies) is empty, so the only way to disable the strip is a non-empty value
+    naming no real assembly. A project states the intent; the translation happens here, once.
+
+    This file is evaluated before the package's buildTransitive targets, so the value set here is
+    already present when their default condition is tested.
+  -->
+  <PropertyGroup>
+    <CoveStripHostProvidedAssemblies Condition="'$(CoveStripHostProvidedAssemblies)' == ''">true</CoveStripHostProvidedAssemblies>
+    <CoveHostProvidedAssemblies Condition="'$(CoveStripHostProvidedAssemblies)' == 'false'">;__cove_strip_disabled__;</CoveHostProvidedAssemblies>
+  </PropertyGroup>
+
+  <!--
     The gate on the Cove location. Directory.Build.props can only COMPUTE the mode; stopping a build
     needs a target, and this one runs BeforeTargets="PrepareForBuild" so it lands ahead of the
     compiler and a wrong location reports as one plain error rather than as a wall of CS0234.
@@ -74,7 +92,13 @@
     that resolved to none.
   -->
   <Target Name="AssertCoveLocation" BeforeTargets="PrepareForBuild">
-    <Message Importance="high" Text="Cove: mode=$(CoveSourceMode) repoRoot='$(CoveRepoRootResolved)'" />
+    <!-- Named separately per mode, because a resolved repo root survives in the property even when the
+         mode does not use it, and printing it under mode=none says the build reads a checkout it
+         ignores. -->
+    <Message Importance="high" Condition="'$(CoveSourceMode)' == 'source'"
+             Text="Cove: mode=source repoRoot='$(CoveRepoRootResolved)'" />
+    <Message Importance="high" Condition="'$(CoveSourceMode)' != 'source'"
+             Text="Cove: mode=$(CoveSourceMode) packages=$(CoveSdkVersion)" />
 
     <Error Condition="'$(CoveSourceMode)' != 'source' AND '$(CoveSourceMode)' != 'none'"
            Text="CoveSourceMode is '$(CoveSourceMode)', which is not one of source or none. Set -p:CoveSourceMode (or COVE_SOURCE_MODE) to one of those two; an unrecognised mode wires up neither references nor exclusions and would fail far from its cause." />

@@ -22,6 +22,13 @@
     -->
     <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.34.0.3385" />
 
+    <!--
+      Coverage for the test projects, as a Microsoft Testing Platform extension rather than a global
+      tool, so the version travels with the repo. It emits the Visual Studio coverage XML that Sonar's
+      C# analyzer reads; Cobertura is not one of the formats that analyzer accepts.
+    -->
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
+
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
     <!-- Bundled inside xunit.v3, but not inside the split packages the test-support library takes, so
          that library references the analyzers directly. Hold this at the version xunit.v3 resolves:

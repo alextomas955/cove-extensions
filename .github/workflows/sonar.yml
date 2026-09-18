@@ -1,0 +1,239 @@
+# SonarQube Cloud analysis with imported test coverage.
+#
+# Separate from build.yml on purpose: this needs a token, and a token is what GitHub withholds from a
+# pull request opened from a fork or by Dependabot. Run inside build.yml it would either fail those
+# pull requests or have to be excused from the required-check aggregate; run here it simply does not
+# start, and no merge waits on it.
+#
+# The analysis is CI-based rather than SonarQube Cloud's Automatic Analysis, because Automatic
+# Analysis cannot import coverage in any configuration. The two are mutually exclusive: this workflow
+# does nothing until Automatic Analysis is turned off for the project.
+#
+# The .NET scanner rather than the CLI one: it is the only scanner that reads the MSBuild graph, which
+# is what C# analysis and C# coverage import both need. It takes its settings from the /d: arguments
+# below rather than from a properties file, which the .NET scanner does not read.
+
+name: Sonar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # An analysis is also worth running on demand: after a SonarQube Cloud setting changes, the stored
+  # result is stale until something re-analyses, and nothing in the repository has to change for that.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One analysis per branch at a time. A superseded pull-request run only submits a result the next one
+# overwrites, and the scanner spends a full build and test run to produce it.
+concurrency:
+  group: sonar-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_VERSION: "10.0.x"
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Every arm below means "the scanner has nothing to authenticate with", and each skips rather
+    # than fails: a run that could not analyse must not read as a run that analysed and found nothing.
+    #
+    # SONAR_PROJECT_KEY is the switch. Until it is set as a repository variable this workflow does
+    # nothing, which is what keeps it inert while the SonarQube Cloud project is still to be set up.
+    # It is a variable and not the secret because the `secrets` context is not readable in a job-level
+    # `if:`, and the two are set together.
+    #
+    # A pull request from a fork carries no secret at all, whatever is configured here.
+    #
+    # Dependabot needs naming separately, and it is the arm easiest to leave out: its branch lives in
+    # this repository, so it satisfies the fork test above, while GitHub still withholds the secret
+    # from it. Without this every dependency pull request would reach the scanner with an empty token.
+    if: >-
+      vars.SONAR_PROJECT_KEY != ''
+      && github.actor != 'dependabot[bot]'
+      && (github.event_name == 'push'
+          || github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Sonar reads the history to attribute new code to the commit that introduced it. A shallow
+          # clone leaves every line looking new, which is what makes a New Code condition meaningless.
+          fetch-depth: 0
+          path: extensions
+
+      # The C# suite compiles against Cove's own source, so this leg needs a checkout of it, at the
+      # floor each extension declares. Same resolution lint.yml uses, and for the same reason: a
+      # missing checkout would select the cove-absent branch and analyse a smaller set successfully.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24.11.0"
+
+      - name: Resolve the declared host floor
+        id: floor
+        working-directory: extensions
+        shell: bash
+        run: |
+          node --input-type=module -e '
+            import { readExtensionFloors, highestDeclaredFloor } from "./scripts/fetch-cove-assemblies.mjs";
+            const declared = readExtensionFloors();
+            const highest = highestDeclaredFloor(declared);
+            for (const { entry, floor, manifestPath } of declared) {
+              console.error(entry.name + " declares floor " + floor + " (from " + manifestPath + ")");
+            }
+            console.log("ref=v" + highest.floor);
+          ' >> "$GITHUB_OUTPUT"
+
+      - name: Check out Cove at the declared floor
+        uses: actions/checkout@v7
+        with:
+          repository: yourcove/cove
+          ref: ${{ steps.floor.outputs.ref }}
+          fetch-depth: 1
+          path: cove
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install the scanner
+        run: dotnet tool install --global dotnet-sonarscanner
+
+      # The subjects come from extensions/catalog.json, so an extension reaches this job by being in
+      # the catalog rather than by an edit here. Hardcoding one extension's paths would leave a new
+      # frontend's coverage report ungenerated, which normalize-lcov-paths.mjs refuses by design, and
+      # a new backend's C# analysed with no coverage behind it.
+      - name: Resolve the catalog's coverage subjects
+        id: subjects
+        working-directory: extensions
+        shell: bash
+        run: |
+          # The lists go to files and only the comma-joined report paths to step outputs: a step
+          # output holding a newline needs delimiter escaping that a plain `key=value` line does not
+          # provide, and the silent result is one run over a single path named "a%0Ab".
+          node -e '
+            const fs = require("fs");
+            const path = require("node:path");
+            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
+            const uiPaths = catalog.extensions.filter((e) => e.uiPath).map((e) => e.uiPath);
+            const testProjects = catalog.extensions.filter((e) => e.testProjectPath).map((e) => e.testProjectPath);
+            const tmp = process.env.RUNNER_TEMP;
+            // Trailing newline on every line. The shell read builtin returns non-zero on a final
+            // line without one, so a list written unterminated makes the reading loop skip its last
+            // entry, and a one-entry list is skipped in full while the step still exits 0.
+            const lines = (xs) => xs.map((x) => x + "\n").join("");
+            fs.writeFileSync(path.join(tmp, "ui-paths.txt"), lines(uiPaths));
+            fs.writeFileSync(path.join(tmp, "test-projects.txt"), lines(testProjects));
+            // Each suite writes its own report; one shared name would leave only the last run measured.
+            const cs = testProjects.map((_, i) => "TestResults/coverage-" + i + ".xml");
+            const lcov = uiPaths.map((p) => p + "/coverage/lcov.info");
+            fs.appendFileSync(
+              process.env.GITHUB_OUTPUT,
+              "lcovPaths=" + lcov.join(",") + "\ncsPaths=" + cs.join(",") + "\n",
+            );
+            console.error("frontends: " + (uiPaths.join(", ") || "none"));
+            console.error("test projects: " + (testProjects.join(", ") || "none"));
+          '
+
+      - name: Install root tooling
+        working-directory: extensions
+        run: npm ci --no-workspaces --ignore-scripts
+
+      # --ignore-scripts: this job only needs each bundle's test run, which the platform binaries in
+      # the lockfile serve without a lifecycle hook. Nothing here builds or publishes a bundle, so no
+      # install hook has output this job reads.
+      #
+      # Generated before the scanner starts, because `begin` records the report paths and each file
+      # has to exist by the time `end` reads it.
+      - name: Collect frontend coverage
+        working-directory: extensions
+        shell: bash
+        run: |
+          n=0
+          while IFS= read -r ui || [ -n "$ui" ]; do
+            [ -n "$ui" ] || continue
+            echo "::group::$ui"
+            (cd "$ui" && npm ci --ignore-scripts && npm run test:coverage)
+            echo "::endgroup::"
+            n=$((n + 1))
+          done < "$RUNNER_TEMP/ui-paths.txt"
+          # A loop that ran no iteration leaves no report and still exits 0, which the scanner reads
+          # as a frontend with no coverage rather than as a step that did nothing.
+          [ "$n" -gt 0 ] || { echo "::error::No frontend was measured; the catalog declared none."; exit 1; }
+          echo "measured $n frontend(s)"
+
+      # Vitest records each path relative to the directory its config sits in, and the scanner
+      # resolves an lcov path against the repository root. Without this the shared package's records
+      # name no file and report nought per cent, which reads as a coverage gap rather than a wiring
+      # fault. The script refuses an empty or missing report rather than passing one through.
+      - name: Make the coverage paths repository-relative
+        working-directory: extensions
+        run: node scripts/normalize-lcov-paths.mjs
+
+      # scanAll is on because this repository is not only C#: left at the .NET scanner's default the
+      # analysis covers the MSBuild graph alone and no TypeScript is examined at all, which reads as a
+      # clean frontend rather than an unanalysed one.
+      - name: Begin analysis
+        working-directory: extensions
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          CS_PATHS: ${{ steps.subjects.outputs.csPaths }}
+          LCOV_PATHS: ${{ steps.subjects.outputs.lcovPaths }}
+        run: |
+          dotnet sonarscanner begin \
+            /k:"${{ vars.SONAR_PROJECT_KEY }}" \
+            /o:"${{ vars.SONAR_ORGANIZATION }}" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.token="$SONAR_TOKEN" \
+            /d:sonar.scanner.scanAll=true \
+            /d:sonar.sources="extensions,shared,scripts" \
+            /d:sonar.exclusions="**/node_modules/**,**/dist/**,**/bin/**,**/obj/**,**/vendor/**,**/artifacts/**,**/coverage/**,**/src/wire/**,website/build/**,website/.docusaurus/**" \
+            /d:sonar.coverage.exclusions="scripts/**,tests/**,**/e2e/**,website/**,**/*.config.*,shared/ui-shared/vite/**,shared/ui-shared/scripts/**,**/*.d.ts" \
+            /d:sonar.cpd.exclusions="**/*.test.ts,**/*.test.tsx,**/*.test.mjs,**/*.spec.mjs,**/*.spec.ts,**/*Tests.cs" \
+            /d:sonar.cs.vscoveragexml.reportsPaths="$CS_PATHS" \
+            /d:sonar.javascript.lcov.reportPaths="$LCOV_PATHS"
+
+      - name: Build
+        working-directory: extensions
+        env:
+          COVE_REPO_ROOT: ${{ github.workspace }}/cove
+        run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=source -p:CoveRepoRoot="$COVE_REPO_ROOT"
+
+      # Visual Studio coverage XML, which is the format Sonar's C# analyzer reads; it accepts no
+      # Cobertura. --no-build so the assemblies the scanner just observed are the ones measured.
+      - name: Test with coverage
+        working-directory: extensions
+        shell: bash
+        env:
+          COVE_REPO_ROOT: ${{ github.workspace }}/cove
+        run: |
+          i=0
+          while IFS= read -r proj || [ -n "$proj" ]; do
+            [ -n "$proj" ] || continue
+            echo "::group::$proj"
+            dotnet test --project "$proj" -c Release --no-build \
+              -p:CoveSourceMode=source -p:CoveRepoRoot="$COVE_REPO_ROOT" \
+              -- --coverage --coverage-output-format xml --coverage-output "coverage-$i.xml"
+            echo "::endgroup::"
+            i=$((i + 1))
+          done < "$RUNNER_TEMP/test-projects.txt"
+          # Same reason as the frontend loop: no iteration means the scanner is handed a report path
+          # nothing wrote, and reads the C# it analysed as uncovered.
+          [ "$i" -gt 0 ] || { echo "::error::No test project was run; the catalog declared none."; exit 1; }
+          echo "measured $i test project(s)"
+
+      - name: End analysis
+        working-directory: extensions
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"

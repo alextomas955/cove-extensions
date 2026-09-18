@@ -56,7 +56,20 @@ export function createExtensionViteConfig(options: ExtensionViteOptions): UserCo
   const sdkDir = path.resolve(packageDir, "node_modules/@cove/extension-sdk");
 
   return {
-    plugins: [reactPlugin],
+    plugins: [
+      reactPlugin,
+      {
+        name: "extension-production-env",
+        // Build only. Applied in every mode it also reaches the test run, where it hands vitest
+        // React's production build: that build ships no `act`, so a suite can flush a render only by
+        // waiting a fixed span, and a slow enough runner then reads a render that has not committed.
+        apply: "build",
+        config: () => ({
+          // Library bundles run in the browser, where `process` is unavailable.
+          define: { "process.env.NODE_ENV": JSON.stringify("production") },
+        }),
+      },
+    ],
     // Raw TS source, not a node_modules install: Vite runs it through the same transform pipeline as
     // this bundle's own src/; its react/lucide imports stay externalized by the rollup list below.
     resolve: {
@@ -69,12 +82,6 @@ export function createExtensionViteConfig(options: ExtensionViteOptions): UserCo
         "@cove-extensions/ui-shared": sharedSrcIndex,
         "@cove/extension-sdk": sdkDir,
       },
-    },
-    // Vite library mode does not auto-define `process`; without this a dep branching on
-    // process.env.NODE_ENV leaves a live `process` reference that is undefined in the browser. The
-    // bundle is always the production artifact.
-    define: {
-      "process.env.NODE_ENV": JSON.stringify("production"),
     },
     build: {
       lib: {
