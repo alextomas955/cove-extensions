@@ -174,6 +174,7 @@ public sealed class RollbackTests
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
             Assert.Contains("recomputed Path", failedItem.Reason);
             Assert.Contains("rolled back", failedItem.Reason);
+            Assert.DoesNotContain("NOT confirmed", failedItem.Reason);
             Assert.Empty(result.Renamed);
 
             // (c) no revert-log row and no event for a failed item.
@@ -368,16 +369,21 @@ public sealed class RollbackTests
 
     /// <summary>
     /// Test-only port: performs the REAL save (so the DB row genuinely commits the new basename), then
-    /// returns a <see cref="SavedFile"/> whose RecomputedPath is deliberately wrong,
-    /// so the executor's post-save "recomputed Path == on-disk path" assertion fails on the success path.
+    /// returns a <see cref="SavedFile"/> whose RecomputedPath is deliberately wrong, so the executor's
+    /// post-save "recomputed Path == on-disk path" assertion fails on the success path. Only the FIRST
+    /// save is misreported; the executor's restore of the row is left to report itself truthfully.
     /// </summary>
     private sealed class MismatchedRecomputedPathDataPort(DbContext db) : CoveRenamerDataPort(db)
     {
+        private int _saves;
+
         public override async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
             IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
         {
             var saved = await base.ApplyAndSaveAsync(mutations, ct);
-            return [.. saved.Select(s => new SavedFile(s.FileId, s.RecomputedPath + ".WRONG"))];
+            return ++_saves == 1
+                ? [.. saved.Select(s => new SavedFile(s.FileId, s.RecomputedPath + ".WRONG"))]
+                : saved;
         }
     }
 

@@ -519,6 +519,11 @@ public sealed partial class Renamer : FullExtensionBase
         // Two DIFFERENT file rows naming one source path is database state a rename cannot arbitrate:
         // acting on either moves the file the other row also claims. Every row of such a group is
         // refused and named in the log, so the anomaly is reported rather than half-applied.
+        //
+        // Grouped by the slice's file-identity rule, which ignores case on Windows and macOS. On a
+        // volume formatted case-sensitive there, two rows differing only in case are two files and
+        // both are refused: the refusal is recoverable by hand, while renaming one row's file out from
+        // under another's is not.
         var acting = new List<BatchUnit>(planned.Count);
         int contestedFiles = 0;
         foreach (var claimants in planned
@@ -834,6 +839,10 @@ public sealed partial class Renamer : FullExtensionBase
         foreach (var r in result.Renamed)
         {
             LogItemRenamed(runId, kind, entityId, r.Status, r.OldPath, r.NewPath);
+            if (r.Reason is { Length: > 0 } warning)
+            {
+                LogItemRenamedWithWarning(runId, kind, entityId, warning);
+            }
         }
 
         foreach (var s in result.Skipped)

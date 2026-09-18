@@ -32,6 +32,14 @@ public sealed partial class Renamer
     private partial void LogItemSkipped(
         string runId, RenamerFileKind kind, int entityId, RenamerStatus status, string reason);
 
+    // A renamed item can carry a warning for work that failed after the save committed (an unwritten
+    // undo row, an unpublished event, a source folder left behind). Without this the rename line reports
+    // a clean success and the warning reaches nothing.
+    [LoggerMessage(
+        EventId = 1014, Level = LogLevel.Warning,
+        Message = "[Renamer] batch {RunId}: {Kind} id={EntityId} renamed WITH a warning: {Reason}")]
+    private partial void LogItemRenamedWithWarning(string runId, RenamerFileKind kind, int entityId, string reason);
+
     [LoggerMessage(
         EventId = 1003, Level = LogLevel.Warning,
         Message = "[Renamer] batch {RunId}: {Kind} id={EntityId} FAILED '{Old}' -> '{New}': {Reason}")]
@@ -223,6 +231,11 @@ public sealed partial class Renamer
         Message = "[Renamer] auto-renamer: {Kind} id={EntityId} {Status} '{Old}' -> '{New}'")]
     private partial void LogAutoRenamed(
         RenamerFileKind kind, int entityId, RenamerStatus status, string old, string @new);
+
+    [LoggerMessage(
+        EventId = 1023, Level = LogLevel.Warning,
+        Message = "[Renamer] auto-renamer: {Kind} id={EntityId} renamed WITH a warning: {Reason}")]
+    private partial void LogAutoRenamedWithWarning(RenamerFileKind kind, int entityId, string reason);
 
     [LoggerMessage(
         EventId = 1021, Level = LogLevel.Warning,

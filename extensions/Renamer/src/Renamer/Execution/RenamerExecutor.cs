@@ -314,12 +314,13 @@ public sealed class RenamerExecutor
                 }
 
                 // The file is back where it started, so the committed row is put back to match it.
-                string? restoreFailure = await RestoreSavedRowAsync(item.FileId, srcFile, isMove, appliedCaptionRenames, ct);
+                string? restoreFailure = await RestoreSavedRowAsync(
+                    item.FileId, item.OldFullPath, srcFile, isMove, appliedCaptionRenames, ct);
 
                 string note = restoreFailure is null
                     ? $"recomputed Path '{recomputed}' != on-disk '{expected}'; rolled back"
-                    : $"recomputed Path '{recomputed}' != on-disk '{expected}'; file rolled back but the "
-                      + $"database row still names the new location: {restoreFailure}";
+                    : $"recomputed Path '{recomputed}' != on-disk '{expected}'; file rolled back, "
+                      + $"database row NOT confirmed at the old path: {restoreFailure}";
                 failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed, note));
                 return;
             }
@@ -657,11 +658,11 @@ public sealed class RenamerExecutor
 
     /// <summary>
     /// Writes a committed rename back off the file row: the basename, the parent folder for a move,
-    /// and each caption filename the save changed. Returns null on success, or the reason the row
-    /// could not be put back.
+    /// and each caption filename the save changed. Returns null once the row recomputes to
+    /// <paramref name="oldFullPath"/>, or the reason it could not be confirmed there.
     /// </summary>
     private async Task<string?> RestoreSavedRowAsync(
-        int fileId, RenamerFile? srcFile, bool isMove,
+        int fileId, string oldFullPath, RenamerFile? srcFile, bool isMove,
         IReadOnlyList<(int CaptionId, string NewFilename)> appliedCaptionRenames, CancellationToken ct)
     {
         if (srcFile is null)
@@ -674,19 +675,35 @@ public sealed class RenamerExecutor
             .Select(c => (c.CaptionId, NewFilename: c.Filename))
             .ToList();
 
+        IReadOnlyList<SavedFile> saved;
         try
         {
-            await _port.ApplyAndSaveAsync(
+            saved = await _port.ApplyAndSaveAsync(
                 [new RenamerFileMutation(
                     fileId, srcFile.Basename, isMove ? srcFile.ParentFolderId : null,
                     restoredCaptions.Count > 0 ? restoredCaptions : null)],
                 ct);
-            return null;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return ex.Message;
         }
+
+        // The same assertion the forward save gets, and the one the undo path makes after its own
+        // reverse save: a restore that recomputes somewhere else has not put the row back.
+        SavedFile? savedFile = saved
+            .Where(s => s.FileId == fileId)
+            .Select(s => (SavedFile?)s)
+            .FirstOrDefault();
+
+        if (savedFile is null)
+        {
+            return "the restore reported no row for this file";
+        }
+
+        return PathsEqual(savedFile.Value.RecomputedPath, oldFullPath)
+            ? null
+            : $"it recomputed to '{savedFile.Value.RecomputedPath}', not '{NormalizeSlash(oldFullPath)}'";
     }
 
     /// <summary>
