@@ -422,11 +422,9 @@ function numKeyDestinationMap(v: unknown): Record<number, Destination> {
   return out;
 }
 
-/**
- * The per-kind map, keeping only the keys that name a renamable kind. A blob holding a kind this
- * version does not know is dropped rather than carried, because the key is what the backend binds the
- * entry to and an unbindable key fails the whole options bind.
- */
+// Keeps only the keys that name a renamable kind. A blob holding a kind this version does not know is
+// dropped rather than carried: the key is what the backend binds the entry to, and an unbindable key
+// fails the whole options bind.
 function kindOptionsMap(v: unknown): Partial<Record<RenamableKind, KindOptions>> {
   const src = asRecord(v);
   const out: Partial<Record<RenamableKind, KindOptions>> = {};
@@ -445,7 +443,7 @@ function kindOptionsMap(v: unknown): Partial<Record<RenamableKind, KindOptions>>
   return out;
 }
 
-/** A fresh copy of the per-kind map, so a clone shares no nested object with its source. */
+// A fresh copy, so a clone shares no nested object with its source.
 function cloneKinds(
   map: Partial<Record<RenamableKind, KindOptions>>,
 ): Partial<Record<RenamableKind, KindOptions>> {
