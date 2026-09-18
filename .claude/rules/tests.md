@@ -1,6 +1,8 @@
 ---
 paths:
   - "**/*.Tests/**/*.cs"
+  - "**/*.test.{ts,tsx,mjs,js}"
+  - "**/*.spec.{ts,tsx,mjs,js}"
   - "**/e2e/**/*.mjs"
 ---
 
