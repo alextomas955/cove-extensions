@@ -153,15 +153,35 @@ public sealed class CrossVolumeMoverTests
     public async Task SourceDeleteRefusedAfterPromote_ReportsMoved_AndNamesTheStrandedSource()
     {
         using var dir = new TempDir();
-        var old = dir.Touch("clip.mkv", "data");
-        var dest = Path.Combine(dir.Root, "sub", "Renamed.mkv");
+        var srcDir = Directory.CreateDirectory(Path.Combine(dir.Root, "src"));
+        var old = Path.Combine(srcDir.FullName, "clip.mkv");
+        File.WriteAllText(old, "data");
+
+        // Created up front, because the copy has to be able to write here after the source directory
+        // is made undeletable below.
+        var destDir = Directory.CreateDirectory(Path.Combine(dir.Root, "sub"));
+        var dest = Path.Combine(destDir.FullName, "Renamed.mkv");
         var mover = new CrossVolumeMover();
 
-        // Readable, so the copy and the verify both succeed and the promote lands; opened without
-        // FileShare.Delete, so the source delete that follows the promote is refused. This is the one
-        // ordering that leaves a verified destination and a surviving source.
-        using (new FileStream(old, FileMode.Open, FileAccess.Read, FileShare.Read))
+        // Refusing a delete is platform-specific. Windows refuses it for a file opened without
+        // FileShare.Delete; Unix ignores an open handle and refuses the unlink only when the
+        // containing directory is not writable. Both leave the source readable, so the copy, the
+        // verify and the promote all succeed and only the delete is refused.
+        FileStream? windowsLock = null;
+        bool restoreUnixMode = false;
+        try
         {
+            if (OperatingSystem.IsWindows())
+            {
+                windowsLock = new FileStream(old, FileMode.Open, FileAccess.Read, FileShare.Read);
+            }
+            else
+            {
+                File.SetUnixFileMode(
+                    srcDir.FullName, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+                restoreUnixMode = true;
+            }
+
             var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
 
             // The file is at its destination, verified and durable, so the move happened. Reporting it
@@ -169,11 +189,22 @@ public sealed class CrossVolumeMoverTests
             Assert.True(result.Moved);
             Assert.Equal(MoveOutcome.Moved, result.Outcome);
             Assert.Contains(result.Warnings, w => w.Contains(old, StringComparison.Ordinal));
-        }
 
-        Assert.True(File.Exists(dest), "the promoted destination must survive a refused source delete");
-        Assert.Equal("data", File.ReadAllText(dest));
-        Assert.True(File.Exists(old), "the source could not be deleted, so it is still there");
+            Assert.True(File.Exists(dest), "the promoted destination must survive a refused source delete");
+            Assert.Equal("data", File.ReadAllText(dest));
+            Assert.True(File.Exists(old), "the source could not be deleted, so it is still there");
+        }
+        finally
+        {
+            windowsLock?.Dispose();
+            if (!OperatingSystem.IsWindows() && restoreUnixMode)
+            {
+                // Restored so the fixture can remove the directory it created.
+                File.SetUnixFileMode(
+                    srcDir.FullName,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            }
+        }
     }
 
     [Fact]
