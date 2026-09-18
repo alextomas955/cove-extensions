@@ -31,7 +31,7 @@ public sealed class OrphanedRulesEndpointTests
 {
     /// <summary>
     /// Builds the extension over the seeded connection, so the handler's own elevated scope resolves a
-    /// context on the SAME database — the wiring <c>ScanLibraryEndpointTests</c> uses.
+    /// context on the same database — the wiring <c>ScanLibraryEndpointTests</c> uses.
     /// </summary>
     private static async Task<global::Renamer.Renamer> NewExtensionAsync(
         SqliteConnection conn, RenamerOptions options)
@@ -145,7 +145,7 @@ public sealed class OrphanedRulesEndpointTests
                 StudioDestinations = { [99] = Somewhere },
             });
 
-            // A rule that IS orphaned, so a 403 here can only come from the permission gate.
+            // A rule that is orphaned, so a 403 here can only come from the permission gate.
             Assert.Equal(
                 StatusCodes.Status403Forbidden,
                 Assert.IsAssignableFrom<IStatusCodeHttpResult>(

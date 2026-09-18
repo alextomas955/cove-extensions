@@ -10,9 +10,9 @@ namespace Renamer.Tests.Execution.Collisions;
 /// Proves two things the executor's collision loop must get right:
 /// <list type="bullet">
 /// <item>A pure case-fix renamer (<c>movie.mkv</c> → <c>Movie.mkv</c>) — where the only thing occupying
-/// the target name is the SOURCE file itself — completes as a clean <see cref="RenamerStatus.Renamer"/>
-/// to <c>Movie.mkv</c>, NOT a needlessly suffixed <c>Movie (1).mkv</c> and NOT a collision skip.</item>
-/// <item>A DIFFERENT file already at the case-variant target name still collides: a third source
+/// the target name is the source file itself — completes as a clean <see cref="RenamerStatus.Renamer"/>
+/// to <c>Movie.mkv</c>, not a needlessly suffixed <c>Movie (1).mkv</c> and not a collision skip.</item>
+/// <item>A different file already at the case-variant target name still collides: a third source
 /// renamed onto <c>Movie.mkv</c> is suffixed or skipped, never clobbering the existing file. The
 /// cross-file no-clobber guarantee is preserved.</item>
 /// </list>
@@ -35,7 +35,7 @@ public sealed class CaseOnlyRenamerTests
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "movie.mkv", "My Film");
 
             // Disk: only the lower-case source exists. On a case-insensitive volume File.Exists of the
-            // case-variant target is True, but it is the SOURCE occupying its own slot — not a clobber.
+            // case-variant target is True, but it is the source occupying its own slot — not a clobber.
             File.WriteAllText(Path.Combine(dir.Root, "movie.mkv"), "movie-bytes");
 
             // Hand-built in-place plan: movie.mkv → Movie.mkv (case-only), so the executor's collision
@@ -53,7 +53,7 @@ public sealed class CaseOnlyRenamerTests
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             // Clean Renamer: exactly one renamed, nothing skipped or failed, and the new name is the
-            // case-corrected target — NOT a suffixed Movie (1).mkv.
+            // case-corrected target — not a suffixed Movie (1).mkv.
             var renamedItem = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
             Assert.Empty(result.Skipped);
@@ -83,7 +83,7 @@ public sealed class CaseOnlyRenamerTests
         {
             string folderPath = dir.Root.Replace('\\', '/');
 
-            // Seed three distinct files in one folder: the lower-case "movie.mkv", a DIFFERENT
+            // Seed three distinct files in one folder: the lower-case "movie.mkv", a different
             // "Movie.mkv" already occupying the case-variant name, and the source we will renamer.
             var (folderId, videoId, _) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "movie.mkv", "My Film");
@@ -94,7 +94,7 @@ public sealed class CaseOnlyRenamerTests
             File.WriteAllText(Path.Combine(dir.Root, "Movie.mkv"), "different-file-bytes");
             File.WriteAllText(Path.Combine(dir.Root, "other.mkv"), "source-bytes");
 
-            // Renamer the THIRD source onto the case-variant name a DIFFERENT file already holds.
+            // Renamer the third source onto the case-variant name a different file already holds.
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(sourceId, folderPath + "/other.mkv", folderPath + "/Movie.mkv",
@@ -107,7 +107,7 @@ public sealed class CaseOnlyRenamerTests
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
-            // No clobber: the source did NOT land on the existing Movie.mkv. It was either suffixed to a
+            // No clobber: the source did not land on the existing Movie.mkv. It was either suffixed to a
             // free name (Renamed, not "Movie.mkv") or skip-collisioned.
             if (result.Renamed.Count == 1)
             {
@@ -121,7 +121,7 @@ public sealed class CaseOnlyRenamerTests
                 Assert.Empty(result.Renamed);
             }
 
-            // The pre-existing DIFFERENT file at Movie.mkv is untouched — its bytes survive intact.
+            // The pre-existing different file at Movie.mkv is untouched — its bytes survive intact.
             Assert.Equal("different-file-bytes", File.ReadAllText(Path.Combine(dir.Root, "Movie.mkv")));
         }
         finally

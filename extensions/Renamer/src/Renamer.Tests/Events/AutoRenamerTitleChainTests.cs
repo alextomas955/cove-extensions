@@ -6,17 +6,17 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Events;
 
 /// <summary>
-/// A title-less item with TWO files, auto-renamed, must rename once and then stop.
+/// A title-less item with two files, auto-renamed, must rename once and then stop.
 /// </summary>
 /// <remarks>
 /// Two defects compose here and neither runs away alone. The self-save suppression is one token per
-/// ENTITY while a save publishes one event per FILE, so with two files one event survives
+/// entity while a save publishes one event per file, so with two files one event survives
 /// unsuppressed - harmless on its own, because the survivor finds an empty plan. The filename-derived
 /// title is what makes every plan non-empty: derived from the basename the previous pass wrote, it
 /// renders a new name every time, so the survivor always has work and each pass publishes as many
 /// events as the item has files. See <c>MetadataProjector.DerivedTitle</c>.
 /// <para>
-/// The bus only RECORDS, so the events a save raises are delivered back into the handler here, which
+/// The bus only records, so the events a save raises are delivered back into the handler here, which
 /// is what the host does. Without that loop the chain is invisible and a runaway reads as one quiet
 /// rename.
 /// </para>

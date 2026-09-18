@@ -20,9 +20,9 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 namespace Renamer.Tests.Api;
 
 /// <summary>
-/// The whole-library scan: <c>ScanLibraryEnqueue</c> gates on ANY renamer-read permission and enqueues
-/// (never directly executing), <c>RunScanLibraryJobAsync</c> runs the SAME planner <c>/preview</c> uses
-/// against every server-derived id with ZERO disk/DB mutation, <c>ScanLibraryResultAsync</c> reads the
+/// The whole-library scan: <c>ScanLibraryEnqueue</c> gates on any renamer-read permission and enqueues
+/// (never directly executing), <c>RunScanLibraryJobAsync</c> runs the same planner <c>/preview</c> uses
+/// against every server-derived id with zero disk/DB mutation, <c>ScanLibraryResultAsync</c> reads the
 /// persisted aggregate back per readable kind, <c>ScanRowsAsync</c> serves the rows a page at a time, and
 /// <c>InitializeAsync</c> purges the pre-0.2.1 per-file scan value. Exercised as plain methods (no HTTP
 /// host) with a real SQLite <c>CoveContext</c>, mirroring
@@ -61,8 +61,8 @@ public sealed class ScanLibraryEndpointTests
 
     /// <summary>
     /// Wires the extension's captured seams (<c>_scopeFactory</c>, <c>_eventBus</c>) from a DI
-    /// provider whose <c>DbContext</c> registration is SCOPED over <paramref name="conn"/>, so the job
-    /// body's own <c>CreateAsyncScope()</c> resolves a context over the SAME database the test seeded —
+    /// provider whose <c>DbContext</c> registration is scoped over <paramref name="conn"/>, so the job
+    /// body's own <c>CreateAsyncScope()</c> resolves a context over the same database the test seeded —
     /// mirrors <c>RenamerBatchJobTests.BuildExtensionAsync</c>. The scan job never touches <c>IEventBus</c>,
     /// but <c>InitializeAsync</c> requires both seams to be resolvable.
     /// </summary>
@@ -158,7 +158,7 @@ public sealed class ScanLibraryEndpointTests
             Assert.Equal(beforeVideoName, afterVideoName);
             Assert.Equal(beforeVideoPath, afterVideoPath);
 
-            // Progress feedback: the scan must report INTERMEDIATE progress as it plans, not jump
+            // Progress feedback: the scan must report intermediate progress as it plans, not jump
             // straight to 1.0 at the end (the 0%→100% regression). With 4 seeded entities there must be
             // at least one sub-1.0 report, every report must be in (0,1], and the sequence must be
             // non-decreasing and end at exactly 1.0.
@@ -188,7 +188,7 @@ public sealed class ScanLibraryEndpointTests
             await InitializeOverSharedConnectionAsync(ext, conn);
 
             var progress = new FakeJobProgress();
-            // Caller holds videos.read but NOT images.read — only Video is in the captured readable set.
+            // Caller holds videos.read but not images.read — only Video is in the captured readable set.
             await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], null, progress, default);
 
             var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
@@ -240,7 +240,7 @@ public sealed class ScanLibraryEndpointTests
             File.WriteAllText(Path.Combine(dir.Root, "one.mkv"), "video-bytes");
 
             // Saved options template is "$title" (from NewExtensionAsync). The override below uses a
-            // DIFFERENT template with a literal prefix, so a scan that honors the override produces a
+            // different template with a literal prefix, so a scan that honors the override produces a
             // visibly different new name than a scan of the saved options would.
             var (ext, _) = await NewExtensionAsync();
             await InitializeOverSharedConnectionAsync(ext, conn);
@@ -254,7 +254,7 @@ public sealed class ScanLibraryEndpointTests
             var summary = await ReadSummaryAsync(ext, principal);
             Assert.Equal(1, summary.WillChange);
 
-            // The page plans with the options the CALLER sends, so passing the same override reproduces
+            // The page plans with the options the caller sends, so passing the same override reproduces
             // the scanned name: the literal prefix proves the unsaved options were previewed, not "$title".
             var page = await ReadRowsAsync(ext, principal, new global::Renamer.Contracts.ScanRowsRequest(
                 Options: JsonSerializer.Serialize(overrideOptions, RenamerOptions.JsonOptions),
@@ -329,7 +329,7 @@ public sealed class ScanLibraryEndpointTests
     [Fact]
     public async Task ScanLoop_UsesBatchLoad_NotPerIdLoad()
     {
-        // The scan-loop shape (batch-load a kind, then plan each id in order) must call the BATCH
+        // The scan-loop shape (batch-load a kind, then plan each id in order) must call the batch
         // method and never the per-id LoadEntityAsync. Drive that shape over a fake seam so the call
         // counters are observable (the real scan builds its own port from the DI-scoped DbContext).
         var port = new FakeRenamerDataPort();
@@ -474,8 +474,8 @@ public sealed class ScanLibraryEndpointTests
     [Fact]
     public async Task ScanLibraryResultAsync_VideoOnlyCaller_ReturnsOnlyVideoFigures_NotImageOrAudio()
     {
-        // A higher-permission user's scan persisted Video+Image+Audio figures under the FIXED key. A
-        // video-only caller reading it back must NOT receive the image/audio counts (the cross-kind leak).
+        // A higher-permission user's scan persisted Video+Image+Audio figures under the fixed key. A
+        // video-only caller reading it back must not receive the image/audio counts (the cross-kind leak).
         var (ext, store) = await NewExtensionAsync();
         await StoreSummaryAsync(store,
             MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Renamer),
@@ -599,7 +599,7 @@ public sealed class ScanLibraryEndpointTests
     private static async Task<global::Renamer.Renamer> InitializeWithStoreAsync(Cove.Plugins.IExtensionStore store)
     {
         // A database carrying the journal and nothing else: the extension refuses to load without a
-        // readable journal, and these tests are about what load does to the STORE.
+        // readable journal, and these tests are about what load does to the store.
         await using var journalDb = await JournalOnlyDatabase.CreateAsync();
         var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);

@@ -9,7 +9,7 @@
 // still validates through the upstream convention path.
 //
 // 2. Drops upstream's floor check on the two package-version properties, because neither has a
-// subject here — the SDK version IS $(CoveMinVersion), so the comparison asks whether a value is at
+// subject here — the SDK version is $(CoveMinVersion), so the comparison asks whether a value is at
 // least itself, and no Cove.Core property is declared at all. The per-entry extension.json
 // comparison, which does have a subject, survives.
 //
@@ -192,7 +192,7 @@ let floorComparisons = 0;
 // — every `matrix.extension.*` value there that names a location on disk and is not already covered by
 // a check above (path, manifestPath and projectPath are), plus registryManifestPath, which this file
 // reads for the floor comparison below. e2eProject is excluded deliberately: it is a Playwright project
-// name, not a path. Each of these is optional to DECLARE, so an entry declaring none is valid and only a
+// name, not a path. Each of these is optional to declare, so an entry declaring none is valid and only a
 // declared one is required to exist.
 const matrixPathFields = [
   "testProjectPath",
@@ -203,7 +203,7 @@ const matrixPathFields = [
 ];
 let declaredPathChecks = 0;
 
-// Counts every entry that DECLARED a registry manifest, incremented before the file is read, and every
+// Counts every entry that declared a registry manifest, incremented before the file is read, and every
 // row actually compared. The pair is what separates "no entry declares one" from "one was declared and
 // carries no row for the current version" — states a single counter would render identical, and the
 // second of which is legitimate: releasing.md requires the release asset before the registry pull
@@ -354,7 +354,7 @@ for (const entry of entries) {
         const currentRow = registry.versions.find(
           (row) => row?.version != null && row.version === manifest.version,
         );
-        // No matching row is NOT a defect: releasing.md requires the release asset before the registry
+        // No matching row is not a defect: releasing.md requires the release asset before the registry
         // pull request, so a version bumped ahead of its row is an ordinary mid-release state. The
         // report line below is what keeps it from passing silently.
         if (currentRow != null) {

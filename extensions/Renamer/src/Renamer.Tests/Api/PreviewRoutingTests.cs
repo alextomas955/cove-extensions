@@ -10,7 +10,7 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 namespace Renamer.Tests.Api;
 
 /// <summary>
-/// Regression: <c>/preview</c> must route through the SAME <c>RouteLookups</c> the manual batch
+/// Regression: <c>/preview</c> must route through the same <c>RouteLookups</c> the manual batch
 /// builds, so the dry-run reflects the routed destination the batch will execute. Before the fix
 /// <c>PreviewAsync</c> called the empty-lookups overload and reported every item as an in-place
 /// source-confine renamer even when a destination rule was configured — preview lied about where files
@@ -19,7 +19,7 @@ namespace Renamer.Tests.Api;
 /// </summary>
 public sealed class PreviewRoutingTests
 {
-    // A fictional destination root on a DIFFERENT drive than the temp source, so routing anchors on a
+    // A fictional destination root on a different drive than the temp source, so routing anchors on a
     // distinct root; only the source needs to exist on disk (preview probes the source, not the dest).
     private static string PathRoot => OperatingSystem.IsWindows() ? @"F:\by-source" : "/mnt/by-source";
 
@@ -67,7 +67,7 @@ public sealed class PreviewRoutingTests
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var item = Assert.Single(ok.Value!.Items);
 
-            // The preview now reflects the routed destination — the SAME route the batch resolves.
+            // The preview now reflects the routed destination — the same route the batch resolves.
             Assert.Equal(RenamerStatus.Move, item.Status);
             Assert.Equal(Fwd(PathRoot), item.ResolvedDestinationRoot);
             Assert.Equal("SourcePath:exact", item.MatchedRule);

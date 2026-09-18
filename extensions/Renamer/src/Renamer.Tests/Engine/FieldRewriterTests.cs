@@ -5,12 +5,12 @@ namespace Renamer.Tests.Engine;
 
 public class FieldRewriterTests
 {
-    // ---- FIELD-01: squeeze_studio_names ----
+    // ---- squeeze_studio_names ----
 
     [Fact]
     public void Squeeze_TwoSpacingVariants_ProduceOneIdenticalStudioKey()
     {
-        // Canonical regression: two spacing variants of one studio must collapse to ONE key.
+        // Canonical regression: two spacing variants of one studio must collapse to one key.
         var o = new RenamerOptions { SqueezeStudioNames = true };
         Assert.Equal("RealityKings", FieldRewriter.RewriteScalar(Tokens.Studio, "Reality Kings", o));
         Assert.Equal("RealityKings", FieldRewriter.RewriteScalar(Tokens.Studio, "RealityKings", o));
@@ -45,7 +45,7 @@ public class FieldRewriterTests
         Assert.Equal("Reality Kings", FieldRewriter.RewriteScalar(Tokens.Studio, "Reality Kings", o));
     }
 
-    // ---- FIELD-02: field_replacer ----
+    // ---- field_replacer ----
 
     [Fact]
     public void Replacer_StripsApostrophe_FromStudioOnly()
@@ -55,7 +55,7 @@ public class FieldRewriterTests
             FieldReplacers = [new FieldReplaceRule { TargetToken = "studio", Find = "'", Replace = "" }],
         };
         Assert.Equal("Bobs Studio", FieldRewriter.RewriteScalar(Tokens.Studio, "Bob's Studio", o));
-        // A title with the same apostrophe is UNTOUCHED — the rule targets studio only.
+        // A title with the same apostrophe is untouched — the rule targets studio only.
         Assert.Equal("Bob's Movie", FieldRewriter.RewriteScalar(Tokens.Title, "Bob's Movie", o));
     }
 
@@ -113,7 +113,7 @@ public class FieldRewriterTests
         Assert.Equal("Bob's Studio", FieldRewriter.RewriteScalar(Tokens.Studio, "Bob's Studio", o));
     }
 
-    // ---- FIELD-03: prepositions_removal ----
+    // ---- prepositions_removal ----
 
     [Theory]
     [InlineData("The Matrix", "Matrix")]
@@ -200,7 +200,7 @@ public class FieldRewriterTests
     public void DropPerformers_KeepsName_WhenOnlyASubstring()
     {
         var o = new RenamerOptions { PreventTitlePerformer = true };
-        // "Eve" is NOT a whole word in "Evelyn", so it is kept.
+        // "Eve" is not a whole word in "Evelyn", so it is kept.
         var result = FieldRewriter.DropPerformersInTitle(["Eve", "Bob"], "Evelyn Goes Home", o);
         Assert.Equal(["Eve", "Bob"], result);
     }
@@ -257,7 +257,7 @@ public class FieldRewriterTests
         Assert.Equal(["Eve", "Bob"], result); // no-op when off
     }
 
-    // ---- FIELD-06: prevent_consecutive ----
+    // ---- prevent_consecutive ----
 
     [Fact]
     public void CollapseConsecutive_CollapsesAdjacentDuplicates()

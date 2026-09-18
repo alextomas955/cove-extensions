@@ -9,7 +9,7 @@ namespace Renamer.Tests.Events;
 /// The auto-renamer hook must not act on the update event its own save raised.
 /// </summary>
 /// <remarks>
-/// The plan-is-empty guard breaks the loop only where the plan CONVERGES: rename, re-enter, find
+/// The plan-is-empty guard breaks the loop only where the plan converges: rename, re-enter, find
 /// nothing left to do, stop. Two routing rules whose destinations are each other's patterns never
 /// converge - each pass matches, acts and re-raises - so no per-pass check can stop it, and because
 /// one entity can hold several files a pass can raise more events than the one that started it.
@@ -48,7 +48,7 @@ public sealed class AutoRenamerSelfSaveTests
                 // Empty on purpose: a rendered subfolder would deepen the path until neither pattern
                 // matched, which converges and hides the case under test.
                 FolderTemplate = "",
-                // The pair that never settles. Each rule matches where the OTHER one puts the file, and
+                // The pair that never settles. Each rule matches where the other one puts the file, and
                 // both are explicitly matched rules rather than the default relocate the hook excludes,
                 // so every pass acts.
                 PathDestinations =
@@ -74,7 +74,7 @@ public sealed class AutoRenamerSelfSaveTests
             Assert.Equal($"{sortedFwd}/My Film.mkv", pathAfterFirst.Replace('\\', '/'));
             Assert.Single(bus.Published);
 
-            // (2) The event that save re-raised. The plan is NOT empty here - the second rule would take
+            // (2) The event that save re-raised. The plan is not empty here - the second rule would take
             //     the file straight back - so nothing but a suppression scoped to this handler's own save
             //     can stop it.
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
@@ -91,7 +91,7 @@ public sealed class AutoRenamerSelfSaveTests
                 "the re-entrant event saved and re-raised again, which is the runaway: "
                     + $"{bus.Published.Count} events published where one action happened");
 
-            // (3) A LATER genuine edit, not the re-raised one. It must be processed: the suppression is
+            // (3) A later genuine edit, not the re-raised one. It must be processed: the suppression is
             //     scoped to the action that armed it, not a mode the handler stays in. Without this
             //     assertion a suppression that never released would pass (1) and (2) and mute the hook
             //     for this item permanently.

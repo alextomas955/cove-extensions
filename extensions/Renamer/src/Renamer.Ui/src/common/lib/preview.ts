@@ -1,9 +1,9 @@
 /**
  * The pure window.confirm summary builder for a real-selection `/preview`.
  *
- * CRITICAL: `/preview` returns `RenamePlanItem[]` (camelCase over the wire), NOT the
- * `/preview-sample` `flags[]` array. The warning taxonomy is derived from the `status` STRING enum
- * (the host serializes the enum as a string) PLUS the additive `suffixed` / `sanitized` bools the
+ * critical: `/preview` returns `RenamePlanItem[]` (camelCase over the wire), not the
+ * `/preview-sample` `flags[]` array. The warning taxonomy is derived from the `status` string enum
+ * (the host serializes the enum as a string) plus the additive `suffixed` / `sanitized` bools the
  * planner sets — there is no `flags[]` field here.
  *
  * `buildConfirmSummary` is intentionally pure (no DOM, no fetch) so the confirm-dialog wording logic
@@ -33,13 +33,13 @@ interface SkipClause {
 /**
  * Every status the wire can carry, and whether it counts as a skip in the confirm dialog.
  *
- * Total by TYPE, keyed on the union generated from the extension's own OpenAPI document, so a status
+ * Total by type, keyed on the union generated from the extension's own OpenAPI document, so a status
  * the server grows fails this build (TS2741, naming the missing key) rather than going uncounted. One
  * map rather than a filter pass per status: this is the number a user approves a destructive operation
  * against, and independent passes each omitted the same five planner-produced statuses, so a selection
  * skipped entirely by an exclude rule reached the dialog with no reason given at all.
  *
- * DECLARATION ORDER IS THE RENDERED CLAUSE ORDER.
+ * declaration order is the rendered clause order.
  *
  * The labels track the row pills in `warningBadgeLogic.ts`, because the two surfaces describe the same
  * outcome to the same user.
@@ -66,7 +66,7 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
   renamer: null,
   move: null,
   noOp: null,
-  // Executor-only, and produced only AFTER this confirm: by the time a move fails, the OS refuses it,
+  // Executor-only, and produced only after this confirm: by the time a move fails, the OS refuses it,
   // the read-back mismatches or a shutdown interrupts the copy, the user has already approved.
   failed: null,
   skipPermissionDenied: null,
@@ -145,7 +145,7 @@ function confirmCallToAction(level: ConfirmLevel, undoable: boolean): string {
  * - When N == 0 the body states nothing will be renamed (the handler then cancels even on OK).
  *
  * Blast radius: when `summary` is supplied and the batch moves files across
- * drives, the confirm wording SCALES with `summary.confirmLevel` — an explicit "N items (X MB) move
+ * drives, the confirm wording scales with `summary.confirmLevel` — an explicit "N items (X MB) move
  * from A to B" line per cross-volume pair is added, and the call-to-action is heavier for a Heavy
  * batch than a Light one. A same-drive-only batch (Light, no `volumePairs`) reads exactly as before.
  * Pure (no DOM/fetch) so it stays unit-reasonable.
@@ -172,7 +172,7 @@ export function buildConfirmSummary(
     if (clause === undefined) unclassified += 1;
     else if (clause !== null) tally.set(it.status, (tally.get(it.status) ?? 0) + 1);
   }
-  // Read in the MAP's declaration order, never the tally's — that one follows whatever order the items
+  // Read in the map's declaration order, never the tally's — that one follows whatever order the items
   // happened to arrive in, which would let the same selection word its sentence differently twice.
   const skipKinds = Object.entries(SKIP_CLAUSES).flatMap(([status, clause]) => {
     const count = tally.get(status) ?? 0;
@@ -185,7 +185,7 @@ export function buildConfirmSummary(
   const warningLines: string[] = [];
   // First, and phrased as a failure rather than an advisory: every other line here describes a rename
   // that will happen differently, while this one describes files the executor will not be able to move
-  // at all. It reads the aggregate COUNT, never a list of paths — a selection reaches library size, and
+  // at all. It reads the aggregate count, never a list of paths — a selection reaches library size, and
   // this text goes into a native confirm box that cannot scroll usefully. The cause is not stated in
   // characters: what the user can act on is the remedy, so that is what the line carries.
   const inFlightOverflow = summary?.inFlightPathOverflowCount ?? 0;

@@ -1,4 +1,4 @@
-// Playwright fixture wiring the harness lifecycle into `test`. One harness instance per WORKER, not
+// Playwright fixture wiring the harness lifecycle into `test`. One harness instance per worker, not
 // per test, so each test must name its own seed data uniquely or collide with its neighbours.
 //
 // Usage in a test file:
@@ -13,10 +13,10 @@ import { createApiClient } from "./apiClient.mjs";
 export { createApiClient };
 
 /**
- * A per-TEST harness fixture with `extension` already installed — its own Cove instance, torn down
+ * A per-test harness fixture with `extension` already installed — its own Cove instance, torn down
  * after the test.
  *
- * Use it for a test that changes a GLOBAL extension setting, or the extension's installed state. The
+ * Use it for a test that changes a global extension setting, or the extension's installed state. The
  * worker-scoped `harness` is shared, so such a change leaks into every other test in that worker and
  * silently alters its behaviour. This costs a container boot per test.
  */
@@ -34,7 +34,7 @@ export function isolatedHarnessFixture(extension) {
         await isolatedHarness.installExtension(extension);
         await use(isolatedHarness);
       } finally {
-        // The `page` fixture probes the WORKER harness, which is a different container on a
+        // The `page` fixture probes the worker harness, which is a different container on a
         // different port from this one. A test driving this harness therefore fails with no word
         // about the host it actually used, so the probe is repeated here against that host.
         await noteHostIfUnreachable(isolatedHarness.baseUrl, testInfo, "isolated host");
@@ -62,7 +62,7 @@ export const test = base.extend({
   harness: [
     async ({}, use) => {
       const harness = await startHarness();
-      // Cove's frontend hard-gates the ENTIRE app behind a first-run setup wizard until an owner
+      // Cove's frontend hard-gates the entire app behind a first-run setup wizard until an owner
       // account exists, and that wizard cannot be dismissed. Every browser-driven test needs it done
       // once per instance; an API-only file pays nothing it would notice.
       harness.owner = await harness.bootstrapOwner();
@@ -189,7 +189,7 @@ export function remainingVisitBudgetMs(budgetMs) {
 const HOST_LIVENESS_TIMEOUT_MS = 5_000;
 
 // A page that fails in a loop can emit thousands of console errors, and a failure message nobody can
-// read is not a diagnosis. The cap counts DISTINCT problems, so a repeat never costs a slot.
+// read is not a diagnosis. The cap counts distinct problems, so a repeat never costs a slot.
 const BROWSER_PROBLEM_CAP = 20;
 
 /** Records the host's liveness on a failing test, and says nothing on a passing one. */
@@ -241,7 +241,7 @@ export async function describeRenderedPage(page, { limit = 6 } = {}) {
  * Signs in through Cove's own login form, the way a user does, so the host frontend populates its
  * own auth store and every later request the app makes carries a real credential.
  *
- * There is nothing to navigate to: the auth gate renders the login form IN PLACE of the app, as a
+ * There is nothing to navigate to: the auth gate renders the login form in place of the app, as a
  * render branch rather than a route, so the page only has to be on the base URL already. Defaults
  * match `bootstrapOwner`'s.
  */

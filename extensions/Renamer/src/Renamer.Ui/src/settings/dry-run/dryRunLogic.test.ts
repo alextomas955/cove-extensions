@@ -22,12 +22,12 @@ import {
 import type { RenamerStatus } from "../../wire/api";
 
 /**
- * Every RenamerStatus wire value with the bucket the SERVER assigns it. Each bucket is TRANSCRIBED BY
- * HAND from `ScanBucket.Of`, never derived from `classifyItem`: an expectation computed from the code
+ * Every RenamerStatus wire value with the bucket the server assigns it. Each bucket is transcribed by
+ * hand from `ScanBucket.Of`, never derived from `classifyItem`: an expectation computed from the code
  * under test passes however far the two sides drift, and a drift means a row appearing in a segment it
  * was never counted in.
  *
- * Keyed by the GENERATED wire union rather than by `string`, so a status added on the server is a
+ * Keyed by the generated wire union rather than by `string`, so a status added on the server is a
  * compile error here instead of a table that quietly stops covering it. That does not let the two
  * agree by construction - the key is what must be exhaustive, while the bucket beside it stays the
  * hand transcription this table exists to be.
@@ -151,7 +151,7 @@ test("summaryCounts counts an unknown status as attention and still sums correct
 });
 
 test("summaryCounts ignores a zero-count status without changing the total", () => {
-  // The aggregate reports EVERY status in declaration order, most of them zero.
+  // The aggregate reports every status in declaration order, most of them zero.
   const statusCounts = Object.keys(SERVER_BUCKETS).map((status) => ({
     status,
     count: status === "move" ? 9 : 0,
@@ -223,7 +223,7 @@ test("etaFromSamples is an EWMA of the rate; a warmed steady rate gives the plai
   ]);
   assert.ok(warmed !== null && Math.abs(warmed - 4) < 1e-6);
 
-  // Display-confidence gate: a SINGLE rate (one pair) is withheld (unsmoothed seed) → null.
+  // Display-confidence gate: a single rate (one pair) is withheld (unsmoothed seed) → null.
   assert.equal(
     etaFromSamples([
       { timeMs: 1000, progress: 0.5 },
@@ -264,8 +264,8 @@ test("etaFromSamples is an EWMA of the rate; a warmed steady rate gives the plai
 
 test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus slow ETA", () => {
   // The reported symptom: a slow first pair (1% over 7.2s) then a fast steady rate. The EWMA pulls
-  // toward the fast rate each poll, so the estimate is seconds — NOT minutes/hours — and it does so
-  // WITHOUT dropping any samples (recency-weighting is the principled fix, not a magic threshold).
+  // toward the fast rate each poll, so the estimate is seconds — not minutes/hours — and it does so
+  // without dropping any samples (recency-weighting is the principled fix, not a magic threshold).
   const samples = [
     { timeMs: 0, progress: 0.01 },
     { timeMs: 7200, progress: 0.02 }, // slow warmup pair
@@ -279,7 +279,7 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
     `expected a small ETA after the EWMA absorbs the fast rate, got ${eta}`,
   );
 
-  // The confidence gate means the FIRST fast poll (only 2 rate observations: slow seed + 1 fast) is
+  // The confidence gate means the first fast poll (only 2 rate observations: slow seed + 1 fast) is
   // shown, and by then the EWMA already leans toward the fast rate — so it is seconds, not minutes.
   // slow seed ≈ 0.00139/s; fast instant 0.5/0.2=2.5/s; smoothed = 0.3*2.5 + 0.7*0.00139 ≈ 0.751/s;
   // remaining from 0.52 ≈ 0.48/0.751 ≈ 0.6s.
@@ -293,7 +293,7 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
 
 test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed rates", () => {
   // Exactly one rate observation (unsmoothed seed) → null, no matter how clean the pair looks. This
-  // is the fix for the intermittent one-poll "~2m" flash: never DISPLAY off a single raw seed.
+  // is the fix for the intermittent one-poll "~2m" flash: never display off a single raw seed.
   assert.equal(ETA_MIN_RATES, 2);
   assert.equal(
     etaFromSamples([
@@ -326,7 +326,7 @@ test("ETA_SMOOTHING is tqdm's 0.3 default", () => {
 });
 
 /**
- * The wire field name the server spells for the in-flight overflow flag, TRANSCRIBED BY HAND from the
+ * The wire field name the server spells for the in-flight overflow flag, transcribed by hand from the
  * `InFlightPathOverflow` member of `PreviewItemView` and `ScanRow`, camel-cased by the response
  * serializer. Written out here rather than read from the generated wire types, because a key spelled
  * wrong reads `undefined` - falsy - so the badge would simply never render and nothing would fail:

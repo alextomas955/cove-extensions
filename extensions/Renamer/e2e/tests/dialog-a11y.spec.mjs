@@ -1,15 +1,15 @@
-// Accessibility regression for the hand-rolled DIALOG-mode overlay (shared/ui-shared `useOverlayKeys`,
-// `nav:"dialog"`) AS WIRED into Renamer's `common/ui/Dialog` (the DryRunModal shell) — recreating the a11y
-// proof that 53-03 ran but never committed. It drives the real primitive; it does NOT rebuild the trap.
+// Accessibility regression for the hand-rolled dialog-mode overlay (shared/ui-shared `useOverlayKeys`,
+// `nav:"dialog"`) as wired into Renamer's `common/ui/Dialog` (the DryRunModal shell) — recreating the a11y
+// proof that 53-03 ran but never committed. It drives the real primitive; it does not rebuild the trap.
 //
-// Dialog mode's contract (distinct from menu mode): a Tab focus-trap that WRAPS first<->last, Escape-to-cancel,
-// focus restored to the opener on close, and — the induced-failure backstop — cancels SUSPENDED while an
+// Dialog mode's contract (distinct from menu mode): a Tab focus-trap that wraps first<->last, Escape-to-cancel,
+// focus restored to the opener on close, and — the induced-failure backstop — cancels suspended while an
 // operation is in flight (`enabled:!pending`), so a user cannot dismiss the dialog mid-op.
 import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
 // The exact focusable set the overlay's trap queries — used to grab the panel's first/last tabbable so the
-// wrap assertions don't depend on WHICH controls those happen to be.
+// wrap assertions don't depend on which controls those happen to be.
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
@@ -68,7 +68,7 @@ test("while a rename is in flight the dialog suspends cancel; it closes again on
   api,
 }) => {
   // Hold the rename request open to pin the modal in its in-flight (pending) state, then fail it — so the op
-  // settles WITHOUT the success path auto-closing the modal, leaving Escape to prove the cancel re-enables.
+  // settles without the success path auto-closing the modal, leaving Escape to prove the cancel re-enables.
   let releaseRename;
   const renameHeld = new Promise((resolve) => {
     releaseRename = resolve;
@@ -92,7 +92,7 @@ test("while a rename is in flight the dialog suspends cancel; it closes again on
   releaseRename();
   await expect(settings.dryRunCloseButton).toBeEnabled({ timeout: 30_000 });
 
-  // ONE press, deliberately. The re-enabled button and the re-armed Escape handler must become true
+  // one press, deliberately. The re-enabled button and the re-armed Escape handler must become true
   // in the same commit; a retried press would pass either way and so would not hold the overlay to
   // that. See useOverlayKeys, which reads `enabled` through a layout-effect ref for this reason.
   await page.keyboard.press("Escape");

@@ -11,8 +11,8 @@ namespace Renamer.Tests.Execution;
 /// from ever destroying data the move did not touch. Filesystem behavior (enumerate, link-resolve,
 /// non-recursive delete) is exercised against a real <see cref="TempDir"/>, not a mock. The end-to-end
 /// cases (1, 8, 9) drive the real executor so the call-site trigger and the move-result-still-moved
-/// contract are proven, not just the helper in isolation. The undo-contract case pins the REAL
-/// behavior: a deleted source folder makes a later undo of that move SKIP the restore (the file stays
+/// contract are proven, not just the helper in isolation. The undo-contract case pins the real
+/// behavior: a deleted source folder makes a later undo of that move skip the restore (the file stays
 /// at its verified destination, never lost).
 /// </summary>
 public sealed class EmptySourceFolderCleanerTests
@@ -105,7 +105,7 @@ public sealed class EmptySourceFolderCleanerTests
             var executor = NewExecutor(db, out _);
             var options = new RenamerOptions { RemoveEmptyFolder = true };
 
-            // Explicit cross-FOLDER (same-volume) move: src/clip.mkv → dst/My Film.mkv.
+            // Explicit cross-folder (same-volume) move: src/clip.mkv → dst/My Film.mkv.
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstFolder + "/My Film.mkv",
@@ -178,7 +178,7 @@ public sealed class EmptySourceFolderCleanerTests
         {
             // A pure in-place renamer inside one folder: the parent dir does not change, so the trigger
             // predicate must skip the cleaner outright. We prove the predicate skipped — not merely
-            // that the cleaner no-op'd — by leaving the folder with the renamed file still in it AND
+            // that the cleaner no-op'd — by leaving the folder with the renamed file still in it and
             // setting RemoveEmptyFolder on: had the cleaner run, it would have found a file and no-op'd
             // too, so the distinguishing observation is that the folder (still holding the renamed file)
             // is intact and the move stayed in-place.
@@ -198,7 +198,7 @@ public sealed class EmptySourceFolderCleanerTests
             Assert.Equal(RenamerStatus.Renamer, item.Status); // an in-place renamer, not a move
 
             // The trigger predicate's two independent reasons to skip both hold for this item:
-            // it is not a move, AND the parent dir does not change.
+            // it is not a move, and the parent dir does not change.
             Assert.False(item.Status == RenamerStatus.Move, "an in-place renamer is not a move → cleanup never fires");
             Assert.Equal(DirOf(item.OldFullPath), DirOf(item.NewFullPath));
 
@@ -247,7 +247,7 @@ public sealed class EmptySourceFolderCleanerTests
             Assert.Single(fwd.Renamed);
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the move + cleanup deleted the source dir");
 
-            // Undo the batch: the original directory is gone, so the restore SKIPS — it is NOT recreated.
+            // Undo the batch: the original directory is gone, so the restore skips — it is not recreated.
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var replayer = new UndoReplayer(port, new CapturingEventBus(), new DiskMover());
@@ -257,7 +257,7 @@ public sealed class EmptySourceFolderCleanerTests
             var skip = Assert.Single(undo.Skipped);
             Assert.Contains("original directory no longer exists", skip.Reason);
 
-            // The file is NEVER lost: it stays at its verified destination, and the DB still agrees.
+            // The file is never lost: it stays at its verified destination, and the DB still agrees.
             Assert.True(File.Exists(Path.Combine(dir.Root, "dst", "My Film.mkv")),
                 "the file remains at the destination — undo did not move it back, but it is not lost");
             var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);

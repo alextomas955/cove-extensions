@@ -48,7 +48,7 @@ function run(command, args, cwd, label) {
 }
 
 // npm ships as a .cmd shim on Windows and Node refuses to spawn one without a shell, so npm is always
-// run as `node <npm-cli.js>` — which needs no shell on any platform and assumes no binary on PATH.
+// run as `node <npm-cli.js>` — which needs no shell on any platform and assumes no binary on path.
 // npm_execpath is npm's own answer and is set whenever npm started this process, which is every run
 // through the `pretest` hook; the two filesystem candidates cover a direct `node scripts/…` invocation
 // and differ only in where each platform's Node installation puts npm. No candidate resolving is a hard

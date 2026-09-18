@@ -6,9 +6,9 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Events;
 
 /// <summary>
-/// The load-bearing auto-renamer safety property: with auto-renamer ON but the file ALREADY named
-/// exactly what the template renders, the plan is all-NoOp, so firing the handler performs ZERO
-/// saves and the event bus records ZERO published events. Because the executor's save is the only
+/// The load-bearing auto-renamer safety property: with auto-renamer on but the file already named
+/// exactly what the template renders, the plan is all-NoOp, so firing the handler performs zero
+/// saves and the event bus records zero published events. Because the executor's save is the only
 /// thing that re-raises <c>video.updated</c>, zero events proves the save→event→re-enter loop can
 /// never start.
 /// </summary>
@@ -36,7 +36,7 @@ public sealed class ReentrancyGuardTests
 
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
-            // ZERO published events ⇒ no executor save ran ⇒ no re-raised event ⇒ the loop is impossible.
+            // zero published events ⇒ no executor save ran ⇒ no re-raised event ⇒ the loop is impossible.
             Assert.Empty(bus.Published);
 
             var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);

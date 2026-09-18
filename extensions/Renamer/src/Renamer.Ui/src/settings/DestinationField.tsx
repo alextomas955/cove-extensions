@@ -1,5 +1,5 @@
 /**
- * DestinationField - the one editor every destination in this panel uses: a ROOT chosen from Cove's
+ * DestinationField - the one editor every destination in this panel uses: a root chosen from Cove's
  * library paths, plus a relative folder template rendered under it, side by side on one row.
  *
  * No path is ever typed. Cove owns the library paths, so a typed copy of one here would point at
@@ -66,7 +66,7 @@ export function DestinationField({
   const rootField = (
     <Field label="Under" helper={rootHelper}>
       <Select
-        // The MATCHED path, so a root stored in Cove's own platform spelling selects the library
+        // The matched path, so a root stored in Cove's own platform spelling selects the library
         // path it names rather than falling off the list. The stored value is left as it is: it
         // names the right folder, and rewriting it on load would be an edit the user did not make.
         value={chosen ?? value.Root}

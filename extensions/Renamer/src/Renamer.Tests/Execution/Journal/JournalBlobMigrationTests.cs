@@ -9,9 +9,9 @@ namespace Renamer.Tests.Execution.Journal;
 /// becomes one batch in the journal table, and both keys go — including when the value cannot be read.
 /// </summary>
 /// <remarks>
-/// Every legacy fixture here is HAND-WRITTEN rather than produced by the code that reads it. A fixture
+/// Every legacy fixture here is hand-written rather than produced by the code that reads it. A fixture
 /// generated from the parser under test agrees with that parser forever, whatever either of them says;
-/// a transcribed one fails when the format claim is wrong. Assertions are on the OUTCOME — the keys are
+/// a transcribed one fails when the format claim is wrong. Assertions are on the outcome — the keys are
 /// gone, the batch is readable from the table — never on the migration having been called.
 /// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
@@ -43,7 +43,7 @@ public sealed class JournalBlobMigrationTests
         Assert.NotNull(summary);
         Assert.Equal("R1", summary.Value.OperationId);
 
-        // Stamped with the header's own moment, NOT with Now: a pending undo must keep its real age
+        // Stamped with the header's own moment, not with Now: a pending undo must keep its real age
         // against the retention window, or a batch that should already have expired is silently extended.
         Assert.Equal(HeaderOpened.Ticks, summary.Value.OpenedAtUtcTicks);
         Assert.NotEqual(Now.Ticks, summary.Value.OpenedAtUtcTicks);
@@ -77,15 +77,15 @@ public sealed class JournalBlobMigrationTests
         Assert.NotNull(batch);
         Assert.Equal(RenamerFileKind.Video, batch.Kind);
 
-        // The legacy path has no parent entity to record, so each row's entity id IS its file id.
+        // The legacy path has no parent entity to record, so each row's entity id is its file id.
         Assert.All(batch.Rows, r => Assert.Equal(r.FileId, r.EntityId));
         Assert.Equal([80, 70], batch.Rows.Select(r => r.FileId));
 
-        // The old path is FOLLOWED by the new one here, so it is one field and stops at the next
+        // The old path is followed by the new one here, so it is one field and stops at the next
         // separator — the opposite of the headered shape, where the path is the last field.
         Assert.Equal(["/lib/b.mkv", "/lib/a.mkv"], batch.Rows.Select(r => r.OldPath));
 
-        // No header means no timestamp to inherit. Treating an unknown age as EXPIRED would delete a
+        // No header means no timestamp to inherit. Treating an unknown age as expired would delete a
         // pending undo on the next batch open with nothing to say so, which is the outcome this
         // exists to make impossible — so an unknown age gets the full window instead.
         var summary = await journal.ReadUndoTargetAsync();
@@ -119,7 +119,7 @@ public sealed class JournalBlobMigrationTests
     [Fact]
     public async Task ASecondRun_DoesNothing_BecauseTheSourceKeysAreAlreadyGone()
     {
-        // Deleting the source keys IS the idempotency marker. A separate "already migrated" flag would
+        // Deleting the source keys is the idempotency marker. A separate "already migrated" flag would
         // be a second marker, and a second marker is something that can disagree with the first.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         await using var _ = db;
@@ -207,7 +207,7 @@ public sealed class JournalBlobMigrationTests
     public async Task LoadingTheExtension_RunsTheMigration_AndTheKeysStopBeingServed()
     {
         // The real entry path, not the migration in isolation: the host applies this extension's schema
-        // migration BEFORE InitializeAsync on every load path, which is what makes this placement safe.
+        // migration before InitializeAsync on every load path, which is what makes this placement safe.
         await using var library = await LibraryDatabase.CreateAsync();
 
         var store = new FakeStore();

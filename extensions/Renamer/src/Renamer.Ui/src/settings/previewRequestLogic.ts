@@ -2,8 +2,8 @@
  * The pure decision the live-preview hook takes on a request that has settled.
  *
  * Import-free (no React, no request helper, no DOM) so it stays testable with no environment. The
- * decision exists because a debounce timer bounds when a request is ISSUED and nothing about it bounds
- * when a response ARRIVES: once the debounce has elapsed the POST is in flight, and a later one can
+ * decision exists because a debounce timer bounds when a request is issued and nothing about it bounds
+ * when a response arrives: once the debounce has elapsed the POST is in flight, and a later one can
  * answer first, so responses reach the pane in completion order rather than issue order. Whether a
  * settled response may still be shown is therefore a comparison, not something a cleanup function can
  * express.

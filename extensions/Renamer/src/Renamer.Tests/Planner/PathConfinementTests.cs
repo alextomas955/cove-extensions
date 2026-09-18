@@ -4,12 +4,12 @@ using Renamer.Planner;
 namespace Renamer.Tests.Planner;
 
 /// <summary>
-/// Proves the path-confinement gate: a benign relative subfolder resolves UNDER
+/// Proves the path-confinement gate: a benign relative subfolder resolves under
 /// the destination's anchor and is accepted; a "../.." traversal or an absolute/rooted folder
-/// template is REJECTED as <see cref="PathConfinement.ConfinementRejection.NotAllowed"/>; an
+/// template is rejected as <see cref="PathConfinement.ConfinementRejection.NotAllowed"/>; an
 /// over-FullPathMax absolute target is rejected as
 /// <see cref="PathConfinement.ConfinementRejection.TooLong"/>. The sibling case ("root" vs
-/// "rootEvil") proves the prefix check is boundary-aware. PURE - no disk.
+/// "rootEvil") proves the prefix check is boundary-aware. pure - no disk.
 /// </summary>
 public sealed class PathConfinementTests
 {
@@ -95,8 +95,8 @@ public sealed class PathConfinementTests
     [Fact]
     public void Sibling_NotMistakenForChild_Rejected()
     {
-        // Resolving "../videosEvil" from "media/videos" lands on a SIBLING "media/videosEvil"
-        // whose absolute form shares the textual prefix of the root but is NOT under it.
+        // Resolving "../videosEvil" from "media/videos" lands on a sibling "media/videosEvil"
+        // whose absolute form shares the textual prefix of the root but is not under it.
         var r = Resolve("../videosEvil");
 
         Assert.Equal(PathConfinement.ConfinementRejection.NotAllowed, r.Rejection);
@@ -125,7 +125,7 @@ public sealed class PathConfinementTests
 /// <summary>
 /// Proves <see cref="PathConfinement.ContainingRoot"/>: which library path a file is anchored on.
 /// The longest match wins so a nested library path anchors on the nearer boundary; a path under none
-/// of them has no anchor at all. PURE - no disk.
+/// of them has no anchor at all. pure - no disk.
 /// </summary>
 public sealed class ContainingRootTests
 {

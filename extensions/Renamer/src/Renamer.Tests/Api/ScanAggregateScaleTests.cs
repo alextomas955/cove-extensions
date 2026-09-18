@@ -7,12 +7,12 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Api;
 
 /// <summary>
-/// What a completed scan persists must be bounded by its SHAPE, not by the library: the stored blob's
+/// What a completed scan persists must be bounded by its shape, not by the library: the stored blob's
 /// byte length has to stay under a ceiling computed from the renamable-kind count, the
 /// <see cref="RenamerStatus"/> member count and <see cref="ScanSummary.MaxVolumePairsPerKind"/> — at ten
 /// files and again at ten thousand.
 /// <para>
-/// What is asserted here is the PERSISTED size plus how wide each read of the library is: the stored
+/// What is asserted here is the persisted size plus how wide each read of the library is: the stored
 /// value's size is independent of N (at two sizes three orders of magnitude apart), the store is written
 /// exactly once, and the walk asks for a page of ids at a time and never for a whole kind's. Peak
 /// managed memory itself is not measured.
@@ -28,7 +28,7 @@ public sealed class ScanAggregateScaleTests
     private const int LargeFixture = 10_000;
 
     /// <summary>
-    /// The ceiling the stored blob must stay under, DERIVED from the shape rather than asserted as a
+    /// The ceiling the stored blob must stay under, derived from the shape rather than asserted as a
     /// number: per kind, one status entry per <see cref="RenamerStatus"/> member plus at most
     /// <see cref="ScanSummary.MaxVolumePairsPerKind"/> volume-pair entries, each entry generously allowed
     /// this many bytes of names, digits and JSON punctuation.
@@ -43,7 +43,7 @@ public sealed class ScanAggregateScaleTests
     /// An extension wired with a store and nothing else. <c>InitializeAsync</c> is deliberately skipped:
     /// the scan core takes its data port as a parameter and needs neither the scope factory nor the event
     /// bus, so leaving the host seams uncaptured keeps this class free of any Cove source type and
-    /// therefore compiled AND runnable on the cove-absent CI leg.
+    /// therefore compiled and runnable on the cove-absent CI leg.
     /// </summary>
     private static (global::Renamer.Renamer Ext, FakeStore Store) NewExtension()
     {
@@ -92,7 +92,7 @@ public sealed class ScanAggregateScaleTests
             port, RenamableKinds.All, options ?? new RenamerOptions { FilenameTemplate = "$title" },
             new FakeJobProgress(), default);
 
-        // Read the RAW stored string: parsing is exactly what would hide growth, and the byte length is
+        // Read the raw stored string: parsing is exactly what would hide growth, and the byte length is
         // the thing that broke.
         string json = (await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey))!;
         var summary = System.Text.Json.JsonSerializer.Deserialize<ScanSummary>(
@@ -169,7 +169,7 @@ public sealed class ScanAggregateScaleTests
     public void MoreVolumePairsThanTheCap_TopsTheItemisationButStaysUnderTheCeiling()
     {
         // Folded directly with a synthetic mount table rather than driven through the job: which volume a
-        // path is on comes from the RUNNER's real mount table, so a genuinely multi-volume fixture cannot
+        // path is on comes from the runner's real mount table, so a genuinely multi-volume fixture cannot
         // be produced through the live scan path on an arbitrary machine. The scaling claim under test —
         // the stored size stays under the ceiling with the pair list at its cap, while the cross-volume
         // totals stay exact — is unaffected by which code path fed the fold.

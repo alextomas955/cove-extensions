@@ -6,11 +6,11 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Events;
 
 /// <summary>
-/// A two-file item whose files render ONE name, auto-renamed, must rename once and then stop.
+/// A two-file item whose files render one name, auto-renamed, must rename once and then stop.
 /// </summary>
 /// <remarks>
 /// A different arrangement from <see cref="AutoRenamerTitleChainTests"/>, whose two files carry
-/// different container extensions on purpose so they never collide. Here the extensions are the SAME,
+/// different container extensions on purpose so they never collide. Here the extensions are the same,
 /// so the template renders one name for both files and the surplus file's suffix loop settles on the
 /// numbered name it already carries.
 /// <para>
@@ -20,9 +20,9 @@ namespace Renamer.Tests.Events;
 /// only here can the chain's own end be observed.
 /// </para>
 /// <para>
-/// The bus only RECORDS, so the events a save raises are delivered back into the handler here, which
+/// The bus only records, so the events a save raises are delivered back into the handler here, which
 /// is what the host does. Without that loop the chain is invisible and a runaway reads as one quiet
-/// rename. Delivery is capped so an arrangement that did NOT terminate ends at the cap and reports,
+/// rename. Delivery is capped so an arrangement that did not terminate ends at the cap and reports,
 /// rather than hanging the suite.
 /// </para>
 /// </remarks>

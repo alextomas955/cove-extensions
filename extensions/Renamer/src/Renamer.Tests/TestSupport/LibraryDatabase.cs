@@ -14,7 +14,7 @@ namespace Renamer.Tests.TestSupport;
 /// its contexts read, and a record of which principal was in effect for each SQL command they ran.
 /// </summary>
 /// <remarks>
-/// Its contexts are SCOPED, not a shared singleton, because the paths under test open scopes of their
+/// Its contexts are scoped, not a shared singleton, because the paths under test open scopes of their
 /// own; the connection is what keeps the one in-memory database alive across them. The journal tables
 /// come from <c>EnsureCreatedAsync</c> under the run-wide data-extension registration, which is the
 /// host's own behaviour rather than a fixture-only shortcut.
@@ -23,7 +23,7 @@ namespace Renamer.Tests.TestSupport;
 /// background read actually executes under, which is what makes an elevation claim checkable at all.
 /// Under SQLite the row-level consequence of getting elevation wrong cannot be reproduced -
 /// <see cref="CoveContext"/> installs its authorization filters only under Npgsql - so the proof
-/// available at this tier is the principal AT THE COMMAND, which is the fact those filters consult.
+/// available at this tier is the principal at the command, which is the fact those filters consult.
 /// Assert on <see cref="CommandsExecuted"/>, never on a row count.
 /// </para>
 /// </remarks>
@@ -45,7 +45,7 @@ internal sealed class LibraryDatabase : IAsyncDisposable
 
     /// <summary>Every command the contexts executed, oldest first.</summary>
     /// <remarks>
-    /// The principal and the statement are recorded as ONE value rather than as two parallel lists,
+    /// The principal and the statement are recorded as one value rather than as two parallel lists,
     /// because the pair is the observation: two lists can be cleared or read apart, and a verdict about
     /// which principal ran which read would then be assembled from two facts that can disagree.
     /// </remarks>
@@ -71,7 +71,7 @@ internal sealed class LibraryDatabase : IAsyncDisposable
 
     /// <summary>
     /// Registered as the extension's logger when set. The host forwards one and the extension falls back
-    /// to <c>NullLogger</c>, so a suite whose subject is what the load RECORDED has to supply its own.
+    /// to <c>NullLogger</c>, so a suite whose subject is what the load recorded has to supply its own.
     /// </summary>
     public ILogger<global::Renamer.Renamer>? Log { get; set; }
 

@@ -1,4 +1,4 @@
-// The browser half of a MULTI-select "Rename selected": a rename driven from the grid with more than
+// The browser half of a multi-select "Rename selected": a rename driven from the grid with more than
 // one card selected must reach every selected item, not just the first.
 //
 // The API half already exists (PreviewEndpointTests.PreviewAsync_WithSeveralEntityIds_ReturnsAnItemForEveryOne),
@@ -10,7 +10,7 @@
 // - It runs on its own instance, so the grid holds only what this spec seeded. The worker-shared
 //   harness accumulates videos from sibling specs, and a grid of unknown contents makes "the first
 //   three cards" a different set on every run.
-// - Every assertion is a COUNT, never a displayed filename. selectFirstCards is position-based
+// - Every assertion is a count, never a displayed filename. selectFirstCards is position-based
 //   precisely because a name-scoped selection is ordering-dependent on a shared grid, so asserting on
 //   names would hand that dependence straight back. Even the dialog assertion reads the count the
 //   confirm text quotes, not the examples it lists.
@@ -76,13 +76,13 @@ test(
     const videosPage = new VideosPage(page, baseUrl);
     await videosPage.goto();
 
-    // Wait for the grid to hold every seeded card BEFORE selecting. selectFirstCards clamps to what is
+    // Wait for the grid to hold every seeded card before selecting. selectFirstCards clamps to what is
     // present when it counts, so without this the count assertion below would be racing the grid's
     // client-side fetch instead of testing multi-select.
     await expect(videosPage.selectItemButtons).toHaveCount(SELECTED, { timeout: 15_000 });
 
     const selected = await videosPage.selectFirstCards(SELECTED);
-    // Asserted BEFORE the rename is triggered, and this is the assertion that makes the rest mean
+    // Asserted before the rename is triggered, and this is the assertion that makes the rest mean
     // anything: selectFirstCards clamps with Math.min(count, available), so a grid holding one card
     // would otherwise let this spec pass having proved nothing about multi-select.
     expect(

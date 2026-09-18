@@ -1,5 +1,5 @@
 // UI-driven coverage for two rename-affecting affordances the rest of the suite never clicks: the
-// FOLDER template ("Where files go" — relocates files on rename), and the whole-library "Rename all
+// folder template ("Where files go" — relocates files on rename), and the whole-library "Rename all
 // files" button in the settings panel (elsewhere exercised only via the raw renamer-library API job,
 // never the actual button). Both are driven through the real UI via the Page Object Model; the proof
 // is exact on-disk + DB state (assertRenamedTo), never the panel's own success banner.
@@ -10,7 +10,7 @@ import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { assertRenamedTo } from "../lib/rename-assertions.mjs";
 
 const test = base.extend({
-  // "Rename all files" sweeps EVERY item in the library, so the whole-library test below runs on its
+  // "Rename all files" sweeps every item in the library, so the whole-library test below runs on its
   // own instance — a sibling test's seeded media sharing the per-worker harness would be swept into
   // this run's scope and could miss its own polling window (same rationale as library-jobs.spec.mjs).
   isolatedHarness: [
@@ -59,7 +59,7 @@ test("setting a folder template through the UI relocates a renamed file to the e
 
   // A literal "relocated" folder (no tokens) plus a "$title"-only filename makes the whole landing
   // path deterministic. With no routing rules the move is source-confined —
-  // the file may only move WITHIN its own source root (/data) — so a bare relative sub-folder under
+  // the file may only move within its own source root (/data) — so a bare relative sub-folder under
   // /data is a genuinely permitted target; a routed root outside /data would be rejected. The file
   // must therefore land at exactly /data/relocated/<title>.mp4.
   const title = "Folder Move Test";
@@ -75,7 +75,7 @@ test("setting a folder template through the UI relocates a renamed file to the e
 
   const videosPage = new VideosPage(page, baseUrl);
   await videosPage.goto();
-  // Select by filename BEFORE setting a Title: the card's accessible name follows the title once set.
+  // Select by filename before setting a Title: the card's accessible name follows the title once set.
   await videosPage.selectCard(originalFilename);
 
   const setTitle = await api.put(`/api/videos/${video.id}`, { Title: title });
@@ -91,7 +91,7 @@ test("setting a folder template through the UI relocates a renamed file to the e
     originalPath,
   });
   // assertRenamedTo proves the basename + that the DB path exists on disk and the old path is gone;
-  // the folder-relocation claim needs the FULL path pinned, or a move to the wrong (but existing)
+  // the folder-relocation claim needs the full path pinned, or a move to the wrong (but existing)
   // folder would slip through.
   expect(newPath, "renamed file must land in the exact folder the template computed").toBe(
     expectedFullPath,
@@ -133,7 +133,7 @@ test('clicking "Rename all files" in the panel renames every library item to its
     expect(update.ok).toBe(true);
   }
 
-  // The whole-library rename is triggered by the actual panel button here — NOT a POST to
+  // The whole-library rename is triggered by the actual panel button here — not a POST to
   // renamer-library. That is the gap this test closes: the button-driven counterpart to
   // library-jobs.spec.mjs's API-driven run.
   await settingsPage.renameAll();

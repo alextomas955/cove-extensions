@@ -24,7 +24,7 @@ import type { LastBatchSummary, UndoResult } from "../wire/api";
 /**
  * How long the server keeps a batch before it expires, in milliseconds.
  *
- * A DELIBERATE second copy of `CoveRevertJournal.RetentionWindow` on the server. The panel states the
+ * A deliberate second copy of `CoveRevertJournal.RetentionWindow` on the server. The panel states the
  * batch's actual expiry date rather than a static "kept for 7 days" note, and that date is the
  * summary's own open timestamp plus this window — computed here because the window is a constant
  * rather than per-batch data, so putting it on the wire would add a field that is the same on every
@@ -33,7 +33,7 @@ import type { LastBatchSummary, UndoResult } from "../wire/api";
  * The cost of that choice is this duplication, and a duplicated number with nothing watching it
  * drifts silently: the symptom would be a date the user trusts and the server does not honour. So it
  * is pinned rather than commented — `Renamer.Tests/Contracts/RetentionWindowPinTests.cs` asserts the
- * server constant is seven days and names THIS file in its failure message.
+ * server constant is seven days and names this file in its failure message.
  */
 export const RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -65,7 +65,7 @@ export interface UndoPanelStatus {
   /**
    * True once `now` is past that moment.
    *
-   * The rows may still be on disk: the server purges an expired batch when the NEXT batch opens and
+   * The rows may still be on disk: the server purges an expired batch when the next batch opens and
    * nowhere else, so a library that has been quiet since keeps them. What has gone is the promise —
    * the next rename drops the batch with no further warning — so the caller withholds the button
    * rather than offering a recovery it cannot say will still be there.
@@ -111,7 +111,7 @@ function relativeTime(epochMs: number, now: number): string {
  * side they are the same situation. The second test is on `remainingCount`, which the server derives
  * from the same aggregate it derives `consumed` from, so the two cannot disagree.
  *
- * An EXPIRED batch is not `null`. Saying nothing there would read as "there was never a rename",
+ * An expired batch is not `null`. Saying nothing there would read as "there was never a rename",
  * while the truth is that there was one and its undo window has closed; the caller uses `expired` to
  * withhold the button while still showing the line.
  */

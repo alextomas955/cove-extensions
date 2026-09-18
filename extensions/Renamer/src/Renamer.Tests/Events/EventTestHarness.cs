@@ -13,7 +13,7 @@ namespace Renamer.Tests.Events;
 /// seams (<c>_scopeFactory</c>, <c>_eventBus</c>, <c>Store</c>) sourced from a DI provider that
 /// registers the seeded <see cref="CoveContext"/> as the base <see cref="DbContext"/> (singleton, so
 /// the per-event scope resolves the same seeded instance) and a <see cref="CapturingEventBus"/>.
-/// Options are persisted into the same store the hook loads from BEFORE the event fires.
+/// Options are persisted into the same store the hook loads from before the event fires.
 /// </summary>
 internal static class EventTestHarness
 {

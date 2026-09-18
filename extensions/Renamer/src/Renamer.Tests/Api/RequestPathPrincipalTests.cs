@@ -8,12 +8,12 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Api;
 
 /// <summary>
-/// The request paths that must NOT elevate — <c>/undo</c>, <c>/scan-rows</c> and <c>/last-batch</c> —
-/// run their database commands under the CALLER's own principal.
+/// The request paths that must not elevate — <c>/undo</c>, <c>/scan-rows</c> and <c>/last-batch</c> —
+/// run their database commands under the caller's own principal.
 /// </summary>
 /// <remarks>
 /// The invariant is stated beside the conversion that does elevate, and it is
-/// quoted here so nobody later "fixes" these into elevation: <i>every DETACHED body in this extension
+/// quoted here so nobody later "fixes" these into elevation: <i>every detached body in this extension
 /// takes its scope from the elevating seam, because none of them carries a principal of its own. The
 /// request-path scopes deliberately do not: they must stay on the caller's principal, and elevating them
 /// would bypass that caller's authorization.</i>
@@ -125,7 +125,7 @@ public sealed class RequestPathPrincipalTests
     {
         var recorded = library.CommandsExecuted.ToList();
 
-        // Non-empty FIRST: a handler that reached no database at all would satisfy every verdict below.
+        // Non-empty first: a handler that reached no database at all would satisfy every verdict below.
         Assert.NotEmpty(recorded);
         Assert.All(recorded, c => Assert.Equal(PrincipalKind.User, c.Principal));
         Assert.DoesNotContain(PrincipalKind.System, recorded.Select(c => c.Principal));

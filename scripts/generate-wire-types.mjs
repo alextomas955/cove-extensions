@@ -29,7 +29,7 @@ const DOCUMENT_SUBPATH = "wire/openapi.json";
 /**
  * The real document-to-types step.
  *
- * The package is imported lazily so this MODULE stays loadable where it is absent: the tooling test
+ * The package is imported lazily so this module stays loadable where it is absent: the tooling test
  * injects a fake in its place, and the catalog-validation job installs nothing yet runs every
  * scripts/*.test.mjs.
  *

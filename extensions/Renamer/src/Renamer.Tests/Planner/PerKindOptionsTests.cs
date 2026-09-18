@@ -7,7 +7,7 @@ namespace Renamer.Tests.Planner;
 /// <summary>
 /// The per-entity-kind settings as the planner reads them: a kind turned off is skipped with a reason
 /// rather than renamed, and a kind's own destination is the default its unmatched items take while a
-/// matched routing rule still wins. PURE - no disk, no DB; every test asserts zero saves.
+/// matched routing rule still wins. pure - no disk, no DB; every test asserts zero saves.
 /// </summary>
 public sealed class PerKindOptionsTests
 {

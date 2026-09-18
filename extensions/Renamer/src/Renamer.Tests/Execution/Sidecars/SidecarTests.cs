@@ -5,9 +5,9 @@ namespace Renamer.Tests.Execution.Sidecars;
 
 /// <summary>
 /// A caption sidecar ("video.en.vtt") moves alongside its video to
-/// track the new stem; when the sidecar's target already exists it is SKIPPED with a warning and
+/// track the new stem; when the sidecar's target already exists it is skipped with a warning and
 /// the pre-existing target is left untouched (never clobbered). Also proves the rollback helper
-/// restores the primary file AND every moved sidecar to their old paths (the executor's
+/// restores the primary file and every moved sidecar to their old paths (the executor's
 /// save-failure cleanup). Exercised on the real filesystem via <see cref="TempDir"/>.
 /// </summary>
 public sealed class SidecarTests
@@ -51,7 +51,7 @@ public sealed class SidecarTests
             [new DiskMover.SidecarMove(oldCaption, newCaption)]);
 
         Assert.True(result.Moved, "the primary video still moves");
-        // The pre-existing caption target is NOT clobbered.
+        // The pre-existing caption target is not clobbered.
         Assert.Equal("theirs", File.ReadAllText(newCaption));
         // The source caption is left where it was (skipped, not moved).
         Assert.True(File.Exists(oldCaption), "skipped sidecar source must remain");

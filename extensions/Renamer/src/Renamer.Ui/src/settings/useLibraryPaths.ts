@@ -1,10 +1,10 @@
 /**
- * useLibraryPaths - Cove's configured library paths, which every destination root is CHOSEN from.
+ * useLibraryPaths - Cove's configured library paths, which every destination root is chosen from.
  *
  * Read once when the settings page mounts, because they are host configuration rather than library
  * data: they change when the user edits Cove's own settings, not while this panel is open.
  *
- * It returns the read's STATE and not just the list, because an empty list on its own cannot say
+ * It returns the read's state and not just the list, because an empty list on its own cannot say
  * whether the read has landed. See {@link LibraryPathsState} for why the three cases are kept apart,
  * and {@link destinationPicker} for what each one lets the panel say.
  *

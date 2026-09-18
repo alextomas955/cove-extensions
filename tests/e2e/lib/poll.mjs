@@ -8,7 +8,7 @@
  *
  * `attempt` receives a per-attempt `AbortSignal` and a `note` callback, and returns `{ value }` to
  * settle or anything falsy to be retried. The signal matters because the deadline is consulted only
- * BETWEEN attempts and Node's fetch applies no timeout of its own, so a call that never settles would
+ * between attempts and Node's fetch applies no timeout of its own, so a call that never settles would
  * keep the loop from re-testing it — which Docker's userland port proxy makes reachable, by accepting
  * the TCP connection while the app behind it is still starting.
  *

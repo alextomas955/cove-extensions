@@ -1,4 +1,4 @@
-// Drives the REAL validate-extension-repo.mjs as a child process against malformed catalog
+// Drives the real validate-extension-repo.mjs as a child process against malformed catalog
 // fixtures, asserting exit code and output text.
 //
 // Subprocess rather than an imported function because the validator resolves its root relative to
@@ -44,7 +44,7 @@ function validEntry(id, dirName, overrides = {}) {
   };
 }
 
-// The ATTRIBUTED form the real Directory.Build.props uses, which is what exercises
+// The attributed form the real Directory.Build.props uses, which is what exercises
 // readMsBuildProperties' optional-attribute branch. A bare-element fixture would leave the branch
 // that runs in production uncovered.
 function buildPropsWithFloor(floor = "1.1.0") {
@@ -81,7 +81,7 @@ function solutionXml(projectPaths) {
 //   <root>/CoveExtensions.slnx                    (only when `solution` is supplied — omitting it
 //                                                    is how a case expresses an absent solution)
 //   <root>/<relPath> for each [relPath, manifest] in extensionJsonByPath (a real extension.json
-//   on disk for each catalog entry that must NOT short-circuit on path-existence)
+//   on disk for each catalog entry that must not short-circuit on path-existence)
 //   <root>/<relPath> for each [relPath, text] in filesByPath (raw bytes — a .csproj fixture is not
 //   JSON, and only has to exist for the checks that consume it)
 function makeFixture({
@@ -284,7 +284,7 @@ test("missing required field (id) produces a non-zero exit and the expected erro
 test("nonexistent projectPath produces a non-zero exit and the expected error", () => {
   // The projectPath check is guarded by `!isManifestOnly`, so this case overrides the
   // validEntry() baseline's manifestOnly:true and supplies a manifest with kind="module" plus a
-  // real entryDll, so no OTHER error fires alongside the one under test. manifestPath stays valid
+  // real entryDll, so no other error fires alongside the one under test. manifestPath stays valid
   // so the check reaches the project-path branch instead of short-circuiting on an earlier
   // `continue`.
   const entry = validEntry("com.example.foo", "Foo", {
@@ -334,7 +334,7 @@ test("nonexistent manifestPath produces a non-zero exit and the expected error",
 
 test("duplicate extension id produces a non-zero exit and the expected error", () => {
   // Both entries need real, distinct, fully-valid fixture dirs so neither short-circuits on the
-  // path-existence `continue` before the dedup check on the SECOND entry runs.
+  // path-existence `continue` before the dedup check on the second entry runs.
   const entryA = validEntry("com.example.dup", "DupA");
   const entryB = validEntry("com.example.dup", "DupB");
   const root = makeFixture({
@@ -624,7 +624,7 @@ test("a registry versions[] row whose floor disagrees with extension.json fails,
 
 test("older versions[] rows with lower floors are not compared, so history stays immutable", () => {
   // The case a naive implementation fails, and the only one that can speak for it. An implementation
-  // comparing EVERY row passes every other case in this file while demanding the historical-row edit
+  // comparing every row passes every other case in this file while demanding the historical-row edit
   // releasing.md forbids: each row describes an immutable published zip whose floor is the floor that
   // zip needs, so the two older rows here are correct precisely by disagreeing with the current one.
   // The three rows mirror the real manifest's shape (1.1.0 / 1.0.0 / 0.7.1, newest first).
@@ -653,7 +653,7 @@ test("older versions[] rows with lower floors are not compared, so history stays
   try {
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    // ONE of the three rows was compared. The count is what says so: an implementation comparing
+    // one of the three rows was compared. The count is what says so: an implementation comparing
     // every row also exits 0 on this fixture, because the two older rows agree with themselves.
     assert.match(stdout, /1 registry row\(s\) compared across 1 declared registry manifest\(s\)/);
   } finally {
@@ -702,7 +702,7 @@ test("two versions[] rows carrying the same version fail, naming the duplicated 
 // drift is silent in the worst way: when a field leaves the real shape, every case above keeps passing
 // while exercising a shape that no longer exists.
 //
-// This does NOT re-run the validator against the real repo; CI already does that
+// This does not re-run the validator against the real repo; CI already does that
 // (.github/workflows/build.yml, the required `validate` job), and a second copy of an existing gate
 // would rot rather than protect. What CI cannot say is whether these fixtures still describe what it
 // validates. That is the gap here.

@@ -5,7 +5,7 @@ namespace Renamer.Tests.Execution.CrossVolume;
 
 /// <summary>
 /// The cross-volume copy → verify(size + hash) → atomic-renamer → delete-source-last primitive,
-/// exercised DIRECTLY against the real filesystem via the <see cref="TempDir"/> fixture (no second
+/// exercised directly against the real filesystem via the <see cref="TempDir"/> fixture (no second
 /// physical drive — the mover is called regardless of the real volume layout, exactly like
 /// <see cref="DiskMover"/>'s tests). Proves: a verified happy move; no-clobber on an existing dest;
 /// a same-size-but-different-content copy is rejected (size-only would false-pass); a locked source
@@ -14,7 +14,7 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// path mint different in-flight names.
 /// </summary>
 /// <remarks>
-/// The in-flight name is minted per call and unguessable, so these cases LEARN it from the mover
+/// The in-flight name is minted per call and unguessable, so these cases learn it from the mover
 /// through the post-copy seam rather than constructing it. That direction is the point: a test that
 /// built its own expected path would be asserting on a value it supplied itself and would keep
 /// passing however wrong the real name was — which is exactly what the suite did before the name was
@@ -103,8 +103,8 @@ public sealed class CrossVolumeMoverTests
         var dest = Path.Combine(dir.Root, "moved", "clip.mkv");
         var minted = new List<string>();
 
-        // Fault seam: between copy and verify, rewrite the in-flight copy to the SAME length but
-        // DIFFERENT bytes. A size-only verify would false-pass; the hash must catch this. The seam also
+        // Fault seam: between copy and verify, rewrite the in-flight copy to the same length but
+        // different bytes. A size-only verify would false-pass; the hash must catch this. The seam also
         // hands the test the minted path, which is the only way to know it.
         var mover = new CrossVolumeMover((inFlight, _) =>
         {
@@ -133,7 +133,7 @@ public sealed class CrossVolumeMoverTests
         var dest = Path.Combine(dir.Root, "sub", "Renamed.mkv");
         var mover = new CrossVolumeMover();
 
-        // Hold the SOURCE open exclusively so the copy's source FileStream throws IOException.
+        // Hold the source open exclusively so the copy's source FileStream throws IOException.
         using (new FileStream(old, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
@@ -257,7 +257,7 @@ public sealed class CrossVolumeMoverTests
         using var cts = new CancellationTokenSource();
         cts.Cancel(); // cancelled BEFORE the copy's first ReadAsync → OperationCanceledException
 
-        // classify-not-throw: a cancel must NOT escape MoveAsync (the executor relies on the mover
+        // classify-not-throw: a cancel must not escape MoveAsync (the executor relies on the mover
         // never throwing out). It must return a classified Cancelled skip.
         var result = await mover.MoveAsync(old, dest, sidecars: null, cts.Token);
 
@@ -267,7 +267,7 @@ public sealed class CrossVolumeMoverTests
         Assert.True(File.Exists(old), "a cancelled move must leave the source untouched");
         Assert.Equal("the bytes that must survive a cancel", File.ReadAllText(old));
         Assert.False(File.Exists(dest), "no destination must be promoted on a cancel");
-        // The cancel throws out of the read loop AFTER the in-flight file was opened CreateNew, so an
+        // The cancel throws out of the read loop after the in-flight file was opened CreateNew, so an
         // empty directory here is the proof it was removed. The seam is never reached on this path.
         Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(dest)!));
     }
@@ -291,7 +291,7 @@ public sealed class CrossVolumeMoverTests
 
         Assert.True(result.Moved);
         Assert.Equal(MoveOutcome.Moved, result.Outcome);
-        // The final is the FRESH verified copy of the source, never the orphan's contents.
+        // The final is the fresh verified copy of the source, never the orphan's contents.
         Assert.Equal("the genuine bytes", File.ReadAllText(dest));
         Assert.False(File.Exists(old));
         // The orphan is inert, not garbage to collect: this call minted a different name, so it is
@@ -302,7 +302,7 @@ public sealed class CrossVolumeMoverTests
     }
 
     /// <summary>
-    /// The two properties the mint itself has to carry: a second move to the SAME final path takes a
+    /// The two properties the mint itself has to carry: a second move to the same final path takes a
     /// different in-flight name (which is what makes an orphan harmless without a sweep), and the
     /// minted segment is no longer than the 16-character fixed suffix it replaced (the planner budgets
     /// only the final path, so a longer name would widen an already-unbudgeted gap).
@@ -336,11 +336,11 @@ public sealed class CrossVolumeMoverTests
     }
 
     // When the destination copy is corrupted (a flipped byte) or torn (truncated) before verify, the
-    // verify FAILS, the SOURCE survives with its original bytes, and the suspect destination and
+    // verify fails, the source survives with its original bytes, and the suspect destination and
     // in-flight copy are gone — an interrupted/corrupted transfer never loses the original. The bit-flip
     // case proves the content-hash half of verify; the truncation case proves the size half. Both run
     // entirely in a TempDir — no second physical drive (a real two-drive run is a manual cross-platform
-    // check, deliberately NOT faked here).
+    // check, deliberately not faked here).
 
     [Fact]
     public async Task BitFlipDestination_VerifyFails_SourceSurvives_DestDeleted()
@@ -351,7 +351,7 @@ public sealed class CrossVolumeMoverTests
         var dest = Path.Combine(dir.Root, "moved", "clip.mkv");
         string? inFlight = null;
 
-        // Fault seam: flip exactly one byte of the in-flight copy AFTER copy but BEFORE verify. The size
+        // Fault seam: flip exactly one byte of the in-flight copy after copy but before verify. The size
         // is unchanged, so this can only be caught by the content hash (not the size check). The seam
         // also hands over the minted path, which is how the leftover assertion below knows it.
         var mover = new CrossVolumeMover((path, _) =>
@@ -384,7 +384,7 @@ public sealed class CrossVolumeMoverTests
         var dest = Path.Combine(dir.Root, "moved", "clip.mkv");
         string? inFlight = null;
 
-        // Fault seam: truncate the in-flight copy to a SHORTER length (a torn/short write). This is
+        // Fault seam: truncate the in-flight copy to a shorter length (a torn/short write). This is
         // caught by the size half of verify independently of the hash.
         var mover = new CrossVolumeMover((path, _) =>
         {
@@ -452,7 +452,7 @@ public sealed class CrossVolumeMoverTests
         var plantedOnTarget = dir.Touch("moved/Renamed.mkv.rnm0cf1c5d4", UserContent);
         var plantedElsewhere = dir.Touch("moved/Holiday.mkv.rnmc15381a0", UserContent);
 
-        // Corrupt the in-flight copy between copy and verify, so the failure arm — the one that DOES
+        // Corrupt the in-flight copy between copy and verify, so the failure arm — the one that does
         // delete — runs. It must reach the minted path and nothing else.
         var minted = new List<string>();
         var mover = new CrossVolumeMover((inFlight, _) =>
@@ -486,7 +486,7 @@ public sealed class CrossVolumeMoverTests
     }
 
     /// <summary>
-    /// The other half of the ownership claim: what the mover DID mint is gone, so the planted files
+    /// The other half of the ownership claim: what the mover did mint is gone, so the planted files
     /// surviving is not merely the mover having deleted nothing at all.
     /// </summary>
     private static void AssertOnlyMintedPathsWereRemoved(List<string> minted, params string[] planted)

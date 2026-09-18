@@ -4,7 +4,7 @@ namespace Renamer.Tests.TestSupport;
 
 /// <summary>
 /// A capturing <see cref="IEventBus"/> fake that records every published <see cref="CoveEvent"/>
-/// so a test can assert the post-renamer event's ARGS (type + entity id), not merely that Publish
+/// so a test can assert the post-renamer event's args (type + entity id), not merely that Publish
 /// was called. Subscribe is a no-op (the executor only publishes).
 /// </summary>
 public sealed class CapturingEventBus : IEventBus

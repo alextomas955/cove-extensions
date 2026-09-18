@@ -11,7 +11,7 @@ namespace Cove.Extensions.Shared;
 public static class MinimalApiPermissions
 {
     /// <summary>
-    /// Returns a <c>403 FORBIDDEN</c> result when the principal is null or lacks
+    /// Returns a <c>403 forbidden</c> result when the principal is null or lacks
     /// <paramref name="permission"/>, otherwise <c>null</c> (proceed).
     /// </summary>
     public static ForbiddenCode? Forbidden(ICurrentPrincipalAccessor principal, string permission)

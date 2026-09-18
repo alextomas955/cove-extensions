@@ -11,7 +11,7 @@ namespace Renamer.Tests.Events;
 
 /// <summary>
 /// The data-recovery spine for the auto-renamer hook: a rename driven by the <c>video.updated</c> event
-/// must open its own journal batch, and the row it writes must carry the PARENT entity id alongside the
+/// must open its own journal batch, and the row it writes must carry the parent entity id alongside the
 /// file id so /undo can publish the forward-equivalent event. The decoy video makes
 /// <c>videoId ≠ fileId</c>, so a row that confused the two is distinguishable from a correct one.
 /// </summary>
@@ -42,7 +42,7 @@ public sealed class AutoRenamerRevertLogBatchTests
             };
             var (ext, _, _) = await EventTestHarness.BuildAsync(db, options);
 
-            // Drive the hook for the one entity that WILL act: raw.mkv → My Film.mkv.
+            // Drive the hook for the one entity that will act: raw.mkv → My Film.mkv.
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
@@ -55,7 +55,7 @@ public sealed class AutoRenamerRevertLogBatchTests
             Assert.NotNull(batch);
             Assert.Equal(RenamerFileKind.Video, batch!.Kind);
 
-            // (b) EntityId is the VIDEO id and FileId is the FILE id, and they differ — a row that
+            // (b) EntityId is the video id and FileId is the file id, and they differ — a row that
             // confused the two would have EntityId == FileId.
             var entry = Assert.Single(batch.Rows);
             Assert.Equal(videoId, entry.EntityId);

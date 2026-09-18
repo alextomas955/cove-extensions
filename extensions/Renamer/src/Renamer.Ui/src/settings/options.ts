@@ -6,10 +6,10 @@
  * reaches this panel through the committed document. Per-member documentation stays on those records,
  * which state each rule more fully than a mirrored copy could.
  *
- * PascalCase is the spelling of the PERSISTED options blob on every existing installation, and
+ * PascalCase is the spelling of the persisted options blob on every existing installation, and
  * `MODELED_KEYS` is built from `DEFAULT_OPTIONS`' runtime keys, so re-casing here would make every
  * stored key look unmodeled and leave the two writers disagreeing about the blob's spelling. The enums
- * persist as their member NAMES, so their values are re-cased too even though the wire spells them
+ * persist as their member names, so their values are re-cased too even though the wire spells them
  * camelCase.
  *
  * DEFAULT_OPTIONS reproduces the C# record's default initializers verbatim, so a first-run
@@ -94,7 +94,7 @@ const sameFolderKey = (path: string) => {
  *
  * Only the separator style and a trailing separator are forgiven, because a root written by the
  * one-time conversion is normalized while one Cove hands back carries the platform's own spelling.
- * Case is deliberately not forgiven: a converted root IS the library path's own casing and a picked
+ * Case is deliberately not forgiven: a converted root is the library path's own casing and a picked
  * one is the string the endpoint gave, so folding case would be this panel inventing a second
  * opinion about when two paths name one folder, on a host whose case rule it cannot see.
  */
@@ -144,7 +144,7 @@ export interface DestinationPickerState {
  * whether that root has stopped being one, and whether the control for changing it is on screen.
  *
  * Written once because the two surfaces must not be able to disagree about the same root. Nothing is
- * badged until the read has SETTLED successfully: an unsettled read carries an empty list, and
+ * badged until the read has settled successfully: an unsettled read carries an empty list, and
  * reading that as "the host has no library paths" badges every rule broken on every page mount, which
  * sends the user to re-pick destinations that were working - and re-picking moves real files.
  */
@@ -160,7 +160,7 @@ export function destinationPicker(
   if (library.failed) notice = "unreadable";
   else if (known && library.paths.length === 0) notice = "no-library-paths";
 
-  // The picker comes BACK for a stale root even with nothing to pick, because that is the state that
+  // The picker comes back for a stale root even with nothing to pick, because that is the state that
   // stops the rule working: hiding it then would leave the user reading a skip reason with no way to
   // act on it.
   return { chosen, stale, showPicker: library.paths.length > 0 || stale, notice };
@@ -202,7 +202,7 @@ export interface RenamerOptions {
   // rename in Cove cannot orphan it and two case variants of one name cannot route to two
   // destination trees. JSON object keys are strings, so every key a save writes must still parse as
   // an integer: the backend binds these as `Dictionary<int, Destination>` and answers a bind failure
-  // with DEFAULTS, discarding every setting in the blob.
+  // with defaults, discarding every setting in the blob.
   StudioDestinations: Record<number, Destination>;
   TagDestinations: Record<number, Destination>;
   // Source-path routing rules, in user order.
@@ -241,9 +241,9 @@ export interface RenamerOptions {
  * are not restated here: a copy of a value is a second declaration free to disagree with the first,
  * and nothing type-checks prose.
  *
- * CrossVolumeConcurrency / SameVolumeConcurrency ARE modeled — the Advanced panel edits them, so
+ * CrossVolumeConcurrency / SameVolumeConcurrency are modeled — the Advanced panel edits them, so
  * they belong in DEFAULT_OPTIONS (and therefore MODELED_KEYS + normalizeOptions). FreeSpaceHeadroomBytes
- * is the ONE remaining knob the panel never edits: leaving it out of DEFAULT_OPTIONS keeps it out of
+ * is the one remaining knob the panel never edits: leaving it out of DEFAULT_OPTIONS keeps it out of
  * MODELED_KEYS, which is what lets extractUnmodeledFields carry a stored value through a load → save
  * round-trip untouched instead of normalizeOptions consuming (and dropping) it.
  */
@@ -361,19 +361,19 @@ export function cloneDefaults(): RenamerOptions {
   };
 }
 
-// A legacy stored "options" blob can carry STALE camelCase duplicate keys (e.g. `filenameTemplate`,
+// A legacy stored "options" blob can carry stale camelCase duplicate keys (e.g. `filenameTemplate`,
 // `dateFormat`) alongside the canonical PascalCase keys. The old load path spread-merged the raw blob,
-// so those stale keys rode into the /preview-sample request body AFTER the live PascalCase ones; the
+// so those stale keys rode into the /preview-sample request body after the live PascalCase ones; the
 // backend binds case-insensitively with default last-write-wins, so the stale value overwrote the live
 // edit and the preview never changed. normalizeOptions rebuilds a clean, fully-canonical RenamerOptions
-// from cloneDefaults() reading ONLY the known PascalCase keys (coerced by declared type), DROPPING every
-// unknown/stale key. Applied at the load boundary, it fixes the preview AND self-heals the stored blob on
+// from cloneDefaults() reading only the known PascalCase keys (coerced by declared type), dropping every
+// unknown/stale key. Applied at the load boundary, it fixes the preview and self-heals the stored blob on
 // the next Save (since the canonical state is what gets persisted). Frontend-only; no backend change.
 //
 // The id-keyed fields read through the numeric coercers, so a blob still holding the pre-migration
-// NAMES coerces to an empty list or map rather than surviving as unusable strings. A parallel field
+// names coerces to an empty list or map rather than surviving as unusable strings. A parallel field
 // holding the old names would re-create the duplicate state the backend's one-time name-to-id
-// conversion exists to remove; the panel keeps the erasure and refuses to SAVE instead, while any name
+// conversion exists to remove; the panel keeps the erasure and refuses to save instead, while any name
 // is still awaiting conversion (hasUnmigratedNameRules below).
 
 function asRecord(v: unknown): Record<string, unknown> {
@@ -399,7 +399,7 @@ function numArray(v: unknown, fallback: number[]): number[] {
 /**
  * One stored destination, or {@link NO_DESTINATION} when the blob holds something else.
  *
- * A blob written before destinations became objects holds a bare STRING here. Such a value cannot be
+ * A blob written before destinations became objects holds a bare string here. Such a value cannot be
  * placed without Cove's library paths, which is why the backend's one-time conversion owns that
  * decision; this panel refuses to guess and shows the moves-nothing destination instead.
  */
@@ -618,7 +618,7 @@ function countNameKeyedDestinations(raw: Record<string, unknown>): number {
 }
 
 /**
- * True when a stored blob still holds tag or performer rules keyed on NAMES, which the backend's
+ * True when a stored blob still holds tag or performer rules keyed on names, which the backend's
  * one-time conversion has not resolved to ids yet.
  *
  * Deliberately the same predicate the backend scans with (`OptionsMigration.Scan(...).Any`): count the
@@ -678,14 +678,14 @@ function hasBarePathRule(raw: Record<string, unknown>): boolean {
  * destination became a Cove library root plus a relative template.
  *
  * Deliberately the same sites the backend rewrites (`OptionsMigration.ConvertDestinationsToRoots`):
- * a JSON STRING under either routing map, on a path rule's `Dest`, or on `UnorganizedDestination`.
+ * a JSON string under either routing map, on a path rule's `Dest`, or on `UnorganizedDestination`.
  * The global folder template and root are strings the conversion leaves exactly as stored, so reading
  * either as a site would refuse a save on every install that configured one - permanently, since the
  * conversion stamps the blob done once it finds no site.
  *
  * {@link normalizeOptions} reads a bare path as {@link NO_DESTINATION}, and `UnorganizedDestination`
  * as no route at all, so a save while this is true persists those blanks over folders nothing else
- * keeps a copy of. That conversion DEFERS while Cove has supplied no library paths, because there
+ * keeps a copy of. That conversion defers while Cove has supplied no library paths, because there
  * would be no root to choose, so the old shape can sit in the store across restarts.
  */
 export function hasUnmigratedDestinations(raw: unknown): boolean {

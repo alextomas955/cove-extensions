@@ -14,7 +14,7 @@ export interface ValueOption {
 }
 
 /**
- * The subset of a fixed option set still available to ADD, given what the user has already picked —
+ * The subset of a fixed option set still available to add, given what the user has already picked —
  * the offer list for a pick-to-add control (order matters, so a value is added at most once). The
  * fixed-set order is preserved so the dropdown always reads top-to-bottom in the canonical order, not
  * in pick order.

@@ -7,11 +7,11 @@ namespace Renamer.Tests.Execution;
 
 /// <summary>
 /// Host-fact proof that <see cref="CoveRenamerDataPort.LoadEntityAsync"/> surfaces the routing
-/// foundations onto the Renamer-owned DTO from a REAL Cove entity graph: the stable studio id, the
+/// foundations onto the Renamer-owned DTO from a real Cove entity graph: the stable studio id, the
 /// nearest-first parent-studio chain, the paired tag ids and names, and each file's projected byte
 /// size. Runs against a SQLite-backed
 /// <see cref="Cove.Data.CoveContext"/> (not EF-InMemory) so the self-referencing Studio parent FK and
-/// the relational graph hydrate exactly as production would (per MEMORY: bind the base DbContext;
+/// the relational graph hydrate exactly as production would (per memory: bind the base DbContext;
 /// SQLite for graph-shape fidelity). Without these fields surfacing, Plan 02's resolver could not route
 /// on a stable id and Plan 04's free-space guard would have no per-file bytes to sum.
 /// </summary>
@@ -52,7 +52,7 @@ public sealed class CoveDataPortRoutingFieldsTests
 
             Assert.NotNull(entity);
 
-            // Route-on-id: the rule key is the STABLE id, not the (drift-prone) name.
+            // Route-on-id: the rule key is the stable id, not the (drift-prone) name.
             Assert.Equal(direct.Id, entity!.StudioId);
 
             // Parent chain is nearest-first: index 0 is the direct studio's immediate parent.
@@ -166,7 +166,7 @@ public sealed class CoveDataPortRoutingFieldsTests
     public async Task LoadEntity_ABlankTagName_ArrivesAsTheCanonicalMarker_AndIsCarried()
     {
         // A blank tag name is not a state the port can meet: the host normalizes it to
-        // TagNameRules.EmptyCanonicalName inside the save and STORES that, so what reaches a read is the
+        // TagNameRules.EmptyCanonicalName inside the save and stores that, so what reaches a read is the
         // marker, never an empty string. The marker is carried rather than filtered because Cove's own
         // frontend has no special case for it and renders it as an ordinary tag name - dropping the pair
         // here would make Renamer route on a tag set the user does not see in the host UI.

@@ -43,9 +43,9 @@ test("scan-library aggregates and pages every seeded item without mutating any o
   const job = await pollRenamerJob(api, ROUTE, enqueue.json.jobId);
   expect(job.status.toLowerCase()).toBe("completed");
 
-  // The scan persists an AGGREGATE, so the readback reports counts; the rows themselves come from the
+  // The scan persists an aggregate, so the readback reports counts; the rows themselves come from the
   // page query, planned on demand. Asserting both is a stronger check of the same behaviour than the
-  // single array read it replaces: the counts must account for the seeded files AND the rows must name them.
+  // single array read it replaces: the counts must account for the seeded files and the rows must name them.
   const result = await api.get(`${ROUTE}/last-scan`);
   expect(result.status).toBe(200);
   expect(result.json.totalFiles).toBeGreaterThanOrEqual(seededFileIds.length);
@@ -74,8 +74,8 @@ test("scan-library aggregates and pages every seeded item without mutating any o
   }
 });
 
-// Uses its OWN harness instance PER TEST, unlike scan-library above: renamer-library mutates
-// EVERY item in the library, not just the ones this test seeds — under real parallel execution,
+// Uses its own harness instance per test, unlike scan-library above: renamer-library mutates
+// every item in the library, not just the ones this test seeds — under real parallel execution,
 // a sibling test in the same worker could have its own seeded/mid-rename video swept into this
 // job's "whole library" scope, occasionally missing the polling window for its own rename.
 test("renamer-library renames every seeded item in one run", async ({ isolatedHarness }) => {
@@ -103,7 +103,7 @@ test("renamer-library renames every seeded item in one run", async ({ isolatedHa
   };
 
   // A "$title"-only template over distinct safe titles makes each item's computed name deterministic,
-  // so each EXACT resulting basename can be asserted rather than merely "the path changed".
+  // so each exact resulting basename can be asserted rather than merely "the path changed".
   const setTemplate = await api.put(
     `${ROUTE}/data/options`,
     JSON.stringify({ FilenameTemplate: "$title" }),

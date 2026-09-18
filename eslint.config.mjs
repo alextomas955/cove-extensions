@@ -8,8 +8,8 @@ import prettier from "eslint-config-prettier";
 import importX from "eslint-plugin-import-x";
 import boundaries from "eslint-plugin-boundaries";
 
-// The single ESLint config for the whole monorepo — every extension's React/TS UI bundle AND every
-// first-party .mjs/.cjs helper/build/test script. There is intentionally NO per-extension ESLint
+// The single ESLint config for the whole monorepo — every extension's React/TS UI bundle and every
+// first-party .mjs/.cjs helper/build/test script. There is intentionally no per-extension ESLint
 // config: a new extension's src/ and scripts are linted here automatically by path, so the ruleset
 // never drifts between extensions. Formatting is Prettier's job (the `prettier` config last disables
 // every stylistic rule).
@@ -107,7 +107,7 @@ export default tseslint.config(
 
   // --- The shared UI package (aliased-raw as @cove-extensions/ui-shared, not a workspace) ---
   // Without this block its TS matched no config and was silently un-linted ("File ignored"). This is
-  // NON-type-aware on purpose: the package is deliberately dependency-less (its React/Vite/Node types
+  // non-type-aware on purpose: the package is deliberately dependency-less (its React/Vite/Node types
   // resolve only inside each consuming extension's bundle, never here), so `projectService`
   // type-aware linting produces only spurious no-unsafe-* noise from unresolved types, not real
   // findings. Syntactic linting (recommended + dead-code + the import rules) is the correct
@@ -145,7 +145,7 @@ export default tseslint.config(
       // contract) and are exempted in the override block below.
       "import-x/no-default-export": "error",
       // No internal barrels: import the concrete module, not an index re-export. The pattern matches
-      // ONLY index-file names — deliberately NOT ".", "./", ".." (a group containing those degenerates
+      // only index-file names — deliberately not ".", "./", ".." (a group containing those degenerates
       // via minimatch into match-everything, 127 false positives). The alias
       // `@cove-extensions/ui-shared` is unaffected — that specifier does not end in `index`, and its
       // src/index.ts is the one sanctioned barrel (the package's public entry).
@@ -202,7 +202,7 @@ export default tseslint.config(
   // I/O and belongs in an INFRA or FEAT module.
   //
   // The no-internal-barrels group is restated rather than inherited: a later `no-restricted-imports`
-  // entry REPLACES the earlier one for a matching file, so omitting it would switch the barrels ban off
+  // entry replaces the earlier one for a matching file, so omitting it would switch the barrels ban off
   // for exactly the modules this block covers. It still bites after the `^[^.]` regex, which stops only
   // non-relative specifiers — the relative barrel hop (`./foo/index`) is the group's half.
   {
@@ -299,7 +299,7 @@ export default tseslint.config(
               from: { element: { type: "common" } },
               allow: { to: { element: { types: { anyOf: ["common", "shared", "wire"] } } } },
             },
-            // A feature slice may reach common/, the shared package and wire, but NOT a sibling slice.
+            // A feature slice may reach common/, the shared package and wire, but not a sibling slice.
             {
               from: { element: { type: "slice" } },
               allow: { to: { element: { types: { anyOf: ["common", "shared", "wire"] } } } },
@@ -314,6 +314,6 @@ export default tseslint.config(
     },
   },
 
-  // MUST BE LAST: disable all formatting rules so Prettier is the sole formatter.
+  // must be last: disable all formatting rules so Prettier is the sole formatter.
   prettier,
 );

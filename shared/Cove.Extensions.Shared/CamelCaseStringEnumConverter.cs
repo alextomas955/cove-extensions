@@ -11,8 +11,8 @@ namespace Cove.Extensions.Shared;
 /// A <c>[JsonConverter]</c> attribute names a type and nothing else, so there is no way to pass a naming
 /// policy through one; that is the only reason this derived type exists.
 /// <para>
-/// Declare it on the ENUM. An equivalent converter in a <see cref="JsonSerializerOptions.Converters"/>
-/// collection does not duplicate this one, it OUTRANKS it — the precedence is property attribute, then
+/// Declare it on the enum. An equivalent converter in a <see cref="JsonSerializerOptions.Converters"/>
+/// collection does not duplicate this one, it outranks it — the precedence is property attribute, then
 /// the options collection, then the type attribute — so a second copy that drifted would win silently.
 /// </para>
 /// </remarks>

@@ -1,11 +1,11 @@
 /**
- * Inline, advisory, NON-BLOCKING template/token validators shared by the settings sections.
+ * Inline, advisory, non-blocking template/token validators shared by the settings sections.
  *
- * Both render 0..N amber lines and NEVER block Save, remove a value, or feed the persisted shape —
+ * Both render 0..N amber lines and never block Save, remove a value, or feed the persisted shape —
  * purely UX guidance derived from the static token set.
  *
- * SECURITY: every string is a React text node (auto-escaped); the "Did you mean" suggestion is
- * derived from the static TOKENS set, never echoing user markup.
+ * security: every string is a React text node (auto-escaped); the "Did you mean" suggestion is
+ * derived from the static tokens set, never echoing user markup.
  */
 import { AlertTriangle } from "lucide-react";
 
@@ -15,7 +15,7 @@ import { bracesBalanced, unknownTokens, suggestFor, isKnownToken } from "./templ
  * Renders one amber line for unbalanced braces, one per unknown $token (with a best-effort
  * "Did you mean"), and — for the filename field — one per sample whose /preview-sample flags
  * include "empty" (passed in via emptySamples; reuses the existing debounced preview, no new
- * request). Renders nothing when there are no issues. NEVER feeds Save and never moves the caret.
+ * request). Renders nothing when there are no issues. never feeds Save and never moves the caret.
  */
 export function TemplateValidation({
   value,
@@ -54,7 +54,7 @@ export function TemplateValidation({
 
 /**
  * Invalid-token flagging for the bare-token fields (RequiredFields / DropOrder). Renders one amber
- * line per chip value that is NOT a known token (with a best-effort "Did you mean" from the shared
+ * line per chip value that is not a known token (with a best-effort "Did you mean" from the shared
  * `suggestFor`, displayed as a bare name to match these fields' format). Renders nothing when every
  * value is a known token.
  */

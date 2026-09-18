@@ -9,7 +9,7 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// filesystem or nothing at all.
 /// </summary>
 /// <remarks>
-/// This owns one invariant no other file does: a MISCONFIGURED override must fail loudly. A silent
+/// This owns one invariant no other file does: a misconfigured override must fail loudly. A silent
 /// fallback to a same-volume directory is the worst available outcome, because every gated test
 /// would still run, still pass, and prove nothing — the failure class this suite exists to refuse.
 /// So the same-volume case is asserted on every OS, not gated: the misconfiguration is possible
@@ -21,13 +21,13 @@ public sealed class SecondVolumeOverrideTests
     [Fact]
     public void SameVolumeOverride_FailsLoudly()
     {
-        // A directory under the temp tree — by construction the SAME volume the tests move from,
+        // A directory under the temp tree — by construction the same volume the tests move from,
         // which is exactly the misconfiguration (e.g. macOS with the variable pointed at ~/tmp).
         using var sameVolume = new TempDir();
 
         var ex = Assert.Throws<InvalidOperationException>(() => new SecondVolume(sameVolume.Root));
 
-        // The message must name the variable and BOTH volume keys: a maintainer reading CI output
+        // The message must name the variable and both volume keys: a maintainer reading CI output
         // has to see that the two resolved to one volume, not merely that something was rejected.
         Assert.Contains("COVE_TEST_SECOND_VOLUME", ex.Message);
         Assert.Contains(sameVolume.Root, ex.Message);
@@ -39,7 +39,7 @@ public sealed class SecondVolumeOverrideTests
     {
         Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
-        // The INFERRED arm supplies a genuinely different filesystem (a subst root on Windows, a
+        // The inferred arm supplies a genuinely different filesystem (a subst root on Windows, a
         // /dev/shm dir on Unix); feeding its root back in as an override is what puts the override
         // arm under test without needing a second real volume of its own.
         using var provider = new SecondVolume(overridePath: null);

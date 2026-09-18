@@ -6,7 +6,7 @@ namespace Renamer.Tests.Planner;
 
 /// <summary>
 /// Dry-run core: <c>RenamerPlanner.PlanAsync</c> produces an accurate per-file
-/// old→new plan with the right <see cref="RenamerStatus"/> while mutating NOTHING — every test
+/// old→new plan with the right <see cref="RenamerStatus"/> while mutating nothing — every test
 /// asserts the <see cref="FakeRenamerDataPort"/> recorded zero <c>ApplyAndSaveAsync</c> calls. Also covers
 /// the happy-path renamer, NoOp, and the confinement rejection.
 /// </summary>
@@ -57,7 +57,7 @@ public sealed class RenamerPlannerTests
     {
         // Defense-in-depth: the engine strips "../" segments per-segment (TrimEdge dots),
         // so "../../escape" renders to the benign subfolder "escape" — which the confinement gate
-        // then ACCEPTS as a move UNDER the root. The raw "../.." → rejected path is proven directly
+        // then accepts as a move under the root. The raw "../.." → rejected path is proven directly
         // at the helper level in PathConfinementTests.
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths("media/videos");
@@ -76,7 +76,7 @@ public sealed class RenamerPlannerTests
     [Fact]
     public async Task ConfinementRejection_WiredIntoPlanner_IsSkipped_ZeroMutation()
     {
-        // Drive a real confinement REJECTION through the planner via the FullPathMax re-check
+        // Drive a real confinement rejection through the planner via the FullPathMax re-check
         // the engine never measures on the absolute path — proves the planner classifies
         // a confinement failure as a skip with the helper's reason, mutating nothing.
         var port = new FakeRenamerDataPort();
@@ -110,7 +110,7 @@ public sealed class RenamerPlannerTests
     [Fact]
     public async Task PlanLoadedEntity_MatchesLoadingPath_ItemForItem()
     {
-        // Seed the SAME entity behind the loading path; plan it both ways and prove item-for-item
+        // Seed the same entity behind the loading path; plan it both ways and prove item-for-item
         // equality — the pure method and the load-then-plan method share identical plan logic.
         var entity = VideoEntity("My Film", VideoFile(1, "raw.mkv"));
         var port = new FakeRenamerDataPort();

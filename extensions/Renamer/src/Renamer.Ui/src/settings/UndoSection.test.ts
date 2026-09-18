@@ -8,7 +8,7 @@
  * available is a confident success.
  *
  * A DOM is needed because the subject is the hook's catch arm, and which sentence it picks is
- * observable only once React has committed. React arrives as its PRODUCTION build (the bundle's
+ * observable only once React has committed. React arrives as its production build (the bundle's
  * `process.env.NODE_ENV` define applies here too), which has no `act`, so renders are flushed by
  * waiting rather than by wrapping.
  *
@@ -72,7 +72,7 @@ vi.mock("lucide-react", () => ({ Undo2: () => null }));
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
   return {
-    // The REAL route builder, re-exported rather than restated: a stand-in path shape here could
+    // The real route builder, re-exported rather than restated: a stand-in path shape here could
     // drift from the one the section actually calls.
     extensionApi: (await import("../../../../../../shared/ui-shared/src/actions")).extensionApi,
     Button: (props: { children?: ReactNode; onClick?: () => void }) =>
@@ -132,7 +132,7 @@ beforeEach(() => {
 });
 
 test("an undo whose response never arrived is not reported as a completed undo", async () => {
-  // THE case. `requestJson` raises its own ApiError for an empty body, so a non-ApiError rejection is
+  // the case. `requestJson` raises its own ApiError for an empty body, so a non-ApiError rejection is
   // a request whose fate is unknown: the connection dropped, or the body would not parse. The server
   // may already have moved part or all of the batch back.
   server.undoRejection = new TypeError("Failed to fetch");

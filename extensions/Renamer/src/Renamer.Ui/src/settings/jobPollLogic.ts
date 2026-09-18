@@ -13,13 +13,13 @@
 /**
  * How long a job may report no new progress before the UI stops waiting for it, in milliseconds.
  *
- * This bounds UNRESPONSIVENESS, not the job. A whole-library rename legitimately runs for hours, so a
+ * This bounds unresponsiveness, not the job. A whole-library rename legitimately runs for hours, so a
  * budget measured from the job's start would be a timeout that abandons healthy runs — the specific
  * mistake to avoid here. The clock this is compared against restarts every time progress actually
  * moves (see {@link advanceStallClock}), so a job that keeps reporting is never abandoned however long
  * it takes.
  *
- * The value is a judgement about the longest legitimate SILENCE, not a measurement: the longest known
+ * The value is a judgement about the longest legitimate silence, not a measurement: the longest known
  * gap between two progress reports is the persist step at the end of a library-sized scan, which
  * reports nothing while it writes. Ten minutes is well clear of that and still ends a wedged run
  * inside the span of a user's attention. Evidence that would change it: an observed healthy run that
@@ -71,7 +71,7 @@ export type PollDecision =
 /**
  * Raised when a poll ends on an `expire` decision rather than on the job's own verdict.
  *
- * A distinct TYPE, so that the {@link PollDecision} split survives into the caller's `catch`: a caller
+ * A distinct type, so that the {@link PollDecision} split survives into the caller's `catch`: a caller
  * that cannot tell an expiry from a rejection has to guess, and the honest-looking guess — "nothing
  * was changed" — is the false one.
  */

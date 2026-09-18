@@ -3,12 +3,12 @@ import { describeRenderedPage, remainingVisitBudgetMs } from "@cove-extensions/e
 // Page Object for a video's detail page (/video/{id}) — specifically its "Edit" tab, which is how
 // a real user changes an item's metadata (title, date, etc.) through the UI.
 
-// The budget for the WHOLE visit, however many navigations it takes, matching the settings page
+// The budget for the whole visit, however many navigations it takes, matching the settings page
 // object. One clock rather than a fresh one per navigation, because what has to hold is that this
 // file's own error arrives before the per-test timeout: a wait that outlives the test reports
 // Playwright's generic timeout instead, which names none of the causes below.
 //
-// The harness gates on the host answering /health, which is an API fact. The first BROWSER
+// The harness gates on the host answering /health, which is an API fact. The first browser
 // navigation against a fresh container still pays the app's cold start, and on an isolated harness
 // that is this page, so the budget has to cover a cold container under a loaded runner. A
 // per-navigation budget sized for a warm app spends the whole of it on that one cold start and then
@@ -43,11 +43,11 @@ export class VideoDetailPage {
   /**
    * Waits for the detail page's tabs, re-navigating on a failed chunk fetch.
    *
-   * A chunk failure is a SIGNAL rather than a timeout, and a fresh navigation recovers it, so the wait
+   * A chunk failure is a signal rather than a timeout, and a fresh navigation recovers it, so the wait
    * ends the moment one appears. Everything else — an app still starting, a route still resolving —
    * is answered by the tab appearing, so the budget is what bounds the wait for those.
    *
-   * `/video/{id}` is one of the host's OWN routes, so the host has nothing to resolve it away to and
+   * `/video/{id}` is one of the host's own routes, so the host has nothing to resolve it away to and
    * the route-discard signal the settings panel watches for cannot arise here.
    */
   async waitForTabs() {

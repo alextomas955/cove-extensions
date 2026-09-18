@@ -30,7 +30,7 @@ export interface UseScanRows {
   complete: boolean;
   /**
    * The last page stopped on the server's per-request entity budget. More of the library is
-   * unexamined — asking again continues the search. It is NOT "no more results".
+   * unexamined — asking again continues the search. It is not "no more results".
    */
   budgetExhausted: boolean;
   /** Entities the server has planned across this walk, which is what the budget is spent on. */

@@ -23,7 +23,7 @@ export class VideosPage {
   /**
    * Opens the grid, re-navigating while the host answers with a failed chunk fetch.
    *
-   * LIMIT worth stating: the check reads the page once the network is idle, which is where the host's
+   * limit worth stating: the check reads the page once the network is idle, which is where the host's
    * error boundary has already painted for a rejection raised during load. An error appearing after
    * that point is not caught here, and shows up as a card locator that never resolves.
    */
@@ -109,7 +109,7 @@ export class VideosPage {
   }
 
   /**
-   * Every unselected card's "Select item" button, in DOM order. Exposed so a caller can WAIT for the
+   * Every unselected card's "Select item" button, in DOM order. Exposed so a caller can wait for the
    * grid to hold the number of cards it seeded before selecting — the grid's contents arrive from a
    * client-side fetch, so a count taken too early is a count of however much had rendered.
    */
@@ -119,10 +119,10 @@ export class VideosPage {
 
   /**
    * Selects the first {@link count} grid cards by their "Select item" buttons — robust to whether a card's
-   * accessible name shows the title or the filename (the batch tests only need SOME selection, not a
+   * accessible name shows the title or the filename (the batch tests only need some selection, not a
    * specific card).
    *
-   * Returns the number of cards ACTUALLY clicked, clamped to what the grid held.
+   * Returns the number of cards actually clicked, clamped to what the grid held.
    */
   async selectFirstCards(count = 1) {
     const selectButtons = this.selectItemButtons;

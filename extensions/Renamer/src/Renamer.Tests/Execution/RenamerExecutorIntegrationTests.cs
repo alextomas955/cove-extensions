@@ -10,11 +10,11 @@ namespace Renamer.Tests.Execution;
 
 /// <summary>
 /// Full renamer path: seed a Folder + VideoFile on a SQLite-in-memory <see cref="Cove.Data.CoveContext"/>
-/// AND a matching file in a real <see cref="TempDir"/>, plan + execute an in-place renamer, and assert:
+/// and a matching file in a real <see cref="TempDir"/>, plan + execute an in-place renamer, and assert:
 /// (a) the file is at the new on-disk path and absent at the old; (b) the DB VideoFile.Basename is the
-/// new name and its RECOMPUTED Path == folder.Path + "/" + newBasename (Cove recomputed it on save — the
+/// new name and its recomputed Path == folder.Path + "/" + newBasename (Cove recomputed it on save — the
 /// executor never set .Path); (c) the IEventBus received exactly one VideoUpdated for the entity id
-/// (asserting the call ARGS, not merely that Publish was called).
+/// (asserting the call args, not merely that Publish was called).
 ///
 /// Uses SQLite (relational) so the unique index + ComputeFilePaths are faithful; the real temp dir is
 /// the disk tier. Both disposables are released in a finally.
@@ -55,7 +55,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.False(File.Exists(oldFull), "old file must be gone");
             Assert.Equal("video-bytes", File.ReadAllText(newFull));
 
-            // (b) DB: basename updated; Path RECOMPUTED (not set) to folder + new basename.
+            // (b) DB: basename updated; Path recomputed (not set) to folder + new basename.
             var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("My Film.mkv", basename);
             Assert.Equal(folderPath + "/My Film.mkv", path);
@@ -69,13 +69,13 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal(fileId, revert.FileId);
             Assert.EndsWith("raw clip.mkv", revert.OldPath);
 
-            // (c) event ARGS: exactly one VideoUpdated for this video id.
+            // (c) event args: exactly one VideoUpdated for this video id.
             var evt = Assert.IsType<EntityEvent>(Assert.Single(bus.Published));
             Assert.Equal(EventType.VideoUpdated, evt.Type);
             Assert.Equal("Video", evt.EntityType);
             Assert.Equal(videoId, evt.EntityId);
 
-            // MOVE-01 explicit: the classifier verdict for the executed in-place pair is same-volume,
+            // The classifier verdict for the executed in-place pair is same-volume,
             // so the atomic DiskMover fast path (above) is the one that ran.
             Assert.True(VolumeClassifier.SameVolume(oldFull, newFull),
                 "an in-place renamer under one root must classify as same-volume (DiskMover path)");
@@ -90,7 +90,7 @@ public sealed class RenamerExecutorIntegrationTests
     /// <summary>
     /// T3: a host shutdown mid-save (an <see cref="OperationCanceledException"/> from the DB save) is
     /// cancellation, not a data failure. The post-move rollback still restores the disk, then the OCE
-    /// propagates out of the batch — it must NOT land as a <see cref="RenamerStatus.Failed"/> item row.
+    /// propagates out of the batch — it must not land as a <see cref="RenamerStatus.Failed"/> item row.
     /// Same-volume so it runs on every platform.
     /// </summary>
     [Fact]
@@ -117,7 +117,7 @@ public sealed class RenamerExecutorIntegrationTests
             // The cancel flows out as cancellation (the batch ends), never a Failed row.
             await Assert.ThrowsAsync<OperationCanceledException>(() => executor.ExecuteAsync(plan, options, default));
 
-            // The post-move rollback still ran on the cancel path: the file is back at OLD, none at NEW.
+            // The post-move rollback still ran on the cancel path: the file is back at old, none at new.
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             Assert.True(File.Exists(oldFull), "cancel rollback must restore the source");
             Assert.False(File.Exists(newFull), "no file may linger at the new path after a cancelled save");
@@ -131,8 +131,8 @@ public sealed class RenamerExecutorIntegrationTests
     }
 
     /// <summary>
-    /// A source row present in the DB but ABSENT on disk must be classified SkipMissingSource by the
-    /// executor's source pre-check — NOT SkipLocked (the swallowed-IOException bucket it would fall
+    /// A source row present in the DB but absent on disk must be classified SkipMissingSource by the
+    /// executor's source pre-check — not SkipLocked (the swallowed-IOException bucket it would fall
     /// into if it reached the mover). It is a safe no-op skip: nothing renamed/failed, no revert-log
     /// row, no event published.
     /// </summary>
@@ -143,7 +143,7 @@ public sealed class RenamerExecutorIntegrationTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            // Seed the Folder + VideoFile on the real temp-dir root, but write NO on-disk source file.
+            // Seed the Folder + VideoFile on the real temp-dir root, but write no on-disk source file.
             string folderPath = dir.Root.Replace('\\', '/');
             var (_, videoId, _) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "gone.mkv", "My Film");
@@ -177,7 +177,7 @@ public sealed class RenamerExecutorIntegrationTests
     }
 
     /// <summary>
-    /// MOVE-01 cross-branch: force the executor's volume branch to take the verified
+    /// Cross-branch: force the executor's volume branch to take the verified
     /// <see cref="CrossVolumeMover"/> path by moving a file from a real <see cref="TempDir"/> to a
     /// SUBST-mapped second root (a distinct <see cref="Path.GetPathRoot(string)"/> on the same physical
     /// volume — no second drive). Assert the cross move executed end-to-end: the source is gone, the
@@ -202,7 +202,7 @@ public sealed class RenamerExecutorIntegrationTests
             string oldFull = Path.Combine(src.Root, "clip.mkv");
             File.WriteAllText(oldFull, "cross-bytes");
 
-            // Sanity: the source and the subst destination are on DIFFERENT path roots → cross-volume.
+            // Sanity: the source and the subst destination are on different path roots → cross-volume.
             string newFull = dstFolder + "/My Film.mkv";
             Assert.False(VolumeClassifier.SameVolume(srcFolder + "/clip.mkv", newFull),
                 "precondition: subst destination must be a different path root than the temp source");
@@ -213,7 +213,7 @@ public sealed class RenamerExecutorIntegrationTests
             // Inject a real CrossVolumeMover (the production mover) so the cross branch runs end-to-end.
             var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover(), new CrossVolumeMover());
 
-            // Explicit MOVE plan: source on the temp drive, target folder on the subst drive.
+            // Explicit move plan: source on the temp drive, target folder on the subst drive.
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", newFull,
@@ -241,7 +241,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal("My Film.mkv", basename);
             Assert.Equal(dstFolder + "/My Film.mkv", path);
 
-            // Event ARGS: exactly one VideoUpdated for this video id.
+            // Event args: exactly one VideoUpdated for this video id.
             var evt = Assert.IsType<EntityEvent>(Assert.Single(bus.Published));
             Assert.Equal(EventType.VideoUpdated, evt.Type);
             Assert.Equal(videoId, evt.EntityId);
@@ -254,7 +254,7 @@ public sealed class RenamerExecutorIntegrationTests
     }
 
     /// <summary>
-    /// MOVE-05 cross-path rollback: a VERIFIED cross-volume move whose subsequent DB save throws
+    /// Cross-path rollback: a verified cross-volume move whose subsequent DB save throws
     /// (a forced <c>(ParentFolderId, Basename)</c> unique-index clash, pre-check bypassed via
     /// <see cref="CollisionBlindDataPort"/>) must roll back through <see cref="CrossVolumeMover.RollbackAsync"/>
     /// — copy the bytes back across the volume and restore the source — leaving disk and DB consistent.
@@ -276,9 +276,9 @@ public sealed class RenamerExecutorIntegrationTests
             var (_, videoId, fileA) =
                 await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "a.mkv", "Film A");
 
-            // Pre-seed the DEST folder (same Path the executor will GetOrCreate) holding a row that
+            // Pre-seed the dest folder (same Path the executor will GetOrCreate) holding a row that
             // already occupies "taken.mkv", so the cross-move's save of (destFolderId, "taken.mkv")
-            // hits the unique index and throws — AFTER the verified cross move has happened.
+            // hits the unique index and throws — after the verified cross move has happened.
             var destFolder = new Cove.Core.Entities.Folder { Path = dstFolder, ModTime = DateTime.UtcNow };
             db.Set<Cove.Core.Entities.Folder>().Add(destFolder);
             await db.SaveChangesAsync();
@@ -313,14 +313,14 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Empty(result.Renamed);
             Assert.Empty(journal.Rows);
 
-            // (a) the source is RESTORED across the volume (copy-back) with its original content.
+            // (a) the source is restored across the volume (copy-back) with its original content.
             Assert.True(File.Exists(oldA), "cross rollback must copy the file back to its old path");
             Assert.Equal("A-bytes", File.ReadAllText(oldA));
-            // and is NOT left on the dest volume.
+            // and is not left on the dest volume.
             Assert.False(File.Exists(newOnDisk), "rolled-back file must not linger at the dest");
             Assert.False(File.Exists(newOnDisk + ".renamer-partial"), "no leftover .partial after rollback");
 
-            // (c) the DB row still carries the OLD basename + source folder — disk and DB consistent.
+            // (c) the DB row still carries the old basename + source folder — disk and DB consistent.
             var (basenameA, pathA) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
             Assert.Equal("a.mkv", basenameA);
             Assert.Equal(srcFolder + "/a.mkv", pathA);
@@ -333,9 +333,9 @@ public sealed class RenamerExecutorIntegrationTests
     }
 
     /// <summary>
-    /// Regression: when the cross-volume rollback FAILS to fully restore (here the old source slot
+    /// Regression: when the cross-volume rollback fails to fully restore (here the old source slot
     /// is re-occupied before the copy-back runs, so <see cref="CrossVolumeMover.RollbackAsync"/> records a
-    /// "rollback target re-occupied" warning rather than restoring), the executor must NOT report a clean
+    /// "rollback target re-occupied" warning rather than restoring), the executor must not report a clean
     /// "file rolled back". It must surface the rollback warnings so the disk/DB divergence is visible —
     /// silently discarding the warnings would falsely claim a rollback that did not happen.
     /// </summary>
@@ -368,7 +368,7 @@ public sealed class RenamerExecutorIntegrationTests
                     RenamerStatus.Move, "My Film.mkv", dstFolder),
             ]);
 
-            // A data port whose save re-occupies the OLD source slot (so the rollback copy-back finds the
+            // A data port whose save re-occupies the old source slot (so the rollback copy-back finds the
             // target taken → "rollback target re-occupied" warning) and then throws.
             var port = new ReoccupyOldSlotThenThrowDataPort(db, oldA);
             var executor = new RenamerExecutor(
@@ -379,7 +379,7 @@ public sealed class RenamerExecutorIntegrationTests
 
             var failedItem = Assert.Single(result.Failed);
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
-            // The failed reason must report the INCOMPLETE rollback + the warning, NOT a clean "rolled back".
+            // The failed reason must report the incomplete rollback + the warning, not a clean "rolled back".
             Assert.Contains("rollback INCOMPLETE", failedItem.Reason);
             Assert.Contains("rollback target re-occupied", failedItem.Reason);
             Assert.DoesNotContain("file rolled back", failedItem.Reason);
@@ -397,7 +397,7 @@ public sealed class RenamerExecutorIntegrationTests
     /// came from then settles.
     /// </summary>
     /// <remarks>
-    /// <c>PlanFixedPointTests</c> MODELS the commit, so it would keep passing against an executor that
+    /// <c>PlanFixedPointTests</c> models the commit, so it would keep passing against an executor that
     /// never wrote the title at all and the rename would go on re-deriving it forever in production.
     /// Only a real context answers whether the write happened. The second half is the safety one: this
     /// is the only place the extension touches metadata rather than location, so a title someone typed
@@ -484,7 +484,7 @@ public sealed class RenamerExecutorIntegrationTests
             var (folderId, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
                 db, folderPath, "raw clip.mkv", title: null!);
 
-            // The row that already occupies the name the item below is aimed at. Only the ROW exists, so
+            // The row that already occupies the name the item below is aimed at. Only the row exists, so
             // the executor's on-disk pre-check passes and the save is what refuses.
             await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv");
 

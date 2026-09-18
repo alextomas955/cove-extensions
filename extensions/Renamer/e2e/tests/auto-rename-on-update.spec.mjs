@@ -1,8 +1,8 @@
 // Verifies Renamer's AutoRenamerOnUpdate hook end-to-end through the real UI: enabling "Auto-
 // rename on update" in the settings panel, then editing a video's title via its real Edit tab,
-// must rename the file automatically — with NO explicit "Rename selected" action from the user.
+// must rename the file automatically — with no explicit "Rename selected" action from the user.
 //
-// Uses its OWN harness instance PER TEST (same pattern as extension-lifecycle.spec.mjs), NOT the
+// Uses its own harness instance per test (same pattern as extension-lifecycle.spec.mjs), not the
 // shared per-worker harness: AutoRenamerOnUpdate is a global extension setting that would leak
 // into every other test sharing that worker's instance once enabled, silently changing their
 // behavior (e.g. the collision test relies on the default template/no-auto-rename state).
@@ -54,7 +54,7 @@ test("enabling Auto-rename on update and editing a title through the UI renames 
   await settingsPage.goto();
   await settingsPage.enableAutoRenameOnUpdate();
   // A "$title"-only template over a safe title makes the auto-produced name deterministic, so the
-  // EXACT resulting basename can be asserted rather than merely "the path changed".
+  // exact resulting basename can be asserted rather than merely "the path changed".
   await settingsPage.setFilenameTemplate("$title");
   await settingsPage.save();
 

@@ -7,14 +7,14 @@ namespace Renamer.Tests.Planner;
 /// <summary>
 /// The band <see cref="PathConfinement"/> accepts and the executor cannot fit: a cross-volume move copies
 /// to a name <see cref="CrossVolumeMover.InFlightSuffixLength"/> characters longer beside the destination
-/// before promoting it, while the planner budgets only the FINAL path. These cases position a destination
+/// before promoting it, while the planner budgets only the final path. These cases position a destination
 /// on each side of that boundary and read <see cref="BatchPreview.InFlightPathOverflows"/> plus the count
 /// <see cref="BatchPreview.Summarize"/> folds from it.
 /// </summary>
 /// <remarks>
 /// A sibling of <c>BlastRadiusTests</c> rather than part of it, so the arms that decide whether the
 /// warning is trustworthy compile on the cove-absent leg, which is the leg CI runs the unit tier on.
-/// PURE - path arithmetic, a synthetic mount table and no disk, so it runs identically on Windows and Unix.
+/// pure - path arithmetic, a synthetic mount table and no disk, so it runs identically on Windows and Unix.
 /// </remarks>
 public sealed class InFlightPathOverflowTests
 {
@@ -33,7 +33,7 @@ public sealed class InFlightPathOverflowTests
     // cases rather than leaving them beside a boundary they no longer sit on.
     private static readonly int Budget = new RenamerOptions().FullPathMax;
 
-    // OnVol yields "C:\dir\{name}" on Windows and "/c/dir/{name}" on Unix - SEVEN characters either way,
+    // OnVol yields "C:\dir\{name}" on Windows and "/c/dir/{name}" on Unix - seven characters either way,
     // which is what lets one arithmetic land on the same absolute length on both platforms.
     private const int OnVolPrefixLength = 7;
 
@@ -52,7 +52,7 @@ public sealed class InFlightPathOverflowTests
     {
         // A cross-volume move copies to a name CrossVolumeMover.InFlightSuffixLength characters longer
         // beside the destination and promotes it, so the longest final path whose copy still fits is
-        // Budget - InFlightSuffixLength. One character past that the copy overruns a REAL platform limit -
+        // Budget - InFlightSuffixLength. One character past that the copy overruns a real platform limit -
         // no "\?\" extended-length prefix is ever applied - while the planner, which budgets only the
         // final path, accepted the plan the user is about to approve.
         int longestThatFits = Budget - CrossVolumeMover.InFlightSuffixLength;

@@ -1,4 +1,4 @@
-// Not in the barrel: this module reaches the host runtime AND the SDK, and keeping it behind the
+// Not in the barrel: this module reaches the host runtime and the SDK, and keeping it behind the
 // `./extensionRequest` subpath is what lets a consumer import the barrel without taking either.
 import { extensionFetch } from "@cove/runtime/api";
 import { ApiError } from "@cove/extension-sdk";
@@ -37,7 +37,7 @@ async function send(path: string, options: RequestInit): Promise<{ status: numbe
   }
 
   // A 204's body is null and reads as "", the same as the bodyless 200 the host answers its
-  // extension-data PUT with: one empty-body case for the two functions below to decide over, not a
+  // extension-data put with: one empty-body case for the two functions below to decide over, not a
   // status test each would have to repeat.
   return { status: res.status, body: await res.text() };
 }

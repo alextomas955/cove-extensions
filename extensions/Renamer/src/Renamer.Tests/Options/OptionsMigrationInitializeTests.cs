@@ -11,7 +11,7 @@ namespace Renamer.Tests.Options;
 /// real database rather than the pure converter alone.
 /// </summary>
 /// <remarks>
-/// The subject is the DEFERRAL. The converter cannot tell an entity that was deleted from a table it
+/// The subject is the deferral. The converter cannot tell an entity that was deleted from a table it
 /// cannot read yet, so the decision not to convert lives here, and getting it wrong destroys the
 /// user's entity rules with nothing observable happening.
 /// </remarks>
@@ -34,7 +34,7 @@ public sealed class OptionsMigrationInitializeTests
     }
 
     /// <summary>
-    /// Loads against a database holding the undo journal and NOTHING else, so the load itself completes
+    /// Loads against a database holding the undo journal and nothing else, so the load itself completes
     /// and every library read throws. A conversion that reached one is visible as the seam's failure path.
     /// </summary>
     private static async Task LoadWithoutLibraryTablesAsync(JournalOnlyDatabase db, IExtensionStore store)
@@ -173,7 +173,7 @@ public sealed class OptionsMigrationInitializeTests
     [Fact]
     public async Task WhenTheLibraryReadThrows_WritesNothingAndDoesNotStamp()
     {
-        // The deferral above covers a read that succeeds and is empty. A read that THROWS is the other
+        // The deferral above covers a read that succeeds and is empty. A read that throws is the other
         // way the table can be unavailable, and it arrives as an exception the load has to step over
         // rather than as a value the conversion can inspect.
         var store = new FakeStore();
@@ -233,7 +233,7 @@ public sealed class OptionsMigrationInitializeTests
     public async Task AnAlreadyIdKeyedStore_IsStampedWithoutAnyLibraryRead()
     {
         // A fresh install already stores ids and destination objects. It must not pay for a library read,
-        // and - the dangerous half - its int-spelled TagDestinations keys must never be re-read as NAMES.
+        // and - the dangerous half - its int-spelled TagDestinations keys must never be re-read as names.
         var store = new FakeStore();
         await new OptionsStore(store).SaveAsync(
             new RenamerOptions
@@ -244,7 +244,7 @@ public sealed class OptionsMigrationInitializeTests
         string? saved = await store.GetAsync(OptionsStore.Key);
         int setsBefore = store.SetCallCount;
 
-        // No library tables, so any read throws; the seam answers a throw by NOT stamping. A stamp is
+        // No library tables, so any read throws; the seam answers a throw by not stamping. A stamp is
         // therefore proof the conversion reached its end without touching a library table.
         await using var db = await JournalOnlyDatabase.CreateAsync();
         await LoadWithoutLibraryTablesAsync(db, store);

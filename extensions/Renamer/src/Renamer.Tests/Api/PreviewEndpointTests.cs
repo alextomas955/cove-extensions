@@ -11,7 +11,7 @@ namespace Renamer.Tests.Api;
 
 /// <summary>
 /// Dry-run preview: <c>PreviewAsync</c> runs the planner over the seeded entity and returns
-/// <see cref="RenamerPlanItem"/>[] (old→new + status) with ZERO mutation — proven by reading back
+/// <see cref="RenamerPlanItem"/>[] (old→new + status) with zero mutation — proven by reading back
 /// each seeded file's Basename/Path unchanged after the call. The handler is exercised as a plain
 /// method (no HTTP host) with a real SQLite <c>CoveContext</c>.
 /// </summary>
@@ -58,9 +58,9 @@ public sealed class PreviewEndpointTests
             Assert.Equal("First Film.mkv", item.NewBasename);
             Assert.Equal(RenamerStatus.Renamer, item.Status);
 
-            // WIRE-SHAPE regression (the bug live-browser verification caught): the response MUST
-            // serialize as camelCase with `status` the camelCase STRING "renamer" — NOT PascalCase,
-            // NOT the numeric 0. The UI's confirm summary reads it.status === "renamer" and it.fileId; a
+            // wire-shape regression (the bug live-browser verification caught): the response must
+            // serialize as camelCase with `status` the camelCase string "renamer" — not PascalCase,
+            // not the numeric 0. The UI's confirm summary reads it.status === "renamer" and it.fileId; a
             // numeric enum or PascalCase key reads as a non-renamer and the renamer silently never
             // fires. Assert the actual bytes the response options produce.
             var json = JsonSerializer.Serialize(ok.Value!, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
@@ -71,7 +71,7 @@ public sealed class PreviewEndpointTests
 
             // The in-flight overflow signals reach the wire, and an ordinary same-volume rename carries
             // neither of them: DiskMover mints no temporary name, so a warning here would fire on a
-            // correct plan, which is the failure that teaches a user to ignore the badge. The POSITIVE
+            // correct plan, which is the failure that teaches a user to ignore the badge. The positive
             // arm needs two real volumes, so it lives in the pager suite (an injectable mount table) and
             // in the containerized tier.
             Assert.Contains("\"inFlightPathOverflow\":false", json);

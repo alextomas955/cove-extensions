@@ -13,7 +13,7 @@ namespace Renamer.Tests.Planner;
 /// </summary>
 public sealed class ScanAggregatorTests
 {
-    // Volume identity is per-platform (VolumeClassifier): the path ROOT on Windows, the enclosing mount
+    // Volume identity is per-platform (VolumeClassifier): the path root on Windows, the enclosing mount
     // point on Unix. A POSIX-only literal therefore has the single "\" root on Windows and every item
     // would fold as same-volume, so distinct volumes come from drive letters there and from a fixed
     // synthetic mount table here — the real table would make the cross-volume assertions
@@ -30,7 +30,7 @@ public sealed class ScanAggregatorTests
     // boundary they no longer sit on.
     private static readonly int Budget = new RenamerOptions().FullPathMax;
 
-    // OnVol yields "C:\dir\{name}" on Windows and "/c/dir/{name}" on Unix - SEVEN characters either way,
+    // OnVol yields "C:\dir\{name}" on Windows and "/c/dir/{name}" on Unix - seven characters either way,
     // which is what lets one arithmetic land on the same absolute length on both platforms.
     private const int OnVolPrefixLength = 7;
 
@@ -92,7 +92,7 @@ public sealed class ScanAggregatorTests
         Assert.Equal(expected.CrossVolumeCount, actual.CrossVolumeCount);
         Assert.Equal(expected.CrossVolumeBytes, actual.CrossVolumeBytes);
         Assert.Equal(expected.ConfirmLevel, actual.ConfirmLevel);
-        // The pair LIST is compared order-insensitively: the aggregator orders by descending bytes so the
+        // The pair list is compared order-insensitively: the aggregator orders by descending bytes so the
         // volume-pair cap keeps the largest movers, while Summarize keeps GroupBy encounter order.
         Assert.Equal(
             expected.VolumePairs.OrderBy(p => p.From).ThenBy(p => p.To).ToList(),
@@ -177,7 +177,7 @@ public sealed class ScanAggregatorTests
     [Fact]
     public void ToSummary_ConfirmLevel_IsComputedOverUntruncatedPairs()
     {
-        // Every pair is a single small file, so only the DESTINATION SPREAD can earn Heavy — and the
+        // Every pair is a single small file, so only the destination spread can earn Heavy — and the
         // spread lives in the pairs the cap would drop. A confirm derived from the topped list would
         // still read Heavy here, so the sharper proof is that the untruncated cross count survives too.
         int overCap = ScanSummary.MaxVolumePairsPerKind + 5;
@@ -256,7 +256,7 @@ public sealed class ScanAggregatorTests
         // The longest final path whose cross-volume copy still fits, because the copy is minted
         // CrossVolumeMover.InFlightSuffixLength characters longer beside the destination before being
         // promoted. Three items positioned around it: the boundary itself, one character past it, and a
-        // SAME-volume item of that same over-boundary length, which mints no temporary name at all.
+        // same-volume item of that same over-boundary length, which mints no temporary name at all.
         int longestThatFits = Budget - CrossVolumeMover.InFlightSuffixLength;
         string fitsName = NameForPathLength(longestThatFits);
         string overName = NameForPathLength(longestThatFits + 1);
@@ -293,7 +293,7 @@ public sealed class ScanAggregatorTests
     public void ScanSummaryView_OverflowCount_IsTheSumOfThePerKindCounts()
     {
         // The whole-library figure a large-library user reads. It is re-derived by summing the per-kind
-        // summaries, so it is zero whenever EITHER the per-kind fold or the merge is left unwired, and a
+        // summaries, so it is zero whenever either the per-kind fold or the merge is left unwired, and a
         // count of zero reads as "no overflows" on exactly the libraries most likely to have them.
         string overName = NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength + 1);
         string fitsName = NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength);

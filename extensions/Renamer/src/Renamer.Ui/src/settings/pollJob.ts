@@ -4,13 +4,13 @@
  * The host's equivalent route is gated on unrestricted read, so a scoped account is refused there
  * even for a run it started itself. This reads the extension's own projection instead.
  *
- * Deliberately NOT named `*Logic.ts`: that glob's purity rule in the root ESLint config restricts a
+ * Deliberately not named `*Logic.ts`: that glob's purity rule in the root ESLint config restricts a
  * module to relative imports, and the request helper below is a package import — the name is a
- * correctness requirement, not a style choice. Every DECISION here is still the L0 module's:
+ * correctness requirement, not a style choice. Every decision here is still the L0 module's:
  * `./jobPollLogic` owns both bounds and every verdict, and is imported rather than reimplemented.
  * The clock reads live here, in the poll handler, so that module stays testable without one.
  *
- * ONE loop for every caller, deliberately: a second one would be the same state machine over the same
+ * one loop for every caller, deliberately: a second one would be the same state machine over the same
  * decisions and the same response shape, so every fix to either would be owed to both.
  */
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
@@ -128,7 +128,7 @@ export function pollJob(jobId: string, onProgress?: (job: JobInfo) => void): Job
           );
 
           if (decision.action === "continue") {
-            // Still pending/running — surface live progress from this SAME read (no second poller).
+            // Still pending/running — surface live progress from this same read (no second poller).
             onProgress?.(job);
             return;
           }

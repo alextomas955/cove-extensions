@@ -6,7 +6,7 @@ namespace Renamer.Tests.Planner;
 
 /// <summary>
 /// Proves the <see cref="MetadataProjector"/> entity-graph → (tokens, multiValues) projection
-/// and the entity-type-aware token degradation: absent media tokens are OMITTED so the engine's
+/// and the entity-type-aware token degradation: absent media tokens are omitted so the engine's
 /// <c>{}</c> groups collapse cleanly.
 /// </summary>
 public sealed class MetadataProjectorTests
@@ -59,7 +59,7 @@ public sealed class MetadataProjectorTests
     [Fact]
     public void Duration_InvalidFormat_DegradesToRawSeconds_InsteadOfThrowing()
     {
-        // DurationFormat is free text a user can type, and this projection runs for EVERY file in a
+        // DurationFormat is free text a user can type, and this projection runs for every file in a
         // plan - so a throw here would abort a whole batch over one bad setting rather than spoiling one
         // token. "Q" is not a valid TimeSpan format specifier.
         var file = DurationFileRow(ReferenceDurationSeconds);
@@ -84,7 +84,7 @@ public sealed class MetadataProjectorTests
         Assert.Equal("aac", tokens[Tokens.AudioCodec]);
         Assert.Equal("2024-03-02", tokens[Tokens.Date]);   // default DateFormat yyyy-MM-dd
         Assert.Equal("2024", tokens[Tokens.Year]);
-        // Projector emits the RAW ext token ("mkv"); the engine adds the leading dot at Render
+        // Projector emits the raw ext token ("mkv"); the engine adds the leading dot at Render
         // time (NormalizeExt) — see the end-to-end test asserting result.Ext == ".mkv".
         Assert.Equal("mkv", tokens[Tokens.Ext]);
 
@@ -107,7 +107,7 @@ public sealed class MetadataProjectorTests
 
         Assert.Equal("Track", tokens[Tokens.Title]);
         Assert.Equal("mp3", tokens[Tokens.AudioCodec]);
-        // Absent — NOT empty-string — so the engine's {} collapse drops them.
+        // Absent — not empty-string — so the engine's {} collapse drops them.
         Assert.False(tokens.ContainsKey(Tokens.Resolution));
         Assert.False(tokens.ContainsKey(Tokens.VideoCodec));
         Assert.False(tokens.ContainsKey(Tokens.FrameRate));
@@ -161,8 +161,8 @@ public sealed class MetadataProjectorTests
     [Fact]
     public void Ext_PrefersOnDiskExtension_OverContainerFormatName()
     {
-        // Cove's Format field is the container NAME, not the extension: an .mkv file reports
-        // Format "matroska". The extension token must be the real on-disk extension ("mkv"), NOT
+        // Cove's Format field is the container name, not the extension: an .mkv file reports
+        // Format "matroska". The extension token must be the real on-disk extension ("mkv"), not
         // "matroska" — otherwise the rename rewrites movie.mkv → movie.matroska (a non-standard
         // extension that breaks player/OS association). Regression guard for that bug.
         var file = new RenamerFile(
@@ -246,10 +246,10 @@ public sealed class MetadataProjectorTests
     [Fact]
     public void Rating_IsDeferred_NeverEmitted_NoPrincipalSource()
     {
-        // TOKEN-02 ($rating) is DEFERRED (host-fact gate): Cove's Rating is per-UserId/per-Aspect,
-        // and the renamer batch runs as a detached job with NO principal, so "the item's rating" is
-        // undefined. Per the locked never-ship-garbage decision, $rating is NOT projected and there
-        // is NO Tokens.Rating constant. This negative assertion documents + guards the deferral.
+        // token-02 ($rating) is deferred (host-fact gate): Cove's Rating is per-UserId/per-Aspect,
+        // and the renamer batch runs as a detached job with no principal, so "the item's rating" is
+        // undefined. Per the locked never-ship-garbage decision, $rating is not projected and there
+        // is no Tokens.Rating constant. This negative assertion documents + guards the deferral.
         var file = VideoFileRow();
         var (tokens, _, _, _) = MetadataProjector.Project(VideoEntity(file), file, new RenamerOptions());
 
@@ -308,7 +308,7 @@ public sealed class MetadataProjectorTests
     [Fact]
     public void Title_FilenameDerived_SatisfiesRequiredFieldsGate()
     {
-        // A title-less item with the fallback on resolves a non-empty `title` through the SAME map
+        // A title-less item with the fallback on resolves a non-empty `title` through the same map
         // the RequiredFields=["title"] gate reads, so the item is renamed rather than skipped.
         var file = VideoFileRow() with { Basename = "Some Recording.mkv" };
         var entity = VideoEntity(file) with { Title = null };
@@ -324,7 +324,7 @@ public sealed class MetadataProjectorTests
     [Fact]
     public void Title_FilenameDerived_IsStableAcrossReRender()
     {
-        // The derivation reads the ENTITY's first file, not the file being projected, so feeding a
+        // The derivation reads the entity's first file, not the file being projected, so feeding a
         // just-rendered name back in as the projected basename yields the same title.
         var firstFile = VideoFileRow() with { Basename = "My Clip.mkv" };
         var entity = VideoEntity(firstFile) with { Title = null };

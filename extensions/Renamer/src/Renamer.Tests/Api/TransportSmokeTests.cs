@@ -106,10 +106,10 @@ public sealed class TransportSmokeTests
     }
 
     /// <summary>
-    /// The wire casing as the HOST actually writes it, read off the raw response body.
+    /// The wire casing as the host actually writes it, read off the raw response body.
     /// </summary>
     /// <remarks>
-    /// Every other casing assertion in this suite serializes a DTO with options the TEST supplies, so it
+    /// Every other casing assertion in this suite serializes a DTO with options the test supplies, so it
     /// proves only that the test's serializer works. This one names nothing: the bytes come from the
     /// host's own pipeline over real HTTP, which is the only place the contract is actually settled.
     /// Both halves are covered here because they have different sources — property casing is the host's
@@ -136,7 +136,7 @@ public sealed class TransportSmokeTests
         Assert.Contains("\"completedAtUtcTicks\":", body, StringComparison.Ordinal);
         Assert.DoesNotContain("\"TotalFiles\":", body, StringComparison.Ordinal);
 
-        // RenamerFileKind, RenamerStatus and ConfirmLevel, each as the camelCase STRING the UI matches.
+        // RenamerFileKind, RenamerStatus and ConfirmLevel, each as the camelCase string the UI matches.
         // A numeric enum here is the defect the converter exists to prevent: the panel compares against
         // "renamer"/"noOp", so a 0 reads as a non-rename and the renamer silently never fires.
         Assert.Contains("\"kinds\":[\"video\"]", body, StringComparison.Ordinal);

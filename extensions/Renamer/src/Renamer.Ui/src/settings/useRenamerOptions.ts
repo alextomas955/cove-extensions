@@ -72,7 +72,7 @@ export function useRenamerOptions(): UseRenamerOptions {
   // Set when a stored blob could not be parsed and we fell back to defaults. Non-blocking: the panel
   // still renders so a Save rewrites a clean blob and clears the bad data.
   const [recoveredFromBadBlob, setRecoveredFromBadBlob] = useState(false);
-  // Set when the stored blob still holds NAME-keyed tag/performer rules the backend's one-time
+  // Set when the stored blob still holds name-keyed tag/performer rules the backend's one-time
   // conversion has not resolved yet. Saving then would persist this panel's id-only view of those
   // rules over the names, and nothing else keeps a copy — so it blocks Save until a host start has
   // converted them.
@@ -127,14 +127,14 @@ export function useRenamerOptions(): UseRenamerOptions {
         preservedExtras.current = extractUnmodeledFields(raw);
         setPendingNameMigration(hasUnmigratedNameRules(raw));
         setPendingDestinationMigration(hasUnmigratedDestinations(raw));
-        // normalizeOptions rebuilds a clean canonical RenamerOptions, DROPPING any stale camelCase
+        // normalizeOptions rebuilds a clean canonical RenamerOptions, dropping any stale camelCase
         // duplicate keys a legacy blob may carry (the /preview-sample dual-source fix). The old spread
         // merge preserved them, so they overwrote live edits in the preview body. Because `options`
         // state is now canonical by construction, both the preview body and saveOptions are single-source
         // automatically, and the stored blob self-heals on the next Save.
         const parsed = normalizeOptions(raw);
         // A gate stored false whose underlying data is already non-empty must still surface
-        // as ON, so an existing configuration is never silently hidden behind a new gate. Both
+        // as on, so an existing configuration is never silently hidden behind a new gate. Both
         // setOptions and setSaved get the identical derived value — using parsed for one and this
         // for the other would make the panel dirty on load for any such existing configuration.
         const withDerivedGates: RenamerOptions = {

@@ -1,4 +1,4 @@
-// Waits on a Renamer run through the route the PANEL uses, not the host's own job route.
+// Waits on a Renamer run through the route the panel uses, not the host's own job route.
 //
 // The shared harness `pollJob` reads `GET /api/jobs/{id}`, which Cove gates on unrestricted read.
 // Polling that as an owner works and told us nothing about the product: the panel reads the
@@ -14,7 +14,7 @@ const TERMINAL = ["completed", "failed", "cancelled"];
  * @param {object} api - the request helper, driven as whichever principal the spec is testing.
  * @param {string} routeBase - the extension's route prefix, e.g. `/api/extensions/<id>`.
  * @param {string} jobId - the id the enqueue returned.
- * @returns the last status body, whose `status` is one of {@link TERMINAL}.
+ * @returns the last status body, whose `status` is one of {@link terminal}.
  */
 export async function pollRenamerJob(api, routeBase, jobId, { timeoutMs = 60_000 } = {}) {
   return pollUntil(

@@ -111,7 +111,7 @@ public sealed class DerivedTitleWriteTests
             Assert.Equal("raw clip.mkv", restoredBasename);
             Assert.Equal("raw clip", await ExecutorTestSeed.ReadVideoTitleAsync(db, videoId));
 
-            // The stored title decides the next name, so it is the SAME name rather than one derived
+            // The stored title decides the next name, so it is the same name rather than one derived
             // from the restored filename.
             var again = Assert.Single(
                 (await planner.PlanAsync(RenamerFileKind.Video, videoId, options, default)).Items);

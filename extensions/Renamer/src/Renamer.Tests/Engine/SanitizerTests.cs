@@ -171,7 +171,7 @@ public class SanitizerTests
     [Fact]
     public void CleanSegment_RemoveSet_DropsBeforeIllegalReplacement()
     {
-        // ':' is both OS-illegal and in the remove-set; it is removed, NOT turned into "_".
+        // ':' is both OS-illegal and in the remove-set; it is removed, not turned into "_".
         var o = new RenamerOptions { RemoveCharacters = ":", IllegalReplacement = "_" };
         Assert.Equal("ab", Sanitizer.CleanSegment("a:b", o));
     }
@@ -215,7 +215,7 @@ public class SanitizerTests
     [Fact]
     public void Transform_Transliterate_LeavesNonLatinNonEmpty()
     {
-        // Cyrillic must NOT be emptied — transliteration folds diacritics only, not whole scripts.
+        // Cyrillic must not be emptied — transliteration folds diacritics only, not whole scripts.
         var cyr = "Москва"; // "Москва"
         var result = Sanitizer.Transliterate(cyr);
         Assert.False(string.IsNullOrEmpty(result));
@@ -245,7 +245,7 @@ public class SanitizerTests
     [Fact]
     public void Transform_NormalizePunctuation_LeavesLettersAndNonLatinUnchanged()
     {
-        // Punctuation-only: accented letters and non-Latin scripts are NOT this method's job.
+        // Punctuation-only: accented letters and non-Latin scripts are not this method's job.
         Assert.Equal("Beyoncé", Sanitizer.NormalizePunctuation("Beyoncé"));
         Assert.Equal("Москва", Sanitizer.NormalizePunctuation("Москва"));
     }

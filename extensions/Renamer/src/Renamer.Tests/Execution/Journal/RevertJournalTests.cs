@@ -14,7 +14,7 @@ namespace Renamer.Tests.Execution.Journal;
 /// </summary>
 /// <remarks>
 /// Driven through the real EF implementation rather than the fake, because the property under test —
-/// that what remains in the table IS the work left — is a property of the storage, and a fake that
+/// that what remains in the table is the work left — is a property of the storage, and a fake that
 /// reimplements it would only prove the fake agrees with itself.
 /// </remarks>
 [Collection(CoveDataExtensionScope.CollectionName)]
@@ -159,7 +159,7 @@ public sealed class RevertJournalTests
     {
         // The measured failure the shared factory's model-cache-key replacement exists to close. EF
         // caches a built model under a key that, by default, says nothing about which data extensions
-        // are loaded — so once ANY context has been built, every context after it is handed that same
+        // are loaded — so once any context has been built, every context after it is handed that same
         // cached model, and an extension registered later has its entity types missing from a model
         // that is never rebuilt. Test classes run in parallel, so which context is built first is not
         // controllable: the failure would come and go rather than fail honestly.
@@ -179,7 +179,7 @@ public sealed class RevertJournalTests
         Assert.NotNull(after.Model.FindEntityType(typeof(LateRegistrationProbeEntity)));
 
         // Round-tripping a row asks the question the model assertion above cannot: did the late
-        // registration produce a WORKING mapping, or only an entry in a model? The schema for this
+        // registration produce a working mapping, or only an entry in a model? The schema for this
         // entity exists at all only because the context built after the registration created it, so a
         // model that listed the type without mapping it would fail here rather than pass silently.
         after.Add(new LateRegistrationProbeEntity { Id = 4242 });

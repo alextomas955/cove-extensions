@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Renamer.Tests.TestSupport;
 
 /// <summary>
-/// A database carrying the undo journal and NOTHING else: the extension can complete the load-time
+/// A database carrying the undo journal and nothing else: the extension can complete the load-time
 /// check that reads the journal, and every read of a library table throws.
 /// </summary>
 /// <remarks>

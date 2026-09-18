@@ -10,7 +10,7 @@ namespace Renamer.Tests.Execution.Journal;
 
 /// <summary>
 /// The journal's paged row read against a real <see cref="CoveContext"/>: that a batch larger than one
-/// page comes back whole, in one order, each row once — and that a run over it ENDS.
+/// page comes back whole, in one order, each row once — and that a run over it ends.
 /// </summary>
 /// <remarks>
 /// The defect these cases exist for is a memory one: the read that fed <c>/undo</c> materialized every
@@ -20,7 +20,7 @@ namespace Renamer.Tests.Execution.Journal;
 /// bug by never finishing.
 /// <para>
 /// Driven through the real EF implementation rather than the fake. What is under test is the cursor's
-/// behaviour over a table rows are being DELETED from, which a fake reimplementing the same rule would
+/// behaviour over a table rows are being deleted from, which a fake reimplementing the same rule would
 /// only prove agrees with itself.
 /// </para>
 /// <para>
@@ -74,7 +74,7 @@ public sealed class JournalPagingTests
         Assert.Equal(4, pages.Count);
         Assert.Equal([3, 3, 3, 1], pages.Select(p => p.Count));
 
-        // Collected in the order the PAGES yielded them, then asserted as one series: the boundary is
+        // Collected in the order the pages yielded them, then asserted as one series: the boundary is
         // exactly where an order bug lives, so a per-page assertion would look right while the run
         // reversed two files in the wrong order relative to each other.
         var series = pages.SelectMany(p => p.Select(r => r.Seq)).ToList();
@@ -103,7 +103,7 @@ public sealed class JournalPagingTests
     [Fact]
     public async Task RetiringRowsBetweenPages_NeitherSkipsNorRepeatsARow()
     {
-        // The reason the cursor keys on the sequence rather than on an offset. Rows are DELETED as they
+        // The reason the cursor keys on the sequence rather than on an offset. Rows are deleted as they
         // restore, so an offset-based second page over a table that just lost three rows would start
         // three rows further in than it should and silently skip work.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -154,7 +154,7 @@ public sealed class JournalPagingTests
     [Fact]
     public async Task AMultiPageRunWhereEveryRowStopsRetryably_Terminates_AndAttemptsEachRowExactlyOnce()
     {
-        // The failure this case exists to catch does not fail an assertion — it HANGS. A cursor that did
+        // The failure this case exists to catch does not fail an assertion — it hangs. A cursor that did
         // not advance past rows which stayed pending would re-read the first page forever, and nothing
         // retires to end it, because a retryable stop deliberately leaves its row in the table. The
         // bounded page guard inside RunPagedUndoAsync is what turns that hang into a failure.
@@ -176,7 +176,7 @@ public sealed class JournalPagingTests
 
             Assert.Equal(0, run.Undone);
 
-            // Counted off what the RUN produced — each stop carries the identity of the row it stopped
+            // Counted off what the run produced — each stop carries the identity of the row it stopped
             // on — rather than off a number this test also supplied.
             Assert.Equal(UndoRowCount, run.Attempts.Count);
             Assert.Equal(UndoRowCount, run.Attempts.Distinct().Count());
@@ -192,7 +192,7 @@ public sealed class JournalPagingTests
     [Fact]
     public async Task AMultiPageRunWhereEveryRowStopsRetryably_LeavesEveryRowInTheTable()
     {
-        // What remains in the table IS the work left, and paging must not quietly change that: a row
+        // What remains in the table is the work left, and paging must not quietly change that: a row
         // that stopped for a clearable cause has to be offered again on the next undo.
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -341,7 +341,7 @@ public sealed class JournalPagingTests
     }
 
     /// <summary>
-    /// Seeds one folder holding <paramref name="count"/> videos and really renames each into ONE batch,
+    /// Seeds one folder holding <paramref name="count"/> videos and really renames each into one batch,
     /// so the batch holds one row per file and the paging is over rows rather than over batches.
     /// </summary>
     private static async Task<(CoveRevertJournal journal, IReadOnlyList<Seeded> seeded)> RenameManyAsync(

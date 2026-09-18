@@ -12,7 +12,7 @@ namespace Renamer.Tests.TestSupport;
 internal static class ExtensionHarness
 {
     /// <summary>
-    /// Registers <paramref name="db"/> as a SINGLETON <c>DbContext</c>, so every scope the extension
+    /// Registers <paramref name="db"/> as a singleton <c>DbContext</c>, so every scope the extension
     /// opens resolves that one seeded context, and seeds <paramref name="options"/> into its store.
     /// </summary>
     /// <remarks>

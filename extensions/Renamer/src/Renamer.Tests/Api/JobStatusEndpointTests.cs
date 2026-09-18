@@ -91,7 +91,7 @@ public sealed class JobStatusEndpointTests
         var result = ext.JobStatus(
             "job-2", FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), jobs);
 
-        // NOT FOUND rather than FORBIDDEN: answering "forbidden" confirms the id names a real job,
+        // not found rather than forbidden: answering "forbidden" confirms the id names a real job,
         // which is the fact the host's own gate withholds from this caller.
         Assert.IsType<NotFound>(Unwrap(result));
     }

@@ -72,8 +72,8 @@ public sealed class GatingTests
     [Fact]
     public async Task OnlyOrganized_WithUnorganizedDestination_RoutesInsteadOfGating()
     {
-        // With OnlyOrganized ON but an UnorganizedDestination configured, an unorganized item must
-        // NOT be gated out — the unorganized destination takes precedence and the item routes.
+        // With OnlyOrganized on but an UnorganizedDestination configured, an unorganized item must
+        // not be gated out — the unorganized destination takes precedence and the item routes.
         // Without this carve-out the gate would silently nullify the unorganized route.
         string unorgRoot = OperatingSystem.IsWindows() ? @"H:\unsorted" : "/mnt/unsorted";
         string srcFolder = OperatingSystem.IsWindows() ? "C:/library/incoming" : "/srv/library/incoming";

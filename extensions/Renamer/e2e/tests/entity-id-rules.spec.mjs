@@ -196,7 +196,7 @@ test("the host tag selector stores the picked tag's id and renders its name back
   // it. A typed absolute path here would mean the panel is still storing a copy of a Cove setting.
   expect(saved.TagDestinations[String(tagId)]).toEqual({ Root: "/data", Template: "routed" });
 
-  // The committed row reads as the tag's NAME after a reload, so an id-keyed rule stays identifiable
+  // The committed row reads as the tag's name after a reload, so an id-keyed rule stays identifiable
   // - and therefore removable - by the person who wrote it.
   await settings.goto();
   await expect(page.getByText("e2e-routed-tag").first()).toBeVisible({ timeout: 30_000 });

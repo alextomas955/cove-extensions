@@ -153,7 +153,7 @@ internal static class ExecutorTestSeed
         return file.Id;
     }
 
-    /// <summary>Reads a Video's stored title from the ROW, discarding whatever the tracker still holds.</summary>
+    /// <summary>Reads a Video's stored title from the row, discarding whatever the tracker still holds.</summary>
     /// <remarks>
     /// The tracker is cleared first because a failed save leaves the modified entity attached, so a
     /// tracked read would report a title that never committed.

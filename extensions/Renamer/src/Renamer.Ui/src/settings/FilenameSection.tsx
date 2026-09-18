@@ -19,7 +19,7 @@ import { PRESETS } from "./presets";
  * One-click starter templates. Each chip sets FilenameTemplate via the parent's
  * set() path so `dirty` flips and the existing debounced live preview re-renders — no toast, no
  * confirm. Chips reuse the legend-chip class (prose labels drop font-mono). Every preset label is a
- * React text node (auto-escaped); the templates come from the static PRESETS list.
+ * React text node (auto-escaped); the templates come from the static presets list.
  */
 function PresetRow({ onApply }: { onApply: (filenameTemplate: string) => void }) {
   return (

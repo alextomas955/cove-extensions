@@ -24,7 +24,7 @@ export interface ExtensionViteOptions {
 // The mixed spelling is deliberate, and each host module is named here exactly once. The seven bare
 // names are host modules the import map also serves under a bare alias; neither `@cove/runtime/api`
 // nor `@cove/runtime/components` carries such an alias, so the canonical name is the only spelling
-// that reaches them. Do NOT collapse this to a `@cove/runtime/` prefix match: it matches none of the
+// that reaches them. Do not collapse this to a `@cove/runtime/` prefix match: it matches none of the
 // seven bare names, which would silently bundle a second React with no build failure.
 const HOST_EXTERNALS = [
   "react",

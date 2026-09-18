@@ -11,7 +11,7 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Execution.Journal;
 
 /// <summary>
-/// The retention window: a batch older than <see cref="CoveRevertJournal.RetentionWindow"/> disappears WHOLE on
+/// The retention window: a batch older than <see cref="CoveRevertJournal.RetentionWindow"/> disappears whole on
 /// the next batch open, and one inside the window survives it.
 /// </summary>
 /// <remarks>
@@ -70,7 +70,7 @@ public sealed class RevertJournalRetentionTests
     public async Task APartiallyRestoredBatchOutsideTheWindow_LosesItsRemainingRowsAndItsBatchRow()
     {
         // Half a batch surviving would make a later undo silently partial, with nothing to say so — so
-        // the purge keys on the BATCH, and a batch that is already half spent goes with the same sweep.
+        // the purge keys on the batch, and a batch that is already half spent goes with the same sweep.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         await using var _ = db;
         await using var __ = conn;
@@ -108,7 +108,7 @@ public sealed class RevertJournalRetentionTests
     public async Task TheWindowIsMeasuredFromTheBatchOpenTimestamp_NotFromItsRows()
     {
         // Two batches, one either side of the same cutoff, purged in one call: the survivor proves the
-        // purge selects by each batch's OWN open timestamp rather than sweeping everything it finds.
+        // purge selects by each batch's own open timestamp rather than sweeping everything it finds.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         await using var _ = db;
         await using var __ = conn;
@@ -175,7 +175,7 @@ public sealed class RevertJournalRetentionTests
     }
 
     // Read the tables directly rather than through the port: what the purge must leave behind is a
-    // storage fact, and the port's own readers only ever answer about the NEWEST batch.
+    // storage fact, and the port's own readers only ever answer about the newest batch.
     private static Task<List<string>> BatchRunIdsAsync(DbContext db, string runId) =>
         db.Set<RevertBatchEntity>().AsNoTracking().Where(b => b.RunId == runId).Select(b => b.RunId).ToListAsync();
 

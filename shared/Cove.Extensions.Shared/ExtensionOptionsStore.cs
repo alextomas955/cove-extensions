@@ -34,7 +34,7 @@ public class ExtensionOptionsStore<TOptions>(
 {
     /// <summary>The single store key the options blob lives under.</summary>
     /// <remarks>
-    /// Public because a one-time conversion has to reach the RAW blob: a legacy shape does not bind to
+    /// Public because a one-time conversion has to reach the raw blob: a legacy shape does not bind to
     /// the current model, and <see cref="LoadAsync"/> answers a bind failure with defaults, so a
     /// converter going through the typed load would rewrite defaults over the stored configuration.
     /// </remarks>
@@ -90,7 +90,7 @@ public class ExtensionOptionsStore<TOptions>(
     /// declares as non-nullable, then recurses into the nested option objects.
     /// </summary>
     /// <remarks>
-    /// A property initializer runs only for an ABSENT key, so a stored <c>"DropOrder": null</c> binds
+    /// A property initializer runs only for an absent key, so a stored <c>"DropOrder": null</c> binds
     /// to null and the member contradicts its own declaration; the first consumer to dereference it
     /// throws, and <see cref="LoadAsync"/> catches only <see cref="JsonException"/>. The criterion is
     /// the declared nullability, so a member whose null is a real state keeps it and a member added to
@@ -134,7 +134,7 @@ public class ExtensionOptionsStore<TOptions>(
 
     /// <summary>
     /// True for a member that is itself an options object — one whose own members can carry the same
-    /// null. A collection is excluded: its ELEMENTS have no counterpart in the defaults to restore from.
+    /// null. A collection is excluded: its elements have no counterpart in the defaults to restore from.
     /// </summary>
     private static bool IsNestedOptions(Type type)
         => type.IsClass && type != typeof(string) && !typeof(IEnumerable).IsAssignableFrom(type);

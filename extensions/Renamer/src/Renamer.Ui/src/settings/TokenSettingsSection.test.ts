@@ -5,7 +5,7 @@
  * to a naming scheme they did not choose. Nothing in the panel computes them — they are hand-authored
  * strings — so nothing but a pin can catch one that is wrong.
  *
- * Every expectation below was produced by running the ENGINE's own formatter over the reference value
+ * Every expectation below was produced by running the engine's own formatter over the reference value
  * (`TimeSpan.ToString(format, InvariantCulture)`, as `MetadataProjector.FormatDuration` calls it) and
  * transcribed by hand. None is derived from the module under test, which would only prove it agrees
  * with itself. The whole list is pinned rather than each entry, so an option added with no example
@@ -27,7 +27,7 @@ test("every duration example is what the engine's formatter renders for 1h 23m 4
   assert.deepEqual(pairs(DURATION_FORMAT_OPTIONS), [
     [String.raw`hh\-mm\-ss`, "01-23-45"],
     [String.raw`hh\.mm\.ss`, "01.23.45"],
-    // `mm` is the minutes COMPONENT of 01:23:45, never its 83 total minutes.
+    // `mm` is the minutes component of 01:23:45, never its 83 total minutes.
     [String.raw`mm\-ss`, "23-45"],
   ]);
 });

@@ -19,7 +19,7 @@ public sealed class FakeStore : IExtensionStore
     public int SetCallCount { get; private set; }
 
     /// <summary>
-    /// Every key passed to <see cref="GetAsync"/>, in order — lets a test prove a key was NEVER read,
+    /// Every key passed to <see cref="GetAsync"/>, in order — lets a test prove a key was never read,
     /// which for a value that can be hundreds of megabytes is the difference between a safe cleanup and
     /// the one operation guaranteed to hurt.
     /// </summary>

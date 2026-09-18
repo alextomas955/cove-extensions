@@ -4,7 +4,7 @@ namespace Renamer.Tests.TestSupport;
 
 /// <summary>
 /// A Windows-only test fixture that maps a free drive letter to a real backing directory via
-/// <c>subst</c>, giving a SECOND path root that resolves to the SAME physical volume. This lets the
+/// <c>subst</c>, giving a second path root that resolves to the same physical volume. This lets the
 /// executor's <c>VolumeClassifier</c> branch report a cross-volume move (distinct
 /// <see cref="Path.GetPathRoot(string)"/> values) and exercise the real <c>CrossVolumeMover</c>
 /// end-to-end on one machine — no second physical

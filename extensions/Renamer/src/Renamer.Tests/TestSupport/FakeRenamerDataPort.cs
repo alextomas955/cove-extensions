@@ -48,7 +48,7 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     /// <summary>Number of <see cref="LoadEntityAsync"/> calls — lets a test prove the planning pass loads each id once, not twice.</summary>
     public int LoadEntityCallCount { get; private set; }
 
-    /// <summary>Number of <see cref="LoadEntitiesAsync"/> calls — one per CALL (not per id), so a scan test can prove batching issues far fewer than N loads.</summary>
+    /// <summary>Number of <see cref="LoadEntitiesAsync"/> calls — one per call (not per id), so a scan test can prove batching issues far fewer than N loads.</summary>
     public int LoadEntitiesCallCount { get; private set; }
 
     /// <summary>The library paths the fake declares; empty by default, so a test opts in to an anchor.</summary>
@@ -124,7 +124,7 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
 
     public Task<bool> CollisionExistsAsync(int folderId, string basename, int selfFileId, CancellationToken ct = default)
     {
-        // Occupied by some OTHER file row (excluding self) → collision.
+        // Occupied by some other file row (excluding self) → collision.
         var taken = _occupied.Any(o => o.folderId == folderId && o.basename == basename && o.fileId != selfFileId);
         return Task.FromResult(taken);
     }

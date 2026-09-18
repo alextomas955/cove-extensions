@@ -11,7 +11,7 @@ namespace Renamer.Tests.Events;
 /// The probe works because <c>AutoRenamerOnUpdate</c> defaults to false: a registered handler reads
 /// the options blob and then returns, while an unregistered event type never reaches any code that
 /// touches the store. So the options key appearing in <see cref="FakeStore.GetKeys"/> is the signal
-/// that a handler ran, and its absence is the signal that none did. PURE - no DB, no host, no
+/// that a handler ran, and its absence is the signal that none did. pure - no DB, no host, no
 /// container.
 /// </remarks>
 public sealed class AutoRenamerEventRegistrationTests
@@ -41,7 +41,7 @@ public sealed class AutoRenamerEventRegistrationTests
         Assert.Contains(OptionsKey, store.GetKeys);
     }
 
-    // Audio and text are renamable through the manual job/API surface but are deliberately NOT hooked
+    // Audio and text are renamable through the manual job/API surface but are deliberately not hooked
     // to per-edit events; gallery is not renamable at all. Adding one here without meaning to would
     // give every metadata edit of that kind an unconfirmed, unpreviewed rename.
     [Theory]
@@ -68,7 +68,7 @@ public sealed class AutoRenamerEventRegistrationTests
 
         Assert.DoesNotContain(OptionsKey, store.GetKeys);
 
-        // These kinds ARE hooked, so the verb is the only reason nothing happened. Showing the same
+        // These kinds are hooked, so the verb is the only reason nothing happened. Showing the same
         // kind's update still reaches the handler is what separates "only updates are hooked" from
         // "this kind is not hooked at all" - two states the assertion above cannot tell apart.
         var updated = await DispatchAsync($"{entityType}.updated", entityType);

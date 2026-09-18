@@ -9,7 +9,7 @@ namespace Renamer.Tests.Execution.Journal;
 /// and takes whatever was still pending with it.
 /// </summary>
 /// <remarks>
-/// What the cap keeps bounded is the undo RESPONSE — <c>/undo</c> answers with one entry per file it
+/// What the cap keeps bounded is the undo response — <c>/undo</c> answers with one entry per file it
 /// could not put back — so the claim under test is that a refused run leaves nothing for a later undo
 /// to page over at all. Driven through the real EF implementation rather than the fake, because that
 /// is a property of the storage and a fake reimplementing it would only agree with itself.

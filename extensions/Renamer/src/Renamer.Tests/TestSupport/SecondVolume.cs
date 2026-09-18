@@ -9,7 +9,7 @@ namespace Renamer.Tests.TestSupport;
 /// for it unconditionally either fails or quietly does nothing everywhere else.
 /// </summary>
 /// <remarks>
-/// Three arms, in precedence order — an EXPLICIT choice outranks an inferred one on every OS:
+/// Three arms, in precedence order — an explicit choice outranks an inferred one on every OS:
 /// <list type="number">
 /// <item><c>COVE_TEST_SECOND_VOLUME</c>, naming an existing directory on another filesystem. This is
 /// the only arm available on macOS, where neither of the others applies.</item>
@@ -19,15 +19,15 @@ namespace Renamer.Tests.TestSupport;
 /// mount table and therefore a distinct volume key; measured present and writable with no privilege
 /// in a Linux container and on the CI runner. That matters because CI runs Linux: before this
 /// existed, every cross-volume execution proof was unreachable there, and seven of them returned
-/// early and reported PASS while executing nothing.</item>
+/// early and reported pass while executing nothing.</item>
 /// </list>
 /// <para>
-/// A misconfigured override is REFUSED rather than absorbed: pointing the variable at the temp tree's
+/// A misconfigured override is refused rather than absorbed: pointing the variable at the temp tree's
 /// own volume would leave every gated test running, passing, and proving nothing — the same
 /// silent-no-op this fixture was written to end. See <see cref="AssertDistinctVolume"/>.
 /// </para>
 /// <para>
-/// This is not a second physical disk. It is a second FILESYSTEM, which is what the classifier and
+/// This is not a second physical disk. It is a second filesystem, which is what the classifier and
 /// the copy-verify-delete path actually branch on. A true two-drive run stays a manual check.
 /// </para>
 /// </remarks>
@@ -75,7 +75,7 @@ public sealed class SecondVolume : IDisposable
     }
 
     /// <summary>
-    /// The testable seam. <paramref name="overridePath"/> is passed EXPLICITLY by the fixture's own
+    /// The testable seam. <paramref name="overridePath"/> is passed explicitly by the fixture's own
     /// tests rather than set in the environment, because a process-global variable cannot be mutated
     /// safely while xUnit runs test classes in parallel.
     /// </summary>
@@ -141,8 +141,8 @@ public sealed class SecondVolume : IDisposable
     }
 
     /// <summary>
-    /// Refuses an override that resolves to the SAME volume as the temp tree the cross-volume tests
-    /// move FROM, naming both sides so the misconfiguration is actionable from CI output alone.
+    /// Refuses an override that resolves to the same volume as the temp tree the cross-volume tests
+    /// move from, naming both sides so the misconfiguration is actionable from CI output alone.
     /// </summary>
     /// <remarks>
     /// The decision is delegated to <see cref="VolumeClassifier.SameVolume"/> — the same classifier

@@ -6,7 +6,7 @@
 /**
  * A `{get,post,put,delete}` JSON client over one Cove instance.
  *
- * Both `baseUrl` and `token` accept a value OR a getter. A restart re-mints the access token and MAY
+ * Both `baseUrl` and `token` accept a value or a getter. A restart re-mints the access token and may
  * republish the container on a new ephemeral host port, so a client that captured either one goes on
  * addressing the old port or presenting a credential the instance no longer accepts. Anything that
  * outlives an install, uninstall or restart must pass `() => harness.baseUrl` and
@@ -17,7 +17,7 @@
  *
  * A body is sent whenever the caller supplies one, including `""`, `0` and `false`. Bodies are
  * JSON-encoded, so a caller sending an already-stringified value (the extension data store takes its
- * blob as a STRING) gets the second encoding that endpoint expects.
+ * blob as a string) gets the second encoding that endpoint expects.
  *
  * Never throws on an HTTP status; the status is returned for the caller to judge. Only a transport
  * failure, or an abort via `signal`, rejects.

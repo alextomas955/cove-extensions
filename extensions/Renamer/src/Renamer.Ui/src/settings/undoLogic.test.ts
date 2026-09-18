@@ -101,7 +101,7 @@ test("an untouched batch states its size, its age and its expiry date", () => {
   assert.equal(status.remaining, 12);
   assert.equal(status.expired, false);
   assert.equal(Math.round(status.expiresAtMs), WRITTEN_MS + SEVEN_DAYS_MS);
-  // The date shown is the EXPIRY, not the open timestamp: the two fall in different years here.
+  // The date shown is the expiry, not the open timestamp: the two fall in different years here.
   assert.ok(expiryClause(status.line).startsWith("undo available until "));
   assert.ok(expiryClause(status.line).includes("2027"));
   assert.ok(!expiryClause(status.line).includes("2026"));

@@ -31,7 +31,7 @@ export function filterByText<T>(
 
 /**
  * Validate a rule pattern as best a browser can: `new RegExp` is the only validator available in the
- * bundle, so it catches obvious parse errors (an unbalanced group, a dangling quantifier) but is NOT
+ * bundle, so it catches obvious parse errors (an unbalanced group, a dangling quantifier) but is not
  * full .NET parity — the rename engine is .NET, so a JS-valid pattern is not a guarantee of .NET
  * validity, and a handful of .NET constructs JS rejects are not actually broken. Treat the result as
  * an early "this is obviously malformed" signal, never as the authoritative verdict.

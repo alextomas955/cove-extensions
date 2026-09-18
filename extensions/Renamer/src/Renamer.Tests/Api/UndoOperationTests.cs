@@ -175,7 +175,7 @@ public sealed class UndoOperationTests
             string destFolder = Path.Combine(dir.Root, "dest").Replace('\\', '/');
             Directory.CreateDirectory(Path.Combine(dir.Root, "dest"));
 
-            // The image is routed OFF its own folder, so that folder can be taken away without taking
+            // The image is routed off its own folder, so that folder can be taken away without taking
             // the renamed file with it.
             var options = new RenamerOptions
             {

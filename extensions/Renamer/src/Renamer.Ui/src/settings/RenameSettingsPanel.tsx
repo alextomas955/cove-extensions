@@ -1,7 +1,7 @@
 /**
  * RenameSettingsPanel — the extension's settings + live-preview page, as a composition root.
  *
- * Rendered by the host with NO props inside its own SectionCard, so the panel ROOT is a plain
+ * Rendered by the host with no props inside its own SectionCard, so the panel root is a plain
  * <div> — no outer card, no page title. The data layer lives in three R9 hooks (useRenamerOptions
  * for load/save, useRenamePreview for the debounced /preview-sample fetch, useRenameLibrary for the
  * scan+rename-library job); this body wires those hooks to the presentational per-section children

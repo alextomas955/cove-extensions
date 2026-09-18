@@ -24,7 +24,7 @@ namespace Renamer.Tests.Concurrency;
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class ParallelBatchTests
 {
-    /// <summary>Wires the extension over a SCOPED DbContext factory so each worker gets its OWN context over the shared DB.</summary>
+    /// <summary>Wires the extension over a scoped DbContext factory so each worker gets its own context over the shared DB.</summary>
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>
         BuildAsync(SharedCacheSqlite shared, RenamerOptions options, params string[] libraryPaths)
     {
@@ -95,7 +95,7 @@ public sealed class ParallelBatchTests
 
             Assert.Equal(1d, progress.LastPercent);
 
-            // Progress must move during BOTH phases, not jump from 0% to done. The planning pass drives
+            // Progress must move during both phases, not jump from 0% to done. The planning pass drives
             // the bar into (0, 0.5] and the execution pass carries it past 0.5 to 1.0 — so there must be
             // at least one report in each band, every report is in [0,1], and the sequence never regresses.
             Assert.Contains(progress.Reports, r => r.Percent is > 0d and <= 0.5d);
@@ -133,7 +133,7 @@ public sealed class ParallelBatchTests
                 await seedDb.SaveChangesAsync();
                 await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv");
                 ids.Add(video.Id);
-                // Write the on-disk source for every id EXCEPT the fault one — with no source on disk
+                // Write the on-disk source for every id except the fault one — with no source on disk
                 // the executor's source pre-check classifies it as SkipMissingSource (not a mover-level
                 // lock skip) without throwing, so the batch still completes.
                 if (i != faultIndex)
@@ -147,7 +147,7 @@ public sealed class ParallelBatchTests
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
 
-            // Every item whose source existed renamed; the faulting item did NOT (its target was never
+            // Every item whose source existed renamed; the faulting item did not (its target was never
             // created) and the batch still finished at 1.0 — one bad item never aborts the run.
             for (int i = 0; i < k; i++)
             {
@@ -196,7 +196,7 @@ public sealed class ParallelBatchTests
             }
 
             // CrossVolumeConcurrency = 1 would throttle a cross-volume group, but same-volume runs under
-            // the same-volume group regardless; the TINY probe (1 byte free everywhere) must NOT refuse
+            // the same-volume group regardless; the tiny probe (1 byte free everywhere) must not refuse
             // the batch because same-volume moves are excluded from the free-space sum.
             var (ext, _, _) = await BuildAsync(shared,
                 new RenamerOptions { FilenameTemplate = "$title", CrossVolumeConcurrency = 1 });
@@ -239,7 +239,7 @@ public sealed class ParallelBatchTests
             var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
 
-            // The guard's Needed is the DB's RECORDED size, never the file on disk, and a seeded row
+            // The guard's Needed is the DB's recorded size, never the file on disk, and a seeded row
             // defaults to Size 0 - which makes Needed 0 and `Needed > Available` unsatisfiable for any
             // probe value whatsoever, so the in-flight check below is a no-op without this.
             var fileRow = await seedDb.Set<Cove.Core.Entities.VideoFile>().FirstAsync(f => f.Id == fileId);
@@ -263,8 +263,8 @@ public sealed class ParallelBatchTests
             };
             var (ext, _, _) = await BuildAsync(shared, options, srcPathFwd, destRootFwd);
 
-            // Stateful TOCTOU probe: the FIRST reading (the up-front check) reports ample free space
-            // so the batch is accepted; the SECOND reading (the in-flight re-check, just before the
+            // Stateful TOCTOU probe: the first reading (the up-front check) reports ample free space
+            // so the batch is accepted; the second reading (the in-flight re-check, just before the
             // copy) reports near-zero, modelling a concurrent scanner that filled the destination. The
             // cross-volume item must then be skipped gracefully — never thrown, batch still completes.
             int calls = 0;

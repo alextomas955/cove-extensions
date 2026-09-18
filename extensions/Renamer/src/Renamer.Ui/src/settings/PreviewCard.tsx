@@ -2,8 +2,8 @@
  * One sample's old→new diff + advisory flags. The response shape comes from the generated wire
  * module, which is derived from the committed OpenAPI document.
  *
- * SECURITY: every filename / folder / flag string is rendered as a React text node —
- * React escapes it. There is NO raw-HTML rendering anywhere in this file.
+ * security: every filename / folder / flag string is rendered as a React text node —
+ * React escapes it. There is no raw-HTML rendering anywhere in this file.
  */
 
 import type { PreviewSampleResult } from "../wire/api";

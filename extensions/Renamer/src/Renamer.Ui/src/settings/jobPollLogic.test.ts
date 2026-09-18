@@ -34,7 +34,7 @@ function ctx(overrides: Partial<PollContext> = {}): PollContext {
 }
 
 test("a completed job resolves however long it took", () => {
-  // A terminal status beats the budget. The budget bounds how long the UI waits for NEWS, and news
+  // A terminal status beats the budget. The budget bounds how long the UI waits for news, and news
   // that the job is done is the news it was waiting for.
   assert.deepEqual(decidePoll({ read: "ok", status: "completed" }, ctx()), { action: "resolve" });
   assert.deepEqual(
@@ -166,7 +166,7 @@ test("the shipped bounds are far enough out that a healthy run is never abandone
   );
   assert.ok(
     // The floor holds today, so the comparison is statically provable and the rule objects — but what
-    // it guards is a LATER edit that lowers the constant under the floor, which is precisely when the
+    // it guards is a later edit that lowers the constant under the floor, which is precisely when the
     // comparison stops being provable and this case earns its place. The sibling assertion above
     // escapes the rule only because its constant is written as arithmetic rather than a literal.
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition

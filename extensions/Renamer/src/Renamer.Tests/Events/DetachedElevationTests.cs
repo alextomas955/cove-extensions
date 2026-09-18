@@ -13,46 +13,46 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Events;
 
 /// <summary>
-/// One assertion per DETACHED entry point in this extension: the database commands its body runs against
+/// One assertion per detached entry point in this extension: the database commands its body runs against
 /// Cove's own tables execute under the System principal.
 /// </summary>
 /// <remarks>
-/// The assertions are keyed to ENTRY POINTS, not to elevation call sites, because a site count goes
+/// The assertions are keyed to entry points, not to elevation call sites, because a site count goes
 /// stale the moment a body grows another scope while the set of detached bodies does not. The detached
 /// entry points are the load-time journal assertion, the stored-journal migration, the stored-options
 /// conversion (covered by <c>OptionsMigrationInitializeTests</c>), the shared batch core's three
 /// elevated spans — its planning read, its destination-folder pre-create and its per-worker executor —
 /// the auto-renamer hook, and the two job bodies in
 /// their own partials. Adding a further span inside one of those bodies needs no case here: the case
-/// for that body already asserts over EVERY command it ran.
+/// for that body already asserts over every command it ran.
 /// <para>
 /// Each case asserts two things, and the second is what makes the first mean anything: the principal at
-/// every command is the expected one, AND at least one command was recorded. A verdict over an empty
+/// every command is the expected one, and at least one command was recorded. A verdict over an empty
 /// list is a vacuous pass, and a body that never reached the database is exactly the mistake that
 /// produces one.
 /// </para>
 /// <para>
 /// "Detached" is not the same as "elevated", and the batch core is where the difference shows: it also
-/// opens a scope the source states is deliberately NOT elevated, the one the shared undo journal owns.
+/// opens a scope the source states is deliberately not elevated, the one the shared undo journal owns.
 /// See <see cref="AssertEveryCoveReadRanAsSystemAsync"/> for why that makes a flat all-System verdict
 /// wrong over that window, and what replaces it.
 /// </para>
 /// <para>
 /// Most cases start from <see cref="CovePrincipal.Anonymous"/> — present but unprivileged. That is the
-/// dangerous case for a ROW COUNT and the reason the elevation exists: <c>CoveContext</c> bypasses its
+/// dangerous case for a row count and the reason the elevation exists: <c>CoveContext</c> bypasses its
 /// authorization filters for a null principal as well as for System, so a case constructing "no
-/// principal" and then reading its meaning off a row count would prove the SAFE case while reading as
+/// principal" and then reading its meaning off a row count would prove the safe case while reading as
 /// coverage.
 /// </para>
 /// <para>
-/// The two job bodies each have a second case that starts from NO ambient principal, and the sentence
-/// above is what makes it evidence instead of the trap it warns of: these assert the principal AT THE
-/// COMMAND, which is what the filters consult, and never a row count. No row count can stand in — the
+/// The two job bodies each have a second case that starts from no ambient principal, and the sentence
+/// above is what makes it evidence instead of the trap it warns of: these assert the principal at the
+/// command, which is what the filters consult, and never a row count. No row count can stand in — the
 /// paragraph below gives the two measured reasons. An absent principal is also the condition the host
 /// really produces on this path, so it is the one under which the elevation has to hold.
 /// </para>
 /// <para>
-/// The proof is the principal AT THE COMMAND rather than a row count, and on the queued-job path it is
+/// The proof is the principal at the command rather than a row count, and on the queued-job path it is
 /// the only proof that can fail at any tier. Two measured facts, in the two places the row count fails
 /// for different reasons: <c>CoveContext</c> installs its authorization filters only under Npgsql, so
 /// SQLite cannot reproduce the zero-row consequence at all; and Cove starts its exclusive-job queue
@@ -104,7 +104,7 @@ public sealed class DetachedElevationTests
 
         AssertRanEntirelyAsSystem(library);
 
-        // Read back AFTER the assertion, because this read runs unelevated and would otherwise be
+        // Read back after the assertion, because this read runs unelevated and would otherwise be
         // recorded alongside the load's commands. It is here so the case cannot pass on the migration
         // having done nothing: the row it moved has to be in the journal table.
         await using var db = library.NewContext();
@@ -279,7 +279,7 @@ public sealed class DetachedElevationTests
 
         // A real command through a real context rather than a hand-forged ExecutedCommand, so the text the
         // classification is applied to is the text EF emitted and not one this case invented. The join is
-        // what puts both kinds of table into ONE statement. It runs unelevated, which is the shape the
+        // what puts both kinds of table into one statement. It runs unelevated, which is the shape the
         // verdict must not let through.
         await using (var db = library.NewContext())
         {
@@ -321,7 +321,7 @@ public sealed class DetachedElevationTests
     {
         var recorded = library.CommandsExecuted.ToList();
 
-        // Non-empty FIRST: an all-System verdict over zero commands proves nothing, and a body that
+        // Non-empty first: an all-System verdict over zero commands proves nothing, and a body that
         // never reached the database is the failure that produces one.
         Assert.NotEmpty(recorded);
         Assert.All(recorded, c => Assert.Equal(PrincipalKind.System, c.Principal));
@@ -333,7 +333,7 @@ public sealed class DetachedElevationTests
     /// ran unelevated reached one.
     /// </summary>
     /// <remarks>
-    /// The batch holds a scope the source states is deliberately NOT elevated — the one the shared undo
+    /// The batch holds a scope the source states is deliberately not elevated — the one the shared undo
     /// journal owns — on the grounds that the journal's tables are the extension's own and carry none of
     /// Cove's per-principal query filters, so System has nothing there to unlock. A plain all-System
     /// verdict over this window would therefore assert a property the code does not have, and pass only
@@ -351,7 +351,7 @@ public sealed class DetachedElevationTests
 
         var coveReads = recorded.Where(c => NamesATableCoveOwns(tables, c)).ToList();
 
-        // Non-empty FIRST, on the set the assertion is about: an all-System verdict over no Cove read at
+        // Non-empty first, on the set the assertion is about: an all-System verdict over no Cove read at
         // all is the vacuous pass, and a case whose body never reached Cove's own tables produces one.
         Assert.NotEmpty(coveReads);
         Assert.All(coveReads, c => Assert.Equal(PrincipalKind.System, c.Principal));
@@ -375,7 +375,7 @@ public sealed class DetachedElevationTests
     /// here to go stale when one is renamed; the complement inherits that property rather than needing a
     /// list of its own.
     /// <para>
-    /// Non-empty on BOTH sides, and before either is used: a side that came back empty turns the
+    /// Non-empty on both sides, and before either is used: a side that came back empty turns the
     /// predicate over it into a constant, and a verdict resting on a constant is the same vacuous pass
     /// this class's other non-empty assertions exist to refuse.
     /// </para>
@@ -403,9 +403,9 @@ public sealed class DetachedElevationTests
 
     /// <summary>Whether <paramref name="c"/>'s SQL reaches a table Cove owns.</summary>
     /// <remarks>
-    /// This is the question the predicate it replaced was NAMED for and did not ask. That one tested
-    /// whether the SQL mentioned AT LEAST ONE table this extension owns, under a name promising it
-    /// mentioned nothing else — so a command reaching an own table AND a Cove table satisfied it, which
+    /// This is the question the predicate it replaced was named for and did not ask. That one tested
+    /// whether the SQL mentioned at least one table this extension owns, under a name promising it
+    /// mentioned nothing else — so a command reaching an own table and a Cove table satisfied it, which
     /// took the command out of the Cove-read set and, in the same step, excused it from the
     /// unelevated-command clause. It escaped both halves of the verdict, which is exactly the hiding place
     /// the second clause exists to close. Asked about Cove's set directly the question has no such
@@ -480,7 +480,7 @@ public sealed class DetachedElevationTests
 
     /// <summary>
     /// A title-only template so a seeded, height-less row renders a predictable name, and one same-volume
-    /// worker because <see cref="LibraryDatabase"/> hands every scope a context over ONE SQLite connection —
+    /// worker because <see cref="LibraryDatabase"/> hands every scope a context over one SQLite connection —
     /// production draws a connection per scope, so serializing here removes a harness-only race without
     /// changing the path under test.
     /// </summary>
@@ -491,7 +491,7 @@ public sealed class DetachedElevationTests
 /// <summary>
 /// The elevation seam's own contract, asserted directly: both
 /// <see cref="RunAsSystem.RunAsSystemAsync{T}(IServiceProvider, Func{Task{T}})"/> and its void form
-/// elevate for the SPAN of the body and put the caller's principal back afterwards, including when the
+/// elevate for the span of the body and put the caller's principal back afterwards, including when the
 /// body throws.
 /// </summary>
 /// <remarks>
@@ -505,7 +505,7 @@ public sealed class DetachedElevationTests
 /// the accessor, so nothing below it is required.
 /// </para>
 /// <para>
-/// Every case records the principal the body SAW and asserts on that as well as on what the accessor
+/// Every case records the principal the body saw and asserts on that as well as on what the accessor
 /// holds afterwards. A case asserting the restore alone would pass identically had the body never run,
 /// which is the same vacuous pass the entry-point assertions refuse with their non-empty-first rule.
 /// </para>

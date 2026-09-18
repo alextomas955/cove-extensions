@@ -20,9 +20,9 @@ public sealed class RenamerBatchJobTests
 {
     /// <summary>
     /// Wires the extension's captured seams (<c>_scopeFactory</c>, <c>_eventBus</c>, <c>Store</c>)
-    /// from a DI provider that registers the base <c>DbContext</c> SCOPED over the test's shared
+    /// from a DI provider that registers the base <c>DbContext</c> scoped over the test's shared
     /// in-memory SQLite connection, so each <c>CreateAsyncScope()</c> (including the per-worker scopes
-    /// the parallel batch opens) resolves a DISTINCT context over the SAME database. A singleton
+    /// the parallel batch opens) resolves a distinct context over the same database. A singleton
     /// registration would hand every parallel worker the one seeded context — a <c>DbContext</c> is
     /// not thread-safe, so concurrent workers on it throw/corrupt. The seed/assert context (<c>db</c>)
     /// shares the connection, so rows the workers save are visible to the test's read-backs.
@@ -44,10 +44,10 @@ public sealed class RenamerBatchJobTests
         // stable "$title.ext" output; pin the title-only template so the shipped default (which
         // appends "[$resolution]") doesn't perturb the asserted names.
         //
-        // SameVolumeConcurrency=1 is a TEST-HARNESS requirement, not a product behavior under test:
-        // the batch opens one DI scope per worker, and BuildExtensionAsync registers DbContext SCOPED
+        // SameVolumeConcurrency=1 is a test-harness requirement, not a product behavior under test:
+        // the batch opens one DI scope per worker, and BuildExtensionAsync registers DbContext scoped
         // over a single shared in-memory SQLite connection (the connection is what keeps the :memory:
-        // database alive). In production each scope draws its OWN pooled connection, so parallel workers
+        // database alive). In production each scope draws its own pooled connection, so parallel workers
         // never share one; here they would, and two DbContexts racing on one SQLite connection
         // intermittently throw inside EF's DbContextDependencies resolution. Serializing same-volume
         // workers removes that harness-only race while still exercising the full per-item batch path
@@ -68,7 +68,7 @@ public sealed class RenamerBatchJobTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            // Two distinct videos sharing ONE folder (a second SeedVideoAsync would re-insert the
+            // Two distinct videos sharing one folder (a second SeedVideoAsync would re-insert the
             // folder and trip the folders.Path unique index). Seed the folder+video once, then add
             // a second video + file in the same folder.
             var (folderId, v1, file1) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw one.mkv", "First Film");
@@ -145,7 +145,7 @@ public sealed class RenamerBatchJobTests
     }
 
     /// <summary>
-    /// Two file rows whose folder paths differ only by a trailing separator name ONE file on disk. The
+    /// Two file rows whose folder paths differ only by a trailing separator name one file on disk. The
     /// batch cannot tell which row owns it, so it renames neither and leaves the file alone.
     /// </summary>
     [Fact]
@@ -158,7 +158,7 @@ public sealed class RenamerBatchJobTests
             string folderPath = dir.Root.Replace('\\', '/');
             var (_, v1, file1) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "First Film");
 
-            // A second folder row for the SAME directory, spelled with a trailing separator, carrying
+            // A second folder row for the same directory, spelled with a trailing separator, carrying
             // its own file row for the same basename.
             var twin = new Cove.Core.Entities.Folder { Path = folderPath + "/", ModTime = DateTime.UtcNow };
             db.Set<Cove.Core.Entities.Folder>().Add(twin);

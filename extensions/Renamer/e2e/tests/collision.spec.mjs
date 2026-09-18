@@ -2,12 +2,12 @@
 // a case-insensitive filesystem) that only manifests against a real filesystem, which is exactly
 // what E2E protects and temp-dir-based unit tests can miss.
 //
-// Renamer's actual collision contract: a target-name collision does NOT skip the second item — it
+// Renamer's actual collision contract: a target-name collision does not skip the second item — it
 // auto-suffixes it via DuplicateSuffixFormat (default " ({n})") so both items end up renamed, never
 // one clobbering the other. `SkipCollision` exists as a status but is not what a plain
 // duplicate-title collision produces; auto-suffix is the default and expected outcome here.
 //
-// Uses its OWN harness instance PER TEST, not the shared per-worker harness: it persists a global
+// Uses its own harness instance per test, not the shared per-worker harness: it persists a global
 // "$title" filename template so both items' computed target names are deterministic, and a global
 // option would otherwise leak into every other test sharing that worker's instance.
 // `@smoke` - part of the selection core-paths.spec.mjs explains.
@@ -80,7 +80,7 @@ test(
       destName: `collision-b-${Date.now()}.mp4`,
     });
 
-    // Both items get the SAME title, so "$title" computes an identical target for both — a deterministic
+    // Both items get the same title, so "$title" computes an identical target for both — a deterministic
     // collision. (FilenameAsTitle defaults to true, so without an explicit Title each item's $title
     // falls back to its own distinct source basename and no collision occurs; setting Title forces it.)
     const sharedTitle = `Collision Test ${Date.now()}`;
@@ -105,8 +105,8 @@ test(
       originalPath: first.files[0].path,
     });
 
-    // Confirm the preview for the SECOND item, targeting the same name as the first, is classified as
-    // an auto-suffix (not a silent overwrite) BEFORE any mutation — /preview must stay read-only
+    // Confirm the preview for the second item, targeting the same name as the first, is classified as
+    // an auto-suffix (not a silent overwrite) before any mutation — /preview must stay read-only
     // regardless of what it reports.
     const preview = await api.post(`${ROUTE}/preview`, {
       EntityType: "video",

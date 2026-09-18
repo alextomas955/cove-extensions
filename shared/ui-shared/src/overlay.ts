@@ -61,7 +61,7 @@ export function useOverlayKeys(
   // Every per-render option is read through this ref, so the listener effect never re-attaches on
   // their identity and focus-first stays a mount-once run.
   //
-  // The write MUST be a layout effect. A passive effect runs after the browser may already have
+  // The write must be a layout effect. A passive effect runs after the browser may already have
   // painted and delivered input, so a key event arriving in that gap would read the previous
   // render's values — which for `enabled` means a cancel suppressed by an operation that has
   // already finished. `enabled` is likewise read from the ref and kept out of the deps below:

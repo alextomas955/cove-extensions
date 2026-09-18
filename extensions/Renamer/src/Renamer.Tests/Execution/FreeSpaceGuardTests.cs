@@ -6,7 +6,7 @@ namespace Renamer.Tests.Execution;
 /// Pure-string assertions for <see cref="FreeSpaceGuard"/>: the per-destination-volume byte sum
 /// (excluding same-volume moves), the headroom margin, and the (src,dst)-pair partition. The
 /// free-space probe is an injected <see cref="Func{T,TResult}"/> returning controlled bytes per
-/// volume, so these run identically on any host with NO real second drive — only path roots and
+/// volume, so these run identically on any host with no real second drive — only path roots and
 /// arithmetic are exercised.
 /// </summary>
 public sealed class FreeSpaceGuardTests
@@ -57,7 +57,7 @@ public sealed class FreeSpaceGuardTests
     [Fact]
     public void SameVolumeOnlyBatch_ReturnsEmptyShortfall_EvenWithTinyAvailable()
     {
-        // Regression: same-volume moves consume ~no extra space and must NEVER be summed.
+        // Regression: same-volume moves consume ~no extra space and must never be summed.
         var moves = new[]
         {
             (OnVol("C", "a.mkv"), OnVol("C", "renamed.mkv"), 5L << 30),
@@ -81,7 +81,7 @@ public sealed class FreeSpaceGuardTests
         };
 
         // Dest volume D has exactly 1 GiB free; the 1 GiB cross-move fits (no headroom), and the
-        // 5 GiB same-volume move must NOT push it over budget.
+        // 5 GiB same-volume move must not push it over budget.
         var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 1L << 30, Mounts);
 
         Assert.Empty(result);

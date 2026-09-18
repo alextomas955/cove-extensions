@@ -7,14 +7,14 @@ namespace Renamer.Tests.Planner;
 
 /// <summary>
 /// The FullPathMax re-check re-anchors on the destination's own root, not the
-/// source folder. The load-bearing assertion is the contrast — the SAME rendered name FITS under a
-/// short library path but OVERFLOWS under a deep routed root, so the over-long case becomes a
-/// skip-with-reason at PREVIEW (not a move-time crash). Driven through <c>RenamerPlanner.PlanAsync</c>
-/// (the wiring), reusing the OS-aware Root style of <c>PathConfinementAllowlistTests</c>. PURE — no disk.
+/// source folder. The load-bearing assertion is the contrast — the same rendered name fits under a
+/// short library path but overflows under a deep routed root, so the over-long case becomes a
+/// skip-with-reason at preview (not a move-time crash). Driven through <c>RenamerPlanner.PlanAsync</c>
+/// (the wiring), reusing the OS-aware Root style of <c>PathConfinementAllowlistTests</c>. pure — no disk.
 /// </summary>
 public sealed class DestAnchoredMaxPathTests
 {
-    // A SHORT source folder and a DEEP routed root, so the same render fits under one and overflows the other.
+    // A short source folder and a deep routed root, so the same render fits under one and overflows the other.
     private static string ShortSource => OperatingSystem.IsWindows() ? @"C:\s" : "/s";
     private static string DeepRoot => OperatingSystem.IsWindows()
         ? @"D:\a\very\deeply\nested\destination\hierarchy\for\overflow"
@@ -47,7 +47,7 @@ public sealed class DestAnchoredMaxPathTests
             new Dictionary<string, Destination>(StringComparer.Ordinal),
             Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
 
-    // A title chosen so its rendered absolute path FITS under the short source but OVERFLOWS the deep root.
+    // A title chosen so its rendered absolute path fits under the short source but overflows the deep root.
     private static string Title => new('N', 60);
 
     // FullPathMax tuned between the two absolute lengths: short-source path < max < deep-root path.
@@ -58,7 +58,7 @@ public sealed class DestAnchoredMaxPathTests
     {
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths(ShortSource, DeepRoot);
-        // The file SITS in the short source folder, but routes to the DEEP root.
+        // The file sits in the short source folder, but routes to the deep root.
         port.SeedEntity(Entity(Title, VideoFile(ShortSource)));
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
@@ -81,8 +81,8 @@ public sealed class DestAnchoredMaxPathTests
     {
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths(ShortSource);
-        // The IDENTICAL render under the SHORT source folder (no route) fits within the same FullPathMax —
-        // proving the overflow above is caused by the deep ROUTED anchor, not the render itself.
+        // The identical render under the short source folder (no route) fits within the same FullPathMax —
+        // proving the overflow above is caused by the deep routed anchor, not the render itself.
         port.SeedEntity(Entity(Title, VideoFile(ShortSource)));
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
@@ -108,7 +108,7 @@ public sealed class DestAnchoredMaxPathTests
     // file near the limit. The three cases below pin the boundary itself, so the subtraction fails here
     // rather than shipping.
 
-    // Both spellings are FOUR characters, which is load-bearing: a Windows absolute root is longer than
+    // Both spellings are four characters, which is load-bearing: a Windows absolute root is longer than
     // its Unix twin, so a budget tuned on one platform would sit beside the boundary on the other.
     private static string BoundaryRoot => OperatingSystem.IsWindows() ? @"D:\d" : "/ddd";
 
