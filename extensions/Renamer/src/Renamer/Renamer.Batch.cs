@@ -94,7 +94,7 @@ public sealed partial class Renamer
     // cursor is the entity id, which a rename never changes, so the run's own writes can neither
     // skip a page nor repeat one. A cancellation between chunks leaves earlier chunks done and
     // undoable.
-    internal Task RunRenamerKindAsync(
+    internal Task<string?> RunRenamerKindAsync(
         RenamerFileKind kind, int totalEntities, OperationJournalBudget budget, RenamerOptions options,
         IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null,
         int chunkEntities = RenameChunkEntities)
@@ -121,8 +121,9 @@ public sealed partial class Renamer
     }
 
     // Drives nextChunk to exhaustion through the shared chunk body, tallies what the chunks did and
-    // reports the run's final 1.0 with what happened.
-    private async Task RunRenameChunksAsync(
+    // reports the run's final 1.0 with what happened. Returns the free-space shortfall that stopped
+    // the run, or null when it ran to the end.
+    private async Task<string?> RunRenameChunksAsync(
         RenamerFileKind kind,
         Func<CancellationToken, Task<IReadOnlyList<int>>> nextChunk,
         int totalEntities,
@@ -191,16 +192,17 @@ public sealed partial class Renamer
             progress.Report(
                 1d,
                 $"Refused: insufficient free space ({shortfall}). {renamed} file(s) renamed before the run stopped.{RefusedNote(contested)}");
-            return;
+            return shortfall;
         }
 
         if (renamed == 0 && failed == 0 && skipped == contested)
         {
             progress.Report(1d, $"Nothing to renamer.{RefusedNote(contested)}");
-            return;
+            return null;
         }
 
         progress.Report(1d, $"Rename complete.{RefusedNote(contested)}");
+        return null;
     }
 
     // Plans one chunk of ids over a single read-only scope, refuses it if a destination volume would
