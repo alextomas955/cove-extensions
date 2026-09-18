@@ -211,7 +211,7 @@ public sealed class UndoRetryTests
         }
     }
 
-    private static void AssertReconciles(RevertBatchSummary summary) =>
+    private static void AssertReconciles(RevertOperationSummary summary) =>
         Assert.Equal(
             summary.OriginalCount,
             summary.RestoredCount + summary.UnrestorableCount + summary.Remaining);
@@ -271,7 +271,7 @@ public sealed class UndoRetryTests
         var port = new CoveRenamerDataPort(db);
         using (var journal = new CoveRevertJournal(db))
         {
-            await journal.BeginBatchAsync(RunId, RenamerFileKind.Video, Opened);
+            await journal.BeginBatchAsync(RunId, RunId, RenamerFileKind.Video, Opened);
             foreach (var s in seeded)
             {
                 var plan = await new RenamerPlanner(port)

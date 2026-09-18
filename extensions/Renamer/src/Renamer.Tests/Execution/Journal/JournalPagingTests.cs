@@ -329,7 +329,7 @@ public sealed class JournalPagingTests
     private static async Task<CoveRevertJournal> SeedRowsAsync(DbContext db, int rows)
     {
         var journal = new CoveRevertJournal(db);
-        await journal.BeginBatchAsync(RunId, RenamerFileKind.Video, Opened);
+        await journal.BeginBatchAsync(RunId, RunId, RenamerFileKind.Video, Opened);
 
         for (int i = 1; i <= rows; i++)
         {
@@ -377,7 +377,7 @@ public sealed class JournalPagingTests
         var options = new RenamerOptions { FilenameTemplate = "$title" };
         var port = new CoveRenamerDataPort(db);
         var journal = new CoveRevertJournal(db);
-        await journal.BeginBatchAsync(RunId, RenamerFileKind.Video, Opened);
+        await journal.BeginBatchAsync(RunId, RunId, RenamerFileKind.Video, Opened);
 
         foreach (var s in seeded)
         {

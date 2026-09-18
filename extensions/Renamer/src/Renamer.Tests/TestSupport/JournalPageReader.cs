@@ -21,12 +21,13 @@ public static class JournalPageReader
     public const int TestPageSize = 64;
 
     /// <summary>
-    /// The batch an undo would act on with every row it still holds, or null when no batch has any left.
+    /// The newest batch of the operation an undo would act on, with every row it still holds, or null
+    /// when that operation has no batch with rows left.
     /// </summary>
     /// <remarks>
     /// Null-for-nothing-replayable is the shape assertions about "nothing left to offer" are written
-    /// against: the undo target itself falls back to a settled batch so its aggregate stays readable,
-    /// which is a question about the aggregate, not about the rows.
+    /// against: the undo target itself falls back to a settled operation so its aggregate stays
+    /// readable, which is a question about the aggregate, not about the rows.
     /// </remarks>
     public static async Task<RevertBatch?> ReadWholeUndoTargetAsync(
         IRevertJournal journal, int pageSize = TestPageSize, CancellationToken ct = default)
@@ -37,8 +38,15 @@ public static class JournalPageReader
             return null;
         }
 
-        var rows = await ReadAllRowsAsync(journal, target.Value.RunId, pageSize, ct);
-        return rows.Count == 0 ? null : new RevertBatch(target.Value.RunId, target.Value.Kind, rows);
+        var batch = await journal.ReadNextBatchAsync(
+            target.Value.OperationId, IRevertJournal.FirstBatchTicks, IRevertJournal.FirstBatchRunId, ct);
+        if (batch is null)
+        {
+            return null;
+        }
+
+        var rows = await ReadAllRowsAsync(journal, batch.Value.RunId, pageSize, ct);
+        return rows.Count == 0 ? null : new RevertBatch(batch.Value.RunId, batch.Value.Kind, rows);
     }
 
     /// <summary>Every row <paramref name="runId"/> still holds, newest-first, across as many pages as it takes.</summary>

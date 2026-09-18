@@ -36,7 +36,7 @@ public sealed class RevertJournalConcurrencyTests
         await using var __ = conn;
 
         using var journal = new CoveRevertJournal(db);
-        await journal.BeginBatchAsync("R-parallel", RenamerFileKind.Video, Opened);
+        await journal.BeginBatchAsync("R-parallel", "R-parallel", RenamerFileKind.Video, Opened);
 
         // Yield first so the append windows genuinely overlap rather than running in turn.
         await Task.WhenAll(Enumerable.Range(0, N).Select(async i =>
@@ -82,7 +82,7 @@ public sealed class RevertJournalConcurrencyTests
         await using var __ = conn;
 
         using var journal = new CoveRevertJournal(db);
-        await journal.BeginBatchAsync("R-mixed", RenamerFileKind.Video, Opened);
+        await journal.BeginBatchAsync("R-mixed", "R-mixed", RenamerFileKind.Video, Opened);
 
         var appends = Enumerable.Range(0, N).Select(async i =>
         {

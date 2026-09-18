@@ -26,6 +26,14 @@ public sealed class RevertBatchEntity
     /// <summary>The run's <c>RenamerFileKind</c> by name.</summary>
     public string Kind { get; set; } = "";
 
+    /// <summary>The user action this batch belongs to; several batches can share one.</summary>
+    /// <remarks>
+    /// Empty on every batch written before the column existed. A reader treats an empty value as an
+    /// operation of one — the batch's own <see cref="RunId"/> — rather than backfilling it, so there
+    /// is one way to be wrong about an old row instead of two.
+    /// </remarks>
+    public string OperationId { get; set; } = "";
+
     public int OriginalCount { get; set; }
 
     public int RestoredCount { get; set; }
@@ -108,5 +116,29 @@ public static class RevertJournalSchema
             PRIMARY KEY (run_id, seq)
         );
         CREATE INDEX IF NOT EXISTS ix_renamer_revert_rows_run ON renamer_revert_rows (run_id);
+        """;
+
+    /// <summary>The second migration's name, frozen on the same terms as <see cref="Migration001Name"/>.</summary>
+    public const string Migration002Name = "002_add_operation_id";
+
+    /// <summary>
+    /// Adds the column that groups a user action's batches. One click over several media kinds opens
+    /// one batch per kind, and undo has to reach all of them or none.
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="Migration001UpSql"/> this statement is NOT idempotent: adding a column that is
+    /// already there is an error on both providers. What makes that safe is the receipt — the host
+    /// applies a migration name once and never re-runs it — so this migration rests on the receipt in
+    /// a way the first one deliberately did not.
+    /// <para>
+    /// <c>ADD COLUMN</c> with a constant default is the one form that runs unchanged on both providers.
+    /// An existing row takes <c>''</c>, which readers resolve to that batch's own run id.
+    /// </para>
+    /// </remarks>
+    public const string Migration002UpSql =
+        """
+        ALTER TABLE renamer_revert_batches ADD COLUMN operation_id TEXT NOT NULL DEFAULT '';
+        CREATE INDEX IF NOT EXISTS ix_renamer_revert_batches_operation
+            ON renamer_revert_batches (operation_id);
         """;
 }

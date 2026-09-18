@@ -83,7 +83,9 @@ public static class JournalBlobMigration
                 // readable in it leaves no empty batch behind claiming an undo it cannot deliver.
                 if (moved == 0)
                 {
-                    await journal.BeginBatchAsync(runId, located.Kind, OpenedAt(located, nowUtc), ct);
+                    // A migrated blob held one run, so the run IS the operation it belongs to.
+                    await journal.BeginBatchAsync(
+                        runId, runId, located.Kind, OpenedAt(located, nowUtc), ct);
                 }
 
                 foreach (var row in rows)

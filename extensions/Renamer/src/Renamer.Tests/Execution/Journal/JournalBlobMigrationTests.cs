@@ -41,12 +41,12 @@ public sealed class JournalBlobMigrationTests
 
         var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
-        Assert.Equal("R1", summary.Value.RunId);
+        Assert.Equal("R1", summary.Value.OperationId);
 
         // Stamped with the header's own moment, NOT with Now: a pending undo must keep its real age
         // against the retention window, or a batch that should already have expired is silently extended.
-        Assert.Equal(HeaderOpened.Ticks, summary.Value.WrittenAtUtcTicks);
-        Assert.NotEqual(Now.Ticks, summary.Value.WrittenAtUtcTicks);
+        Assert.Equal(HeaderOpened.Ticks, summary.Value.OpenedAtUtcTicks);
+        Assert.NotEqual(Now.Ticks, summary.Value.OpenedAtUtcTicks);
         Assert.Equal(2, summary.Value.OriginalCount);
 
         var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
@@ -90,7 +90,7 @@ public sealed class JournalBlobMigrationTests
         // exists to make impossible — so an unknown age gets the full window instead.
         var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
-        Assert.Equal(Now.Ticks, summary.Value.WrittenAtUtcTicks);
+        Assert.Equal(Now.Ticks, summary.Value.OpenedAtUtcTicks);
 
         await AssertBothKeysGoneAsync(store);
     }

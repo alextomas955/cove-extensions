@@ -381,8 +381,9 @@ public sealed partial class Renamer : FullExtensionBase
     /// Renames every id in the decoded batch in two phases. PHASE A plans + classifies ALL ids
     /// sequentially over ONE read-only scope (deterministic preview ordering) and refuses the batch up
     /// front if a destination volume would not fit. PHASE B executes the acting items in parallel:
-    /// same-volume renames run unthrottled (an instant metadata <c>File.Move</c> needs no throttle and
-    /// consumes ~no extra space), cross-volume copies run bounded per (source,dest) disk pair. EACH
+    /// same-volume renames run bounded by <c>SameVolumeConcurrency</c>, cross-volume copies bounded by
+    /// <c>CrossVolumeConcurrency</c> within one (source,dest) disk pair. The pairs themselves run one
+    /// after another, so peak concurrency is one pair's bound and never the sum over pairs. EACH
     /// worker opens its OWN scope and resolves its OWN <see cref="DbContext"/> — a <c>DbContext</c> is
     /// not thread-safe and Cove disables EF's thread-safety checks, so a shared context would corrupt
     /// silently; per-worker scopes make isolation structural. The ONE shared object is the
@@ -398,9 +399,14 @@ public sealed partial class Renamer : FullExtensionBase
     /// Defaults to the real <c>vol =&gt; new DriveInfo(vol).AvailableFreeSpace</c>; tests inject a
     /// deterministic fake so the free-space paths are exercisable with no real second drive.
     /// </param>
+    /// <param name="operationId">
+    /// The user action this call is part of. Null — the single-selection case — mints one, because that
+    /// click is its own action. The whole-library job passes ONE id for every kind it runs, which is
+    /// what makes a click that opens four batches a single thing to undo.
+    /// </param>
     internal async Task RunRenamerBatchAsync(
         IReadOnlyDictionary<string, string>? parameters, IJobProgress progress, CancellationToken ct,
-        Func<string, long>? freeSpaceProbe = null)
+        Func<string, long>? freeSpaceProbe = null, string? operationId = null)
     {
         var (entityType, ids) = RenamerJob.Decode(parameters);
 
@@ -451,6 +457,9 @@ public sealed partial class Renamer : FullExtensionBase
         // nothing at all. The same runId + journal is then passed into EVERY worker's executor so
         // every per-success AppendAsync row accumulates under this single batch.
         var runId = Guid.NewGuid().ToString("N");
+
+        // One selection is one user action, so with no operation handed down this call IS the operation.
+        var operation = operationId ?? Guid.NewGuid().ToString("N");
 
         LogBatchStarted(runId, kind, ids.Length);
 
@@ -598,7 +607,8 @@ public sealed partial class Renamer : FullExtensionBase
         //
         // acting.Count is the FILE count (one unit per acting file); the id array counts entities, so
         // the cap is applied to the former.
-        await OpenOrSuppressBatchAsync(journal, runId, kind, acting.Count, DateTime.UtcNow, ct);
+        await OpenOrSuppressBatchAsync(
+            journal, runId, operation, kind, acting.Count, DateTime.UtcNow, ct);
 
         // Marks the PHASE A → PHASE B boundary in the log: PHASE B's percentage now advances per
         // completed file, so a later stall is legible as "stuck partway through {Acting}", not silence.
@@ -610,7 +620,7 @@ public sealed partial class Renamer : FullExtensionBase
             acting, u => (u.Move.OldFullPath, u.Move.NewFullPath));
 
         // Serialize every concurrent progress.Report. The PHASE B workers call progress.Report
-        // from many threads at once (same-volume runs unbounded), and nothing establishes that the
+        // from many threads at once, and nothing establishes that the
         // host's IJobProgress sink is thread-safe — a host that appends to a list or writes a SignalR
         // message without its own lock could corrupt state or interleave messages under concurrency.
         // Guard the call with a lightweight lock so reports are mutually exclusive. The `done` counter
@@ -733,6 +743,7 @@ public sealed partial class Renamer : FullExtensionBase
     internal async Task OpenOrSuppressBatchAsync(
         IRevertJournal journal,
         string runId,
+        string operationId,
         RenamerFileKind kind,
         int actingFiles,
         DateTime nowUtc,
@@ -742,12 +753,15 @@ public sealed partial class Renamer : FullExtensionBase
 
         if (IRevertJournal.ExceedsCap(actingFiles))
         {
-            await journal.SuppressAsync(ct);
+            // Scoped to the operation, so a whole-library run that goes over the cap on its third kind
+            // drops its own first two kinds — the same click's work, which that run may since have moved
+            // — and leaves every other operation's journal alone.
+            await journal.SuppressAsync(operationId, ct);
             LogBatchNotJournalled(runId, actingFiles, IRevertJournal.MaxJournalledFiles);
             return;
         }
 
-        await journal.BeginBatchAsync(runId, kind, nowUtc, ct);
+        await journal.BeginBatchAsync(runId, operationId, kind, nowUtc, ct);
     }
 
     /// <summary>

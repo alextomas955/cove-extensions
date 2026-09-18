@@ -46,7 +46,7 @@ public sealed class UndoReplayerTests
             var options = new RenamerOptions { FilenameTemplate = "$title" }; // → "My Film.mkv"
 
             // Forward: plan + execute through the real spine, opening a batch first (the endpoint's job).
-            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
             var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                 .ExecuteAsync(plan, options, default);
@@ -116,7 +116,7 @@ public sealed class UndoReplayerTests
             var journal = new FakeRevertJournal();
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
-            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             foreach (var vid in new[] { video1, video2 })
             {
                 var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, vid, options, default);
@@ -162,7 +162,7 @@ public sealed class UndoReplayerTests
             var journal = new FakeRevertJournal();
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
-            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             foreach (var vid in new[] { video1, video2 })
             {
                 var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, vid, options, default);
@@ -215,7 +215,7 @@ public sealed class UndoReplayerTests
             var journal = new FakeRevertJournal();
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
-            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
             await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                 .ExecuteAsync(plan, options, default);
@@ -268,7 +268,7 @@ public sealed class UndoReplayerTests
             var journal = new FakeRevertJournal();
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
-            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
             await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                 .ExecuteAsync(plan, options, default);
@@ -315,7 +315,7 @@ public sealed class UndoReplayerTests
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
             // Forward renamer under ONE root → an in-place same-volume pair.
-            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
             await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                 .ExecuteAsync(plan, options, default);
@@ -461,7 +461,7 @@ public sealed class UndoReplayerTests
             var journal = new FakeRevertJournal();
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
-            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
             await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                 .ExecuteAsync(plan, options, default);

@@ -74,11 +74,15 @@ public static class FreeSpaceGuard
     /// independently. Cross-volume moves are grouped by their
     /// (source-root, destination-root) disk pair so the runner can bound concurrency per pair
     /// (<c>RenamerOptions.CrossVolumeConcurrency</c>); same-volume moves are returned together under a
-    /// single unthrottled group (<see cref="SameVolumePair"/>) because an atomic <c>File.Move</c>
-    /// needs no throttle. Grouping keys on <see cref="VolumeClassifier.VolumeKey"/> — the value the same/cross
-    /// split reads too.
+    /// single group (<see cref="SameVolumePair"/>) bounded by
+    /// <c>RenamerOptions.SameVolumeConcurrency</c>. Grouping keys on
+    /// <see cref="VolumeClassifier.VolumeKey"/> — the value the same/cross split reads too.
     /// This only exposes the grouping; the consuming parallel loop lives in the batch runner.
     /// </summary>
+    /// <remarks>
+    /// The runner processes the returned groups IN SEQUENCE, so a batch's peak concurrency is one
+    /// group's bound and never the sum over the groups.
+    /// </remarks>
     /// <param name="items">The units of work to partition.</param>
     /// <param name="move">Reads the (current path, new path) an item would perform.</param>
     /// <param name="mountPoints">Mount table to resolve Unix volumes against; omit for the real one.</param>

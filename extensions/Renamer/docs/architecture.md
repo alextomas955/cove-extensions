@@ -149,14 +149,16 @@ Minimal-API endpoints the frontend calls, mounted under
 - `POST /renamer` — enqueues the background rename job for selected items.
 - `POST /preview-sample` — renders the engine over fixed sample data with the in-flight options;
   powers the live preview without touching the database or disk.
-- `POST /undo` — reverse-replays the newest batch that still holds rows, a page at a time. It answers
+- `POST /undo` — reverse-replays the newest rename that still holds rows, batch by batch and a page at
+  a time, so one whole-library run comes back as one action. It answers
   with the restored count and, for each of the three problem channels (a reverse move that failed, one
   that was skipped, and a file restored with a companion left behind), a total plus a sample capped at
   a fixed number of entries. The totals are what any sentence states; a sample exists only to name a
   reason. So the response is one fixed size whatever the batch held, and the per-entry detail goes to
   Cove's log. Nothing here rests on the 5,000-file journal cap: that cap bounds what the journal
   records, not what this endpoint replies.
-- `GET /last-batch` — a paths-free summary of the most recent batch for the undo panel.
+- `GET /last-batch` — a paths-free summary of the most recent rename for the undo panel, totalled over
+  every batch that rename opened.
 - `POST /scan-library` — enqueues the whole-library dry run.
 - `GET /last-scan` — the last dry run's summary: per-status counts and the move summary, merged down
   to the kinds the caller may read.

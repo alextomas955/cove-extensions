@@ -75,8 +75,8 @@ public sealed class RevertJournalTests
         // …and yet the panel can still say what the run was: the aggregate outlives its rows.
         var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
-        Assert.Equal("run-1", summary.Value.RunId);
-        Assert.Equal(Opened.Ticks, summary.Value.WrittenAtUtcTicks);
+        Assert.Equal("run-1", summary.Value.OperationId);
+        Assert.Equal(Opened.Ticks, summary.Value.OpenedAtUtcTicks);
         Assert.Equal(3, summary.Value.OriginalCount);
         Assert.Equal(3, summary.Value.RestoredCount);
         Assert.Equal(0, summary.Value.Remaining);
@@ -193,7 +193,7 @@ public sealed class RevertJournalTests
         DbContext db, string runId, int rows, DateTime? openedAt = null)
     {
         var journal = new CoveRevertJournal(db);
-        await journal.BeginBatchAsync(runId, RenamerFileKind.Video, openedAt ?? Opened);
+        await journal.BeginBatchAsync(runId, runId, RenamerFileKind.Video, openedAt ?? Opened);
 
         for (int i = 1; i <= rows; i++)
         {

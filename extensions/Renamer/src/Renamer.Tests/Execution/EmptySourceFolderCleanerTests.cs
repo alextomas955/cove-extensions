@@ -236,7 +236,7 @@ public sealed class EmptySourceFolderCleanerTests
             var journal = new FakeRevertJournal();
             var options = new RenamerOptions { RemoveEmptyFolder = true };
 
-            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            await journal.BeginBatchAsync("run-test", "run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstFolder + "/My Film.mkv",
