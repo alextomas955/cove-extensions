@@ -110,6 +110,11 @@ the file was left where it was — check the destination drive before running th
 3. Renamer renames each file and updates its Cove record together. A file is never renamed onto an
    existing file — a collision gets a numbered suffix such as `(1)` instead.
 
+If two Cove records name the same file on disk, Renamer renames neither of them. It cannot tell which
+record owns the file, and renaming for one record would move the file the other record points to. The
+run message counts those files as refused, and Cove's log names the path, so you can remove the
+duplicate record and run again.
+
 The run leaves one of three banners behind, and the difference between the last two decides whether
 you have anything to check:
 

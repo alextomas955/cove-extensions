@@ -304,12 +304,24 @@ public sealed class RenamerExecutor
                 // is nothing to reindex or to offer /undo.
                 IReadOnlyList<string> rbWarnings = await RollbackMove(sameVolume, nativeOld, nativeNew, movedSidecars, ct);
 
-                if (rbWarnings.Count > 0)
+                string mismatch = $"recomputed Path '{recomputed}' != on-disk '{expected}'";
+                string warned = rbWarnings.Count > 0
+                    ? $"; rollback warnings: {string.Join("; ", rbWarnings)}"
+                    : "";
+
+                // Whether the row may be put back is read off the PRIMARY file's own location: a rollback
+                // reports its sidecars and the primary in one warning list, so a caption that could not
+                // come back would otherwise leave the row naming a location the media file has left. A
+                // case-only rename is its own target on a case-insensitive volume, so the vacated-target
+                // half of the check is skipped for one.
+                bool primaryBack = System.IO.File.Exists(nativeOld)
+                    && (IsSelfPath(newFull, item.OldFullPath) || !System.IO.File.Exists(nativeNew));
+
+                if (!primaryBack)
                 {
-                    // The bytes did not come back, so the committed row still describes where they are.
                     failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed,
-                        $"recomputed Path '{recomputed}' != on-disk '{expected}'; rollback INCOMPLETE: " +
-                        string.Join("; ", rbWarnings)));
+                        $"{mismatch}; the file did NOT return to its old path, so the committed row is "
+                        + $"left naming the new one{warned}"));
                     return;
                 }
 
@@ -317,10 +329,16 @@ public sealed class RenamerExecutor
                 string? restoreFailure = await RestoreSavedRowAsync(
                     item.FileId, item.OldFullPath, srcFile, isMove, appliedCaptionRenames, ct);
 
+                // The title that rode in the same save is not part of the row's location and is not
+                // reverted with it, so a reader of this reason is told it is still there.
+                string titleKept = item.DerivedTitle is { Length: > 0 }
+                    ? "; the filename-derived title recorded in that save was not reverted"
+                    : "";
+
                 string note = restoreFailure is null
-                    ? $"recomputed Path '{recomputed}' != on-disk '{expected}'; rolled back"
-                    : $"recomputed Path '{recomputed}' != on-disk '{expected}'; file rolled back, "
-                      + $"database row NOT confirmed at the old path: {restoreFailure}";
+                    ? $"{mismatch}; rolled back{titleKept}{warned}"
+                    : $"{mismatch}; file rolled back, database row NOT confirmed at the old path: "
+                      + $"{restoreFailure}{titleKept}{warned}";
                 failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed, note));
                 return;
             }

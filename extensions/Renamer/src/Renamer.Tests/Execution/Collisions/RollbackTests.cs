@@ -319,6 +319,117 @@ public sealed class RollbackTests
     }
 
     /// <summary>
+    /// The mismatch branch when the file does NOT come back: the save commits, the recomputed path
+    /// disagrees, and the old slot is occupied by the time the rollback runs, so the media file stays
+    /// at the new path. The committed row must then be left naming the new path - writing it back would
+    /// point the database at a location the bytes are not at - and the reason must say so.
+    /// </summary>
+    [Fact]
+    public async Task RecomputedPathMismatchAndTheFileCannotComeBack_RowKeepsTheNewName()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, fileA) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
+
+            string oldA = Path.Combine(dir.Root, "a.mkv");
+            File.WriteAllText(oldA, "A-bytes");
+            string newPath = Path.Combine(dir.Root, "b.mkv");
+
+            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+            [
+                new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
+                    RenamerStatus.Renamer, "b.mkv", folderPath),
+            ]);
+
+            var journal = new FakeRevertJournal();
+            var executor = new RenamerExecutor(
+                new ReoccupyOldSlotThenMisreportDataPort(db, oldA), new CapturingEventBus(), journal,
+                "run-test", new DiskMover());
+
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+
+            var failedItem = Assert.Single(result.Failed);
+            Assert.Contains("did NOT return to its old path", failedItem.Reason);
+            Assert.DoesNotContain("; rolled back", failedItem.Reason);
+            Assert.Empty(journal.Rows);
+
+            // The file is still at the new path, and the row still names it, so the two agree.
+            Assert.True(File.Exists(newPath), "the rollback could not reclaim the old slot");
+            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
+            Assert.Equal("b.mkv", basename);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// The mismatch branch when the PRIMARY comes back but a sidecar does not: a rollback reports both
+    /// in one warning list, so reading the warnings would leave the committed row naming a location the
+    /// media file has left. The row is put back, and the stuck sidecar is reported alongside it.
+    /// </summary>
+    [Fact]
+    public async Task RecomputedPathMismatchAndASidecarCannotComeBack_RowStillGoesBack()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, fileA) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
+            db.Set<VideoCaption>().Add(new VideoCaption
+            {
+                FileId = fileA,
+                Filename = "a.en.vtt",
+                LanguageCode = "en",
+                CaptionType = "vtt",
+            });
+            await db.SaveChangesAsync();
+
+            string oldA = Path.Combine(dir.Root, "a.mkv");
+            string oldCaption = Path.Combine(dir.Root, "a.en.vtt");
+            File.WriteAllText(oldA, "A-bytes");
+            File.WriteAllText(oldCaption, "caption");
+
+            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+            [
+                new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
+                    RenamerStatus.Renamer, "b.mkv", folderPath),
+            ]);
+
+            // The port runs after the disk move and before the rollback, so occupying the caption's old
+            // slot there makes the sidecar rollback warn while the primary's own slot stays free.
+            var executor = new RenamerExecutor(
+                new ReoccupyOldSlotThenMisreportDataPort(db, oldCaption), new CapturingEventBus(),
+                new FakeRevertJournal(), "run-test", new DiskMover());
+
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+
+            var failedItem = Assert.Single(result.Failed);
+            Assert.Contains("rolled back", failedItem.Reason);
+            Assert.Contains("rollback warnings", failedItem.Reason);
+
+            // The primary is back and the row names it again, whatever the sidecar did.
+            Assert.True(File.Exists(oldA), "the primary file must be back at its old path");
+            Assert.False(File.Exists(Path.Combine(dir.Root, "b.mkv")));
+            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
+            Assert.Equal("a.mkv", basename);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
     /// A throwing event bus runs after the journal append, so its failure must name the event and leave
     /// the revert-log row standing: reported as an unwritten revert-log entry it would tell a user their
     /// rename cannot be undone when it can.
@@ -384,6 +495,22 @@ public sealed class RollbackTests
             return ++_saves == 1
                 ? [.. saved.Select(s => new SavedFile(s.FileId, s.RecomputedPath + ".WRONG"))]
                 : saved;
+        }
+    }
+
+    /// <summary>
+    /// Test-only port: commits the real save, occupies the OLD slot so the rollback cannot reclaim it,
+    /// and misreports the recomputed path so the post-save assertion fails.
+    /// </summary>
+    private sealed class ReoccupyOldSlotThenMisreportDataPort(DbContext db, string oldSlot)
+        : CoveRenamerDataPort(db)
+    {
+        public override async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
+            IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+        {
+            var saved = await base.ApplyAndSaveAsync(mutations, ct);
+            File.WriteAllText(oldSlot, "intruder bytes re-occupying the old slot");
+            return [.. saved.Select(sf => new SavedFile(sf.FileId, sf.RecomputedPath + ".WRONG"))];
         }
     }
 

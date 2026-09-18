@@ -454,10 +454,10 @@ public sealed partial class Renamer : FullExtensionBase
 
         LogBatchStarted(runId, kind, ids.Length);
 
-        // PHASE A — sequential, read-only: plan + classify every id, capture file sizes. Kept
-        // sequential (not parallelized) for deterministic preview ordering; planning mutates nothing
-        // the workers race (the port reads AsNoTracking), and it writes nothing at all, so a batch
-        // refused below leaves the database as it found it.
+        // Planning runs sequentially and reads only: it plans and classifies every id and captures
+        // each file's size. Sequential for deterministic preview ordering; it mutates nothing the
+        // workers race (the port reads AsNoTracking) and writes nothing at all, so a batch refused
+        // below leaves the database as it found it.
         var planned = new List<BatchUnit>();
 
         // PHASE A reports no progress percentage (that starts in PHASE B), so trace the planning loop to
@@ -551,7 +551,7 @@ public sealed partial class Renamer : FullExtensionBase
             string detail = string.Join("; ",
                 shortfall.Select(s => $"{s.Volume}: need {s.Needed} bytes, {s.Available} free"));
             LogBatchDone(runId, 0, contestedFiles, 0);
-            progress.Report(1d, $"Refused: insufficient free space ({detail}).");
+            progress.Report(1d, $"Refused: insufficient free space ({detail}).{RefusedNote(contestedFiles)}");
             return;
         }
 
@@ -560,7 +560,7 @@ public sealed partial class Renamer : FullExtensionBase
         if (acting.Count == 0)
         {
             LogBatchDone(runId, 0, contestedFiles, 0);
-            progress.Report(1d, "Nothing to renamer.");
+            progress.Report(1d, $"Nothing to renamer.{RefusedNote(contestedFiles)}");
             return;
         }
 
@@ -604,7 +604,7 @@ public sealed partial class Renamer : FullExtensionBase
         // completed file, so a later stall is legible as "stuck partway through {Acting}", not silence.
         LogPlanningDone(runId, acting.Count, ids.Length);
 
-        // PHASE B — execute, partitioned + bounded, per-worker scope. The partitions carry the units
+        // Execution: partitioned, bounded, one scope per worker. The partitions carry the units
         // themselves, so every unit is scheduled exactly once whatever its paths are.
         var partitions = FreeSpaceGuard.PartitionByPair(
             acting, u => (u.Move.OldFullPath, u.Move.NewFullPath));
@@ -706,8 +706,15 @@ public sealed partial class Renamer : FullExtensionBase
         }
 
         LogBatchDone(runId, totalRenamed, totalSkipped, totalFailed);
-        progress.Report(1d, "Rename complete.");
+        progress.Report(1d, $"Rename complete.{RefusedNote(contestedFiles)}");
     }
+
+    // The refusal has to reach the job's own message: its files rename nothing and produce no per-item
+    // result, so a log line is the only other place it appears.
+    private static string RefusedNote(int contestedFiles) =>
+        contestedFiles > 0
+            ? $" {contestedFiles} file(s) refused: more than one record names the same file."
+            : "";
 
     /// <summary>
     /// Opens <paramref name="runId"/>'s journal batch, or suppresses journalling for the whole batch

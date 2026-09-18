@@ -74,7 +74,7 @@ public sealed partial class Renamer
     // file, so it moves none of them and names the path a maintainer has to reconcile.
     [LoggerMessage(
         EventId = 1009, Level = LogLevel.Warning,
-        Message = "[Renamer] batch {RunId}: {Claims} file rows name the source path '{Path}' — none of them renamed")]
+        Message = "[Renamer] batch {RunId}: {Claims} file rows name the source path '{Path}', so none of them renamed")]
     private partial void LogContestedSourcePath(string runId, string path, int claims);
 
     // Logged BEFORE a move runs, so a cross-volume copy (a full copy→verify→delete that can take many
