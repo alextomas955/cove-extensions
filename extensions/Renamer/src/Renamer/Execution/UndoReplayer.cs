@@ -1,6 +1,7 @@
 using Cove.Core.Events;
 using Renamer.Planner;
 
+using static global::Renamer.Execution.KindEvents;
 using static global::Renamer.Execution.PathOps;
 
 namespace Renamer.Execution;
@@ -444,21 +445,5 @@ public sealed class UndoReplayer
         public sealed record Failed(UndoFailure Failure) : RevertOutcome;
     }
 
-    private static EventType EventTypeFor(RenamerFileKind kind) => kind switch
-    {
-        RenamerFileKind.Video => EventType.VideoUpdated,
-        RenamerFileKind.Image => EventType.ImageUpdated,
-        RenamerFileKind.Audio => EventType.AudioUpdated,
-        RenamerFileKind.Text => EventType.TextUpdated,
-        _ => EventType.VideoUpdated,
-    };
 
-    private static string EntityTypeName(RenamerFileKind kind) => kind switch
-    {
-        RenamerFileKind.Video => "Video",
-        RenamerFileKind.Image => "Image",
-        RenamerFileKind.Audio => "Audio",
-        RenamerFileKind.Text => "Text",
-        _ => "Video",
-    };
 }

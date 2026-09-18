@@ -2,7 +2,6 @@ using Cove.Core.Entities;
 using Cove.Data;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
-using Renamer.Planner;
 
 namespace Renamer.Tests.Execution;
 

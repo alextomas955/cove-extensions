@@ -23,9 +23,6 @@ public sealed class ScanPagingEquivalenceTests
     private const int EntitiesPerKind = 40;
     private const int BigEntityFileCount = 5;
 
-    private static readonly RenamerFileKind[] AllKinds =
-        [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio];
-
     // PathConfinement resolves every destination against a drive-rooted anchor on Windows, where a
     // driveless root therefore has no POSIX-literal spelling ("/dest/routed" resolves to "C:/dest/routed").
     // Per-platform roots keep the resolved target equal to the path the route asked for.
@@ -63,14 +60,11 @@ public sealed class ScanPagingEquivalenceTests
         var port = new FakeRenamerDataPort();
         port.SeedLibraryPaths(LibRoot, DestRoot);
 
-        foreach (var kind in AllKinds)
+        foreach (var kind in RenamableKinds.All)
         {
-            int baseId = kind switch
-            {
-                RenamerFileKind.Video => 1000,
-                RenamerFileKind.Image => 2000,
-                _ => 3000,
-            };
+            // A distinct id block per kind, derived from its position so a kind added to the set gets
+            // its own block instead of sharing one and colliding.
+            int baseId = (Array.IndexOf(RenamableKinds.All, kind) + 1) * 1000;
             string folder = $"{LibRoot}/{kind.ToString().ToLowerInvariant()}";
             var ids = new List<int>(EntitiesPerKind);
 
@@ -149,7 +143,7 @@ public sealed class ScanPagingEquivalenceTests
         var planner = new RenamerPlanner(port);
         var rows = new List<ScanRow>();
 
-        foreach (var kind in AllKinds)
+        foreach (var kind in RenamableKinds.All)
         {
             var ids = await port.LoadAllEntityIdsAsync(kind);
             var loaded = await port.LoadEntitiesAsync(kind, ids);
@@ -183,7 +177,7 @@ public sealed class ScanPagingEquivalenceTests
 
         do
         {
-            var page = await pager.PageAsync(AllKinds, cursor, take, query, bucket, Options, Lookups, default);
+            var page = await pager.PageAsync(RenamableKinds.All, cursor, take, query, bucket, Options, Lookups, default);
             Assert.True(page.EntitiesExamined <= ScanRowPager.MaxEntitiesPerRequest,
                 $"page examined {page.EntitiesExamined} entities, over the {ScanRowPager.MaxEntitiesPerRequest} budget");
             rows.AddRange(page.Rows);
@@ -238,8 +232,8 @@ public sealed class ScanPagingEquivalenceTests
         var port = BuildFixture();
         var rows = await PagedWalkAsync(port, take: 7);
 
-        Assert.Equal(AllKinds.ToHashSet(), rows.Select(r => r.Kind).ToHashSet());
-        foreach (var kind in AllKinds)
+        Assert.Equal(RenamableKinds.All.ToHashSet(), rows.Select(r => r.Kind).ToHashSet());
+        foreach (var kind in RenamableKinds.All)
         {
             Assert.Equal(EntitiesPerKind, rows.Where(r => r.Kind == kind).Select(r => r.EntityId).Distinct().Count());
         }

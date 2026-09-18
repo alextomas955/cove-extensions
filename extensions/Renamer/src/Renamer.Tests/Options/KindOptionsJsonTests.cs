@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Renamer.Options;
-using Renamer.Planner;
 
 namespace Renamer.Tests.Options;
 

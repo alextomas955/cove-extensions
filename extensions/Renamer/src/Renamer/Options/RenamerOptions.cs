@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
-using Renamer.Planner;
 
 namespace Renamer.Options;
 

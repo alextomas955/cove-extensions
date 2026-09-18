@@ -2,6 +2,7 @@ using Cove.Core.Events;
 using Renamer.Options;
 using Renamer.Planner;
 
+using static global::Renamer.Execution.KindEvents;
 using static global::Renamer.Execution.PathOps;
 
 namespace Renamer.Execution;
@@ -641,23 +642,7 @@ public sealed class RenamerExecutor
             ? _disk.Rollback(nativeOld, nativeNew, [.. movedSidecars.Select(s => new DiskMover.SidecarMove(s.From, s.To))])
             : await _cross.RollbackAsync(nativeOld, nativeNew, [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
 
-    private static EventType EventTypeFor(RenamerFileKind kind) => kind switch
-    {
-        RenamerFileKind.Video => EventType.VideoUpdated,
-        RenamerFileKind.Image => EventType.ImageUpdated,
-        RenamerFileKind.Audio => EventType.AudioUpdated,
-        RenamerFileKind.Text => EventType.TextUpdated,
-        _ => EventType.VideoUpdated,
-    };
 
-    private static string EntityTypeName(RenamerFileKind kind) => kind switch
-    {
-        RenamerFileKind.Video => "Video",
-        RenamerFileKind.Image => "Image",
-        RenamerFileKind.Audio => "Audio",
-        RenamerFileKind.Text => "Text",
-        _ => "Video",
-    };
 
     /// <summary>
     /// Retargets a caption basename from the old stem to the new stem. A caption "video.en.vtt"

@@ -1,27 +1,5 @@
-using System.Text.Json.Serialization;
-using Cove.Extensions.Shared;
 
 namespace Renamer.Planner;
-
-/// <summary>
-/// The media-file kinds this extension can renamer. Drives entity-type-aware token degradation in
-/// the <c>MetadataProjector</c>: only the media tokens a kind actually carries are projected.
-/// Gallery is not yet renamed but is listed for completeness.
-/// </summary>
-/// <remarks>
-/// Text is appended rather than inserted beside the other renamable kinds because the numeric values
-/// are the scan's walk order, and a stored <c>ScanCursor</c> from a run in progress names a kind by
-/// that order.
-/// </remarks>
-[JsonConverter(typeof(CamelCaseStringEnumConverter))]
-public enum RenamerFileKind
-{
-    Video,
-    Image,
-    Audio,
-    Gallery,
-    Text,
-}
 
 /// <summary>
 /// A single physical file row in the renamer boundary's own vocabulary. This is a

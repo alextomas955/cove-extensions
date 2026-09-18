@@ -336,16 +336,17 @@ public sealed partial class Renamer : FullExtensionBase
     /// <summary>
     /// Maps a <see cref="RenamerFileKind"/> to the host read/write permission pair that gates operating
     /// on that entity kind. Cove models entity permissions per-kind (<c>videos.*</c>/<c>images.*</c>/
-    /// <c>audios.*</c>/<c>texts.*</c>), so a renamer of an image must require <c>images.write</c> — not
-    /// the video permission. <c>Gallery</c> is not a renamable kind; it is mapped to the video pair only
-    /// so the switch is total, and it never reaches an endpoint (<see cref="TryParseKind"/> rejects it).
+    /// <c>audios.*</c>/<c>texts.*</c>), so a renamer of an image must require <c>images.write</c>, not
+    /// the video permission.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The kind is not one this extension renames.</exception>
     internal static (string Read, string Write) PermissionsFor(RenamerFileKind kind) => kind switch
     {
         RenamerFileKind.Image => (Cove.Core.Auth.Permissions.ImagesRead, Cove.Core.Auth.Permissions.ImagesWrite),
         RenamerFileKind.Audio => (Cove.Core.Auth.Permissions.AudiosRead, Cove.Core.Auth.Permissions.AudiosWrite),
         RenamerFileKind.Text => (Cove.Core.Auth.Permissions.TextsRead, Cove.Core.Auth.Permissions.TextsWrite),
-        _ => (Cove.Core.Auth.Permissions.VideosRead, Cove.Core.Auth.Permissions.VideosWrite),
+        RenamerFileKind.Video => (Cove.Core.Auth.Permissions.VideosRead, Cove.Core.Auth.Permissions.VideosWrite),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "not a renamable kind"),
     };
 
     /// <summary>

@@ -742,14 +742,6 @@ public sealed partial class Renamer
     private static bool HasAnyWritePermission(ICurrentPrincipalAccessor principal)
         => principal.Current is { } current && Array.Exists(AnyWritePermissions, current.Has);
 
-    /// <summary>
-    /// Every renamable kind, in a fixed iteration order. Gallery is excluded — it is not yet a
-    /// renamable kind (<see cref="TryParseKind"/> never produces it, <c>LoadEntityAsync</c> returns
-    /// null for it). Shared by the whole-library scan and renamer-library job loops so both iterate
-    /// the same kinds in the same order.
-    /// </summary>
-    private static readonly RenamerFileKind[] RenamableKinds =
-        [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio, RenamerFileKind.Text];
 
     /// <summary>
     /// Enqueues the whole-library scan job. Takes an OPTIONAL <see cref="ScanLibraryRequest"/> body
@@ -780,7 +772,7 @@ public sealed partial class Renamer
         // cannot re-read the request, exactly like readableKinds.
         var overrideOptions = TryParseOptionsOverride(body?.Options);
 
-        var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        var readableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
 
         var jobId = jobs.Enqueue(
             $"ext:{Id}:scan-library",
@@ -864,7 +856,7 @@ public sealed partial class Renamer
             return TypedResults.NotFound();
         }
 
-        var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        var readableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
         return TypedResults.Ok(ScanSummaryView.From(summary, readableKinds));
     }
 
@@ -912,7 +904,7 @@ public sealed partial class Renamer
         // a library-sized kind that is off fills the table with rows saying so and spends the request's
         // entity budget reaching them, while the counts beside that table exclude it, and the table and its
         // own summary would disagree. A cursor minted while the kind was on resumes at the next kind.
-        var kinds = RenamableKinds
+        var kinds = RenamableKinds.All
             .Where(k => principal.Current!.Has(PermissionsFor(k).Read) && options.IsKindEnabled(k))
             .ToArray();
 
@@ -1088,7 +1080,7 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        var writableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Write)).ToArray();
+        var writableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Write)).ToArray();
 
         var jobId = jobs.Enqueue(
             $"ext:{Id}:renamer-library",
@@ -1106,8 +1098,8 @@ public sealed partial class Renamer
     /// candidate ids is skipped entirely (no call into <see cref="RunRenamerBatchAsync"/> for it), so no
     /// empty <c>RevertLog</c> batch header opens for it — matching that method's own "nothing acts → no
     /// batch" behavior. Never combines kinds into one call: <c>RevertLog</c>'s batch header is one
-    /// <see cref="RenamerFileKind"/> per batch by design, so a whole-library renamer across all three kinds
-    /// naturally opens up to three separate batches/runIds, one per acting kind — this introduces NO
+    /// <see cref="RenamerFileKind"/> per batch by design, so a whole-library renamer naturally opens one
+    /// batch/runId per acting kind — this introduces NO
     /// multi-kind batch format and NO engine/executor/<c>RevertLog</c> change. A consequence worth
     /// noting (not fixed here, out of scope): <c>/undo</c> only replays the single LAST open batch, so if
     /// this run touches more than one kind, only the last kind's batch is undoable via the existing
@@ -1197,7 +1189,7 @@ public sealed partial class Renamer
     /// <summary>
     /// The reverse of <see cref="TryParseKind"/>: maps a <see cref="RenamerFileKind"/> back to the
     /// lowercase-singular Cove entity-type string <see cref="RenamerJob.Encode"/> expects. Only the
-    /// renamable kinds round-trip (Gallery never reaches this method — <see cref="RenamableKinds"/>
+    /// renamable kinds round-trip (Gallery never reaches this method — <see cref="RenamableKinds.All"/>
     /// excludes it).
     /// </summary>
     private static string EntityTypeFor(RenamerFileKind kind) => kind switch

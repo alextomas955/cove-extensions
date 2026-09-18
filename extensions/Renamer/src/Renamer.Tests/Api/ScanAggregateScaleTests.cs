@@ -12,12 +12,10 @@ namespace Renamer.Tests.Api;
 /// <see cref="RenamerStatus"/> member count and <see cref="ScanSummary.MaxVolumePairsPerKind"/> — at ten
 /// files and again at ten thousand.
 /// <para>
-/// Peak memory during the scan is established STRUCTURALLY, not measured: a heap probe over a garbage-
-/// collected runtime is not repeatable and would prove nothing about the shape. The three repeatable
-/// facts that do establish it are that the job holds no per-file collection (asserted by the scan job's
-/// own source having no such local), that the stored value's size is independent of N (asserted here at
-/// two sizes three orders of magnitude apart), and that the store is written exactly once. No assertion
-/// below implies a memory measurement happened.
+/// What is asserted here is the PERSISTED size, not peak memory: the stored value's size is independent
+/// of N (at two sizes three orders of magnitude apart) and the store is written exactly once. Peak
+/// memory is not measured and is not bounded by the shape either, because the job still loads every
+/// candidate id per kind to compute a progress denominator. No assertion below says otherwise.
 /// </para>
 /// <para>
 /// There is deliberately no million-file fixture: the ceiling is N-independent by construction, so a
@@ -28,9 +26,6 @@ public sealed class ScanAggregateScaleTests
 {
     private const int SmallFixture = 10;
     private const int LargeFixture = 10_000;
-
-    private static readonly RenamerFileKind[] AllKinds =
-        [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio];
 
     /// <summary>
     /// The ceiling the stored blob must stay under, DERIVED from the shape rather than asserted as a
@@ -65,12 +60,12 @@ public sealed class ScanAggregateScaleTests
     private static FakeRenamerDataPort SeedLibrary(int files, string folder = "/lib")
     {
         var port = new FakeRenamerDataPort();
-        int perKind = files / AllKinds.Length;
-        int remainder = files % AllKinds.Length;
+        int perKind = files / RenamableKinds.All.Length;
+        int remainder = files % RenamableKinds.All.Length;
 
-        for (int k = 0; k < AllKinds.Length; k++)
+        for (int k = 0; k < RenamableKinds.All.Length; k++)
         {
-            var kind = AllKinds[k];
+            var kind = RenamableKinds.All[k];
             int count = perKind + (k < remainder ? 1 : 0);
             var ids = new List<int>(count);
 
@@ -94,7 +89,7 @@ public sealed class ScanAggregateScaleTests
     {
         var (ext, store) = NewExtension();
         await ext.RunScanCoreAsync(
-            port, AllKinds, options ?? new RenamerOptions { FilenameTemplate = "$title" },
+            port, RenamableKinds.All, options ?? new RenamerOptions { FilenameTemplate = "$title" },
             new FakeJobProgress(), default);
 
         // Read the RAW stored string: parsing is exactly what would hide growth, and the byte length is
@@ -201,7 +196,7 @@ public sealed class ScanAggregateScaleTests
     {
         var (_, summary, _) = await ScanAsync(SeedLibrary(LargeFixture));
 
-        var view = ScanSummaryView.From(summary, AllKinds);
+        var view = ScanSummaryView.From(summary, RenamableKinds.All);
 
         int Expected(ScanBucketKind bucket) => summary.Kinds
             .SelectMany(k => k.StatusCounts)
