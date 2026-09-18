@@ -908,7 +908,13 @@ public sealed partial class Renamer
 
         var options = TryParseOptionsOverride(body?.Options) ?? await new OptionsStore(Store, _log).LoadAsync(ct);
         var lookups = BuildLookups(options);
-        var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        // A kind turned off is dropped before the walk, exactly as RunScanCoreAsync drops it. Left in,
+        // a library-sized kind that is off fills the table with rows saying so and spends the request's
+        // entity budget reaching them, while the counts beside that table exclude it, and the table and its
+        // own summary would disagree. A cursor minted while the kind was on resumes at the next kind.
+        var kinds = RenamableKinds
+            .Where(k => principal.Current!.Has(PermissionsFor(k).Read) && options.IsKindEnabled(k))
+            .ToArray();
 
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
@@ -916,7 +922,7 @@ public sealed partial class Renamer
         var pager = new ScanRowPager(new RenamerPlanner(port), port);
 
         var page = await pager.PageAsync(
-            readableKinds, cursor, body?.Take ?? 0, body?.Query, bucket, options, lookups, ct);
+            kinds, cursor, body?.Take ?? 0, body?.Query, bucket, options, lookups, ct);
 
         return TypedResults.Ok(page);
     }
