@@ -37,7 +37,7 @@ public sealed class CollisionTests
         Assert.Equal(RenamerStatus.Renamer, item.Status);
         Assert.Equal("My Film (1).mkv", item.NewBasename);
         Assert.EndsWith("My Film (1).mkv", item.NewFullPath);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class CollisionTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
 
         Assert.Equal("My Film (2).mkv", Assert.Single(plan.Items).NewBasename);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class CollisionTests
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipCollision, item.Status);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     /// <summary>
@@ -102,7 +102,7 @@ public sealed class CollisionTests
         // cannot satisfy this either.
         Assert.Equal("media/videos/My Film (1).mkv", item.OldFullPath);
         Assert.Equal("media/videos/My Film (1).mkv", item.NewFullPath);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     /// <summary>
@@ -142,6 +142,6 @@ public sealed class CollisionTests
         Assert.False(first.Suffixed);
         Assert.True(second.Suffixed);
 
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

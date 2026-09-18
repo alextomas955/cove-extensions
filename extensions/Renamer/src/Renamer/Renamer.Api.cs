@@ -993,7 +993,7 @@ public sealed partial class Renamer
     /// The scan itself: for each readable kind, plans every entity through the SAME planner
     /// <see cref="PreviewAsync"/> uses and folds each plan into a <see cref="ScanAggregator"/>, then
     /// persists that bounded aggregate under <see cref="LastScanSummaryKey"/> in one write. ZERO
-    /// disk/DB mutation — no <c>SaveAsync</c>, no <c>File.Move</c>.
+    /// disk/DB mutation — no <c>ApplyAndSaveAsync</c>, no <c>File.Move</c>.
     /// </summary>
     /// <remarks>
     /// Persists per-kind counts and blast radius, never the rows: a per-file collection here is

@@ -35,7 +35,7 @@ public sealed class GatingTests
             Assert.Equal(RenamerStatus.SkipGated, i.Status);
             Assert.NotNull(i.Reason);
         });
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class GatingTests
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipGated, item.Status);
         Assert.NotEqual(RenamerStatus.Failed, item.Status);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class GatingTests
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipGated, item.Status);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class GatingTests
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(unorgRoot.Replace('\\', '/'), item.ResolvedDestinationRoot);
         Assert.Equal("Unorganized", item.MatchedRule);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class GatingTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         Assert.Equal(RenamerStatus.SkipGated, Assert.Single(plan.Items).Status);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -133,6 +133,6 @@ public sealed class GatingTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         Assert.NotEqual(RenamerStatus.SkipGated, Assert.Single(plan.Items).Status);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }
