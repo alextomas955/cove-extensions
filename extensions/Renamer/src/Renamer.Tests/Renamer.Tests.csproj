@@ -10,14 +10,11 @@
     <!--
       A test project is NOT a deployed plugin: it must RUN, so it needs its full runtime closure
       copied local. Renamer.csproj's transitive Cove.Sdk PackageReference imports Cove.Sdk.targets,
-      whose CoveStripHostProvidedCopyLocal target would strip host-provided assemblies from THIS
-      project's output too, making xUnit fail to reflect over the assembly at runtime ("Could not
-      load file or assembly 'Cove.Plugins'"). The value must be NON-EMPTY: Cove.Sdk.targets re-applies
-      its full default denylist when the property is empty
-      (Condition="'$(CoveHostProvidedAssemblies)' == ''"). A sentinel that matches no real assembly
-      name disables the strip without re-triggering the default.
+      whose strip would otherwise remove the host-provided assemblies from this project's output and
+      make xUnit fail to reflect over it ("Could not load file or assembly 'Cove.Plugins'").
+      Directory.Build.targets turns this into what Cove.Sdk reads.
     -->
-    <CoveHostProvidedAssemblies>;__renamer_tests_no_strip__;</CoveHostProvidedAssemblies>
+    <CoveStripHostProvidedAssemblies>false</CoveStripHostProvidedAssemblies>
     <!--
       CA1716: the linked shared fakes (Testing.Cove/*.cs, LinkBase="TestSupport\Shared") declare the
       Cove.Extensions.Shared.Testing namespace, whose "Shared" segment is a VB reserved keyword. These are
