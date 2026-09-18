@@ -556,6 +556,24 @@
           }
         }
       },
+      "KindOptions": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "destination": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Destination"
+              }
+            ]
+          }
+        }
+      },
       "LastBatchSummary": {
         "required": [
           "hasBatch",
@@ -883,7 +901,8 @@
           "video",
           "image",
           "audio",
-          "gallery"
+          "gallery",
+          "text"
         ]
       },
       "RenamerJobState": {
@@ -1054,6 +1073,12 @@
             "type": "object",
             "additionalProperties": {
               "$ref": "#/components/schemas/Destination"
+            }
+          },
+          "kinds": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/KindOptions"
             }
           },
           "pathDestinations": {

@@ -168,6 +168,7 @@ test("assetHref maps each kind to its detail-route segment with the numeric id",
   assert.equal(assetHref("video", 123), "/video/123");
   assert.equal(assetHref("image", 7), "/image/7");
   assert.equal(assetHref("audio", 42), "/audio/42");
+  assert.equal(assetHref("text", 9), "/text/9");
 });
 
 test("assetHref returns null for a missing/zero/negative id → plain-text fallback, no dead link", () => {

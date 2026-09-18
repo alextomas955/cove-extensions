@@ -91,6 +91,10 @@ function fullyPopulatedBlob() {
     Articles: ["The", "Le"],
     PreventTitlePerformer: true,
     PreventConsecutiveSegments: true,
+    Kinds: {
+      Text: { Enabled: false, Destination: null },
+      Image: { Enabled: true, Destination: { Root: "D:/images", Template: "$studio" } },
+    },
   };
 }
 
@@ -119,6 +123,7 @@ test("every modeled field survives load → no-op edit → save value-equal", ()
   assert.deepEqual(loaded.PathDestinations, blob.PathDestinations);
   assert.equal(loaded.CrossVolumeConcurrency, 4);
   assert.equal(loaded.SameVolumeConcurrency, 16);
+  assert.deepEqual(loaded.Kinds, blob.Kinds);
 
   // The panel's save merge, then a re-load (the next session reading what was persisted).
   const extras = extractUnmodeledFields(blob);
@@ -551,4 +556,39 @@ test("case is not forgiven, so the panel never invents a case rule the host may 
 // A root naming no library path is the badge state, and it must be distinguishable from a match.
 test("a root naming no library path resolves to undefined", () => {
   assert.equal(chosenLibraryPath("D:/Elsewhere", ["C:/Videos"]), undefined);
+});
+
+test("a blob predating the per-kind settings loads them as an empty map", () => {
+  const blob = fullyPopulatedBlob();
+  delete (blob as Partial<typeof blob>).Kinds;
+
+  assert.deepEqual(normalizeOptions(blob).Kinds, {});
+});
+
+test("a per-kind entry naming a kind this version does not know is dropped", () => {
+  // The key is what the backend binds the entry to, and a key it cannot bind fails the whole
+  // options bind - which the store answers with defaults, discarding every other setting.
+  const loaded = normalizeOptions({
+    Kinds: { Gallery: { Enabled: false }, Text: { Enabled: false } },
+  });
+
+  assert.deepEqual(loaded.Kinds, { Text: { Enabled: false, Destination: null } });
+});
+
+test("a per-kind entry with no Enabled key reads as enabled", () => {
+  const loaded = normalizeOptions({
+    Kinds: { Text: { Destination: { Root: "D:/docs", Template: "" } } },
+  });
+
+  assert.deepEqual(loaded.Kinds.Text, {
+    Enabled: true,
+    Destination: { Root: "D:/docs", Template: "" },
+  });
+});
+
+test("cloneDefaults gives the per-kind map its own object", () => {
+  const clone = cloneDefaults();
+  clone.Kinds.Text = { Enabled: false, Destination: null };
+
+  assert.deepEqual(DEFAULT_OPTIONS.Kinds, {});
 });

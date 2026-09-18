@@ -4,14 +4,15 @@ title: Renamer
 slug: /
 ---
 
-Renamer bulk-renames — and optionally relocates — your videos, images and audio files from
-configurable metadata templates. It updates the file on disk and its Cove database record together,
-previews every change before touching disk, and can undo the last rename — up to a size limit it
-states before the rename runs.
+Renamer renames your videos, images, audio files and text documents to a naming pattern you
+choose, and can file them into folders to match. You see every change before anything moves, the
+file and its Cove record change together, and the last run can be undone, up to a size limit it
+states beforehand.
 
 You need a kind's write permission in Cove to rename it, and its read permission to preview it. The
-**Rename selected** action appears on video and image lists only; rename audio from the Rename
-settings page.
+**Rename selected** action appears on video, image and text lists; rename audio from the Rename
+settings page. Each kind can be turned off on its own, and can be given its own destination folder,
+under Per kind in the settings panel.
 
 ## In this section
 

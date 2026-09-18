@@ -164,6 +164,7 @@ function ScanProgress({ display }: { display: ScanDisplay }) {
 
 export function DryRunModal({
   options,
+  dirty,
   onClose,
   onRenameAll,
   renaming,
@@ -171,6 +172,11 @@ export function DryRunModal({
 }: {
   /** The panel's CURRENT (possibly unsaved) options — sent so the scan previews unsaved edits. */
   options: RenamerOptions;
+  /**
+   * Whether the panel holds edits that are not saved. The rename runs the SAVED options, so a dry
+   * run of unsaved ones previews a different operation than the button below would perform.
+   */
+  dirty: boolean;
   onClose: () => void;
   /** The SHARED rename-trigger handler — also called by the panel-level button. */
   onRenameAll: (counts: DryRunCounts) => void;
@@ -211,6 +217,10 @@ export function DryRunModal({
   // this same value, so the rows and the summary always describe ONE dry run; re-reading `options` per
   // page would let a later panel edit desynchronise the two.
   const [scanOptionsBlob] = useState(() => JSON.stringify(options));
+  // The rows describe the settings the scan was enqueued with. The panel stays live behind this
+  // modal, so those settings can stop being the ones a rename would use while the rows still show
+  // them: Discard is the sharpest case, because it clears `dirty` without touching the rows.
+  const scanIsStale = scanOptionsBlob !== JSON.stringify(options);
 
   // Kick off the scan on mount so the modal opens immediately in a loading state. Sends the panel's
   // current options (captured at open) as the scan body so the dry run previews UNSAVED edits — the
@@ -646,6 +656,18 @@ export function DryRunModal({
         </p>
       ) : null}
 
+      {/* The rename reads the saved settings, while this scan previewed whatever was on screen when
+          it opened. Starting a rename from rows that describe different settings runs an operation
+          nobody previewed — a kind excluded in these rows is renamed anyway. The panel-level button
+          refuses on the same terms. */}
+      {dirty || scanIsStale ? (
+        <p className="mt-6 text-sm text-amber-400">
+          {dirty
+            ? "These rows preview your unsaved settings, but a rename runs the saved ones. Save, then run the dry run again."
+            : "Your settings changed after these rows were scanned. Run the dry run again."}
+        </p>
+      ) : null}
+
       <div className="mt-6 flex justify-end gap-3">
         <Button variant="ghost" onClick={onClose} disabled={renaming}>
           Close
@@ -654,7 +676,7 @@ export function DryRunModal({
           onClick={() => {
             if (counts) onRenameAll(counts);
           }}
-          disabled={renaming || !counts || counts.willChange === 0}
+          disabled={dirty || scanIsStale || renaming || !counts || counts.willChange === 0}
         >
           {renaming ? <Spinner /> : null}
           Rename {counts?.willChange ?? 0} files

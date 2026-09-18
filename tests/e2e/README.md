@@ -270,9 +270,9 @@ prevent it.
   including owner bootstrap and setup-wizard bypass for every `page` use.
 - [`lib/seed-media.mjs`](lib/seed-media.mjs) — Cove has no "create a fake DB row with no file"
   endpoint; video/image import requires a real on-disk file (`POST /api/videos/from-file` calls
-  `File.Exists` before doing anything else). `seedVideo()` copies a tiny real fixture (see
-  `lib/fixtures-media/`) into the container and registers it through that real API, so tests
-  exercise the actual import path, not a shortcut around it.
+  `File.Exists` before doing anything else). `seedVideo()`, `seedImage()` and `seedText()` each copy
+  a tiny real fixture (see `lib/fixtures-media/`) into the container and register it through that
+  real API, so tests exercise the actual import path, not a shortcut around it.
 - [`lib/poll.mjs`](lib/poll.mjs) — `pollJob()`/`pollUntil()` for polling job status and eventually-
   consistent reads. Some write paths are not read-your-writes on the very next request (observed
   directly: a `GET` immediately after a `200` from an undo endpoint can still return the pre-undo

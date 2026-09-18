@@ -270,6 +270,42 @@ public sealed class ScanLibraryEndpointTests
         }
     }
 
+    [Fact]
+    public async Task ScanRowsAsync_KindTurnedOff_ServesNoRowsForIt()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
+            await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic");
+
+            var (ext, _) = await NewExtensionAsync();
+            await InitializeOverSharedConnectionAsync(ext, conn);
+
+            var options = new RenamerOptions
+            {
+                Kinds = { [RenamerFileKind.Video] = new KindOptions { Enabled = false } },
+            };
+
+            var principal = FakePrincipalAccessor.WithPermissions(
+                Permissions.VideosRead, Permissions.ImagesRead);
+            var page = await ReadRowsAsync(ext, principal, new global::Renamer.Contracts.ScanRowsRequest(
+                Options: JsonSerializer.Serialize(options, RenamerOptions.JsonOptions),
+                Kind: null, AfterEntityId: null, Take: null, Query: null, Bucket: null));
+
+            // The summary counts a kind that is off as unscanned, so a table that still lists its items
+            // as gated skips contradicts the figures printed beside it, and reaching those rows spends
+            // the request's entity budget on a kind nobody asked about.
+            Assert.DoesNotContain(RenamerFileKind.Video, page.Rows.Select(r => r.Kind));
+            Assert.Equal([RenamerFileKind.Image], page.Rows.Select(r => r.Kind).Distinct());
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
     /// <summary>Counts each executed reader command so a test can prove the port issues ~N/chunk queries, not N.</summary>
     private sealed class SelectCountingInterceptor : DbCommandInterceptor
     {

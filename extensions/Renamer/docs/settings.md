@@ -69,6 +69,32 @@ folder to Cove's library paths, or pick a library path for the destination inste
 If you remove a folder from Cove's library paths, every rule that named it stops and says so rather
 than sending its items somewhere you did not choose. Re-pick a root, or add the folder back in Cove.
 
+### Per kind
+
+One row per kind Renamer can rename: videos, images, audio and text documents, at the foot of the
+card above. A row starts out reading _Follows the default_, meaning the folder settings above it
+apply. The two buttons on the row change that, and their labels change with it.
+
+| Button      | What it does                                                                        |
+| ----------- | ----------------------------------------------------------------------------------- |
+| Own folder  | Gives the kind its own destination, used when no routing rule matches the item.     |
+| Exclude     | Stops Renamer touching items of that kind at all. The row then reads _Not renamed_. |
+| Include     | Renames the kind again, with whatever folder it had before it was excluded.         |
+| Use default | Puts the row back to the folder settings above, clearing any folder of its own.     |
+
+A kind turned off is dropped from **Dry run** and **Rename all files** before it is read, so it adds
+nothing to the scan counts. Selecting items of that kind and using **Rename selected** reports them
+as skipped, with the kind named in the reason.
+
+A kind's own destination is a default, not an override. An item that matches a tag, studio,
+source-path or unorganized rule still goes where that rule says, so setting one here never redirects
+items you have already routed by hand. An item that matches no rule goes to the kind's destination
+instead of the one in the card above.
+
+**Use default** removes the kind's stored entry, so the saved settings are the same as before you
+touched the row. It is off while a kind is excluded: an excluded kind returns through **Include**,
+which is the only button that starts renaming it again.
+
 ## Scope & run
 
 ### What gets renamed
@@ -98,8 +124,8 @@ is called at the time.
 | --------------------- | ------------------------------------------------------------------------------------------- | ------- |
 | Auto-rename on update | Re-rename an item automatically when Cove raises a `video.updated` / `image.updated` event. | Off     |
 
-Auto-rename acts on the events Cove raises, and Renamer hooks the video and image events only —
-audio is never auto-renamed. Editing several items at once raises an event for each of them, so every
+Auto-rename acts on the events Cove raises, and Renamer hooks the video and image events only.
+Audio and text documents are never auto-renamed. Editing several items at once raises an event for each of them, so every
 one is considered.
 
 A rename makes Cove announce that the item changed, and that announcement is the same event that

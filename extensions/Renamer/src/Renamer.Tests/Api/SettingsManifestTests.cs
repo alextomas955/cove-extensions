@@ -56,8 +56,8 @@ public sealed class SettingsManifestTests
 
         // The bulk action is unaffected by the home change — it dispatches the renamerSelected JS handler
         // (no ApiEndpoint) for the in-context confirm/undo flow. It is registered once per kind (video,
-        // image) so each carries its matching write permission.
-        Assert.Equal(2, manifest.Actions.Count);
+        // image, text) so each carries its matching write permission.
+        Assert.Equal(3, manifest.Actions.Count);
         foreach (var action in manifest.Actions)
         {
             Assert.Equal("bulk", action.ActionType);
@@ -69,6 +69,8 @@ public sealed class SettingsManifestTests
         Assert.Equal(Permissions.VideosWrite, video.RequiredPermission);
         var image = Assert.Single(manifest.Actions, a => a.Id == "renamer-selected-image");
         Assert.Equal(Permissions.ImagesWrite, image.RequiredPermission);
+        var text = Assert.Single(manifest.Actions, a => a.Id == "renamer-selected-text");
+        Assert.Equal(Permissions.TextsWrite, text.RequiredPermission);
     }
 
     [Fact]

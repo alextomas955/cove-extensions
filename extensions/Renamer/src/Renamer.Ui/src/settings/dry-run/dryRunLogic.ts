@@ -151,6 +151,10 @@ const KIND_SEGMENT: Record<string, string | undefined> = {
   video: "video",
   image: "image",
   audio: "audio",
+  text: "text",
+  // Cove renders no detail page for a gallery, so a gallery row is listed here with no segment
+  // rather than left out: a kind the server can send has an answer, and that answer is "no link".
+  gallery: undefined,
 };
 
 /**

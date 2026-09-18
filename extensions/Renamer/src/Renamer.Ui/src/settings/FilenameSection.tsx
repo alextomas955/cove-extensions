@@ -10,6 +10,7 @@ import type { Ref, RefObject } from "react";
 import { type RenamerOptions, type LibraryPathsState } from "./options";
 import { Field, TextInput, SectionCard, Chip, StatusText } from "@cove-extensions/ui-shared";
 import { DestinationField } from "./DestinationField";
+import { PerKindRows } from "./PerKindRows";
 import { TokenLegend } from "./TokenLegend";
 import { TemplateValidation } from "./templateAdvisories";
 import { PRESETS } from "./presets";
@@ -124,7 +125,7 @@ export function FilenameSection({
 
       <SectionCard
         title="Where files go"
-        description="The destination for an item no rule matched."
+        description="Folder path template. Moves files on rename, and applies to every kind. Used when no tag, studio, source-path or unorganized rule matches the item."
       >
         <DestinationField
           value={{ Root: options.FolderRoot, Template: options.FolderTemplate }}
@@ -137,7 +138,7 @@ export function FilenameSection({
           templateRef={folderRef}
           onTemplateFocus={() => (activeTemplateRef.current = "folder")}
         />
-        <TemplateValidation value={options.FolderTemplate} />
+        <PerKindRows options={options} set={set} library={library} />
       </SectionCard>
     </div>
   );

@@ -297,8 +297,13 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
     private Task<RevertBatchEntity?> FindBatchAsync(string runId, CancellationToken ct) =>
         _db.Set<RevertBatchEntity>().FirstOrDefaultAsync(b => b.RunId == runId, ct);
 
-    // Tolerant, matching how the journal's stored lines have always been read: a kind that no longer
-    // parses costs the batch its entity type, not the user's whole undo.
+    // This column is written from a renamable kind by this extension alone, so a value that is not one
+    // is corrupt state rather than input to tolerate. Read tolerantly it answered Video for anything
+    // unrecognised, and undo re-gates on the kind the batch names: a row reading Image was then undone
+    // under the video permission.
     private static RenamerFileKind ParseKind(string stored) =>
-        Enum.TryParse<RenamerFileKind>(stored, out var kind) ? kind : RenamerFileKind.Video;
+        Enum.TryParse<RenamerFileKind>(stored, out var kind) && RenamableKinds.Includes(kind)
+            ? kind
+            : throw new InvalidOperationException(
+                $"revert batch names entity kind '{stored}', which this extension does not rename");
 }

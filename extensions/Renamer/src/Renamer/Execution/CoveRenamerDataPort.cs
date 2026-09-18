@@ -168,6 +168,11 @@ public class CoveRenamerDataPort : IRenamerDataPort
                     var a = await AudioQuery().FirstOrDefaultAsync(x => x.Id == entityId, ct);
                     return a is null ? null : MapAudioEntity(a);
                 }
+            case RenamerFileKind.Text:
+                {
+                    var t = await TextQuery().FirstOrDefaultAsync(x => x.Id == entityId, ct);
+                    return t is null ? null : MapTextEntity(t);
+                }
             default:
                 // Gallery is not yet a renamable kind.
                 return null;
@@ -223,6 +228,13 @@ public class CoveRenamerDataPort : IRenamerDataPort
                     result.AddRange(rows.Select(MapAudioEntity));
                 }
                 break;
+            case RenamerFileKind.Text:
+                foreach (var chunk in ids.Chunk(LoadChunkSize))
+                {
+                    var rows = await TextQuery().Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
+                    result.AddRange(rows.Select(MapTextEntity));
+                }
+                break;
             default:
                 // Gallery is not yet a renamable kind.
                 return [];
@@ -259,6 +271,13 @@ public class CoveRenamerDataPort : IRenamerDataPort
         .Include(x => x.AudioPerformers).ThenInclude(ap => ap.Performer)
         .Include(x => x.AudioTags).ThenInclude(at => at.Tag);
 
+    private IQueryable<TextDocument> TextQuery() => _db.Set<TextDocument>()
+        .AsNoTracking()
+        .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
+        .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
+        .Include(x => x.TextPerformers).ThenInclude(tp => tp.Performer)
+        .Include(x => x.TextTags).ThenInclude(tt => tt.Tag);
+
     private static RenamerEntity MapVideoEntity(Video v) => new(
         v.Id, RenamerFileKind.Video, v.Title, v.Code, v.Studio?.Name, v.Date, v.Organized,
         [.. v.VideoPerformers
@@ -290,6 +309,16 @@ public class CoveRenamerDataPort : IRenamerDataPort
         StudioId: a.StudioId,
         ParentStudios: WalkParentStudios(a.Studio));
 
+    private static RenamerEntity MapTextEntity(TextDocument t) => new(
+        t.Id, RenamerFileKind.Text, t.Title, t.Code, t.Studio?.Name, t.Date, t.Organized,
+        [.. t.TextPerformers
+            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
+            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+        [.. t.TextTags.Where(x => x.Tag is not null && x.Tag.Name.Length > 0).Select(x => (x.Tag!.Id, x.Tag.Name))],
+        [.. t.Files.Select(MapTextFile)],
+        StudioId: t.StudioId,
+        ParentStudios: WalkParentStudios(t.Studio));
+
     /// <summary>
     /// An <c>AsNoTracking</c> id-only bulk query over the kind's table — Gallery (and any other
     /// non-renamable kind) returns empty rather than throwing, mirroring <see cref="LoadEntityAsync"/>'s
@@ -306,6 +335,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
             RenamerFileKind.Video => await _db.Set<Video>().AsNoTracking().OrderBy(v => v.Id).Select(v => v.Id).ToArrayAsync(ct),
             RenamerFileKind.Image => await _db.Set<Image>().AsNoTracking().OrderBy(i => i.Id).Select(i => i.Id).ToArrayAsync(ct),
             RenamerFileKind.Audio => await _db.Set<Audio>().AsNoTracking().OrderBy(a => a.Id).Select(a => a.Id).ToArrayAsync(ct),
+            RenamerFileKind.Text => await _db.Set<TextDocument>().AsNoTracking().OrderBy(t => t.Id).Select(t => t.Id).ToArrayAsync(ct),
             _ => [],
         };
     }
@@ -327,6 +357,8 @@ public class CoveRenamerDataPort : IRenamerDataPort
                 .Where(i => i.Id > afterEntityId).OrderBy(i => i.Id).Take(take).Select(i => i.Id).ToArrayAsync(ct),
             RenamerFileKind.Audio => await _db.Set<Audio>().AsNoTracking()
                 .Where(a => a.Id > afterEntityId).OrderBy(a => a.Id).Take(take).Select(a => a.Id).ToArrayAsync(ct),
+            RenamerFileKind.Text => await _db.Set<TextDocument>().AsNoTracking()
+                .Where(t => t.Id > afterEntityId).OrderBy(t => t.Id).Take(take).Select(t => t.Id).ToArrayAsync(ct),
             _ => [],
         };
     }
@@ -506,6 +538,14 @@ public class CoveRenamerDataPort : IRenamerDataPort
                 }
 
                 break;
+            case RenamerFileKind.Text:
+                var text = await _db.Set<TextDocument>().FirstOrDefaultAsync(x => x.Id == write.EntityId, ct);
+                if (text is not null && string.IsNullOrEmpty(text.Title))
+                {
+                    text.Title = write.Title;
+                }
+
+                break;
             default:
                 // Gallery is not a renamable kind, so no plan carries one here.
                 break;
@@ -556,5 +596,11 @@ public class CoveRenamerDataPort : IRenamerDataPort
         FileId: f.Id, Kind: RenamerFileKind.Audio, Basename: f.Basename,
         ParentFolderId: f.ParentFolderId, ParentFolderPath: f.ParentFolder?.Path ?? "",
         Format: f.Format, Duration: f.Duration, AudioCodec: f.AudioCodec,
+        SizeBytes: f.Size);
+
+    private static RenamerFile MapTextFile(TextFile f) => new(
+        FileId: f.Id, Kind: RenamerFileKind.Text, Basename: f.Basename,
+        ParentFolderId: f.ParentFolderId, ParentFolderPath: f.ParentFolder?.Path ?? "",
+        Format: f.Format,
         SizeBytes: f.Size);
 }

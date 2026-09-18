@@ -179,6 +179,42 @@ public sealed record Destination
 }
 
 /// <summary>
+/// The per-entity-kind settings: whether this extension renames the kind at all, and the default
+/// destination its items take when no routing rule matches them.
+/// </summary>
+/// <remarks>
+/// An absent entry means "enabled, with no destination of its own", so an options blob written before
+/// this record existed reads back as the behavior it had. <see cref="Destination"/> is nullable for
+/// the reason <see cref="RenamerOptions.UnorganizedDestination"/> is: a present destination naming
+/// neither root nor folder is a real instruction (rename in place, under the library path the file is
+/// already in), and only <c>null</c> means "fall through to the global default".
+/// <para>
+/// A kind destination is the DEFAULT for the kind, not an override of a matched rule. A tag, studio,
+/// source-path or unorganized rule still wins, so turning one on does not silently redirect the items
+/// a person has already routed somewhere by hand.
+/// </para>
+/// </remarks>
+public sealed record KindOptions
+{
+    /// <summary>Whether this extension renames items of the kind. Default <c>true</c>.</summary>
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>The kind's default destination, or <c>null</c> to use the global one.</summary>
+    public Destination? Destination { get; init; }
+
+    public bool Equals(KindOptions? other)
+        => other is not null && Enabled == other.Enabled && Destination == other.Destination;
+
+    public override int GetHashCode()
+    {
+        var hc = new HashCode();
+        hc.Add(Enabled);
+        hc.Add(Destination);
+        return hc.ToHashCode();
+    }
+}
+
+/// <summary>
 /// One source-path destination rule: when the entity's source path matches
 /// <see cref="Pattern"/>, the item routes to <see cref="Dest"/>.
 /// <see cref="IsRegex"/> selects how <see cref="Pattern"/> is interpreted:
@@ -470,6 +506,29 @@ public sealed record RenamerOptions
     public Dictionary<int, Destination> TagDestinations { get; init; } = [];
 
     /// <summary>
+    /// Per-entity-kind settings: entity kind → <see cref="KindOptions"/>. A kind with no entry is
+    /// renamed, with the global folder template and root. Default empty = every kind renamed the same
+    /// way, which is what this extension did before the map existed.
+    /// </summary>
+    public Dictionary<RenamerFileKind, KindOptions> Kinds { get; init; } = [];
+
+    /// <summary>Whether <paramref name="kind"/> is renamed at all; an unlisted kind is.</summary>
+    /// <remarks>
+    /// A null entry reads as unlisted. <c>{"Kinds":{"Text":null}}</c> is valid JSON that deserializes
+    /// to a present key with no value, and the store's non-null restore does not reach inside a
+    /// collection, so the value survives to here.
+    /// </remarks>
+    public bool IsKindEnabled(RenamerFileKind kind)
+        => !Kinds.TryGetValue(kind, out var settings) || settings is null || settings.Enabled;
+
+    /// <summary>
+    /// The kind's own default destination, or <c>null</c> when it has none and the global
+    /// <see cref="FolderRoot"/>/<see cref="FolderTemplate"/> pair applies.
+    /// </summary>
+    public Destination? KindDestination(RenamerFileKind kind)
+        => Kinds.TryGetValue(kind, out var settings) ? settings?.Destination : null;
+
+    /// <summary>
     /// Source-path routing rules, in user order. Each <see cref="PathDestinationRule"/> is an exact OR
     /// regex source-path match → destination; the resolver tries exact rules before regex rules within
     /// the source-path category. The regex variant is a user-interpreted pattern — pre-parsed/validated
@@ -595,6 +654,7 @@ public sealed record RenamerOptions
         yield return StructuralEquality.Sequence(AssociatedExtensions);
         yield return StructuralEquality.Map(StudioDestinations, EqualityComparer<int>.Default);
         yield return StructuralEquality.Map(TagDestinations, EqualityComparer<int>.Default);
+        yield return StructuralEquality.Map(Kinds, EqualityComparer<RenamerFileKind>.Default);
         yield return StructuralEquality.Sequence(PathDestinations);
         yield return StructuralEquality.Sequence(ExcludeTagIds);
         yield return StructuralEquality.Sequence(ExcludeStudioIds);
