@@ -11,6 +11,7 @@
     "**/dist/**",
     "**/vendor/**",
     "**/*.g.cs",
+    "**/src/wire/**",
     "**/e2e/**",
     "**/*.test.mjs",
     "website/**",
