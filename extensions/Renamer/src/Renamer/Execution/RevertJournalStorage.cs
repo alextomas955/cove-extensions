@@ -126,18 +126,22 @@ public static class RevertJournalSchema
     /// one batch per kind, and undo has to reach all of them or none.
     /// </summary>
     /// <remarks>
-    /// Unlike <see cref="Migration001UpSql"/> this statement is NOT idempotent: adding a column that is
-    /// already there is an error on both providers. What makes that safe is the receipt — the host
-    /// applies a migration name once and never re-runs it — so this migration rests on the receipt in
-    /// a way the first one deliberately did not.
+    /// Create-if-absent throughout, for the reason <see cref="Migration001UpSql"/> gives: a table can
+    /// outlive its receipt, and a migration whose re-run fails is worse here than a wasted statement.
+    /// The host stops applying an extension's remaining migrations after one failure, so a single
+    /// unrunnable statement would block every later migration on that database, on every start.
     /// <para>
-    /// <c>ADD COLUMN</c> with a constant default is the one form that runs unchanged on both providers.
+    /// PostgreSQL syntax. The host runs on PostgreSQL alone, so that is the only dialect a shipped
+    /// migration has to satisfy; SQLite has no <c>ADD COLUMN IF NOT EXISTS</c> and the tests build
+    /// their journal schema rather than executing this string.
+    /// </para>
+    /// <para>
     /// An existing row takes <c>''</c>, which readers resolve to that batch's own run id.
     /// </para>
     /// </remarks>
     public const string Migration002UpSql =
         """
-        ALTER TABLE renamer_revert_batches ADD COLUMN operation_id TEXT NOT NULL DEFAULT '';
+        ALTER TABLE renamer_revert_batches ADD COLUMN IF NOT EXISTS operation_id TEXT NOT NULL DEFAULT '';
         CREATE INDEX IF NOT EXISTS ix_renamer_revert_batches_operation
             ON renamer_revert_batches (operation_id);
         """;

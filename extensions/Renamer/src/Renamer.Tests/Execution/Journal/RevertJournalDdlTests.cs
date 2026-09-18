@@ -113,8 +113,16 @@ public sealed class RevertJournalDdlTests
         Assert.Equal("", (await db.Set<RevertRowEntity>().AsNoTracking().SingleAsync()).SidecarsJson);
     }
 
+    /// <summary>
+    /// The operation column lands on a table that already holds a batch, and that batch keeps no
+    /// operation of its own.
+    /// </summary>
+    /// <remarks>
+    /// The column is added by <see cref="SqliteJournalSchema"/>, not by the shipped second migration,
+    /// which is PostgreSQL-only. What is asserted is the shape readers depend on, not the string.
+    /// </remarks>
     [Fact]
-    public async Task TheSecondMigration_AddsTheColumnAndItsIndex_AndLeavesAnExistingBatchWithNoOperation()
+    public async Task TheOperationColumn_LandsBesideAnExistingBatch_AndLeavesItWithNoOperation()
     {
         var (db, conn) = CoveContextFactory.CreateSqliteContextWithoutSchema();
         await using var _ = db;
@@ -124,7 +132,7 @@ public sealed class RevertJournalDdlTests
         await db.Database.ExecuteSqlRawAsync(
             "INSERT INTO renamer_revert_batches (run_id, opened_at_utc_ticks, kind) VALUES ('legacy', 42, 'Video')");
 
-        await db.Database.ExecuteSqlRawAsync(RevertJournalSchema.Migration002UpSql);
+        await SqliteJournalSchema.AddOperationColumnAsync(db);
 
         Assert.Contains("ix_renamer_revert_batches_operation", await ObjectNamesAsync(conn));
 
@@ -134,12 +142,7 @@ public sealed class RevertJournalDdlTests
         Assert.Equal("", batch.OperationId);
     }
 
-    /// <summary>Applies the shipped migrations in the order the host applies them.</summary>
-    private static async Task ApplyShippedMigrationsAsync(DbContext db)
-    {
-        await db.Database.ExecuteSqlRawAsync(RevertJournalSchema.Migration001UpSql);
-        await db.Database.ExecuteSqlRawAsync(RevertJournalSchema.Migration002UpSql);
-    }
+    private static Task ApplyShippedMigrationsAsync(DbContext db) => SqliteJournalSchema.CreateAsync(db);
 
     private static async Task<List<string>> ObjectNamesAsync(SqliteConnection conn)
     {

@@ -2,7 +2,6 @@ using Cove.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Renamer.Execution;
 
 namespace Renamer.Tests.TestSupport;
 
@@ -11,7 +10,7 @@ namespace Renamer.Tests.TestSupport;
 /// check that reads the journal, and every read of a library table throws.
 /// </summary>
 /// <remarks>
-/// The journal is created by the SHIPPED migration string rather than by the entity model, so this
+/// The journal is created from the shipped migrations rather than from the entity model, so this
 /// fixture is wrong in the same way production would be wrong, rather than in its own way.
 /// </remarks>
 internal sealed class JournalOnlyDatabase : IAsyncDisposable
@@ -25,7 +24,7 @@ internal sealed class JournalOnlyDatabase : IAsyncDisposable
         var (db, conn) = CoveContextFactory.CreateSqliteContextWithoutSchema();
         await using (db)
         {
-            await db.Database.ExecuteSqlRawAsync(RevertJournalSchema.Migration001UpSql);
+            await SqliteJournalSchema.CreateAsync(db);
         }
 
         return new JournalOnlyDatabase(conn);
