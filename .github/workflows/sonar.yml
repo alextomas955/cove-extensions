@@ -30,9 +30,20 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # A fork's pull request carries no secret, so the scanner would fail on an empty token. Skipping
-    # is the honest outcome: the analysis did not run, rather than ran and found nothing.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    # Two conditions, both of which mean "the scanner has nothing to authenticate with", and both of
+    # which skip rather than fail: a run that could not analyse must not read as a run that analysed
+    # and found nothing.
+    #
+    # SONAR_PROJECT_KEY is the switch. Until it is set as a repository variable this workflow does
+    # nothing, which is what keeps it inert while the SonarQube Cloud project is still to be set up.
+    # It is a variable and not the secret because the `secrets` context is not readable in a job-level
+    # `if:`, and the two are set together.
+    #
+    # A pull request from a fork carries no secret at all, whatever is configured here.
+    if: >-
+      vars.SONAR_PROJECT_KEY != ''
+      && (github.event_name == 'push'
+          || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
     steps:
