@@ -123,6 +123,12 @@ you have anything to check:
   reports no totals. A file the scan planned can still be skipped when the rename reaches it, so treat
   the first number as what was attempted rather than what was renamed; dry-run again to see where the
   library now stands.
+- **A drive ran out of room**: "Stopped: insufficient free space for Video. Files renamed before each
+  stop stay renamed." A whole-library rename works one media kind at a time, so a kind whose
+  destination drive filled up stops there while the other kinds, which may be on other drives, carry
+  on. The message names the kinds that stopped. Whether undo still reaches what was renamed depends
+  on the size of the run, not on the stop: a run that renames more than 5,000 files records no undo
+  at all, as it would for any other reason.
 - **The job reported failure**: "Couldn't rename — [reason]. Nothing was changed; you can try again."
   Cove reported that the work stopped, so nothing was written. Fix the cause it names and run again.
 - **The outcome is unknown**: "Couldn't confirm the rename — [reason]." Renamer stopped watching before

@@ -41,7 +41,8 @@ public sealed class RenamerLibraryEndpointTests
         public IReadOnlyList<JobInfo> GetJobHistory() => throw new NotImplementedException();
     }
 
-    private static async Task<(global::Renamer.Renamer ext, FakeStore store)> NewExtensionAsync(SqliteConnection conn)
+    private static async Task<(global::Renamer.Renamer ext, FakeStore store)> NewExtensionAsync(
+        SqliteConnection conn, RenamerOptions? renamerOptions = null, string[]? libraryPaths = null)
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ =>
@@ -50,13 +51,19 @@ public sealed class RenamerLibraryEndpointTests
             return new CoveContext(options, principalAccessor: null);
         });
         services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+        if (libraryPaths is not null)
+        {
+            services.AddLibraryPaths(libraryPaths);
+        }
+
         var provider = services.BuildServiceProvider();
 
         var ext = RenamerFixture.Create();
         var store = new FakeStore();
         // Pin a stable title-only template so seeded (height-less) rows render a deterministic name,
         // independent of the shipped default template.
-        await new OptionsStore(store).SaveAsync(new RenamerOptions { FilenameTemplate = "$title" });
+        await new OptionsStore(store).SaveAsync(
+            renamerOptions ?? new RenamerOptions { FilenameTemplate = "$title" });
         ((IStatefulExtension)ext).SetStore(store);
         await ext.InitializeAsync(provider);
         return (ext, store);
@@ -209,6 +216,59 @@ public sealed class RenamerLibraryEndpointTests
             // Compared within a tolerance rather than exactly: the slice drops anything that reaches
             // the run's end, so the only report that can land here is the run's own final one.
             Assert.Equal(1, percents.Count(p => Math.Abs(p - 1d) < 1e-9));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// A run stopped by a free-space refusal does not close with a success message.
+    /// </summary>
+    /// <remarks>
+    /// The refusal reaches the user only through the run's own final report. Each kind reports its
+    /// closing 1.0 into a slice, and the slice drops anything that scales to the run's end, so a kind
+    /// that refused leaves nothing behind for the host to show.
+    /// <para>
+    /// Needs a second filesystem: the free-space guard measures cross-volume moves only, so an
+    /// in-place rename cannot be refused however little room the probe reports.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task RunRenamerLibraryJobAsync_FreeSpaceRefusal_FinalReportNamesIt_NotComplete()
+    {
+        Assert.SkipUnless(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
+
+        using var dir = new TempDir();
+        using var destination = new SecondVolume();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            await SeedVideoAndImageAsync(db, dir);
+
+            string destRoot = destination.Root.Replace('\\', '/').TrimEnd('/');
+            var options = new RenamerOptions
+            {
+                FilenameTemplate = "$title",
+                Kinds =
+                {
+                    [RenamerFileKind.Video] = new KindOptions { Destination = new Destination { Root = destRoot } },
+                },
+            };
+
+            var (ext, _) = await NewExtensionAsync(
+                conn, options, libraryPaths: [dir.Root.Replace('\\', '/').TrimEnd('/'), destRoot]);
+            var progress = new FakeJobProgress();
+
+            // The destination volume reports no room, so the video move is refused before any copy.
+            await ext.RunRenamerLibraryJobAsync(
+                [RenamerFileKind.Video, RenamerFileKind.Image], progress, default, _ => 0L);
+
+            string final = progress.Reports[^1].Message ?? string.Empty;
+            Assert.DoesNotContain("Library rename complete.", final, StringComparison.Ordinal);
+            Assert.Contains("insufficient free space", final, StringComparison.Ordinal);
         }
         finally
         {
