@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@cove/extension-sdk": "file:vendor/cove-extension-sdk-0.1.0.tgz",
-    "@tanstack/react-virtual": "3.14.12"
+    "@tanstack/react-virtual": "3.14.13"
   },
   "devDependencies": {
     "@types/node": "26.5.1",
