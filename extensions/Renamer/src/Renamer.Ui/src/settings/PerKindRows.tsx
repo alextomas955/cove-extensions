@@ -84,8 +84,12 @@ export function PerKindRows({ options, set, library }: Readonly<PerKindRowsProps
               </span>
               <div className="min-w-0 flex-1">{state}</div>
               <div className="flex shrink-0 gap-2">
+                {/* Withheld while the kind is excluded. Sending an excluded row back to the
+                    default would start renaming it again, which is not what a button about folders
+                    reads as; Include is the one way back. */}
                 <Button
                   variant="ghost"
+                  disabled={!enabled}
                   onClick={() => {
                     update(kind, true, followsDefault ? { ...NO_DESTINATION } : null);
                   }}

@@ -79,8 +79,8 @@ apply. The two buttons on the row change that, and their labels change with it.
 | ----------- | ----------------------------------------------------------------------------------- |
 | Own folder  | Gives the kind its own destination, used when no routing rule matches the item.     |
 | Exclude     | Stops Renamer touching items of that kind at all. The row then reads _Not renamed_. |
-| Use default | Puts the row back to the folder settings above, clearing any folder of its own.     |
 | Include     | Renames the kind again, with whatever folder it had before it was excluded.         |
+| Use default | Puts the row back to the folder settings above, clearing any folder of its own.     |
 
 A kind turned off is dropped from **Dry run** and **Rename all files** before it is read, so it adds
 nothing to the scan counts. Selecting items of that kind and using **Rename selected** reports them
@@ -92,7 +92,8 @@ items you have already routed by hand. An item that matches no rule goes to the 
 instead of the one in the card above.
 
 **Use default** removes the kind's stored entry, so the saved settings are the same as before you
-touched the row.
+touched the row. It is off while a kind is excluded: an excluded kind returns through **Include**,
+which is the only button that starts renaming it again.
 
 ## Scope & run
 

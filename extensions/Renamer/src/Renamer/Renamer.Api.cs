@@ -528,9 +528,6 @@ public sealed partial class Renamer
         // Read through the shared helper, never a list spelled again here: a kind added to
         // AnyWritePermissions and not to a second copy locks that kind's own writers out of undo while
         // every other path accepts them.
-        // Read through the shared helper, never a list spelled again here: a kind added to
-        // AnyWritePermissions and not to a second copy locks that kind's own writers out of undo while
-        // every other path accepts them.
         if (!HasAnyWritePermission(principal))
         {
             return new ForbiddenCode();

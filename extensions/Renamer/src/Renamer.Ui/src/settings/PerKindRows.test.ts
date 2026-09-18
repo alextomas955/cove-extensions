@@ -22,8 +22,15 @@ vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
   return {
     StatusText: ({ children }: { children: ReactNode }) => h("span", null, children),
-    Button: ({ children, onClick }: { children: ReactNode; onClick: () => void }) =>
-      h("button", { type: "button", onClick }, children),
+    Button: ({
+      children,
+      onClick,
+      disabled,
+    }: {
+      children: ReactNode;
+      onClick: () => void;
+      disabled?: boolean;
+    }) => h("button", { type: "button", onClick, disabled }, children),
   };
 });
 
@@ -55,14 +62,16 @@ async function renderRows(kinds: RenamerOptions["Kinds"]) {
     const cell = [...container.querySelectorAll("span")].find((s) => s.textContent === label);
     const element = cell?.parentElement;
     if (!element) throw new Error(`No row for ${label}`);
+    const button = (name: string) => {
+      const target = [...element.querySelectorAll("button")].find((b) => b.textContent === name);
+      if (!target) throw new Error(`No "${name}" button in the ${label} row`);
+      return target;
+    };
     return {
       text: () => element.textContent,
-      click: (button: string) => {
-        const target = [...element.querySelectorAll("button")].find(
-          (b) => b.textContent === button,
-        );
-        if (!target) throw new Error(`No "${button}" button in the ${label} row`);
-        target.click();
+      button,
+      click: (name: string) => {
+        button(name).click();
       },
     };
   };
@@ -108,6 +117,19 @@ test("an excluded kind reads as not renamed, and offers the way back", async () 
   // Including drops the entry rather than storing an enabled kind with no folder, which is what the
   // absent entry already means.
   expect(view.set).toHaveBeenCalledWith("Kinds", {});
+
+  view.unmount();
+});
+
+test("an excluded kind cannot be sent back to the default without being included first", async () => {
+  const view = await renderRows({ Video: { Enabled: false, Destination: null } });
+
+  const useDefault = view.row("Videos").button("Use default");
+  expect(useDefault.disabled).toBe(true);
+  useDefault.click();
+
+  // Pressing it must not quietly start renaming a kind the user excluded on purpose.
+  expect(view.set).not.toHaveBeenCalled();
 
   view.unmount();
 });
