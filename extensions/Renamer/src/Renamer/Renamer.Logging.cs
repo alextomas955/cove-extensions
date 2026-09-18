@@ -11,7 +11,7 @@ namespace Renamer;
 /// These use the <see cref="LoggerMessageAttribute"/> source generator (the pattern the analyzers
 /// require, CA1848/CA1873): each call site is a strongly-typed method with no boxing and no argument
 /// evaluation when the level is disabled. Keeping them here keeps the call sites in
-/// <c>Renamer.cs</c> / <c>Renamer.Api.cs</c> / <c>Renamer.Events.cs</c> terse.
+/// the other <c>Renamer</c> partials terse.
 /// </summary>
 public sealed partial class Renamer
 {

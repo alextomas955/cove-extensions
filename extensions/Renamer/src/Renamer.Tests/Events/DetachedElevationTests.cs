@@ -23,7 +23,7 @@ namespace Renamer.Tests.Events;
 /// conversion (covered by <c>OptionsMigrationInitializeTests</c>), the shared batch core's three
 /// elevated spans — its planning read, its destination-folder pre-create and its per-worker executor —
 /// the auto-renamer hook, and the two job bodies in
-/// <c>Renamer.Api.cs</c>. Adding a further span inside one of those bodies needs no case here: the case
+/// their own partials. Adding a further span inside one of those bodies needs no case here: the case
 /// for that body already asserts over EVERY command it ran.
 /// <para>
 /// Each case asserts two things, and the second is what makes the first mean anything: the principal at
