@@ -19,9 +19,18 @@ on:
   push:
     branches: [main]
   pull_request:
+  # An analysis is also worth running on demand: after a SonarQube Cloud setting changes, the stored
+  # result is stale until something re-analyses, and nothing in the repository has to change for that.
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+# One analysis per branch at a time. A superseded pull-request run only submits a result the next one
+# overwrites, and the scanner spends a full build and test run to produce it.
+concurrency:
+  group: sonar-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   DOTNET_VERSION: "10.0.x"
