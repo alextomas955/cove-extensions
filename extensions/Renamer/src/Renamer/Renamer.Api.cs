@@ -134,7 +134,7 @@ public sealed partial class Renamer
             .AddSettingsTab(
                 key: "renamer",
                 label: "Renamer",
-                description: "Build a filename from each item's metadata. Preview before it touches disk.",
+                description: "Build each filename from the item's own details. See every change before anything moves.",
                 order: 100,
                 layout: SettingsTabLayout.Page)
             .AddSettingsSection(targetTab: "renamer", label: "Renamer", componentName: "RenamerPage")
@@ -152,7 +152,7 @@ public sealed partial class Renamer
             id: RenamerJob.JobId,
             name: "Rename selected",
             handler: (parameters, progress, ct) => RunRenamerBatchAsync(parameters, progress, ct),
-            description: "Batch-renames the selected media items from the configured template.",
+            description: "Renames the items you selected, using your naming pattern.",
             supportsParameters: true,
             showInTaskList: true);
 
