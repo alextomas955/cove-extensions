@@ -61,7 +61,7 @@ destination, and any warnings — without changing anything.
    runs on the server and covers the current path, the new path, the new name and the destination
    folder, ignoring case.
 5. Rows load as you scroll, in scan order: videos, then images, then audio, then text documents,
-   each in library order. A kind you have turned off under Entity kinds is not scanned, so it
+   each in library order. A kind you have excluded under Per kind is not scanned, so it
    contributes no rows and no counts. On a large library the server reads it in stages, and a stage can pass with nothing in it
    that matches your filter; the table keeps asking for the next stage until the rows in view are
    covered, so a narrow filter fills in on its own. The line under the table says how many rows are

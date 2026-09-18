@@ -6,7 +6,7 @@ record together, previews every change before touching disk, and can undo the la
 bounded size.
 
 It renames videos, images, audio files and text documents. Each kind can be turned off on its own,
-and can be given its own destination folder, under Entity kinds in the settings panel.
+and can be given its own destination folder, under Per kind in the settings panel.
 
 ## Documentation
 

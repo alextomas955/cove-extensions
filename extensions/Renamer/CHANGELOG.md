@@ -12,13 +12,13 @@ and tested against. If you are on 1.3.1 and do not want to upgrade Cove, 0.4.0 k
 - **Renamer now renames text documents.** They join videos, images and audio: the same templates,
   the same dry run, the same undo. A **Rename selected** action appears on your text lists, and you
   need `texts.write` in Cove to use it. Nothing about the other kinds changes.
-- **Each kind can be turned off on its own.** A new _Entity kinds_ card under Scope & run has one row
-  per kind. A kind turned off is left out of the dry run and out of **Rename all files** entirely, so
+- **Each kind can be turned off on its own.** A new _Per kind_ list inside _Where files go_ has one
+  row per kind, with an **Exclude** button on each. A kind turned off is left out of the dry run and out of **Rename all files** entirely, so
   it adds nothing to the counts; selecting items of that kind and using **Rename selected** reports
   them as skipped and names the kind in the reason. Every kind starts on, which is what Renamer did
   before.
-- **Each kind can have its own destination folder.** Turn on _Send them to their own folder_ for a
-  kind and its items go there when no routing rule matches them - text documents to one tree and
+- **Each kind can have its own destination folder.** Press **Own folder** on a kind's row and its
+  items go there when no routing rule matches them - text documents to one tree and
   videos to another, say. This is a default, not an override: an item matched by a tag, studio,
   source-path or unorganized rule still goes where that rule says, so nothing you have already routed
   by hand moves.

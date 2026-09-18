@@ -1,11 +1,11 @@
 /**
- * How one edit in the "Entity kinds" card changes the stored per-kind map.
+ * How one edit in the "Per kind" list changes the stored per-kind map.
  *
  * Pure, so the rule can be read and tested without a DOM: a kind at its defaults is ABSENT from the
  * map rather than stored as an entry saying nothing, which is what keeps turning a setting on and
  * back off from leaving the blob different than it started.
  */
-import type { Destination, KindOptions, RenamableKind } from "./options";
+import { RENAMABLE_KINDS, type Destination, type KindOptions, type RenamableKind } from "./options";
 
 export type KindMap = Partial<Record<RenamableKind, KindOptions>>;
 
@@ -25,4 +25,13 @@ export function nextKinds(
   return enabled && destination === null
     ? rest
     : { ...rest, [kind]: { Enabled: enabled, Destination: destination } };
+}
+
+/** How many kinds are not renamed at all, and how many have a folder of their own. */
+export function kindsSummary(map: KindMap): { excluded: number; ownFolder: number } {
+  const settings = RENAMABLE_KINDS.map((kind) => kindSettings(map, kind));
+  return {
+    excluded: settings.filter((s) => !s.Enabled).length,
+    ownFolder: settings.filter((s) => s.Enabled && s.Destination !== null).length,
+  };
 }

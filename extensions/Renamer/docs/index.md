@@ -12,7 +12,7 @@ size limit it states before the rename runs.
 You need a kind's write permission in Cove to rename it, and its read permission to preview it. The
 **Rename selected** action appears on video, image and text lists; rename audio from the Rename
 settings page. Each kind can be turned off on its own, and can be given its own destination folder,
-under Entity kinds in the settings panel.
+under Per kind in the settings panel.
 
 ## In this section
 

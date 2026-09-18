@@ -69,6 +69,31 @@ folder to Cove's library paths, or pick a library path for the destination inste
 If you remove a folder from Cove's library paths, every rule that named it stops and says so rather
 than sending its items somewhere you did not choose. Re-pick a root, or add the folder back in Cove.
 
+### Per kind
+
+One row per kind Renamer can rename: videos, images, audio and text documents, at the foot of the
+card above. A row starts out reading _Follows the default_, meaning the folder settings above it
+apply. The two buttons on the row change that, and their labels change with it.
+
+| Button      | What it does                                                                        |
+| ----------- | ----------------------------------------------------------------------------------- |
+| Own folder  | Gives the kind its own destination, used when no routing rule matches the item.     |
+| Exclude     | Stops Renamer touching items of that kind at all. The row then reads _Not renamed_. |
+| Use default | Puts the row back to the folder settings above, clearing any folder of its own.     |
+| Include     | Renames the kind again, with whatever folder it had before it was excluded.         |
+
+A kind turned off is dropped from **Dry run** and **Rename all files** before it is read, so it adds
+nothing to the scan counts. Selecting items of that kind and using **Rename selected** reports them
+as skipped, with the kind named in the reason.
+
+A kind's own destination is a default, not an override. An item that matches a tag, studio,
+source-path or unorganized rule still goes where that rule says, so setting one here never redirects
+items you have already routed by hand. An item that matches no rule goes to the kind's destination
+instead of the one in the card above.
+
+**Use default** removes the kind's stored entry, so the saved settings are the same as before you
+touched the row.
+
 ## Scope & run
 
 ### What gets renamed
@@ -91,27 +116,6 @@ the setting off nothing is written, a title-less item resolves `$title` to nothi
 Undoing a rename puts the file back under its old name; the recorded title stays. A later rename of
 that item therefore renders the same name again rather than deriving a new one from whatever the file
 is called at the time.
-
-### Entity kinds
-
-One row per kind Renamer can rename: videos, images, audio and text documents.
-
-| Setting                       | What it does                                                                   | Default |
-| ----------------------------- | ------------------------------------------------------------------------------ | ------- |
-| Rename _kind_                 | Whether Renamer touches items of that kind at all.                             | On      |
-| Send them to their own folder | Give the kind its own destination, used when no routing rule matches the item. | Off     |
-
-A kind turned off is dropped from **Dry run** and **Rename all files** before it is read, so it adds
-nothing to the scan counts. Selecting items of that kind and using **Rename selected** reports them
-as skipped, with the kind named in the reason.
-
-A kind's own destination is a default, not an override. An item that matches a tag, studio,
-source-path or unorganized rule still goes where that rule says, so setting one here never redirects
-items you have already routed by hand. An item that matches no rule goes to the kind's destination
-instead of the one under [Where files go](#where-files-go).
-
-Turning both settings back off removes the kind's stored entry, so the saved settings are the same as
-before you touched it.
 
 ### Run & automation
 
