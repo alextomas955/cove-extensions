@@ -219,22 +219,13 @@ public interface IRenamerDataPort
     Task<RenamerEntity?> LoadEntityAsync(RenamerFileKind kind, int entityId, CancellationToken ct = default);
 
     /// <summary>
-    /// Returns every entity id of <paramref name="kind"/> currently in the library — an
-    /// <c>AsNoTracking</c> id-only bulk query, NOT full <see cref="RenamerEntity"/> graphs. The
-    /// per-id planner already does that full load when it actually plans each item, so a
-    /// whole-library scan calls this first to enumerate candidates, then <see cref="LoadEntityAsync"/>
-    /// per id exactly as it already does today.
-    /// </summary>
-    Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default);
-
-    /// <summary>
     /// The number of entities of <paramref name="kind"/> currently in the library.
     /// </summary>
     /// <remarks>
     /// The progress denominator a paged walk needs before it starts. A non-renamable kind counts 0
-    /// rather than throwing, mirroring <see cref="LoadAllEntityIdsAsync"/>. The count is a snapshot,
-    /// so rows inserted or deleted while the walk runs make it drift from what the pages yield; a
-    /// caller reporting a fraction from it has to tolerate that.
+    /// rather than throwing. The count is a snapshot, so rows inserted or deleted while the walk runs
+    /// make it drift from what the pages yield; a caller reporting a fraction from it has to tolerate
+    /// that.
     /// </remarks>
     Task<int> CountEntitiesAsync(RenamerFileKind kind, CancellationToken ct = default);
 
@@ -266,7 +257,12 @@ public interface IRenamerDataPort
     /// provider-ordered result would silently skip and repeat entities across pages as rows are
     /// inserted and deleted. A page shorter than <paramref name="take"/> means the kind is exhausted;
     /// a non-positive <paramref name="take"/> and a non-renamable kind both return empty rather than
-    /// throwing, mirroring <see cref="LoadAllEntityIdsAsync"/>.
+    /// throwing.
+    /// <para>
+    /// This is the only way to enumerate a kind. There is deliberately no read that returns every id
+    /// at once: a library reaches millions of entities, so one would be a materialization that grows
+    /// with it.
+    /// </para>
     /// </remarks>
     Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
         RenamerFileKind kind, int afterEntityId, int take, CancellationToken ct = default);

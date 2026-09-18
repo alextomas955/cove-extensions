@@ -319,27 +319,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
         StudioId: t.StudioId,
         ParentStudios: WalkParentStudios(t.Studio));
 
-    /// <summary>
-    /// An <c>AsNoTracking</c> id-only bulk query over the kind's table — Gallery (and any other
-    /// non-renamable kind) returns empty rather than throwing, mirroring <see cref="LoadEntityAsync"/>'s
-    /// own treatment of Gallery as "not yet a renamable kind."
-    /// </summary>
-    public async Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default)
-    {
-        // The ORDER BY is load-bearing, not tidiness: the whole-library dry run's paged readback walks
-        // this same id space as a keyset cursor (LoadEntityIdPageAsync), and the scan job re-orders its
-        // batch loads by this list. Without an explicit ordering the ids arrive in provider order — an
-        // implementation accident a cursor cannot rest on.
-        return kind switch
-        {
-            RenamerFileKind.Video => await _db.Set<Video>().AsNoTracking().OrderBy(v => v.Id).Select(v => v.Id).ToArrayAsync(ct),
-            RenamerFileKind.Image => await _db.Set<Image>().AsNoTracking().OrderBy(i => i.Id).Select(i => i.Id).ToArrayAsync(ct),
-            RenamerFileKind.Audio => await _db.Set<Audio>().AsNoTracking().OrderBy(a => a.Id).Select(a => a.Id).ToArrayAsync(ct),
-            RenamerFileKind.Text => await _db.Set<TextDocument>().AsNoTracking().OrderBy(t => t.Id).Select(t => t.Id).ToArrayAsync(ct),
-            _ => [],
-        };
-    }
-
     /// <inheritdoc />
     public async Task<int> CountEntitiesAsync(RenamerFileKind kind, CancellationToken ct = default) => kind switch
     {
@@ -382,6 +361,8 @@ public class CoveRenamerDataPort : IRenamerDataPort
     public async Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
         RenamerFileKind kind, int afterEntityId, int take, CancellationToken ct = default)
     {
+        // The ORDER BY below is load-bearing: it is the total order the caller's cursor rests on.
+        // In provider order a cursor skips and repeats entities across pages as rows change.
         if (take <= 0)
         {
             return [];

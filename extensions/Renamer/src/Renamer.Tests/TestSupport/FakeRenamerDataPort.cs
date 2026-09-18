@@ -31,8 +31,16 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     /// <summary>Pre-registers a folder path → id mapping (otherwise <see cref="GetOrCreateFolderIdAsync"/> mints one).</summary>
     public void SeedFolder(string path, int id) => _folderIds[path] = id;
 
-    /// <summary>Seeds the id set <see cref="LoadAllEntityIdsAsync"/> returns for <paramref name="kind"/>.</summary>
+    /// <summary>Seeds the ids <paramref name="kind"/>'s pages walk.</summary>
     public void SeedAllIds(RenamerFileKind kind, params int[] ids) => _allIds[kind] = [.. ids];
+
+    /// <summary>Every seeded id of <paramref name="kind"/>, ascending.</summary>
+    /// <remarks>
+    /// Test support, not a port member: the production interface offers no whole-kind read, so a
+    /// reference sequence for a paging-equivalence comparison has to come from the fake's own state.
+    /// </remarks>
+    public IReadOnlyList<int> SeededIds(RenamerFileKind kind) =>
+        _allIds.TryGetValue(kind, out var seeded) ? [.. seeded.OrderBy(id => id)] : [];
 
     /// <summary>Forward-slash source paths the test declares absent on disk; everything else reports present.</summary>
     public HashSet<string> MissingSources { get; } = new(StringComparer.Ordinal);
@@ -86,18 +94,8 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
         return Task.FromResult<IReadOnlyList<RenamerEntity>>(found);
     }
 
-    /// <summary>Number of <see cref="LoadAllEntityIdsAsync"/> calls — a walk that pages never makes one.</summary>
-    public int AllEntityIdCallCount { get; private set; }
-
     /// <summary>Every <see cref="LoadEntityIdPageAsync"/> call, in order, so a test can see how wide each ask was.</summary>
     public List<(RenamerFileKind Kind, int After, int Take)> IdPageRequests { get; } = [];
-
-    public Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default)
-    {
-        AllEntityIdCallCount++;
-        return Task.FromResult<IReadOnlyList<int>>(
-            _allIds.TryGetValue(kind, out var ids) ? [.. ids.OrderBy(id => id)] : []);
-    }
 
     public Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
         RenamerFileKind kind, int afterEntityId, int take, CancellationToken ct = default)

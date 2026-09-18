@@ -141,7 +141,8 @@ public sealed class ScanAggregateScaleTests
 
         int perKind = LargeFixture / RenamableKinds.All.Length;
 
-        Assert.Equal(0, port.AllEntityIdCallCount);
+        // That no whole-kind read happens is the compiler's job now: IRenamerDataPort offers none.
+        // What is left to assert is that the pages are narrow and that there are several per kind.
         Assert.True(port.IdPageRequests.Count > RenamableKinds.All.Length,
             "a kind of 2500 entities cannot be walked in one page");
         Assert.All(port.IdPageRequests, r => Assert.InRange(r.Take, 1, perKind - 1));
