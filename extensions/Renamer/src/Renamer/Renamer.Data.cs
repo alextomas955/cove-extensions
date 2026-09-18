@@ -4,18 +4,14 @@ using Renamer.Execution;
 namespace Renamer;
 
 /// <summary>
-/// The extension's data-extension hooks: the entity model it contributes to the host's context, and
-/// the schema migration the host applies for it.
-///
-/// Kept apart from the rest of the extension for the same reason the logging partial is: this is a
-/// host capability surface, defined once and never called from extension code, so putting it beside
-/// the batch and endpoint logic would only make both harder to read.
+/// The entity model this extension contributes to the host's context, and the schema migration the
+/// host applies for it.
 /// </summary>
 /// <remarks>
-/// Nothing is added to the class declaration for this. The base class already declares the capability
-/// interface, and the member that hands the host its migrations is not virtual — it clears the list
-/// and calls <c>DefineMigrations</c> every time it is asked, so overriding these two is the whole
-/// contract, and <c>DefineMigrations</c> must stay deterministic and free of side effects.
+/// The base class already declares the capability interface, so nothing is added to the class
+/// declaration here. The member that hands the host its migrations clears the list and calls
+/// <c>DefineMigrations</c> every time it is asked, so that override must stay deterministic and free
+/// of side effects.
 /// </remarks>
 public sealed partial class Renamer
 {

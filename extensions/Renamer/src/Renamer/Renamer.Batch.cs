@@ -16,21 +16,18 @@ namespace Renamer;
 /// </summary>
 public sealed partial class Renamer
 {
-    /// <summary>
-    /// One acting file's unit of execution work: a single-file plan the worker hands the executor, the
-    /// projected move tuple (used to partition same- from cross-volume and to re-check free space in
-    /// flight), and the parent entity id for per-item logging.
-    /// </summary>
+    // One acting file's unit of execution work. The move tuple partitions same- from cross-volume
+    // and re-checks free space in flight; the entity id is for per-item logging.
     private readonly record struct BatchUnit(
         int EntityId,
         Planner.RenamerPlan Plan,
         (string OldFullPath, string NewFullPath, long SizeBytes) Move);
 
-    /// <summary>What one chunk did, and the free-space refusal that stops the run when it is set.</summary>
+    // What one chunk did. Shortfall, when set, is the free-space refusal that stops the run.
     private readonly record struct ChunkOutcome(
         int Renamed, int Skipped, int Failed, int ContestedFiles, string? Shortfall);
 
-    /// <summary>Maps one chunk's own progress onto its share of a run over <paramref name="total"/> entities.</summary>
+    // Maps one chunk's own progress onto its share of a run over `total` entities.
     private sealed class ChunkSliceProgress(IJobProgress inner, int offset, int share, int total) : IJobProgress
     {
         public void Report(double percent, string? message = null)
@@ -39,14 +36,11 @@ public sealed partial class Renamer
                 message);
     }
 
-    /// <summary>The free-space reading the up-front refusal and the in-flight re-check share.</summary>
-    /// <remarks>
-    /// An unprobeable volume reads as <see cref="long.MaxValue"/> and never blocks a run: the reading is
-    /// a pre-flight courtesy, and the cross-volume mover verifies every copy and fails each item safely
-    /// when the disk really is full. <c>DriveInfo</c> throws for a root that is not a drive letter, such
-    /// as a UNC share reached through an allowed root, and the reading itself can hit a transient IO
-    /// error on an offline volume.
-    /// </remarks>
+    // The free-space reading the up-front refusal and the in-flight re-check share. An unprobeable
+    // volume reads as long.MaxValue and never blocks a run: the reading is a pre-flight courtesy, and
+    // the cross-volume mover verifies every copy and fails each item safely when the disk is full.
+    // DriveInfo throws for a root that is not a drive letter, such as a UNC share reached through an
+    // allowed root, and the reading can hit a transient IO error on an offline volume.
     private static long AvailableFreeSpace(string volume)
     {
         try
@@ -63,19 +57,10 @@ public sealed partial class Renamer
         }
     }
 
-    /// <summary>Renames every id in the decoded batch and reports a final <c>1.0</c>.</summary>
-    /// <remarks>
-    /// One selection is one user action, so this call is its own operation and everything it renames
-    /// comes back from a single undo. Bad, empty or unsupported input is a clean no-op that still
-    /// reports the final <c>1.0</c>: job parameters are untrusted, and this never throws on them.
-    /// </remarks>
-    /// <param name="parameters">The host's string-only job parameter map (entity type plus id list).</param>
-    /// <param name="progress">The job-progress sink, reported through the run and a final <c>1.0</c>.</param>
-    /// <param name="ct">Cancellation token; a genuine cancellation aborts the run.</param>
-    /// <param name="freeSpaceProbe">
-    /// The available-free-space reading both the up-front refusal and the in-flight re-check take;
-    /// defaults to <see cref="AvailableFreeSpace"/>.
-    /// </param>
+    // Renames every id in the decoded batch. One selection is one user action, so this call is its
+    // own operation and everything it renames comes back from a single undo. Job parameters are
+    // untrusted: bad, empty or unsupported input is a no-op that still reports the final 1.0, and
+    // this never throws on them.
     internal async Task RunRenamerBatchAsync(
         IReadOnlyDictionary<string, string>? parameters, IJobProgress progress, CancellationToken ct,
         Func<string, long>? freeSpaceProbe = null)
@@ -103,24 +88,12 @@ public sealed partial class Renamer
             options, freeSpaceProbe ?? AvailableFreeSpace, RenameChunkEntities, progress, ct);
     }
 
-    /// <summary>
-    /// Renames every entity of <paramref name="kind"/>, walking the kind's ids a page at a time through
-    /// the same chunk the selection path drives.
-    /// </summary>
-    /// <remarks>
-    /// <paramref name="totalEntities"/> is a snapshot taken before the walk, so the fraction it scales
-    /// can drift from what the pages yield; the caller's own final report is what lands the bar. The
-    /// walk's cursor is the entity id, which a rename never changes, so the run's own writes can
-    /// neither skip a page nor repeat one.
-    /// </remarks>
-    /// <param name="kind">The media kind to walk.</param>
-    /// <param name="totalEntities">The progress denominator, counted before the walk starts.</param>
-    /// <param name="budget">The journal budget of the operation this walk belongs to.</param>
-    /// <param name="options">The options the whole run plans with, read once by the caller.</param>
-    /// <param name="progress">The sink this kind's share of the run reports into.</param>
-    /// <param name="ct">Cancellation token; a cancellation between chunks leaves earlier chunks done and undoable.</param>
-    /// <param name="freeSpaceProbe">The free-space reading; defaults to <see cref="AvailableFreeSpace"/>.</param>
-    /// <param name="chunkEntities">The entities one chunk covers.</param>
+    // Renames every entity of one kind, walking its ids a page at a time through the same chunk the
+    // selection path drives. totalEntities is a snapshot taken before the walk, so the fraction it
+    // scales drifts from what the pages yield and the caller's final report lands the bar. The
+    // cursor is the entity id, which a rename never changes, so the run's own writes can neither
+    // skip a page nor repeat one. A cancellation between chunks leaves earlier chunks done and
+    // undoable.
     internal Task RunRenamerKindAsync(
         RenamerFileKind kind, int totalEntities, OperationJournalBudget budget, RenamerOptions options,
         IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null,
@@ -147,10 +120,8 @@ public sealed partial class Renamer
             freeSpaceProbe ?? AvailableFreeSpace, chunkEntities, progress, ct);
     }
 
-    /// <summary>
-    /// Drives <paramref name="nextChunk"/> to exhaustion through the shared chunk body, tallies what
-    /// the chunks did and reports the run's final <c>1.0</c> with what happened.
-    /// </summary>
+    // Drives nextChunk to exhaustion through the shared chunk body, tallies what the chunks did and
+    // reports the run's final 1.0 with what happened.
     private async Task RunRenameChunksAsync(
         RenamerFileKind kind,
         Func<CancellationToken, Task<IReadOnlyList<int>>> nextChunk,
@@ -232,19 +203,15 @@ public sealed partial class Renamer
         progress.Report(1d, $"Rename complete.{RefusedNote(contested)}");
     }
 
-    /// <summary>
-    /// Plans one chunk of ids over a single read-only scope, refuses it if a destination volume would
-    /// not fit, then executes what acts in parallel.
-    /// </summary>
-    /// <remarks>
-    /// The one implementation both a selection and a whole-library walk run through. Same-volume
-    /// renames run bounded by <c>SameVolumeConcurrency</c> and cross-volume copies by
-    /// <c>CrossVolumeConcurrency</c> within one (source,destination) disk pair; the pairs themselves run
-    /// one after another, so peak concurrency is one pair's bound and never the sum over pairs. Each
-    /// worker opens its own scope and resolves its own <see cref="DbContext"/>, because a
-    /// <c>DbContext</c> is not thread-safe and Cove disables EF's thread-safety checks, so a shared one
-    /// would corrupt silently.
-    /// </remarks>
+    // Plans one chunk of ids over a single read-only scope, refuses it if a destination volume would
+    // not fit, then executes what acts in parallel. Both a selection and a whole-library walk run
+    // through here.
+    //
+    // Same-volume renames are bounded by SameVolumeConcurrency and cross-volume copies by
+    // CrossVolumeConcurrency within one (source, destination) disk pair; the pairs run one after
+    // another, so peak concurrency is one pair's bound and never the sum over pairs. Each worker
+    // opens its own scope and resolves its own DbContext: a DbContext is not thread-safe and Cove
+    // disables EF's thread-safety checks, so a shared one corrupts silently.
     private async Task<ChunkOutcome> RunRenameChunkAsync(
         IReadOnlyList<int> ids,
         RenamerFileKind kind,
@@ -510,21 +477,14 @@ public sealed partial class Renamer
             ? $" {contestedFiles} file(s) refused: more than one record names the same file."
             : "";
 
-    /// <summary>
-    /// Opens <paramref name="runId"/>'s journal batch, or suppresses journalling for the whole operation
-    /// once its running acting-file total is past the row cap.
-    /// </summary>
-    /// <remarks>
-    /// Suppressing takes the operation out rather than recording part of it: a partly-journalled rename
-    /// reads exactly like a whole one, and the undo after it is quietly partial. A whole-library run over
-    /// the cap is therefore not undoable at all, which the log says once per chunk that meets the latch.
-    /// <para>
-    /// Both the manual run and the per-edit auto-renamer decide this here, so a rename's undoability
-    /// never depends on which path performed it. One method also gives the branch a seam a test can
-    /// reach: the cap is thousands of files, so driving the suppressed side through either caller would
-    /// mean seeding that many files on disk.
-    /// </para>
-    /// </remarks>
+    // Opens the run's journal batch, or suppresses journalling for the whole operation once its
+    // running acting-file total passes the row cap. Suppressing takes the operation out rather than
+    // recording part of it: a partly-journalled rename reads exactly like a whole one, and the undo
+    // after it is quietly partial. A whole-library run over the cap is not undoable at all, which the
+    // log states once per chunk that meets the latch.
+    //
+    // The manual run and the per-edit auto-renamer both decide it here, so a rename's undoability
+    // never depends on which path performed it.
     internal async Task OpenOrSuppressBatchAsync(
         IRevertJournal journal,
         string runId,
