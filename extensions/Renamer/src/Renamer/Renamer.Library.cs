@@ -149,7 +149,8 @@ public sealed partial class Renamer
     /// kind with no entities is skipped, so no empty batch header opens for it.
     /// </remarks>
     internal async Task RunRenamerLibraryJobAsync(
-        IReadOnlyList<RenamerFileKind> writableKinds, Cove.Plugins.IJobProgress progress, CancellationToken ct)
+        IReadOnlyList<RenamerFileKind> writableKinds, Cove.Plugins.IJobProgress progress,
+        CancellationToken ct, Func<string, long>? freeSpaceProbe = null)
     {
         var options = await new OptionsStore(Store, _log).LoadAsync(ct);
 
@@ -180,18 +181,34 @@ public sealed partial class Renamer
         // cap is measured over that operation, so a run too large to journal drops all of itself.
         var budget = new OperationJournalBudget(Guid.NewGuid().ToString("N"));
 
+        var refused = new List<RenamerFileKind>();
         foreach (var (kind, count) in countByKind)
         {
             ct.ThrowIfCancellationRequested();
 
             LogLibraryKind(kind, count);
 
-            await RunRenamerKindAsync(
-                kind, count, budget, options, new KindSliceProgress(progress, planned, count, total), ct);
+            // A kind that ran out of room stops, and the walk moves to the next kind, which may sit on
+            // another volume. The refusal is collected because the run's own final report is the only
+            // one the host keeps: KindSliceProgress drops a kind's closing 1.0, so a kind that refused
+            // would otherwise reach the user as nothing at all.
+            string? shortfall = await RunRenamerKindAsync(
+                kind, count, budget, options, new KindSliceProgress(progress, planned, count, total), ct,
+                freeSpaceProbe);
+            if (shortfall is not null)
+            {
+                refused.Add(kind);
+            }
+
             planned += count;
         }
 
-        progress.Report(1d, "Library rename complete.");
+        progress.Report(
+            1d,
+            refused.Count == 0
+                ? "Library rename complete."
+                : $"Stopped: insufficient free space for {string.Join(", ", refused)}. "
+                    + "Files renamed before each stop stay renamed.");
     }
 
     // Maps one kind's [0, 1] batch progress onto that kind's share of a whole-library run. The run's
