@@ -10,8 +10,8 @@ namespace Renamer.Tests.Planner;
 /// a Move whose <see cref="RenamerPlanItem.ResolvedDestinationRoot"/> / <see cref="RenamerPlanItem.MatchedRule"/>
 /// / <see cref="RenamerPlanItem.TargetVolume"/> reflect the matched route, and confinement is anchored
 /// on the destination's own root (so the move lands on the destination volume). An entity no rule
-/// matched takes the default destination, measured from the library path holding the file. pure - no
-/// disk, no DB; every test asserts zero <c>ApplyAndSaveAsync</c> calls.
+/// matched takes the default destination, measured from the library path holding the file. Pure: no
+/// disk and no database.
 /// </summary>
 public sealed class RoutingPlannerTests
 {

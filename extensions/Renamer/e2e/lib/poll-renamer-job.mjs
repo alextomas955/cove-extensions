@@ -14,7 +14,7 @@ const TERMINAL = ["completed", "failed", "cancelled"];
  * @param {object} api - the request helper, driven as whichever principal the spec is testing.
  * @param {string} routeBase - the extension's route prefix, e.g. `/api/extensions/<id>`.
  * @param {string} jobId - the id the enqueue returned.
- * @returns the last status body, whose `status` is one of {@link terminal}.
+ * @returns the last status body, whose `status` is one of {@link TERMINAL}.
  */
 export async function pollRenamerJob(api, routeBase, jobId, { timeoutMs = 60_000 } = {}) {
   return pollUntil(

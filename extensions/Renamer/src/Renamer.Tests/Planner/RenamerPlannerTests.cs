@@ -6,9 +6,9 @@ namespace Renamer.Tests.Planner;
 
 /// <summary>
 /// Dry-run core: <c>RenamerPlanner.PlanAsync</c> produces an accurate per-file
-/// old→new plan with the right <see cref="RenamerStatus"/> while mutating nothing — every test
-/// asserts the <see cref="FakeRenamerDataPort"/> recorded zero <c>ApplyAndSaveAsync</c> calls. Also covers
-/// the happy-path renamer, NoOp, and the confinement rejection.
+/// old→new plan with the right <see cref="RenamerStatus"/>. Covers the happy-path renamer, NoOp,
+/// and the confinement rejection. That planning mutates nothing is pinned by
+/// <see cref="PreviewPurityTests"/>.
 /// </summary>
 public sealed class RenamerPlannerTests
 {

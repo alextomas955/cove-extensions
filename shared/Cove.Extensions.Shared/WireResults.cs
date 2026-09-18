@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Http.Metadata;
 
 namespace Cove.Extensions.Shared;
 
-/// <summary>A <c>403 forbidden</c> result carrying an <see cref="ErrorCode"/> body and its own schema.</summary>
+/// <summary>A <c>403 FORBIDDEN</c> result carrying an <see cref="ErrorCode"/> body and its own schema.</summary>
 /// <remarks>
 /// The framework's typed results cover every other arm these endpoints return, but none of them is a 403
 /// with a body: <c>ForbidHttpResult</c> writes none, and the results that do carry one describe no
@@ -58,7 +58,7 @@ public sealed class ForbiddenCode
 /// changing it is a wire break.
 /// </remarks>
 /// <param name="Code">
-/// A stable SCREAMING_SNAKE token the UI branches on (<c>forbidden</c>, <c>INVALID_BODY</c>, …). Not
+/// A stable SCREAMING_SNAKE token the UI branches on (<c>FORBIDDEN</c>, <c>INVALID_BODY</c>, …). Not
 /// localized and not for display; it is part of the wire contract, so changing one is a breaking change
 /// even though nothing in the type system says so.
 /// </param>

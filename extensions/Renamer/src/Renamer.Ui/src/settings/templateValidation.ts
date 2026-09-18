@@ -22,14 +22,14 @@ const KNOWN = new Set(TOKENS.map((t) => t.token.slice(1).toLowerCase()));
 
 /**
  * The bare token names (leading `$` stripped), in tokens declaration order — single-sourced from
- * the same `tokens` constant, no re-listed literals. Used by the TokenPicker menu, whose
+ * the same `TOKENS` constant, no re-listed literals. Used by the TokenPicker menu, whose
  * fields (RequiredFields / DropOrder) take bare names (`title`), not `$title`. Preserves original
  * case for display; matching is done case-insensitively by {@link isKnownToken} / the engine.
  */
 export const BARE_TOKENS: readonly string[] = TOKENS.map((t) => t.token.slice(1));
 
 /**
- * True when `name` is a known engine token (compared lower-cased against the same `known` set the
+ * True when `name` is a known engine token (compared lower-cased against the same `KNOWN` set the
  * template validator uses — so the picker, the token advisory, and `unknownTokens` never drift).
  * Accepts a bare name (`title`); a leading `$` is tolerated and stripped first.
  */
@@ -87,7 +87,7 @@ export function unknownTokens(s: string): string[] {
 /**
  * True when a bare `$token` (case-insensitive, `$$`-escape-aware) appears in either template.
  * Mirrors {@link unknownTokens}' exact scan algorithm but tests one caller-supplied name instead
- * of the canonical `known` set, so it needs no `tokens`/`known` lookup and stays dependency-free.
+ * of the canonical `KNOWN` set, so it needs no `TOKENS`/`KNOWN` lookup and stays dependency-free.
  */
 function scanForToken(s: string, wantLower: string): boolean {
   for (let i = 0; i < s.length; i++) {

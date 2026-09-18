@@ -17,7 +17,7 @@ export interface ExtensionDataStore {
  * Binds the host's extension data store to one extension id.
  *
  * Two methods, because the host serves two routes: the collection `GET /api/extensions/{id}/data`
- * and the per-key `put /api/extensions/{id}/data/{key}`. There is no per-key GET, no collection
+ * and the per-key `PUT /api/extensions/{id}/data/{key}`. There is no per-key GET, no collection
  * POST and no DELETE; a store offering those targets routes that do not exist.
  */
 export function createExtensionDataStore(extensionId: string): ExtensionDataStore {
