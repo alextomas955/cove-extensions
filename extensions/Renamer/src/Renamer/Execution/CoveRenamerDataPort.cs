@@ -453,7 +453,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
     }
 
     /// <summary>Resolves an existing <see cref="Folder"/> by path or creates+saves one for its Id. Returns the tracked entity.</summary>
-    public async Task<Folder> GetOrCreateFolderAsync(string folderPath, CancellationToken ct = default)
+    private async Task<Folder> GetOrCreateFolderAsync(string folderPath, CancellationToken ct = default)
     {
         var normalized = folderPath.Replace('\\', '/');
         var existing = await _db.Set<Folder>().FirstOrDefaultAsync(f => normalized == f.Path, ct);
