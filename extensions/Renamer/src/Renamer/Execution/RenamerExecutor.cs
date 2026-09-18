@@ -7,17 +7,14 @@ using static global::Renamer.Execution.PathOps;
 
 namespace Renamer.Execution;
 
-/// <summary>
-/// The mutating half of the renamer slice. Consumes a <see cref="RenamerPlan"/> and applies each item
-/// INDEPENDENTLY (one failure never aborts the batch) with the safety spine: execution-time
-/// collision re-check (disk + DB) → disk move FIRST → set Basename/ParentFolderId (+ caption.Filename)
-/// and a single save → assert the recomputed Path matches the on-disk path → revert-log + event; on a
-/// post-move save failure, roll the disk back.
-///
-/// It NEVER assigns <c>BaseFileEntity.Path</c> (that is <c>CoveRenamerDataPort</c>'s job, and it
-/// only sets Basename/ParentFolderId; Cove recomputes Path). The OS file lock is never forced: a
-/// locked source surfaces as a skip from <see cref="DiskMover"/> rather than killing whatever holds it.
-/// </summary>
+// Applies each plan item independently; one item's failure does not abort the batch. The order per
+// item is fixed: re-check the collision against disk and database, move on disk, set
+// Basename/ParentFolderId and save once, then assert the Path Cove recomputed matches the on-disk
+// path, then journal and publish. A move that succeeded followed by a save that failed is rolled back
+// on disk.
+//
+// BaseFileEntity.Path is never assigned here: Cove recomputes it from Basename/ParentFolderId inside
+// the save. A locked source comes back from DiskMover as a skip; the lock is not forced.
 public sealed class RenamerExecutor
 {
     private readonly IRenamerDataPort _port;
@@ -27,18 +24,12 @@ public sealed class RenamerExecutor
     private readonly DiskMover _disk;
     private readonly CrossVolumeMover _cross;
 
-    /// <summary>Bound on the execution-time collision suffix loop before giving up with a skip.</summary>
+    // Bound on the execution-time collision suffix loop before giving up with a skip.
     private const int MaxSuffixAttempts = 1000;
 
-    // The <paramref name="runId"/> names the batch every journalled row belongs to, and is required
-    // rather than defaulted: a row that names no batch is one the journal can store but never read
-    // back, so an undo would silently find nothing. The caller passes the SAME run id it opened the
-    // batch with.
-    //
-    // The optional <paramref name="cross"/> mover is used when a move crosses volumes (different path
-    // roots). It defaults to a fresh CrossVolumeMover() when omitted, so every existing construction
-    // site (production wiring + the test suite) stays source-compatible; a test may inject a
-    // fault-seam / recording mover via this parameter.
+    // The run id names the batch every journalled row belongs to. A row that names no batch can be
+    // stored but never read back, so an undo would find nothing; the caller passes the run id it
+    // opened the batch with.
     public RenamerExecutor(IRenamerDataPort port, IEventBus eventBus, IRevertJournal journal, string runId,
         DiskMover disk, CrossVolumeMover? cross = null)
     {
@@ -50,56 +41,32 @@ public sealed class RenamerExecutor
         _cross = cross ?? new CrossVolumeMover();
     }
 
-    /// <summary>A per-item execution outcome surfaced in the run result's buckets.</summary>
-    /// <param name="FileId">The file row.</param>
-    /// <param name="OldPath">The path before execution.</param>
-    /// <param name="NewPath">The path after execution (or the intended/attempted path on skip/fail).</param>
-    /// <param name="Status">The terminal status (Renamer/Move/NoOp/SkipGated/SkipCollision/SkipLocked/SkipMissingSource/SkipBlocked/Failed).</param>
-    /// <param name="Reason">
-    /// A human-readable note: why a skip or a failure happened, or — on a renamed item — what went wrong
-    /// alongside a rename that still succeeded (a rejected sidecar, an unwritten revert-log entry, a
-    /// source folder that could not be cleaned up). Null when a rename had nothing to report.
-    /// </param>
+    // NewPath is the intended path on a skip or a failure. Reason says why a skip or a failure
+    // happened, or what went wrong alongside a rename that still succeeded (a rejected sidecar, an
+    // unwritten revert-log entry, a source folder that could not be cleaned up); it is null when a
+    // rename had nothing to report.
     public sealed record ItemResult(int FileId, string OldPath, string NewPath, RenamerStatus Status, string? Reason);
 
-    /// <summary>
-    /// The result of executing a plan: the items that renamed/moved, the items skipped (gated /
-    /// collision / locked / no-op), and the items that failed.
-    /// </summary>
-    /// <remarks>
-    /// A failed item is one whose save threw or whose saved row could not be verified. Only the first
-    /// rolls the disk back; a save that committed is never reverted, so the two are distinguished by the
-    /// item's <see cref="ItemResult.Reason"/> rather than by the bucket.
-    /// <para>
-    /// It deliberately carries NO copy of the journalled rows. The journal table is the durable record
-    /// of what can be put back, so a second in-memory list of the same facts could only drift from it —
-    /// and it would have to be thread-safe as well, since one result object is built per worker while
-    /// one journal is shared by all of them. A caller that wants to know what was journalled reads the
-    /// journal.
-    /// </para>
-    /// </remarks>
+    // A failed item is one whose save threw or whose saved row could not be verified. Only the first
+    // rolls the disk back; a save that committed is never reverted, so the two are told apart by the
+    // item's Reason and not by the bucket.
+    //
+    // It carries no copy of the journalled rows. The journal table is the durable record of what can be
+    // put back, so a second in-memory list would drift from it, and it would have to be thread-safe as
+    // well: one result object is built per worker while one journal is shared by all of them.
     public sealed record RenamerRunResult(
         IReadOnlyList<ItemResult> Renamed,
         IReadOnlyList<ItemResult> Skipped,
         IReadOnlyList<ItemResult> Failed);
 
-    /// <summary>
-    /// Executes every item of <paramref name="plan"/> independently. Items the planner already
-    /// classified as skip/no-op are carried into the skipped bucket untouched.
-    /// </summary>
-    /// <param name="plan">The single-entity plan whose items this executor acts on.</param>
-    /// <param name="options">The renamer options (template / suffix format).</param>
-    /// <param name="preResolvedFolderIds">
-    /// An optional <c>TargetFolderPath → folderId</c> map pre-resolved ONCE in the caller's
-    /// sequential phase. When supplied, a Move item reads its destination folder id from this map
-    /// instead of calling <see cref="IRenamerDataPort.GetOrCreateFolderIdAsync"/> here — so a batch
-    /// running this executor across many parallel workers NEVER does a check-then-act folder create on
-    /// shared <c>Folder</c> rows (which raced to duplicate-row creation / <c>DbUpdateException</c>). For
-    /// a single-threaded caller (tests, the in-place path) the map may be null/absent for a path, in
-    /// which case the executor falls back to resolving the folder itself — safe because there is no
-    /// concurrency on that call path.
-    /// </param>
-    /// <param name="ct">Cancellation token; a genuine cancellation aborts the run.</param>
+    // Items the planner already classified as skip or no-op are carried into the skipped bucket
+    // untouched. A cancellation aborts the run.
+    //
+    // preResolvedFolderIds maps a target folder path to its folder id, resolved once in the caller's
+    // sequential phase. With it, no parallel worker does a check-then-act folder create on a shared
+    // Folder row, which raced to duplicate rows and a DbUpdateException. When the map is absent, or
+    // carries no entry for a path, the executor resolves the folder itself; that is safe only because
+    // the callers that omit the map are single-threaded.
     public async Task<RenamerRunResult> ExecuteAsync(
         RenamerPlan plan, RenamerOptions options,
         IReadOnlyDictionary<string, int>? preResolvedFolderIds = null, CancellationToken ct = default)
@@ -108,8 +75,8 @@ public sealed class RenamerExecutor
         var skipped = new List<ItemResult>();
         var failed = new List<ItemResult>();
 
-        // The plan carries DTO captions only via the loaded entity; reload it once so the executor
-        // can resolve each file's sidecar set (the plan items reference file ids, not captions).
+        // Plan items reference file ids, not captions, so the entity is loaded once here to resolve
+        // each file's sidecar set.
         var entity = await _port.LoadEntityAsync(plan.Kind, plan.EntityId, ct);
         var filesById = entity?.Files.ToDictionary(f => f.FileId) ?? [];
 
@@ -122,9 +89,9 @@ public sealed class RenamerExecutor
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // A cancellation (host shutdown) is cancellation, not a per-item failure — the filter
-                // excludes it. Any other unexpected throw outside the save path is reported as a failure
-                // for that item only — the batch continues. (Save-path throws are handled inside the item.)
+                // A cancellation on host shutdown is not a per-item failure, so the filter excludes it.
+                // Any other throw outside the save path fails that one item and the batch continues;
+                // save-path throws are handled inside the item.
                 failed.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath, RenamerStatus.Failed,
                     $"unexpected error: {ex.Message}"));
             }
@@ -140,20 +107,16 @@ public sealed class RenamerExecutor
         List<ItemResult> renamed, List<ItemResult> skipped, List<ItemResult> failed,
         CancellationToken ct)
     {
-        // (1) Carry planner skips/no-ops straight into the skipped bucket (act only on Renamer/Move).
         if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
         {
             skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath, item.Status, item.Reason));
             return;
         }
 
-        // (1a) SOURCE-PRESENCE PRE-CHECK — the first thing done for an item we will actually act on,
-        //      BEFORE the folder resolve, the collision loop, and the mover.
-        //      A source that is in the DB but gone from disk would otherwise fall through to the mover
-        //      and surface as a swallowed FileNotFoundException/DirectoryNotFoundException — both
-        //      derive from IOException, which the mover buckets as LockedOrExists → SkipLocked, so a
-        //      genuinely-gone file would be mislabeled "in use". Pre-empting the mover here classifies
-        //      it as SkipMissingSource instead. This is a safe no-op skip (nothing moves/saves).
+        // A source that is in the database but gone from disk reaches the mover as a
+        // FileNotFoundException or a DirectoryNotFoundException, both of which derive from IOException
+        // and so bucket as SkipLocked, labelling a gone file "in use". This check runs before the folder
+        // resolve, the collision loop and the mover, and nothing has been moved or saved yet.
         if (!System.IO.File.Exists(ToNative(item.OldFullPath)))
         {
             skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath,
@@ -163,12 +126,8 @@ public sealed class RenamerExecutor
 
         bool isMove = item.Status == RenamerStatus.Move;
 
-        // (2) Resolve the destination folder id. For an in-place renamer it is the source folder.
-        //     For a Move, prefer the folder id the caller PRE-RESOLVED once in its sequential
-        //     phase (keyed by TargetFolderPath) so no parallel worker does a check-then-act create on a
-        //     shared Folder row. Fall back to resolving here only when no pre-resolved map is supplied
-        //     (single-threaded callers / tests) — never on the parallel batch path, which always passes
-        //     the map.
+        // A move prefers the caller's pre-resolved folder id so that no parallel worker does a
+        // check-then-act create on a shared Folder row. The parallel batch path always passes the map.
         var srcFile = filesById.GetValueOrDefault(item.FileId);
         int targetFolderId;
         if (isMove)
@@ -184,19 +143,17 @@ public sealed class RenamerExecutor
             targetFolderId = srcFile?.ParentFolderId ?? 0;
         }
 
-        // (3) Execution-time COLLISION re-check: the planner's snapshot may be stale by now.
-        //     Re-suffix against BOTH disk and DB until free; if never free → skip-collision.
+        // The planner's snapshot may be stale by now, so the collision is re-checked against both disk
+        // and database and re-suffixed until the name is free.
         string targetFolder = item.TargetFolderPath;
         var (filename, ext) = SplitBasename(item.NewBasename);
         string candidate = item.NewBasename;
         string newFull = JoinPath(targetFolder, candidate);
         int attempt = 0;
-        // The disk-side File.Exists check excludes only the source file's OWN case-variant slot: on a
-        // case-insensitive volume File.Exists("Movie.mkv") is true while "movie.mkv" exists, but a
-        // case-only renamer of the file onto itself is exactly the move the OS performs, not a clobber —
-        // counting it as a collision would needlessly suffix it. A DIFFERENT file at that name (paths
-        // not equal under the platform comparer) still collides. This restores symmetry with the
-        // DB-side CollisionExistsAsync, which already excludes the source row (item.FileId).
+        // The disk check excludes only the source file's own case-variant slot. On a case-insensitive
+        // volume File.Exists("Movie.mkv") is true while "movie.mkv" exists, and a case-only rename of
+        // the file onto itself is the move the OS performs, not a clobber. A different file at that name
+        // still collides. The database check already excludes the source row.
         while ((System.IO.File.Exists(ToNative(newFull)) && !IsSelfPath(newFull, item.OldFullPath))
                || await _port.CollisionExistsAsync(targetFolderId, candidate, item.FileId, ct))
         {
@@ -211,10 +168,9 @@ public sealed class RenamerExecutor
             newFull = JoinPath(targetFolder, candidate);
         }
 
-        // (3b) Re-measure the absolute-path budget against the SETTLED candidate. The loop above
-        //      re-suffixes against a fresher snapshot than the plan saw, so it can reach a name longer
-        //      than any the plan measured. Nothing is mutated yet - this precedes the sidecar plan, the
-        //      canonical guard and every disk write - so the source stays where it is.
+        // The suffix loop works from a fresher snapshot than the plan saw, so it can settle on a name
+        // longer than any the plan measured. This re-measure precedes the sidecar plan, the canonical
+        // guard and every disk write, so a rejected candidate leaves the source where it is.
         var budget = PathConfinement.WithinBudget(targetFolder, candidate, options);
         if (!budget.Accepted)
         {
@@ -223,18 +179,14 @@ public sealed class RenamerExecutor
             return;
         }
 
-        // (4) Sidecar moves: DB-tracked captions + configured same-stem neighbors that ride with the primary.
         var (plannedSidecars, captionRenames, sidecarWarnings) =
             PlanSidecarMoves(srcFile, item.OldFullPath, targetFolder, candidate, options);
 
-        // (5) DISK MOVE FIRST — move on disk before touching the DB, so a failed move leaves the
-        //     database untouched (the DB stays authoritative and never points at a missing file).
-        //     VOLUME BRANCH: a
-        //     same-volume renamer takes the atomic synchronous DiskMover.Move fast path; a
-        //     cross-volume move takes the verified copy→verify→promote→delete-source-last
-        //     CrossVolumeMover.MoveAsync. Both return the identical MoveResult shape, so the skip
-        //     handling and the DB-save flow below are unchanged. The matching mover is also used for
-        //     rollback in the save-failure catch.
+        // The disk move runs before the database is touched, so a failed move leaves the database
+        // untouched and never pointing at a missing file. A same-volume rename takes the atomic
+        // DiskMover.Move; a cross-volume move takes the copy, verify, promote, delete-source-last
+        // CrossVolumeMover.MoveAsync. Both return the same shape, and the save-failure catch rolls back
+        // through whichever one moved the file.
         string nativeOld = ToNative(item.OldFullPath);
         string nativeNew = ToNative(newFull);
         bool sameVolume = VolumeClassifier.SameVolume(item.OldFullPath, newFull);
@@ -246,7 +198,7 @@ public sealed class RenamerExecutor
         {
             // The mover's own classification decides the status, through the one mapping both tiers
             // share: a lock, a denial, a failed verify and a clean shutdown ask an operator for
-            // different things. One item's failure never aborts the batch, and the lock is never forced.
+            // different things. The lock is not forced and the batch continues.
             skipped.Add(new ItemResult(
                 item.FileId, item.OldFullPath, newFull,
                 MoveOutcomeClassifier.StatusFor(moveOutcome), moveReason));
@@ -261,9 +213,9 @@ public sealed class RenamerExecutor
             .Where(cr => movedCaptionNames.Contains(cr.NewFilename))
             .ToList();
 
-        // (6) DB SAVE second; on a save throw, ROLLBACK the disk. The filename-derived title rides in
-        //     the SAME save as the rename that produced it - see MetadataProjector.DerivedTitle for why
-        //     recording it at all is what makes the rename converge.
+        // The save follows the disk move, and a throw from it rolls the disk back. The filename-derived
+        // title rides in the same save as the rename that produced it; MetadataProjector.DerivedTitle
+        // covers why it is recorded at all.
         var mutation = new RenamerFileMutation(
             item.FileId, candidate, isMove ? targetFolderId : null,
             appliedCaptionRenames.Count > 0 ? appliedCaptionRenames : null,
@@ -275,13 +227,12 @@ public sealed class RenamerExecutor
         {
             var saved = await _port.ApplyAndSaveAsync([mutation], ct);
 
-            // (7) RUNTIME assertion (NOT Debug.Assert — that no-ops in Release): the Path Cove
-            //     recomputed on save must match the on-disk location we just moved to. A divergence
-            //     means disk and DB disagree → surface a Failed result (do NOT silently accept).
-            // Found as a nullable, never as default(SavedFile): that default carries a null
-            // RecomputedPath, which the comparison below reads as a path that differs — so a save
-            // reporting no row for this file would take the rollback branch and revert a save that
-            // committed, blaming a path mismatch that never happened.
+            // A runtime check, not Debug.Assert, which no-ops in Release: the Path Cove recomputed on
+            // save has to match the on-disk location just moved to, and a divergence means disk and
+            // database disagree.
+            // Found as a nullable and never as default(SavedFile): that default carries a null
+            // RecomputedPath, which the comparison below reads as a differing path, so a save reporting
+            // no row for this file would take the rollback branch and revert a save that committed.
             SavedFile? savedFile = saved
                 .Where(s => s.FileId == item.FileId)
                 .Select(s => (SavedFile?)s)
@@ -297,11 +248,10 @@ public sealed class RenamerExecutor
             string expected = NormalizeSlash(newFull);
             if (!PathsEqual(recomputed, expected))
             {
-                // Disk and DB disagree after a SUCCESSFUL save. Roll the disk back to the OLD path
-                // through the SAME mover the move used (and the catch below uses), capturing rollback
-                // warnings so an INCOMPLETE rollback is surfaced rather than falsely claiming "rolled
-                // back". No revert-log row and no event on this path: the move is being undone, so there
-                // is nothing to reindex or to offer /undo.
+                // Disk and database disagree after a save that committed. The disk goes back to the old
+                // path through the mover that moved it, and the rollback warnings are captured so an
+                // incomplete rollback is not reported as a clean one. No journal row and no event on
+                // this path: the move is being undone, so there is nothing to reindex or to undo.
                 IReadOnlyList<string> rbWarnings = await RollbackMove(sameVolume, nativeOld, nativeNew, movedSidecars, ct);
 
                 string mismatch = $"recomputed Path '{recomputed}' != on-disk '{expected}'";
@@ -309,11 +259,11 @@ public sealed class RenamerExecutor
                     ? $"; rollback warnings: {string.Join("; ", rbWarnings)}"
                     : "";
 
-                // Whether the row may be put back is read off the PRIMARY file's own location: a rollback
-                // reports its sidecars and the primary in one warning list, so a caption that could not
-                // come back would otherwise leave the row naming a location the media file has left. A
-                // case-only rename is its own target on a case-insensitive volume, so the vacated-target
-                // half of the check is skipped for one.
+                // Whether the row may be put back is read off the primary file's own location. A
+                // rollback reports its sidecars and the primary in one warning list, so judging by the
+                // list would let a caption that could not come back leave the row naming a location the
+                // media file has left. A case-only rename is its own target on a case-insensitive
+                // volume, so the vacated-target half of the check is skipped for one.
                 bool primaryBack = System.IO.File.Exists(nativeOld)
                     && (IsSelfPath(newFull, item.OldFullPath) || !System.IO.File.Exists(nativeNew));
 
@@ -345,19 +295,17 @@ public sealed class RenamerExecutor
         }
         catch (Exception ex)
         {
-            // Save failed AFTER a successful move (e.g. the (ParentFolderId,Basename) unique index
-            // threw a DbUpdateException). Roll the disk back through the SAME mover that performed the
-            // move so disk + DB stay consistent: a same-volume move rolls back via the atomic
-            // DiskMover.Rollback; a verified cross-volume move rolls back via the copy-back→verify→
-            // delete CrossVolumeMover.RollbackAsync — the disk-first/DB-second discipline still holds for
-            // the cross path (the bytes that crossed the volume are copied back and the source is restored).
-            // Capture the rollback warnings. A best-effort rollback can FAIL to restore (the old slot
-            // got re-occupied, a cross-volume copy-back failed verify, a target is locked) and reports
-            // that in its warnings list. Discarding them would claim "file rolled back" on a rollback
-            // that did not happen — a silent disk/DB divergence. Surface them so a failed restore is
-            // visible (especially on the cross path, where a copy-back can fail in ways an atomic
-            // same-volume File.Move rollback cannot).
-            // Rollback token is None on the cancel path: the ambient ct is already cancelled.
+            // The save failed after the move succeeded, for instance when the
+            // (ParentFolderId, Basename) unique index throws a DbUpdateException. The disk goes back
+            // through the mover that moved it, so disk and database stay consistent: a same-volume move
+            // rolls back through the atomic DiskMover.Rollback, and a cross-volume move copies the bytes
+            // back and verifies them before the source is restored.
+            // A best-effort rollback can fail to restore, when the old slot was re-occupied, a
+            // cross-volume copy-back failed verify, or a target is locked, and it reports that in its
+            // warnings. Discarding them would report a file as rolled back when it was not, leaving a
+            // silent disk and database divergence.
+            // The rollback runs on CancellationToken.None when the save was cancelled, because the
+            // ambient token is already cancelled.
             var rollbackCt = ex is OperationCanceledException ? CancellationToken.None : ct;
             IReadOnlyList<string> rbWarnings = await RollbackMove(sameVolume, nativeOld, nativeNew, movedSidecars, rollbackCt);
 
@@ -373,27 +321,23 @@ public sealed class RenamerExecutor
             return;
         }
 
-        // (8) POST-COMMIT. Everything from here runs with the save already committed and the on-disk
-        //     path already asserted, so it sits OUTSIDE the rollback catch above. A throw here is not a
-        //     save failure: reverting the move would undo a rename the database agrees with, and report
-        //     the item failed for something the save did not do. Each step is best-effort and its
-        //     failure is a warning on the renamed result.
+        // Everything from here runs with the save committed and the on-disk path already checked, so it
+        // sits outside the rollback catch above. A throw here is not a save failure: reverting the move
+        // would undo a rename the database agrees with. Each step is best-effort and its failure becomes
+        // a warning on the renamed result.
         var postCommitWarnings = new List<string>();
 
-        // The journal row carries plan.EntityId — the SAME value published on the next line — so the
-        // journalled id and the event id are identical by construction (undo reconstructs the exact
-        // forward event from the row). Seq is passed as 0 because the journal mints it on append.
+        // The journal row carries the same entity id the event below publishes, so undo reconstructs the
+        // forward event from the row. Seq is 0 because the journal mints it on append.
         //
-        // The delta is built from what ACTUALLY moved, never from what was planned, and it is RECORDED
-        // rather than left to be recomputed at undo time. Two reasons, neither of them stylistic:
+        // The delta is built from what actually moved and is recorded now, not recomputed at undo time.
         // RetargetCaption only rewrites a caption whose name starts with the old stem, so the forward
-        // transform is not invertible in general; and a caption rename is applied only for a sidecar
-        // whose file really moved on disk (see the moved-only filter above), which is a runtime fact no
-        // string arithmetic recovers afterwards. One row and one delta at this single append site, so a
-        // crash cannot leave the two disagreeing.
+        // transform is not invertible in general, and a caption rename is applied only for a sidecar
+        // whose file really moved on disk, which is a runtime fact no later string arithmetic recovers.
+        // The row and the delta are appended at this one site, so a crash cannot leave them disagreeing.
         //
-        // A failed append costs this item its undo entry, which is worth a warning and nothing more —
-        // the file is where the database says it is, which is what the safety spine promises.
+        // A failed append costs this item its undo entry and nothing more: the file is where the
+        // database says it is.
         try
         {
             var delta = BuildRevertDelta(srcFile, movedSidecars, appliedCaptionRenames);
@@ -402,8 +346,8 @@ public sealed class RenamerExecutor
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // A cancellation stays cancellation and aborts the run; what it must NOT do any more is roll
-            // a committed move back, which is the whole reason this region sits outside the catch above.
+            // A cancellation aborts the run without rolling a committed move back, which is why this
+            // region sits outside the catch above.
             postCommitWarnings.Add($"revert-log entry not written: {ex.Message}");
         }
 
@@ -417,11 +361,10 @@ public sealed class RenamerExecutor
             postCommitWarnings.Add($"rename event not published: {ex.Message}");
         }
 
-        // (9) Opt-in empty-source-folder cleanup, LAST — never before the save (a failed save rolls the
-        //     disk back, so deleting the source dir earlier could be unrecoverable). Fires only when a
-        //     move actually changed the parent directory: a same-folder renamer leaves the file in that
-        //     dir, so the dir is never empty. The cleaner classifies rather than throws for the states it
-        //     anticipates; the try covers the ones it does not.
+        // The empty-source-folder cleanup runs last, never before the save: a failed save rolls the disk
+        // back, so deleting the source directory earlier could be unrecoverable. It runs only when the
+        // move changed the parent directory, since a same-folder rename leaves the file there. The
+        // cleaner classifies the states it anticipates; the try covers the ones it does not.
         if (isMove && options.RemoveEmptyFolder && !PathsEqual(DirOf(item.OldFullPath), DirOf(newFull)))
         {
             try
@@ -443,12 +386,8 @@ public sealed class RenamerExecutor
             itemWarnings.Count > 0 ? string.Join("; ", itemWarnings) : null));
     }
 
-    /// <summary>
-    /// Plans the sidecar moves that ride with the primary: each DB-tracked caption (retargeted to the
-    /// new stem, with its rename recorded for the DB save) and each configured same-stem neighbor whose
-    /// extension is listed. Extension neighbors go to the disk-move list ONLY — never to the caption
-    /// rename list — because they carry no DB row to update.
-    /// </summary>
+    // A configured same-stem neighbour goes to the disk-move list alone and never to the caption rename
+    // list, because it carries no database row to update.
     private static (List<DiskMover.SidecarMove> plannedSidecars,
         List<(int CaptionId, string NewFilename)> captionRenames,
         List<string> warnings)
@@ -462,11 +401,10 @@ public sealed class RenamerExecutor
         var warnings = new List<string>();
         foreach (var cap in captions)
         {
-            // A caption filename is a basename only, never a path fragment: reject any separator or
-            // parent-traversal so a malformed row can't build a sidecar move that reaches outside the
-            // primary's source and target folders. The invariant is only DOCUMENTED on the port, and
-            // nothing downstream re-checks it — the canonical guard resolves the primary, not the
-            // sidecars, and the movers apply no confinement.
+            // A caption filename is a basename, never a path fragment: a separator or a parent-traversal
+            // segment would let a malformed row build a sidecar move reaching outside the primary's
+            // source and target folders. Nothing downstream re-checks it, since the canonical guard
+            // resolves the primary and not the sidecars, and the movers apply no confinement.
             if (!IsPlainBasename(cap.Filename))
             {
                 warnings.Add($"sidecar skipped: caption filename '{cap.Filename}' is not a plain basename");
@@ -480,10 +418,9 @@ public sealed class RenamerExecutor
         }
 
         // Only the exact stem plus a listed extension is taken, so the candidate set is the stem's own
-        // neighbours and never a directory sweep. The extension compare is ordinal-ignore-case in code
-        // rather than delegated to File.Exists on a composed path: File.Exists answers
-        // case-insensitively only where the filesystem does, so a listed `SRT` silently misses an
-        // on-disk `clip.srt` on a case-sensitive volume, which is what the host runs on.
+        // neighbours and never a directory sweep. The extension compare is ordinal-ignore-case in code:
+        // File.Exists on a composed path answers case-insensitively only where the filesystem does, so a
+        // listed `SRT` would miss an on-disk `clip.srt` on the case-sensitive volume the host runs on.
         if (srcFile is not null && options.AssociatedExtensions.Count > 0)
         {
             string srcStem = StemOf(srcFile.Basename);
@@ -497,9 +434,9 @@ public sealed class RenamerExecutor
                     continue;
                 }
 
-                // A configured extension is a leaf extension, never a path fragment: reject any
-                // separator or parent-traversal so a malformed entry (e.g. "srt/../../elsewhere")
-                // can't build a sidecar target outside the primary's folder.
+                // A configured extension is a leaf extension, never a path fragment: a malformed entry
+                // such as "srt/../../elsewhere" would build a sidecar target outside the primary's
+                // folder.
                 if (normExt.IndexOfAny(['/', '\\']) >= 0 || normExt.Contains(".."))
                 {
                     continue;
@@ -510,13 +447,13 @@ public sealed class RenamerExecutor
                     continue;
                 }
 
-                // The on-disk spelling on both sides, so a moved sidecar keeps the extension casing it
-                // had rather than taking the casing whoever typed the setting used.
+                // Both sides use the on-disk spelling, so a moved sidecar keeps the extension casing it
+                // had on disk and not the casing in the setting.
                 string source = JoinPath(oldDir, srcStem + "." + diskExt);
                 string target = JoinPath(targetFolder, newStem + "." + diskExt);
 
-                // An in-place / case-only renamer leaves source == target; skipping it mirrors the
-                // primary's self-path discipline and avoids a spurious skip-not-clobber warning.
+                // An in-place or case-only rename leaves source and target equal; skipping it mirrors
+                // the primary's self-path handling and avoids a spurious skip-not-clobber warning.
                 if (PathsEqual(source, target))
                 {
                     continue;
@@ -536,32 +473,21 @@ public sealed class RenamerExecutor
         return (plannedSidecars, captionRenames, warnings);
     }
 
-    /// <summary>
-    /// True iff <paramref name="filename"/> is a leaf name: no directory part under either separator
-    /// convention, and no parent-traversal segment.
-    /// </summary>
-    /// <remarks>
-    /// Both separators are tested whatever the host is, because the value comes from a database row a
-    /// different platform may have written; <see cref="Path.GetFileName(string)"/> alone splits on the
-    /// running platform's separator only.
-    /// </remarks>
+    // True for a leaf name: no directory part under either separator convention, and no parent-traversal
+    // segment. Both separators are tested whatever the host is, because the value comes from a database
+    // row a different platform may have written, and Path.GetFileName splits on the running platform's
+    // separator only.
     private static bool IsPlainBasename(string filename)
         => filename.Length > 0
             && filename.IndexOfAny(['/', '\\']) < 0
             && !filename.Contains("..", StringComparison.Ordinal)
             && string.Equals(Path.GetFileName(filename), filename, StringComparison.Ordinal);
 
-    /// <summary>
-    /// The extensions of the files in <paramref name="dir"/> whose stem is exactly
-    /// <paramref name="stem"/>, keyed ordinal-ignore-case with the on-disk spelling as the value.
-    /// </summary>
-    /// <remarks>
-    /// The filesystem filter is the stem, so the candidate set is the primary's own neighbours and does
-    /// not grow with the folder. A wildcard character inside a stem widens that filter, which costs
-    /// extra candidates and changes nothing that is taken: the exact stem comparison here is what
-    /// decides. When one extension is present in more than one casing, the ordinal-smallest spelling
-    /// wins, so the choice does not depend on the order the filesystem returned.
-    /// </remarks>
+    // Keyed ordinal-ignore-case with the on-disk spelling as the value. The filesystem filter is the
+    // stem, so the candidate set is the primary's own neighbours and does not grow with the folder. A
+    // wildcard character inside a stem widens that filter but changes nothing that is taken, because the
+    // exact stem comparison here decides. When one extension is present in more than one casing, the
+    // ordinal-smallest spelling wins, so the choice does not depend on the filesystem's order.
     private static Dictionary<string, string> SameStemExtensions(string dir, string stem)
     {
         var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -592,17 +518,11 @@ public sealed class RenamerExecutor
         return found;
     }
 
-    /// <summary>
-    /// Builds the reverse-replay payload for one journalled file from what the mover and the save
-    /// actually did: the sidecar moves that happened, and each renamed caption's ORIGINAL stored
-    /// filename.
-    /// </summary>
-    /// <remarks>
-    /// The caption's ORIGINAL filename is what goes in, not the new one: the reverse direction needs
-    /// the value it restores TO, and deriving it later would reintroduce the non-invertible transform
-    /// this whole payload exists to avoid. A rename that carried nothing yields
-    /// <see cref="RevertDelta.Empty"/>, which serializes to the journal column's existing empty marker.
-    /// </remarks>
+    // The reverse-replay payload for one journalled file, built from what the mover and the save
+    // actually did. A caption goes in under its original stored filename, because the reverse direction
+    // needs the value it restores to, and deriving it later would reintroduce the non-invertible
+    // transform this payload exists to avoid. A rename that carried nothing yields RevertDelta.Empty,
+    // which serializes to the journal column's empty marker.
     private static RevertDelta BuildRevertDelta(
         RenamerFile? srcFile,
         IReadOnlyList<(string From, string To)> movedSidecars,
@@ -613,8 +533,8 @@ public sealed class RenamerExecutor
             return RevertDelta.Empty;
         }
 
-        // The names as they stood BEFORE the save rewrote them — the loaded entity is the only place
-        // they still exist by the time this runs.
+        // The names as they stood before the save rewrote them. The loaded entity is the only place they
+        // still exist by the time this runs.
         var originalCaptionNames = new Dictionary<int, string>();
         foreach (var cap in srcFile?.Captions ?? [])
         {
@@ -637,12 +557,8 @@ public sealed class RenamerExecutor
             captions);
     }
 
-    /// <summary>
-    /// Performs the primary move on the volume tier the source/destination imply: a same-volume renamer
-    /// takes the atomic <see cref="DiskMover.Move"/>; a cross-volume move takes the verified
-    /// copy→verify→promote→delete-source-last <see cref="CrossVolumeMover.MoveAsync"/>. Both tiers return
-    /// the identical shape.
-    /// </summary>
+    // A same-volume rename takes the atomic DiskMover.Move; a cross-volume move takes the copy, verify,
+    // promote, delete-source-last CrossVolumeMover.MoveAsync. Both tiers return the same shape.
     private async Task<(bool moved, string? reason, MoveOutcome outcome,
         IReadOnlyList<(string From, string To)> movedSidecars)> MoveOnDisk(
         bool sameVolume, string nativeOld, string nativeNew,
@@ -660,13 +576,9 @@ public sealed class RenamerExecutor
         return (cross.Moved, cross.Reason, cross.Outcome, [.. cross.MovedSidecars.Select(s => (s.From, s.To))]);
     }
 
-    /// <summary>
-    /// Rolls a completed move back through the SAME mover tier that performed it — the atomic
-    /// <see cref="DiskMover.Rollback"/> for a same-volume move, the copy-back→verify→delete
-    /// <see cref="CrossVolumeMover.RollbackAsync"/> for a cross-volume one. Returns rollback warnings; a
-    /// non-empty list means the restore was INCOMPLETE (re-occupied slot, failed copy-back verify, locked
-    /// target) — the caller must surface it rather than claim the file was restored.
-    /// </summary>
+    // Rolls a completed move back through the mover tier that performed it. A non-empty warning list
+    // means the restore was incomplete, from a re-occupied slot, a failed copy-back verify or a locked
+    // target. The caller surfaces those warnings and does not report the file as restored.
     private async Task<IReadOnlyList<string>> RollbackMove(
         bool sameVolume, string nativeOld, string nativeNew,
         IReadOnlyList<(string From, string To)> movedSidecars, CancellationToken ct)
@@ -674,11 +586,9 @@ public sealed class RenamerExecutor
             ? _disk.Rollback(nativeOld, nativeNew, [.. movedSidecars.Select(s => new DiskMover.SidecarMove(s.From, s.To))])
             : await _cross.RollbackAsync(nativeOld, nativeNew, [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
 
-    /// <summary>
-    /// Writes a committed rename back off the file row: the basename, the parent folder for a move,
-    /// and each caption filename the save changed. Returns null once the row recomputes to
-    /// <paramref name="oldFullPath"/>, or the reason it could not be confirmed there.
-    /// </summary>
+    // Writes a committed rename back off the file row: the basename, the parent folder for a move, and
+    // each caption filename the save changed. Returns null once the row recomputes to the old path, or
+    // the reason it could not be confirmed there.
     private async Task<string?> RestoreSavedRowAsync(
         int fileId, string oldFullPath, RenamerFile? srcFile, bool isMove,
         IReadOnlyList<(int CaptionId, string NewFilename)> appliedCaptionRenames, CancellationToken ct)
@@ -707,8 +617,8 @@ public sealed class RenamerExecutor
             return ex.Message;
         }
 
-        // The same assertion the forward save gets, and the one the undo path makes after its own
-        // reverse save: a restore that recomputes somewhere else has not put the row back.
+        // The same check the forward save gets, and the one the undo path makes after its own reverse
+        // save: a restore that recomputes somewhere else has not put the row back.
         SavedFile? savedFile = saved
             .Where(s => s.FileId == fileId)
             .Select(s => (SavedFile?)s)
@@ -724,19 +634,15 @@ public sealed class RenamerExecutor
             : $"it recomputed to '{savedFile.Value.RecomputedPath}', not '{NormalizeSlash(oldFullPath)}'";
     }
 
-    /// <summary>
-    /// Retargets a caption basename from the old stem to the new stem. A caption "video.en.vtt"
-    /// alongside "video.mkv" (oldStem "video") becomes "&lt;newStem&gt;.en.vtt". If the caption does
-    /// not start with the old stem (unexpected), it is left unchanged so nothing is corrupted.
-    /// </summary>
+    // A caption "video.en.vtt" alongside "video.mkv" becomes "<newStem>.en.vtt". A caption that does not
+    // start with the old stem is left unchanged, so nothing is corrupted.
     private static string RetargetCaption(string captionFilename, string oldStem, string newStem)
         => captionFilename.StartsWith(oldStem, StringComparison.Ordinal)
             ? newStem + captionFilename[oldStem.Length..]
             : captionFilename;
 
-    /// <summary>True iff <paramref name="candidate"/> is the source file's own path — the same
-    /// canonical location differing at most by case on a case-insensitive volume. Mirrors the
-    /// <see cref="PathsEqual"/>/<c>VolumeClassifier</c> OS-aware policy so the disk-side self-exclusion
-    /// agrees with the rest of the slice on what counts as the same path.</summary>
+    // True when the candidate is the source file's own path: the same canonical location, differing at
+    // most by case on a case-insensitive volume. It follows the same OS-aware policy as PathsEqual and
+    // VolumeClassifier, so the disk-side self-exclusion agrees with the rest of the slice.
     private static bool IsSelfPath(string candidate, string sourceFullPath) => PathsEqual(candidate, sourceFullPath);
 }

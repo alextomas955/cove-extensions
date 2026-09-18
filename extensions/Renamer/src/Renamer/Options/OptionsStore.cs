@@ -6,10 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Renamer.Options;
 
 /// <summary>
-/// Persists <see cref="RenamerOptions"/> as a single JSON blob under the <c>"options"</c> key. A thin
-/// binding of the shared <see cref="ExtensionOptionsStore{TOptions}"/> to Renamer's own options model and
-/// its <see cref="RenamerOptions.JsonOptions"/> (case-insensitive + enum-as-string), so the round-trip is
-/// byte-for-byte what it was before the store was shared.
+/// Persists <see cref="RenamerOptions"/> as a single JSON blob under the <c>"options"</c> key.
 /// </summary>
 public sealed class OptionsStore(IExtensionStore store, ILogger? logger = null)
     : ExtensionOptionsStore<RenamerOptions>(

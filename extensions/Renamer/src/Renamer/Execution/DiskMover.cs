@@ -1,42 +1,24 @@
 namespace Renamer.Execution;
 
-/// <summary>
-/// The host-free disk tier of the executor: a thin, classifying wrapper over
-/// <see cref="System.IO.File"/> that the <c>RenamerExecutor</c> composes. It performs the primary
-/// file move and the sidecar caption moves, classifies failures (locked / target-exists /
-/// permission-denied) into a result <em>without throwing out</em>, and exposes a best-effort
-/// rollback that reverses a successful move (and any moved sidecars) so the disk can be restored
-/// when a subsequent DB save fails.
-///
-/// SAFETY CONTRACT:
-/// <list type="bullet">
-/// <item>Uses the 2-arg <see cref="System.IO.File.Move(string,string)"/> overload — NEVER
-/// <c>overwrite:true</c>. Clobbering an existing destination would lose data, so it must never happen.</item>
-/// <item>A locked source (<see cref="IOException"/>, e.g. Windows ERROR_SHARING_VIOLATION) or a
-/// permission failure (<see cref="UnauthorizedAccessException"/>) is caught and reported — whatever
-/// process holds the lock is NEVER touched. This class references no OS process API (no killing,
-/// no closing of foreign handles).</item>
-/// <item>Sidecars are skip-not-clobber: an existing sidecar target is left untouched and a warning
-/// is recorded.</item>
-/// </list>
-/// Pure <see cref="System.IO"/> — no <c>CoveContext</c>/EF dependency — so it is testable purely
-/// against a real temp directory.
-/// </summary>
+// The same-volume disk tier of the executor: a classifying wrapper over System.IO.File. It performs
+// the primary file move and the sidecar moves, classifies a failure into a result without throwing
+// out, and offers a best-effort rollback that reverses a successful move so the disk can be restored
+// when a later database save fails.
+//
+// Safety contract:
+// - The move takes the two-argument File.Move overload and never overwrite:true, so an existing
+//   destination is never clobbered.
+// - A locked source or a permission failure is caught and reported. Whatever process holds the lock is
+//   never touched: this class references no OS process API.
+// - A sidecar whose target already exists is left untouched and recorded as a warning.
 public sealed class DiskMover
 {
-    /// <summary>One planned sidecar move: absolute source → absolute destination (forward/native slashes ok).</summary>
+    // One planned sidecar move, absolute on both sides. Either separator is accepted.
     public readonly record struct SidecarMove(string From, string To);
 
-    /// <summary>
-    /// The outcome of a <see cref="Move"/>: whether the primary file moved, the sidecars that were
-    /// actually moved (for rollback), any skip warnings, and a classification + reason when the
-    /// primary move did not happen. A non-<see cref="Moved"/> result is a SKIP, never a thrown error.
-    /// </summary>
-    /// <param name="Moved">True iff the primary file was moved old→new.</param>
-    /// <param name="Outcome">The classification of the primary move attempt.</param>
-    /// <param name="MovedSidecars">The sidecar pairs that actually moved (in move order) — what rollback reverses.</param>
-    /// <param name="Warnings">Non-fatal notes (e.g. a skipped sidecar whose target already existed).</param>
-    /// <param name="Reason">A human-readable reason when the primary move was skipped; null on success.</param>
+    // The outcome of a Move. MovedSidecars holds the pairs that actually moved, in move order, which is
+    // what a rollback reverses. Reason is null on success. A result that did not move is a skip and
+    // never a thrown error.
     public sealed record MoveResult(
         bool Moved,
         MoveOutcome Outcome,
@@ -44,22 +26,14 @@ public sealed class DiskMover
         IReadOnlyList<string> Warnings,
         string? Reason);
 
-    /// <summary>
-    /// Moves <paramref name="oldFull"/> → <paramref name="newFull"/> (creating the destination
-    /// directory if needed), then moves each planned sidecar skip-not-clobber. A locked source is
-    /// caught and returned as a <see cref="MoveOutcome.Locked"/> skip and an occupied destination as a
-    /// <see cref="MoveOutcome.TargetExists"/> skip — the atomic move raises one
-    /// <see cref="IOException"/> for both, so they are told apart by testing the destination (in either
-    /// case the primary move did NOT happen and no sidecars are touched); a permission failure as
-    /// <see cref="MoveOutcome.PermissionDenied"/>. NEVER overwrites and NEVER touches a locking process.
-    /// </summary>
-    /// <remarks>
-    /// Those four are the only members of the shared <see cref="MoveOutcome"/> this tier produces: an
-    /// atomic rename has no copy to read back and no cancellation point, so
-    /// <see cref="MoveOutcome.VerifyFailed"/> and <see cref="MoveOutcome.Cancelled"/> belong to
-    /// <see cref="CrossVolumeMover"/> alone. The type is shared by both tiers, so this sentence — not
-    /// the type — is what narrows the set a caller of this method can receive.
-    /// </remarks>
+    // Moves the primary file, creating the destination directory when needed, then moves each planned
+    // sidecar without clobbering. A locked source returns Locked and an occupied destination returns
+    // TargetExists; the atomic move raises one IOException for both, so they are told apart by testing
+    // the destination. In either case the primary move did not happen and no sidecar is touched. A
+    // permission failure returns PermissionDenied.
+    //
+    // Those four are the only MoveOutcome members this tier produces. An atomic rename has no copy to
+    // read back and no cancellation point, so VerifyFailed and Cancelled belong to CrossVolumeMover.
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
         Justification = "Kept as an instance method: DiskMover is a constructor-injected collaborator of " +
             "RenamerExecutor/UndoReplayer and is exercised as an instance across the test suite; making it " +
@@ -69,14 +43,14 @@ public sealed class DiskMover
         try
         {
             EnsureParentDir(newFull);
-            // 2-arg overload: throws IOException if newFull exists OR the source is locked.
+            // The two-argument overload throws IOException when the destination exists and when the
+            // source is locked.
             System.IO.File.Move(oldFull, newFull);
         }
         catch (IOException ex)
         {
-            // Covers BOTH "destination exists" and "source locked/in-use", and the exception cannot say
-            // which. Decide by measuring the destination — see MoveOutcome.TargetExists for why the
-            // exception's message is never read. Skip + report; never force.
+            // The exception cannot say which cause it carries, so the destination is tested. The
+            // message is never read; see MoveOutcome.TargetExists.
             return System.IO.File.Exists(newFull)
                 ? new MoveResult(false, MoveOutcome.TargetExists, [], [], $"target exists, not overwritten: {ex.Message}")
                 : new MoveResult(false, MoveOutcome.Locked, [], [], $"source locked/in-use: {ex.Message}");
@@ -94,7 +68,7 @@ public sealed class DiskMover
             {
                 if (System.IO.File.Exists(sc.To))
                 {
-                    // Skip-not-clobber: leave the pre-existing target untouched, warn.
+                    // The pre-existing target is left untouched.
                     warnings.Add($"sidecar target exists, skipped: {sc.To}");
                     continue;
                 }
@@ -107,7 +81,7 @@ public sealed class DiskMover
                 }
                 catch (IOException ex)
                 {
-                    // A locked/racy sidecar is non-fatal: warn and leave it (the primary already moved).
+                    // A locked sidecar is non-fatal; the primary file has already moved.
                     warnings.Add($"sidecar move failed (locked/exists), skipped: {sc.From} -> {sc.To}: {ex.Message}");
                 }
                 catch (UnauthorizedAccessException ex)
@@ -120,13 +94,10 @@ public sealed class DiskMover
         return new MoveResult(true, MoveOutcome.Moved, moved, warnings, null);
     }
 
-    /// <summary>
-    /// Reverses a successful <see cref="Move"/> for the rollback path: moves the primary
-    /// file <paramref name="newFull"/> → <paramref name="oldFull"/> and every moved sidecar back to
-    /// its source. Best-effort: a secondary failure (e.g. the old slot got re-occupied) is swallowed
-    /// and reported in the returned warnings rather than thrown, so a failed save's cleanup can never
-    /// itself crash the batch. Returns the warnings (empty when the restore was clean).
-    /// </summary>
+    // Reverses a successful Move: the primary file goes back to oldFull and every moved sidecar back to
+    // its source. Best-effort, so a secondary failure such as the old slot being re-occupied is
+    // reported in the returned warnings and never thrown, and a failed save's cleanup cannot crash the
+    // batch. The warnings are empty when the restore was clean.
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
         Justification = "Kept as an instance method: DiskMover is a constructor-injected collaborator of " +
             "RenamerExecutor/UndoReplayer and is exercised as an instance across the test suite; making it " +
@@ -135,7 +106,7 @@ public sealed class DiskMover
     {
         var warnings = new List<string>();
 
-        // Reverse sidecars first (innermost moves undone first), then the primary file.
+        // Sidecars go back in reverse move order, then the primary file.
         for (int i = movedSidecars.Count - 1; i >= 0; i--)
         {
             var sc = movedSidecars[i];
@@ -146,7 +117,7 @@ public sealed class DiskMover
         return warnings;
     }
 
-    /// <summary>Best-effort move <paramref name="from"/> → <paramref name="to"/>; records (never throws) on failure.</summary>
+    // Records a failure as a warning and never throws.
     private static void SafeMoveBack(string from, string to, List<string> warnings)
     {
         try

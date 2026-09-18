@@ -3,20 +3,15 @@ using Renamer.Execution;
 
 namespace Renamer.Planner;
 
-/// <summary>
-/// Folds a whole-library dry run one entity at a time into the bounded <see cref="ScanSummary"/> the
-/// scan persists.
-/// </summary>
-/// <remarks>
-/// The class exists to keep the scan's memory and its stored value independent of library size: it holds
-/// per-kind counters and volume-pair tallies, never a per-file or per-entity collection. Any collection
-/// that grows with the number of folded entities breaks that guarantee.
-/// <para>
-/// The same/cross split and the pair grouping read <see cref="VolumeClassifier"/>, the same source of
-/// truth <see cref="BatchPreview.Summarize"/> and the free-space guard read, so the aggregate cannot
-/// disagree with them about which volume a path is on.
-/// </para>
-/// </remarks>
+// Folds a whole-library dry run one entity at a time into the bounded ScanSummary the scan persists.
+//
+// The class exists to keep the scan's memory and its stored value independent of library size: it holds
+// per-kind counters and volume-pair tallies, never a per-file or per-entity collection. Any collection
+// that grows with the number of folded entities breaks that guarantee.
+//
+// The same/cross split and the pair grouping read VolumeClassifier, the same source of truth
+// BatchPreview.Summarize and the free-space guard read, so the aggregate cannot disagree with them about
+// which volume a path is on.
 public sealed class ScanAggregator
 {
     private sealed class KindTally
@@ -34,25 +29,18 @@ public sealed class ScanAggregator
     private readonly int _fullPathMax;
     private readonly IReadOnlyCollection<string>? _mountPoints;
 
-    /// <param name="fullPathMax">
-    /// The caller's <see cref="Options.RenamerOptions.FullPathMax"/>, for the in-flight overflow count.
-    /// Required and first rather than optional and last, so a construction site cannot fold a whole
-    /// library against a budget nobody configured.
-    /// </param>
-    /// <param name="mountPoints">Mount table to resolve Unix volumes against; omit for the real one.</param>
+    // fullPathMax is required, so a construction site cannot fold a whole library against a budget
+    // nobody configured. mountPoints resolves Unix volumes; omit for the real table.
     public ScanAggregator(int fullPathMax, IReadOnlyCollection<string>? mountPoints = null)
     {
         _fullPathMax = fullPathMax;
         _mountPoints = mountPoints;
     }
 
-    /// <summary>Total files folded so far, across every kind.</summary>
     public int TotalFiles => _byKind.Values.Sum(t => t.Files);
 
-    /// <summary>Folds one entity's plan into the aggregate.</summary>
-    /// <param name="kind">The planned entity's kind.</param>
-    /// <param name="plan">The entity's plan; every item is counted, acting items also feed the blast radius.</param>
-    /// <param name="sizeByFileId">FileId → bytes for the files of this entity; a missing id contributes 0.</param>
+    // Folds one entity's plan into the aggregate. Every item is counted; acting items also feed the blast
+    // radius. A file id missing from sizeByFileId contributes 0 bytes.
     public void Fold(RenamerFileKind kind, RenamerPlan plan, IReadOnlyDictionary<int, long> sizeByFileId)
     {
         ArgumentNullException.ThrowIfNull(plan);
@@ -84,11 +72,11 @@ public sealed class ScanAggregator
 
             tally.CrossVolumeFiles++;
 
-            // Counted on the pass that already visits every file rather than derived afterwards: deriving
-            // it would mean retaining the items or planning the library a second time, and this class
-            // exists to keep the scan's cost independent of library size. The predicate is CALLED rather
-            // than restated, so its comparison has one declaration; its status and same-volume arms are
-            // redundant at this point in the fold, which is the price of reading the one comparison.
+            // Counted on the pass that already visits every file. Deriving it afterwards would mean
+            // retaining the items or planning the library a second time, and this class exists to keep
+            // the scan's cost independent of library size. The shared predicate is called so the
+            // comparison has one declaration; its status and same-volume arms are redundant at this point
+            // in the fold.
             if (BatchPreview.InFlightPathOverflows(item, _fullPathMax, _mountPoints))
             {
                 tally.InFlightPathOverflowFiles++;
@@ -102,14 +90,10 @@ public sealed class ScanAggregator
         }
     }
 
-    /// <summary>Materialises what the scan persists.</summary>
-    /// <remarks>
-    /// Kinds are emitted in <see cref="RenamerFileKind"/> order and statuses in
-    /// <see cref="RenamerStatus"/> declaration order, so two scans of an unchanged library produce the
-    /// same string. The confirm level is computed over the UNTRUNCATED pair tallies — topping the
-    /// itemisation must never soften the confirm a move earns.
-    /// </remarks>
-    /// <param name="completedAtUtcTicks">UTC ticks to stamp the summary with.</param>
+    // Materialises what the scan persists. Kinds are emitted in RenamerFileKind order and statuses in
+    // RenamerStatus declaration order, so two scans of an unchanged library produce the same string. The
+    // confirm level is computed over the untruncated pair tallies: topping the itemisation must never
+    // soften the confirm a move earns.
     public ScanSummary ToSummary(long completedAtUtcTicks)
     {
         var statuses = Enum.GetValues<RenamerStatus>();

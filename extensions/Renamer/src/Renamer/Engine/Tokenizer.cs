@@ -2,30 +2,21 @@ using System.Text;
 
 namespace Renamer.Engine;
 
-/// <summary>Kind of a parsed template segment.</summary>
 public enum SegKind { Literal, Token, GroupOpen, GroupClose }
 
-/// <summary>
-/// One ordered piece of a parsed template. <see cref="Text"/> holds the literal
-/// text for <see cref="SegKind.Literal"/>, or the token name for <see cref="SegKind.Token"/>;
-/// it is <c>"{"</c>/<c>"}"</c> for the group markers.
-/// </summary>
+// Text holds the literal text for a Literal, the token name for a Token, and the brace for a group
+// marker.
 public readonly record struct Segment(SegKind Kind, string Text);
 
-/// <summary>
-/// Single-pass, regex-free template scanner. Turns a template
-/// string into an ordered <see cref="Segment"/> list in one left-to-right O(n) pass:
-/// <list type="bullet">
-///   <item><c>$$</c> → one literal <c>$</c> (not a token).</item>
-///   <item><c>$name</c> (letters/digits/underscore) → a <see cref="SegKind.Token"/> named <c>name</c>.</item>
-///   <item>A lone <c>$</c> not followed by a name char → literal <c>$</c>.</item>
-///   <item><c>{</c>/<c>}</c> → <see cref="SegKind.GroupOpen"/>/<see cref="SegKind.GroupClose"/> when balanced.</item>
-///   <item>A stray <c>}</c> at depth 0 → literal <c>}</c> + <c>logUnbalanced</c>.</item>
-///   <item>Unclosed <c>{</c> at EOF → <c>logUnbalanced</c>; never throws.</item>
-/// </list>
-/// Pure: no I/O, no host types. Regex is deliberately avoided — it mishandles <c>$$</c>
-/// adjacency and brace balancing.
-/// </summary>
+// Template syntax, scanned in one left-to-right pass:
+//   $$ emits one literal $ and starts no token.
+//   $name, where name is letters, digits and underscores, is a token.
+//   A lone $ with no name char after it is a literal $.
+//   { and } open and close a group when balanced.
+//   A stray } at depth 0 becomes a literal } and calls logUnbalanced.
+//   A { left unclosed at the end calls logUnbalanced. The scan never throws.
+//
+// No regex: it mishandles $$ adjacency and brace balancing.
 public static class Tokenizer
 {
     public static List<Segment> Scan(string template, Action<string>? logUnbalanced = null)
@@ -48,11 +39,9 @@ public static class Tokenizer
             char c = template[i];
             if (c == '$')
             {
-                // `$$` is the escape for a literal `$`. Emit one `$`, then:
-                //  - if a token name follows the second `$` (e.g. `$$title`), consume only
-                //    the FIRST `$` so the loop reprocesses the second as a token start
-                //    -> literal `$` + Token `title`;
-                //  - otherwise (`$$`, `$$ `, `$$$`) consume BOTH so `$$` is exactly one `$`.
+                // When a token name follows the second $, as in "$$title", only the first $ is
+                // consumed, so the loop reprocesses the second as a token start. Otherwise both are
+                // consumed and "$$" yields exactly one "$".
                 if (i + 1 < template.Length && template[i + 1] == '$')
                 {
                     lit.Append('$');
@@ -60,13 +49,12 @@ public static class Tokenizer
                         && (char.IsLetterOrDigit(template[i + 2]) || template[i + 2] == '_');
                     if (!tokenFollows)
                     {
-                        i++; // swallow the second $ (bare escape)
+                        i++;
                     }
 
                     continue;
                 }
 
-                // Scan a token name: [A-Za-z0-9_]+.
                 int j = i + 1;
                 while (j < template.Length && (char.IsLetterOrDigit(template[j]) || template[j] == '_'))
                 {
@@ -75,7 +63,6 @@ public static class Tokenizer
 
                 if (j == i + 1)
                 {
-                    // Lone $ not followed by a name char -> literal $.
                     lit.Append('$');
                     continue;
                 }
@@ -94,7 +81,6 @@ public static class Tokenizer
             {
                 if (depth == 0)
                 {
-                    // Stray } at depth 0 -> literal + log (unbalanced-brace safety).
                     lit.Append('}');
                     logUnbalanced?.Invoke("stray '}' treated as literal");
                 }

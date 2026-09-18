@@ -2,76 +2,52 @@ using Renamer.Options;
 
 namespace Renamer.Planner;
 
-/// <summary>
-/// The pure routing brain: maps one <see cref="RenamerEntity"/> to a <see cref="RouteResult"/>
-/// (the matched rule's own destination, or no rule at all) by the deterministic precedence.
-/// Called ONCE per entity in the planner, mirroring how <c>MetadataProjector.Project</c>
-/// is called once per file.
-///
-/// PURE: no <c>System.IO</c>, no <c>Cove.*</c> types, no DB. The cascade is classify-not-throw — a
-/// null <see cref="RenamerEntity.StudioId"/>, an empty <see cref="RenamerEntity.ParentStudios"/>, or
-/// empty destination maps all fall straight through to <see cref="RouteCategory.Unmatched"/>.
-/// The source-path regex set arrives PRE-PARSED in <see cref="RouteLookups.PathRegexRules"/> (built
-/// once per batch); this resolver only calls <c>IsMatch</c> — it never compiles a regex.
-///
-/// Precedence (first CATEGORY that produces a match wins):
-/// <c>Excludes → Unorganized → Tag → Studio (incl. parent) → Source-path</c>; within a
-/// category the first user-ordered rule wins, and within Studio a DIRECT match outranks an ANCESTOR.
-///
-/// Excludes run FIRST and beat every routing category including Unorganized: a matching tag name,
-/// studio id (direct or any ParentStudios ancestor id), or source-path (exact then regex)
-/// short-circuits to <see cref="RouteCategory.Excluded"/> (the planner then produces a
-/// <c>SkipExcluded</c> for every file). The exclude lookups arrive PRE-PARSED in the
-/// <see cref="RouteLookups"/> (a null/empty member = no excludes = legacy behavior, no regression);
-/// an exclude regex match-time timeout is treated as no-match, never thrown. An item that matches no
-/// rule falls through to <see cref="RouteCategory.Unmatched"/>, where the planner renders the DEFAULT
-/// destination instead of a rule's.
-/// </summary>
+// The pure routing brain: maps one entity to the matched rule's own destination, or to no rule at all.
+// Called once per entity by the planner.
+//
+// Precedence, first category that produces a match winning:
+// excludes, unorganized, tag, studio including parents, source-path. Within a category the first
+// user-ordered rule wins, and within studio a direct match outranks an ancestor. An item matching no
+// rule falls through to Unmatched, where the planner renders the default destination.
+//
+// Routing keys on stable ids, never on names. Names appear only in the human-readable matched-rule
+// label.
+//
+// Pure: no System.IO, no Cove types, no DB. The cascade classifies and never throws - a null StudioId,
+// an empty ParentStudios or empty destination maps all fall through to Unmatched. Source-path regexes
+// arrive pre-parsed in RouteLookups; this resolver only calls IsMatch and never compiles a pattern.
 public static class DestinationResolver
 {
-    /// <summary>
-    /// The OS-aware string comparer for EXACT source-path matching — <see cref="StringComparer.OrdinalIgnoreCase"/>
-    /// on Windows (where paths are case-insensitive, the primary platform) and
-    /// <see cref="StringComparer.Ordinal"/> elsewhere, mirroring <c>VolumeClassifier</c> /
-    /// <c>PathConfinement.IsUnderRoot</c>. The exact-path lookup dictionary is built with this comparer
-    /// so an exact rule for <c>media/incoming</c> matches a stored <c>Media/Incoming</c> on Windows
-    /// instead of silently falling through.
-    /// </summary>
+    // The case rule for exact source-path matching: paths are case-insensitive on Windows, the primary
+    // platform, and case-sensitive elsewhere. The exact-path dictionary is built with this comparer so a
+    // rule for "media/incoming" matches a stored "Media/Incoming" on Windows instead of silently falling
+    // through. Mirrors VolumeClassifier and PathConfinement.IsUnderRoot.
     public static StringComparer SourcePathComparer =>
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
-    /// <summary>
-    /// Normalizes a source path for EXACT-match keying/lookup — trims a single trailing
-    /// forward slash so a rule for <c>media/incoming</c> also matches a stored <c>media/incoming/</c>.
-    /// (Separator style is already forward-slash on both the stored <c>ParentFolderPath</c> and the
-    /// rule pattern; case is handled by <see cref="SourcePathComparer"/>.) Applied identically when
-    /// the exact map is built and when the resolver looks a source path up.
-    /// </summary>
+    // Normalizes a source path for exact-match keying: trims a single trailing forward slash so a rule
+    // for "media/incoming" also matches a stored "media/incoming/". Separator style is already
+    // forward-slash on both sides, and case is the comparer's business. Applied identically when the
+    // exact map is built and when the resolver looks a source path up.
     public static string NormalizeSourcePath(string path) => path.TrimEnd('/');
 
-    /// <summary>
-    /// Resolves <paramref name="e"/> to a <see cref="RouteResult"/> by the locked precedence.
-    /// </summary>
-    /// <param name="e">The entity to route (read-only; only routing-relevant fields are read).</param>
-    /// <param name="o">The renamer options carrying the destination maps.</param>
-    /// <param name="lk">The per-batch hoisted lookups (studio-id, tag-name, path-exact, pre-parsed regex).</param>
+    // Resolves one entity by the locked precedence.
     public static RouteResult Resolve(RenamerEntity e, RenamerOptions o, RouteLookups lk)
     {
-        // 1. Excludes run FIRST, beating every routing category INCLUDING Unorganized.
+        // Excludes run first, beating every routing category including unorganized.
         if (ResolveExclusion(e, lk) is { } excluded)
         {
             return excluded;
         }
 
-        // 2. Unorganized: its own route, BEFORE the tag/studio/path cascade.
+        // Unorganized has its own route, ahead of the tag/studio/path cascade.
         if (!e.Organized && o.UnorganizedDestination is { } unorganized)
         {
             return new RouteResult(RouteCategory.Unorganized, "Unorganized", unorganized);
         }
 
-        // 3. Cascade — first CATEGORY that produces a match wins.
-        // 3a. Tag: first tag in entity list order whose stable id has a rule. The reason carries the
-        //     NAME because a reason is read by a person; the match itself never uses it.
+        // Tag: first tag in entity list order whose stable id has a rule. The reason carries the name
+        // because a reason is read by a person; the match itself never uses it.
         foreach (var (tagId, tagName) in e.TagRefs)
         {
             if (lk.TagIdToDest.TryGetValue(tagId, out var tagDest))
@@ -80,7 +56,7 @@ public static class DestinationResolver
             }
         }
 
-        // 3b. Studio incl. parent — DIRECT outranks ANCESTOR; keyed on the stable id.
+        // Studio including parents, keyed on the stable id; a direct match outranks an ancestor.
         if (e.StudioId is int direct && lk.StudioIdToDest.TryGetValue(direct, out var directDest))
         {
             return new RouteResult(RouteCategory.Studio, $"Studio:{direct}(direct)", directDest);
@@ -88,7 +64,7 @@ public static class DestinationResolver
 
         if (e.ParentStudios is { } ancestors)
         {
-            // ParentStudios is NEAREST-FIRST; the first ancestor with a rule wins.
+            // ParentStudios is nearest-first; the first ancestor with a rule wins.
             foreach (var (ancestorId, _) in ancestors)
             {
                 if (lk.StudioIdToDest.TryGetValue(ancestorId, out var ancestorDest))
@@ -98,16 +74,14 @@ public static class DestinationResolver
             }
         }
 
-        // 3c. Source-path: exact FIRST, then the first matching pre-parsed regex. The entity's source
-        //     path is its first file's parent folder (per-entity routing; a multi-file item routes by
-        //     its first file's location).
+        // Source-path: exact first, then the first matching pre-parsed regex. The entity's source path
+        // is its first file's parent folder, so a multi-file item routes by its first file's location.
         if (e.Files.Count > 0)
         {
             var sourcePath = e.Files[0].ParentFolderPath;
 
-            // Normalize the source path the SAME way the exact map keys were normalized (OS-aware case
-            // via SourcePathComparer baked into the dict + trailing-slash trim here) so a stored
-            // "media/incoming/" matches a rule for "media/incoming" on Windows.
+            // Normalized the same way the exact map keys were, so a stored "media/incoming/" matches a
+            // rule for "media/incoming".
             if (lk.PathExactToDest.TryGetValue(NormalizeSourcePath(sourcePath), out var exactDest))
             {
                 return new RouteResult(RouteCategory.SourcePath, "SourcePath:exact", exactDest);
@@ -115,13 +89,11 @@ public static class DestinationResolver
 
             foreach (var (pattern, regexDest) in lk.PathRegexRules)
             {
-                // A pattern that COMPILES fine but exhibits catastrophic backtracking (e.g. ^(a+)+$
-                // against a long non-matching path) throws RegexMatchTimeoutException at MATCH time once
-                // the per-pattern timeout elapses (the build-time guard only catches syntax errors).
-                // Classify, don't throw: a match-time timeout is treated as "this rule did not match" —
-                // skip it and keep cascading — NEVER an uncaught throw that aborts the whole batch. The
-                // timeout already bounds the hang; this bounds the blast radius to one rule. (The
-                // resolver is pure/static, so it cannot log here; the bound + skip is the contract.)
+                // A pattern that compiles fine can still backtrack catastrophically and throw
+                // RegexMatchTimeoutException at match time once the per-pattern timeout elapses; the
+                // build-time guard catches only syntax errors. A match-time timeout is classified as
+                // "this rule did not match" so the cascade continues and one rule cannot abort the whole
+                // batch. The resolver is pure and static, so it cannot log here.
                 bool matched;
                 try
                 {
@@ -139,26 +111,18 @@ public static class DestinationResolver
             }
         }
 
-        // 4. No rule matched. The item's destination is the DEFAULT, which the planner reads from the
-        //    options; this resolver carries none for it, because a rule that did not match has none
-        //    to carry.
+        // No rule matched. The item's destination is the default, which the planner reads from the
+        // options; this resolver carries none for it, because a rule that did not match has none to
+        // carry.
         return new RouteResult(RouteCategory.Unmatched, "Default", null);
     }
 
-    /// <summary>
-    /// The exclude cascade — tag NAME, studio id (direct OR any ParentStudios ancestor id), then
-    /// source-path (exact FIRST, then the first matching pre-parsed regex). Returns the
-    /// <see cref="RouteCategory.Excluded"/> result on the first match, or <c>null</c> when nothing
-    /// excludes the entity.
-    /// </summary>
-    /// <remarks>
-    /// The exclude lookups arrive PRE-PARSED in the <see cref="RouteLookups"/> (a null/empty member =
-    /// none configured = legacy behavior, no regression). A match-time <c>RegexMatchTimeoutException</c>
-    /// on an exclude regex is treated as no-match (classify, don't throw), like the routing regex.
-    /// </remarks>
+    // The exclude cascade: tag id, studio id (direct or any ParentStudios ancestor), then source-path,
+    // exact before regex. Returns the excluded result on the first match, or null when nothing excludes
+    // the entity. A null or empty exclude lookup means none is configured. A match-time regex timeout is
+    // classified as no-match, like the routing regex.
     private static RouteResult? ResolveExclusion(RenamerEntity e, RouteLookups lk)
     {
-        // Tag exclude (on the stable tag id, mirroring tag routing).
         if (lk.ExcludeTagIds is { Count: > 0 } excludeTags)
         {
             foreach (var (tagId, tagName) in e.TagRefs)
@@ -170,7 +134,7 @@ public static class DestinationResolver
             }
         }
 
-        // Studio exclude (direct outranks ancestor; keyed on the stable id, NEVER the name).
+        // Studio exclude, keyed on the stable id; direct outranks ancestor.
         if (lk.ExcludeStudioIds is { Count: > 0 } excludeStudios)
         {
             if (e.StudioId is int directStudio && excludeStudios.Contains(directStudio))
@@ -180,7 +144,7 @@ public static class DestinationResolver
 
             if (e.ParentStudios is { } excludeAncestors)
             {
-                // ParentStudios is NEAREST-FIRST; the first excluded ancestor wins.
+                // ParentStudios is nearest-first; the first excluded ancestor wins.
                 foreach (var (ancestorId, _) in excludeAncestors)
                 {
                     if (excludeStudios.Contains(ancestorId))
@@ -191,7 +155,7 @@ public static class DestinationResolver
             }
         }
 
-        // Source-path exclude: exact FIRST, then the first matching pre-parsed exclude regex.
+        // Source-path exclude: exact first, then the first matching pre-parsed exclude regex.
         if (e.Files.Count > 0
             && (lk.ExcludePathsExact is { Count: > 0 } || lk.ExcludePathRegex is { Count: > 0 }))
         {
@@ -207,9 +171,9 @@ public static class DestinationResolver
             {
                 foreach (var pattern in excludeRegex)
                 {
-                    // Classify, don't throw: a match-time catastrophic-backtracking timeout is treated
-                    // as "this rule did not match" — skip it, never an uncaught throw that aborts the
-                    // batch. The build-time guard already rejected syntax-invalid patterns.
+                    // A match-time backtracking timeout is classified as "this rule did not match" so one
+                    // rule cannot abort the batch. The build-time guard already rejected syntax-invalid
+                    // patterns.
                     bool matched;
                     try
                     {

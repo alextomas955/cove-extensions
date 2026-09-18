@@ -12,7 +12,7 @@ namespace Renamer.Tests.Api;
 /// run their database commands under the CALLER's own principal.
 /// </summary>
 /// <remarks>
-/// The invariant is stated in <c>Renamer.cs</c>, beside the conversion that does elevate, and it is
+/// The invariant is stated beside the conversion that does elevate, and it is
 /// quoted here so nobody later "fixes" these into elevation: <i>every DETACHED body in this extension
 /// takes its scope from the elevating seam, because none of them carries a principal of its own. The
 /// request-path scopes deliberately do not: they must stay on the caller's principal, and elevating them

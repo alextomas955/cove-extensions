@@ -1,166 +1,117 @@
 namespace Renamer.Execution;
 
-/// <summary>
-/// The cross-volume tier of the executor: the data-loss-critical copy → verify(size + hash) →
-/// atomic-renamer → delete-source primitive used when a renamer/move crosses volumes (where the
-/// atomic same-volume <see cref="System.IO.File.Move(string,string)"/> that <see cref="DiskMover"/>
-/// uses is not available — a cross-volume <c>File.Move</c> is an opaque, unverified, non-atomic
-/// copy-then-delete that leaves a silent duplicate on a locked source). It mirrors
-/// <see cref="DiskMover"/>'s shape verbatim — the same <see cref="SidecarMove"/> and
-/// <see cref="MoveResult"/> record, the same shared <see cref="MoveOutcome"/>, the same
-/// classify-not-throw discipline, skip-not-clobber sidecars, and best-effort rollback — so the
-/// <c>RenamerExecutor</c> consumes its result identically. This is the tier that produces every
-/// member of that outcome: the two the same-volume tier cannot reach,
-/// <see cref="MoveOutcome.VerifyFailed"/> and <see cref="MoveOutcome.Cancelled"/>, exist because a
-/// copy can be read back and a copy can be cancelled.
-///
-/// SAFETY CONTRACT (the strict, NEVER-REORDERED sequence per file):
-/// <list type="number">
-/// <item>Copy the source → an in-flight copy in the destination directory, under a name minted for
-/// this call alone (see <see cref="MintInFlightPath"/>), via an async <see cref="FileStream"/> loop
-/// (1 MiB buffer, <see cref="FileMode.CreateNew"/> on the in-flight file → no-clobber), feeding each
-/// read buffer to BOTH the destination and a running <see cref="System.IO.Hashing.XxHash3"/> so the
-/// SOURCE is read EXACTLY ONCE (single-pass hash). The destination is then flushed-to-disk
-/// (<see cref="FileStream.Flush(bool)"/> with <c>flushToDisk:true</c> → an fsync/FlushFileBuffers)
-/// so the copied bytes are DURABLE on physical media before the stream closes — not merely sitting
-/// in the OS write-back cache.</item>
-/// <item>Verify: re-open the (now media-durable) in-flight copy fresh from disk and hash it
-/// independently; the copy is accepted only when BOTH the size AND the content hash match the
-/// source-pass values. This is the destination's SINGLE re-read (the source is never read a second
-/// time). A size-only check would false-pass a same-length torn write, so the hash is the authority.
-/// On any mismatch the suspect in-flight copy is deleted and the result is
-/// <see cref="MoveOutcome.VerifyFailed"/> — the SOURCE IS UNTOUCHED.</item>
-/// <item>Promote: a 2-arg <see cref="System.IO.File.Move(string,string)"/> renames the verified
-/// in-flight copy → the final name (same directory, so same volume → atomic; throws if the final
-/// already exists → no-clobber).</item>
-/// <item>Delete the source ONLY after the promote in (3) succeeds. The source is the durable
-/// fallback until this last step. Because the destination data was forced to media in (1) and the
-/// verify in (2) confirmed it, a crash at any point — process crash OR power loss / OS crash —
-/// leaves EITHER the intact source (steps 1-3) OR the verified, media-durable final (after 3), so
-/// no file is lost. (The one residual filesystem-dependent window is the
-/// <see cref="System.IO.File.Move(string,string)"/> renamer's directory-entry durability in (3); the data extents
-/// themselves are already durable. An in-flight copy orphaned by a crash carries a name no later
-/// call will produce, so it is never promoted, never collided with, and never deleted by this
-/// extension — it is inert, and removing it is left to the user.)
-/// <para>
-/// THE PROMOTE-THEN-DELETE WINDOW — the one path on which this class DOES leave a duplicated file.
-/// Stated here once; every other mention in this file points at it. The source delete above sits
-/// inside the SAME all-or-nothing <c>try</c> as the copy in (1) and the promote in (3), so a delete
-/// that throws AFTER the promote already succeeded lands in the same <see cref="IOException"/> /
-/// <see cref="UnauthorizedAccessException"/> arms as a failure before it, and the attempt is
-/// classified as a move that did NOT happen — <see cref="MoveOutcome.TargetExists"/> or
-/// <see cref="MoveOutcome.PermissionDenied"/>, whose summary names the source delete beside the copy
-/// and the promote for exactly this reason. The promoted destination survives that classification,
-/// because (3) already renamed the in-flight name away and the cleanup's <c>File.Exists</c> guard is
-/// therefore false. <see cref="RenamerExecutor"/> reads a not-moved result as "nothing was touched"
-/// and takes the skip path — no database write, no rollback — so BOTH files remain on disk with
-/// Cove's row still naming the source. Its execution-time collision loop tests the destination with
-/// <c>File.Exists</c>, so the NEXT run finds the survivor, suffixes past it and writes
-/// <c>name (1)</c>; the pile grows by one every run and nothing bounds it. The same engine backs
-/// <c>SafeCopyBackAsync</c>, so a rollback whose source delete fails records "rollback move failed"
-/// for a rollback that in fact completed and left a duplicate behind. Documented rather than fixed:
-/// taking the source delete out of the all-or-nothing block, or giving a promoted-but-source-remains
-/// attempt an outcome of its own, changes move semantics for real user files and can only land
-/// behind a test that locks or denies the source between the promote and the delete. Until then,
-/// read a <see cref="MoveOutcome.TargetExists"/> or <see cref="MoveOutcome.PermissionDenied"/>
-/// skip from this class as "the move may or may not have happened", never as "nothing changed on
-/// disk".
-/// </para></item>
-/// </list>
-/// classify-not-throw: a locked source (<see cref="IOException"/>) → a
-/// <see cref="MoveOutcome.Locked"/> skip; an occupied destination (the up-front check, or the same
-/// <see cref="IOException"/> resolved by testing the destination) → a
-/// <see cref="MoveOutcome.TargetExists"/> skip; a permission denial
-/// (<see cref="UnauthorizedAccessException"/>) → a <see cref="MoveOutcome.PermissionDenied"/> skip;
-/// a failed verify → <see cref="MoveOutcome.VerifyFailed"/>; a cancelled token → a
-/// <see cref="MoveOutcome.Cancelled"/> skip (the in-flight copy this call created is removed first).
-/// NEVER a throw, NEVER a source delete on failure, NEVER a corrupt file — but NOT never a
-/// duplicate: the promote-then-delete window in (4) above owns that fact. Because the in-flight name
-/// is minted per call, an orphan from an earlier crash cannot be collided with, so it never surfaces
-/// here as a skip either.
-///
-/// Pure <see cref="System.IO"/> + <see cref="System.IO.Hashing"/> — no <c>CoveContext</c>/EF
-/// dependency, no static/global state (so it is concurrency-agnostic; concurrency is bounded by the
-/// caller, per (src,dst) pair) — so it is testable purely against a real temp directory,
-/// called DIRECTLY regardless of the real volume layout (a second physical drive is NOT required).
-///
-/// Hash algorithm: the hard default is to self-hash both sides with XxHash3 (a fast
-/// non-crypto integrity check, not a security control). Reusing Cove's stored MD5 to skip the source
-/// read is deliberately deferred — Cove's MD5 lives in a <c>FileFingerprint</c> row the renamer data port
-/// does not load today, so the stored hash is invisible to the mover; the reuse path is NOT built.
-/// </summary>
+// The cross-volume tier of the executor, used when a rename or move crosses volumes and the atomic
+// same-volume File.Move that DiskMover uses is unavailable. A cross-volume File.Move is an
+// unverified, non-atomic copy-then-delete that leaves a silent duplicate on a locked source. This
+// class mirrors DiskMover's shape, so the executor consumes its result the same way, and it is the
+// only tier that can report VerifyFailed or Cancelled, since only a copy can be read back or
+// cancelled.
+//
+// The per-file sequence is fixed and is not reordered:
+//
+// 1. Copy the source into an in-flight copy in the destination directory, under a name minted for
+//    this call alone, feeding each read buffer to both the destination and a running XxHash3 so the
+//    source is read once. The destination is then flushed with flushToDisk, an fsync, so the copied
+//    bytes are durable on media before the stream closes and are not left in the OS write-back
+//    cache.
+// 2. Verify by re-opening the in-flight copy fresh from disk and hashing it independently. The copy
+//    is accepted only when the size and the content hash both match the source-pass values; a
+//    size-only check would pass a same-length torn write. On a mismatch the suspect copy is deleted
+//    and the source is untouched.
+// 3. Promote: a two-argument File.Move renames the verified in-flight copy to the final name. Same
+//    directory, so the rename is atomic, and it throws when the final name already exists.
+// 4. Delete the source, and only after the promote succeeds. The source is the durable fallback
+//    until this last step. Because the destination data was forced to media in (1) and confirmed in
+//    (2), a crash at any point, from a process crash to a power loss, leaves either the intact
+//    source or the verified, media-durable final. The residual window is the promote's
+//    directory-entry durability, since the data extents are already durable. An in-flight copy
+//    orphaned by a crash carries a name no later call produces, so it is never promoted, never
+//    collided with and never deleted here; removing it is left to the user.
+//
+// The promote-then-delete window is the one path on which this class leaves a duplicated file, and
+// every other mention in this file points here. The source delete sits inside the same
+// all-or-nothing try as the copy and the promote, so a delete that throws after the promote already
+// succeeded lands in the same IOException or UnauthorizedAccessException arm as a failure before it,
+// and the attempt is classified as a move that did not happen: TargetExists or PermissionDenied. The
+// promoted destination survives that classification, because the promote already renamed the
+// in-flight name away and the cleanup's File.Exists guard is false. RenamerExecutor reads a
+// not-moved result as nothing having been touched and takes the skip path, with no database write
+// and no rollback, so both files stay on disk with Cove's row still naming the source. The
+// executor's collision loop tests the destination with File.Exists, so the next run finds the
+// survivor and suffixes past it; the pile grows by one every run and nothing bounds it. The same
+// engine backs SafeCopyBackAsync, so a rollback whose source delete fails records a failed rollback
+// for a rollback that completed and left a duplicate. Changing this needs the source delete out of
+// the all-or-nothing block, or an outcome of its own for a promoted-but-source-remains attempt, both
+// of which change move semantics for real user files and need a test that locks or denies the source
+// between the promote and the delete. Until then, read a TargetExists or PermissionDenied skip from
+// this class as "the move may or may not have happened", never as "nothing changed on disk".
+//
+// Failures are classified, not thrown: a locked source (IOException) is a Locked skip; an occupied
+// destination, from the up-front check or from the same IOException resolved by testing the
+// destination, is a TargetExists skip; a permission denial is PermissionDenied; a failed verify is
+// VerifyFailed; a cancelled token is Cancelled, with the in-flight copy this call created removed
+// first. No path throws out, deletes the source on failure, or leaves a corrupt file. A duplicate is
+// the one exception, owned by the promote-then-delete window above. Because the in-flight name is
+// minted per call, an orphan from an earlier crash is never collided with and never surfaces as a
+// skip.
+//
+// System.IO and System.IO.Hashing only: no CoveContext, no EF, no static or global state, so
+// concurrency is bounded by the caller per source and destination pair, and a test drives it against
+// a real temp directory whatever the volume layout is.
+//
+// Both sides are self-hashed with XxHash3, a fast integrity check and not a security control.
+// Reusing Cove's stored MD5 to skip the source read is deferred: that MD5 lives in a FileFingerprint
+// row the renamer data port does not load, so it is invisible here.
 public sealed class CrossVolumeMover
 {
-    /// <summary>1 MiB copy/hash buffer — matches File.Copy throughput on multi-GB sequential I/O
-    /// (the default 4 KiB / CopyTo's 80 KiB are too small). FileOptions.SequentialScan is a no-op on
-    /// modern Windows and is deliberately NOT set; only FileOptions.Asynchronous is worth setting.</summary>
+    // A 1 MiB copy and hash buffer matches File.Copy throughput on multi-GB sequential I/O, where the
+    // 4 KiB default and CopyTo's 80 KiB are too small. FileOptions.SequentialScan is a no-op on modern
+    // Windows and is left unset; only FileOptions.Asynchronous is worth setting.
     private const int BufferSize = 1 << 20;
 
-    /// <summary>The fixed marker that opens the minted segment, so an orphan is recognisable as this
-    /// extension's work rather than anonymous.</summary>
+    // The fixed marker opening the minted segment, so an orphan is recognisable as this extension's.
     private const string InFlightMarker = ".rnm";
 
-    /// <summary>The number of random hexadecimal characters the minted segment carries.</summary>
     private const int InFlightRandomChars = 8;
 
-    /// <summary>How many characters <see cref="MintInFlightPath"/> appends to the final path.</summary>
-    /// <remarks>
-    /// <c>internal</c> rather than <c>private</c> so the planner's in-flight overflow warning derives the
-    /// length from THIS declaration instead of restating it. The minted segment has already been narrowed
-    /// once (from a 16-character fixed suffix), and against a hand-mirrored 12 a further narrowing would
-    /// leave the preview warning on a band that no longer overruns — a false warning on a correct plan.
-    /// <para>
-    /// <c>static readonly</c> and not <c>const</c>: <c>string.Length</c> is not a compile-time constant
-    /// expression in C#, and writing the sum out as a literal is the mirroring this member removes.
-    /// </para>
-    /// </remarks>
+    // How many characters MintInFlightPath appends to the final path.
+    //
+    // internal so the planner's in-flight overflow warning derives the length from this declaration and
+    // does not restate it. A hand-mirrored copy that missed a narrowing of the minted segment would
+    // leave the preview warning on a band that no longer overruns, warning on a correct plan.
+    //
+    // static readonly and not const, because string.Length is not a compile-time constant expression in
+    // C# and writing the sum out as a literal is the mirroring this member removes.
     internal static readonly int InFlightSuffixLength = InFlightMarker.Length + InFlightRandomChars;
 
-    /// <summary>
-    /// TEST-ONLY fault-injection seam. When non-null, it is invoked on the closed in-flight copy
-    /// AFTER the copy but BEFORE the verify, with that copy's absolute path — letting a test corrupt
-    /// (bit-flip / truncate) it to prove the verify catches the damage and the source survives. The
-    /// production path leaves this null (a no-op), so the live copy is never mutated. Tests construct
-    /// the mover with this hook; nothing in the executor ever sets it.
-    /// </summary>
-    /// <remarks>
-    /// It is also the only way a test can LEARN the minted name: the name is unguessable by design, so
-    /// a test that constructed its own expectation would be asserting on a value it supplied and would
-    /// pass however wrong the real one was.
-    /// </remarks>
+    // Test-only fault-injection seam, invoked on the closed in-flight copy after the copy and before
+    // the verify, with that copy's absolute path, so a test can corrupt or truncate it and prove the
+    // verify catches the damage and the source survives. Production leaves it null and never mutates
+    // the live copy.
+    //
+    // It is also the only way a test learns the minted name: the name is unguessable by design, so a
+    // test that composed its own expectation would assert on a value it supplied and would pass
+    // however wrong the real one was.
     private readonly Func<string, CancellationToken, Task>? _postCopyFaultForTests;
 
-    /// <summary>Production constructor — no fault hook; the live copy path is never mutated.</summary>
     public CrossVolumeMover()
         : this(null)
     {
     }
 
-    /// <summary>
-    /// TEST-ONLY constructor wiring the post-copy fault seam (see
-    /// <see cref="_postCopyFaultForTests"/>). Production code uses the parameterless constructor.
-    /// </summary>
-    /// <param name="postCopyFaultForTests">Invoked with the closed in-flight copy's path between copy
-    /// and verify to inject a fault; null in production (no-op).</param>
+    // Test-only constructor wiring the post-copy fault seam. Production uses the parameterless one.
     public CrossVolumeMover(Func<string, CancellationToken, Task>? postCopyFaultForTests)
     {
         _postCopyFaultForTests = postCopyFaultForTests;
     }
 
-    /// <summary>One planned sidecar move: absolute source → absolute destination (forward/native slashes ok).</summary>
+    // One planned sidecar move, absolute source to absolute destination; either slash convention.
     public readonly record struct SidecarMove(string From, string To);
 
-    /// <summary>
-    /// The outcome of a <see cref="MoveAsync"/>: whether the primary file moved, the sidecars that were
-    /// actually moved (for rollback), any skip warnings, and a classification + reason when the primary
-    /// move did not happen. A non-<see cref="Moved"/> result is a SKIP, never a thrown error. The shape
-    /// is IDENTICAL to <see cref="DiskMover.MoveResult"/> so the executor call site is unchanged.
-    /// </summary>
-    /// <param name="Moved">True iff the primary file was copied→verified→promoted and the source deleted.</param>
-    /// <param name="Outcome">The classification of the primary move attempt.</param>
-    /// <param name="MovedSidecars">The sidecar pairs that actually moved (in move order) — what rollback reverses.</param>
-    /// <param name="Warnings">Non-fatal notes (e.g. a skipped sidecar whose target already existed).</param>
-    /// <param name="Reason">A human-readable reason when the primary move was skipped; null on success.</param>
+    // A result that is not Moved is a skip and never a thrown error. Moved is true only once the
+    // primary was copied, verified, promoted and the source deleted. MovedSidecars carries the pairs
+    // that moved, in move order, which is what a rollback reverses. Reason is null on success. The
+    // shape matches DiskMover.MoveResult, so the executor's call site is the same for both tiers.
     public sealed record MoveResult(
         bool Moved,
         MoveOutcome Outcome,
@@ -168,19 +119,14 @@ public sealed class CrossVolumeMover
         IReadOnlyList<string> Warnings,
         string? Reason);
 
-    /// <summary>
-    /// Copies <paramref name="oldFull"/> → <paramref name="newFull"/> across volumes via the strict
-    /// never-reordered copy → verify(size + hash) → atomic-renamer → delete-source-last sequence, then
-    /// moves each planned sidecar skip-not-clobber through the SAME sequence. A locked source is caught
-    /// and returned as a <see cref="MoveOutcome.Locked"/> skip and an occupied destination as a
-    /// <see cref="MoveOutcome.TargetExists"/> skip; a permission failure as
-    /// <see cref="MoveOutcome.PermissionDenied"/>; a destination that does not match the source by size
-    /// or hash as <see cref="MoveOutcome.VerifyFailed"/>; a cancelled <paramref name="ct"/> as
-    /// <see cref="MoveOutcome.Cancelled"/>. On any failure the source is never deleted and the suspect
-    /// in-flight copy this call created is removed — NEVER overwrites, NEVER leaves a corrupt file,
-    /// NEVER throws out (cancellation is classified, not propagated). One path does leave a
-    /// duplicate: the class summary's promote-then-delete window in (4) states it.
-    /// </summary>
+    // Moves the primary across volumes through the fixed copy, verify on size and hash, atomic promote,
+    // delete-source-last sequence, then each planned sidecar through the same sequence, skipping rather
+    // than clobbering. Every failure comes back classified: a locked source as Locked, an occupied
+    // destination as TargetExists, a permission failure as PermissionDenied, a destination that does not
+    // match the source by size or hash as VerifyFailed, a cancelled token as Cancelled. On a failure the
+    // source is not deleted and the in-flight copy this call created is removed; nothing is overwritten,
+    // no corrupt file is left, and nothing throws out, cancellation included. One path does leave a
+    // duplicate: the promote-then-delete window in the class comment.
     public async Task<MoveResult> MoveAsync(
         string oldFull,
         string newFull,
@@ -213,7 +159,7 @@ public sealed class CrossVolumeMover
                 }
                 else
                 {
-                    // A locked/racy/unverifiable sidecar is non-fatal: warn and leave it (the primary moved).
+                    // A locked, racing or unverifiable sidecar is not fatal once the primary has moved.
                     warnings.Add($"sidecar move failed ({scResult.Outcome}), skipped: {sc.From} -> {sc.To}: {scResult.Reason}");
                 }
             }
@@ -222,15 +168,12 @@ public sealed class CrossVolumeMover
         return new MoveResult(true, MoveOutcome.Moved, moved, warnings, null);
     }
 
-    /// <summary>
-    /// Reverses a successful <see cref="MoveAsync"/> for the rollback path (e.g. a DB save threw after a
-    /// verified cross-move): copies each moved sidecar back to its source first (innermost-first), then
-    /// the primary file <paramref name="newFull"/> → <paramref name="oldFull"/>, each through the same
-    /// copy→verify→delete discipline. Best-effort: a secondary failure (the old slot got re-occupied, a
-    /// verify failed, the target is locked) is swallowed into the returned warnings list rather than
-    /// thrown, so a failed save's cleanup can never itself crash the batch. Returns the warnings (empty
-    /// when the restore was clean).
-    /// </summary>
+    // Reverses a successful MoveAsync, for instance when a database save threw after a verified
+    // cross-volume move. Each moved sidecar is copied back to its source first, then the primary, each
+    // through the same copy, verify and delete sequence. Best-effort: a secondary failure, from a
+    // re-occupied old slot, a failed verify or a locked target, goes into the returned warnings and is
+    // not thrown, so a failed save's cleanup cannot crash the batch. An empty list means a clean
+    // restore.
     public async Task<IReadOnlyList<string>> RollbackAsync(
         string oldFull,
         string newFull,
@@ -239,7 +182,7 @@ public sealed class CrossVolumeMover
     {
         var warnings = new List<string>();
 
-        // Reverse sidecars first (innermost moves undone first), then the primary file.
+        // Sidecars come back first, the most recent move undone first, then the primary file.
         for (int i = movedSidecars.Count - 1; i >= 0; i--)
         {
             var sc = movedSidecars[i];
@@ -250,43 +193,39 @@ public sealed class CrossVolumeMover
         return warnings;
     }
 
-    /// <summary>
-    /// The single-file engine: the strict copy → verify → atomic-promote → delete-source-last sequence
-    /// with classify-not-throw. Returns whether it succeeded plus the outcome/reason to surface.
-    /// </summary>
+    // The single-file engine: copy, verify, atomic promote, delete the source last. Every failure comes
+    // back classified and none is thrown.
     private async Task<(bool Ok, MoveOutcome Outcome, string? Reason)> CopyVerifyPromoteDeleteAsync(
         string srcFull,
         string finalFull,
         CancellationToken ct)
     {
-        // (0) No-clobber pre-check: an existing final destination is never overwritten. The one site of
-        // the three below that needs no destination test to decide — it IS the destination test.
+        // An existing final destination is never overwritten.
         if (System.IO.File.Exists(finalFull))
         {
             return (false, MoveOutcome.TargetExists, $"target exists, not overwritten: {finalFull}");
         }
 
-        // Every delete below targets this one path, minted here in this invocation — which is what makes
-        // "the mover never removes a file it did not create" a property of the code's shape rather than
-        // of a check that could be got wrong.
+        // Every delete below targets this one path, minted here in this invocation, so "the mover never
+        // removes a file it did not create" holds by the shape of the code and not by a check.
         var inFlightFull = MintInFlightPath(finalFull);
 
         try
         {
             EnsureParentDir(inFlightFull);
 
-            // (1) Single-pass copy + source hash → the in-flight copy (CreateNew = no-clobber).
+            // Single-pass copy and source hash into the in-flight copy, opened CreateNew so it cannot
+            // clobber.
             var (srcSize, srcHash) = await CopyAndHashAsync(srcFull, inFlightFull, ct).ConfigureAwait(false);
 
-            // TEST-ONLY fault seam: corrupt the closed in-flight copy between copy and verify. No-op in
-            // production.
+            // The test-only fault seam corrupts the closed in-flight copy between copy and verify.
             if (_postCopyFaultForTests is not null)
             {
                 await _postCopyFaultForTests(inFlightFull, ct).ConfigureAwait(false);
             }
 
-            // (2) Verify against a FRESH destination read — size AND hash (never size-only, never the
-            // in-flight buffer). On mismatch delete the suspect copy and keep the source untouched.
+            // Verify against a fresh destination read, on size and hash. On a mismatch the suspect copy
+            // is deleted and the source is left untouched.
             var (dstSize, dstHash) = await HashFileAsync(inFlightFull, ct).ConfigureAwait(false);
             bool verified = dstSize == srcSize && dstHash.AsSpan().SequenceEqual(srcHash);
             if (!verified)
@@ -295,7 +234,7 @@ public sealed class CrossVolumeMover
                 return (false, MoveOutcome.VerifyFailed, "verify failed: destination size or hash mismatch");
             }
 
-            // (3) Atomic same-directory promote → final (2-arg Move = no-clobber on the final).
+            // The same-directory promote is atomic, and the two-argument Move cannot clobber the final.
             try
             {
                 System.IO.File.Move(inFlightFull, finalFull);
@@ -304,33 +243,34 @@ public sealed class CrossVolumeMover
             {
                 TryDelete(inFlightFull);
                 // A racing writer that took the final name between the pre-check and here, and a locked
-                // in-flight copy, arrive as the same IOException. Decide by measuring the destination —
-                // see MoveOutcome.TargetExists for why the exception's message is never read.
+                // in-flight copy, arrive as the same IOException. The destination is measured to tell
+                // them apart; MoveOutcome.TargetExists covers why the exception message is never read.
                 return System.IO.File.Exists(finalFull)
                     ? (false, MoveOutcome.TargetExists, $"target exists at promote, not overwritten: {ex.Message}")
                     : (false, MoveOutcome.Locked, $"promote refused, in-flight copy locked: {ex.Message}");
             }
 
-            // (4) Delete the source ONLY after the promote succeeds (delete-last).
+            // The source delete runs only after the promote has succeeded.
             System.IO.File.Delete(srcFull);
             return (true, MoveOutcome.Moved, null);
         }
         catch (OperationCanceledException)
         {
-            // A cancelled token throws OperationCanceledException out of the Read/WriteAsync loop.
-            // Remove the in-flight copy so a cancel leaves no leaked, unverified copy. The source is
-            // untouched — the delete only runs after a verified promote, which a cancel never reaches.
+            // A cancelled token throws out of the read and write loop. The in-flight copy is removed so
+            // a cancel leaks no unverified copy. The source is untouched, because its delete runs only
+            // after a verified promote, which a cancel never reaches.
             TryDelete(inFlightFull);
             return (false, MoveOutcome.Cancelled, "cancelled");
         }
         catch (IOException ex)
         {
-            // Covers a locked source and torn I/O. Skip + report; never force, never delete the source.
-            // Remove the suspect in-flight copy if the CreateNew got far enough to make one.
+            // A locked source and torn I/O arrive here. The attempt is reported as a skip, the lock is
+            // not forced and the source is not deleted; the suspect in-flight copy is removed when the
+            // CreateNew got far enough to make one.
             TryDelete(inFlightFull);
-            // Decide by measuring the destination, never by reading the exception's message — see
-            // MoveOutcome.TargetExists. A destination present here also covers the class summary's
-            // promote-then-delete window in (4): the promote landed and the source delete threw.
+            // The destination is measured to classify this, never the exception message; see
+            // MoveOutcome.TargetExists. A destination present here also covers the class comment's
+            // promote-then-delete window: the promote landed and the source delete threw.
             return System.IO.File.Exists(finalFull)
                 ? (false, MoveOutcome.TargetExists, $"target exists, not overwritten: {ex.Message}")
                 : (false, MoveOutcome.Locked, $"source locked/in-use: {ex.Message}");
@@ -342,41 +282,33 @@ public sealed class CrossVolumeMover
         }
     }
 
-    /// <summary>
-    /// Mints the path the in-flight copy occupies for one call: <paramref name="finalFull"/> plus a
-    /// short marker and <see cref="InFlightRandomChars"/> characters of cryptographic randomness, in
-    /// the destination directory so the later promote stays a same-directory (atomic) rename.
-    /// </summary>
-    /// <remarks>
-    /// Unguessable by construction, and that is what carries the safety contract rather than any check:
-    /// no two calls can produce the same name, so this call's copy can only ever land on a path it just
-    /// created, and an orphan left by an earlier crash is never collided with, never promoted and never
-    /// deleted. A counter, a process id or a timestamp would each be guessable and would put the "is
-    /// this file mine?" adjudication back — the question this design exists to remove.
-    ///
-    /// The segment is kept short deliberately: the planner budgets only the FINAL path against
-    /// <c>RenamerOptions.FullPathMax</c>, so the in-flight path is unbudgeted, and a longer name would
-    /// widen a gap that is already there.
-    ///
-    /// The alphabet is hexadecimal, so the minted segment can carry no separator, no parent-directory
-    /// segment and no drive qualifier — it cannot move the copy out of the destination directory.
-    ///
-    /// <c>internal</c> rather than <c>private</c> for one reader only: the test that pins
-    /// <see cref="InFlightSuffixLength"/> measures the segment this method actually appends, because a pin
-    /// that recomposed the marker and the random count would agree with a rewritten minter forever.
-    /// </remarks>
+    // The path the in-flight copy occupies for one call: the final path plus a short marker and
+    // cryptographic randomness, in the destination directory so the later promote stays a
+    // same-directory atomic rename.
+    //
+    // The name is unguessable by construction, and that is what carries the safety property, not a
+    // check: no two calls produce the same name, so this call's copy can only land on a path it just
+    // created, and an orphan left by an earlier crash is never collided with, never promoted and never
+    // deleted. A counter, a process id or a timestamp would each be guessable and would put back the
+    // question of whether a given file belongs to this call.
+    //
+    // The segment is kept short: the planner budgets only the final path against
+    // RenamerOptions.FullPathMax, so the in-flight path is unbudgeted.
+    //
+    // The alphabet is hexadecimal, so the minted segment carries no separator, no parent-directory
+    // segment and no drive qualifier, and cannot move the copy out of the destination directory.
+    //
+    // internal for one reader: the test that pins InFlightSuffixLength measures the segment this method
+    // appends, because a pin that recomposed the marker and the random count would agree with a
+    // rewritten minter forever.
     internal static string MintInFlightPath(string finalFull) =>
         finalFull
         + InFlightMarker
         + System.Security.Cryptography.RandomNumberGenerator.GetHexString(InFlightRandomChars, lowercase: true);
 
-    /// <summary>
-    /// Single-pass async copy + hash: reads <paramref name="srcNative"/> once into a reused 1 MiB
-    /// buffer, feeding each slice to BOTH the in-flight destination stream and a running
-    /// <see cref="System.IO.Hashing.XxHash3"/>. The in-flight file is opened
-    /// <see cref="FileMode.CreateNew"/> (no-clobber). Returns the source size + the source-pass hash
-    /// digest computed in the SAME read pass (no second source read).
-    /// </summary>
+    // Reads the source once into a reused buffer, feeding each slice to both the in-flight destination
+    // stream and a running hash, and returns the source size and the digest from that same pass, so the
+    // source is never read a second time.
     private static async Task<(long Size, byte[] Hash)> CopyAndHashAsync(
         string srcNative,
         string inFlightNative,
@@ -388,7 +320,7 @@ public sealed class CrossVolumeMover
         await using var src = new FileStream(
             srcNative, FileMode.Open, FileAccess.Read, FileShare.Read,
             BufferSize, FileOptions.Asynchronous);
-        // CreateNew → throws IOException if the in-flight file already exists (no-clobber).
+        // CreateNew throws IOException when the in-flight file already exists, so it cannot clobber.
         await using var dst = new FileStream(
             inFlightNative, FileMode.CreateNew, FileAccess.Write, FileShare.None,
             BufferSize, FileOptions.Asynchronous);
@@ -398,28 +330,26 @@ public sealed class CrossVolumeMover
         while ((read = await src.ReadAsync(buffer.AsMemory(0, BufferSize), ct).ConfigureAwait(false)) > 0)
         {
             var slice = buffer.AsMemory(0, read);
-            hash.Append(slice.Span);                               // hash the source in the SAME pass
-            await dst.WriteAsync(slice, ct).ConfigureAwait(false); // write the destination
+            hash.Append(slice.Span);
+            await dst.WriteAsync(slice, ct).ConfigureAwait(false);
             total += read;
         }
 
         await dst.FlushAsync(ct).ConfigureAwait(false);
-        // Force the OS write-back cache → physical media BEFORE the stream closes, the verify
-        // re-reads, and the source is deleted. FlushAsync alone only drains the managed/OS buffer
-        // into the OS file cache; flushToDisk:true issues the FlushFileBuffers (fsync) so the bytes
-        // are durable on the platter. Without this the verify would re-read the same volatile cache
-        // and a power loss after File.Delete(source) could leave a non-durable destination — i.e.
-        // data loss. This is what makes the "interrupted transfer never loses the original" contract
-        // hold across power loss / OS crash, not merely a managed process crash.
+        // The write-back cache is forced to physical media before the stream closes, before the verify
+        // re-reads and before the source is deleted. FlushAsync alone only drains the managed buffer
+        // into the OS file cache; flushToDisk issues the fsync that makes the bytes durable. Without it
+        // the verify would re-read the same volatile cache, and a power loss after the source delete
+        // could leave a destination that never reached media. This is what carries the guarantee that
+        // an interrupted transfer never loses the original across a power loss or an OS crash, not only
+        // across a process crash.
         dst.Flush(flushToDisk: true);
         return (total, hash.GetCurrentHash());
     }
 
-    /// <summary>
-    /// Re-reads <paramref name="native"/> fresh from disk (after the copy stream is flushed and closed)
-    /// and computes its size + <see cref="System.IO.Hashing.XxHash3"/> digest independently, so the
-    /// verify confirms what ACTUALLY landed on disk rather than trusting the in-flight copy buffer.
-    /// </summary>
+    // Re-reads the file fresh from disk, after the copy stream is flushed and closed, and computes its
+    // size and digest independently, so the verify confirms what landed on disk and not what the copy
+    // buffer held.
     private static async Task<(long Size, byte[] Hash)> HashFileAsync(string native, CancellationToken ct)
     {
         var hash = new System.IO.Hashing.XxHash3();
@@ -439,9 +369,8 @@ public sealed class CrossVolumeMover
         return (total, hash.GetCurrentHash());
     }
 
-    /// <summary>Best-effort copy-back <paramref name="from"/> → <paramref name="to"/> for rollback;
-    /// records (never throws) on failure, mirroring <see cref="DiskMover"/>'s SafeMoveBack contract but
-    /// using the verified cross-volume copy→verify→delete sequence.</summary>
+    // Best-effort copy-back for rollback, through the verified cross-volume sequence. A failure is
+    // recorded in the warnings and never thrown, matching DiskMover's SafeMoveBack.
     private async Task SafeCopyBackAsync(string from, string to, List<string> warnings, CancellationToken ct)
     {
         try
@@ -469,13 +398,9 @@ public sealed class CrossVolumeMover
         }
     }
 
-    /// <summary>Deletes <paramref name="path"/> if present, swallowing any failure (best-effort cleanup
-    /// of the in-flight copy the calling invocation minted — never throws).</summary>
-    /// <remarks>
-    /// Every call site passes a path minted inside the same invocation, which is the whole of the
-    /// ownership guarantee: this helper can only ever be pointed at a file the mover itself created a
-    /// moment earlier.
-    /// </remarks>
+    // Best-effort cleanup of the in-flight copy the calling invocation minted; it never throws. Every
+    // call site passes a path minted inside the same invocation, which is the whole of the ownership
+    // guarantee: this helper can only be pointed at a file the mover itself created a moment earlier.
     private static void TryDelete(string path)
     {
         try
