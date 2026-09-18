@@ -240,6 +240,7 @@ export function RenamePanelBody() {
       {dryRunOpen ? (
         <DryRunModal
           options={options}
+          dirty={dirty}
           onClose={() => {
             setDryRunOpen(false);
           }}

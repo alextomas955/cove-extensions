@@ -74,7 +74,9 @@ vi.mock("@cove-extensions/ui-shared", async () => {
 
   return {
     extensionApi: (await import("../../../../../../../shared/ui-shared/src/actions")).extensionApi,
-    Button: stub("Button"),
+    // A real <button>, because whether it is disabled is the whole of what some assertions read.
+    Button: ({ children, disabled }: { children: ReactNode; disabled?: boolean }) =>
+      h("button", { type: "button", disabled }, children),
     ProgressBar: stub("ProgressBar"),
     Spinner: stub("Spinner"),
     StatusPill: stub("StatusPill"),
@@ -144,13 +146,14 @@ function summary(): ScanSummaryView {
   };
 }
 
-function mountModal() {
+function mountModal({ dirty = false }: { dirty?: boolean } = {}) {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   root.render(
     createElement(DryRunModal, {
       options: cloneDefaults(),
+      dirty,
       onClose: () => undefined,
       onRenameAll: () => undefined,
       renaming: false,
@@ -159,6 +162,8 @@ function mountModal() {
 
   return {
     text: () => container.textContent,
+    renameButton: () =>
+      [...container.querySelectorAll("button")].find((b) => b.textContent.startsWith("Rename ")),
     unmount: () => {
       root.unmount();
       container.remove();
@@ -216,5 +221,29 @@ test("a failed page stops the walk instead of reissuing the same request without
   await sleep(1_000);
   expect(host.rowReads, "the walk resumed on its own after the failure").toBe(readsAtRest);
   expect(modal.text()).toContain("Couldn't load more rows");
+  modal.unmount();
+}, 30_000);
+
+test("a dry run of unsaved settings will not start the rename", async () => {
+  // The scan previews what is on screen; the rename runs what is saved. With a kind excluded but not
+  // saved, renaming from here would move files these rows never listed.
+  host.pages.push(finalPage([row(1), row(2)]));
+
+  const modal = mountModal({ dirty: true });
+  await sleep(SETTLE_MS);
+
+  expect(modal.renameButton()?.disabled).toBe(true);
+  expect(modal.text()).toContain("a rename runs the saved ones");
+  modal.unmount();
+}, 30_000);
+
+test("a dry run of saved settings starts the rename", async () => {
+  host.pages.push(finalPage([row(1), row(2)]));
+
+  const modal = mountModal();
+  await sleep(SETTLE_MS);
+
+  expect(modal.renameButton()?.disabled).toBe(false);
+  expect(modal.text()).not.toContain("a rename runs the saved ones");
   modal.unmount();
 }, 30_000);
