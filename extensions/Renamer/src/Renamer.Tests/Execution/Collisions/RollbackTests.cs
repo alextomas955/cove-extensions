@@ -132,13 +132,13 @@ public sealed class RollbackTests
     /// <summary>
     /// The post-save consistency-assertion branch: the DB save SUCCEEDS (commits the new basename) but
     /// the runtime "recomputed Path == on-disk path" assertion FAILS. The executor must roll the disk
-    /// back to the OLD path through the same mover the move used — NOT leave the file abandoned at the
-    /// new path with no undo record (the pre-fix bug). Assert: (a) the item is Failed with a
-    /// path-mismatch + rolled-back reason, (b) the file is back at its OLD on-disk path, (c) no
-    /// revert-log row and no event were written for it.
+    /// back to the OLD path through the same mover the move used AND write the committed row back to
+    /// the old location, so the branch ends with disk and database agreeing. Assert: (a) the item is
+    /// Failed with a path-mismatch + rolled-back reason, (b) the file is back at its OLD on-disk path,
+    /// (c) the row names the OLD basename again, (d) no revert-log row and no event were written.
     /// </summary>
     [Fact]
-    public async Task SaveSucceedsButRecomputedPathMismatch_FileRolledBack_NoRevertLog()
+    public async Task SaveSucceedsButRecomputedPathMismatch_FileAndRowBothRolledBack()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -184,6 +184,10 @@ public sealed class RollbackTests
             Assert.True(File.Exists(oldA), "file must be rolled back to its old path");
             Assert.Equal("A-bytes", File.ReadAllText(oldA));
             Assert.False(File.Exists(newPath), "rolled-back file must not linger at the new path");
+
+            // (c) the committed row is back to the old basename, so it names the file's real location.
+            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
+            Assert.Equal("a.mkv", basename);
         }
         finally
         {
@@ -280,8 +284,9 @@ public sealed class RollbackTests
             {
                 AppendThrow = new InvalidOperationException("journal write failed"),
             };
+            var bus = new CapturingEventBus();
             var executor = new RenamerExecutor(
-                new CoveRenamerDataPort(db), new CapturingEventBus(), journal, "run-test", new DiskMover());
+                new CoveRenamerDataPort(db), bus, journal, "run-test", new DiskMover());
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -290,7 +295,11 @@ public sealed class RollbackTests
             var renamedItem = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
             Assert.NotNull(renamedItem.Reason);
+            Assert.Contains("revert-log entry not written", renamedItem.Reason);
             Assert.Contains("journal write failed", renamedItem.Reason);
+
+            // The rename committed, so the host is still told to reindex it.
+            Assert.Single(bus.Published);
 
             Assert.True(File.Exists(newPath), "a committed move must survive a post-save failure");
             Assert.Equal("A-bytes", File.ReadAllText(newPath));
@@ -300,6 +309,55 @@ public sealed class RollbackTests
             var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
             Assert.Equal("b.mkv", basename);
             Assert.Equal(folderPath + "/b.mkv", path);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// A throwing event bus runs after the journal append, so its failure must name the event and leave
+    /// the revert-log row standing: reported as an unwritten revert-log entry it would tell a user their
+    /// rename cannot be undone when it can.
+    /// </summary>
+    [Fact]
+    public async Task EventPublishThrowsAfterTheSaveCommitted_RevertRowStands_WarnsAboutTheEvent()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, fileA) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
+            File.WriteAllText(Path.Combine(dir.Root, "a.mkv"), "A-bytes");
+
+            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+            [
+                new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
+                    RenamerStatus.Renamer, "b.mkv", folderPath),
+            ]);
+
+            var bus = new CapturingEventBus { PublishThrow = new InvalidOperationException("bus is down") };
+            var journal = new FakeRevertJournal();
+            var executor = new RenamerExecutor(
+                new CoveRenamerDataPort(db), bus, journal, "run-test", new DiskMover());
+
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+
+            var renamedItem = Assert.Single(result.Renamed);
+            Assert.NotNull(renamedItem.Reason);
+            Assert.Contains("rename event not published", renamedItem.Reason);
+            Assert.DoesNotContain("revert-log entry not written", renamedItem.Reason);
+
+            // The undo record is there, which is what the warning must not deny.
+            var row = Assert.Single(journal.Rows);
+            Assert.Equal(fileA, row.FileId);
+            Assert.Equal(folderPath + "/a.mkv", row.OldPath);
+
+            Assert.True(File.Exists(Path.Combine(dir.Root, "b.mkv")));
         }
         finally
         {

@@ -62,6 +62,13 @@ public sealed partial class Renamer
         Message = "[Renamer] batch {RunId}: planning complete — {Acting} file(s) will act across {Planned} item(s)")]
     private partial void LogPlanningDone(string runId, int acting, int planned);
 
+    // The one trace of a refused source-path claim: the rename cannot tell which of the rows owns the
+    // file, so it moves none of them and names the path a maintainer has to reconcile.
+    [LoggerMessage(
+        EventId = 1009, Level = LogLevel.Warning,
+        Message = "[Renamer] batch {RunId}: {Claims} file rows name the source path '{Path}' — none of them renamed")]
+    private partial void LogContestedSourcePath(string runId, string path, int claims);
+
     // Logged BEFORE a move runs, so a cross-volume copy (a full copy→verify→delete that can take many
     // seconds for a large file) is legible as "copying now", not a frozen bar. A same-volume rename is
     // near-instant, so the CrossVolume flag lets the reader tell a slow copy from a quick rename.

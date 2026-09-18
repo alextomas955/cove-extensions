@@ -79,20 +79,27 @@ public static class FreeSpaceGuard
     /// split reads too.
     /// This only exposes the grouping; the consuming parallel loop lives in the batch runner.
     /// </summary>
-    public static IReadOnlyList<((string SourceRoot, string DestRoot) Pair, IReadOnlyList<(string OldFullPath, string NewFullPath, long SizeBytes)> Moves)> PartitionByPair(
-        IEnumerable<(string OldFullPath, string NewFullPath, long SizeBytes)> moves,
+    /// <param name="items">The units of work to partition.</param>
+    /// <param name="move">Reads the (current path, new path) an item would perform.</param>
+    /// <param name="mountPoints">Mount table to resolve Unix volumes against; omit for the real one.</param>
+    public static IReadOnlyList<((string SourceRoot, string DestRoot) Pair, IReadOnlyList<T> Items)> PartitionByPair<T>(
+        IEnumerable<T> items,
+        Func<T, (string OldFullPath, string NewFullPath)> move,
         IReadOnlyCollection<string>? mountPoints = null)
     {
-        ArgumentNullException.ThrowIfNull(moves);
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(move);
 
-        return [.. moves
-            .GroupBy(m => VolumeClassifier.SameVolume(m.OldFullPath, m.NewFullPath, mountPoints)
-                ? SameVolumePair
-                : (VolumeClassifier.VolumeKey(m.OldFullPath, mountPoints),
-                   VolumeClassifier.VolumeKey(m.NewFullPath, mountPoints)))
-            .Select(g => (
-                Pair: g.Key,
-                Moves: (IReadOnlyList<(string OldFullPath, string NewFullPath, long SizeBytes)>)[.. g]))];
+        return [.. items
+            .GroupBy(item =>
+            {
+                var (oldFullPath, newFullPath) = move(item);
+                return VolumeClassifier.SameVolume(oldFullPath, newFullPath, mountPoints)
+                    ? SameVolumePair
+                    : (VolumeClassifier.VolumeKey(oldFullPath, mountPoints),
+                       VolumeClassifier.VolumeKey(newFullPath, mountPoints));
+            })
+            .Select(g => (Pair: g.Key, Items: (IReadOnlyList<T>)[.. g]))];
     }
 
     /// <summary>

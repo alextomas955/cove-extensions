@@ -12,7 +12,18 @@ public sealed class CapturingEventBus : IEventBus
     /// <summary>Every published event, in publish order.</summary>
     public List<CoveEvent> Published { get; } = [];
 
-    public void Publish(CoveEvent evt) => Published.Add(evt);
+    /// <summary>When set, <see cref="Publish"/> throws this instead of recording the event.</summary>
+    public Exception? PublishThrow { get; set; }
+
+    public void Publish(CoveEvent evt)
+    {
+        if (PublishThrow is not null)
+        {
+            throw PublishThrow;
+        }
+
+        Published.Add(evt);
+    }
 
     public IDisposable Subscribe(Action<CoveEvent> handler) => new NoopDisposable();
     public IDisposable Subscribe(EventType type, Action<CoveEvent> handler) => new NoopDisposable();

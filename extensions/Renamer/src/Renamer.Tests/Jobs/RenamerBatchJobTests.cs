@@ -144,6 +144,93 @@ public sealed class RenamerBatchJobTests
         }
     }
 
+    /// <summary>
+    /// Two file rows whose folder paths differ only by a trailing separator name ONE file on disk. The
+    /// batch cannot tell which row owns it, so it renames neither and leaves the file alone.
+    /// </summary>
+    [Fact]
+    public async Task TwoRowsNamingOneSourceFile_RenameNeither_LeaveTheFileAlone()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, v1, file1) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "First Film");
+
+            // A second folder row for the SAME directory, spelled with a trailing separator, carrying
+            // its own file row for the same basename.
+            var twin = new Cove.Core.Entities.Folder { Path = folderPath + "/", ModTime = DateTime.UtcNow };
+            db.Set<Cove.Core.Entities.Folder>().Add(twin);
+            await db.SaveChangesAsync();
+            var video2 = new Cove.Core.Entities.Video { Title = "Second Film", Organized = true };
+            db.Set<Cove.Core.Entities.Video>().Add(video2);
+            await db.SaveChangesAsync();
+            int file2 = await ExecutorTestSeed.SeedAdditionalFileAsync(db, twin.Id, video2.Id, "a.mkv");
+
+            File.WriteAllText(Path.Combine(dir.Root, "a.mkv"), "bytes");
+
+            var bus = new CapturingEventBus();
+            var ext = await BuildExtensionAsync(conn, bus);
+            var progress = new FakeJobProgress();
+
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [v1, video2.Id]), progress, default);
+
+            // The file is untouched and neither row moved, so nothing renamed the file the other claims.
+            Assert.True(File.Exists(Path.Combine(dir.Root, "a.mkv")));
+            Assert.Equal("bytes", File.ReadAllText(Path.Combine(dir.Root, "a.mkv")));
+            Assert.False(File.Exists(Path.Combine(dir.Root, "First Film.mkv")));
+            Assert.False(File.Exists(Path.Combine(dir.Root, "Second Film.mkv")));
+
+            var (b1, _) = await ExecutorTestSeed.ReadFileAsync(db, file1);
+            var (b2, _) = await ExecutorTestSeed.ReadFileAsync(db, file2);
+            Assert.Equal("a.mkv", b1);
+            Assert.Equal("a.mkv", b2);
+
+            Assert.Empty(bus.Published);
+            Assert.Equal(1d, progress.LastPercent);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// The same id twice is one file, not two rows competing for it: the batch renames it once instead
+    /// of refusing it as a contested source or scheduling it on two workers.
+    /// </summary>
+    [Fact]
+    public async Task TheSameIdTwice_RenamesTheFileOnce()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "First Film");
+            File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
+
+            var bus = new CapturingEventBus();
+            var ext = await BuildExtensionAsync(conn, bus);
+
+            await ext.RunRenamerBatchAsync(
+                RenamerJob.Encode("video", [videoId, videoId]), new FakeJobProgress(), default);
+
+            Assert.True(File.Exists(Path.Combine(dir.Root, "First Film.mkv")));
+            Assert.False(File.Exists(Path.Combine(dir.Root, "raw.mkv")));
+            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            Assert.Equal("First Film.mkv", basename);
+            Assert.Single(bus.Published);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task UnsupportedEntityType_IsCleanNoOp_ReportsFinalOne()
     {

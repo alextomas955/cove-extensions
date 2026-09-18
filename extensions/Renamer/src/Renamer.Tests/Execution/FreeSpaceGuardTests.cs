@@ -130,18 +130,18 @@ public sealed class FreeSpaceGuardTests
             (OnVol("C", "x.mkv"), OnVol("C", "y.mkv"), 1L),   // same-volume → unthrottled group
         };
 
-        var groups = FreeSpaceGuard.PartitionByPair(moves, Mounts);
+        var groups = FreeSpaceGuard.PartitionByPair(moves, m => (m.Item1, m.Item2), Mounts);
 
         // Three groups: C→D (2 moves), C→E (1 move), and the same-volume unthrottled group (1 move).
         Assert.Equal(3, groups.Count);
 
         var cToD = Assert.Single(groups, g => g.Pair == (RootOf("C"), RootOf("D")));
-        Assert.Equal(2, cToD.Moves.Count);
+        Assert.Equal(2, cToD.Items.Count);
 
         var cToE = Assert.Single(groups, g => g.Pair == (RootOf("C"), RootOf("E")));
-        Assert.Single(cToE.Moves);
+        Assert.Single(cToE.Items);
 
         var sameVol = Assert.Single(groups, g => g.Pair == FreeSpaceGuard.SameVolumePair);
-        Assert.Single(sameVol.Moves);
+        Assert.Single(sameVol.Items);
     }
 }
