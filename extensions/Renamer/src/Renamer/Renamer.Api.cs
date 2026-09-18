@@ -108,6 +108,20 @@ public sealed partial class Renamer
                 order: 100,
                 requiredPermission: Permissions.ImagesWrite,
                 suppressSuccessAlert: true)
+            // Both spellings, because the host's selection-action normalizer singularizes only "videos"
+            // and "images": a texts list hands its extension actions the plural "texts". Declaring the
+            // singular too keeps the action working if the host later normalizes every kind.
+            .AddAction(
+                id: "renamer-selected-text",
+                label: "Rename selected",
+                actionType: "bulk",
+                entityTypes: ["text", "texts"],
+                icon: "pencil",
+                apiEndpoint: null,
+                handlerName: "renamerSelected",
+                order: 100,
+                requiredPermission: Permissions.TextsWrite,
+                suppressSuccessAlert: true)
             // The renamer UI's home is a DEDICATED SETTINGS PAGE under the Settings → Extensions group.
             // Renamer is an app-like configurator (template editor, live preview, whole-library run,
             // undo) that doesn't fit a stack of uniform section cards, so the tab uses page layout:
@@ -120,7 +134,7 @@ public sealed partial class Renamer
             .AddSettingsTab(
                 key: "renamer",
                 label: "Renamer",
-                description: "Build a filename from each item's metadata. Preview before it touches disk.",
+                description: "Build each filename from the item's own details. See every change before anything moves.",
                 order: 100,
                 layout: SettingsTabLayout.Page)
             .AddSettingsSection(targetTab: "renamer", label: "Renamer", componentName: "RenamerPage")
@@ -138,7 +152,7 @@ public sealed partial class Renamer
             id: RenamerJob.JobId,
             name: "Rename selected",
             handler: (parameters, progress, ct) => RunRenamerBatchAsync(parameters, progress, ct),
-            description: "Batch-renames the selected media items from the configured template.",
+            description: "Renames the items you selected, using your naming pattern.",
             supportsParameters: true,
             showInTaskList: true);
 
@@ -511,11 +525,10 @@ public sealed partial class Renamer
         // read or disk touch, so an unauthorized caller cannot even learn whether a batch exists. The
         // SPECIFIC kind's write permission is re-checked below once the batch reveals the kind; this
         // coarse gate only preserves the "no read/disk work for the wholly-unauthorized" property.
-        bool canWriteAny = principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosWrite)
-                || principal.Current.Has(Permissions.ImagesWrite)
-                || principal.Current.Has(Permissions.AudiosWrite));
-        if (!canWriteAny)
+        // Read through the shared helper, never a list spelled again here: a kind added to
+        // AnyWritePermissions and not to a second copy locks that kind's own writers out of undo while
+        // every other path accepts them.
+        if (!HasAnyWritePermission(principal))
         {
             return new ForbiddenCode();
         }
@@ -717,11 +730,11 @@ public sealed partial class Renamer
     /// handler directly.
     /// </remarks>
     private static readonly string[] AnyReadPermissions =
-        [Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead];
+        [.. RenamableKinds.All.Select(k => PermissionsFor(k).Read)];
 
     /// <summary>The write gate, on the same terms as <see cref="AnyReadPermissions"/>.</summary>
     private static readonly string[] AnyWritePermissions =
-        [Permissions.VideosWrite, Permissions.ImagesWrite, Permissions.AudiosWrite];
+        [.. RenamableKinds.All.Select(k => PermissionsFor(k).Write)];
 
     private static bool HasAnyReadPermission(ICurrentPrincipalAccessor principal)
         => principal.Current is { } current && Array.Exists(AnyReadPermissions, current.Has);
@@ -729,14 +742,6 @@ public sealed partial class Renamer
     private static bool HasAnyWritePermission(ICurrentPrincipalAccessor principal)
         => principal.Current is { } current && Array.Exists(AnyWritePermissions, current.Has);
 
-    /// <summary>
-    /// Every renamable kind, in a fixed iteration order. Gallery is excluded — it is not yet a
-    /// renamable kind (<see cref="TryParseKind"/> never produces it, <c>LoadEntityAsync</c> returns
-    /// null for it). Shared by the whole-library scan and renamer-library job loops so both iterate
-    /// the same three kinds in the same order.
-    /// </summary>
-    private static readonly RenamerFileKind[] RenamableKinds =
-        [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio];
 
     /// <summary>
     /// Enqueues the whole-library scan job. Takes an OPTIONAL <see cref="ScanLibraryRequest"/> body
@@ -767,7 +772,7 @@ public sealed partial class Renamer
         // cannot re-read the request, exactly like readableKinds.
         var overrideOptions = TryParseOptionsOverride(body?.Options);
 
-        var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        var readableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
 
         var jobId = jobs.Enqueue(
             $"ext:{Id}:scan-library",
@@ -851,7 +856,7 @@ public sealed partial class Renamer
             return TypedResults.NotFound();
         }
 
-        var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        var readableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
         return TypedResults.Ok(ScanSummaryView.From(summary, readableKinds));
     }
 
@@ -895,7 +900,13 @@ public sealed partial class Renamer
 
         var options = TryParseOptionsOverride(body?.Options) ?? await new OptionsStore(Store, _log).LoadAsync(ct);
         var lookups = BuildLookups(options);
-        var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        // A kind turned off is dropped before the walk, exactly as RunScanCoreAsync drops it. Left in,
+        // a library-sized kind that is off fills the table with rows saying so and spends the request's
+        // entity budget reaching them, while the counts beside that table exclude it, and the table and its
+        // own summary would disagree. A cursor minted while the kind was on resumes at the next kind.
+        var kinds = RenamableKinds.All
+            .Where(k => principal.Current!.Has(PermissionsFor(k).Read) && options.IsKindEnabled(k))
+            .ToArray();
 
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
@@ -903,7 +914,7 @@ public sealed partial class Renamer
         var pager = new ScanRowPager(new RenamerPlanner(port), port);
 
         var page = await pager.PageAsync(
-            readableKinds, cursor, body?.Take ?? 0, body?.Query, bucket, options, lookups, ct);
+            kinds, cursor, body?.Take ?? 0, body?.Query, bucket, options, lookups, ct);
 
         return TypedResults.Ok(page);
     }
@@ -968,6 +979,12 @@ public sealed partial class Renamer
         IRenamerDataPort port, IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions options,
         Cove.Plugins.IJobProgress progress, CancellationToken ct)
     {
+        // A kind turned off in the options is dropped before it is walked, not planned and reported as
+        // a skip per row: a library-sized kind would otherwise fill the scan with rows whose only
+        // content is that the kind is off. The planner still gates it, which is what a selection-based
+        // rename of the same kind meets.
+        var kinds = readableKinds.Where(options.IsKindEnabled).ToList();
+
         var lookups = BuildLookups(options);
         var planner = new RenamerPlanner(port);
         var aggregator = new ScanAggregator(options.FullPathMax);
@@ -976,8 +993,8 @@ public sealed partial class Renamer
         // reported only a single Report(1.0) at the end, so the job jumped 0%→100% with no intermediate
         // feedback. A denominator lets each planned entity advance the bar. The id-only queries are cheap
         // (they were already run one-per-kind below; this just hoists them so the total is available).
-        var idsByKind = new List<(RenamerFileKind Kind, IReadOnlyList<int> Ids)>(readableKinds.Count);
-        foreach (var kind in readableKinds)
+        var idsByKind = new List<(RenamerFileKind Kind, IReadOnlyList<int> Ids)>(kinds.Count);
+        foreach (var kind in kinds)
         {
             ct.ThrowIfCancellationRequested();
             idsByKind.Add((kind, await port.LoadAllEntityIdsAsync(kind, ct)));
@@ -1063,7 +1080,7 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        var writableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Write)).ToArray();
+        var writableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Write)).ToArray();
 
         var jobId = jobs.Enqueue(
             $"ext:{Id}:renamer-library",
@@ -1081,8 +1098,8 @@ public sealed partial class Renamer
     /// candidate ids is skipped entirely (no call into <see cref="RunRenamerBatchAsync"/> for it), so no
     /// empty <c>RevertLog</c> batch header opens for it — matching that method's own "nothing acts → no
     /// batch" behavior. Never combines kinds into one call: <c>RevertLog</c>'s batch header is one
-    /// <see cref="RenamerFileKind"/> per batch by design, so a whole-library renamer across all three kinds
-    /// naturally opens up to three separate batches/runIds, one per acting kind — this introduces NO
+    /// <see cref="RenamerFileKind"/> per batch by design, so a whole-library renamer naturally opens one
+    /// batch/runId per acting kind — this introduces NO
     /// multi-kind batch format and NO engine/executor/<c>RevertLog</c> change. A consequence worth
     /// noting (not fixed here, out of scope): <c>/undo</c> only replays the single LAST open batch, so if
     /// this run touches more than one kind, only the last kind's batch is undoable via the existing
@@ -1098,8 +1115,12 @@ public sealed partial class Renamer
         // its own [0,1] bar, so without a whole-run denominator there is nothing to map a kind onto and
         // the second one restarts below where the first finished. RunScanCoreAsync hoists the same
         // per-kind id queries for the same reason.
+        // Read the options once, for the same reason the scan does: a kind turned off is dropped before
+        // its ids are loaded and a batch enqueued for it, rather than planned into a run of skips.
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+
         var idsByKind = new List<(RenamerFileKind Kind, IReadOnlyList<int> Ids)>(writableKinds.Count);
-        foreach (var kind in writableKinds)
+        foreach (var kind in writableKinds.Where(options.IsKindEnabled))
         {
             ct.ThrowIfCancellationRequested();
 
@@ -1167,8 +1188,8 @@ public sealed partial class Renamer
 
     /// <summary>
     /// The reverse of <see cref="TryParseKind"/>: maps a <see cref="RenamerFileKind"/> back to the
-    /// lowercase-singular Cove entity-type string <see cref="RenamerJob.Encode"/> expects. Only the three
-    /// renamable kinds round-trip (Gallery never reaches this method — <see cref="RenamableKinds"/>
+    /// lowercase-singular Cove entity-type string <see cref="RenamerJob.Encode"/> expects. Only the
+    /// renamable kinds round-trip (Gallery never reaches this method — <see cref="RenamableKinds.All"/>
     /// excludes it).
     /// </summary>
     private static string EntityTypeFor(RenamerFileKind kind) => kind switch
@@ -1176,6 +1197,7 @@ public sealed partial class Renamer
         RenamerFileKind.Video => "video",
         RenamerFileKind.Image => "image",
         RenamerFileKind.Audio => "audio",
+        RenamerFileKind.Text => "text",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "not a renamable kind"),
     };
 

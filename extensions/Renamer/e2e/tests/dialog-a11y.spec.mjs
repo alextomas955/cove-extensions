@@ -21,8 +21,11 @@ async function openLoadedDryRun({ page, harness, baseUrl, api }) {
 
   const settings = new RenamerSettingsPage(page, baseUrl);
   await settings.goto();
-  // The modal scans the panel's CURRENT (unsaved) options, so setting the template is enough — no save needed.
+  // Saved before the dry run opens, because the modal offers its rename only when the rows describe
+  // the settings a rename would actually use. The template is here to guarantee a will-change row,
+  // not to exercise the unsaved-settings path.
   await settings.setFilenameTemplate("$title");
+  await settings.save();
   await settings.openDryRun();
   await expect(settings.dryRunRenameButton).toBeEnabled({ timeout: 90_000 });
   return settings;

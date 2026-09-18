@@ -22,7 +22,7 @@ import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { DryRunModal } from "./DryRunModal";
-import { cloneDefaults } from "../options";
+import { cloneDefaults, type RenamerOptions } from "../options";
 import type { ScanRow, ScanRowsPage, ScanSummaryView } from "../../wire/api";
 
 /** The scripted `/scan-rows` answers, and how many the modal asked for. A `null` entry fails. */
@@ -74,7 +74,9 @@ vi.mock("@cove-extensions/ui-shared", async () => {
 
   return {
     extensionApi: (await import("../../../../../../../shared/ui-shared/src/actions")).extensionApi,
-    Button: stub("Button"),
+    // A real <button>, because whether it is disabled is the whole of what some assertions read.
+    Button: ({ children, disabled }: { children: ReactNode; disabled?: boolean }) =>
+      h("button", { type: "button", disabled }, children),
     ProgressBar: stub("ProgressBar"),
     Spinner: stub("Spinner"),
     StatusPill: stub("StatusPill"),
@@ -144,21 +146,27 @@ function summary(): ScanSummaryView {
   };
 }
 
-function mountModal() {
+function mountModal({ dirty = false }: { dirty?: boolean } = {}) {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
-  root.render(
-    createElement(DryRunModal, {
-      options: cloneDefaults(),
-      onClose: () => undefined,
-      onRenameAll: () => undefined,
-      renaming: false,
-    }),
-  );
+  const render = (props: { options: RenamerOptions; dirty: boolean }) => {
+    root.render(
+      createElement(DryRunModal, {
+        ...props,
+        onClose: () => undefined,
+        onRenameAll: () => undefined,
+        renaming: false,
+      }),
+    );
+  };
+  render({ options: cloneDefaults(), dirty });
 
   return {
+    render,
     text: () => container.textContent,
+    renameButton: () =>
+      [...container.querySelectorAll("button")].find((b) => b.textContent.startsWith("Rename ")),
     unmount: () => {
       root.unmount();
       container.remove();
@@ -216,5 +224,46 @@ test("a failed page stops the walk instead of reissuing the same request without
   await sleep(1_000);
   expect(host.rowReads, "the walk resumed on its own after the failure").toBe(readsAtRest);
   expect(modal.text()).toContain("Couldn't load more rows");
+  modal.unmount();
+}, 30_000);
+
+test("a dry run of unsaved settings will not start the rename", async () => {
+  // The scan previews what is on screen; the rename runs what is saved. With a kind excluded but not
+  // saved, renaming from here would move files these rows never listed.
+  host.pages.push(finalPage([row(1), row(2)]));
+
+  const modal = mountModal({ dirty: true });
+  await sleep(SETTLE_MS);
+
+  expect(modal.renameButton()?.disabled).toBe(true);
+  expect(modal.text()).toContain("a rename runs the saved ones");
+  modal.unmount();
+}, 30_000);
+
+test("a dry run of saved settings starts the rename", async () => {
+  host.pages.push(finalPage([row(1), row(2)]));
+
+  const modal = mountModal();
+  await sleep(SETTLE_MS);
+
+  expect(modal.renameButton()?.disabled).toBe(false);
+  expect(modal.text()).not.toContain("a rename runs the saved ones");
+  modal.unmount();
+}, 30_000);
+
+test("discarding the edits behind the modal does not make its stale rows renamable", async () => {
+  // Discard clears `dirty` and puts the saved settings back, while these rows still describe the
+  // ones that were discarded. Reading `dirty` alone, the button would turn itself on.
+  host.pages.push(finalPage([row(1), row(2)]));
+
+  const modal = mountModal({ dirty: true });
+  await sleep(SETTLE_MS);
+  expect(modal.renameButton()?.disabled).toBe(true);
+
+  modal.render({ options: { ...cloneDefaults(), FilenameTemplate: "$title" }, dirty: false });
+  await sleep(SETTLE_MS);
+
+  expect(modal.renameButton()?.disabled).toBe(true);
+  expect(modal.text()).toContain("changed after these rows were scanned");
   modal.unmount();
 }, 30_000);

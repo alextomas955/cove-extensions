@@ -21,10 +21,10 @@ public sealed class ActionDeclarationTests
 
         var manifest = ext.GetUIManifest();
 
-        // The bulk action is registered ONCE PER KIND (video, image) so each carries the matching
+        // The bulk action is registered ONCE PER KIND (video, image, text) so each carries the matching
         // RequiredPermission — the host's action model allows only a single permission per action and
         // filters visibility by both entity-type context AND that permission.
-        Assert.Equal(2, manifest.Actions.Count);
+        Assert.Equal(3, manifest.Actions.Count);
 
         var video = Assert.Single(manifest.Actions, a => a.Id == "renamer-selected-video");
         Assert.Equal("Rename selected", video.Label);
@@ -43,6 +43,15 @@ public sealed class ActionDeclarationTests
         Assert.Equal("renamerSelected", image.HandlerName);
         Assert.Null(image.ApiEndpoint);
         Assert.Equal(Permissions.ImagesWrite, image.RequiredPermission);
+
+        var text = Assert.Single(manifest.Actions, a => a.Id == "renamer-selected-text");
+        Assert.Equal("Rename selected", text.Label);
+        // Both spellings: the host singularizes only "videos" and "images" before matching an action's
+        // entity types, so a texts list hands it the plural.
+        Assert.Equal(["text", "texts"], text.EntityTypes);
+        Assert.Equal("renamerSelected", text.HandlerName);
+        Assert.Null(text.ApiEndpoint);
+        Assert.Equal(Permissions.TextsWrite, text.RequiredPermission);
     }
 
     [Fact]

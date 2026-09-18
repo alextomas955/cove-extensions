@@ -2,6 +2,30 @@
 
 User-facing changes, newest first.
 
+## 0.5.0 - Text documents, and each kind settled on its own
+
+**Needs Cove 1.4.1.** An older host does not load Renamer at all - no Rename tab under Settings ->
+Extensions, no "Rename selected" on your lists - so stay on 0.4.0 until you have upgraded Cove. No
+feature below needs 1.4.1; the floor moved because 1.4.1 is the host release this version is built
+and tested against. If you are on 1.3.1 and do not want to upgrade Cove, 0.4.0 keeps working.
+
+- **Renamer now renames text documents.** They join videos, images and audio: the same templates,
+  the same dry run, the same undo. A **Rename selected** action appears on your text lists, and you
+  need `texts.write` in Cove to use it. Nothing about the other kinds changes.
+- **Each kind can be turned off on its own.** A new _Per kind_ list inside _Where files go_ has one
+  row per kind, with an **Exclude** button on each. A kind turned off is left out of the dry run and out of **Rename all files** entirely, so
+  it adds nothing to the counts; selecting items of that kind and using **Rename selected** reports
+  them as skipped and names the kind in the reason. Every kind starts on, which is what Renamer did
+  before.
+- **Each kind can have its own destination folder.** Press **Own folder** on a kind's row and its
+  items go there when no routing rule matches them - text documents to one tree and
+  videos to another, say. This is a default, not an override: an item matched by a tag, studio,
+  source-path or unorganized rule still goes where that rule says, so nothing you have already routed
+  by hand moves.
+- **Undoing a text rename now announces the right kind.** The undo path published a video-updated
+  event for every kind. Nothing was renamed wrongly, but other parts of Cove watching for the change
+  were told about the wrong sort of item.
+
 ## 0.4.0 — Undo you can retry, and one that survives the next rename
 
 **Needs Cove 1.3.1.** An older host does not load Renamer at all — no Rename tab under Settings →

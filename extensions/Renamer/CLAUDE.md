@@ -1,6 +1,6 @@
 # Renamer
 
-Cove extension `com.alextomas955.renamer`. It renames and optionally relocates media files from
+Cove extension `com.alextomas955.renamer`. It renames and optionally relocates library files from
 metadata templates, previews every change before touching disk, and keeps Cove's database
 authoritative. If everything else is cut, dry-run-then-rename that never loses track of a file must
 still work.

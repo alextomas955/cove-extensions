@@ -103,6 +103,36 @@ internal static class ExecutorTestSeed
     }
 
     /// <summary>
+    /// Seeds a Folder (Path = <paramref name="folderPath"/>) + a TextDocument titled
+    /// <paramref name="title"/> + a single TextFile (<paramref name="basename"/>). Returns the
+    /// (folderId, textDocumentId, fileId).
+    /// </summary>
+    public static async Task<(int folderId, int textId, int fileId)> SeedTextAsync(
+        DbContext db, string folderPath, string basename, string title,
+        bool organized = true, CancellationToken ct = default)
+    {
+        var folder = new Folder { Path = folderPath.Replace('\\', '/'), ModTime = DateTime.UtcNow };
+        db.Set<Folder>().Add(folder);
+        await db.SaveChangesAsync(ct);
+
+        var text = new TextDocument { Title = title, Organized = organized };
+        db.Set<TextDocument>().Add(text);
+        await db.SaveChangesAsync(ct);
+
+        var file = new TextFile
+        {
+            Basename = basename,
+            ParentFolderId = folder.Id,
+            Format = ExtOf(basename),
+            TextDocumentId = text.Id,
+        };
+        db.Set<TextFile>().Add(file);
+        await db.SaveChangesAsync(ct);
+
+        return (folder.Id, text.Id, file.Id);
+    }
+
+    /// <summary>
     /// Adds another VideoFile in the same folder to an existing video (for collision/multi-file seeds).
     /// A <paramref name="height"/> of 0 renders no <c>$resolution</c> label.
     /// </summary>

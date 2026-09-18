@@ -13,7 +13,7 @@ namespace Renamer;
 /// the planner+executor — a THIN adapter, no renamer logic lives here.
 ///
 /// audio/text updates are intentionally NOT handled here: the auto-renamer product scope is
-/// video/image; audio is still reachable via the manual job/API surface, just not the
+/// video/image; audio and text are still reachable via the manual job/API surface, just not the
 /// hook.
 ///
 /// SAFETY: the executor's save re-raises <c>video.updated</c>, which re-enters this

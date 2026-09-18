@@ -42,6 +42,7 @@ vi.mock("@cove-extensions/ui-shared", async () => {
     StatusText: stub("StatusText"),
     Select: stub("Select"),
     PathShapeHint: stub("PathShapeHint"),
+    Button: stub("Button"),
   };
 });
 

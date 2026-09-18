@@ -136,8 +136,9 @@ public sealed class RenamerPlanner
         // ONE lookup, ONE destination. The route above answered where this item goes, and its answer
         // is a whole destination: a root chosen from Cove's library paths plus a relative template. A
         // matched rule's destination REPLACES the default, and an item no rule matched takes the
-        // default.
+        // default — the kind's own default when it has one, otherwise the global pair.
         var destination = route.Destination
+            ?? options.KindDestination(entity.Kind)
             ?? new Destination { Root = options.FolderRoot, Template = options.FolderTemplate };
 
         // A chosen root is a REFERENCE into Cove's library paths, so it is re-read here rather than
@@ -214,6 +215,16 @@ public sealed class RenamerPlanner
     /// </summary>
     private static bool TryGate(RenamerEntity entity, RenamerOptions options, out string? reason)
     {
+        // The kind switch is checked before every other gate because it answers a different question:
+        // the other gates decide whether THIS item qualifies, while this one says the extension does not
+        // rename the kind at all. Whole-library paths drop a disabled kind before walking it, so this
+        // gate is what a selection-based rename of a disabled kind meets.
+        if (!options.IsKindEnabled(entity.Kind))
+        {
+            reason = $"skipped: renaming is turned off for {entity.Kind.ToString().ToLowerInvariant()} items";
+            return true;
+        }
+
         // A configured unorganized destination takes precedence over the only-organized gate: the
         // resolver fires its unorganized route only for an unorganized item, and routing unorganized
         // items to their own destination is the whole point of that route, so an unorganized item with
