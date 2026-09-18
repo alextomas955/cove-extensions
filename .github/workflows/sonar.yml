@@ -128,8 +128,12 @@ jobs:
             const uiPaths = catalog.extensions.filter((e) => e.uiPath).map((e) => e.uiPath);
             const testProjects = catalog.extensions.filter((e) => e.testProjectPath).map((e) => e.testProjectPath);
             const tmp = process.env.RUNNER_TEMP;
-            fs.writeFileSync(path.join(tmp, "ui-paths.txt"), uiPaths.join("\n"));
-            fs.writeFileSync(path.join(tmp, "test-projects.txt"), testProjects.join("\n"));
+            // Trailing newline on every line. The shell read builtin returns non-zero on a final
+            // line without one, so a list written unterminated makes the reading loop skip its last
+            // entry, and a one-entry list is skipped in full while the step still exits 0.
+            const lines = (xs) => xs.map((x) => x + "\n").join("");
+            fs.writeFileSync(path.join(tmp, "ui-paths.txt"), lines(uiPaths));
+            fs.writeFileSync(path.join(tmp, "test-projects.txt"), lines(testProjects));
             // Each suite writes its own report; one shared name would leave only the last run measured.
             const cs = testProjects.map((_, i) => "TestResults/coverage-" + i + ".xml");
             const lcov = uiPaths.map((p) => p + "/coverage/lcov.info");
@@ -155,12 +159,18 @@ jobs:
         working-directory: extensions
         shell: bash
         run: |
-          while IFS= read -r ui; do
+          n=0
+          while IFS= read -r ui || [ -n "$ui" ]; do
             [ -n "$ui" ] || continue
             echo "::group::$ui"
             (cd "$ui" && npm ci --ignore-scripts && npm run test:coverage)
             echo "::endgroup::"
+            n=$((n + 1))
           done < "$RUNNER_TEMP/ui-paths.txt"
+          # A loop that ran no iteration leaves no report and still exits 0, which the scanner reads
+          # as a frontend with no coverage rather than as a step that did nothing.
+          [ "$n" -gt 0 ] || { echo "::error::No frontend was measured; the catalog declared none."; exit 1; }
+          echo "measured $n frontend(s)"
 
       # Vitest records each path relative to the directory its config sits in, and the scanner
       # resolves an lcov path against the repository root. Without this the shared package's records
@@ -208,7 +218,7 @@ jobs:
           COVE_REPO_ROOT: ${{ github.workspace }}/cove
         run: |
           i=0
-          while IFS= read -r proj; do
+          while IFS= read -r proj || [ -n "$proj" ]; do
             [ -n "$proj" ] || continue
             echo "::group::$proj"
             dotnet test --project "$proj" -c Release --no-build \
@@ -217,6 +227,10 @@ jobs:
             echo "::endgroup::"
             i=$((i + 1))
           done < "$RUNNER_TEMP/test-projects.txt"
+          # Same reason as the frontend loop: no iteration means the scanner is handed a report path
+          # nothing wrote, and reads the C# it analysed as uncovered.
+          [ "$i" -gt 0 ] || { echo "::error::No test project was run; the catalog declared none."; exit 1; }
+          echo "measured $i test project(s)"
 
       - name: End analysis
         working-directory: extensions
