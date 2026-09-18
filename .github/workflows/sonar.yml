@@ -98,9 +98,12 @@ jobs:
 
       # The frontend coverage report. Generated before the scanner starts, because `begin` records the
       # report path and the file has to exist by the time `end` reads it.
+      # --ignore-scripts: this job only needs the bundle's test run, which the platform binaries in
+      # the lockfile serve without a lifecycle hook. Nothing here builds or publishes the bundle, so
+      # there is no install step whose output a hook is required to produce.
       - name: Install frontend deps
         working-directory: extensions/extensions/Renamer/src/Renamer.Ui
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Install root tooling
         working-directory: extensions
