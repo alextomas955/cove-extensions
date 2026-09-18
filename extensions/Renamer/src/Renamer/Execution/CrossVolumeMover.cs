@@ -28,32 +28,23 @@ namespace Renamer.Execution;
 //    orphaned by a crash carries a name no later call produces, so it is never promoted, never
 //    collided with and never deleted here; removing it is left to the user.
 //
-// The promote-then-delete window is the one path on which this class leaves a duplicated file, and
-// every other mention in this file points here. The source delete sits inside the same
-// all-or-nothing try as the copy and the promote, so a delete that throws after the promote already
-// succeeded lands in the same IOException or UnauthorizedAccessException arm as a failure before it,
-// and the attempt is classified as a move that did not happen: TargetExists or PermissionDenied. The
-// promoted destination survives that classification, because the promote already renamed the
-// in-flight name away and the cleanup's File.Exists guard is false. RenamerExecutor reads a
-// not-moved result as nothing having been touched and takes the skip path, with no database write
-// and no rollback, so both files stay on disk with Cove's row still naming the source. The
-// executor's collision loop tests the destination with File.Exists, so the next run finds the
-// survivor and suffixes past it; the pile grows by one every run and nothing bounds it. The same
-// engine backs SafeCopyBackAsync, so a rollback whose source delete fails records a failed rollback
-// for a rollback that completed and left a duplicate. Changing this needs the source delete out of
-// the all-or-nothing block, or an outcome of its own for a promoted-but-source-remains attempt, both
-// of which change move semantics for real user files and need a test that locks or denies the source
-// between the promote and the delete. Until then, read a TargetExists or PermissionDenied skip from
-// this class as "the move may or may not have happened", never as "nothing changed on disk".
+// The source delete is the one step outside the all-or-nothing try. Past the promote the
+// destination is the verified, media-durable copy, so the move has happened whatever the delete
+// does: a delete refused by a lock or a permission returns Moved and adds a warning naming the
+// source it could not remove. Classifying it as a skip instead left RenamerExecutor taking the
+// no-database-write path with Cove's row still naming the source, so the next run copied the file
+// again and its collision loop suffixed past the survivor, and nothing bounded the pile. The same
+// engine backs SafeCopyBackAsync, so a rollback whose source delete fails is reported as the
+// completed rollback it is, with the stranded source named in the warnings.
 //
 // Failures are classified, not thrown: a locked source (IOException) is a Locked skip; an occupied
 // destination, from the up-front check or from the same IOException resolved by testing the
 // destination, is a TargetExists skip; a permission denial is PermissionDenied; a failed verify is
 // VerifyFailed; a cancelled token is Cancelled, with the in-flight copy this call created removed
-// first. No path throws out, deletes the source on failure, or leaves a corrupt file. A duplicate is
-// the one exception, owned by the promote-then-delete window above. Because the in-flight name is
-// minted per call, an orphan from an earlier crash is never collided with and never surfaces as a
-// skip.
+// first. No path throws out, deletes the source on failure, or leaves a corrupt file. A source that
+// cannot be deleted after a successful promote is reported as a move with a warning. Because the
+// in-flight name is minted per call, an orphan from an earlier crash is never collided with and
+// never surfaces as a skip.
 //
 // System.IO and System.IO.Hashing only: no CoveContext, no EF, no static or global state, so
 // concurrency is bounded by the caller per source and destination pair, and a test drives it against
@@ -108,10 +99,11 @@ public sealed class CrossVolumeMover
     // One planned sidecar move, absolute source to absolute destination; either slash convention.
     public readonly record struct SidecarMove(string From, string To);
 
-    // A result that is not Moved is a skip and never a thrown error. Moved is true only once the
-    // primary was copied, verified, promoted and the source deleted. MovedSidecars carries the pairs
-    // that moved, in move order, which is what a rollback reverses. Reason is null on success. The
-    // shape matches DiskMover.MoveResult, so the executor's call site is the same for both tiers.
+    // A result that is not Moved is a skip and never a thrown error. Moved is true once the primary
+    // was copied, verified and promoted; the source is deleted last, and one that could not be
+    // removed leaves the move done and adds a warning. MovedSidecars carries the pairs that moved, in
+    // move order, which is what a rollback reverses. Reason is null on success. The shape matches
+    // DiskMover.MoveResult, so the executor's call site is the same for both tiers.
     public sealed record MoveResult(
         bool Moved,
         MoveOutcome Outcome,
@@ -125,8 +117,8 @@ public sealed class CrossVolumeMover
     // destination as TargetExists, a permission failure as PermissionDenied, a destination that does not
     // match the source by size or hash as VerifyFailed, a cancelled token as Cancelled. On a failure the
     // source is not deleted and the in-flight copy this call created is removed; nothing is overwritten,
-    // no corrupt file is left, and nothing throws out, cancellation included. One path does leave a
-    // duplicate: the promote-then-delete window in the class comment.
+    // no corrupt file is left, and nothing throws out, cancellation included. A source that cannot be
+    // deleted after a successful promote is reported as a move with a warning.
     public async Task<MoveResult> MoveAsync(
         string oldFull,
         string newFull,
@@ -141,6 +133,11 @@ public sealed class CrossVolumeMover
 
         var moved = new List<SidecarMove>();
         var warnings = new List<string>();
+        if (primary.Warning is not null)
+        {
+            warnings.Add(primary.Warning);
+        }
+
         if (sidecars is not null)
         {
             foreach (var sc in sidecars)
@@ -155,7 +152,17 @@ public sealed class CrossVolumeMover
                 var scResult = await CopyVerifyPromoteDeleteAsync(sc.From, sc.To, ct).ConfigureAwait(false);
                 if (scResult.Ok)
                 {
-                    moved.Add(sc);
+                    if (scResult.Warning is null)
+                    {
+                        moved.Add(sc);
+                    }
+                    else
+                    {
+                        // Its source is still in place, so there is nothing for a rollback to put back:
+                        // a copy-back would find the slot occupied and leave the promoted copy standing,
+                        // reporting an incomplete restore for one that needed no work.
+                        warnings.Add(scResult.Warning);
+                    }
                 }
                 else
                 {
@@ -195,7 +202,7 @@ public sealed class CrossVolumeMover
 
     // The single-file engine: copy, verify, atomic promote, delete the source last. Every failure comes
     // back classified and none is thrown.
-    private async Task<(bool Ok, MoveOutcome Outcome, string? Reason)> CopyVerifyPromoteDeleteAsync(
+    private async Task<(bool Ok, MoveOutcome Outcome, string? Reason, string? Warning)> CopyVerifyPromoteDeleteAsync(
         string srcFull,
         string finalFull,
         CancellationToken ct)
@@ -203,7 +210,7 @@ public sealed class CrossVolumeMover
         // An existing final destination is never overwritten.
         if (System.IO.File.Exists(finalFull))
         {
-            return (false, MoveOutcome.TargetExists, $"target exists, not overwritten: {finalFull}");
+            return (false, MoveOutcome.TargetExists, $"target exists, not overwritten: {finalFull}", null);
         }
 
         // Every delete below targets this one path, minted here in this invocation, so "the mover never
@@ -231,7 +238,7 @@ public sealed class CrossVolumeMover
             if (!verified)
             {
                 TryDelete(inFlightFull);
-                return (false, MoveOutcome.VerifyFailed, "verify failed: destination size or hash mismatch");
+                return (false, MoveOutcome.VerifyFailed, "verify failed: destination size or hash mismatch", null);
             }
 
             // The same-directory promote is atomic, and the two-argument Move cannot clobber the final.
@@ -246,13 +253,25 @@ public sealed class CrossVolumeMover
                 // in-flight copy, arrive as the same IOException. The destination is measured to tell
                 // them apart; MoveOutcome.TargetExists covers why the exception message is never read.
                 return System.IO.File.Exists(finalFull)
-                    ? (false, MoveOutcome.TargetExists, $"target exists at promote, not overwritten: {ex.Message}")
-                    : (false, MoveOutcome.Locked, $"promote refused, in-flight copy locked: {ex.Message}");
+                    ? (false, MoveOutcome.TargetExists, $"target exists at promote, not overwritten: {ex.Message}", null)
+                    : (false, MoveOutcome.Locked, $"promote refused, in-flight copy locked: {ex.Message}", null);
             }
 
-            // The source delete runs only after the promote has succeeded.
-            System.IO.File.Delete(srcFull);
-            return (true, MoveOutcome.Moved, null);
+            // Past the promote the destination is the verified, media-durable copy, so the move has
+            // happened whatever the delete does. Reporting it as not-done would leave the caller's row
+            // naming the source, and the next run would copy the file again and suffix past the
+            // survivor, with nothing bounding the pile.
+            try
+            {
+                System.IO.File.Delete(srcFull);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return (true, MoveOutcome.Moved, null,
+                    $"moved, but the source could not be removed and is still there: {srcFull}: {ex.Message}");
+            }
+
+            return (true, MoveOutcome.Moved, null, null);
         }
         catch (OperationCanceledException)
         {
@@ -260,7 +279,7 @@ public sealed class CrossVolumeMover
             // a cancel leaks no unverified copy. The source is untouched, because its delete runs only
             // after a verified promote, which a cancel never reaches.
             TryDelete(inFlightFull);
-            return (false, MoveOutcome.Cancelled, "cancelled");
+            return (false, MoveOutcome.Cancelled, "cancelled", null);
         }
         catch (IOException ex)
         {
@@ -269,16 +288,17 @@ public sealed class CrossVolumeMover
             // CreateNew got far enough to make one.
             TryDelete(inFlightFull);
             // The destination is measured to classify this, never the exception message; see
-            // MoveOutcome.TargetExists. A destination present here also covers the class comment's
-            // promote-then-delete window: the promote landed and the source delete threw.
+            // MoveOutcome.TargetExists. A destination present here is a racing writer that took the
+            // final name, not a promoted copy: a post-promote delete failure is caught beside the
+            // delete and never reaches this arm.
             return System.IO.File.Exists(finalFull)
-                ? (false, MoveOutcome.TargetExists, $"target exists, not overwritten: {ex.Message}")
-                : (false, MoveOutcome.Locked, $"source locked/in-use: {ex.Message}");
+                ? (false, MoveOutcome.TargetExists, $"target exists, not overwritten: {ex.Message}", null)
+                : (false, MoveOutcome.Locked, $"source locked/in-use: {ex.Message}", null);
         }
         catch (UnauthorizedAccessException ex)
         {
             TryDelete(inFlightFull);
-            return (false, MoveOutcome.PermissionDenied, $"permission denied: {ex.Message}");
+            return (false, MoveOutcome.PermissionDenied, $"permission denied: {ex.Message}", null);
         }
     }
 
@@ -390,6 +410,10 @@ public sealed class CrossVolumeMover
             if (!result.Ok)
             {
                 warnings.Add($"rollback move failed {from} -> {to}: {result.Outcome} {result.Reason}");
+            }
+            else if (result.Warning is not null)
+            {
+                warnings.Add($"rollback {from} -> {to}: {result.Warning}");
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

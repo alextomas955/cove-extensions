@@ -150,6 +150,64 @@ public sealed class CrossVolumeMoverTests
     }
 
     [Fact]
+    public async Task SourceDeleteRefusedAfterPromote_ReportsMoved_AndNamesTheStrandedSource()
+    {
+        using var dir = new TempDir();
+        var srcDir = Directory.CreateDirectory(Path.Combine(dir.Root, "src"));
+        var old = Path.Combine(srcDir.FullName, "clip.mkv");
+        File.WriteAllText(old, "data");
+
+        // Created up front, because the copy has to be able to write here after the source directory
+        // is made undeletable below.
+        var destDir = Directory.CreateDirectory(Path.Combine(dir.Root, "sub"));
+        var dest = Path.Combine(destDir.FullName, "Renamed.mkv");
+        var mover = new CrossVolumeMover();
+
+        // Refusing a delete is platform-specific. Windows refuses it for a file opened without
+        // FileShare.Delete; Unix ignores an open handle and refuses the unlink only when the
+        // containing directory is not writable. Both leave the source readable, so the copy, the
+        // verify and the promote all succeed and only the delete is refused.
+        FileStream? windowsLock = null;
+        bool restoreUnixMode = false;
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                windowsLock = new FileStream(old, FileMode.Open, FileAccess.Read, FileShare.Read);
+            }
+            else
+            {
+                File.SetUnixFileMode(
+                    srcDir.FullName, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+                restoreUnixMode = true;
+            }
+
+            var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
+
+            // The file is at its destination, verified and durable, so the move happened. Reporting it
+            // as a skip leaves the caller's row naming the source, and the next run copies it again.
+            Assert.True(result.Moved);
+            Assert.Equal(MoveOutcome.Moved, result.Outcome);
+            Assert.Contains(result.Warnings, w => w.Contains(old, StringComparison.Ordinal));
+
+            Assert.True(File.Exists(dest), "the promoted destination must survive a refused source delete");
+            Assert.Equal("data", File.ReadAllText(dest));
+            Assert.True(File.Exists(old), "the source could not be deleted, so it is still there");
+        }
+        finally
+        {
+            windowsLock?.Dispose();
+            if (!OperatingSystem.IsWindows() && restoreUnixMode)
+            {
+                // Restored so the fixture can remove the directory it created.
+                File.SetUnixFileMode(
+                    srcDir.FullName,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            }
+        }
+    }
+
+    [Fact]
     public async Task SidecarSkipNotClobber_PrimaryMoves_ExistingSidecarTargetUntouched()
     {
         using var dir = new TempDir();
