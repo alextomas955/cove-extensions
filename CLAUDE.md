@@ -128,6 +128,11 @@ Libraries reach millions of files. Nothing may grow with the library.
   the host already provides a module before adding one to `shared/`.
 - A `*Logic.ts` module imports only its relative siblings, so it runs with no environment and no
   mocks. ESLint enforces this.
+- A partial class file is named for the one thing it holds, and holds only that. A job body lives
+  with the work it runs, never with the endpoint that enqueues it.
+- An interface member with no production caller is deleted, not kept for symmetry. A seam that only
+  a test double implements is not a boundary. Keep an interface for a real dependency inversion:
+  Renamer's data port exists because production takes no runtime dependency on Cove.Core entities.
 
 ## UI conventions
 
@@ -166,6 +171,15 @@ Libraries reach millions of files. Nothing may grow with the library.
   safety gate.
 - A red e2e is usually the Cove container dying, not the UI. Search the job log for "is not
   running" before debugging the test.
+
+## Branches and PRs
+
+- A PR branches from `origin/main`, or from the branch it depends on when that work is unmerged.
+- `main` is squash-merged, so a merged branch's commits are never ancestors of `main`. Rebase onto
+  `origin/main` and force-push; never merge `main` back in. A PR whose merge base predates a squash
+  replays files it did not touch, so check the diff size before asking for review.
+- A review comment on moved code is about the code, not the move. Verify it against the source and
+  say where the defect lives rather than fixing unrelated behavior inside a refactor.
 
 ## Update docs in the same change
 

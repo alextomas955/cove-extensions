@@ -38,6 +38,22 @@ contract types), and only where a tag states something the signature cannot. Ski
 code, tests, and generated code. No `<param>` that restates the parameter name. `<remarks>` explains
 why and lists the edge cases. `<exception>` documents what a caller must catch.
 
+## Describe what the code does, not what it should do
+
+A comment stating a requirement and a comment stating a fact read alike and age differently. "The
+retention window has to be measured from the earliest batch" is a requirement; rewriting it as "is
+measured from" turned it into a false claim about a purge that keys on each batch's own timestamp.
+
+When a comment describes behavior, check the code path before writing it. Where the code does not do
+what the comment wants, describe what it does, name the consequence, and report the defect.
+
+## Record types document all constructor parameters or none
+
+`CS1573` is an error here: a record whose doc block carries a `<param>` for some positional
+parameters and not others fails the build. Documenting the rest to satisfy it reintroduces the
+name-restating tags this file forbids, so put the substance in `<remarks>` and carry no `<param>` at
+all.
+
 `CS1591` is silenced on purpose and no doc-enforcement analyzer is installed. Do not add one.
 
 ```csharp
