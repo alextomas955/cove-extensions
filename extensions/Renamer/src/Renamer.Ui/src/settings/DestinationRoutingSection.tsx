@@ -12,8 +12,6 @@ import { useState } from "react";
 
 import {
   NO_DESTINATION,
-  toStringKeyed,
-  fromStringKeyed,
   type Destination,
   type LibraryPathsState,
   type RenamerOptions,
@@ -58,9 +56,16 @@ export function DestinationRoutingSection({
   set,
   library,
 }: DestinationRoutingSectionProps) {
-  // Live (not-yet-committed) AssociatedExtensions input, so the sidecar-extension advisory reflects
+  // Live (not-yet-committed) associatedExtensions input, so the sidecar-extension advisory reflects
   // what the user is currently typing, before Enter commits it.
   const [sidecarLiveInput, setSidecarLiveInput] = useState("");
+  // Which rule sets are unfolded. Presentation only: a folded set still routes, and a set holding
+  // rules opens so an existing configuration is never hidden behind a closed header.
+  const [showStudioRules, setShowStudioRules] = useState(
+    Object.keys(options.studioDestinations).length > 0,
+  );
+  const [showTagRules, setShowTagRules] = useState(Object.keys(options.tagDestinations).length > 0);
+  const [showPathRules, setShowPathRules] = useState(options.pathDestinations.length > 0);
   const orphaned = useOrphanedRules();
 
   return (
@@ -71,18 +76,18 @@ export function DestinationRoutingSection({
       >
         <Toggle
           label="Route unorganized items to their own destination"
-          checked={options.UnorganizedDestination !== null}
+          checked={options.unorganizedDestination !== null}
           onChange={(on) => {
             // Off is the absent destination, not one naming nothing: only the absent one falls
             // through to the only-organized gate, which is what decides whether the item is skipped.
-            set("UnorganizedDestination", on ? { ...NO_DESTINATION } : null);
+            set("unorganizedDestination", on ? { ...NO_DESTINATION } : null);
           }}
         />
-        {options.UnorganizedDestination === null ? null : (
+        {options.unorganizedDestination === null ? null : (
           <DestinationField
-            value={options.UnorganizedDestination}
+            value={options.unorganizedDestination}
             onChange={(destination) => {
-              set("UnorganizedDestination", destination);
+              set("unorganizedDestination", destination);
             }}
             library={library}
           />
@@ -92,15 +97,13 @@ export function DestinationRoutingSection({
       <ToggleHeaderCard
         title="Per-studio destinations"
         description="Route a studio's items to their own destination."
-        enabled={options.EnableStudioDestinations}
-        onToggle={(v) => {
-          set("EnableStudioDestinations", v);
-        }}
+        enabled={showStudioRules}
+        onToggle={setShowStudioRules}
       >
         <StudioDestinationsEditor
-          map={options.StudioDestinations}
+          map={options.studioDestinations}
           onChange={(m) => {
-            set("StudioDestinations", m);
+            set("studioDestinations", m);
           }}
           library={library}
         />
@@ -109,20 +112,15 @@ export function DestinationRoutingSection({
       <ToggleHeaderCard
         title="Per-tag destinations"
         description="Route a tag's items to their own destination."
-        enabled={options.EnableTagDestinations}
-        onToggle={(v) => {
-          set("EnableTagDestinations", v);
-        }}
+        enabled={showTagRules}
+        onToggle={setShowTagRules}
       >
-        {/* The tag id must stay a NUMBER end to end to keep the persisted map value-equal with the
-            backend field and normalizeOptions, so it crosses the string-keyed KeyValueMapEditor
-            boundary through the same explicit coercion the studio map uses. The host resolves a
-            committed row's opaque id to the tag's name: one cached lookup per configured rule,
-            bounded by the rules the user authored rather than by the library. */}
+        {/* The host resolves a committed row's opaque id to the tag's name: one cached lookup per
+            configured rule, bounded by the rules the user authored rather than by the library. */}
         <KeyValueMapEditor<Destination>
-          map={toStringKeyed(options.TagDestinations)}
+          map={options.tagDestinations}
           onChange={(m) => {
-            set("TagDestinations", fromStringKeyed(m));
+            set("tagDestinations", m);
           }}
           emptyValue={NO_DESTINATION}
           renderKey={(draftKey, setDraftKey, existingKeys) => (
@@ -156,25 +154,23 @@ export function DestinationRoutingSection({
       <ToggleHeaderCard
         title="Source-path destinations"
         description="Match an item's source path to a destination, top rule first. An exact match or a regex."
-        enabled={options.EnableAdvancedRouting}
-        onToggle={(v) => {
-          set("EnableAdvancedRouting", v);
-        }}
+        enabled={showPathRules}
+        onToggle={setShowPathRules}
       >
         <div>
           <ObjectArrayEditor<PathDestinationRule>
-            rows={options.PathDestinations}
+            rows={options.pathDestinations}
             onChange={(rows) => {
-              set("PathDestinations", rows);
+              set("pathDestinations", rows);
             }}
-            makeRow={() => ({ Pattern: "", Dest: { ...NO_DESTINATION }, IsRegex: false })}
+            makeRow={() => ({ pattern: "", dest: { ...NO_DESTINATION }, isRegex: false })}
             renderRow={(row, _i, update) => (
               <>
                 <Field label="Source path">
                   <TextInput
-                    value={row.Pattern}
+                    value={row.pattern}
                     onChange={(v) => {
-                      update({ Pattern: v });
+                      update({ pattern: v });
                     }}
                     mono
                     placeholder="Exact path or regex"
@@ -182,16 +178,16 @@ export function DestinationRoutingSection({
                 </Field>
                 <Toggle
                   label="Match as a regex"
-                  checked={row.IsRegex}
+                  checked={row.isRegex}
                   onChange={(v) => {
-                    update({ IsRegex: v });
+                    update({ isRegex: v });
                   }}
                 />
-                <RegexValidity pattern={row.Pattern} isRegex={row.IsRegex} />
+                <RegexValidity pattern={row.pattern} isRegex={row.isRegex} />
                 <DestinationField
-                  value={row.Dest}
+                  value={row.dest}
                   onChange={(destination) => {
-                    update({ Dest: destination });
+                    update({ dest: destination });
                   }}
                   library={library}
                 />
@@ -209,9 +205,9 @@ export function DestinationRoutingSection({
       >
         <Field label="Also move sidecar files with these extensions">
           <TagListInput
-            values={options.AssociatedExtensions}
+            values={options.associatedExtensions}
             onChange={(v) => {
-              set("AssociatedExtensions", v);
+              set("associatedExtensions", v);
             }}
             placeholder="Add an extension, press Enter"
             normalize={normalizeSidecarExtension}
@@ -230,9 +226,9 @@ export function DestinationRoutingSection({
       <div className="rounded-xl border border-border bg-card p-4">
         <Toggle
           label="Delete the source folder when a move leaves it empty"
-          checked={options.RemoveEmptyFolder}
+          checked={options.removeEmptyFolder}
           onChange={(v) => {
-            set("RemoveEmptyFolder", v);
+            set("removeEmptyFolder", v);
           }}
           helper="Never a non-empty folder or a root. Undo won't recreate it."
         />

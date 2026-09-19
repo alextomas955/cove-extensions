@@ -29,37 +29,22 @@ import {
 } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
 import { BARE_TOKENS } from "./templateValidation";
+import { optionsFor } from "./selectOptions";
 import { TokenAdvisory } from "./templateAdvisories";
 
-const CASE_OPTIONS: readonly { value: CaseTransform; label: string }[] = [
-  { value: "None", label: "None" },
-  { value: "Lower", label: "lower case" },
-  { value: "Title", label: "Title Case" },
-];
+const CASE_OPTIONS = optionsFor<CaseTransform>({
+  none: "None",
+  lower: "lower case",
+  title: "Title Case",
+});
 
-// The 18 canonical token names a FieldReplaceRule may target, mirroring Engine/TemplateEngine.cs
-// `Tokens`. The value is the canonical spelling the backend matches (case-insensitive); offering the
-// closed set keeps a rule from targeting a token the engine never resolves.
-const TOKEN_OPTIONS: readonly { value: string; label: string }[] = [
-  "title",
-  "studio",
-  "parentStudio",
-  "studioCode",
-  "director",
-  "bitrate",
-  "date",
-  "year",
-  "height",
-  "width",
-  "resolution",
-  "videoCodec",
-  "audioCodec",
-  "frameRate",
-  "duration",
-  "performers",
-  "tags",
-  "ext",
-].map((t) => ({ value: t, label: t }));
+// What a FieldReplaceRule may target: the canonical spelling the backend matches, offered as a closed
+// set so a rule cannot target a token the engine never resolves. The names come from the token legend,
+// which is where this panel keeps them.
+const TOKEN_OPTIONS: readonly { value: string; label: string }[] = BARE_TOKENS.map((token) => ({
+  value: token,
+  label: token,
+}));
 
 // Common duplicate-suffix patterns; {n} = collision counter, shown via example.
 const SUFFIX_FORMAT_OPTIONS: readonly ExampleOption[] = [
@@ -83,9 +68,9 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="Illegal-char replacement">
             <SegmentedReplace
-              value={options.IllegalReplacement}
+              value={options.illegalReplacement}
               onChange={(v) => {
-                set("IllegalReplacement", v);
+                set("illegalReplacement", v);
               }}
               stripLabel="Strip"
               replaceLabel="Replace with"
@@ -96,9 +81,9 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           </Field>
           <Field label="Space replacement">
             <SegmentedReplace
-              value={options.SpaceReplacement}
+              value={options.spaceReplacement}
               onChange={(v) => {
-                set("SpaceReplacement", v);
+                set("spaceReplacement", v);
               }}
               stripLabel="Keep spaces"
               replaceLabel="Replace with"
@@ -112,18 +97,18 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             helper="Deleted before illegal-character handling, e.g. ,#"
           >
             <TextInput
-              value={options.RemoveCharacters}
+              value={options.removeCharacters}
               onChange={(v) => {
-                set("RemoveCharacters", v);
+                set("removeCharacters", v);
               }}
               placeholder="e.g. ,#"
             />
           </Field>
           <Field label="Case">
             <Select
-              value={options.Case}
+              value={options.case}
               onChange={(v) => {
-                set("Case", v);
+                set("case", v);
               }}
               options={CASE_OPTIONS}
             />
@@ -131,17 +116,17 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
         </div>
         <Toggle
           label="ASCII transliterate"
-          checked={options.AsciiTransliterate}
+          checked={options.asciiTransliterate}
           onChange={(v) => {
-            set("AsciiTransliterate", v);
+            set("asciiTransliterate", v);
           }}
           helper="Convert accented characters to plain ASCII."
         />
         <Toggle
           label="Normalize punctuation to ASCII"
-          checked={options.NormalizePunctuation}
+          checked={options.normalizePunctuation}
           onChange={(v) => {
-            set("NormalizePunctuation", v);
+            set("normalizePunctuation", v);
           }}
           helper="Fold curly quotes, en/em dashes, and ellipses to plain ASCII."
         />
@@ -154,52 +139,52 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="Filename max length">
             <NumberInput
-              value={options.FilenameMax}
+              value={options.filenameMax}
               min={1}
               onChange={(v) => {
-                set("FilenameMax", v);
+                set("filenameMax", v);
               }}
             />
           </Field>
           <Field label="Full-path max length">
             <NumberInput
-              value={options.FullPathMax}
+              value={options.fullPathMax}
               min={1}
               onChange={(v) => {
-                set("FullPathMax", v);
+                set("fullPathMax", v);
               }}
             />
           </Field>
         </div>
         <Field label="Drop order" helper="Fields dropped (top first) when the name is too long.">
           <TagListInput
-            values={options.DropOrder}
+            values={options.dropOrder}
             onChange={(v) => {
-              set("DropOrder", v);
+              set("dropOrder", v);
             }}
             ordered
             placeholder="Add field, press Enter"
           />
           <TokenPicker
             tokens={BARE_TOKENS}
-            values={options.DropOrder}
+            values={options.dropOrder}
             onAdd={(name) => {
               set(
-                "DropOrder",
-                options.DropOrder.includes(name) ? options.DropOrder : [...options.DropOrder, name],
+                "dropOrder",
+                options.dropOrder.includes(name) ? options.dropOrder : [...options.dropOrder, name],
               );
             }}
           />
-          <TokenAdvisory values={options.DropOrder} />
+          <TokenAdvisory values={options.dropOrder} />
         </Field>
         <Field
           label="Duplicate suffix format"
           helper="{n} = a counter added only when a name already exists, e.g. name (1).mp4."
         >
           <ExampleSelect
-            value={options.DuplicateSuffixFormat}
+            value={options.duplicateSuffixFormat}
             onChange={(v) => {
-              set("DuplicateSuffixFormat", v);
+              set("duplicateSuffixFormat", v);
             }}
             options={SUFFIX_FORMAT_OPTIONS}
             customPlaceholder=" ({n})"
@@ -217,11 +202,11 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             helper="Files copied across drives at once. 2 for hard drives; 4–8 if both are SSDs. Higher isn't always faster."
           >
             <NumberInput
-              value={options.CrossVolumeConcurrency}
+              value={options.crossVolumeConcurrency}
               min={1}
               max={16}
               onChange={(v) => {
-                set("CrossVolumeConcurrency", v);
+                set("crossVolumeConcurrency", v);
               }}
             />
           </Field>
@@ -230,11 +215,11 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             helper="Same-drive renames are instant; the default is fine."
           >
             <NumberInput
-              value={options.SameVolumeConcurrency}
+              value={options.sameVolumeConcurrency}
               min={1}
               max={16}
               onChange={(v) => {
-                set("SameVolumeConcurrency", v);
+                set("sameVolumeConcurrency", v);
               }}
             />
           </Field>
@@ -253,9 +238,9 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           <EntitySelectField
             entityType="tag"
             label="Tags"
-            values={options.ExcludeTagIds}
+            values={options.excludeTagIds}
             onChange={(v) => {
-              set("ExcludeTagIds", v);
+              set("excludeTagIds", v);
             }}
             placeholder="Search tags…"
           />
@@ -265,9 +250,9 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           <EntitySelectField
             entityType="studio"
             label="Studios"
-            values={options.ExcludeStudioIds}
+            values={options.excludeStudioIds}
             onChange={(v) => {
-              set("ExcludeStudioIds", v);
+              set("excludeStudioIds", v);
             }}
             placeholder="Search studios…"
           />
@@ -275,18 +260,18 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
 
         <GroupCard title="Exclude by source path" description="An exact match or a regex.">
           <ObjectArrayEditor<ExcludeRule>
-            rows={options.ExcludePaths}
+            rows={options.excludePaths}
             onChange={(rows) => {
-              set("ExcludePaths", rows);
+              set("excludePaths", rows);
             }}
-            makeRow={() => ({ Pattern: "", IsRegex: false })}
+            makeRow={() => ({ pattern: "", isRegex: false })}
             renderRow={(row, _i, update) => (
               <>
                 <Field label="Source path">
                   <TextInput
-                    value={row.Pattern}
+                    value={row.pattern}
                     onChange={(v) => {
-                      update({ Pattern: v });
+                      update({ pattern: v });
                     }}
                     mono
                     placeholder="Exact path or regex"
@@ -294,12 +279,12 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
                 </Field>
                 <Toggle
                   label="Match as a regex"
-                  checked={row.IsRegex}
+                  checked={row.isRegex}
                   onChange={(v) => {
-                    update({ IsRegex: v });
+                    update({ isRegex: v });
                   }}
                 />
-                <RegexValidity pattern={row.Pattern} isRegex={row.IsRegex} />
+                <RegexValidity pattern={row.pattern} isRegex={row.isRegex} />
               </>
             )}
             addLabel="Add exclude rule"
@@ -320,46 +305,46 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           description="A literal find/replace on one token's value, before the name is shaped."
         >
           <ObjectArrayEditor<FieldReplaceRule>
-            rows={options.FieldReplacers}
+            rows={options.fieldReplacers}
             onChange={(rows) => {
-              set("FieldReplacers", rows);
+              set("fieldReplacers", rows);
             }}
-            makeRow={() => ({ TargetToken: TOKEN_OPTIONS[0].value, Find: "", Replace: "" })}
+            makeRow={() => ({ targetToken: TOKEN_OPTIONS[0].value, find: "", replace: "" })}
             renderRow={(row, _i, update) => {
               // A rule saved before this dropdown existed (or via a hand-edited blob) may hold a
               // token outside the 18 — surface it as an extra option so the Select shows the real
               // stored value instead of silently displaying the first option while state differs.
-              const tokenOptions = TOKEN_OPTIONS.some((o) => o.value === row.TargetToken)
+              const tokenOptions = TOKEN_OPTIONS.some((o) => o.value === row.targetToken)
                 ? TOKEN_OPTIONS
                 : [
                     ...TOKEN_OPTIONS,
-                    { value: row.TargetToken, label: `${row.TargetToken} (unknown)` },
+                    { value: row.targetToken, label: `${row.targetToken} (unknown)` },
                   ];
               return (
                 <>
                   <Field label="Target token">
                     <Select
-                      value={row.TargetToken}
+                      value={row.targetToken}
                       onChange={(v) => {
-                        update({ TargetToken: v });
+                        update({ targetToken: v });
                       }}
                       options={tokenOptions}
                     />
                   </Field>
                   <Field label="Find" helper="Literal text to match. Empty does nothing.">
                     <TextInput
-                      value={row.Find}
+                      value={row.find}
                       onChange={(v) => {
-                        update({ Find: v });
+                        update({ find: v });
                       }}
                       placeholder="Text to find"
                     />
                   </Field>
                   <Field label="Replace with">
                     <TextInput
-                      value={row.Replace}
+                      value={row.replace}
                       onChange={(v) => {
-                        update({ Replace: v });
+                        update({ replace: v });
                       }}
                       placeholder="Replacement (blank to remove)"
                     />
@@ -374,17 +359,17 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
         <GroupCard title="Strip leading article">
           <Toggle
             label="Strip a leading article from the title"
-            checked={options.StripLeadingArticles}
+            checked={options.stripLeadingArticles}
             onChange={(v) => {
-              set("StripLeadingArticles", v);
+              set("stripLeadingArticles", v);
             }}
             helper="Case-insensitive, and only a whole word at the start."
           />
           <Field label="Articles">
             <TagListInput
-              values={options.Articles}
+              values={options.articles}
               onChange={(v) => {
-                set("Articles", v);
+                set("articles", v);
               }}
               placeholder="Add article, press Enter"
             />
@@ -393,25 +378,25 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
 
         <Toggle
           label="Squeeze studio names"
-          checked={options.SqueezeStudioNames}
+          checked={options.squeezeStudioNames}
           onChange={(v) => {
-            set("SqueezeStudioNames", v);
+            set("squeezeStudioNames", v);
           }}
           helper="So one studio renders to one stable folder name."
         />
         <Toggle
           label="Drop a performer already in the title"
-          checked={options.PreventTitlePerformer}
+          checked={options.preventTitlePerformer}
           onChange={(v) => {
-            set("PreventTitlePerformer", v);
+            set("preventTitlePerformer", v);
           }}
           helper="Only when the whole name appears in the title."
         />
         <Toggle
           label="Collapse repeated folder segments"
-          checked={options.PreventConsecutiveSegments}
+          checked={options.preventConsecutiveSegments}
           onChange={(v) => {
-            set("PreventConsecutiveSegments", v);
+            set("preventConsecutiveSegments", v);
           }}
           helper="Affects the folder path, not the filename."
         />

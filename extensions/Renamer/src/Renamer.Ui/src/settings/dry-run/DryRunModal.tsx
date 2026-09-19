@@ -74,7 +74,7 @@ const SEARCH_DEBOUNCE_MS = 350;
 const PREFETCH_ROWS = 12;
 
 /** The header labels, in the same order as GRID_TEMPLATE's content tracks. */
-const COLUMNS = ["Type", "Current name", "New name", "Destination"] as const;
+const COLUMNS = ["Type", "Current name", "New name", "destination"] as const;
 
 function errText(err: unknown): string {
   return err instanceof ApiError ? `${err.status} ${err.body}` : String(err);

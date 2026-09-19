@@ -18,7 +18,8 @@ import { createElement, createRef, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { FilenameSection, type FilenameSectionProps } from "./FilenameSection";
-import { cloneDefaults, type LibraryPathsState } from "./options";
+import { type LibraryPathsState } from "./options";
+import { someOptions } from "./testOptions";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
@@ -58,7 +59,7 @@ const COMMIT_MS = 50;
 
 async function renderSection(overrides: Partial<FilenameSectionProps>) {
   const props: FilenameSectionProps = {
-    options: cloneDefaults(),
+    options: someOptions(),
     set: () => undefined,
     insertToken: () => undefined,
     filenameRef: createRef<HTMLInputElement>(),

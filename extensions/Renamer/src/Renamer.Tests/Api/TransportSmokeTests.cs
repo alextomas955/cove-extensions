@@ -16,70 +16,46 @@ public sealed class TransportSmokeTests
     private const string Base = TransportHost.BaseRoute;
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
-    // Pattern is what the registration reads and RequestPath is what the theory sends, so a
-    // parameterised route can be compared against the mounted table and still be requested.
-    private static readonly (string Method, string Pattern, string RequestPath)[] PinnedRoutes =
-    [
-        ("GET", Base + "/last-batch", Base + "/last-batch"),
-        ("GET", Base + "/last-scan", Base + "/last-scan"),
-        ("GET", Base + "/library-paths", Base + "/library-paths"),
-        ("GET", Base + "/orphaned-rules", Base + "/orphaned-rules"),
-        ("GET", Base + "/job-status/{jobId}", Base + "/job-status/job-1"),
-        ("POST", Base + "/preview", Base + "/preview"),
-        ("POST", Base + "/renamer", Base + "/renamer"),
-        ("POST", Base + "/preview-sample", Base + "/preview-sample"),
-        ("POST", Base + "/undo", Base + "/undo"),
-        ("POST", Base + "/scan-library", Base + "/scan-library"),
-        ("POST", Base + "/scan-rows", Base + "/scan-rows"),
-        ("POST", Base + "/renamer-library", Base + "/renamer-library"),
-    ];
-
-    public static TheoryData<string, string> Routes()
-    {
-        var data = new TheoryData<string, string>();
-        foreach (var (method, _, requestPath) in PinnedRoutes)
-        {
-            data.Add(method, requestPath);
-        }
-
-        return data;
-    }
-
-    [Theory]
-    [MemberData(nameof(Routes))]
-    public async Task Route_IsRegistered(string method, string path)
-    {
-        await using var host = await TransportHost.BootAsync(FakePrincipalAccessor.None());
-
-        using var req = new HttpRequestMessage(new HttpMethod(method), path);
-        if (method == "POST")
-        {
-            req.Content = JsonContent.Create(new { entityType = "video", entityIds = Array.Empty<int>() });
-        }
-
-        var resp = await host.Client.SendAsync(req);
-
-        Assert.NotEqual(HttpStatusCode.NotFound, resp.StatusCode);
-        Assert.NotEqual(HttpStatusCode.MethodNotAllowed, resp.StatusCode);
-    }
-
-    // The list above is hand-transcribed: a route added to MapEndpoints does not join it on its own.
+    // Every route is driven off the mounted table, so a route added to MapEndpoints joins this test on
+    // its own. A list written beside the registration would be a copy of it, and the only thing keeping
+    // such a copy current is a test comparing the two.
+    //
+    // Requested anonymously, which is what makes 404 mean "not mounted": every handler gates on a
+    // permission before it can answer 404 for a target it did not find.
     [Fact]
-    public async Task EveryMountedRoute_IsDrivenByTheRouteTheory()
+    public async Task EveryMountedRoute_Answers()
     {
         await using var host = await TransportHost.BootAsync(FakePrincipalAccessor.None());
 
-        var mounted = host.MountedRoutes
-            .Select(route => $"{route.Method} {route.Pattern}")
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-        var pinned = PinnedRoutes
-            .Select(route => $"{route.Method} {route.Pattern}")
-            .Order(StringComparer.Ordinal)
-            .ToArray();
+        // An empty table reads as every route passing, and the route data source is empty until the
+        // host has started.
+        Assert.NotEmpty(host.MountedRoutes);
 
-        Assert.Equal(pinned, mounted);
+        var unanswered = new List<string>();
+        foreach ((string method, string pattern) in host.MountedRoutes)
+        {
+            using var request = new HttpRequestMessage(new HttpMethod(method), FillRouteValues(pattern));
+            if (method is "POST" or "PUT")
+            {
+                request.Content = JsonContent.Create(new { entityType = "video", entityIds = Array.Empty<int>() });
+            }
+
+            var response = await host.Client.SendAsync(request);
+            if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed)
+            {
+                unanswered.Add($"{method} {pattern} answered {(int)response.StatusCode}");
+            }
+        }
+
+        Assert.Empty(unanswered);
     }
+
+    // A route parameter stands for a value the caller supplies, and every one of these routes takes an
+    // id it answers for whether or not that id names anything, so one literal serves them all.
+    private static string FillRouteValues(string pattern)
+        => string.Join(
+            '/',
+            pattern.Split('/').Select(segment => segment.StartsWith('{') ? "1" : segment));
 
     [Fact]
     public async Task GatedRoute_Anonymous_Returns403_NotInert()

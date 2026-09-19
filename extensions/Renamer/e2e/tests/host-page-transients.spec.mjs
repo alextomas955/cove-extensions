@@ -3,7 +3,7 @@
 // run, and neither is a defect in the extension: the host was slow, or its own chunk fetch failed.
 //
 // Two requests stand between a navigation and a rendered panel: the extension bundle the host serves,
-// and the settings blob the panel reads once that bundle has mounted. A slow answer to either leaves
+// and the settings the panel reads once that bundle has mounted. A slow answer to either leaves
 // the route correct, raises none of the signals `waitForPanel` recovers from, and shows nothing to
 // wait on - so it is indistinguishable from a panel that will never render, and only the budget
 // decides which one the suite calls it. That budget has been too small before, and the flake it
@@ -19,7 +19,7 @@ const STALL_MS = 40_000;
 
 const CRITICAL_PATH = [
   { what: "the extension bundle the host serves", glob: "**/api/extensions/assets/**" },
-  { what: "the settings blob the panel reads", glob: "**/api/extensions/*/data" },
+  { what: "the settings the panel reads", glob: "**/api/extensions/*/options" },
 ];
 
 for (const { what, glob } of CRITICAL_PATH) {

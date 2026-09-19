@@ -94,11 +94,10 @@ async function dropAmbientAuthority(page) {
  * `allHeaders()`, not `headers()`: the latter strips cookie-related headers, so a `not.toContain`
  * against it would pass no matter what the request actually carried.
  */
-async function saveAndAwaitWrite(page, settings, dataPathname) {
+async function saveAndAwaitWrite(page, settings, optionsPathname) {
   await dropAmbientAuthority(page);
   const write = page.waitForResponse(
-    (res) =>
-      new URL(res.url()).pathname.startsWith(dataPathname) && res.request().method() === "PUT",
+    (res) => new URL(res.url()).pathname === optionsPathname && res.request().method() === "PUT",
     { timeout: 30_000 },
   );
   await settings.saveChangesButton.click();
@@ -110,7 +109,7 @@ async function saveAndAwaitWrite(page, settings, dataPathname) {
   ).toMatch(/^Bearer /);
   expect(
     headers.cookie ?? "",
-    `the PUT carried the ${ACCESS_COOKIE} cookie, so its 200 proves ambient authority rather than the request's own credential`,
+    `the PUT carried the ${ACCESS_COOKIE} cookie, so its success proves ambient authority rather than the request's own credential`,
   ).not.toContain(ACCESS_COOKIE);
   await expect(settings.unsavedChangesIndicator).toBeHidden({ timeout: 10_000 });
   return response.status();
@@ -130,7 +129,10 @@ test("the settings panel reads and writes its options through an authenticated r
   authHarness,
 }) => {
   const { harness, extensionId } = authHarness;
+  // The host's store route, which this spec uses to seed and read the blob out of band.
   const dataPathname = `/api/extensions/${extensionId}/data`;
+  // The extension's own settings route, which is the one the panel itself reads and writes.
+  const optionsPathname = `/api/extensions/${extensionId}/options`;
 
   const seededTemplate = `$title [authenticated-${Date.now()}]`;
   await putStoredOptions(harness, dataPathname, { FilenameTemplate: seededTemplate });
@@ -143,13 +145,15 @@ test("the settings panel reads and writes its options through an authenticated r
 
   const settings = new RenamerSettingsPage(page, harness.baseUrl);
   const firstRead = page.waitForResponse(
-    (res) => new URL(res.url()).pathname === dataPathname && res.request().method() === "GET",
+    (res) => new URL(res.url()).pathname === optionsPathname && res.request().method() === "GET",
     { timeout: 30_000 },
   );
   await settings.goto();
 
   const firstReadStatus = (await firstRead).status();
-  expect(firstReadStatus, `the bundle's GET ${dataPathname} answered ${firstReadStatus}`).toBe(200);
+  expect(firstReadStatus, `the bundle's GET ${optionsPathname} answered ${firstReadStatus}`).toBe(
+    200,
+  );
 
   // The seeded value can only reach the input if that read returned 200, parsed, and flowed through
   // the panel; a failed read leaves the panel on its load-error path showing built-in defaults.
@@ -166,11 +170,11 @@ test("the settings panel reads and writes its options through an authenticated r
 
   const editedTemplate = `${seededTemplate} edited`;
   await settings.setFilenameTemplate(editedTemplate);
-  const firstWriteStatus = await saveAndAwaitWrite(page, settings, dataPathname);
+  const firstWriteStatus = await saveAndAwaitWrite(page, settings, optionsPathname);
   expect(
     firstWriteStatus,
-    `the panel's PUT to ${dataPathname} answered ${firstWriteStatus} with no access cookie in play — an extension request that carries no credential of its own cannot write to the host store`,
-  ).toBe(200);
+    `the panel's PUT to ${optionsPathname} answered ${firstWriteStatus} with no access cookie in play — an extension request that carries no credential of its own cannot write to the host store`,
+  ).toBe(204);
 
   const afterFirstSave = await readStoredOptions(harness, dataPathname);
   expect(JSON.parse(afterFirstSave).FilenameTemplate).toBe(editedTemplate);
@@ -179,9 +183,9 @@ test("the settings panel reads and writes its options through an authenticated r
   // replacement, so a second write of the same payload that differs byte-for-byte means something
   // is being carried in that the panel did not read out.
   await settings.setFilenameTemplate(seededTemplate);
-  expect(await saveAndAwaitWrite(page, settings, dataPathname)).toBe(200);
+  expect(await saveAndAwaitWrite(page, settings, optionsPathname)).toBe(204);
   await settings.setFilenameTemplate(editedTemplate);
-  expect(await saveAndAwaitWrite(page, settings, dataPathname)).toBe(200);
+  expect(await saveAndAwaitWrite(page, settings, optionsPathname)).toBe(204);
 
   expect(
     await readStoredOptions(harness, dataPathname),

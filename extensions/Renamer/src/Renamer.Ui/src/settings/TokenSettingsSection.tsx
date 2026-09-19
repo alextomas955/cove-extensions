@@ -28,23 +28,24 @@ import {
 } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
 import { templateUsesToken } from "./templateValidation";
+import { optionsFor } from "./selectOptions";
 
-const OVERFLOW_OPTIONS: readonly { value: OverflowPolicy; label: string }[] = [
-  { value: "DropAll", label: "Drop all when over the max" },
-  { value: "KeepFirst", label: "Keep the first N" },
-];
+const OVERFLOW_OPTIONS = optionsFor<OverflowPolicy>({
+  dropAll: "Drop all when over the max",
+  keepFirst: "Keep the first N",
+});
 // Sort orders are not interchangeable between the two groups: the engine only honors id/favorite
 // ordering for performers (tags fall back to name ordering), so a tag Sort that offered them would
 // silently no-op. Hence two distinct lists rather than one shared constant.
-const PERFORMER_SORT_OPTIONS: readonly { value: SortOrder; label: string }[] = [
-  { value: "NameAsc", label: "Name (A→Z)" },
-  { value: "None", label: "Keep original order" },
-  { value: "IdAsc", label: "By internal id" },
-  { value: "FavoriteFirst", label: "Favorites first, then name" },
-];
+const PERFORMER_SORT_OPTIONS = optionsFor<SortOrder>({
+  nameAsc: "Name (A→Z)",
+  none: "Keep original order",
+  idAsc: "By internal id",
+  favoriteFirst: "Favorites first, then name",
+});
 const TAG_SORT_OPTIONS: readonly { value: SortOrder; label: string }[] = [
-  { value: "NameAsc", label: "Name (A→Z)" },
-  { value: "None", label: "Keep original order" },
+  { value: "nameAsc", label: "Name (A→Z)" },
+  { value: "none", label: "Keep original order" },
 ];
 
 // The fixed performer-gender set. The value is the C# enum name the backend matches (case-insensitive);
@@ -89,7 +90,7 @@ const SEPARATOR_OPTIONS: readonly SeparatorOption[] = [
 export interface TokenSettingsSectionProps {
   options: RenamerOptions;
   set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
-  setMulti: (group: "Performers" | "Tags", patch: Partial<MultiValueOptions>) => void;
+  setMulti: (group: "performers" | "tags", patch: Partial<MultiValueOptions>) => void;
   insertToken: (token: string) => void;
 }
 
@@ -99,19 +100,19 @@ export function TokenSettingsSection({
   setMulti,
   insertToken,
 }: TokenSettingsSectionProps) {
-  const mv = (group: "Performers" | "Tags") => options[group];
+  const mv = (group: "performers" | "tags") => options[group];
 
   const usesPerformers = templateUsesToken(
     "performers",
-    options.FilenameTemplate,
-    options.FolderTemplate,
+    options.filenameTemplate,
+    options.folderTemplate,
   );
-  const usesTags = templateUsesToken("tags", options.FilenameTemplate, options.FolderTemplate);
-  const usesDate = templateUsesToken("date", options.FilenameTemplate, options.FolderTemplate);
+  const usesTags = templateUsesToken("tags", options.filenameTemplate, options.folderTemplate);
+  const usesDate = templateUsesToken("date", options.filenameTemplate, options.folderTemplate);
   const usesDuration = templateUsesToken(
     "duration",
-    options.FilenameTemplate,
-    options.FolderTemplate,
+    options.filenameTemplate,
+    options.folderTemplate,
   );
 
   return (
@@ -120,9 +121,9 @@ export function TokenSettingsSection({
         <GroupCard title="Performers" badge={<Badge mono>$performers</Badge>}>
           <Field label="Separator">
             <SeparatorChips
-              value={mv("Performers").Separator}
+              value={mv("performers").separator}
               onChange={(v) => {
-                setMulti("Performers", { Separator: v });
+                setMulti("performers", { separator: v });
               }}
               options={SEPARATOR_OPTIONS}
               customPlaceholder="Custom separator"
@@ -131,18 +132,18 @@ export function TokenSettingsSection({
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Max count" helper="0 = unlimited">
               <NumberInput
-                value={mv("Performers").MaxCount}
+                value={mv("performers").maxCount}
                 min={0}
                 onChange={(v) => {
-                  setMulti("Performers", { MaxCount: v });
+                  setMulti("performers", { maxCount: v });
                 }}
               />
             </Field>
             <Field label="On overflow">
               <Select
-                value={mv("Performers").OnOverflow}
+                value={mv("performers").onOverflow}
                 onChange={(v) => {
-                  setMulti("Performers", { OnOverflow: v });
+                  setMulti("performers", { onOverflow: v });
                 }}
                 options={OVERFLOW_OPTIONS}
               />
@@ -151,9 +152,9 @@ export function TokenSettingsSection({
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Sort" helper="The id and favorite orders apply to performers only.">
               <Select
-                value={mv("Performers").Sort}
+                value={mv("performers").sort}
                 onChange={(v) => {
-                  setMulti("Performers", { Sort: v });
+                  setMulti("performers", { sort: v });
                 }}
                 options={PERFORMER_SORT_OPTIONS}
               />
@@ -164,9 +165,9 @@ export function TokenSettingsSection({
             >
               <ChipMultiSelect
                 options={GENDER_OPTIONS}
-                values={mv("Performers").IgnoreGenders}
+                values={mv("performers").ignoreGenders}
                 onChange={(v) => {
-                  setMulti("Performers", { IgnoreGenders: v });
+                  setMulti("performers", { ignoreGenders: v });
                 }}
               />
             </Field>
@@ -174,9 +175,9 @@ export function TokenSettingsSection({
           <Field label="Gender order" helper="Most-preferred first. Empty = off.">
             <OrderedPickToAdd
               options={GENDER_OPTIONS}
-              values={mv("Performers").GenderOrder}
+              values={mv("performers").genderOrder}
               onChange={(v) => {
-                setMulti("Performers", { GenderOrder: v });
+                setMulti("performers", { genderOrder: v });
               }}
               addPrompt="Add a gender…"
             />
@@ -185,9 +186,9 @@ export function TokenSettingsSection({
             entityType="performer"
             label="Whitelist"
             helper="If set, only these performers are kept."
-            values={mv("Performers").WhitelistIds}
+            values={mv("performers").whitelistIds}
             onChange={(v) => {
-              setMulti("Performers", { WhitelistIds: v });
+              setMulti("performers", { whitelistIds: v });
             }}
             placeholder="Search performers…"
           />
@@ -195,9 +196,9 @@ export function TokenSettingsSection({
             entityType="performer"
             label="Blacklist"
             helper="These performers are removed."
-            values={mv("Performers").BlacklistIds}
+            values={mv("performers").blacklistIds}
             onChange={(v) => {
-              setMulti("Performers", { BlacklistIds: v });
+              setMulti("performers", { blacklistIds: v });
             }}
             placeholder="Search performers…"
           />
@@ -208,9 +209,9 @@ export function TokenSettingsSection({
         <GroupCard title="Tags" badge={<Badge mono>$tags</Badge>}>
           <Field label="Separator">
             <SeparatorChips
-              value={mv("Tags").Separator}
+              value={mv("tags").separator}
               onChange={(v) => {
-                setMulti("Tags", { Separator: v });
+                setMulti("tags", { separator: v });
               }}
               options={SEPARATOR_OPTIONS}
               customPlaceholder="Custom separator"
@@ -219,18 +220,18 @@ export function TokenSettingsSection({
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Max count" helper="0 = unlimited">
               <NumberInput
-                value={mv("Tags").MaxCount}
+                value={mv("tags").maxCount}
                 min={0}
                 onChange={(v) => {
-                  setMulti("Tags", { MaxCount: v });
+                  setMulti("tags", { maxCount: v });
                 }}
               />
             </Field>
             <Field label="On overflow">
               <Select
-                value={mv("Tags").OnOverflow}
+                value={mv("tags").onOverflow}
                 onChange={(v) => {
-                  setMulti("Tags", { OnOverflow: v });
+                  setMulti("tags", { onOverflow: v });
                 }}
                 options={OVERFLOW_OPTIONS}
               />
@@ -238,9 +239,9 @@ export function TokenSettingsSection({
           </div>
           <Field label="Sort">
             <Select
-              value={mv("Tags").Sort}
+              value={mv("tags").sort}
               onChange={(v) => {
-                setMulti("Tags", { Sort: v });
+                setMulti("tags", { sort: v });
               }}
               options={TAG_SORT_OPTIONS}
             />
@@ -249,9 +250,9 @@ export function TokenSettingsSection({
             entityType="tag"
             label="Whitelist"
             helper="If set, only these tags are kept."
-            values={mv("Tags").WhitelistIds}
+            values={mv("tags").whitelistIds}
             onChange={(v) => {
-              setMulti("Tags", { WhitelistIds: v });
+              setMulti("tags", { whitelistIds: v });
             }}
             placeholder="Search tags…"
           />
@@ -259,9 +260,9 @@ export function TokenSettingsSection({
             entityType="tag"
             label="Blacklist"
             helper="These tags are removed."
-            values={mv("Tags").BlacklistIds}
+            values={mv("tags").blacklistIds}
             onChange={(v) => {
-              setMulti("Tags", { BlacklistIds: v });
+              setMulti("tags", { blacklistIds: v });
             }}
             placeholder="Search tags…"
           />
@@ -286,9 +287,9 @@ export function TokenSettingsSection({
           {usesDate ? (
             <Field label="Date format" helper="e.g. yyyy-MM-dd">
               <ExampleSelect
-                value={options.DateFormat}
+                value={options.dateFormat}
                 onChange={(v) => {
-                  set("DateFormat", v);
+                  set("dateFormat", v);
                 }}
                 options={DATE_FORMAT_OPTIONS}
                 customPlaceholder="yyyy-MM-dd"
@@ -298,9 +299,9 @@ export function TokenSettingsSection({
           {usesDuration ? (
             <Field label="Duration format">
               <ExampleSelect
-                value={options.DurationFormat}
+                value={options.durationFormat}
                 onChange={(v) => {
-                  set("DurationFormat", v);
+                  set("durationFormat", v);
                 }}
                 options={DURATION_FORMAT_OPTIONS}
                 customPlaceholder="hh\-mm\-ss"

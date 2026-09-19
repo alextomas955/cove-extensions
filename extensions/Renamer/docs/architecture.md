@@ -54,6 +54,14 @@ length safety settings, case transforms, required-field gating, and the auto-ren
 - `RenamerOptions.cs` — the options model and its JSON (de)serialization settings.
 - `OptionsStore.cs` — loads and saves options through Cove's per-extension data store, so the
   configuration persists in Cove and survives extension upgrades.
+- `OptionsMigration.cs` — the one-time conversions of a stored blob into the shape the model now
+  declares, and the stamp that keeps them one-time.
+
+The settings panel reaches all of this through `GET`/`PUT /options` and never the data store, so the
+defaults, the stored spelling, an unreadable blob and the conversions are decided in one place - the
+same place a rename reads them from. The stored spelling is the PascalCase of the C# record, which is
+what every installed blob already holds; the endpoint answers in the wire's camelCase and converts
+back on the way in.
 
 Two kinds of persisted state, and the boundary between them is load-bearing. The host's per-extension
 key/value store holds what is bounded by configuration — the options, and the last scan's summary. The
@@ -144,6 +152,13 @@ the two never drift.
 Minimal-API endpoints the frontend calls, mounted under
 `/api/extensions/com.alextomas955.renamer`:
 
+- `GET /options` — the saved settings, or the defaults when nothing is saved yet, plus whether the
+  stored blob could not be read and whether a one-time conversion is still outstanding.
+- `PUT /options` — replaces the saved settings. It replaces rather than merges: what is written is
+  the settings this version declares, so a property only a newer version knows about is read here but
+  not written back. Refused with `409 MIGRATION_PENDING` while a conversion is outstanding, because
+  the current model reads an unconverted rule as blank and a save would write that blank over the only
+  copy of it.
 - `POST /preview` — runs the planner over selected item IDs and returns the old→new plan (no
   mutation).
 - `POST /renamer` — enqueues the background rename job for selected items.

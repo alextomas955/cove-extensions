@@ -18,7 +18,8 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { useRenamePreview, type UseRenamePreview } from "./useRenamePreview";
-import { cloneDefaults, type RenamerOptions } from "./options";
+import { type RenamerOptions } from "./options";
+import { someOptions } from "./testOptions";
 import type { PreviewSampleResult } from "../wire/api";
 
 /** Every POST the hook issued, each holding its own settle handles. */
@@ -106,8 +107,8 @@ beforeEach(() => {
 });
 
 test("an older preview response cannot repaint the pane over a newer one", async () => {
-  const first = { ...cloneDefaults(), filenameTemplate: "$title" };
-  const second = { ...cloneDefaults(), filenameTemplate: "$title - $studio" };
+  const first = { ...someOptions(), filenameTemplate: "$title" };
+  const second = { ...someOptions(), filenameTemplate: "$title - $studio" };
 
   const hook = mountHook(first);
   await sleep(PAST_DEBOUNCE_MS);
@@ -136,8 +137,8 @@ test("an older preview response cannot repaint the pane over a newer one", async
 }, 30_000);
 
 test("superseding a request aborts it, and that abort is not reported as a failure", async () => {
-  const first = { ...cloneDefaults(), filenameTemplate: "$title" };
-  const second = { ...cloneDefaults(), filenameTemplate: "$title - $studio" };
+  const first = { ...someOptions(), filenameTemplate: "$title" };
+  const second = { ...someOptions(), filenameTemplate: "$title - $studio" };
 
   const hook = mountHook(first);
   await sleep(PAST_DEBOUNCE_MS);

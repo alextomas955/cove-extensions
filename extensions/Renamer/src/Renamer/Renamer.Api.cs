@@ -48,6 +48,7 @@ public sealed partial class Renamer
     private string LibraryPathsRoute => RouteBase + "/library-paths";
     private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
     private string OrphanedRulesRoute => RouteBase + "/orphaned-rules";
+    private string OptionsRoute => RouteBase + "/options";
 
     // An early scan wrote one wire row per file to this key. Retained only so InitializeAsync can
     // delete it; nothing reads it.
@@ -225,6 +226,88 @@ public sealed partial class Renamer
             (ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => OrphanedRulesAsync(principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
+
+        // Gated on extensions.configure, not on a media permission: one settings document decides how
+        // every kind is named and where it is moved, and the auto-rename it can switch on runs later as
+        // System. Holding write over one kind is not consent to reconfigure the extension. This is the
+        // permission Cove's own extension-data routes carry, which is where these settings lived.
+        endpoints.MapGet(OptionsRoute,
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => GetOptionsAsync(principal, ct))
+            .RequireCovePermission(Permissions.ExtensionsConfigure);
+
+        // Binds the raw HttpContext for the reason /preview-sample does: the body carries string enum
+        // values, and the host's minimal-API serializer has no enum converter, so typed binding would
+        // 400 before the handler ran. .Accepts<> is what puts the request schema in the document.
+        endpoints.MapPut(OptionsRoute,
+            (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => SaveOptionsAsync(http.Request, principal, ct))
+            .Accepts<RenamerOptions>("application/json")
+            .RequireCovePermission(Permissions.ExtensionsConfigure);
+    }
+
+    // The saved settings the panel edits, read through the same store every job reads them through, so
+    // the panel and a rename can never disagree about what a stored blob means.
+    internal async Task<Results<Ok<OptionsView>, ForbiddenCode>> GetOptionsAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct = default)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
+        {
+            return denied;
+        }
+
+        var stored = await Store.GetAsync(OptionsStore.Key, ct);
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+
+        return TypedResults.Ok(new OptionsView(
+            options,
+            PendingNameMigration: OptionsMigration.Scan(stored).Any,
+            PendingDestinationMigration: OptionsMigration.HasLegacyDestinations(stored),
+            Unreadable: !string.IsNullOrWhiteSpace(stored) && TryParseOptionsOverride(stored) is null));
+    }
+
+    // Persists the settings, in the spelling the store owns rather than the wire's.
+    //
+    // The stored document is replaced, not merged: what goes back is the members RenamerOptions
+    // declares. A property only a newer version knows about is readable here, because a load ignores
+    // what it does not recognize, but it does not survive this write.
+    //
+    // Refused while the stored blob still holds a shape the one-time conversion has not resolved: the
+    // model binds a name-keyed rule to nothing and a bare destination path to the destination that moves
+    // nothing, so a save would write those blanks over the only copy of the user's rules. The conversion
+    // defers until Cove has supplied the entity rows or the library paths it needs, so this outlives a
+    // restart and is not a race.
+    internal async Task<Results<NoContent, BadRequest<ErrorCode>, Conflict<ErrorCode>, ForbiddenCode>> SaveOptionsAsync(
+        HttpRequest request, ICurrentPrincipalAccessor principal, CancellationToken ct = default)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
+        {
+            return denied;
+        }
+
+        var stored = await Store.GetAsync(OptionsStore.Key, ct);
+        if (OptionsMigration.Scan(stored).Any || OptionsMigration.HasLegacyDestinations(stored))
+        {
+            return TypedResults.Conflict(new ErrorCode("MIGRATION_PENDING"));
+        }
+
+        RenamerOptions? options;
+        try
+        {
+            options = await JsonSerializer.DeserializeAsync<RenamerOptions>(
+                request.Body, RenamerOptions.JsonOptions, ct);
+        }
+        catch (JsonException)
+        {
+            return TypedResults.BadRequest(new ErrorCode("INVALID_OPTIONS"));
+        }
+
+        if (options is null)
+        {
+            return TypedResults.BadRequest(new ErrorCode("INVALID_OPTIONS"));
+        }
+
+        await new OptionsStore(Store, _log).SaveAsync(options, ct);
+        return TypedResults.NoContent();
     }
 
     // Cove's configured library paths: the list every destination root is chosen from, so the

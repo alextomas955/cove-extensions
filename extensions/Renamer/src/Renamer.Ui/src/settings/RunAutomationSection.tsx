@@ -36,9 +36,9 @@ export function RunAutomationSection({
     >
       <Toggle
         label="Auto-rename on update"
-        checked={options.AutoRenamerOnUpdate}
+        checked={options.autoRenamerOnUpdate}
         onChange={(v) => {
-          set("AutoRenamerOnUpdate", v);
+          set("autoRenamerOnUpdate", v);
         }}
         helper="Renames an item whenever its metadata changes."
       />

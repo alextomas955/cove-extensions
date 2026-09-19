@@ -142,11 +142,35 @@ export function RenamePanelBody() {
   const folderRef = useRef<HTMLInputElement>(null);
   const activeTemplateRef = useRef<"filename" | "folder">("filename");
 
-  function insertToken(token: string) {
+  if (loading || options === null) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-secondary">
+        <Spinner />
+        Loading settings…
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-3">
+        <StatusText kind="error">
+          Couldn't load your saved settings — {loadError}. Retry.
+        </StatusText>
+        <div>
+          <Button variant="ghost" onClick={() => void load()}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const insertToken = (token: string) => {
     const which = activeTemplateRef.current;
     const el = which === "folder" ? folderRef.current : filenameRef.current;
-    const key: "FilenameTemplate" | "FolderTemplate" =
-      which === "folder" ? "FolderTemplate" : "FilenameTemplate";
+    const key: "filenameTemplate" | "folderTemplate" =
+      which === "folder" ? "folderTemplate" : "filenameTemplate";
     const current = options[key];
     if (el && typeof el.selectionStart === "number") {
       const start = el.selectionStart;
@@ -161,31 +185,7 @@ export function RenamePanelBody() {
     } else {
       set(key, current + token);
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-secondary">
-        <Spinner />
-        Loading settings…
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="space-y-3">
-        <StatusText kind="error">
-          Couldn't load your saved settings — {loadError}. Retry, or continue with defaults below.
-        </StatusText>
-        <div>
-          <Button variant="ghost" onClick={() => void load()}>
-            Retry
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  };
 
   // Empty-for-sample advisory: read the existing debounced /preview-sample
   // result; name each sample whose flags include "empty". No new request.

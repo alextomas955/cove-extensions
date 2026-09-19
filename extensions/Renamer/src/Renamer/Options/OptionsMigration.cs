@@ -15,7 +15,8 @@ namespace Renamer.Options;
 /// current model at all - a name-keyed <c>TagDestinations</c> makes <see cref="JsonSerializer"/> throw,
 /// and the options store answers a throw by returning defaults, so a typed conversion would convert
 /// defaults and then persist them over the user's settings. A stored key this class does not model is
-/// carried through verbatim, so a hand-edited or newer key survives. Nothing here touches a store, a
+/// carried through verbatim, so a conversion costs no key it does not understand; a later save through
+/// the settings endpoint still writes the current model alone. Nothing here touches a store, a
 /// database context, a clock or a host type; the read, the zero-row refusal and the write live at the
 /// initialize-time seam that calls this.
 /// </remarks>
@@ -188,6 +189,20 @@ public static class OptionsMigration
     {
         /// <summary>True iff the blob was altered, so it is worth writing back.</summary>
         public bool Changed => Rewritten.Count > 0 || Dropped.Count > 0 || RemovedEmptyRoutes > 0;
+    }
+
+    /// <summary>
+    /// True when <paramref name="json"/> still holds a destination as the bare path it was before a
+    /// destination became a library root plus a relative template.
+    /// </summary>
+    /// <remarks>
+    /// The site walk <see cref="ConvertDestinationsToRoots"/> rewrites, asked as a question. A caller
+    /// deciding whether the blob is safe to overwrite reaches the same answer the conversion does.
+    /// </remarks>
+    public static bool HasLegacyDestinations(string? json)
+    {
+        var root = TryParse(json);
+        return root is not null && CollectDestinationSites(root).Count > 0;
     }
 
     /// <summary>

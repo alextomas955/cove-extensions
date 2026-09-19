@@ -252,8 +252,10 @@ public sealed record ExcludeRule
 
 /// <summary>All renamer settings, with defaults.</summary>
 /// <remarks>
-/// Serialized as a single forward-compatible System.Text.Json blob: unknown properties are ignored on
-/// load and missing properties take their default.
+/// Serialized as a single System.Text.Json blob. A load tolerates a blob it does not recognize:
+/// unknown properties are ignored and missing ones take their default. A save does not preserve one -
+/// it writes the members declared here and nothing else, so a property only a newer version knows about
+/// is dropped by the first save an older one makes.
 /// </remarks>
 public sealed record RenamerOptions
 {

@@ -9,40 +9,40 @@ import assert from "node:assert/strict";
 import { kindSettings, nextKinds, type KindMap } from "./entityKindsLogic";
 
 test("an absent entry reads as renamed with no folder of its own", () => {
-  assert.deepEqual(kindSettings({}, "Text"), { Enabled: true, Destination: null });
+  assert.deepEqual(kindSettings({}, "text"), { enabled: true, destination: null });
 });
 
 test("turning a kind off stores an entry", () => {
-  assert.deepEqual(nextKinds({}, "Text", false, null), {
-    Text: { Enabled: false, Destination: null },
+  assert.deepEqual(nextKinds({}, "text", false, null), {
+    text: { enabled: false, destination: null },
   });
 });
 
 test("turning it back on removes the entry rather than storing the defaults", () => {
-  const map: KindMap = { Text: { Enabled: false, Destination: null } };
+  const map: KindMap = { text: { enabled: false, destination: null } };
 
-  assert.deepEqual(nextKinds(map, "Text", true, null), {});
+  assert.deepEqual(nextKinds(map, "text", true, null), {});
 });
 
 test("a destination is stored on an enabled kind", () => {
-  assert.deepEqual(nextKinds({}, "Image", true, { Root: "D:/images", Template: "$studio" }), {
-    Image: { Enabled: true, Destination: { Root: "D:/images", Template: "$studio" } },
+  assert.deepEqual(nextKinds({}, "image", true, { root: "D:/images", template: "$studio" }), {
+    image: { enabled: true, destination: { root: "D:/images", template: "$studio" } },
   });
 });
 
 test("a destination naming neither a root nor a folder is kept, not treated as absent", () => {
   // It is the instruction "rename in place, under the library path the file is already in", which is
   // a different answer from having no destination of its own.
-  assert.deepEqual(nextKinds({}, "Audio", true, { Root: "", Template: "" }), {
-    Audio: { Enabled: true, Destination: { Root: "", Template: "" } },
+  assert.deepEqual(nextKinds({}, "audio", true, { root: "", template: "" }), {
+    audio: { enabled: true, destination: { root: "", template: "" } },
   });
 });
 
 test("editing one kind leaves the others alone", () => {
-  const map: KindMap = { Video: { Enabled: false, Destination: null } };
+  const map: KindMap = { video: { enabled: false, destination: null } };
 
-  assert.deepEqual(nextKinds(map, "Text", false, null), {
-    Video: { Enabled: false, Destination: null },
-    Text: { Enabled: false, Destination: null },
+  assert.deepEqual(nextKinds(map, "text", false, null), {
+    video: { enabled: false, destination: null },
+    text: { enabled: false, destination: null },
   });
 });
