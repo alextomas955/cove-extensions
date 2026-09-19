@@ -7,12 +7,15 @@ namespace Renamer.Tests.TestSupport;
 /// are unused and throw.
 /// </summary>
 /// <remarks>
-/// Only <c>AuthorizeAsync</c> is implemented, so the interface's default <c>AuthorizeManyAsync</c>
-/// funnels every ask through one place.
+/// <c>AuthorizeManyAsync</c> counts the batch and then fans out to <c>AuthorizeAsync</c>, so every
+/// ask still funnels through one place.
 /// </remarks>
 public sealed class RecordingAuthorizationService : IAuthorizationService
 {
     public List<(string Permission, string EntityKind, int EntityId)> Asked { get; } = [];
+
+    /// <summary>How many batch calls were made, whatever each batch's size.</summary>
+    public int BatchCalls { get; private set; }
 
     public CovePrincipal? LastPrincipal { get; private set; }
 
@@ -35,6 +38,20 @@ public sealed class RecordingAuthorizationService : IAuthorizationService
         return Task.FromResult(Denied.Contains((target.Kind, id))
             ? AuthorizationResult.Deny("denied by test", permission)
             : AuthorizationResult.Allow());
+    }
+
+    public async Task<IReadOnlyList<AuthorizationResult>> AuthorizeManyAsync(
+        CovePrincipal? principal, string permission, IReadOnlyList<EntityRef> entities, CancellationToken ct)
+    {
+        BatchCalls++;
+
+        var results = new List<AuthorizationResult>(entities.Count);
+        foreach (var entity in entities)
+        {
+            results.Add(await AuthorizeAsync(principal, permission, entity, ct));
+        }
+
+        return results;
     }
 
     public AuthorizationResult Authorize(CovePrincipal? principal, string permission, EntityRef? entity = null)

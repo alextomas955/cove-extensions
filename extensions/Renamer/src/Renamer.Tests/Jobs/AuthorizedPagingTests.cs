@@ -65,7 +65,12 @@ public sealed class AuthorizedPagingTests
         return [.. ids];
     }
 
-    private static async Task RunOverFourVideosAsync(TempDir dir, params int[] deniedIndexes)
+    private static Task<RecordingAuthorizationService> RunOverFourVideosAsync(
+        TempDir dir, params int[] deniedIndexes)
+        => RunOverVideosAsync(dir, count: 4, chunkEntities: 2, deniedIndexes);
+
+    private static async Task<RecordingAuthorizationService> RunOverVideosAsync(
+        TempDir dir, int count, int chunkEntities, int[] deniedIndexes)
     {
         var shared = await SharedCacheSqlite.CreateAsync();
         try
@@ -73,7 +78,7 @@ public sealed class AuthorizedPagingTests
             int[] ids;
             await using (var seedDb = shared.NewContext())
             {
-                ids = await SeedVideosAsync(seedDb, dir.Root, 4);
+                ids = await SeedVideosAsync(seedDb, dir.Root, count);
             }
 
             var authz = new RecordingAuthorizationService();
@@ -91,8 +96,10 @@ public sealed class AuthorizedPagingTests
                     authz, caller, kind, Permissions.VideosWrite, pageIds, token);
 
             await ext.RunRenamerKindAsync(
-                RenamerFileKind.Video, 4, new OperationJournalBudget("op"), options, allowedIds,
-                new FakeJobProgress(), default, chunkEntities: 2);
+                RenamerFileKind.Video, count, new OperationJournalBudget("op"), options, allowedIds,
+                new FakeJobProgress(), default, chunkEntities: chunkEntities);
+
+            return authz;
         }
         finally
         {
@@ -126,5 +133,27 @@ public sealed class AuthorizedPagingTests
         Assert.True(File.Exists(Path.Combine(dir.Root, "raw 1.mkv")));
         Assert.True(File.Exists(Path.Combine(dir.Root, "Film 2.mkv")), "Film 2.mkv missing");
         Assert.True(File.Exists(Path.Combine(dir.Root, "Film 3.mkv")), "Film 3.mkv missing");
+    }
+
+    /// <summary>
+    /// A long denied region costs authorization calls proportional to the entities walked over the
+    /// page size, never one per denied entity.
+    /// </summary>
+    /// <remarks>
+    /// Twelve entities at a chunk of four, denied from the first page's last allowed entity to the
+    /// one before the last. Drawing a page sized to the chunk's remaining capacity makes every draw
+    /// after the first a page of one, which the per-entity <c>Asked</c> list cannot see: the walk asks
+    /// about the same twelve entities either way, and only the number of round trips differs.
+    /// </remarks>
+    [Fact]
+    public async Task ALongDeniedRegion_CostsOneCallPerPage_NotOnePerDeniedEntity()
+    {
+        using var dir = new TempDir();
+
+        var authz = await RunOverVideosAsync(
+            dir, count: 12, chunkEntities: 4, [3, 4, 5, 6, 7, 8, 9, 10]);
+
+        Assert.Equal(12, authz.Asked.Count);
+        Assert.True(authz.BatchCalls <= 4, $"12 entities over pages of 4 took {authz.BatchCalls} calls");
     }
 }
