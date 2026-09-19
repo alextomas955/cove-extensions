@@ -52,7 +52,7 @@ public sealed class UndoRetryTests
             // reverse move refuses to clobber, so that entry stops and its row must survive.
             File.WriteAllText(stays.OldFull, "someone else's file");
 
-            var undo = UndoValue(await ext.UndoAsync(Write, default));
+            var undo = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
 
             Assert.Equal(1, undo.Undone);
             Assert.Single(undo.SkippedSample);
@@ -89,13 +89,13 @@ public sealed class UndoRetryTests
             var (ext, comes, stays) = await RenameTwoAsync(db, dir);
             File.WriteAllText(stays.OldFull, "someone else's file");
 
-            var first = UndoValue(await ext.UndoAsync(Write, default));
+            var first = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
             Assert.Equal(1, first.Undone);
 
             // Clear the cause, exactly as a user would.
             File.Delete(stays.OldFull);
 
-            var second = UndoValue(await ext.UndoAsync(Write, default));
+            var second = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
 
             // one, not two: the row the first run retired is not offered again, so the second run acts
             // only on what the first left behind.
@@ -111,7 +111,8 @@ public sealed class UndoRetryTests
             // Nothing left to offer — and a third call is a clean no-op rather than an error.
             using var journal = new CoveRevertJournal(db);
             Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
-            Assert.Equal(0, UndoValue(await ext.UndoAsync(Write, default)).Undone);
+            Assert.Equal(0,
+                UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default)).Undone);
         }
         finally
         {
@@ -134,7 +135,7 @@ public sealed class UndoRetryTests
             db.Set<VideoFile>().Remove(await db.Set<VideoFile>().SingleAsync(f => f.Id == gone.FileId));
             await db.SaveChangesAsync();
 
-            var undo = UndoValue(await ext.UndoAsync(Write, default));
+            var undo = UndoValue(await ext.UndoAsync(Write, new RecordingAuthorizationService(), default));
 
             Assert.Equal(1, undo.Undone);
             // The count is what the response states and what a caller reads; the sample is only where
@@ -179,7 +180,7 @@ public sealed class UndoRetryTests
             await db.SaveChangesAsync();
             File.WriteAllText(blocked.OldFull, "someone else's file");
 
-            await ext.UndoAsync(Write, default);
+            await ext.UndoAsync(Write, new RecordingAuthorizationService(), default);
 
             using var journal = new CoveRevertJournal(db);
             var afterFirst = await journal.ReadUndoTargetAsync();
@@ -191,7 +192,7 @@ public sealed class UndoRetryTests
             AssertReconciles(afterFirst.Value);
 
             File.Delete(blocked.OldFull);
-            await ext.UndoAsync(Write, default);
+            await ext.UndoAsync(Write, new RecordingAuthorizationService(), default);
 
             var afterRetry = await journal.ReadUndoTargetAsync();
             Assert.NotNull(afterRetry);

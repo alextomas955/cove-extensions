@@ -18,7 +18,7 @@ namespace Renamer;
 public sealed partial class Renamer
 {
     internal async Task<Results<Ok<UndoResult>, ForbiddenCode>> UndoAsync(
-        ICurrentPrincipalAccessor principal, CancellationToken ct)
+        ICurrentPrincipalAccessor principal, IAuthorizationService authz, CancellationToken ct)
     {
         // Refuse a caller holding no renamer-write permission before any journal read or disk touch,
         // so an unauthorized caller cannot learn whether a batch exists. The host's
@@ -65,6 +65,47 @@ public sealed partial class Renamer
             {
                 return denied;
             }
+        }
+
+        // Holding a kind's write permission is not access to every entity of that kind, and the read
+        // scope a journal walk satisfies is evaluated apart from the write scope, so a caller can read
+        // a recorded row and still be denied the file it would move back. Every entity the operation
+        // would restore is authorized here, before the replayer exists, so a refusal has moved nothing.
+        // One denied entity refuses the whole undo: restoring the rest leaves one user action half
+        // reversed. The refusal names nothing, so it discloses no id.
+        var authorizing = batch;
+        while (authorizing is not null)
+        {
+            var current = authorizing.Value;
+            var (_, entityWritePermission) = PermissionsFor(current.Kind);
+
+            var page = await journal.ReadBatchPageAsync(
+                current.RunId, belowSeq: long.MaxValue, CoveRevertJournal.DefaultPageSize, ct);
+
+            while (page.Count > 0)
+            {
+                // One page's ids and no more. A distinct set over the whole operation would grow with
+                // the library, and re-asking about an id a page repeats costs less than holding one.
+                var pageIds = new List<int>(page.Count);
+                foreach (var row in page)
+                {
+                    pageIds.Add(row.EntityId);
+                }
+
+                var allowed = await EntityAccessGuard.AllowedOnlyAsync(
+                    authz, principal.Current, current.Kind, entityWritePermission, pageIds, ct);
+                if (allowed.Count != pageIds.Count)
+                {
+                    return new ForbiddenCode();
+                }
+
+                page = await journal.ReadBatchPageAsync(
+                    current.RunId, page[^1].Seq, CoveRevertJournal.DefaultPageSize, ct);
+            }
+
+            // Its own cursor, so the replay below still starts at the batch already read.
+            authorizing = await journal.ReadNextBatchAsync(
+                operationId, current.WrittenAtUtcTicks, current.RunId, ct);
         }
 
         // Undo restores the paths the journal recorded and renders no name, so it loads no options.

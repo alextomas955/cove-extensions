@@ -66,7 +66,7 @@ public sealed class RequestPathPrincipalTests
         library.Principals.Set(caller);
         library.CommandsExecuted.Clear();
 
-        await ext.UndoAsync(library.Principals, default);
+        await ext.UndoAsync(library.Principals, library.Authorization, default);
 
         AssertRanEntirelyAsTheCaller(library);
 

@@ -186,7 +186,8 @@ public sealed partial class Renamer
         // /undo takes no request body — it operates on "the last batch", so binding no body avoids
         // the host's enum-converter 400 trap (see the preview-sample note above); /last-batch is a plain read.
         endpoints.MapPost(UndoRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => UndoAsync(principal, ct))
+            (ICurrentPrincipalAccessor principal, IAuthorizationService authz, CancellationToken ct)
+                => UndoAsync(principal, authz, ct))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
         endpoints.MapGet(LastBatchRoute,

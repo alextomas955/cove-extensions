@@ -182,7 +182,8 @@ public sealed class EndpointPermissionTests
         // scope factory it would NRE here — the absence of a throw proves the 403-first ordering.
         var ext = NewExtension();
 
-        var result = await ext.UndoAsync(FakePrincipalAccessor.None(), default);
+        var result = await ext.UndoAsync(
+            FakePrincipalAccessor.None(), new RecordingAuthorizationService(), default);
 
         Assert.Equal(403, StatusOf(result));
     }
