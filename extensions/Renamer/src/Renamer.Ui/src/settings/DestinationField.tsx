@@ -53,14 +53,14 @@ export function DestinationField({
   templateRef,
   onTemplateFocus,
 }: Readonly<DestinationFieldProps>) {
-  const { chosen, stale, showPicker, notice } = destinationPicker(value.Root, library);
+  const { chosen, stale, showPicker, notice } = destinationPicker(value.root, library);
 
   const options = [
     { value: CONTAINING_ROOT, label: CONTAINING_ROOT_LABEL },
     ...library.paths.map((path) => ({ value: path, label: path })),
     // The stale root is offered as its own option so the select shows what is actually stored rather
     // than silently reading as "the file's own library path", which is a different destination.
-    ...(stale ? [{ value: value.Root, label: `${value.Root} (no longer a library path)` }] : []),
+    ...(stale ? [{ value: value.root, label: `${value.root} (no longer a library path)` }] : []),
   ];
 
   const rootField = (
@@ -69,9 +69,9 @@ export function DestinationField({
         // The matched path, so a root stored in Cove's own platform spelling selects the library
         // path it names rather than falling off the list. The stored value is left as it is: it
         // names the right folder, and rewriting it on load would be an edit the user did not make.
-        value={chosen ?? value.Root}
+        value={chosen ?? value.root}
         onChange={(root) => {
-          onChange({ ...value, Root: root });
+          onChange({ ...value, root: root });
         }}
         options={options}
       />
@@ -87,9 +87,9 @@ export function DestinationField({
   const templateField = (
     <Field label={label} helper={helper}>
       <TextInput
-        value={value.Template}
+        value={value.template}
         onChange={(template) => {
-          onChange({ ...value, Template: template });
+          onChange({ ...value, template: template });
         }}
         onFocus={onTemplateFocus}
         inputRef={templateRef}
@@ -100,7 +100,7 @@ export function DestinationField({
           become literal folder names, and this is the only line that says so — while naming a
           control that is not on screen leaves the user nothing to act on. */}
       <PathShapeHint
-        value={value.Template}
+        value={value.template}
         message={
           showPicker
             ? "This is a folder template, not a path — pick the root beside it instead."
@@ -109,7 +109,7 @@ export function DestinationField({
       />
       {/* Every folder template gets the same token advisory, wherever it is edited. Rendered by the
           one editor they all use, so a new destination cannot ship without it. */}
-      <TemplateValidation value={value.Template} />
+      <TemplateValidation value={value.template} />
     </Field>
   );
 

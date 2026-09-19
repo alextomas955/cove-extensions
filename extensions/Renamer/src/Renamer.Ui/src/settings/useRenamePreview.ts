@@ -31,7 +31,10 @@ export interface UseRenamePreview {
   previewError: boolean;
 }
 
-export function useRenamePreview(options: RenamerOptions, loading: boolean): UseRenamePreview {
+export function useRenamePreview(
+  options: RenamerOptions | null,
+  loading: boolean,
+): UseRenamePreview {
   const [preview, setPreview] = useState<PreviewSampleResult[] | null>(null);
   const [previewError, setPreviewError] = useState(false);
   // A ref rather than state on two counts: advancing it must not itself trigger a render, and the
@@ -40,7 +43,7 @@ export function useRenamePreview(options: RenamerOptions, loading: boolean): Use
   const generation = useRef(0);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || options === null) return;
     // Strictly increasing and never reused, which is what the comparison at settle time rests on: a
     // reset or a recycled value would make a superseded response compare equal to the generation in
     // force.

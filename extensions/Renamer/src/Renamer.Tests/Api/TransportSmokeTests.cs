@@ -24,6 +24,8 @@ public sealed class TransportSmokeTests
         ("GET", Base + "/last-scan", Base + "/last-scan"),
         ("GET", Base + "/library-paths", Base + "/library-paths"),
         ("GET", Base + "/orphaned-rules", Base + "/orphaned-rules"),
+        ("GET", Base + "/options", Base + "/options"),
+        ("PUT", Base + "/options", Base + "/options"),
         ("GET", Base + "/job-status/{jobId}", Base + "/job-status/job-1"),
         ("POST", Base + "/preview", Base + "/preview"),
         ("POST", Base + "/renamer", Base + "/renamer"),

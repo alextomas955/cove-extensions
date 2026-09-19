@@ -191,6 +191,20 @@ public static class OptionsMigration
     }
 
     /// <summary>
+    /// True when <paramref name="json"/> still holds a destination as the bare path it was before a
+    /// destination became a library root plus a relative template.
+    /// </summary>
+    /// <remarks>
+    /// The site walk <see cref="ConvertDestinationsToRoots"/> rewrites, asked as a question. A caller
+    /// deciding whether the blob is safe to overwrite reaches the same answer the conversion does.
+    /// </remarks>
+    public static bool HasLegacyDestinations(string? json)
+    {
+        var root = TryParse(json);
+        return root is not null && CollectDestinationSites(root).Count > 0;
+    }
+
+    /// <summary>
     /// Rewrites every destination rule in <paramref name="json"/> from a typed absolute root into the
     /// one shape a destination now has: a root chosen from <paramref name="libraryRoots"/>, plus the
     /// relative template rendered under it.

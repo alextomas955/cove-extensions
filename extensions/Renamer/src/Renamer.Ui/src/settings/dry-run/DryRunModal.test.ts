@@ -22,7 +22,8 @@ import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { DryRunModal } from "./DryRunModal";
-import { cloneDefaults, type RenamerOptions } from "../options";
+import { type RenamerOptions } from "../options";
+import { someOptions } from "../testOptions";
 import type { ScanRow, ScanRowsPage, ScanSummaryView } from "../../wire/api";
 
 /** The scripted `/scan-rows` answers, and how many the modal asked for. A `null` entry fails. */
@@ -160,7 +161,7 @@ function mountModal({ dirty = false }: { dirty?: boolean } = {}) {
       }),
     );
   };
-  render({ options: cloneDefaults(), dirty });
+  render({ options: someOptions(), dirty });
 
   return {
     render,
@@ -260,7 +261,7 @@ test("discarding the edits behind the modal does not make its stale rows renamab
   await sleep(SETTLE_MS);
   expect(modal.renameButton()?.disabled).toBe(true);
 
-  modal.render({ options: { ...cloneDefaults(), FilenameTemplate: "$title" }, dirty: false });
+  modal.render({ options: { ...someOptions(), filenameTemplate: "$title" }, dirty: false });
   await sleep(SETTLE_MS);
 
   expect(modal.renameButton()?.disabled).toBe(true);

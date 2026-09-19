@@ -17,9 +17,10 @@ The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific
   folders.
 - UI slices: `settings/` (with the dry-run modal nested at `settings/dry-run/`) and
   `rename-action/`. Extension-local shared code is `common/`.
-- `settings/options.ts` is a hand-written REQUEST shape. The options blob travels in the PascalCase
-  spelling of the C# record, which the wire document does not describe. Its casing must match the
-  record exactly. Everything else the UI reads comes from the generated `wire/api.ts`.
+- The settings panel loads and saves through `GET`/`PUT /options`, never through Cove's extension
+  data store. The backend owns the defaults, the stored PascalCase spelling and the one-time
+  conversions; `settings/options.ts` derives its types from the generated `wire/api.ts` and holds
+  only what the panel decides for itself.
 
 ## Build and deploy
 

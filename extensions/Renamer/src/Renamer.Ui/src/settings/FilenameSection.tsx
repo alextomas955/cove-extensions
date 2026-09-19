@@ -104,14 +104,14 @@ export function FilenameSection({
       <SectionCard title="Filename" description="Pick a preset or write your own.">
         <PresetRow
           onApply={(t) => {
-            set("FilenameTemplate", t);
+            set("filenameTemplate", t);
           }}
         />
         <Field label="Filename template">
           <TextInput
-            value={options.FilenameTemplate}
+            value={options.filenameTemplate}
             onChange={(v) => {
-              set("FilenameTemplate", v);
+              set("filenameTemplate", v);
             }}
             onFocus={() => (activeTemplateRef.current = "filename")}
             inputRef={filenameRef}
@@ -119,7 +119,7 @@ export function FilenameSection({
             placeholder="$title"
           />
         </Field>
-        <TemplateValidation value={options.FilenameTemplate} emptySamples={emptySamples} />
+        <TemplateValidation value={options.filenameTemplate} emptySamples={emptySamples} />
         <TokenLegend onInsert={insertToken} />
       </SectionCard>
 
@@ -128,10 +128,10 @@ export function FilenameSection({
         description="Folder path template. Moves files on rename, and applies to every kind. Used when no tag, studio, source-path or unorganized rule matches the item."
       >
         <DestinationField
-          value={{ Root: options.FolderRoot, Template: options.FolderTemplate }}
+          value={{ root: options.folderRoot, template: options.folderTemplate }}
           onChange={(destination) => {
-            set("FolderRoot", destination.Root);
-            set("FolderTemplate", destination.Template);
+            set("folderRoot", destination.root);
+            set("folderTemplate", destination.template);
           }}
           library={library}
           helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio/$year."

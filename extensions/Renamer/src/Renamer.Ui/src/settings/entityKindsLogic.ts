@@ -11,7 +11,7 @@ export type KindMap = Partial<Record<RenamableKind, KindOptions>>;
 
 /** What the kind's settings are when the map holds no entry for it: renamed, no folder of its own. */
 export function kindSettings(map: KindMap, kind: RenamableKind): KindOptions {
-  return map[kind] ?? { Enabled: true, Destination: null };
+  return map[kind] ?? { enabled: true, destination: null };
 }
 
 /** The map after setting one kind's enabled flag and destination. */
@@ -24,14 +24,14 @@ export function nextKinds(
   const { [kind]: _dropped, ...rest } = map;
   return enabled && destination === null
     ? rest
-    : { ...rest, [kind]: { Enabled: enabled, Destination: destination } };
+    : { ...rest, [kind]: { enabled: enabled, destination: destination } };
 }
 
 /** How many kinds are not renamed at all, and how many have a folder of their own. */
 export function kindsSummary(map: KindMap): { excluded: number; ownFolder: number } {
   const settings = RENAMABLE_KINDS.map((kind) => kindSettings(map, kind));
   return {
-    excluded: settings.filter((s) => !s.Enabled).length,
-    ownFolder: settings.filter((s) => s.Enabled && s.Destination !== null).length,
+    excluded: settings.filter((s) => !s.enabled).length,
+    ownFolder: settings.filter((s) => s.enabled && s.destination !== null).length,
   };
 }

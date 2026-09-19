@@ -18,16 +18,16 @@ export function WhatGetsRenamedSection({ options, set }: WhatGetsRenamedSectionP
     <SectionCard title="What gets renamed">
       <Toggle
         label="Only rename organized items"
-        checked={options.OnlyOrganized}
+        checked={options.onlyOrganized}
         onChange={(v) => {
-          set("OnlyOrganized", v);
+          set("onlyOrganized", v);
         }}
       />
       <Toggle
         label="Use filename as title when none is set"
-        checked={options.FilenameAsTitle}
+        checked={options.filenameAsTitle}
         onChange={(v) => {
-          set("FilenameAsTitle", v);
+          set("filenameAsTitle", v);
         }}
         helper="The filename without its extension, saved onto the item so later renames read the stored title."
       />
@@ -36,25 +36,25 @@ export function WhatGetsRenamedSection({ options, set }: WhatGetsRenamedSectionP
         helper="An item whose listed tokens resolve to nothing is skipped."
       >
         <TagListInput
-          values={options.RequiredFields}
+          values={options.requiredFields}
           onChange={(v) => {
-            set("RequiredFields", v);
+            set("requiredFields", v);
           }}
           placeholder="Add token, press Enter"
         />
         <TokenPicker
           tokens={BARE_TOKENS}
-          values={options.RequiredFields}
+          values={options.requiredFields}
           onAdd={(name) => {
             set(
-              "RequiredFields",
-              options.RequiredFields.includes(name)
-                ? options.RequiredFields
-                : [...options.RequiredFields, name],
+              "requiredFields",
+              options.requiredFields.includes(name)
+                ? options.requiredFields
+                : [...options.requiredFields, name],
             );
           }}
         />
-        <TokenAdvisory values={options.RequiredFields} />
+        <TokenAdvisory values={options.requiredFields} />
       </Field>
     </SectionCard>
   );

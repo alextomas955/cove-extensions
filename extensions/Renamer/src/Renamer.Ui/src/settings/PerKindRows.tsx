@@ -31,10 +31,10 @@ export interface PerKindRowsProps {
 
 export function PerKindRows({ options, set, library }: Readonly<PerKindRowsProps>) {
   const update = (kind: RenamableKind, enabled: boolean, destination: Destination | null) => {
-    set("Kinds", nextKinds(options.Kinds, kind, enabled, destination));
+    set("kinds", nextKinds(options.kinds, kind, enabled, destination));
   };
 
-  const { excluded, ownFolder } = kindsSummary(options.Kinds);
+  const { excluded, ownFolder } = kindsSummary(options.kinds);
 
   return (
     <div className="space-y-2">
@@ -49,7 +49,7 @@ export function PerKindRows({ options, set, library }: Readonly<PerKindRowsProps
 
       <div className="divide-y divide-border rounded-xl border border-border">
         {RENAMABLE_KINDS.map((kind) => {
-          const { Enabled: enabled, Destination: destination } = kindSettings(options.Kinds, kind);
+          const { enabled: enabled, destination: destination } = kindSettings(options.kinds, kind);
           const followsDefault = enabled && destination === null;
 
           let state: ReactNode;

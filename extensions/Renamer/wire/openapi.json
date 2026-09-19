@@ -473,6 +473,85 @@
           }
         }
       }
+    },
+    "/api/extensions/com.alextomas955.renamer/options": {
+      "get": {
+        "tags": [
+          "Renamer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptionsView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Renamer"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenamerOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -664,6 +743,29 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "OptionsView": {
+        "required": [
+          "options",
+          "pendingNameMigration",
+          "pendingDestinationMigration",
+          "unreadable"
+        ],
+        "type": "object",
+        "properties": {
+          "options": {
+            "$ref": "#/components/schemas/RenamerOptions"
+          },
+          "pendingNameMigration": {
+            "type": "boolean"
+          },
+          "pendingDestinationMigration": {
+            "type": "boolean"
+          },
+          "unreadable": {
+            "type": "boolean"
           }
         }
       },

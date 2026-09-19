@@ -16,7 +16,8 @@ import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { PerKindRows } from "./PerKindRows";
-import { cloneDefaults, type LibraryPathsState, type RenamerOptions } from "./options";
+import { type LibraryPathsState, type RenamerOptions } from "./options";
+import { someOptions } from "./testOptions";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
@@ -48,8 +49,8 @@ const sleep = (ms: number) =>
 /** Long enough for React to commit a render on the default lane without `act` to force it. */
 const COMMIT_MS = 50;
 
-async function renderRows(kinds: RenamerOptions["Kinds"]) {
-  const options = { ...cloneDefaults(), Kinds: kinds };
+async function renderRows(kinds: RenamerOptions["kinds"]) {
+  const options = { ...someOptions(), kinds: kinds };
   const set = vi.fn();
 
   const container = document.createElement("div");
@@ -100,15 +101,15 @@ test("excluding a kind turns off renaming and says so, without touching the othe
   const view = await renderRows({});
   view.row("Videos").click("Exclude");
 
-  expect(view.set).toHaveBeenCalledWith("Kinds", {
-    Video: { Enabled: false, Destination: null },
+  expect(view.set).toHaveBeenCalledWith("kinds", {
+    video: { enabled: false, destination: null },
   });
 
   view.unmount();
 });
 
 test("an excluded kind reads as not renamed, and offers the way back", async () => {
-  const view = await renderRows({ Video: { Enabled: false, Destination: null } });
+  const view = await renderRows({ video: { enabled: false, destination: null } });
 
   expect(view.row("Videos").text()).toContain("Not renamed");
   expect(view.text()).toContain("1 excluded");
@@ -116,13 +117,13 @@ test("an excluded kind reads as not renamed, and offers the way back", async () 
 
   // Including drops the entry rather than storing an enabled kind with no folder, which is what the
   // absent entry already means.
-  expect(view.set).toHaveBeenCalledWith("Kinds", {});
+  expect(view.set).toHaveBeenCalledWith("kinds", {});
 
   view.unmount();
 });
 
 test("an excluded kind cannot be sent back to the default without being included first", async () => {
-  const view = await renderRows({ Video: { Enabled: false, Destination: null } });
+  const view = await renderRows({ video: { enabled: false, destination: null } });
 
   const useDefault = view.row("Videos").button("Use default");
   expect(useDefault.disabled).toBe(true);
@@ -135,14 +136,14 @@ test("an excluded kind cannot be sent back to the default without being included
 });
 
 test("excluding a kind that has its own folder keeps that folder for its return", async () => {
-  const destination = { Root: "D:/library", Template: "$studio" };
-  const view = await renderRows({ Video: { Enabled: true, Destination: destination } });
+  const destination = { root: "D:/library", template: "$studio" };
+  const view = await renderRows({ video: { enabled: true, destination: destination } });
 
   expect(view.text()).toContain("1 with their own folder");
   view.row("Videos").click("Exclude");
 
-  expect(view.set).toHaveBeenCalledWith("Kinds", {
-    Video: { Enabled: false, Destination: destination },
+  expect(view.set).toHaveBeenCalledWith("kinds", {
+    video: { enabled: false, destination: destination },
   });
 
   view.unmount();
@@ -150,12 +151,12 @@ test("excluding a kind that has its own folder keeps that folder for its return"
 
 test("a kind with its own folder is sent back to the default by the left button", async () => {
   const view = await renderRows({
-    Video: { Enabled: true, Destination: { Root: "D:/library", Template: "$studio" } },
+    video: { enabled: true, destination: { root: "D:/library", template: "$studio" } },
   });
 
   view.row("Videos").click("Use default");
 
-  expect(view.set).toHaveBeenCalledWith("Kinds", {});
+  expect(view.set).toHaveBeenCalledWith("kinds", {});
 
   view.unmount();
 });
