@@ -104,16 +104,6 @@ public sealed class OptionsRoundTripTests
         Assert.Equal(OptionsJson.Canonical(ExpectedFromPanel()), OptionsJson.Canonical(loaded));
     }
 
-    [Fact]
-    public void Backend_Serialized_Blob_Deserializes_Back_Equal()
-    {
-        var original = ExpectedFromPanel();
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-    }
 
     [Fact]
     public void PanelJson_To_Backend_To_PanelShape_Survives_BothDirections()

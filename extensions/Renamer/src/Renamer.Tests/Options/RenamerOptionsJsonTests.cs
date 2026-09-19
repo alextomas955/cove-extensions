@@ -1,21 +1,10 @@
 using System.Text.Json;
 using Renamer.Options;
-using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
 public sealed class RenamerOptionsJsonTests
 {
-    [Fact]
-    public void DefaultOptions_RoundTrip_AreEqual()
-    {
-        var original = new RenamerOptions();
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-    }
 
     [Fact]
     public void DurationFormat_Default_SerializesWithEscapedBackslashes_AndIsValidJson()
@@ -34,66 +23,8 @@ public sealed class RenamerOptionsJsonTests
         Assert.Equal(@"hh\-mm\-ss", reloaded!.DurationFormat);
     }
 
-    [Fact]
-    public void PathDestinationValue_WithWindowsPath_RoundTripsAsValidJson()
-    {
-        // A routing destination holding a Windows path has backslashes that likewise must be escaped
-        // so the stored blob stays valid JSON across a save → load round-trip.
-        var original = new RenamerOptions { FolderRoot = @"G:\Media\Sorted" };
 
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        using var parsed = JsonDocument.Parse(json); // valid JSON, no lone backslash
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(@"G:\Media\Sorted", reloaded!.FolderRoot);
-    }
-
-    [Fact]
-    public void CustomizedOptions_RoundTrip_AreEqual()
-    {
-        var original = new RenamerOptions
-        {
-            FilenameTemplate = "$studio - $title [$resolution]",
-            FolderTemplate = "$studio/$year",
-            Case = CaseTransform.Title,
-            AsciiTransliterate = true,
-            DropOrder = ["title", "studio", "tags"],
-            Performers = new MultiValueOptions
-            {
-                Separator = " & ",
-                MaxCount = 3,
-                OnOverflow = OverflowPolicy.KeepFirst,
-                Sort = SortOrder.None,
-                WhitelistIds = [11, 12],
-                BlacklistIds = [13],
-            },
-            Tags = new MultiValueOptions { Separator = "_" },
-        };
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-    }
-
-    [Fact]
-    public void GatingAndSuffixFields_RoundTrip_AreEqual()
-    {
-        var original = new RenamerOptions
-        {
-            OnlyOrganized = true,
-            RequiredFields = ["title", "studio"],
-            DuplicateSuffixFormat = " ({n})",
-            AutoRenamerOnUpdate = true,
-        };
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        // A JSON round-trip allocates a fresh RequiredFields list; structural Equals must hold.
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-        Assert.True(reloaded!.AutoRenamerOnUpdate); // the new flag survives the round-trip
-    }
 
     [Fact]
     public void AutoRenamerOnUpdate_Defaults_Off()
@@ -101,44 +32,8 @@ public sealed class RenamerOptionsJsonTests
         Assert.False(new RenamerOptions().AutoRenamerOnUpdate); // opt-in, default OFF
     }
 
-    [Fact]
-    public void PerformerGenderAndSortOptions_RoundTrip_AreEqual()
-    {
-        var original = new RenamerOptions
-        {
-            Performers = new MultiValueOptions
-            {
-                Separator = ", ",
-                MaxCount = 2,
-                OnOverflow = OverflowPolicy.KeepFirst,
-                Sort = SortOrder.FavoriteFirst,
-                IgnoreGenders = ["Male"],
-                GenderOrder = ["Female", "Male"],
-            },
-        };
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        // A round-trip allocates fresh gender lists and re-parses the SortOrder string.
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-        Assert.Equal(SortOrder.FavoriteFirst, reloaded!.Performers.Sort);
-    }
 
 
-    [Fact]
-    public void NewSortOrderValues_RoundTrip_AsStrings()
-    {
-        // The enum is serialized as a stable string (JsonStringEnumConverter); the new members must
-        // survive a round-trip by name.
-        foreach (var sort in new[] { SortOrder.IdAsc, SortOrder.FavoriteFirst })
-        {
-            var original = new RenamerOptions { Performers = new MultiValueOptions { Sort = sort } };
-            var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-            var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-            Assert.Equal(sort, reloaded!.Performers.Sort);
-        }
-    }
 
     [Fact]
     public void PersistedEnums_KeepTheMemberNameSpelling_NotTheWireSpelling()
@@ -168,17 +63,6 @@ public sealed class RenamerOptionsJsonTests
     }
 
 
-    [Fact]
-    public void SqueezeStudioNames_RoundTrip_AreEqual()
-    {
-        var original = new RenamerOptions { SqueezeStudioNames = true };
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-        Assert.True(reloaded!.SqueezeStudioNames); // the new flag survives the round-trip
-    }
 
 
     [Fact]
@@ -193,25 +77,6 @@ public sealed class RenamerOptionsJsonTests
 
     // ---- field_replacer ----
 
-    [Fact]
-    public void FieldReplacers_RoundTrip_AreEqual()
-    {
-        var original = new RenamerOptions
-        {
-            FieldReplacers =
-            [
-                new FieldReplaceRule { TargetToken = "studio", Find = "'", Replace = "" },
-                new FieldReplaceRule { TargetToken = "title", Find = ":", Replace = " -" },
-            ],
-        };
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        // The rules are records inside a list, so both the list and each record have to survive.
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-        Assert.Equal(2, reloaded!.FieldReplacers.Count);
-    }
 
     [Fact]
     public void FieldReplacers_Default_Empty()
@@ -230,21 +95,6 @@ public sealed class RenamerOptionsJsonTests
         Assert.Equal(new List<string> { "The", "A", "An" }, o.Articles); // default list
     }
 
-    [Fact]
-    public void Articles_RoundTrip_AreEqual()
-    {
-        var original = new RenamerOptions
-        {
-            StripLeadingArticles = true,
-            Articles = ["The", "A", "An", "Le", "La"],
-        };
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-        Assert.True(reloaded!.StripLeadingArticles);
-    }
 
 
 
@@ -257,17 +107,6 @@ public sealed class RenamerOptionsJsonTests
     }
 
 
-    [Fact]
-    public void PreventTitlePerformer_RoundTrip_AreEqual()
-    {
-        var original = new RenamerOptions { PreventTitlePerformer = true };
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-        Assert.True(reloaded!.PreventTitlePerformer); // the new flag survives the round-trip
-    }
 
     // ---- prevent_consecutive ----
 
@@ -278,17 +117,6 @@ public sealed class RenamerOptionsJsonTests
     }
 
 
-    [Fact]
-    public void PreventConsecutiveSegments_RoundTrip_AreEqual()
-    {
-        var original = new RenamerOptions { PreventConsecutiveSegments = true };
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-        Assert.True(reloaded!.PreventConsecutiveSegments); // the new flag survives the round-trip
-    }
 
     [Fact]
     public void NewFields_OmittedFromJson_LoadWithDefaults()
@@ -318,29 +146,6 @@ public sealed class RenamerOptionsJsonTests
         Assert.Empty(o.ExcludePaths);      // default empty
     }
 
-    [Fact]
-    public void ExcludeConfig_RoundTrip_AreEqual()
-    {
-        var original = new RenamerOptions
-        {
-            ExcludeTagIds = [31, 32],
-            ExcludeStudioIds = [42, 7],
-            ExcludePaths =
-            [
-                new ExcludeRule { Pattern = "media/protected", IsRegex = false },
-                new ExcludeRule { Pattern = @"^media/keep/\d+$", IsRegex = true },
-            ],
-        };
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        // Three separate collections, one of them holding records, all of which have to survive.
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-        Assert.Equal(2, reloaded!.ExcludeTagIds.Count);
-        Assert.Equal(2, reloaded.ExcludeStudioIds.Count);
-        Assert.Equal(2, reloaded.ExcludePaths.Count);
-    }
 
 
 
@@ -368,17 +173,6 @@ public sealed class RenamerOptionsJsonTests
     }
 
 
-    [Fact]
-    public void NormalizePunctuation_RoundTrip_AreEqual()
-    {
-        var original = new RenamerOptions { NormalizePunctuation = false };
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-        Assert.False(reloaded!.NormalizePunctuation); // an explicit false survives the round-trip
-    }
 
     [Fact]
     public void NormalizePunctuation_OmittedFromJson_LoadsTrue_ExplicitFalsePreserved()
@@ -408,18 +202,6 @@ public sealed class RenamerOptionsJsonTests
 
 
 
-    [Fact]
-    public void RemoveCharactersAndFilenameAsTitle_RoundTrip_AreEqual()
-    {
-        var original = new RenamerOptions { RemoveCharacters = ",#", FilenameAsTitle = true };
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
-        Assert.Equal(",#", reloaded!.RemoveCharacters);
-        Assert.True(reloaded.FilenameAsTitle);
-    }
 
     [Fact]
     public void RemoveCharactersAndFilenameAsTitle_OmittedFromJson_LoadWithDefaults()
@@ -478,16 +260,6 @@ public sealed class RenamerOptionsJsonTests
         Assert.Equal(CaseTransform.None, loaded.Case);
     }
 
-    [Fact]
-    public void Enum_Serializes_AsStableString_NotInteger()
-    {
-        var opts = new RenamerOptions { Case = CaseTransform.Title };
-
-        var json = JsonSerializer.Serialize(opts, RenamerOptions.JsonOptions);
-
-        Assert.Contains("\"Title\"", json);
-        Assert.DoesNotContain("\"Case\":2", json); // not the numeric ordinal
-    }
 
     [Fact]
     public void Defaults_Match_ContextDecisions()

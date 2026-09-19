@@ -47,4 +47,12 @@ public sealed class PathOpsTests
     [Fact]
     public void ApplySuffix_OnAnExtensionlessName_AppendsTheSuffix()
         => Assert.Equal("README (1)", PathOps.ApplySuffix("README", "", " ({n})", 1));
+
+    [Theory]
+    // A format naming the counter more than once, and one naming it not at all.
+    [InlineData("-{n}-{n}", 3, "film-3-3.mkv")]
+    [InlineData("no-token", 5, "filmno-token.mkv")]
+    public void ApplySuffix_ReplacesEveryToken_AndAppendsAFormatHoldingNone(
+        string format, int counter, string expected)
+        => Assert.Equal(expected, PathOps.ApplySuffix("film", ".mkv", format, counter));
 }
