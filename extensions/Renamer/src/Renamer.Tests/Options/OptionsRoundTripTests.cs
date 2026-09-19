@@ -1,12 +1,13 @@
 using System.Text.Json;
 using Renamer.Options;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
 /// <summary>
 /// The frontend↔backend store contract: a panel-shaped JSON blob deserializes via
-/// <see cref="RenamerOptions.JsonOptions"/> into the expected <see cref="RenamerOptions"/> (value
-/// equality), and a C#-serialized blob deserializes back equal — both directions, so the panel can
+/// <see cref="RenamerOptions.JsonOptions"/> into the expected <see cref="RenamerOptions"/>, and a
+/// C#-serialized blob deserializes back to the same document — both directions, so the panel can
 /// read a backend-written blob and write one the backend reads losslessly. Property-name matching is
 /// proven case-insensitive (lowerCamel and PascalCase mixed), and the three enums are matched as
 /// stable strings.
@@ -99,8 +100,8 @@ public sealed class OptionsRoundTripTests
         var loaded = JsonSerializer.Deserialize<RenamerOptions>(PanelJson, RenamerOptions.JsonOptions);
 
         Assert.NotNull(loaded);
-        // Structural record equality — proves every panel field (mixed casing) bound correctly.
-        Assert.Equal(ExpectedFromPanel(), loaded);
+        // Compared as the persisted document, which covers every panel field (mixed casing) that bound.
+        Assert.Equal(OptionsJson.Canonical(ExpectedFromPanel()), OptionsJson.Canonical(loaded));
     }
 
     [Fact]
@@ -111,7 +112,7 @@ public sealed class OptionsRoundTripTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(original, reloaded); // the other direction: C#-written → read back equal
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
     }
 
     [Fact]
@@ -122,7 +123,7 @@ public sealed class OptionsRoundTripTests
         var backendJson = JsonSerializer.Serialize(fromPanel, RenamerOptions.JsonOptions);
         var roundTripped = JsonSerializer.Deserialize<RenamerOptions>(backendJson, RenamerOptions.JsonOptions);
 
-        Assert.Equal(ExpectedFromPanel(), roundTripped);
+        Assert.Equal(OptionsJson.Canonical(ExpectedFromPanel()), OptionsJson.Canonical(roundTripped));
     }
 
     [Fact]

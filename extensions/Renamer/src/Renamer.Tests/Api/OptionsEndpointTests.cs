@@ -55,7 +55,7 @@ public sealed class OptionsEndpointTests
 
         var view = await resp.Content.ReadFromJsonAsync<OptionsView>(Web);
         Assert.NotNull(view);
-        Assert.Equal(new RenamerOptions(), view.Options);
+        Assert.Equal(OptionsJson.Canonical(new RenamerOptions()), OptionsJson.Canonical(view.Options));
         Assert.False(view.PendingNameMigration);
         Assert.False(view.PendingDestinationMigration);
         Assert.False(view.Unreadable);
@@ -165,7 +165,7 @@ public sealed class OptionsEndpointTests
         var view = await host.Client.GetFromJsonAsync<OptionsView>(Route, Web);
         Assert.NotNull(view);
         Assert.True(view.Unreadable);
-        Assert.Equal(new RenamerOptions(), view.Options);
+        Assert.Equal(OptionsJson.Canonical(new RenamerOptions()), OptionsJson.Canonical(view.Options));
     }
 
     [Fact]

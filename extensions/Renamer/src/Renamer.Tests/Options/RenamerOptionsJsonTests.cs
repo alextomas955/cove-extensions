@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Renamer.Options;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
@@ -13,7 +14,7 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(original, reloaded); // record value equality (deep)
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
     }
 
     [Fact]
@@ -72,7 +73,7 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(original, reloaded);
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
     }
 
     [Fact]
@@ -90,7 +91,7 @@ public sealed class RenamerOptionsJsonTests
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
         // A JSON round-trip allocates a fresh RequiredFields list; structural Equals must hold.
-        Assert.Equal(original, reloaded);
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
         Assert.True(reloaded!.AutoRenamerOnUpdate); // the new flag survives the round-trip
     }
 
@@ -119,25 +120,11 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        // A round-trip allocates fresh gender lists and re-parses the new SortOrder string; the
-        // structural Equals/GetHashCode wiring must keep them value-equal.
-        Assert.Equal(original, reloaded);
+        // A round-trip allocates fresh gender lists and re-parses the SortOrder string.
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
         Assert.Equal(SortOrder.FavoriteFirst, reloaded!.Performers.Sort);
     }
 
-    [Fact]
-    public void PerformerGenderOptions_Participate_In_Equality()
-    {
-        // A difference in a gender field alone must make two options instances unequal — proves the
-        // new fields are wired into the hand-written MultiValueOptions Equals/GetHashCode.
-        var a = new RenamerOptions { Performers = new MultiValueOptions { IgnoreGenders = ["Male"] } };
-        var b = new RenamerOptions { Performers = new MultiValueOptions { IgnoreGenders = ["Female"] } };
-        Assert.NotEqual(a, b);
-
-        var c = new RenamerOptions { Performers = new MultiValueOptions { GenderOrder = ["Male"] } };
-        var d = new RenamerOptions { Performers = new MultiValueOptions { GenderOrder = ["Female"] } };
-        Assert.NotEqual(c, d);
-    }
 
     [Fact]
     public void NewSortOrderValues_RoundTrip_AsStrings()
@@ -180,15 +167,6 @@ public sealed class RenamerOptionsJsonTests
         Assert.False(new RenamerOptions().SqueezeStudioNames); // opt-in, default OFF
     }
 
-    [Fact]
-    public void SqueezeStudioNames_Participates_In_Equality()
-    {
-        // A bare flag difference must make two options instances unequal — proves the flag
-        // is wired into the hand-written Equals/GetHashCode (not silently ignored).
-        var off = new RenamerOptions { SqueezeStudioNames = false };
-        var on = new RenamerOptions { SqueezeStudioNames = true };
-        Assert.NotEqual(off, on);
-    }
 
     [Fact]
     public void SqueezeStudioNames_RoundTrip_AreEqual()
@@ -198,19 +176,10 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(original, reloaded);
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
         Assert.True(reloaded!.SqueezeStudioNames); // the new flag survives the round-trip
     }
 
-    [Fact]
-    public void AutoRenamerOnUpdate_Participates_In_Equality()
-    {
-        // A bare flag difference must make two options instances unequal — proves the flag
-        // is wired into the hand-written Equals/GetHashCode (not silently ignored).
-        var off = new RenamerOptions { AutoRenamerOnUpdate = false };
-        var on = new RenamerOptions { AutoRenamerOnUpdate = true };
-        Assert.NotEqual(off, on);
-    }
 
     [Fact]
     public void GatingAndSuffix_Defaults_Match_ContextDecisions()
@@ -239,9 +208,8 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        // Proves the FieldReplaceRule record and the List are wired into structural equality
-        // (a fresh list of fresh records must still compare value-equal).
-        Assert.Equal(original, reloaded);
+        // The rules are records inside a list, so both the list and each record have to survive.
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
         Assert.Equal(2, reloaded!.FieldReplacers.Count);
     }
 
@@ -251,16 +219,6 @@ public sealed class RenamerOptionsJsonTests
         Assert.Empty(new RenamerOptions().FieldReplacers); // default empty
     }
 
-    [Fact]
-    public void FieldReplacers_Participates_In_Equality()
-    {
-        var none = new RenamerOptions();
-        var withRule = new RenamerOptions
-        {
-            FieldReplacers = [new FieldReplaceRule { TargetToken = "studio", Find = "'", Replace = "" }],
-        };
-        Assert.NotEqual(none, withRule);
-    }
 
     // ---- prepositions_removal ----
 
@@ -284,25 +242,11 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(original, reloaded);
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
         Assert.True(reloaded!.StripLeadingArticles);
     }
 
-    [Fact]
-    public void StripLeadingArticles_Participates_In_Equality()
-    {
-        var off = new RenamerOptions { StripLeadingArticles = false };
-        var on = new RenamerOptions { StripLeadingArticles = true };
-        Assert.NotEqual(off, on);
-    }
 
-    [Fact]
-    public void Articles_Participates_In_Equality()
-    {
-        var def = new RenamerOptions();
-        var custom = new RenamerOptions { Articles = ["The"] };
-        Assert.NotEqual(def, custom);
-    }
 
     // ---- prevent_title_performer ----
 
@@ -312,13 +256,6 @@ public sealed class RenamerOptionsJsonTests
         Assert.False(new RenamerOptions().PreventTitlePerformer); // opt-in, default OFF
     }
 
-    [Fact]
-    public void PreventTitlePerformer_Participates_In_Equality()
-    {
-        var off = new RenamerOptions { PreventTitlePerformer = false };
-        var on = new RenamerOptions { PreventTitlePerformer = true };
-        Assert.NotEqual(off, on);
-    }
 
     [Fact]
     public void PreventTitlePerformer_RoundTrip_AreEqual()
@@ -328,7 +265,7 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(original, reloaded);
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
         Assert.True(reloaded!.PreventTitlePerformer); // the new flag survives the round-trip
     }
 
@@ -340,13 +277,6 @@ public sealed class RenamerOptionsJsonTests
         Assert.True(new RenamerOptions().PreventConsecutiveSegments); // on for a fresh install (cosmetic)
     }
 
-    [Fact]
-    public void PreventConsecutiveSegments_Participates_In_Equality()
-    {
-        var off = new RenamerOptions { PreventConsecutiveSegments = false };
-        var on = new RenamerOptions { PreventConsecutiveSegments = true };
-        Assert.NotEqual(off, on);
-    }
 
     [Fact]
     public void PreventConsecutiveSegments_RoundTrip_AreEqual()
@@ -356,7 +286,7 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(original, reloaded);
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
         Assert.True(reloaded!.PreventConsecutiveSegments); // the new flag survives the round-trip
     }
 
@@ -405,40 +335,15 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        // Proves the ExcludeRule record and the three collections are wired into structural equality
-        // (fresh lists of fresh records must still compare value-equal).
-        Assert.Equal(original, reloaded);
+        // Three separate collections, one of them holding records, all of which have to survive.
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
         Assert.Equal(2, reloaded!.ExcludeTagIds.Count);
         Assert.Equal(2, reloaded.ExcludeStudioIds.Count);
         Assert.Equal(2, reloaded.ExcludePaths.Count);
     }
 
-    [Fact]
-    public void ExcludeTagIds_Participates_In_Equality()
-    {
-        var none = new RenamerOptions();
-        var withTag = new RenamerOptions { ExcludeTagIds = [31] };
-        Assert.NotEqual(none, withTag);
-    }
 
-    [Fact]
-    public void ExcludeStudioIds_Participates_In_Equality()
-    {
-        var none = new RenamerOptions();
-        var withStudio = new RenamerOptions { ExcludeStudioIds = [42] };
-        Assert.NotEqual(none, withStudio);
-    }
 
-    [Fact]
-    public void ExcludePaths_Participates_In_Equality()
-    {
-        var none = new RenamerOptions();
-        var withPath = new RenamerOptions
-        {
-            ExcludePaths = [new ExcludeRule { Pattern = "media/protected", IsRegex = false }],
-        };
-        Assert.NotEqual(none, withPath);
-    }
 
     [Fact]
     public void ExcludeConfig_OmittedFromJson_LoadsWithDefaults()
@@ -462,15 +367,6 @@ public sealed class RenamerOptionsJsonTests
         Assert.True(new RenamerOptions().NormalizePunctuation); // on for a fresh install (folds smart quotes to ASCII)
     }
 
-    [Fact]
-    public void NormalizePunctuation_Participates_In_Equality()
-    {
-        // A bare flag difference must make two options instances unequal — proves the flag
-        // is wired into the hand-written Equals/GetHashCode (not silently ignored).
-        var off = new RenamerOptions { NormalizePunctuation = false };
-        var on = new RenamerOptions { NormalizePunctuation = true };
-        Assert.NotEqual(off, on);
-    }
 
     [Fact]
     public void NormalizePunctuation_RoundTrip_AreEqual()
@@ -480,7 +376,7 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(original, reloaded);
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
         Assert.False(reloaded!.NormalizePunctuation); // an explicit false survives the round-trip
     }
 
@@ -510,21 +406,7 @@ public sealed class RenamerOptionsJsonTests
         Assert.True(o.FilenameAsTitle);         // basename fallback on for a fresh install
     }
 
-    [Fact]
-    public void RemoveCharacters_Participates_In_Equality()
-    {
-        var none = new RenamerOptions { RemoveCharacters = "" };
-        var withSet = new RenamerOptions { RemoveCharacters = ",#" };
-        Assert.NotEqual(none, withSet);
-    }
 
-    [Fact]
-    public void FilenameAsTitle_Participates_In_Equality()
-    {
-        var off = new RenamerOptions { FilenameAsTitle = false };
-        var on = new RenamerOptions { FilenameAsTitle = true };
-        Assert.NotEqual(off, on);
-    }
 
     [Fact]
     public void RemoveCharactersAndFilenameAsTitle_RoundTrip_AreEqual()
@@ -534,7 +416,7 @@ public sealed class RenamerOptionsJsonTests
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(original, reloaded);
+        Assert.Equal(OptionsJson.Canonical(original), OptionsJson.Canonical(reloaded));
         Assert.Equal(",#", reloaded!.RemoveCharacters);
         Assert.True(reloaded.FilenameAsTitle);
     }

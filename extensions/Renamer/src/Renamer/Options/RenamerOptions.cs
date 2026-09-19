@@ -71,25 +71,7 @@ public sealed record MultiValueOptions
     /// </remarks>
     public List<string> GenderOrder { get; init; } = [];
 
-    // Record value equality compares the list members by reference, so a JSON round-trip would never be
-    // equal. Equals and GetHashCode both run off EqualityComponents, whose collection members are
-    // wrapped to compare by value.
-    public bool Equals(MultiValueOptions? other)
-        => other is not null && StructuralEquality.Members(EqualityComponents(), other.EqualityComponents());
 
-    public override int GetHashCode() => StructuralEquality.Hash(EqualityComponents());
-
-    private IEnumerable<object?> EqualityComponents()
-    {
-        yield return Separator;
-        yield return MaxCount;
-        yield return OnOverflow;
-        yield return Sort;
-        yield return StructuralEquality.Sequence(WhitelistIds);
-        yield return StructuralEquality.Sequence(BlacklistIds);
-        yield return StructuralEquality.Sequence(IgnoreGenders);
-        yield return StructuralEquality.Sequence(GenderOrder);
-    }
 }
 
 /// <summary>
@@ -109,21 +91,6 @@ public sealed record FieldReplaceRule
     public string Find { get; init; } = "";
 
     public string Replace { get; init; } = "";
-
-    public bool Equals(FieldReplaceRule? other)
-        => other is not null
-        && TargetToken == other.TargetToken
-        && Find == other.Find
-        && Replace == other.Replace;
-
-    public override int GetHashCode()
-    {
-        var hc = new HashCode();
-        hc.Add(TargetToken);
-        hc.Add(Find);
-        hc.Add(Replace);
-        return hc.ToHashCode();
-    }
 }
 
 /// <summary>
@@ -142,17 +109,6 @@ public sealed record Destination
     public string Root { get; init; } = "";
 
     public string Template { get; init; } = "";
-
-    public bool Equals(Destination? other)
-        => other is not null && Root == other.Root && Template == other.Template;
-
-    public override int GetHashCode()
-    {
-        var hc = new HashCode();
-        hc.Add(Root);
-        hc.Add(Template);
-        return hc.ToHashCode();
-    }
 }
 
 /// <summary>
@@ -171,17 +127,6 @@ public sealed record KindOptions
     public bool Enabled { get; init; } = true;
 
     public Destination? Destination { get; init; }
-
-    public bool Equals(KindOptions? other)
-        => other is not null && Enabled == other.Enabled && Destination == other.Destination;
-
-    public override int GetHashCode()
-    {
-        var hc = new HashCode();
-        hc.Add(Enabled);
-        hc.Add(Destination);
-        return hc.ToHashCode();
-    }
 }
 
 /// <summary>
@@ -202,21 +147,6 @@ public sealed record PathDestinationRule
     public Destination Dest { get; init; } = new();
 
     public bool IsRegex { get; init; }
-
-    public bool Equals(PathDestinationRule? other)
-        => other is not null
-        && Pattern == other.Pattern
-        && Dest == other.Dest
-        && IsRegex == other.IsRegex;
-
-    public override int GetHashCode()
-    {
-        var hc = new HashCode();
-        hc.Add(Pattern);
-        hc.Add(Dest);
-        hc.Add(IsRegex);
-        return hc.ToHashCode();
-    }
 }
 
 /// <summary>
@@ -235,19 +165,6 @@ public sealed record ExcludeRule
     public string Pattern { get; init; } = "";
 
     public bool IsRegex { get; init; }
-
-    public bool Equals(ExcludeRule? other)
-        => other is not null
-        && Pattern == other.Pattern
-        && IsRegex == other.IsRegex;
-
-    public override int GetHashCode()
-    {
-        var hc = new HashCode();
-        hc.Add(Pattern);
-        hc.Add(IsRegex);
-        return hc.ToHashCode();
-    }
 }
 
 /// <summary>All renamer settings, with defaults.</summary>
@@ -554,59 +471,7 @@ public sealed record RenamerOptions
     /// </remarks>
     public int SameVolumeConcurrency { get; init; } = 8;
 
-    // Record value equality compares the list and dictionary members by reference, so a JSON round-trip
-    // would never be equal. Equals and GetHashCode both run off EqualityComponents, and each collection
-    // member is wrapped to compare by value: order-sensitive for lists, order-independent for the
-    // destination maps, since a Dictionary has no guaranteed order and a round-trip may reorder keys.
-    // The map's original key comparer is preserved.
-    public bool Equals(RenamerOptions? other)
-        => other is not null && StructuralEquality.Members(EqualityComponents(), other.EqualityComponents());
 
-    public override int GetHashCode() => StructuralEquality.Hash(EqualityComponents());
-
-    private IEnumerable<object?> EqualityComponents()
-    {
-        yield return FilenameTemplate;
-        yield return FolderTemplate;
-        yield return FolderRoot;
-        yield return DateFormat;
-        yield return DurationFormat;
-        yield return Performers;
-        yield return Tags;
-        yield return IllegalReplacement;
-        yield return SpaceReplacement;
-        yield return Case;
-        yield return RemoveCharacters;
-        yield return FilenameAsTitle;
-        yield return RemoveEmptyFolder;
-        yield return AsciiTransliterate;
-        yield return NormalizePunctuation;
-        yield return FilenameMax;
-        yield return FullPathMax;
-        yield return OnlyOrganized;
-        yield return DuplicateSuffixFormat;
-        yield return AutoRenamerOnUpdate;
-        yield return SqueezeStudioNames;
-        yield return StripLeadingArticles;
-        yield return StructuralEquality.Sequence(FieldReplacers);
-        yield return StructuralEquality.Sequence(Articles);
-        yield return PreventTitlePerformer;
-        yield return PreventConsecutiveSegments;
-        yield return StructuralEquality.Sequence(DropOrder);
-        yield return StructuralEquality.Sequence(RequiredFields);
-        yield return StructuralEquality.Sequence(AssociatedExtensions);
-        yield return StructuralEquality.Map(StudioDestinations, EqualityComparer<int>.Default);
-        yield return StructuralEquality.Map(TagDestinations, EqualityComparer<int>.Default);
-        yield return StructuralEquality.Map(Kinds, EqualityComparer<RenamerFileKind>.Default);
-        yield return StructuralEquality.Sequence(PathDestinations);
-        yield return StructuralEquality.Sequence(ExcludeTagIds);
-        yield return StructuralEquality.Sequence(ExcludeStudioIds);
-        yield return StructuralEquality.Sequence(ExcludePaths);
-        yield return UnorganizedDestination;
-        yield return FreeSpaceHeadroomBytes;
-        yield return CrossVolumeConcurrency;
-        yield return SameVolumeConcurrency;
-    }
 
     /// <summary>Serializer settings shared by save and load, so the round-trip is symmetric.</summary>
     /// <remarks>
@@ -618,104 +483,4 @@ public sealed record RenamerOptions
         PropertyNameCaseInsensitive = true,
         Converters = { new JsonStringEnumConverter() },
     };
-}
-
-// Drives a record's Equals and GetHashCode from one component list, so a member added to one can never
-// be forgotten in the other. Collection members are wrapped to compare by value, which is what a JSON
-// round-trip needs to stay equal to the original.
-internal static class StructuralEquality
-{
-    public static bool Members(IEnumerable<object?> a, IEnumerable<object?> b) => a.SequenceEqual(b);
-
-    public static int Hash(IEnumerable<object?> components)
-    {
-        var hc = new HashCode();
-        foreach (var component in components)
-        {
-            hc.Add(component);
-        }
-
-        return hc.ToHashCode();
-    }
-
-    // Order-sensitive element compare.
-    public static object Sequence<T>(IReadOnlyCollection<T> items) => new SeqKey<T>(items);
-
-    // Order-independent compare under keyComparer; a round-trip may reorder a map's keys.
-    public static object Map<TKey, TValue>(Dictionary<TKey, TValue> map, IEqualityComparer<TKey> keyComparer)
-        where TKey : notnull => new MapKey<TKey, TValue>(map, keyComparer);
-
-    private readonly struct SeqKey<T> : IEquatable<SeqKey<T>>
-    {
-        private readonly IReadOnlyCollection<T> _items;
-        public SeqKey(IReadOnlyCollection<T> items) => _items = items;
-
-        public bool Equals(SeqKey<T> other) => _items.SequenceEqual(other._items);
-        public override bool Equals(object? obj) => obj is SeqKey<T> other && Equals(other);
-
-        public override int GetHashCode()
-        {
-            var hc = new HashCode();
-            foreach (var item in _items)
-            {
-                hc.Add(item);
-            }
-
-            return hc.ToHashCode();
-        }
-    }
-
-    private readonly struct MapKey<TKey, TValue> : IEquatable<MapKey<TKey, TValue>>
-        where TKey : notnull
-    {
-        private readonly Dictionary<TKey, TValue> _map;
-        private readonly IEqualityComparer<TKey> _keyComparer;
-
-        public MapKey(Dictionary<TKey, TValue> map, IEqualityComparer<TKey> keyComparer)
-        {
-            _map = map;
-            _keyComparer = keyComparer;
-        }
-
-        public bool Equals(MapKey<TKey, TValue> other)
-        {
-            if (_map.Count != other._map.Count)
-            {
-                return false;
-            }
-
-            // Built by assignment, so a key collision under the comparer keeps the last write.
-            var lookup = new Dictionary<TKey, TValue>(other._map.Count, _keyComparer);
-            foreach (var kv in other._map)
-            {
-                lookup[kv.Key] = kv.Value;
-            }
-
-            foreach (var kv in _map)
-            {
-                if (!lookup.TryGetValue(kv.Key, out var value)
-                    || !EqualityComparer<TValue>.Default.Equals(value, kv.Value))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        public override bool Equals(object? obj) => obj is MapKey<TKey, TValue> other && Equals(other);
-
-        public override int GetHashCode()
-        {
-            // Order-independent XOR accumulator, keyed through the comparer so it stays consistent with
-            // Equals.
-            int acc = 0;
-            foreach (var kv in _map)
-            {
-                acc ^= HashCode.Combine(_keyComparer.GetHashCode(kv.Key), kv.Value);
-            }
-
-            return acc;
-        }
-    }
 }
