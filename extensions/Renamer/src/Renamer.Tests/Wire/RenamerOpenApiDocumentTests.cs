@@ -30,5 +30,6 @@ public sealed class RenamerOpenApiDocumentTests : ExtensionOpenApiDocumentTests
         services.AddSingleton<DbContext>(_ => null!);
         services.AddSingleton<ICurrentPrincipalAccessor>(_ => null!);
         services.AddSingleton<IJobService>(_ => null!);
+        services.AddSingleton<IAuthorizationService>(_ => null!);
     }
 }

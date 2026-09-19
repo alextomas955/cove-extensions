@@ -162,8 +162,9 @@ public sealed partial class Renamer
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(RenamerRoute,
-            (RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
-                => RenamerEnqueue(req, principal, jobs))
+            (RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs,
+                IAuthorizationService authz, CancellationToken ct)
+                => RenamerEnqueue(req, principal, jobs, authz, ct))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
         // NB: this endpoint binds the raw HttpContext (not a typed PreviewSampleRequest) so the
@@ -386,8 +387,13 @@ public sealed partial class Renamer
 
     // Encodes the request into the job parameters and hands the host a delegate that calls
     // RunRenamerBatchAsync. Returns 403 before any enqueue.
-    internal Results<Accepted<JobEnqueued>, BadRequest<ErrorCode>, ForbiddenCode> RenamerEnqueue(
-        RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
+    //
+    // One id the caller cannot write refuses the whole request, and the 403 carries no body, so the
+    // response names none of the ids that were denied. The per-entity decision runs in the request
+    // scope, where the caller's principal is live, so it needs no snapshot.
+    internal async Task<Results<Accepted<JobEnqueued>, BadRequest<ErrorCode>, ForbiddenCode>> RenamerEnqueue(
+        RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs,
+        IAuthorizationService authz, CancellationToken ct)
     {
         // Kind first so the write check gates on the request's own kind (videos/images/audios.write).
         if (!TryParseKind(req.EntityType, out var kind))
@@ -410,6 +416,13 @@ public sealed partial class Renamer
         if (req.EntityIds.Length > MaxEntityIdsPerRequest)
         {
             return TypedResults.BadRequest(new ErrorCode("TOO_MANY_IDS", MaxEntityIdsPerRequest));
+        }
+
+        var allowed = await EntityAccessGuard.AllowedOnlyAsync(
+            authz, principal.Current, kind, writePermission, req.EntityIds, ct);
+        if (allowed.Count != req.EntityIds.Length)
+        {
+            return new ForbiddenCode();
         }
 
         var parameters = RenamerJob.Encode(req.EntityType, req.EntityIds);

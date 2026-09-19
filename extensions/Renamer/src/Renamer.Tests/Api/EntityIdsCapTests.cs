@@ -83,22 +83,23 @@ public sealed class EntityIdsCapTests
     }
 
     [Fact]
-    public void RenamerEnqueue_OverCapIds_Returns400_AndDoesNotEnqueue()
+    public async Task RenamerEnqueue_OverCapIds_Returns400_AndDoesNotEnqueue()
     {
         var ext = NewExtension();
         var jobs = new RecordingJobService();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
         var ids = Enumerable.Range(1, Cap + 1).ToArray(); // over the cap by one.
 
-        var result = ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("video", ids), principal, jobs);
+        var result = await ext.RenamerEnqueue(
+            new global::Renamer.Api.RenamerRequest("video", ids), principal, jobs,
+            new RecordingAuthorizationService(), default);
 
         Assert.Equal(400, StatusOf(result));
         Assert.Empty(jobs.Enqueued); // no work scheduled for an over-cap request.
     }
 
     [Fact]
-    public void RenamerEnqueue_AtCapIds_PassesTheBound_AndEnqueues()
+    public async Task RenamerEnqueue_AtCapIds_PassesTheBound_AndEnqueues()
     {
         // Exactly at the cap is allowed — the bound rejects only what exceeds it.
         var ext = NewExtension();
@@ -106,8 +107,9 @@ public sealed class EntityIdsCapTests
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
         var ids = Enumerable.Range(1, Cap).ToArray();
 
-        var result = ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("video", ids), principal, jobs);
+        var result = await ext.RenamerEnqueue(
+            new global::Renamer.Api.RenamerRequest("video", ids), principal, jobs,
+            new RecordingAuthorizationService(), default);
 
         Assert.Equal(202, StatusOf(result));
         Assert.Single(jobs.Enqueued);

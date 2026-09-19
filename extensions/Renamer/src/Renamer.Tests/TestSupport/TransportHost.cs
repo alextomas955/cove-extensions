@@ -70,6 +70,7 @@ public sealed class TransportHost : IAsyncDisposable
         builder.Services.AddSingleton(principal);
         builder.Services.AddSingleton<DbContext>(db);
         builder.Services.AddSingleton<IJobService>(new StubJobService());
+        builder.Services.AddSingleton<IAuthorizationService>(new RecordingAuthorizationService());
         builder.Services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
         builder.Services.AddRouting();
 
