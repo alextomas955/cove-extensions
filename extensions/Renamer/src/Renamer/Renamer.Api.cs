@@ -267,6 +267,10 @@ public sealed partial class Renamer
 
     // Persists the settings, in the spelling the store owns rather than the wire's.
     //
+    // The stored document is replaced, not merged: what goes back is the members RenamerOptions
+    // declares. A property only a newer version knows about is readable here, because a load ignores
+    // what it does not recognize, but it does not survive this write.
+    //
     // Refused while the stored blob still holds a shape the one-time conversion has not resolved: the
     // model binds a name-keyed rule to nothing and a bare destination path to the destination that moves
     // nothing, so a save would write those blanks over the only copy of the user's rules. The conversion

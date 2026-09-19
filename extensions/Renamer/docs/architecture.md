@@ -154,9 +154,11 @@ Minimal-API endpoints the frontend calls, mounted under
 
 - `GET /options` — the saved settings, or the defaults when nothing is saved yet, plus whether the
   stored blob could not be read and whether a one-time conversion is still outstanding.
-- `PUT /options` — replaces the saved settings. Refused with `409 MIGRATION_PENDING` while a
-  conversion is outstanding, because the current model reads an unconverted rule as blank and a save
-  would write that blank over the only copy of it.
+- `PUT /options` — replaces the saved settings. It replaces rather than merges: what is written is
+  the settings this version declares, so a property only a newer version knows about is read here but
+  not written back. Refused with `409 MIGRATION_PENDING` while a conversion is outstanding, because
+  the current model reads an unconverted rule as blank and a save would write that blank over the only
+  copy of it.
 - `POST /preview` — runs the planner over selected item IDs and returns the old→new plan (no
   mutation).
 - `POST /renamer` — enqueues the background rename job for selected items.
