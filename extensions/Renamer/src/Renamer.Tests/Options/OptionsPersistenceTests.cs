@@ -14,15 +14,25 @@ namespace Renamer.Tests.Options;
 /// with no edit to this file. Each case seeds one member with a value the defaults do not already
 /// hold, which is what makes a member that never reaches the blob fail rather than agree with the
 /// default it was compared against.
+/// <para>
+/// A member of a nested options record is reached by its own path, and the comparison reads that
+/// member back rather than the record holding it: a record compared whole passes when a member is
+/// missing from the blob, because the same serializer drops it from both sides.
+/// </para>
+/// <para>
+/// A record inside a list or a dictionary is compared whole, so this does not reach its members.
+/// <c>KindOptions</c> and the destination maps are covered that way, and by the suites that assert
+/// their stored shape directly.
+/// </para>
 /// </remarks>
 public sealed class OptionsPersistenceTests
 {
     public static TheoryData<string> PersistedMembers()
     {
         var data = new TheoryData<string>();
-        foreach (var property in Members())
+        foreach (var path in MemberPaths(typeof(RenamerOptions), prefix: ""))
         {
-            data.Add(property.Name);
+            data.Add(path);
         }
 
         return data;
@@ -30,28 +40,91 @@ public sealed class OptionsPersistenceTests
 
     [Theory]
     [MemberData(nameof(PersistedMembers))]
-    public void Member_SetToANonDefaultValue_SurvivesTheBlob(string member)
+    public void Member_SetToANonDefaultValue_SurvivesTheBlob(string path)
     {
-        var property = Members().Single(p => p.Name == member);
+        var segments = path.Split('.');
+
         var seeded = new RenamerOptions();
-        var value = Distinct(property.PropertyType, property.GetValue(seeded), depth: 0);
-        property.SetValue(seeded, value);
+        var owner = Owner(seeded, segments);
+        var member = owner.GetType().GetProperty(segments[^1])!;
+        member.SetValue(owner, Distinct(member.PropertyType, member.GetValue(owner), depth: 0));
 
         // The seed has to differ from the defaults, or a member dropped by the serializer would come
         // back holding the value this case expects and the case would pass having proven nothing.
-        Assert.NotEqual(Json(property.GetValue(new RenamerOptions())), Json(property.GetValue(seeded)));
+        Assert.NotEqual(Json(Read(new RenamerOptions(), segments)), Json(Read(seeded, segments)));
 
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(
             JsonSerializer.Serialize(seeded, RenamerOptions.JsonOptions),
             RenamerOptions.JsonOptions);
 
-        Assert.Equal(Json(property.GetValue(seeded)), Json(property.GetValue(reloaded!)));
+        Assert.Equal(Json(Read(seeded, segments)), Json(Read(reloaded!, segments)));
     }
 
-    private static PropertyInfo[] Members()
-        => [.. typeof(RenamerOptions)
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+    private static IEnumerable<string> MemberPaths(Type type, string prefix)
+    {
+        foreach (var property in Writable(type))
+        {
+            var path = prefix.Length == 0 ? property.Name : $"{prefix}.{property.Name}";
+            if (IsNestedRecord(property.PropertyType))
+            {
+                foreach (var nested in MemberPaths(property.PropertyType, path))
+                {
+                    yield return nested;
+                }
+            }
+            else
+            {
+                yield return path;
+            }
+        }
+    }
+
+    private static PropertyInfo[] Writable(Type type)
+        => [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.CanWrite && p.GetIndexParameters().Length == 0)];
+
+    /// <summary>An options record reached through a property, as opposed to a scalar or a collection.</summary>
+    private static bool IsNestedRecord(Type type)
+        => type.IsClass
+        && type != typeof(string)
+        && !typeof(IEnumerable).IsAssignableFrom(type)
+        && type.Assembly == typeof(RenamerOptions).Assembly;
+
+    /// <summary>The object holding the last segment, creating an absent record on the way.</summary>
+    private static object Owner(RenamerOptions root, string[] segments)
+    {
+        object current = root;
+        for (var i = 0; i < segments.Length - 1; i++)
+        {
+            var property = current.GetType().GetProperty(segments[i])!;
+            var next = property.GetValue(current);
+            if (next is null)
+            {
+                next = Activator.CreateInstance(property.PropertyType)!;
+                property.SetValue(current, next);
+            }
+
+            current = next;
+        }
+
+        return current;
+    }
+
+    private static object? Read(RenamerOptions root, string[] segments)
+    {
+        object? current = root;
+        foreach (var segment in segments)
+        {
+            if (current is null)
+            {
+                return null;
+            }
+
+            current = current.GetType().GetProperty(segment)!.GetValue(current);
+        }
+
+        return current;
+    }
 
     private static string Json(object? value) => JsonSerializer.Serialize(value, RenamerOptions.JsonOptions);
 
@@ -103,14 +176,10 @@ public sealed class OptionsPersistenceTests
             return map;
         }
 
-        // A nested options record: a fresh instance with every member of its own made distinct.
         var nested = Activator.CreateInstance(type)!;
-        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        foreach (var property in Writable(type))
         {
-            if (property.CanWrite && property.GetIndexParameters().Length == 0)
-            {
-                property.SetValue(nested, Distinct(property.PropertyType, property.GetValue(nested), depth + 1));
-            }
+            property.SetValue(nested, Distinct(property.PropertyType, property.GetValue(nested), depth + 1));
         }
 
         return nested;
