@@ -109,7 +109,7 @@ async function saveAndAwaitWrite(page, settings, optionsPathname) {
   ).toMatch(/^Bearer /);
   expect(
     headers.cookie ?? "",
-    `the PUT carried the ${ACCESS_COOKIE} cookie, so its 200 proves ambient authority rather than the request's own credential`,
+    `the PUT carried the ${ACCESS_COOKIE} cookie, so its success proves ambient authority rather than the request's own credential`,
   ).not.toContain(ACCESS_COOKIE);
   await expect(settings.unsavedChangesIndicator).toBeHidden({ timeout: 10_000 });
   return response.status();
