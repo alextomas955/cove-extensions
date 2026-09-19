@@ -96,23 +96,35 @@ public sealed partial class Renamer
     // undoable.
     internal Task<string?> RunRenamerKindAsync(
         RenamerFileKind kind, int totalEntities, OperationJournalBudget budget, RenamerOptions options,
-        IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null,
-        int chunkEntities = RenameChunkEntities)
+        AllowedIds allowedIds, IJobProgress progress, CancellationToken ct,
+        Func<string, long>? freeSpaceProbe = null, int chunkEntities = RenameChunkEntities)
     {
         int after = 0;
+
+        // The cursor advances by the database page, never by what survives the caller's per-entity
+        // write check, so no id is examined twice. Pages are drawn until the chunk is full or the
+        // kind runs out, because a short chunk is how the run below reads exhaustion: returning a
+        // partly denied page directly would end the walk at the first denial.
         async Task<IReadOnlyList<int>> NextPageAsync(CancellationToken token)
         {
-            var page = await RunAsSystem.RunInSystemScopeAsync(
-                ScopeFactory,
-                services => new CoveRenamerDataPort(services.GetRequiredService<DbContext>(), _coveConfig)
-                    .LoadEntityIdPageAsync(kind, after, chunkEntities, token));
-
-            if (page.Count > 0)
+            var allowed = new List<int>(chunkEntities);
+            while (allowed.Count < chunkEntities)
             {
+                var page = await RunAsSystem.RunInSystemScopeAsync(
+                    ScopeFactory,
+                    services => new CoveRenamerDataPort(services.GetRequiredService<DbContext>(), _coveConfig)
+                        .LoadEntityIdPageAsync(kind, after, chunkEntities - allowed.Count, token));
+
+                if (page.Count == 0)
+                {
+                    break;
+                }
+
                 after = page[^1];
+                allowed.AddRange(await allowedIds(kind, page, token));
             }
 
-            return page;
+            return allowed;
         }
 
         return RunRenameChunksAsync(

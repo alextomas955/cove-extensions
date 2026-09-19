@@ -84,12 +84,16 @@ public sealed class ScanAggregateScaleTests
         return port;
     }
 
+    // Nothing is denied here: this suite's subject is that the stored aggregate stays bounded.
+    private static readonly global::Renamer.AllowedIds AllowAll = (_, ids, _) => Task.FromResult(ids);
+
     private static async Task<(string Json, ScanSummary Summary, FakeStore Store)> ScanAsync(
         FakeRenamerDataPort port, RenamerOptions? options = null)
     {
         var (ext, store) = NewExtension();
         await ext.RunScanCoreAsync(
             port, RenamableKinds.All, options ?? new RenamerOptions { FilenameTemplate = "$title" },
+            AllowAll,
             new FakeJobProgress(), default);
 
         // Read the raw stored string: parsing is exactly what would hide growth, and the byte length is

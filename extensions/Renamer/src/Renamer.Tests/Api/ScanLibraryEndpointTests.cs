@@ -75,9 +75,14 @@ public sealed class ScanLibraryEndpointTests
             return new CoveContext(options, principalAccessor: null);
         });
         services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+        services.AddSingleton<IAuthorizationService>(new RecordingAuthorizationService());
         var provider = services.BuildServiceProvider();
         await ext.InitializeAsync(provider);
     }
+
+    /// <summary>The caller the enqueue would have snapshotted, holding exactly the given permissions.</summary>
+    private static CovePrincipal Caller(params string[] permissions)
+        => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
@@ -125,6 +130,7 @@ public sealed class ScanLibraryEndpointTests
 
             var progress = new FakeJobProgress();
             await ext.RunScanLibraryJobAsync(
+                Caller(Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead),
                 [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio], null, progress, default);
 
             var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
@@ -189,7 +195,8 @@ public sealed class ScanLibraryEndpointTests
 
             var progress = new FakeJobProgress();
             // Caller holds videos.read but not images.read — only Video is in the captured readable set.
-            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], null, progress, default);
+            await ext.RunScanLibraryJobAsync(
+                Caller(Permissions.VideosRead), [RenamerFileKind.Video], null, progress, default);
 
             var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
             var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, EnumJson)!;
@@ -248,7 +255,8 @@ public sealed class ScanLibraryEndpointTests
             var overrideOptions = new RenamerOptions { FilenameTemplate = "DRYRUN - $title" };
 
             var progress = new FakeJobProgress();
-            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], overrideOptions, progress, default);
+            await ext.RunScanLibraryJobAsync(
+                Caller(Permissions.VideosRead), [RenamerFileKind.Video], overrideOptions, progress, default);
 
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var summary = await ReadSummaryAsync(ext, principal);
@@ -563,7 +571,8 @@ public sealed class ScanLibraryEndpointTests
             await InitializeOverSharedConnectionAsync(ext, conn);
 
             var progress = new FakeJobProgress();
-            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], null, progress, default);
+            await ext.RunScanLibraryJobAsync(
+                Caller(Permissions.VideosRead), [RenamerFileKind.Video], null, progress, default);
 
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var view = await ReadSummaryAsync(ext, principal);

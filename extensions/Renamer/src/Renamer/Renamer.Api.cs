@@ -507,9 +507,11 @@ public sealed partial class Renamer
     //
     // Returns 403 before any enqueue, then captures the principal's held read kinds into the job
     // closure: the detached job cannot re-resolve the principal, and this is how it applies the same
-    // per-kind skip a partial-permission caller sees from a preview. The summary is persisted under a
-    // fixed key, because the id Enqueue mints is not available to the job body before Enqueue
-    // returns.
+    // per-kind skip a partial-permission caller sees from a preview. A copy of the principal itself
+    // is captured beside them, because holding a kind's read permission does not grant read access to
+    // every entity of that kind and the job authorizes each candidate it derives. The summary is
+    // persisted under a fixed key, because the id Enqueue mints is not available to the job body
+    // before Enqueue returns.
     internal Results<Accepted<JobEnqueued>, ForbiddenCode> ScanLibraryEnqueue(
         ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
@@ -526,11 +528,12 @@ public sealed partial class Renamer
         var overrideOptions = TryParseOptionsOverride(body?.Options);
 
         var readableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        var caller = EntityAccessGuard.Snapshot(principal.Current);
 
         var jobId = jobs.Enqueue(
             $"ext:{Id}:scan-library",
             $"[{Name}] Scan library",
-            (coreProgress, ct) => RunScanLibraryJobAsync(readableKinds, overrideOptions, new HostProgress(coreProgress), ct),
+            (coreProgress, ct) => RunScanLibraryJobAsync(caller, readableKinds, overrideOptions, new HostProgress(coreProgress), ct),
             exclusive: true);
 
         return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
@@ -652,7 +655,9 @@ public sealed partial class Renamer
 
     // Enqueues the whole-library rename. No body and no caller-supplied id array, on the same terms
     // as the scan. Returns 403 before any enqueue, then captures the principal's held write kinds
-    // into the job closure, because the detached job cannot re-resolve the principal.
+    // into the job closure, because the detached job cannot re-resolve the principal. A copy of the
+    // principal is captured beside them, because holding a kind's write permission does not grant
+    // write access to every entity of that kind and the job authorizes each candidate it derives.
     internal Results<Accepted<JobEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(
         ICurrentPrincipalAccessor principal, IJobService jobs)
     {
@@ -662,11 +667,12 @@ public sealed partial class Renamer
         }
 
         var writableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Write)).ToArray();
+        var caller = EntityAccessGuard.Snapshot(principal.Current);
 
         var jobId = jobs.Enqueue(
             $"ext:{Id}:renamer-library",
             $"[{Name}] Renamer library",
-            (coreProgress, ct) => RunRenamerLibraryJobAsync(writableKinds, new HostProgress(coreProgress), ct),
+            (coreProgress, ct) => RunRenamerLibraryJobAsync(caller, writableKinds, new HostProgress(coreProgress), ct),
             exclusive: true);
 
         return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));

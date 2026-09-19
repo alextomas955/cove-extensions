@@ -212,7 +212,8 @@ public sealed class DetachedElevationTests
 
         // An empty library still loads the id list, which is the command this case observes; a seeded
         // one would add the planner's reads without changing what is being asserted.
-        await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], null, new FakeJobProgress(), default);
+        await ext.RunScanLibraryJobAsync(
+            library.Principals.Current, [RenamerFileKind.Video], null, new FakeJobProgress(), default);
 
         AssertRanEntirelyAsSystem(library);
     }
@@ -223,7 +224,8 @@ public sealed class DetachedElevationTests
         await using var library = await LibraryDatabase.CreateAsync();
         var (ext, _) = await LoadedExtensionAsync(library, TitleOnlyOptions());
 
-        await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video], new FakeJobProgress(), default);
+        await ext.RunRenamerLibraryJobAsync(
+            library.Principals.Current, [RenamerFileKind.Video], new FakeJobProgress(), default);
 
         AssertRanEntirelyAsSystem(library);
     }
@@ -240,7 +242,8 @@ public sealed class DetachedElevationTests
         library.Principals.Set(null);
         library.CommandsExecuted.Clear();
 
-        await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], null, new FakeJobProgress(), default);
+        await ext.RunScanLibraryJobAsync(
+            library.Principals.Current, [RenamerFileKind.Video], null, new FakeJobProgress(), default);
 
         AssertRanEntirelyAsSystem(library, expectedPriorKind: null);
     }
@@ -254,7 +257,8 @@ public sealed class DetachedElevationTests
         library.Principals.Set(null);
         library.CommandsExecuted.Clear();
 
-        await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video], new FakeJobProgress(), default);
+        await ext.RunRenamerLibraryJobAsync(
+            library.Principals.Current, [RenamerFileKind.Video], new FakeJobProgress(), default);
 
         AssertRanEntirelyAsSystem(library, expectedPriorKind: null);
     }

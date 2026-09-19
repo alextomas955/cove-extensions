@@ -32,6 +32,7 @@ public sealed class UndoOperationTests
             return new CoveContext(contextOptions, principalAccessor: null);
         });
         services.AddSingleton<IEventBus>(new CapturingEventBus());
+        services.AddSingleton<IAuthorizationService>(new RecordingAuthorizationService());
         services.AddLibraryPaths(libraryPaths);
         var provider = services.BuildServiceProvider();
 
@@ -43,6 +44,10 @@ public sealed class UndoOperationTests
         await ext.InitializeAsync(provider);
         return ext;
     }
+
+    /// <summary>The caller the enqueue would have snapshotted, holding exactly the given permissions.</summary>
+    private static CovePrincipal Caller(params string[] permissions)
+        => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
     private static int StatusOf(IResult result) =>
         Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
@@ -83,6 +88,7 @@ public sealed class UndoOperationTests
             var ext = await NewExtensionAsync(conn);
 
             await ext.RunRenamerLibraryJobAsync(
+                Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
                 [RenamerFileKind.Video, RenamerFileKind.Image], new FakeJobProgress(), default);
 
             var batches = await db.Set<RevertBatchEntity>().AsNoTracking().ToListAsync();
@@ -108,6 +114,7 @@ public sealed class UndoOperationTests
             var ext = await NewExtensionAsync(conn);
 
             await ext.RunRenamerLibraryJobAsync(
+                Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
                 [RenamerFileKind.Video, RenamerFileKind.Image], new FakeJobProgress(), default);
 
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
@@ -141,6 +148,7 @@ public sealed class UndoOperationTests
             var ext = await NewExtensionAsync(conn);
 
             await ext.RunRenamerLibraryJobAsync(
+                Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
                 [RenamerFileKind.Video, RenamerFileKind.Image], new FakeJobProgress(), default);
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "Film.mkv")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "images", "Pic.jpg")));
@@ -186,6 +194,7 @@ public sealed class UndoOperationTests
                 conn, options, Path.Combine(dir.Root, "videos").Replace('\\', '/'), imageFolder, destFolder);
 
             await ext.RunRenamerLibraryJobAsync(
+                Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
                 [RenamerFileKind.Video, RenamerFileKind.Image], new FakeJobProgress(), default);
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "Film.mkv")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "dest", "Pic.jpg")));
@@ -237,6 +246,7 @@ public sealed class UndoOperationTests
             var ext = await NewExtensionAsync(conn);
 
             await ext.RunRenamerLibraryJobAsync(
+                Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
                 [RenamerFileKind.Video, RenamerFileKind.Image], new FakeJobProgress(), default);
 
             var videosOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
