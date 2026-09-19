@@ -29,13 +29,14 @@ import {
 } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
 import { BARE_TOKENS } from "./templateValidation";
+import { optionsFor } from "./selectOptions";
 import { TokenAdvisory } from "./templateAdvisories";
 
-const CASE_OPTIONS: readonly { value: CaseTransform; label: string }[] = [
-  { value: "none", label: "None" },
-  { value: "lower", label: "lower case" },
-  { value: "title", label: "Title Case" },
-];
+const CASE_OPTIONS = optionsFor<CaseTransform>({
+  none: "None",
+  lower: "lower case",
+  title: "Title Case",
+});
 
 // What a FieldReplaceRule may target: the canonical spelling the backend matches, offered as a closed
 // set so a rule cannot target a token the engine never resolves. The names come from the token legend,

@@ -6,6 +6,10 @@
  * studioFilterLogic.ts/options.ts.
  */
 
+// The kind union is the one import, and a type has no runtime, so the module stays import-free where
+// that matters. A segment map keyed on the union cannot quietly miss a kind the server can send.
+import type { RenamerFileKind } from "../../wire/api";
+
 /**
  * The three buckets a scan row falls into, used by the Dry Run filter segments:
  * - `will-change`: the file will be renamed and/or moved (status Renamer | Move).
@@ -147,7 +151,7 @@ export function summaryCounts(summary: {
  * unexpected kind falls through to `null` rather than fabricating a wrong URL — the href is derived
  * from this fixed map and the numeric id only, never from a path or basename.
  */
-const KIND_SEGMENT: Record<string, string | undefined> = {
+const KIND_SEGMENT: Record<RenamerFileKind, string | undefined> = {
   video: "video",
   image: "image",
   audio: "audio",
@@ -163,7 +167,7 @@ const KIND_SEGMENT: Record<string, string | undefined> = {
  * prepends `window.location.origin` so a sub-path deployment can't misfire a bare `/video/…`, and the
  * helper stays offline-testable. Never interpolates a path/name — the URL is the id + fixed segment only.
  */
-export function assetHref(kind: string, entityId: number | undefined): string | null {
+export function assetHref(kind: RenamerFileKind, entityId: number | undefined): string | null {
   const segment = KIND_SEGMENT[kind];
   if (segment === undefined) return null;
   if (typeof entityId !== "number" || entityId <= 0) return null;

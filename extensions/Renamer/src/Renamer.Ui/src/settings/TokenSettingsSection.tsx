@@ -28,20 +28,21 @@ import {
 } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
 import { templateUsesToken } from "./templateValidation";
+import { optionsFor } from "./selectOptions";
 
-const OVERFLOW_OPTIONS: readonly { value: OverflowPolicy; label: string }[] = [
-  { value: "dropAll", label: "Drop all when over the max" },
-  { value: "keepFirst", label: "Keep the first N" },
-];
+const OVERFLOW_OPTIONS = optionsFor<OverflowPolicy>({
+  dropAll: "Drop all when over the max",
+  keepFirst: "Keep the first N",
+});
 // Sort orders are not interchangeable between the two groups: the engine only honors id/favorite
 // ordering for performers (tags fall back to name ordering), so a tag Sort that offered them would
 // silently no-op. Hence two distinct lists rather than one shared constant.
-const PERFORMER_SORT_OPTIONS: readonly { value: SortOrder; label: string }[] = [
-  { value: "nameAsc", label: "Name (A→Z)" },
-  { value: "none", label: "Keep original order" },
-  { value: "idAsc", label: "By internal id" },
-  { value: "favoriteFirst", label: "Favorites first, then name" },
-];
+const PERFORMER_SORT_OPTIONS = optionsFor<SortOrder>({
+  nameAsc: "Name (A→Z)",
+  none: "Keep original order",
+  idAsc: "By internal id",
+  favoriteFirst: "Favorites first, then name",
+});
 const TAG_SORT_OPTIONS: readonly { value: SortOrder; label: string }[] = [
   { value: "nameAsc", label: "Name (A→Z)" },
   { value: "none", label: "Keep original order" },
