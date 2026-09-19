@@ -71,7 +71,7 @@ export function DestinationField({
         // names the right folder, and rewriting it on load would be an edit the user did not make.
         value={chosen ?? value.root}
         onChange={(root) => {
-          onChange({ ...value, root: root });
+          onChange({ ...value, root });
         }}
         options={options}
       />
@@ -89,7 +89,7 @@ export function DestinationField({
       <TextInput
         value={value.template}
         onChange={(template) => {
-          onChange({ ...value, template: template });
+          onChange({ ...value, template });
         }}
         onFocus={onTemplateFocus}
         inputRef={templateRef}

@@ -49,7 +49,7 @@ export function PerKindRows({ options, set, library }: Readonly<PerKindRowsProps
 
       <div className="divide-y divide-border rounded-xl border border-border">
         {RENAMABLE_KINDS.map((kind) => {
-          const { enabled: enabled, destination: destination } = kindSettings(options.kinds, kind);
+          const { enabled, destination } = kindSettings(options.kinds, kind);
           const followsDefault = enabled && destination === null;
 
           let state: ReactNode;

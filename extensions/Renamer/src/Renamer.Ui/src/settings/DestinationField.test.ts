@@ -60,7 +60,7 @@ const COMMIT_MS = 50;
 const TYPED_PATH = "D:/Media/Studio";
 
 async function renderField(library: LibraryPathsState, template = TYPED_PATH) {
-  const value: Destination = { root: CONTAINING_ROOT, template: template };
+  const value: Destination = { root: CONTAINING_ROOT, template };
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);

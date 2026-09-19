@@ -22,9 +22,7 @@ export function nextKinds(
   destination: Destination | null,
 ): KindMap {
   const { [kind]: _dropped, ...rest } = map;
-  return enabled && destination === null
-    ? rest
-    : { ...rest, [kind]: { enabled: enabled, destination: destination } };
+  return enabled && destination === null ? rest : { ...rest, [kind]: { enabled, destination } };
 }
 
 /** How many kinds are not renamed at all, and how many have a folder of their own. */

@@ -50,7 +50,7 @@ const sleep = (ms: number) =>
 const COMMIT_MS = 50;
 
 async function renderRows(kinds: RenamerOptions["kinds"]) {
-  const options = { ...someOptions(), kinds: kinds };
+  const options = { ...someOptions(), kinds };
   const set = vi.fn();
 
   const container = document.createElement("div");
@@ -137,13 +137,13 @@ test("an excluded kind cannot be sent back to the default without being included
 
 test("excluding a kind that has its own folder keeps that folder for its return", async () => {
   const destination = { root: "D:/library", template: "$studio" };
-  const view = await renderRows({ video: { enabled: true, destination: destination } });
+  const view = await renderRows({ video: { enabled: true, destination } });
 
   expect(view.text()).toContain("1 with their own folder");
   view.row("Videos").click("Exclude");
 
   expect(view.set).toHaveBeenCalledWith("kinds", {
-    video: { enabled: false, destination: destination },
+    video: { enabled: false, destination },
   });
 
   view.unmount();
