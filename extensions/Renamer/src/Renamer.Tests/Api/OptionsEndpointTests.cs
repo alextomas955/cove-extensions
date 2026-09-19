@@ -26,11 +26,11 @@ public sealed class OptionsEndpointTests
     private const string Route = TransportHost.BaseRoute + "/options";
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
-    private static FakePrincipalAccessor Reader() =>
-        FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
-
-    private static FakePrincipalAccessor Writer() =>
-        FakePrincipalAccessor.WithPermissions(Permissions.VideosRead, Permissions.VideosWrite);
+    // One settings document governs every kind, so these routes carry the permission Cove puts on its
+    // own extension-data routes rather than a media permission. Holding write over one kind does not
+    // reach it.
+    private static FakePrincipalAccessor Configurer() =>
+        FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure);
 
     private static async Task<IExtensionStore> StoreHolding(string? optionsJson)
     {
@@ -48,7 +48,7 @@ public sealed class OptionsEndpointTests
     [Fact]
     public async Task Get_WithNothingSaved_AnswersTheDefaultsAndNoPendingWork()
     {
-        await using var host = await TransportHost.BootAsync(Reader());
+        await using var host = await TransportHost.BootAsync(Configurer());
 
         var resp = await host.Client.GetAsync(Route);
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
@@ -65,7 +65,7 @@ public sealed class OptionsEndpointTests
     public async Task Put_StoresTheEditInThePersistedSpelling_AndGetReadsItBack()
     {
         var store = await StoreHolding(null);
-        await using var host = await TransportHost.BootAsync(Writer(), store);
+        await using var host = await TransportHost.BootAsync(Configurer(), store);
 
         var loaded = JsonNode.Parse(await host.Client.GetStringAsync(Route))!["options"]!;
         loaded["filenameTemplate"] = "$title";
@@ -90,7 +90,7 @@ public sealed class OptionsEndpointTests
     [Fact]
     public async Task Get_WritesEveryMemberTheModelDeclares()
     {
-        await using var host = await TransportHost.BootAsync(Reader());
+        await using var host = await TransportHost.BootAsync(Configurer());
 
         var options = JsonNode.Parse(await host.Client.GetStringAsync(Route))!["options"]!.AsObject();
         var declared = typeof(RenamerOptions)
@@ -109,7 +109,7 @@ public sealed class OptionsEndpointTests
         {
             Kinds = new Dictionary<RenamerFileKind, KindOptions> { [RenamerFileKind.Video] = new() { Enabled = false } },
         });
-        await using var host = await TransportHost.BootAsync(Writer(), store);
+        await using var host = await TransportHost.BootAsync(Configurer(), store);
 
         var loaded = JsonNode.Parse(await host.Client.GetStringAsync(Route))!["options"]!;
         Assert.Equal(["video"], loaded["kinds"]!.AsObject().Select(entry => entry.Key));
@@ -127,7 +127,7 @@ public sealed class OptionsEndpointTests
     {
         const string legacy = """{"TagDestinations":{"anime":{"Root":"","Template":"x"}}}""";
         var store = await StoreHolding(legacy);
-        await using var host = await TransportHost.BootAsync(Writer(), store);
+        await using var host = await TransportHost.BootAsync(Configurer(), store);
 
         var view = await host.Client.GetFromJsonAsync<OptionsView>(Route, Web);
         Assert.NotNull(view);
@@ -146,7 +146,7 @@ public sealed class OptionsEndpointTests
     {
         const string legacy = """{"TagDestinations":{"7":"I:/library/anime"}}""";
         var store = await StoreHolding(legacy);
-        await using var host = await TransportHost.BootAsync(Writer(), store);
+        await using var host = await TransportHost.BootAsync(Configurer(), store);
 
         var view = await host.Client.GetFromJsonAsync<OptionsView>(Route, Web);
         Assert.NotNull(view);
@@ -160,7 +160,7 @@ public sealed class OptionsEndpointTests
     [Fact]
     public async Task Get_WithABlobThatCannotBeParsed_AnswersDefaultsAndSaysSo()
     {
-        await using var host = await TransportHost.BootAsync(Reader(), await StoreHolding("{not json"));
+        await using var host = await TransportHost.BootAsync(Configurer(), await StoreHolding("{not json"));
 
         var view = await host.Client.GetFromJsonAsync<OptionsView>(Route, Web);
         Assert.NotNull(view);
@@ -172,7 +172,7 @@ public sealed class OptionsEndpointTests
     public async Task Put_WithABodyThatCannotBeParsed_IsRejectedAndWritesNothing()
     {
         var store = new FakeStore();
-        await using var host = await TransportHost.BootAsync(Writer(), store);
+        await using var host = await TransportHost.BootAsync(Configurer(), store);
 
         var put = await host.Client.PutAsync(Route, JsonBody("{not json"));
         Assert.Equal(HttpStatusCode.BadRequest, put.StatusCode);
@@ -186,14 +186,31 @@ public sealed class OptionsEndpointTests
         Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync(Route)).StatusCode);
     }
 
+    // A caller who may rename videos may not reconfigure the extension: one settings document decides
+    // how every kind is named and where it is moved, and the auto-rename it can switch on runs later as
+    // System.
     [Fact]
-    public async Task Put_WithReadPermissionOnly_IsForbidden()
+    public async Task Put_WithMediaWriteButNotExtensionsConfigure_IsForbiddenAndWritesNothing()
     {
         var store = new FakeStore();
-        await using var host = await TransportHost.BootAsync(Reader(), store);
+        await using var host = await TransportHost.BootAsync(
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead, Permissions.VideosWrite),
+            store);
 
         var put = await host.Client.PutAsync(Route, JsonBody("""{"FilenameTemplate":"$title"}"""));
+
         Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
         Assert.Equal(0, store.SetCallCount);
+    }
+
+    [Fact]
+    public async Task Get_WithMediaReadButNotExtensionsConfigure_IsForbidden()
+    {
+        await using var host = await TransportHost.BootAsync(
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead));
+
+        var resp = await host.Client.GetAsync(Route);
+
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
 }

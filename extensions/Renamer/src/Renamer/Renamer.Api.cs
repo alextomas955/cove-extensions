@@ -227,9 +227,13 @@ public sealed partial class Renamer
                 => OrphanedRulesAsync(principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
+        // Gated on extensions.configure, not on a media permission: one settings document decides how
+        // every kind is named and where it is moved, and the auto-rename it can switch on runs later as
+        // System. Holding write over one kind is not consent to reconfigure the extension. This is the
+        // permission Cove's own extension-data routes carry, which is where these settings lived.
         endpoints.MapGet(OptionsRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => GetOptionsAsync(principal, ct))
-            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
+            .RequireCovePermission(Permissions.ExtensionsConfigure);
 
         // Binds the raw HttpContext for the reason /preview-sample does: the body carries string enum
         // values, and the host's minimal-API serializer has no enum converter, so typed binding would
@@ -238,7 +242,7 @@ public sealed partial class Renamer
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => SaveOptionsAsync(http.Request, principal, ct))
             .Accepts<RenamerOptions>("application/json")
-            .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
+            .RequireCovePermission(Permissions.ExtensionsConfigure);
     }
 
     // The saved settings the panel edits, read through the same store every job reads them through, so
@@ -246,9 +250,9 @@ public sealed partial class Renamer
     internal async Task<Results<Ok<OptionsView>, ForbiddenCode>> GetOptionsAsync(
         ICurrentPrincipalAccessor principal, CancellationToken ct = default)
     {
-        if (!HasAnyReadPermission(principal))
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
         {
-            return new ForbiddenCode();
+            return denied;
         }
 
         var stored = await Store.GetAsync(OptionsStore.Key, ct);
@@ -271,9 +275,9 @@ public sealed partial class Renamer
     internal async Task<Results<NoContent, BadRequest<ErrorCode>, Conflict<ErrorCode>, ForbiddenCode>> SaveOptionsAsync(
         HttpRequest request, ICurrentPrincipalAccessor principal, CancellationToken ct = default)
     {
-        if (!HasAnyWritePermission(principal))
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
         {
-            return new ForbiddenCode();
+            return denied;
         }
 
         var stored = await Store.GetAsync(OptionsStore.Key, ct);

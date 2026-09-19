@@ -37,29 +37,13 @@ const CASE_OPTIONS: readonly { value: CaseTransform; label: string }[] = [
   { value: "title", label: "Title Case" },
 ];
 
-// The 18 canonical token names a FieldReplaceRule may target, mirroring Engine/TemplateEngine.cs
-// `Tokens`. The value is the canonical spelling the backend matches (case-insensitive); offering the
-// closed set keeps a rule from targeting a token the engine never resolves.
-const TOKEN_OPTIONS: readonly { value: string; label: string }[] = [
-  "title",
-  "studio",
-  "parentStudio",
-  "studioCode",
-  "director",
-  "bitrate",
-  "date",
-  "year",
-  "height",
-  "width",
-  "resolution",
-  "videoCodec",
-  "audioCodec",
-  "frameRate",
-  "duration",
-  "performers",
-  "tags",
-  "ext",
-].map((t) => ({ value: t, label: t }));
+// What a FieldReplaceRule may target: the canonical spelling the backend matches, offered as a closed
+// set so a rule cannot target a token the engine never resolves. The names come from the token legend,
+// which is where this panel keeps them.
+const TOKEN_OPTIONS: readonly { value: string; label: string }[] = BARE_TOKENS.map((token) => ({
+  value: token,
+  label: token,
+}));
 
 // Common duplicate-suffix patterns; {n} = collision counter, shown via example.
 const SUFFIX_FORMAT_OPTIONS: readonly ExampleOption[] = [
