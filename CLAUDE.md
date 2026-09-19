@@ -87,8 +87,9 @@ npm test                                           # tests for scripts/
   `extension.json` is the load manifest. Its `entryDll` must equal the built assembly name.
 - Never write to Cove's database directly. Go through the host-provided `DbContext` and
   `SaveChangesAsync`. `CoveContext` and the rest of `Cove.Data` are host internals, not contract.
-- Run background database reads as System through `RunAsSystemAsync` in
+- Run work the extension starts by itself as System through `RunAsSystemAsync` in
   `shared/Cove.Extensions.Shared`. An anonymous principal returns zero rows with no error.
+- A job serving a user's request keeps that elevation and authorizes each entity against its caller.
 - A swallowed exception emits exactly one `[LoggerMessage]` line.
 - Cancellation on shutdown classifies as `Cancelled`, never `Failed`.
 - A capability a backend cannot honor is a role interface it does not implement. No `Supports*`
