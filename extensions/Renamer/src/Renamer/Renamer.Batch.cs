@@ -96,23 +96,60 @@ public sealed partial class Renamer
     // undoable.
     internal Task<string?> RunRenamerKindAsync(
         RenamerFileKind kind, int totalEntities, OperationJournalBudget budget, RenamerOptions options,
-        IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null,
-        int chunkEntities = RenameChunkEntities)
+        AllowedIds allowedIds, IJobProgress progress, CancellationToken ct,
+        Func<string, long>? freeSpaceProbe = null, int chunkEntities = RenameChunkEntities)
     {
         int after = 0;
+
+        // Allowed ids one chunk had no room for. Bounded by a single database page, so it does not
+        // grow with the library.
+        var carried = new Queue<int>();
+
+        // The cursor advances by the database page, never by what survives the caller's per-entity
+        // write check, so no id is examined twice. Pages are drawn until the chunk is full or the
+        // kind runs out, because a short chunk is how the run below reads exhaustion: returning a
+        // partly denied page directly would end the walk at the first denial.
+        //
+        // Every draw is a whole page and never the chunk's remaining capacity: a page sized to the
+        // room left costs one database read and one authorization call per denied entity over a long
+        // denied region. Ids are carried only by an iteration that fills the chunk, so a chunk
+        // shorter than chunkEntities still implies an empty queue and an exhausted kind.
         async Task<IReadOnlyList<int>> NextPageAsync(CancellationToken token)
         {
-            var page = await RunAsSystem.RunInSystemScopeAsync(
-                ScopeFactory,
-                services => new CoveRenamerDataPort(services.GetRequiredService<DbContext>(), _coveConfig)
-                    .LoadEntityIdPageAsync(kind, after, chunkEntities, token));
-
-            if (page.Count > 0)
+            var allowed = new List<int>(chunkEntities);
+            while (allowed.Count < chunkEntities && carried.Count > 0)
             {
-                after = page[^1];
+                allowed.Add(carried.Dequeue());
             }
 
-            return page;
+            while (allowed.Count < chunkEntities)
+            {
+                var page = await RunAsSystem.RunInSystemScopeAsync(
+                    ScopeFactory,
+                    services => new CoveRenamerDataPort(services.GetRequiredService<DbContext>(), _coveConfig)
+                        .LoadEntityIdPageAsync(kind, after, chunkEntities, token));
+
+                if (page.Count == 0)
+                {
+                    break;
+                }
+
+                after = page[^1];
+
+                foreach (int id in await allowedIds(kind, page, token))
+                {
+                    if (allowed.Count < chunkEntities)
+                    {
+                        allowed.Add(id);
+                    }
+                    else
+                    {
+                        carried.Enqueue(id);
+                    }
+                }
+            }
+
+            return allowed;
         }
 
         return RunRenameChunksAsync(

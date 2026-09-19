@@ -10,7 +10,10 @@ namespace Cove.Extensions.Shared;
 /// zero rows with no error, silently undercounting a library-wide read; only System bypasses those
 /// filters. (A NULL principal bypasses them too, so an absent principal is the safe case and must never
 /// stand in for an unprivileged one when proving this.) The elevation is reverted in a <c>finally</c>; a
-/// request path stays on its caller's principal, because elevating it would bypass per-user authz.
+/// request path stays on its caller's principal, because elevating it would bypass per-user authz. A
+/// detached body carrying out a user's request still needs the elevation, since it carries no principal
+/// and a NULL one bypasses the filters exactly as System does; that caller's access is re-checked
+/// explicitly against a snapshot of their principal, never inferred from the elevation.
 /// <para>
 /// Prefer <see cref="RunInSystemScopeAsync{T}(IServiceScopeFactory, Func{IServiceProvider, Task{T}})"/>
 /// when the body needs a scope of its own: it hands out one already elevated, so elevation is not a

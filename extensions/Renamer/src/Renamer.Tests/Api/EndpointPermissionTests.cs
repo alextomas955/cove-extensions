@@ -94,27 +94,29 @@ public sealed class EndpointPermissionTests
     }
 
     [Fact]
-    public void RenamerEnqueue_WithoutVideosWrite_Returns403_AndDoesNotEnqueue()
+    public async Task RenamerEnqueue_WithoutVideosWrite_Returns403_AndDoesNotEnqueue()
     {
         var ext = NewExtension();
         var jobs = new RecordingJobService();
 
-        var result = ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("video", [1, 2]), FakePrincipalAccessor.None(), jobs);
+        var result = await ext.RenamerEnqueue(
+            new global::Renamer.Api.RenamerRequest("video", [1, 2]), FakePrincipalAccessor.None(), jobs,
+            new RecordingAuthorizationService(), default);
 
         Assert.Equal(403, StatusOf(result));
         Assert.Empty(jobs.Enqueued);
     }
 
     [Fact]
-    public void RenamerEnqueue_WithVideosWrite_EnqueuesOneJob_AndReturns202WithJobId()
+    public async Task RenamerEnqueue_WithVideosWrite_EnqueuesOneJob_AndReturns202WithJobId()
     {
         var ext = NewExtension();
         var jobs = new RecordingJobService();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
 
-        var result = ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("video", [1, 2]), principal, jobs);
+        var result = await ext.RenamerEnqueue(
+            new global::Renamer.Api.RenamerRequest("video", [1, 2]), principal, jobs,
+            new RecordingAuthorizationService(), default);
 
         Assert.Equal(202, StatusOf(result));
         // The 202 body carries the enqueued job id the fake returned.
@@ -129,42 +131,46 @@ public sealed class EndpointPermissionTests
     }
 
     [Fact]
-    public void RenamerEnqueue_ImageRequest_RequiresImagesWrite_NotVideosWrite()
+    public async Task RenamerEnqueue_ImageRequest_RequiresImagesWrite_NotVideosWrite()
     {
         var ext = NewExtension();
         var jobs = new RecordingJobService();
 
         // A principal holding only videos.write must not be able to enqueue an image renamer.
         var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
-        var denied = ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("image", [1]), videoOnly, jobs);
+        var denied = await ext.RenamerEnqueue(
+            new global::Renamer.Api.RenamerRequest("image", [1]), videoOnly, jobs,
+            new RecordingAuthorizationService(), default);
         Assert.Equal(403, StatusOf(denied));
         Assert.Empty(jobs.Enqueued);
 
         // The matching images.write principal succeeds.
         var imageOk = FakePrincipalAccessor.WithPermissions(Permissions.ImagesWrite);
-        var allowed = ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("image", [1]), imageOk, jobs);
+        var allowed = await ext.RenamerEnqueue(
+            new global::Renamer.Api.RenamerRequest("image", [1]), imageOk, jobs,
+            new RecordingAuthorizationService(), default);
         Assert.Equal(202, StatusOf(allowed));
         var (_, _, exclusive) = Assert.Single(jobs.Enqueued);
         Assert.True(exclusive);
     }
 
     [Fact]
-    public void RenamerEnqueue_AudioRequest_RequiresAudiosWrite()
+    public async Task RenamerEnqueue_AudioRequest_RequiresAudiosWrite()
     {
         var ext = NewExtension();
         var jobs = new RecordingJobService();
 
         // Audio is officially supported (kept in v1.6) and gated on audios.write — videos.write is denied.
         var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
-        Assert.Equal(403, StatusOf(ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("audio", [1]), videoOnly, jobs)));
+        Assert.Equal(403, StatusOf(await ext.RenamerEnqueue(
+            new global::Renamer.Api.RenamerRequest("audio", [1]), videoOnly, jobs,
+            new RecordingAuthorizationService(), default)));
         Assert.Empty(jobs.Enqueued);
 
         var audioOk = FakePrincipalAccessor.WithPermissions(Permissions.AudiosWrite);
-        Assert.Equal(202, StatusOf(ext.RenamerEnqueue(
-            new global::Renamer.Api.RenamerRequest("audio", [1]), audioOk, jobs)));
+        Assert.Equal(202, StatusOf(await ext.RenamerEnqueue(
+            new global::Renamer.Api.RenamerRequest("audio", [1]), audioOk, jobs,
+            new RecordingAuthorizationService(), default)));
         Assert.Single(jobs.Enqueued);
     }
 
@@ -176,7 +182,8 @@ public sealed class EndpointPermissionTests
         // scope factory it would NRE here — the absence of a throw proves the 403-first ordering.
         var ext = NewExtension();
 
-        var result = await ext.UndoAsync(FakePrincipalAccessor.None(), default);
+        var result = await ext.UndoAsync(
+            FakePrincipalAccessor.None(), new RecordingAuthorizationService(), default);
 
         Assert.Equal(403, StatusOf(result));
     }

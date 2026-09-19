@@ -162,8 +162,9 @@ public sealed partial class Renamer
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(RenamerRoute,
-            (RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
-                => RenamerEnqueue(req, principal, jobs))
+            (RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs,
+                IAuthorizationService authz, CancellationToken ct)
+                => RenamerEnqueue(req, principal, jobs, authz, ct))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
         // NB: this endpoint binds the raw HttpContext (not a typed PreviewSampleRequest) so the
@@ -185,7 +186,8 @@ public sealed partial class Renamer
         // /undo takes no request body — it operates on "the last batch", so binding no body avoids
         // the host's enum-converter 400 trap (see the preview-sample note above); /last-batch is a plain read.
         endpoints.MapPost(UndoRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => UndoAsync(principal, ct))
+            (ICurrentPrincipalAccessor principal, IAuthorizationService authz, CancellationToken ct)
+                => UndoAsync(principal, authz, ct))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
         endpoints.MapGet(LastBatchRoute,
@@ -386,8 +388,13 @@ public sealed partial class Renamer
 
     // Encodes the request into the job parameters and hands the host a delegate that calls
     // RunRenamerBatchAsync. Returns 403 before any enqueue.
-    internal Results<Accepted<JobEnqueued>, BadRequest<ErrorCode>, ForbiddenCode> RenamerEnqueue(
-        RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
+    //
+    // One id the caller cannot write refuses the whole request, and the 403 carries no body, so the
+    // response names none of the ids that were denied. The per-entity decision runs in the request
+    // scope, where the caller's principal is live, so it needs no snapshot.
+    internal async Task<Results<Accepted<JobEnqueued>, BadRequest<ErrorCode>, ForbiddenCode>> RenamerEnqueue(
+        RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs,
+        IAuthorizationService authz, CancellationToken ct)
     {
         // Kind first so the write check gates on the request's own kind (videos/images/audios.write).
         if (!TryParseKind(req.EntityType, out var kind))
@@ -410,6 +417,13 @@ public sealed partial class Renamer
         if (req.EntityIds.Length > MaxEntityIdsPerRequest)
         {
             return TypedResults.BadRequest(new ErrorCode("TOO_MANY_IDS", MaxEntityIdsPerRequest));
+        }
+
+        var allowed = await EntityAccessGuard.AllowedOnlyAsync(
+            authz, principal.Current, kind, writePermission, req.EntityIds, ct);
+        if (allowed.Count != req.EntityIds.Length)
+        {
+            return new ForbiddenCode();
         }
 
         var parameters = RenamerJob.Encode(req.EntityType, req.EntityIds);
@@ -494,9 +508,11 @@ public sealed partial class Renamer
     //
     // Returns 403 before any enqueue, then captures the principal's held read kinds into the job
     // closure: the detached job cannot re-resolve the principal, and this is how it applies the same
-    // per-kind skip a partial-permission caller sees from a preview. The summary is persisted under a
-    // fixed key, because the id Enqueue mints is not available to the job body before Enqueue
-    // returns.
+    // per-kind skip a partial-permission caller sees from a preview. A copy of the principal itself
+    // is captured beside them, because holding a kind's read permission does not grant read access to
+    // every entity of that kind and the job authorizes each candidate it derives. The summary is
+    // persisted under a fixed key, because the id Enqueue mints is not available to the job body
+    // before Enqueue returns.
     internal Results<Accepted<JobEnqueued>, ForbiddenCode> ScanLibraryEnqueue(
         ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
@@ -513,11 +529,12 @@ public sealed partial class Renamer
         var overrideOptions = TryParseOptionsOverride(body?.Options);
 
         var readableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        var caller = EntityAccessGuard.Snapshot(principal.Current);
 
         var jobId = jobs.Enqueue(
             $"ext:{Id}:scan-library",
             $"[{Name}] Scan library",
-            (coreProgress, ct) => RunScanLibraryJobAsync(readableKinds, overrideOptions, new HostProgress(coreProgress), ct),
+            (coreProgress, ct) => RunScanLibraryJobAsync(caller, readableKinds, overrideOptions, new HostProgress(coreProgress), ct),
             exclusive: true);
 
         return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
@@ -639,7 +656,9 @@ public sealed partial class Renamer
 
     // Enqueues the whole-library rename. No body and no caller-supplied id array, on the same terms
     // as the scan. Returns 403 before any enqueue, then captures the principal's held write kinds
-    // into the job closure, because the detached job cannot re-resolve the principal.
+    // into the job closure, because the detached job cannot re-resolve the principal. A copy of the
+    // principal is captured beside them, because holding a kind's write permission does not grant
+    // write access to every entity of that kind and the job authorizes each candidate it derives.
     internal Results<Accepted<JobEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(
         ICurrentPrincipalAccessor principal, IJobService jobs)
     {
@@ -649,11 +668,12 @@ public sealed partial class Renamer
         }
 
         var writableKinds = RenamableKinds.All.Where(k => principal.Current!.Has(PermissionsFor(k).Write)).ToArray();
+        var caller = EntityAccessGuard.Snapshot(principal.Current);
 
         var jobId = jobs.Enqueue(
             $"ext:{Id}:renamer-library",
             $"[{Name}] Renamer library",
-            (coreProgress, ct) => RunRenamerLibraryJobAsync(writableKinds, new HostProgress(coreProgress), ct),
+            (coreProgress, ct) => RunRenamerLibraryJobAsync(caller, writableKinds, new HostProgress(coreProgress), ct),
             exclusive: true);
 
         return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));

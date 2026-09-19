@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Cove.Core.Auth;
 using Cove.Extensions.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,20 +19,30 @@ public sealed partial class Renamer
 {
     // readableKinds is captured at enqueue time: the job runs detached from the request, so this is
     // the only way per-kind authorization reaches the body. A caller holding partial permission gets
-    // a scan that omits the kinds they cannot read, not a 403 over the whole job. overrideOptions is
-    // captured for the same reason; the detached job cannot re-read the request body.
+    // a scan that omits the kinds they cannot read, not a 403 over the whole job. overrideOptions and
+    // caller are captured for the same reason; the detached job cannot re-read the request body and
+    // cannot re-resolve the principal.
     internal async Task RunScanLibraryJobAsync(
-        IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions? overrideOptions,
+        CovePrincipal? caller, IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions? overrideOptions,
         Cove.Plugins.IJobProgress progress, CancellationToken ct)
     {
         var options = overrideOptions ?? await new OptionsStore(Store, _log).LoadAsync(ct);
+
+        // Held for the whole run, and deliberately not elevated: the decision reads the caller from
+        // its argument, not from the ambient principal. The calls are sequential from the page loop,
+        // so one instance serves the run.
+        await using var authzScope = ScopeFactory.CreateAsyncScope();
+        var authz = authzScope.ServiceProvider.GetRequiredService<IAuthorizationService>();
+        AllowedIds allowedIds = (kind, ids, token) => EntityAccessGuard.AllowedOnlyAsync(
+            authz, caller, kind, PermissionsFor(kind).Read, ids, token);
 
         // The whole body is elevated because RunScanCoreAsync takes a port, not a service provider,
         // so there is no narrower seam to wrap here.
         await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
         {
             var db = services.GetRequiredService<DbContext>();
-            return RunScanCoreAsync(new CoveRenamerDataPort(db, _coveConfig), readableKinds, options, progress, ct);
+            return RunScanCoreAsync(
+                new CoveRenamerDataPort(db, _coveConfig), readableKinds, options, allowedIds, progress, ct);
         });
     }
 
@@ -48,7 +59,7 @@ public sealed partial class Renamer
     /// </remarks>
     internal async Task RunScanCoreAsync(
         IRenamerDataPort port, IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions options,
-        Cove.Plugins.IJobProgress progress, CancellationToken ct)
+        AllowedIds allowedIds, Cove.Plugins.IJobProgress progress, CancellationToken ct)
     {
         // A kind turned off in the options is dropped before it is walked. Planning it would fill the
         // scan with library-many rows whose only content is that the kind is off.
@@ -98,13 +109,22 @@ public sealed partial class Renamer
                 }
 
                 afterId = chunk[^1];
-                var loaded = await port.LoadEntitiesAsync(kind, chunk, ct);
+
+                // The cursor is already past the whole database page, so a page the caller may read
+                // none of moves the walk on rather than ending it.
+                var readable = await allowedIds(kind, chunk, ct);
+                if (readable.Count == 0)
+                {
+                    continue;
+                }
+
+                var loaded = await port.LoadEntitiesAsync(kind, readable, ct);
                 var byId = loaded.ToDictionary(e => e.EntityId);
                 var sizeByFileId = loaded
                     .SelectMany(e => e.Files)
                     .ToDictionary(f => f.FileId, f => f.SizeBytes);
 
-                foreach (var id in chunk)
+                foreach (var id in readable)
                 {
                     ct.ThrowIfCancellationRequested();
 
@@ -149,10 +169,18 @@ public sealed partial class Renamer
     /// kind with no entities is skipped, so no empty batch header opens for it.
     /// </remarks>
     internal async Task RunRenamerLibraryJobAsync(
-        IReadOnlyList<RenamerFileKind> writableKinds, Cove.Plugins.IJobProgress progress,
-        CancellationToken ct, Func<string, long>? freeSpaceProbe = null)
+        CovePrincipal? caller, IReadOnlyList<RenamerFileKind> writableKinds,
+        Cove.Plugins.IJobProgress progress, CancellationToken ct, Func<string, long>? freeSpaceProbe = null)
     {
         var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+
+        // Held for the whole run, and deliberately not elevated: the decision reads the caller from
+        // its argument, not from the ambient principal. The calls are sequential from the page loop,
+        // never from a rename worker, so one instance serves the run.
+        await using var authzScope = ScopeFactory.CreateAsyncScope();
+        var authz = authzScope.ServiceProvider.GetRequiredService<IAuthorizationService>();
+        AllowedIds allowedIds = (kind, ids, token) => EntityAccessGuard.AllowedOnlyAsync(
+            authz, caller, kind, PermissionsFor(kind).Write, ids, token);
 
         var countByKind = new List<(RenamerFileKind Kind, int Count)>(writableKinds.Count);
         foreach (var kind in writableKinds.Where(options.IsKindEnabled))
@@ -193,8 +221,8 @@ public sealed partial class Renamer
             // one the host keeps: KindSliceProgress drops a kind's closing 1.0, so a kind that refused
             // would otherwise reach the user as nothing at all.
             string? shortfall = await RunRenamerKindAsync(
-                kind, count, budget, options, new KindSliceProgress(progress, planned, count, total), ct,
-                freeSpaceProbe);
+                kind, count, budget, options, allowedIds,
+                new KindSliceProgress(progress, planned, count, total), ct, freeSpaceProbe);
             if (shortfall is not null)
             {
                 refused.Add(kind);

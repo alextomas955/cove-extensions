@@ -35,6 +35,17 @@ internal sealed class LibraryDatabase : IAsyncDisposable
 
     public FakePrincipalAccessor Principals { get; } = new();
 
+    /// <summary>
+    /// The authorization decision the extension's job bodies consult; configure denials on it and read
+    /// back what was asked.
+    /// </summary>
+    /// <remarks>
+    /// Registered as one instance for the fixture, where the host registers the service scoped, so the
+    /// asks a run makes across its scopes are observable in one place. Nothing on these paths reads the
+    /// service's lifetime.
+    /// </remarks>
+    public RecordingAuthorizationService Authorization { get; } = new();
+
     /// <summary>One executed command: the principal in effect when it ran, and the statement itself.</summary>
     /// <param name="Principal">The principal kind at the command, or null when none was set.</param>
     /// <param name="Sql">
@@ -79,6 +90,7 @@ internal sealed class LibraryDatabase : IAsyncDisposable
     {
         var services = new ServiceCollection();
         services.AddSingleton<ICurrentPrincipalAccessor>(Principals);
+        services.AddSingleton<IAuthorizationService>(Authorization);
         services.AddScoped<DbContext>(_ => NewContext());
         services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
         services.AddLibraryPaths(libraryPaths);

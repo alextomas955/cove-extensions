@@ -92,7 +92,7 @@ public sealed class UndoEndpointTests
             bus.Published.Clear(); // drop the forward event; we assert only the undo event below.
 
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
-            var result = await ext.UndoAsync(principal, default);
+            var result = await ext.UndoAsync(principal, new RecordingAuthorizationService(), default);
 
             Assert.Equal(200, StatusOf(result));
             var undo = UndoValue(result);
@@ -120,7 +120,7 @@ public sealed class UndoEndpointTests
             Assert.NotEqual(fileId, evt.EntityId);
 
             // Batch consumed: a second undo is a no-op.
-            var second = await ext.UndoAsync(principal, default);
+            var second = await ext.UndoAsync(principal, new RecordingAuthorizationService(), default);
             var secondUndo = UndoValue(second);
             Assert.Equal(0, secondUndo.Undone);
             Assert.Empty(secondUndo.FailedSample);
@@ -163,7 +163,9 @@ public sealed class UndoEndpointTests
 
             // Undoing an image batch requires images.write (the batch header carries the kind) — not
             // videos.write. This proves the per-kind permission gate on the undo path.
-            var result = await ext.UndoAsync(FakePrincipalAccessor.WithPermissions(Permissions.ImagesWrite), default);
+            var result = await ext.UndoAsync(
+                FakePrincipalAccessor.WithPermissions(Permissions.ImagesWrite),
+                new RecordingAuthorizationService(), default);
             Assert.Equal(1, UndoValue(result).Undone);
 
             // The published event is ImageUpdated — proving the kind comes from the batch header,
@@ -220,7 +222,7 @@ public sealed class UndoEndpointTests
             // Undo while the original folder is gone → every entry is skipped, because a missing
             // original directory is never recreated, so undone == 0.
             Directory.Delete(srcDir.Root, recursive: true);
-            var skippedRun = UndoValue(await ext.UndoAsync(write, default));
+            var skippedRun = UndoValue(await ext.UndoAsync(write, new RecordingAuthorizationService(), default));
             Assert.Equal(0, skippedRun.Undone);
             Assert.Single(skippedRun.SkippedSample);
             Assert.Equal(1, skippedRun.SkippedCount);
@@ -233,7 +235,7 @@ public sealed class UndoEndpointTests
 
             // Put the original folder back, then retry: the recovery succeeds.
             Directory.CreateDirectory(srcDir.Root);
-            var retryRun = UndoValue(await ext.UndoAsync(write, default));
+            var retryRun = UndoValue(await ext.UndoAsync(write, new RecordingAuthorizationService(), default));
             Assert.Equal(1, retryRun.Undone);
             Assert.Empty(retryRun.SkippedSample);
             Assert.Equal(0, retryRun.SkippedCount);
@@ -260,7 +262,9 @@ public sealed class UndoEndpointTests
         {
             var (ext, _) = await BuildExtensionAsync(db, new CapturingEventBus());
 
-            var result = await ext.UndoAsync(FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), default);
+            var result = await ext.UndoAsync(
+                FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite),
+                new RecordingAuthorizationService(), default);
 
             Assert.Equal(200, StatusOf(result));
             var undo = UndoValue(result);
@@ -306,7 +310,8 @@ public sealed class UndoEndpointTests
             await db.SaveChangesAsync();
 
             var result = await ext.UndoAsync(
-                FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), default);
+                FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite),
+                new RecordingAuthorizationService(), default);
 
             Assert.Equal(200, StatusOf(result));
             var undo = UndoValue(result);
@@ -357,7 +362,9 @@ public sealed class UndoEndpointTests
             Assert.True(summary.WrittenAtUtcTicks > 0);
 
             // After an undo: the batch is consumed.
-            await ext.UndoAsync(FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), default);
+            await ext.UndoAsync(
+                FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite),
+                new RecordingAuthorizationService(), default);
             var consumed = LastBatchValue(await ext.LastBatchAsync(read, default));
             Assert.True(consumed.HasBatch);
             Assert.True(consumed.Consumed);
@@ -396,7 +403,7 @@ public sealed class UndoEndpointTests
             Assert.True(File.Exists(newFull));
 
             var textsOnly = FakePrincipalAccessor.WithPermissions(Permissions.TextsWrite);
-            var result = await ext.UndoAsync(textsOnly, default);
+            var result = await ext.UndoAsync(textsOnly, new RecordingAuthorizationService(), default);
 
             Assert.Equal(1, UndoValue(result).Undone);
             Assert.True(File.Exists(oldFull), "file restored to old path");

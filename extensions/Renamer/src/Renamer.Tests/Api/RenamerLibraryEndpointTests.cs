@@ -51,6 +51,7 @@ public sealed class RenamerLibraryEndpointTests
             return new CoveContext(options, principalAccessor: null);
         });
         services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+        services.AddSingleton<IAuthorizationService>(new RecordingAuthorizationService());
         if (libraryPaths is not null)
         {
             services.AddLibraryPaths(libraryPaths);
@@ -70,6 +71,10 @@ public sealed class RenamerLibraryEndpointTests
     }
 
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
+
+    /// <summary>The caller the enqueue would have snapshotted, holding exactly the given permissions.</summary>
+    private static CovePrincipal Caller(params string[] permissions)
+        => FakePrincipalAccessor.WithPermissions(permissions).Current!;
 
     /// <summary>
     /// Seeds one video and one image — each in its own folder, since <c>Folder.Path</c> is
@@ -144,7 +149,9 @@ public sealed class RenamerLibraryEndpointTests
             var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
+            await ext.RunRenamerLibraryJobAsync(
+                Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
+                [RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
 
             // Both kinds actually renamed on disk.
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "Film.mkv")));
@@ -200,7 +207,9 @@ public sealed class RenamerLibraryEndpointTests
             var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
+            await ext.RunRenamerLibraryJobAsync(
+                Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
+                [RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
 
             var percents = progress.Reports.Select(r => r.Percent).ToList();
             Assert.NotEmpty(percents);
@@ -264,6 +273,7 @@ public sealed class RenamerLibraryEndpointTests
 
             // The destination volume reports no room, so the video move is refused before any copy.
             await ext.RunRenamerLibraryJobAsync(
+                Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
                 [RenamerFileKind.Video, RenamerFileKind.Image], progress, default, _ => 0L);
 
             string final = progress.Reports[^1].Message ?? string.Empty;
@@ -295,7 +305,9 @@ public sealed class RenamerLibraryEndpointTests
             // Caller only holds videos.write + images.write (no audios.write) and there are zero
             // image candidates in the DB — both the permission filter and the empty-candidate skip
             // land on a kind that opens no batch.
-            await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
+            await ext.RunRenamerLibraryJobAsync(
+                Caller(Permissions.VideosWrite, Permissions.ImagesWrite),
+                [RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
 
             // Only Video opened a batch — Image had zero candidates, so RunRenamerBatchAsync was never
             // called for it and no empty batch opened.
@@ -324,7 +336,8 @@ public sealed class RenamerLibraryEndpointTests
             var progress = new FakeJobProgress();
 
             // Caller's captured writable set holds only Video (images.write was missing at enqueue time).
-            await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video], progress, default);
+            await ext.RunRenamerLibraryJobAsync(
+                Caller(Permissions.VideosWrite), [RenamerFileKind.Video], progress, default);
 
             // Video renamed.
             var (videoBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId);
