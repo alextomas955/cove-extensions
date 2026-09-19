@@ -206,7 +206,10 @@ calling principal. A rename of selected entities authorizes every requested id b
 anything, and one id the caller cannot write refuses the whole request with a `403` that names no ids.
 The whole-library scan and rename derive their own candidates inside a detached job, so they carry a
 copy of the caller's principal into it and skip the entities that caller cannot reach. A skip is never
-fatal to the run, which is the same rule the per-kind narrowing already follows.
+fatal to the run, which is the same rule the per-kind narrowing already follows. `/undo` authorizes
+every entity the recorded operation would restore, a journal page at a time, before it moves anything,
+and one denied entity refuses the whole undo. Undo is all-or-nothing where a job skips, because one
+user action half reversed has no coherent outcome to report.
 
 The detached jobs still run their database work as System, because a detached body carries no principal
 and Cove treats an absent principal as unfiltered exactly as it treats System. The elevation is what
