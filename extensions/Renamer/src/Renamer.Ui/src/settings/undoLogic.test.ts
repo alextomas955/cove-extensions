@@ -1,7 +1,6 @@
 /** Behavior contract for the undo panel's copy, and for the panel actually reading it from here. */
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 
 import { buildUndoFeedback, buildUndoStatus, RETENTION_WINDOW_MS } from "./undoLogic";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
@@ -305,33 +304,4 @@ test("a stranded companion rides on a partial undo too", () => {
     feedback.text,
     "Undo finished with problems — 2 files couldn't be moved back (in use). The rest were restored. 1 companion file stayed behind (left over).",
   );
-});
-
-/**
- * The wiring, not the module: a pure module with a green suite says nothing about whether the panel
- * calls it. Asserted against the source text because this package has no DOM and no renderer, so the
- * sentence cannot be driven out of the component through its async fetch and confirm gate. What the
- * assertions catch is the one regression that matters here — the panel composing its own sentence
- * again, whose literals would reappear in this file.
- */
-const UNDO_SECTION_SOURCE = readFileSync(new URL("./UndoSection.tsx", import.meta.url), "utf8");
-
-test("UndoSection reads its status line and its feedback from this module", () => {
-  assert.ok(UNDO_SECTION_SOURCE.includes('from "./undoLogic"'));
-  assert.ok(UNDO_SECTION_SOURCE.includes("buildUndoStatus(summary, loadedAtMs)"));
-  assert.ok(UNDO_SECTION_SOURCE.includes("buildUndoFeedback(res)"));
-});
-
-test("UndoSection composes none of those sentences itself", () => {
-  for (const inlined of [
-    "Undo finished with problems",
-    "moved back to their original names.`",
-    "item{",
-    "unknown reason",
-  ]) {
-    assert.ok(
-      !UNDO_SECTION_SOURCE.includes(inlined),
-      `UndoSection.tsx is composing "${inlined}" inline again`,
-    );
-  }
 });

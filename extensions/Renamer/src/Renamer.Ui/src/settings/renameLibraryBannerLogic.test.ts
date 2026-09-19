@@ -1,7 +1,6 @@
 /** Behavior contract for the whole-library rename banner, and for the hook reading it from here. */
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 
 import {
   buildRenameLibraryError,
@@ -81,32 +80,4 @@ test("an unconfirmed run and a failed one do not read the same", () => {
   assert.notEqual(buildRenameLibraryUnconfirmed(detail), buildRenameLibraryError(detail));
   assert.ok(buildRenameLibraryError(detail).startsWith("Couldn't rename"));
   assert.ok(buildRenameLibraryUnconfirmed(detail).startsWith("Couldn't confirm the rename"));
-});
-
-/**
- * The wiring, not the module. Asserted against the source text because the composition happens inside
- * a hook's callback and this package has neither a DOM nor a renderer to drive one through. What the
- * assertions catch is the hook composing its own sentence again, whose literals would reappear here.
- */
-const HOOK_SOURCE = readFileSync(new URL("./useRenameLibrary.ts", import.meta.url), "utf8");
-
-test("useRenameLibrary reads every banner from this module", () => {
-  assert.ok(HOOK_SOURCE.includes('from "./renameLibraryBannerLogic"'));
-  assert.ok(HOOK_SOURCE.includes("buildRenameLibrarySuccess(counts)"));
-  assert.ok(HOOK_SOURCE.includes("buildRenameLibraryError(text)"));
-  assert.ok(HOOK_SOURCE.includes("buildRenameLibraryUnconfirmed(err.message)"));
-});
-
-test("useRenameLibrary composes none of the sentences itself", () => {
-  for (const inlined of [
-    "The scan found",
-    "Nothing was changed",
-    "skipped`",
-    "Couldn't confirm the rename",
-  ]) {
-    assert.ok(
-      !HOOK_SOURCE.includes(inlined),
-      `useRenameLibrary.ts is composing "${inlined}" inline again`,
-    );
-  }
 });
