@@ -288,10 +288,7 @@ export class RenamerSettingsPage {
     await this.undoLastRenameButton.click();
     await this.undoConfirmButton.waitFor({ state: "visible", timeout: 5_000 });
     await this.undoConfirmButton.click();
-    // The undo mutation completes asynchronously after this click resolves (the same
-    // read-after-write gap poll.mjs's pollUntil exists for elsewhere) — give it a moment to land
-    // server-side before a caller starts polling for the restored filename, or the first few polls
-    // just burn their interval against a not-yet-mutated backend.
-    await this.page.waitForTimeout(1000);
+    // The undo mutation lands after this click resolves. That read-after-write gap is absorbed by
+    // the caller's pollUntil, not here.
   }
 }

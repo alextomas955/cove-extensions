@@ -79,10 +79,10 @@ test("enabling Auto-rename on update and editing a title through the UI renames 
   expect(afterEdit.title).toBe(title);
 
   // And the grid reflects it too, same as a real user would see without refreshing anything special.
+  // The grid's contents arrive from a client-side fetch after navigation, so readiness is the
+  // assertion's own retry rather than anything waited for beforehand.
   await page.goto(`${baseUrl}/videos`);
-  await page.waitForLoadState("networkidle");
-  const filenames = await page.locator("main p").allTextContents();
-  expect(filenames).toContain(title);
+  await expect(page.locator("main p")).toContainText([title]);
 });
 
 test("with Auto-rename on update left OFF (the default), editing a title does not rename the file", async ({
