@@ -200,6 +200,18 @@ permission is enough, and neither can disclose what the library holds. `/undo` s
 coarse gate so an unauthorized caller cannot learn whether a batch exists, then re-checks the write
 permission of the kind the batch turns out to name, before it touches disk.
 
+Holding a kind's permission is not access to every entity of that kind. Cove scopes entities per role,
+for writes as well as reads, so the permission check above is followed by a per-entity one against the
+calling principal. A rename of selected entities authorizes every requested id before it enqueues
+anything, and one id the caller cannot write refuses the whole request with a `403` that names no ids.
+The whole-library scan and rename derive their own candidates inside a detached job, so they carry a
+copy of the caller's principal into it and skip the entities that caller cannot reach. A skip is never
+fatal to the run, which is the same rule the per-kind narrowing already follows.
+
+The detached jobs still run their database work as System, because a detached body carries no principal
+and Cove treats an absent principal as unfiltered exactly as it treats System. The elevation is what
+makes the reads return rows; the per-entity check is what keeps them the caller's rows.
+
 Three surfaces reach different numbers of kinds, and the difference is deliberate:
 
 | Surface                               | Kinds                     | Where               |
