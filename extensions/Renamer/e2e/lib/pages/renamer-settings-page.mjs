@@ -251,8 +251,26 @@ export class RenamerSettingsPage {
   }
 
   async save() {
+    // The panel draws its save bar only while it holds unsaved edits, so the button is absent rather
+    // than disabled when there is nothing to save. Waiting for it here bounds that case: a click
+    // alone takes no timeout of its own and would spend the whole test on a control that is never
+    // coming.
+    await this.saveChangesButton.waitFor({ state: "visible", timeout: 10_000 });
     await this.saveChangesButton.click();
     await this.unsavedChangesIndicator.waitFor({ state: "hidden", timeout: 10_000 });
+  }
+
+  /**
+   * Leaves the panel holding {@link template}, saved.
+   *
+   * Reads the field before editing it because the settings are per-instance and a worker's instance
+   * is shared: a sibling spec may already have saved this value, and re-entering it produces no edit,
+   * no save bar and nothing to save.
+   */
+  async ensureFilenameTemplate(template) {
+    if ((await this.filenameTemplateInput.inputValue()) === template) return;
+    await this.setFilenameTemplate(template);
+    await this.save();
   }
 
   /** Opens the Dry run modal and waits for its dialog shell to mount (the scan runs inside it). */
@@ -288,10 +306,7 @@ export class RenamerSettingsPage {
     await this.undoLastRenameButton.click();
     await this.undoConfirmButton.waitFor({ state: "visible", timeout: 5_000 });
     await this.undoConfirmButton.click();
-    // The undo mutation completes asynchronously after this click resolves (the same
-    // read-after-write gap poll.mjs's pollUntil exists for elsewhere) — give it a moment to land
-    // server-side before a caller starts polling for the restored filename, or the first few polls
-    // just burn their interval against a not-yet-mutated backend.
-    await this.page.waitForTimeout(1000);
+    // The undo mutation lands after this click resolves. That read-after-write gap is absorbed by
+    // the caller's pollUntil, not here.
   }
 }

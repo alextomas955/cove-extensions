@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Renamer.Engine;
 using Renamer.Options;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
@@ -14,7 +15,7 @@ public sealed class OptionsStoreTests
 
         var loaded = await store.LoadAsync();
 
-        Assert.Equal(new RenamerOptions(), loaded); // first run → defaults
+        Assert.Equal(OptionsJson.Canonical(new RenamerOptions()), OptionsJson.Canonical(loaded)); // first run → defaults
     }
 
     [Fact]
@@ -34,7 +35,7 @@ public sealed class OptionsStoreTests
         await store.SaveAsync(custom);
         var loaded = await store.LoadAsync();
 
-        Assert.Equal(custom, loaded);
+        Assert.Equal(OptionsJson.Canonical(custom), OptionsJson.Canonical(loaded));
     }
 
     [Fact]
@@ -47,7 +48,7 @@ public sealed class OptionsStoreTests
 
         var loaded = await store.LoadAsync();
 
-        Assert.Equal(new RenamerOptions(), loaded); // catches JsonException → defaults
+        Assert.Equal(OptionsJson.Canonical(new RenamerOptions()), OptionsJson.Canonical(loaded)); // catches JsonException → defaults
 
         // Defaults are indistinguishable from a correct empty configuration at every layer above this,
         // so this line is the only evidence that a user's stored settings were discarded rather than

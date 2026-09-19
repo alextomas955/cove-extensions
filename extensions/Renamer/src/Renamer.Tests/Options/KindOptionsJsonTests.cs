@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Renamer.Options;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
@@ -54,7 +55,7 @@ public sealed class KindOptionsJsonTests
         var json = JsonSerializer.Serialize(options, RenamerOptions.JsonOptions);
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(options, reloaded);
+        Assert.Equal(OptionsJson.Canonical(options), OptionsJson.Canonical(reloaded));
         Assert.False(reloaded!.IsKindEnabled(RenamerFileKind.Text));
         Assert.True(reloaded.IsKindEnabled(RenamerFileKind.Video));
         Assert.True(reloaded.IsKindEnabled(RenamerFileKind.Image));
