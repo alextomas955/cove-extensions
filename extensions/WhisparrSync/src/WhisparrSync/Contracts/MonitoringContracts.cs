@@ -4,11 +4,7 @@ using Cove.Extensions.Shared;
 namespace WhisparrSync.Contracts;
 
 /// <summary>How much of an entity's catalogue a monitor covers.</summary>
-/// <remarks>
-/// Whisparr's own two names, spelled the same way on both generations. The wire spelling is declared
-/// HERE, on the type. An equivalent converter in a serializer options collection would outrank this
-/// one rather than duplicate it, so a second declaration could drift and win in silence.
-/// </remarks>
+/// <remarks>Whisparr's own two names, spelled the same way on both generations.</remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum MonitorScope
 {
@@ -22,8 +18,7 @@ public enum MonitorScope
 /// <summary>Which kind of entity a monitor names.</summary>
 /// <remarks>
 /// The two generations address these kinds in namespaces neither shares with the other, so the kind
-/// is carried beside an identifier rather than read out of one. The wire spelling is declared on the
-/// type.
+/// is carried beside an identifier rather than read out of one.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum WhisparrEntityKind
@@ -36,9 +31,9 @@ public enum WhisparrEntityKind
 /// <summary>What a caller may say when it asks for an entity to be monitored.</summary>
 /// <remarks>
 /// A scope and nothing else. There is no identifier member of any kind, so which entity the outbound
-/// request touches is not expressible in the request at all rather than being a value a validation
-/// step has to refuse: the route names the Cove entity, and the identifier the instance is given is
-/// read from the stored identity row on the server.
+/// request touches is not expressible in the request rather than being a value a validation step has
+/// to refuse: the route names the Cove entity, and the identifier the instance is given is read from
+/// the stored identity row on the server.
 /// </remarks>
 /// <param name="Scope">
 /// How much of the entity's catalogue to cover, or null to take the product's own default. An
@@ -47,11 +42,6 @@ public enum WhisparrEntityKind
 public sealed record MonitorEntityRequest(MonitorScope? Scope);
 
 /// <summary>Why nothing was linked.</summary>
-/// <remarks>
-/// A wire type, because the sentence a user reads is chosen in the browser from the kind answered
-/// here. The converter is on the TYPE: an options-level one outranks a type attribute, so a second
-/// declaration could drift and win in silence.
-/// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum ReflectOwnedSkipReason
 {
@@ -72,9 +62,6 @@ public enum ReflectOwnedSkipReason
 /// instance is told is read on the server from the library's own rows.
 /// </para>
 /// </remarks>
-/// <param name="Skipped">Why nothing was asked for, or null when something was.</param>
-/// <param name="JobId">The run this extension's own status route answers about, or null.</param>
-/// <param name="Refusal">Why nothing could be started, or that something was.</param>
 public sealed record ReflectOwnedEnqueued(
     ReflectOwnedSkipReason? Skipped, string? JobId, MonitorRefusalKind Refusal);
 
@@ -85,16 +72,13 @@ public sealed record ReflectOwnedEnqueued(
 /// <para>
 /// The request has no body at all, so it carries no identifier member for the same reason
 /// <see cref="MonitorEntityRequest"/> does not: the route names the Cove entity, and every
-/// identifier the instance is given - the entity's and each scene's - is read on the server from the
-/// library's own rows.
+/// identifier the instance is given is read on the server from the library's own rows.
 /// </para>
 /// <para>
 /// It carries no count either. What the run did is a line in the host's job list, and a count here
 /// would be a number read before the run had offered anything.
 /// </para>
 /// </remarks>
-/// <param name="JobId">The run this extension's own status route answers about, or null.</param>
-/// <param name="Refusal">Why nothing could be started, or that something was.</param>
 public sealed record AddAllMissingEnqueued(string? JobId, MonitorRefusalKind Refusal);
 
 /// <summary>Which verb one bulk gesture carries.</summary>
@@ -126,31 +110,23 @@ public enum MonitorBulkVerb
 /// <summary>What a caller may say when it asks for a whole selection to be acted on.</summary>
 /// <remarks>
 /// The ids are Cove's own and nothing else identifying is expressible. Which entity each one names
-/// on the instance is read from its stored identity row inside the batch, so the same rule holds
-/// here as on the single-entity routes: an identifier a caller put in the body reaches nothing.
+/// on the instance is read from its stored identity row inside the batch, so an identifier a caller
+/// put in the body reaches nothing.
 /// <para>
 /// Every member is nullable, the verb included. A non-nullable verb binds a body that names none to
-/// the first member declared, which would make a selection acted on under a verb nobody named.
+/// the first member declared, which would make a selection acted on under a verb nobody named. Null
+/// <c>Verb</c> is a refusal rather than a default: the verb decides what the request is.
+/// </para>
+/// <para>
+/// <c>EntityType</c> arrives in the spelling the host's selection bar passed. The bar normalizes
+/// only the two media plurals, so studios and performers arrive plural and are matched as they
+/// arrive. <c>Scope</c> is null where the verb expresses no scope.
 /// </para>
 /// </remarks>
-/// <param name="EntityType">
-/// The type the host's selection bar passed, in the spelling it passed it. The bar normalizes only
-/// the two media plurals, so studios and performers arrive plural and are matched as they arrive.
-/// </param>
-/// <param name="Verb">
-/// Which gesture to carry out for every selected entity. Null is a refusal rather than a default:
-/// the verb decides what the request is, so there is nothing for an unnamed one to fall back to.
-/// </param>
-/// <param name="Scope">
-/// How much of each entity's catalogue to cover, or null where the verb expresses no scope.
-/// </param>
-/// <param name="EntityIds">The Cove ids selected.</param>
 public sealed record MonitorBulkRequest(
     string? EntityType, MonitorBulkVerb? Verb, MonitorScope? Scope, int[]? EntityIds);
 
 /// <summary>What one selected entity's turn in a batch produced.</summary>
-/// <param name="CoveId">The Cove entity this outcome is about.</param>
-/// <param name="Refusal">Why it could not be done for this entity, or that it was done.</param>
 public sealed record MonitorBulkOutcome(int CoveId, MonitorRefusalKind Refusal);
 
 /// <summary>How one batch ended.</summary>
@@ -172,12 +148,10 @@ public enum MonitorBulkOutcomeKind
 /// The order is the supplied one and is never grouped or sorted: a reader matches this list against
 /// the selection they made, and a list ordered by outcome cannot be matched against anything.
 /// <para>
-/// It carries one entry per DISTINCT id, so its length is bounded by the selection, which the route
+/// It carries one entry per distinct id, so its length is bounded by the selection, which the route
 /// caps before any of this runs.
 /// </para>
 /// </remarks>
-/// <param name="Outcome">How the batch ended.</param>
-/// <param name="Outcomes">One entry per distinct selected entity, in the supplied order.</param>
 public sealed record MonitorBulkRun(
     MonitorBulkOutcomeKind Outcome, IReadOnlyList<MonitorBulkOutcome> Outcomes)
 {
@@ -199,9 +173,9 @@ public sealed record MonitorBulkRun(
 /// One value per reason, never collapsed into a generic failure: each sends the user somewhere
 /// different, and several are indistinguishable under the wrong test.
 /// <para>
-/// The backend answers with a KIND. The sentence a user reads is a frontend constant, so nothing an
-/// instance said can reach the copy. That matters more here than elsewhere: this generation answers a
-/// refused add with a body carrying a full stack trace.
+/// The backend answers with a kind, and the sentence a user reads is a frontend constant, so nothing
+/// an instance said can reach the copy. That matters more here than elsewhere: this generation
+/// answers a refused add with a body carrying a full stack trace.
 /// </para>
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
@@ -219,9 +193,8 @@ public enum MonitorRefusalKind
     /// </summary>
     /// <remarks>
     /// One kind whether the library holds no link at all or holds one only in the other generation's
-    /// namespace. The two are the same fact from the reader's side, because the namespace that counts
-    /// is whichever the connected instance identifies entities in, and the sentence names the
-    /// connected instance rather than a provider.
+    /// namespace. The namespace that counts is whichever the connected instance identifies entities
+    /// in, and the sentence names the connected instance rather than a provider.
     /// </remarks>
     NoIdentityInThisNamespace,
 
@@ -230,10 +203,10 @@ public enum MonitorRefusalKind
     /// which one names it is undecided.
     /// </summary>
     /// <remarks>
-    /// A refusal rather than a first-row pick. The rows are matched by the host's own
-    /// same-source rule, which treats two spellings of one provider as one source, so an entity can
-    /// hold two matching rows carrying two different identifiers. Taking whichever came first would
-    /// aim this extension's stored credential at whichever entity the row order happened to name.
+    /// A refusal rather than a first-row pick. The rows are matched by the host's own same-source
+    /// rule, which treats two spellings of one provider as one source, so an entity can hold two
+    /// matching rows carrying two different identifiers. Taking whichever came first would aim this
+    /// extension's stored credential at whichever entity the row order happened to name.
     /// </remarks>
     SeveralIdentitiesInThisNamespace,
 
@@ -252,9 +225,8 @@ public enum MonitorRefusalKind
     /// </summary>
     /// <remarks>
     /// Distinct from <see cref="NoRootFolder"/>, which is the instance offering no root at all. Here
-    /// the instance's own root list is not what is wrong: a reader sent to check it would find
-    /// nothing to fix. What is unsettled is which of those roots holds this entity's files, which is
-    /// a folder mapping rather than a Whisparr setting.
+    /// what is unsettled is which of those roots holds this entity's files, which is a folder mapping
+    /// rather than a Whisparr setting.
     /// </remarks>
     NoAgreedRootForThisEntity,
 
@@ -263,27 +235,25 @@ public enum MonitorRefusalKind
 
     /// <summary>The instance answered, and the answer was larger than this product will read.</summary>
     /// <remarks>
-    /// Distinct from <see cref="InstanceRefused"/> because the instance did nothing wrong: the limit
-    /// is this product's own, so a reader sent to look at the instance would find it answering
-    /// correctly.
+    /// Distinct from <see cref="InstanceRefused"/> because the limit is this product's own, so a
+    /// reader sent to look at the instance would find it answering correctly.
     /// </remarks>
     AnswerTooLargeToRead,
 
     /// <summary>The instance answered, and does not hold the entity.</summary>
     /// <remarks>
     /// Distinct from <see cref="InstanceRefused"/> because the instance declined nothing: it reported
-    /// an absence, which is a different thing for a reader to act on. Only a read taken BEFORE
-    /// anything was sent can state it; a read taken after an accepted write reports the change not
-    /// arriving rather than an absence.
+    /// an absence. Only a read taken before anything was sent can state it; a read taken after an
+    /// accepted write reports the change not arriving rather than an absence.
     /// </remarks>
     InstanceHoldsNoSuchEntity,
 
     /// <summary>The change was accepted, and the read taken straight after it does not report it.</summary>
     /// <remarks>
     /// Its own kind because it is the one refusal reached only after a write left. Every other kind
-    /// can say nothing was changed; this one cannot, so it must not borrow a sentence that does. What
-    /// the instance now holds is unknown here rather than unchanged, whether the read found no entity,
-    /// found one it does not monitor, or could not be classified at all.
+    /// can say nothing was changed; this one cannot. What the instance now holds is unknown here
+    /// rather than unchanged, whether the read found no entity, found one it does not monitor, or
+    /// could not be classified at all.
     /// </remarks>
     InstanceDidNotReportTheChange,
 }
@@ -296,33 +266,14 @@ public enum MonitorRefusalKind
 /// It carries no count of any sort. A freshly added entity reports a catalogue of zero before any
 /// refresh has run, so a count here would be a confident zero this product cannot support.
 /// </para>
+/// <para>
+/// <c>Present</c> null is distinct from false: false says the instance was asked and holds nothing,
+/// and null says nothing was established. <c>Scope</c> null is distinct from any particular scope:
+/// it says the answer this read carried named none, so the browser must mark no scope at all rather
+/// than fall back to a default. <c>Capabilities</c> is what the browser reads its menu from, rather
+/// than a generation table of its own, so a capability that is absent is refused in one place.
+/// </para>
 /// </remarks>
-/// <param name="Kind">Which kind of entity this is about.</param>
-/// <param name="Generation">The connected generation, or null when none is configured.</param>
-/// <param name="Present">
-/// Whether the connected instance holds an entry for this entity at all, or null where the answer
-/// this read carried established neither.
-/// <para>
-/// Null is DISTINCT from false, in the way <paramref name="Scope"/>'s null is distinct from a scope:
-/// false says the instance was asked and holds nothing, and null says nothing was established. A
-/// reader that collapsed the two would report an entity the instance has never heard of and one
-/// nothing could be read about as the same fact.
-/// </para>
-/// </param>
-/// <param name="Monitored">Whether the connected instance monitors this entity.</param>
-/// <param name="Refusal">Why the last thing asked for could not be done, or that it was done.</param>
-/// <param name="Capabilities">
-/// What the connected generation can do. The browser reads its menu from this rather than from a
-/// generation table of its own, so a capability that is absent is refused in one place.
-/// </param>
-/// <param name="Scope">
-/// Which scope the entity is monitored at, or null where the product does not know.
-/// <para>
-/// Null is DISTINCT from any particular scope: it says the answer this read carried named none, so
-/// the browser must mark no scope at all rather than fall back to a default. It carries no date and
-/// no part of any response body, only a classified value.
-/// </para>
-/// </param>
 public sealed record EntityMonitoringView(
     WhisparrEntityKind Kind,
     WhisparrGeneration? Generation,
@@ -346,12 +297,9 @@ public sealed record EntityMonitoringView(
 
     /// <summary>The entity's state as the instance reports it.</summary>
     /// <remarks>
-    /// <paramref name="scope"/> has no default. A defaulted one would let a call site that never
-    /// decided the question answer a scope the instance did not report.
-    /// <para>
-    /// <paramref name="present"/> has none either, and for the same reason: a call site defaulting
-    /// it would answer that the instance holds the entity on the strength of nothing.
-    /// </para>
+    /// <paramref name="scope"/> and <paramref name="present"/> have no defaults. A call site that
+    /// never decided either question would otherwise answer a scope the instance did not report, or
+    /// answer that the instance holds the entity on the strength of nothing.
     /// </remarks>
     public static EntityMonitoringView State(
         WhisparrEntityKind kind,

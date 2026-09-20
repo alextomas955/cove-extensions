@@ -5,61 +5,31 @@ using WhisparrSync.Contracts;
 
 namespace WhisparrSync.Import;
 
-/// <summary>How one history record was classified before anything acted on it.</summary>
 internal enum HistoryProjectionOutcome
 {
-    /// <summary>The record named an import and a readable path, and produced a candidate.</summary>
     Projected,
 
-    /// <summary>The record named an event this product does not act on.</summary>
     Ignored,
 
-    /// <summary>The record named an import and no path this product could read.</summary>
     NoReadablePath,
 }
 
-/// <summary>What one history record was read as.</summary>
-/// <param name="Outcome">How the record was classified.</param>
-/// <param name="EventType">The event type the record named, or null when it named none.</param>
-/// <param name="Candidate">
-/// The file the record reports, present only on <see cref="HistoryProjectionOutcome.Projected"/>.
-/// </param>
 internal sealed record HistoryReading(
     HistoryProjectionOutcome Outcome, string? EventType, ImportCandidate? Candidate);
 
-/// <summary>
-/// Reads a page of import history into the one candidate type the ingest core takes.
-/// </summary>
-/// <remarks>
-/// Pure. Every member is read defensively off a <see cref="JsonObject"/> and a member that is absent
-/// or of another type reads as absent: one generation publishes no contract, so an answer's shape is
-/// established by parsing it rather than by binding it to a record.
-/// <para>
-/// The history surface spells its event types in camelCase where the webhook surface spells the same
-/// events in PascalCase. The two vocabularies are separate, and this one is named here rather than
-/// shared with the webhook's.
-/// </para>
-/// </remarks>
+// Pure. Every member is read defensively off the JSON and an absent member, or one of another type,
+// reads as absent: one generation publishes no contract, so the shape comes from parsing.
+// The history surface spells event types in camelCase where the webhook surface spells the same
+// events in PascalCase. The two vocabularies are separate.
 internal static class HistoryProjector
 {
-    /// <summary>
-    /// The event type this product acts on, in the spelling the history route renders.
-    /// </summary>
-    /// <remarks>
-    /// Transcribed by hand from an instance's own history answer. The webhook surface calls the same
-    /// event <c>Download</c>.
-    /// </remarks>
+    // The history route's spelling. The webhook surface calls the same event Download.
     internal const string ImportedEventType = "downloadFolderImported";
 
-    /// <summary>The member of the paged envelope carrying the records.</summary>
     private const string RecordsMember = "records";
 
-    /// <summary>The records one paged answer carries, or null when the answer was not one.</summary>
-    /// <remarks>
-    /// A body that is not an object carrying an array under its records member yields null, which the
-    /// caller refuses on rather than reading as an empty page: an empty page ends a walk, and an
-    /// answer nobody could read is not an end.
-    /// </remarks>
+    // Null when the body is not a paged answer. The caller refuses on that rather than reading it
+    // as an empty page, because an empty page ends a walk.
     internal static JsonArray? RecordsIn(string body)
     {
         JsonNode? parsed;
@@ -75,18 +45,9 @@ internal static class HistoryProjector
         return (parsed as JsonObject)?[RecordsMember] as JsonArray;
     }
 
-    /// <summary>
-    /// Each record's instant, in the order the page listed them, or null when one has none readable.
-    /// </summary>
-    /// <remarks>
-    /// A page carrying a record whose instant cannot be read is refused whole: a walk that stops at a
-    /// stored instant cannot place a record it cannot date, and guessing its position is how a walk
-    /// stops early or replays.
-    /// <para>
-    /// The list is one page long, which the caller fixes, so it is bounded however much history the
-    /// walk goes on to read.
-    /// </para>
-    /// </remarks>
+    // Each record's instant in page order, or null when one cannot be read. A page with an undated
+    // record is refused whole: a walk that stops at a stored instant cannot place it, and guessing
+    // its position makes the walk stop early or replay. The list is one page long.
     internal static IReadOnlyList<DateTimeOffset>? InstantsIn(JsonArray records)
     {
         ArgumentNullException.ThrowIfNull(records);
@@ -105,22 +66,10 @@ internal static class HistoryProjector
         return instants;
     }
 
-    /// <summary>
-    /// Each record's identifier as the page rendered it, in order, or null when one carries none.
-    /// </summary>
-    /// <remarks>
-    /// Read as text: the walk only ever compares one identifier against another, and the type an
-    /// instance renders it as is not something this product is told.
-    /// <para>
-    /// A page carrying a record with no identifier yields null, which places that page by its instants
-    /// instead. An absent identifier is not a refusal - the page is still readable, only not placeable
-    /// against the page before it.
-    /// </para>
-    /// <para>
-    /// The list is one page long, which the caller fixes, so it is bounded however much history the
-    /// walk goes on to read.
-    /// </para>
-    /// </remarks>
+    // Each record's identifier in page order, read as text because the walk only compares one
+    // against another and the rendered type is not documented. Null when a record carries none,
+    // which places that page by its instants instead; an absent identifier is not a refusal. The
+    // list is one page long.
     internal static IReadOnlyList<string>? IdsIn(JsonArray records)
     {
         ArgumentNullException.ThrowIfNull(records);
@@ -139,7 +88,6 @@ internal static class HistoryProjector
         return ids;
     }
 
-    /// <summary>What <paramref name="record"/> reports, read as <paramref name="generation"/> renders it.</summary>
     internal static HistoryReading Read(WhisparrGeneration generation, JsonObject? record)
     {
         if (record is null || ValueOf(record, "eventType") is not { } eventType)
@@ -157,27 +105,17 @@ internal static class HistoryProjector
             return new HistoryReading(HistoryProjectionOutcome.NoReadablePath, eventType, null);
         }
 
-        // No size. A history record has never been shown to carry one, and a member read on the
-        // strength of a guess reads as absent whether or not the guess was right.
+        // No size: a history record has not been shown to carry one, and a guessed member name
+        // reads as absent either way.
         return new HistoryReading(
             HistoryProjectionOutcome.Projected,
             eventType,
             new ImportCandidate(generation, eventType, path, null, RemoteIdOf(generation, record)));
     }
 
-    /// <summary>
-    /// The shared remote identifier the record's own metadata entity declares, or null when the
-    /// answer embedded none.
-    /// </summary>
-    /// <remarks>
-    /// Each lineage names its own entity and its own identifier member, and identifies against its
-    /// own metadata source. Both are what the live channel reads for that same lineage, which is what
-    /// makes an arrival through either channel the same scene.
-    /// <para>
-    /// The entity is embedded only where the read asked its lineage for it, so a record carrying none
-    /// yields no identifier and is imported as one carrying none always has been.
-    /// </para>
-    /// </remarks>
+    // Each generation names its own entity and identifier member, matching what the live channel
+    // reads for that generation, so an arrival through either channel is the same scene. A record
+    // with no embedded entity yields no identifier and is imported without one.
     private static string? RemoteIdOf(WhisparrGeneration generation, JsonObject record)
         => generation switch
         {
@@ -189,7 +127,6 @@ internal static class HistoryProjector
     private static string? IdentifierOn(JsonObject record, string entity, string member)
         => RemoteIdGuard.Identifying(ValueOf(record[entity] as JsonObject, member));
 
-    /// <summary>When <paramref name="record"/> says it happened, or null when it does not say.</summary>
     private static DateTimeOffset? InstantOf(JsonObject? record)
         => ValueOf(record, "date") is { } rendered
             && DateTimeOffset.TryParse(

@@ -5,14 +5,10 @@ namespace WhisparrSync.Contracts;
 
 /// <summary>Whether this product's callback is registered on the connected instance.</summary>
 /// <remarks>
-/// Three values, not a boolean. The third exists so that selecting the other generation never carries
-/// the first instance's answer across, and it is never stored or rendered as
-/// <see cref="NotRegistered"/> — "we have not looked" and "it is not there" send a user somewhere
-/// different.
-/// <para>
-/// The wire spelling is declared on the type. An equivalent converter in a serializer options
-/// collection would outrank this one rather than duplicate it.
-/// </para>
+/// Three values, not a boolean. <see cref="NotCheckedYet"/> is never stored or rendered as
+/// <see cref="NotRegistered"/>: "we have not looked" and "it is not there" send a user somewhere
+/// different. Selecting the other generation resets to <see cref="NotCheckedYet"/> rather than
+/// carrying the first instance's answer across.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum RegistrationStatus
@@ -30,8 +26,7 @@ public enum RegistrationStatus
 /// <summary>Where an inbound callback carried the secret it presented.</summary>
 /// <remarks>
 /// The two positions have different confidentiality: an address is written to the access log of every
-/// proxy and load balancer on the delivery path, and a header is not. The wire spelling is declared on
-/// the type.
+/// proxy and load balancer on the delivery path, and a header is not.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum CallbackSecretPosition
@@ -45,34 +40,19 @@ public enum CallbackSecretPosition
 
 /// <summary>The import callback, as the settings page reads it.</summary>
 /// <remarks>
-/// Two address forms, deliberately different. The copyable one carries the secret because a pasted
-/// address has nowhere else to put it; the registered one does not, because the secret travels out of
-/// band wherever the connected generation can carry it.
+/// The two address forms differ on purpose. <c>CopyableAddress</c> carries the secret because a
+/// pasted address has nowhere else to put it. <c>RegisteredAddress</c> does not, because the secret
+/// travels out of band wherever the connected generation can carry it;
+/// <c>SecretTravelsOutOfBand</c> false is a generation gap and means the registered address has to
+/// carry the secret itself.
+/// <para>
+/// <c>LastEventSecretPosition</c> is null when no callback has arrived, which is the "registered, no
+/// events received yet" tell. <c>MissingSetting</c> names the connection setting that was empty when
+/// a registration could not be attempted, and is null on any other answer. <c>Refusal</c> is present
+/// only after a registration whose read-back did not find the address that was sent, so it reports
+/// what the notification now says rather than what the write answered.
+/// </para>
 /// </remarks>
-/// <param name="Generation">The generation these values describe.</param>
-/// <param name="Status">Whether the callback is registered, as of the last check.</param>
-/// <param name="CopyableAddress">The address to hand a user, with the secret in it.</param>
-/// <param name="RegisteredAddress">The address this product registers, with no secret in it.</param>
-/// <param name="SecretTravelsOutOfBand">
-/// Whether this generation can carry the secret off the address at all. False is a generation gap,
-/// and means the registered address has to carry the secret itself.
-/// </param>
-/// <param name="LastEventSecretPosition">
-/// Where the most recent inbound callback carried its secret, or null when none has arrived. Null is
-/// the "registered, no events received yet" tell; <see cref="CallbackSecretPosition.Address"/> is what
-/// the standing note about the less private form is shown for, and it clears itself when an event
-/// arrives carrying the secret out of band.
-/// </param>
-/// <param name="MissingSetting">
-/// Which connection setting was empty when a registration could not be attempted, or null on any
-/// other answer. Named so the sentence points at the field that is actually empty rather than at the
-/// pair.
-/// </param>
-/// <param name="Refusal">
-/// What the instance refused, in its own words, or null when nothing was refused. Present only after
-/// a registration whose READ-BACK did not find the address that was sent, so it reports what the
-/// notification now says rather than what the write answered.
-/// </param>
 public sealed record CallbackView(
     WhisparrGeneration Generation,
     RegistrationStatus Status,
@@ -85,10 +65,8 @@ public sealed record CallbackView(
 
 /// <summary>One request to register the callback in the connected instance.</summary>
 /// <remarks>
-/// The address is the whole edited address a user may have corrected. Only the part up to where this
-/// extension's own route begins is honoured, and the secret registered is always this product's own.
+/// The address is the whole edited address a user may have corrected, or null to keep the stored
+/// host. Only the part up to where this extension's own route begins is honoured, and the secret
+/// registered is always this product's own.
 /// </remarks>
-/// <param name="CallbackAddress">
-/// The edited callback address, or null to keep whatever host is stored.
-/// </param>
 public sealed record RegisterCallbackRequest(string? CallbackAddress);

@@ -15,8 +15,8 @@ public sealed record IdentityResolution(string? ForeignId, MonitorRefusalKind Re
     /// The entity carries several different identifiers in the namespace asked about.
     /// </summary>
     /// <remarks>
-    /// Answered instead of one of them. Which entity the outbound request would name depends on
-    /// which row was read first, and row order is not something a caller or a reader chose.
+    /// Answered instead of one of them, because which entity the outbound request would name would
+    /// depend on which row was read first.
     /// </remarks>
     public static IdentityResolution Ambiguous { get; } =
         new(null, MonitorRefusalKind.SeveralIdentitiesInThisNamespace);
@@ -31,8 +31,7 @@ public sealed record IdentityResolution(string? ForeignId, MonitorRefusalKind Re
 /// </summary>
 /// <remarks>
 /// The only source of an outbound identifier. No caller supplies one, so aiming this extension's
-/// credential at an entity of someone's choosing is not expressible: the caller names a Cove entity
-/// and this reads what the library itself holds for it.
+/// credential at an entity of the caller's choosing is not expressible.
 /// </remarks>
 public interface IEntityIdentityPort
 {
@@ -41,9 +40,8 @@ public interface IEntityIdentityPort
     /// <paramref name="generation"/>'s namespace.
     /// </summary>
     /// <remarks>
-    /// The namespace is chosen by the connected generation rather than by preference: the two
-    /// generations identify entities in namespaces neither shares with the other, so a row in one is
-    /// no identity at all in the other.
+    /// The namespace is the connected generation's. The two generations identify entities in
+    /// namespaces neither shares, so a row in one is no identity in the other.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="kind"/> is not a kind this product expresses. A kind resolving to another

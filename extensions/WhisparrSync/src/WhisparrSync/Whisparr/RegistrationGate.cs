@@ -2,16 +2,12 @@ namespace WhisparrSync.Whisparr;
 
 /// <summary>Serialises the callback registration round trip against this instance.</summary>
 /// <remarks>
-/// Registering finds this product's notification and then creates or updates it. Two registrations
-/// overlapping that pair both find none and both create one, and the instance does not refuse the
-/// second when the address matches — so the duplicate stays, delivering every import event twice.
+/// Registering finds the notification and then creates or updates it. Two registrations overlapping
+/// that pair both find none and both create one, and the instance accepts the second even when the
+/// address matches, so every import event is then delivered twice.
 /// <para>
-/// Held as a singleton, because the window to close spans two requests rather than one. Scoped state
-/// would serialise nothing.
-/// </para>
-/// <para>
-/// This prevents a duplicate rather than repairing one. Removing an entry already present would need
-/// an outbound delete, a verb no route of this product declares.
+/// Held as a singleton: the window spans two requests, so scoped state would serialise nothing. It
+/// prevents a duplicate rather than repairing one, since no route here issues a delete.
 /// </para>
 /// </remarks>
 public sealed class RegistrationGate : IDisposable

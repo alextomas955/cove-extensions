@@ -18,60 +18,32 @@ public enum WebhookProjectionOutcome
     Unreadable,
 
     /// <summary>
-    /// The body named an act-list event and no path this product could read. A named refusal rather
-    /// than an ignore: an event this product acts on that carries nothing to act on is a shape it
-    /// does not understand, and reporting it as ignored would hide that.
+    /// The body named an act-list event and no path this product could read. Named apart from an
+    /// ignore, because reporting it as ignored would hide a shape this product does not understand.
     /// </summary>
     NoReadablePath,
 }
 
-/// <summary>What one delivery body was read as.</summary>
-/// <param name="Outcome">How the body was classified.</param>
-/// <param name="EventType">The event type the body named, or null when it named none.</param>
-/// <param name="Candidate">
-/// The file the body reported, present only on <see cref="WebhookProjectionOutcome.Projected"/>.
-/// </param>
+// The candidate is present only on Projected.
 internal sealed record WebhookReading(
     WebhookProjectionOutcome Outcome,
     string? EventType,
     ImportCandidate? Candidate);
 
-/// <summary>
-/// Reads one inbound delivery body into the one candidate type the ingest core takes.
-/// </summary>
-/// <remarks>
-/// Pure. The body is an anonymous caller's, so nothing here binds it to a record that assumes a
-/// shape: every member is read defensively off a <see cref="JsonObject"/> and a member that is
-/// absent or of another type reads as absent.
-/// <para>
-/// Whether to act is decided on the event type. Where to read from is decided on the generation.
-/// Those are two different questions and they take two different inputs: the generations carry
-/// different key sets for the same event, so a body's own keys would classify a v2 delivery as an
-/// unrecognised v3 one.
-/// </para>
-/// </remarks>
+// Pure. The body is an anonymous caller's, so every member is read defensively and a member that
+// is absent or of another type reads as absent.
+// Whether to act is decided on the event type, and where to read from on the generation. The
+// generations carry different key sets for the same event, so a body's own keys would classify a
+// v2 delivery as an unrecognised v3 one.
 internal static class WebhookProjector
 {
-    /// <summary>
-    /// The event types this product acts on, in the spelling the instance sends.
-    /// </summary>
-    /// <remarks>
-    /// One value, and the same one on both generations. It is the string a delivery really carried,
-    /// transcribed by hand from the committed payload fixtures rather than derived from the
-    /// trigger-flag name that subscribed to it - those are two vocabularies, and the flag is
-    /// <c>onDownload</c> while the body says <c>Download</c>.
-    /// <para>
-    /// An upgrade arrives as this same event with <c>isUpgrade</c> set, not as an event type of its
-    /// own, so there is no second string to list. Every other type an instance sends - a grab, a
-    /// rename, every delete variant - is an ignore.
-    /// </para>
-    /// </remarks>
+    // The event type both generations send, spelled as the body carries it. The trigger flag that
+    // subscribes to it is a separate vocabulary and is spelled onDownload.
+    // An upgrade arrives as this same event with isUpgrade set, not as an event type of its own.
     internal const string DownloadEventType = "Download";
 
-    /// <summary>The form both generations' inbound user agent takes.</summary>
     private const string UserAgentPrefix = "Whisparr/";
 
-    /// <summary>What <paramref name="body"/> reports, read as <paramref name="generation"/> sends it.</summary>
     internal static WebhookReading Read(WhisparrGeneration generation, JsonObject? body)
     {
         if (body is null || ValueOf(body, "eventType") is not { } eventType)
@@ -101,11 +73,8 @@ internal static class WebhookProjector
                 RemoteIdOf(generation, body)));
     }
 
-    /// <summary>Which generation sent a delivery, or null when its user agent does not say.</summary>
-    /// <remarks>
-    /// Read from the user agent rather than from the body, because it is what an inbound consumer
-    /// sees BEFORE it reads a body, and because it is what decides where in that body to read.
-    /// </remarks>
+    // Read from the user agent, not the body: it is available before the body is read, and it
+    // decides where in that body to read.
     internal static WhisparrGeneration? GenerationOf(string? userAgent)
     {
         if (userAgent is null || !userAgent.StartsWith(UserAgentPrefix, StringComparison.OrdinalIgnoreCase))
@@ -117,7 +86,6 @@ internal static class WebhookProjector
         return GenerationDetector.GenerationOf(version);
     }
 
-    /// <summary>Which member of a delivery body carries the imported file.</summary>
     private static string FileMemberOf(WhisparrGeneration generation)
         => generation switch
         {
@@ -126,14 +94,9 @@ internal static class WebhookProjector
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
 
-    /// <summary>
-    /// The shared remote identifier a delivery carried, or null when it carried none.
-    /// </summary>
-    /// <remarks>
-    /// In a different place on each generation, and of a different JSON type: v3 names the scene's
-    /// own identifier as a string beside the entity, and v2 names it as a number on the scene rows
-    /// the delivery lists. The first scene's is taken, because a delivery reports one imported file.
-    /// </remarks>
+    // In a different place and of a different JSON type on each generation: v3 carries a string
+    // beside the entity, v2 a number on the scene rows the delivery lists. The first scene's is
+    // taken, because a delivery reports one imported file.
     private static string? RemoteIdOf(WhisparrGeneration generation, JsonObject body)
         => generation switch
         {
@@ -148,13 +111,8 @@ internal static class WebhookProjector
     private static JsonObject? FirstObjectIn(JsonObject parent, string name)
         => (parent[name] as JsonArray)?.FirstOrDefault() as JsonObject;
 
-    /// <summary>
-    /// The value of <paramref name="name"/> rendered as text, or null when it is absent or blank.
-    /// </summary>
-    /// <remarks>
-    /// A number renders as its invariant text, so an identifier carried as a JSON number on one
-    /// generation and a JSON string on the other reaches the core in one form.
-    /// </remarks>
+    // A number renders as its invariant text, so an identifier carried as a JSON number on one
+    // generation and a JSON string on the other reaches the core in one form.
     private static string? ValueOf(JsonObject? parent, string name)
     {
         if (parent?[name] is not JsonValue value)

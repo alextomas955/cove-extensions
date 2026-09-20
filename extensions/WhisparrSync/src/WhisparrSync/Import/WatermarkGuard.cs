@@ -1,70 +1,29 @@
 namespace WhisparrSync.Import;
 
-/// <summary>Where a walk stops on one page, and where the mark moves to.</summary>
-/// <param name="Refused">
-/// The page could not be placed against the history the walk has already read. The walk imports
-/// nothing from it.
-/// </param>
-/// <param name="Skip">
-/// How many of the page's leading records the walk passes over: records the page before it already
-/// carried, because the route shifted the page under the walk.
-/// </param>
-/// <param name="Take">
-/// How many of the page's records the walk takes, counting from <paramref name="Skip"/>. Zero when
-/// the mark is at or after the first record it would have read.
-/// </param>
-/// <param name="Continue">
-/// Whether the page held nothing past what was skipped and taken, so an older page may hold more.
-/// </param>
-/// <param name="Newest">The newest instant the walk has seen, carried across pages.</param>
-/// <param name="PageNewest">
-/// The newest instant on the page just read, or null when it held no records. Handed back to the next
-/// read, where it and the page's oldest instant together say whether a page has already been seen.
-/// </param>
+// Where a walk stops on one page, and where the mark moves to. Refused means the page could not be
+// placed against the history already read, so the walk imports nothing from it. Skip counts
+// leading records the previous page already carried, and Take counts from there. Continue means
+// the page held nothing past what was skipped and taken, so an older page may hold more.
+// PageNewest is handed back to the next read, where it and the page's oldest instant together say
+// whether a page has already been seen.
 internal sealed record WatermarkReading(
     bool Refused, int Skip, int Take, bool Continue, DateTimeOffset? Newest, DateTimeOffset? PageNewest);
 
-/// <summary>
-/// The stop rule a backstop walk runs on: how far into a page of history it reads, and what the
-/// stored mark becomes.
-/// </summary>
-/// <remarks>
-/// A record whose instant equals the mark is taken again rather than skipped. Two records sharing one
-/// instant may therefore be read twice; the dedupe downstream is by resolved path.
-/// <para>
-/// A page is placed against the one before it by the record ids the two share. A page repeating the
-/// whole of the previous page is refused. A page opening on the records the previous page ended with
-/// is one the route shifted under the walk - records arriving at the head of an offset-paged history
-/// push the window back - and it is read on from the first record the walk has not seen rather than
-/// refused.
-/// </para>
-/// <para>
-/// A page carrying no id is placed by its instants instead. The order is then read from the page
-/// rather than asked of it: a page whose records do not descend is refused, and so is one whose whole
-/// instant range repeats the previous page's, which is the only repeated shape the across-page order
-/// check admits.
-/// </para>
-/// </remarks>
+// The stop rule a backstop walk runs on: how far into a page of history it reads, and what the
+// stored mark becomes.
+// A record whose instant equals the mark is taken again rather than skipped, so two records sharing
+// one instant may be read twice. The dedupe downstream is by resolved path.
+// A page is placed against the one before it by the record ids the two share. A page repeating the
+// whole previous page is refused. A page opening on the records the previous page ended with is one
+// the route shifted under the walk, because records arriving at the head of an offset-paged history
+// push the window back, and it is read on from the first record the walk has not seen.
+// A page carrying no id is placed by its instants instead: a page whose records do not descend is
+// refused, and so is one whose whole instant range repeats the previous page's.
 internal static class WatermarkGuard
 {
-    /// <summary>What one page's <paramref name="instants"/> mean for a walk at <paramref name="mark"/>.</summary>
-    /// <param name="instants">The page's records' instants, in the order the page listed them.</param>
-    /// <param name="mark">Where the last pass left off, or null when no pass has run.</param>
-    /// <param name="newest">The newest instant seen on an earlier page, or null on the first.</param>
-    /// <param name="previousPageOldest">
-    /// The oldest instant on the page before this one, or null on the first. A page starting newer
-    /// than that is refused unless the ids place it: the pages are not descending through the history.
-    /// </param>
-    /// <param name="previousPageNewest">
-    /// The newest instant on the page before this one, or null when there was none. With no
-    /// predecessor there is no range for this page to repeat, so the range rule cannot fire.
-    /// </param>
-    /// <param name="ids">
-    /// The page's records' ids, in the order the page listed them, or null when the page carried none.
-    /// </param>
-    /// <param name="previousPageIds">
-    /// The ids of the page before this one, or null on the first and when that page carried none.
-    /// </param>
+    // A page starting newer than the previous page's oldest instant is refused unless the ids place
+    // it, because the pages are then not descending through the history. With no predecessor there
+    // is no range to repeat, so the range rule cannot fire.
     internal static WatermarkReading Read(
         IReadOnlyList<DateTimeOffset> instants,
         DateTimeOffset? mark,
@@ -100,11 +59,11 @@ internal static class WatermarkGuard
             take++;
         }
 
-        // A page whose whole instant range repeats the one before it, with nothing on it older than
-        // the mark, is a page this walk has already read. Refused rather than continued: the walk has
-        // no way to reach older history through a route answering it, and the refusal leaves the mark
-        // alone so nothing is stepped over. Only consulted where the ids did not place the page: they
-        // tell this shape from a run of records genuinely sharing one instant, and the instants cannot.
+        // A page whose whole instant range repeats the one before it, with nothing older than the
+        // mark, has already been read. Refused rather than continued: the walk cannot reach older
+        // history through a route answering it, and the refusal leaves the mark alone. Consulted
+        // only where the ids did not place the page, because the instants alone cannot tell this
+        // from a run of records sharing one instant.
         if (identity == PageIdentity.Unknown
             && take == instants.Count
             && Repeats(instants, previousPageOldest, previousPageNewest))
@@ -116,30 +75,24 @@ internal static class WatermarkGuard
             false, skip, take, skip + take == instants.Count && take > 0, seen, pageNewest);
     }
 
-    /// <summary>How the records on a page relate to those on the page read before it.</summary>
+    // How the records on a page relate to those on the page read before it.
     private enum PageIdentity
     {
-        /// <summary>One of the two pages carried no ids, so only the instants place them.</summary>
+        // One of the two pages carried no ids, so only the instants place them.
         Unknown,
 
-        /// <summary>The page holds no record the page before it held.</summary>
+        // The page holds no record the page before it held.
         Fresh,
 
-        /// <summary>The page opens on records the page before it ended with.</summary>
+        // The page opens on records the page before it ended with.
         Shifted,
 
-        /// <summary>The page opens on every record the page before it held.</summary>
+        // The page opens on every record the page before it held.
         Repeated,
     }
 
-    /// <summary>
-    /// What <paramref name="ids"/> say about this page, and how many of its leading records
-    /// <paramref name="previousPageIds"/> already carried.
-    /// </summary>
-    /// <remarks>
-    /// The longest overlap wins, so a page the route shifted is read on from the first record the walk
-    /// has not seen.
-    /// </remarks>
+    // The longest overlap wins, so a page the route shifted is read on from the first record the
+    // walk has not seen.
     private static (PageIdentity Identity, int Skip) IdentityOf(
         IReadOnlyList<string>? ids, IReadOnlyList<string>? previousPageIds)
     {
@@ -163,10 +116,6 @@ internal static class WatermarkGuard
         return (PageIdentity.Fresh, 0);
     }
 
-    /// <summary>
-    /// Whether <paramref name="page"/> opens on <paramref name="previous"/> read from
-    /// <paramref name="start"/> onwards.
-    /// </summary>
     private static bool OpensWith(
         IReadOnlyList<string> page, IReadOnlyList<string> previous, int start)
     {

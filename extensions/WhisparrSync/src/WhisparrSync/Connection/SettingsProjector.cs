@@ -7,16 +7,12 @@ namespace WhisparrSync.Connection;
 /// Maps between the stored settings and the shapes the settings page reads and writes.
 /// </summary>
 /// <remarks>
-/// Pure in both directions: no store, no host, no clock. The key never passes through here at all —
-/// the outward projection is told only whether one exists, and the inward mapping hands the submitted
-/// field straight to the port's own rule.
+/// No API key passes through here. The outward projection is told only whether one exists, and the
+/// inward mapping hands the submitted field straight to the port's own rule.
 /// </remarks>
 public static class SettingsProjector
 {
     /// <summary>The settings page's view of <paramref name="options"/>.</summary>
-    /// <param name="options">The stored settings.</param>
-    /// <param name="v3KeyIsSet">Whether a key is stored for v3.</param>
-    /// <param name="v2KeyIsSet">Whether a key is stored for v2.</param>
     public static WhisparrSyncSettingsView ToView(
         WhisparrSyncOptions options, bool v3KeyIsSet, bool v2KeyIsSet)
     {
@@ -35,14 +31,9 @@ public static class SettingsProjector
     /// <remarks>
     /// A generation whose address moves loses its recorded version, the instant that version was
     /// verified, and the instant it last answered, because all three described a different instance.
-    /// A save that leaves the address where it points keeps them.
-    /// <para>
-    /// An omitted upgrade behaviour leaves the stored one, which is what lets the connection form
-    /// write a connection without restating a setting it does not show.
-    /// </para>
+    /// A save that leaves the address where it points keeps them. An omitted upgrade behaviour leaves
+    /// the stored one, so the connection form can save without restating a setting it does not show.
     /// </remarks>
-    /// <param name="stored">The settings as they are now.</param>
-    /// <param name="request">The save to apply.</param>
     public static WhisparrSyncOptions Apply(
         WhisparrSyncOptions stored, WhisparrSyncSettingsSaveRequest request)
     {
@@ -60,9 +51,9 @@ public static class SettingsProjector
 
     /// <summary>The key write <paramref name="save"/> asks for.</summary>
     /// <remarks>
-    /// An omitted generation and an omitted signal both keep the stored key. A replacement is handed to
-    /// <see cref="CredentialWrite.FromSubmitted"/> rather than branched on here, so the rule that a
-    /// submitted blank keeps the stored key stays in one place.
+    /// An omitted generation and an omitted signal both keep the stored key. A replacement is handed
+    /// to <see cref="CredentialWrite.FromSubmitted"/>, so the rule that a submitted blank keeps the
+    /// stored key stays in one place.
     /// </remarks>
     public static CredentialWrite CredentialWriteFor(WhisparrSyncGenerationSaveRequest? save)
         => save?.KeyWrite switch

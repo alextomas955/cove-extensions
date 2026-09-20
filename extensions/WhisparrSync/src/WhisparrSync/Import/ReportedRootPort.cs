@@ -8,47 +8,27 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Import;
 
-/// <summary>
-/// Holds what each generation's instance last had to say about its roots, so a stream of deliveries
-/// costs one outbound request rather than one per file.
-/// </summary>
-/// <remarks>
-/// A singleton, and bounded by construction: one entry per generation, each a small list of paths an
-/// operator created by hand. Nothing per file, per entity or per delivery joins it.
-/// <para>
-/// An entry carries the time it is good for, because an instance that could not be asked at all is
-/// held for less time than one that answered.
-/// </para>
-/// <para>
-/// The entry expires on its own rather than being invalidated by a writer. A root added in Whisparr
-/// is a change this extension is never told about, so a reading with no expiry would be a reading
-/// that could stay wrong until the host restarted.
-/// </para>
-/// </remarks>
+// Holds what each generation's instance last said about its roots, so a stream of deliveries costs
+// one outbound request rather than one per file. A singleton, bounded by construction: one entry
+// per generation, each a small list of hand-created paths. Nothing per file or per delivery joins
+// it.
+// An entry expires on its own rather than being invalidated by a writer, because a root added in
+// Whisparr is a change this extension is never told about.
 internal sealed class ReportedRootCache(TimeProvider clock)
 {
-    /// <summary>How long a reading the instance answered is reused before it is asked again.</summary>
     internal static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(5);
 
-    /// <summary>How long a reading that the instance had nothing to give is reused.</summary>
-    /// <remarks>
-    /// Shorter than <see cref="Lifetime"/>, and deliberately so: this reading says only that asking
-    /// is not currently worth doing, and an instance that came back has to be noticed within a wake
-    /// or two rather than after a full lifetime. It still outlives a single request's own timeout, so
-    /// a burst arriving during an outage cannot re-probe per delivery.
-    /// </remarks>
+    // Shorter than Lifetime: this reading says only that asking is not currently worth doing, and
+    // an instance that came back has to be noticed within a wake or two. It still outlives one
+    // request's timeout, so a burst during an outage cannot re-probe per delivery.
     internal static readonly TimeSpan NothingToReadLifetime = TimeSpan.FromSeconds(30);
 
     private readonly ConcurrentDictionary<
         WhisparrGeneration, (DateTimeOffset ReadAt, TimeSpan For, IReadOnlyList<string>? Roots)>
         _entries = new();
 
-    /// <summary>Whether a reading for <paramref name="generation"/> is in date, and what it says.</summary>
-    /// <remarks>
-    /// <paramref name="roots"/> is null on a held reading nothing could be established from, which is
-    /// a different fact from an instance declaring none, so the two cannot share the one absent value
-    /// a return would have to carry.
-    /// </remarks>
+    // The roots are null on a held reading nothing could be established from, which is a different
+    // fact from an instance declaring none.
     internal bool TryHeld(WhisparrGeneration generation, out IReadOnlyList<string>? roots)
     {
         roots = null;
@@ -62,22 +42,15 @@ internal sealed class ReportedRootCache(TimeProvider clock)
         return false;
     }
 
-    /// <summary>Holds <paramref name="roots"/> as <paramref name="generation"/>'s current reading.</summary>
     internal void Hold(WhisparrGeneration generation, IReadOnlyList<string> roots)
         => _entries[generation] = (clock.GetUtcNow(), Lifetime, roots);
 
-    /// <summary>
-    /// Holds that <paramref name="generation"/>'s instance had nothing to give, for the shorter time.
-    /// </summary>
-    /// <remarks>
-    /// The caller's next step is the same whether the connection was never configured or the request
-    /// found nobody, so both are one reading here rather than two entries or two dictionaries.
-    /// </remarks>
+    // One reading for both an unconfigured connection and a request that found nobody: the caller's
+    // next step is the same.
     internal void HoldNothingToRead(WhisparrGeneration generation)
         => _entries[generation] = (clock.GetUtcNow(), NothingToReadLifetime, null);
 }
 
-/// <inheritdoc cref="IReportedRootPort"/>
 internal sealed class ReportedRootPort(
     IWhisparrClient client,
     OptionsStore options,
@@ -96,8 +69,7 @@ internal sealed class ReportedRootPort(
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
         var apiKey = await credentials.ReadAsync(generation, ct).ConfigureAwait(false);
 
-        // Refused here rather than by handing an empty pair to the client, so an unconfigured
-        // connection reaches nothing that could make a request.
+        // Refused here, so an unconfigured connection reaches nothing that could make a request.
         if (!ConnectionTester.TryReadConnection(
                 stored.ConnectionFor(generation)?.Address, apiKey, out var baseAddress, out _))
         {
@@ -120,8 +92,8 @@ internal sealed class ReportedRootPort(
         {
             WhisparrSyncLog.ReportedRootReadFailed(log, generation, baseAddress.Host);
 
-            // Held, so a burst of deliveries arriving during an outage does not re-pay the client's
-            // timeout and retry once per file, inside the inbound request pipeline.
+            // Held, so a burst of deliveries during an outage does not re-pay the client's timeout
+            // and retry once per file inside the inbound request pipeline.
             cache.HoldNothingToRead(generation);
             return null;
         }
@@ -138,15 +110,9 @@ internal sealed class ReportedRootPort(
         return roots;
     }
 
-    /// <summary>
-    /// The root paths one answer declares, or null where the answer is not a list of them at all.
-    /// </summary>
-    /// <remarks>
-    /// One generation publishes no contract, so what an answer is gets established by parsing it. A
-    /// body that is not an array answers null rather than an empty list: it establishes nothing about
-    /// what the instance declares, and a caller reading it as none would take a decision on a reading
-    /// nobody made.
-    /// </remarks>
+    // Null where the answer is not a list of roots. One generation publishes no contract, so the
+    // shape comes from parsing, and a body that is not an array establishes nothing about what the
+    // instance declares, which is not the same as declaring none.
     private static IReadOnlyList<string>? RootsIn(WhisparrResponse response)
     {
         JsonNode? parsed;
