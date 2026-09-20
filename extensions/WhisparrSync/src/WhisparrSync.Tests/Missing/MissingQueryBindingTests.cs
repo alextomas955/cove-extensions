@@ -287,9 +287,7 @@ public sealed class MissingQueryBindingTests
         => new(
             new MissingIdentityResolver(new StubIdentities(), catalogue, new StubEntityNames()),
             catalogue,
-            new StubOwned(),
-            new SceneStatusPort(),
-            new SceneExclusionPort());
+            new StubOwned());
 
     private sealed class StubIdentities : IEntityIdentityPort
     {

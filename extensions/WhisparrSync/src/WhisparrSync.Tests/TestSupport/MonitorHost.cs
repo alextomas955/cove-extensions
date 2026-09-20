@@ -213,7 +213,7 @@ internal sealed class MonitorHost : IAsyncDisposable
         builder.Services.AddSingleton<IJobService>(host.Jobs);
         host.Identities = new EntityIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.Identities);
-        builder.Services.AddSingleton<ILibraryStatusPort>(new LibraryStatusPort(host.Identities, NullLogger.Instance));
+        builder.Services.AddSingleton(new LibraryStatusPort(host.Identities, NullLogger.Instance));
         host.CardIdentities = new LibraryCardIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.CardIdentities);
         host.Folders = new CountRecordingFolders(new EntityFolderPort(host._db), host.RootCounts);
@@ -281,9 +281,7 @@ internal sealed class MonitorHost : IAsyncDisposable
                 new MissingIdentityResolver(
                     host.Identities, provider, new EntityNamePort(host._db)),
                 provider,
-                new OwnedScenePort(host._db),
-                new SceneStatusPort(),
-                new SceneExclusionPort()));
+                new OwnedScenePort(host._db)));
 
         host._app = builder.Build();
         var extension = WhisparrSyncFixture.Create();

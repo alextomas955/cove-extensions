@@ -363,9 +363,7 @@ public sealed class MissingPagePlannerTests
         => new(
             new MissingIdentityResolver(new StubIdentities(identity), catalogue, new StubEntityNames()),
             catalogue,
-            owned ?? new StubOwned(),
-            new SceneStatusPort(),
-            new SceneExclusionPort());
+            owned ?? new StubOwned());
 
     private sealed class StubIdentities(string? foreignId) : IEntityIdentityPort
     {

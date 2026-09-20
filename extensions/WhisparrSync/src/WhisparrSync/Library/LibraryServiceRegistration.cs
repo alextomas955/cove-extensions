@@ -26,7 +26,7 @@ internal static class LibraryServiceRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddScoped<ILibraryStatusPort>(resolved => new LibraryStatusPort(
+        services.AddScoped(resolved => new LibraryStatusPort(
             resolved.GetRequiredService<IEntityIdentityPort>(), log));
         services.AddScoped<ILibraryCardIdentityPort>(resolved => new LibraryCardIdentityPort(
             resolved.GetRequiredService<DbContext>(),

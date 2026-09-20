@@ -47,7 +47,7 @@ public sealed class SceneStatusPortTests
         var reading = new RecordingSceneStatusReading(presence: 404);
         var ids = PageOfForty();
 
-        var states = await new SceneStatusPort().ReadStatesAsync(
+        var states = await SceneStatusPort.ReadStatesAsync(
             reading,
             SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, ids, TestCt);
 
@@ -64,7 +64,7 @@ public sealed class SceneStatusPortTests
         var reading = new RecordingSceneStatusReading(presence: 200, sceneAnswer: RecordedRow());
         var ids = PageOfForty();
 
-        await new SceneStatusPort().ReadStatesAsync(
+        await SceneStatusPort.ReadStatesAsync(
             reading,
             SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, ids, TestCt);
 
@@ -103,7 +103,7 @@ public sealed class SceneStatusPortTests
         var rewritten = RowWithMonitored(row, monitored);
         var reading = new RecordingSceneStatusReading(presence: 200, sceneAnswer: rewritten);
 
-        var states = await new SceneStatusPort().ReadStatesAsync(
+        var states = await SceneStatusPort.ReadStatesAsync(
             reading,
             SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, ["a-scene"], TestCt);
 
@@ -122,7 +122,7 @@ public sealed class SceneStatusPortTests
             .GetRawText();
         var reading = new RecordingSceneStatusReading(presence: 200, sceneAnswer: absent);
 
-        var states = await new SceneStatusPort().ReadStatesAsync(
+        var states = await SceneStatusPort.ReadStatesAsync(
             reading,
             SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, ["a-scene"], TestCt);
 
@@ -138,7 +138,7 @@ public sealed class SceneStatusPortTests
     {
         var reading = new RecordingSceneStatusReading(presence: 500);
 
-        var states = await new SceneStatusPort().ReadStatesAsync(
+        var states = await SceneStatusPort.ReadStatesAsync(
             reading,
             SomeInstance, SomeKey, WhisparrEntityKind.Studio, EntityForeignId, PageOfForty(), TestCt);
 

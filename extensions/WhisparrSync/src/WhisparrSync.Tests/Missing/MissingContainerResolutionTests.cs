@@ -35,7 +35,6 @@ public sealed class MissingContainerResolutionTests : IAsyncLifetime
     [Theory]
     [InlineData(typeof(IProviderCatalogue))]
     [InlineData(typeof(MissingPagePlanner))]
-    [InlineData(typeof(ISceneStatusPort))]
     [InlineData(typeof(IOwnedScenePort))]
     [InlineData(typeof(ProviderEndpointPort))]
     [InlineData(typeof(ProviderPacer))]

@@ -165,7 +165,7 @@ public sealed class SceneExclusionPortTests
         var reading = new RecordingExclusionReading();
         var page = PageOfForty();
 
-        await new SceneExclusionPort().ReadExcludedAsync(
+        await SceneExclusionPort.ReadExcludedAsync(
             reading, SomeInstance, SomeKey, page, TestCt);
 
         Assert.Equal(1, reading.Calls);
@@ -178,7 +178,7 @@ public sealed class SceneExclusionPortTests
     {
         var reading = new RecordingExclusionReading();
 
-        var excluded = await new SceneExclusionPort().ReadExcludedAsync(
+        var excluded = await SceneExclusionPort.ReadExcludedAsync(
             reading, SomeInstance, SomeKey, [], TestCt);
 
         Assert.Empty(excluded);

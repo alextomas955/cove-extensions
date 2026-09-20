@@ -74,9 +74,7 @@ internal sealed record MissingPageContext(
 internal sealed class MissingPagePlanner(
     MissingIdentityResolver identities,
     IProviderCatalogue catalogue,
-    IOwnedScenePort owned,
-    ISceneStatusPort statuses,
-    ISceneExclusionPort exclusions)
+    IOwnedScenePort owned)
 {
     /// <summary>The metadata source a page is read from, as a sentence names it.</summary>
     internal string ProviderName => catalogue.Capabilities.Provider;
@@ -265,7 +263,7 @@ internal sealed class MissingPagePlanner(
     internal static MissingFacetSearchView NoFacetValues(MissingFacetSearchOutcome outcome)
         => new([], 0, outcome);
 
-    private async Task<(IReadOnlyDictionary<string, MissingSceneState> States, bool WasRead, bool PermanentlyAbsent)>
+    private static async Task<(IReadOnlyDictionary<string, MissingSceneState> States, bool WasRead, bool PermanentlyAbsent)>
         ReadStatesAsync(
             MissingPageRequest request,
             MissingPageContext context,
@@ -289,7 +287,7 @@ internal sealed class MissingPagePlanner(
         IReadOnlyDictionary<string, MissingSceneState> states;
         try
         {
-            states = await statuses
+            states = await SceneStatusPort
                 .ReadStatesAsync(
                     context.StatusReading,
                     baseAddress,
@@ -315,7 +313,7 @@ internal sealed class MissingPagePlanner(
 
     // A generation holding no exclusion role keeps no scene exclusions, so there is nothing to
     // subtract and no request is issued to find that out.
-    private async Task<IReadOnlySet<string>> ReadExcludedAsync(
+    private static async Task<IReadOnlySet<string>> ReadExcludedAsync(
         MissingPageContext context, ProviderScene[] kept, CancellationToken ct)
     {
         if (context.ExclusionReading is not { } reading
@@ -325,7 +323,7 @@ internal sealed class MissingPagePlanner(
             return new HashSet<string>(StringComparer.Ordinal);
         }
 
-        return await exclusions
+        return await SceneExclusionPort
             .ReadExcludedAsync(
                 reading,
                 baseAddress,
