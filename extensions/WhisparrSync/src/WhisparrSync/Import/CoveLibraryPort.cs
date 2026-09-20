@@ -6,23 +6,13 @@ using WhisparrSync.Identity;
 
 namespace WhisparrSync.Import;
 
-/// <inheritdoc cref="ICoveLibraryPort"/>
-/// <remarks>
-/// The scan and metadata services are optional. An extension container builds its own copy of the
-/// host's scoped registrations, and a container that cannot produce one must still load the
-/// extension and report the fact rather than fail every request behind an unresolved dependency.
-/// <para>
-/// It binds to the base <see cref="DbContext"/> rather than the host's own context type: this
-/// extension compiles against the host's entity assembly but not against the assembly that type
-/// lives in, and the host registers its context resolvable as the base type, so the overridden save
-/// - and the derived numbers it recomputes - still runs at runtime.
-/// </para>
-/// <para>
-/// One instance wraps one scope's context. Every read is a query, never a walk of a navigation
-/// property: a read that reached rows through a tracked entity would depend on what else the scope
-/// had already loaded.
-/// </para>
-/// </remarks>
+// The scan and metadata services are optional: a container that cannot produce one must still load
+// the extension rather than fail every request behind an unresolved dependency.
+// It binds to the base DbContext, not the host's own context type, which this extension does not
+// compile against. The host registers its context resolvable as the base type, so its overridden
+// save still runs at runtime.
+// One instance wraps one scope's context, and every read is a query rather than a walk of a
+// navigation property, which would depend on what else the scope had loaded.
 internal sealed class CoveLibraryPort(
     DbContext db,
     IScanService? scan,
@@ -54,10 +44,8 @@ internal sealed class CoveLibraryPort(
                 LibraryImportOutcome.Registered,
                 await scan.ImportDownloadedVideoAsync(path, videoId, ct).ConfigureAwait(false));
         }
-        // The two the host's own import raises: the file is gone by the time it looks, and the row it
-        // resolved is claimed by no item. Both would otherwise leave a route answering outside its
-        // declared results and a background walk unable to reach its mark. Narrow on purpose - a
-        // broader catch here would hide a defect rather than contain a known refusal.
+        // The two the host's own import raises: the file is gone by the time it looks, and the row
+        // it resolved is claimed by no item. Narrow on purpose, so a broader failure is not hidden.
         catch (Exception refused) when (refused is FileNotFoundException or InvalidOperationException)
         {
             WhisparrSyncLog.HostImportContained(log, WhisparrSyncLog.Classify(refused));
@@ -127,9 +115,8 @@ internal sealed class CoveLibraryPort(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(remoteId);
 
-        // Narrowed on the identifier in the query and on the endpoint in memory. The endpoint rule is
-        // the host's, which no provider can translate, and the identifier is what bounds the rows: a
-        // filter applied after loading every row would be linear in the library.
+        // Narrowed on the identifier in the query and on the endpoint in memory. The endpoint rule
+        // is the host's and no provider can translate it; the identifier is what bounds the rows.
         var carriers = await db.Set<VideoRemoteId>()
             .AsNoTracking()
             .Where(row => row.RemoteId == remoteId)
@@ -193,9 +180,9 @@ internal sealed class CoveLibraryPort(
             return false;
         }
 
-        // Tracked, and with the identity rows loaded: the host's merge mutates the entity it is
-        // handed and reads that collection to decide whether to add a row of its own. It saves
-        // nothing, so the save below is what commits both.
+        // Tracked, with the identity rows loaded: the host's merge mutates the entity it is handed
+        // and reads that collection before adding a row of its own. It saves nothing, so the save
+        // below commits both.
         var video = await db.Set<Video>()
             .Include(item => item.RemoteIds)
             .FirstOrDefaultAsync(item => item.Id == videoId, ct)
@@ -222,8 +209,8 @@ internal sealed class CoveLibraryPort(
 #pragma warning disable CA1031 // Raised on as its own kind, never handled here.
         catch (Exception failure)
         {
-            // The source has already answered by this point, so a caller told only that the call
-            // failed can report nothing but the source, which is not what failed.
+            // The source has already answered here, so a caller told only that the call failed
+            // would report the source, which is not what failed.
             throw new EnrichmentNotCommittedException(failure);
         }
 #pragma warning restore CA1031
@@ -231,15 +218,9 @@ internal sealed class CoveLibraryPort(
         return true;
     }
 
-    /// <summary>
-    /// The one reading of the host's configured library paths this extension works from: blank
-    /// entries dropped, absent configuration an empty list.
-    /// </summary>
-    /// <remarks>
-    /// Static because the port is not the only caller: the pure candidate arithmetic is tested
-    /// against the same normalisation with no container and no configuration object to hand, and a
-    /// second projection there could disagree about a blank entry.
-    /// </remarks>
+    // The one reading of the host's configured library paths: blank entries dropped, absent
+    // configuration an empty list. Static so callers outside the port share it rather than
+    // projecting a second time and disagreeing about a blank entry.
     internal static IReadOnlyList<string> ReadLibraryRoots(CoveConfiguration? config)
         => config is null
             ? []

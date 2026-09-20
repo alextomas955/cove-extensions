@@ -2,10 +2,8 @@ namespace WhisparrSync.Import;
 
 /// <summary>What one ingest did, named by cause.</summary>
 /// <remarks>
-/// Every value that is not <see cref="Imported"/> names a distinct reason nothing was registered, so
-/// a refusal a user has to act on is never reported as the same thing as one they cannot. This is
-/// the extension's own reading, not the answer the inbound route gives: an anonymous caller is told
-/// only whether the event was one this product acts on.
+/// This is the extension's own reading, not the answer the inbound route gives: an anonymous caller
+/// is told only whether the event was one this product acts on.
 /// </remarks>
 public enum ImportOutcome
 {
@@ -16,9 +14,8 @@ public enum ImportOutcome
     /// The library already held a file at the resolved path, so this delivery registered nothing.
     /// </summary>
     /// <remarks>
-    /// Not a refusal: the file is in the library and the delivery's purpose is served. It is what the
-    /// second of the two channels to reach one file reports, and it is counted as an import by
-    /// nothing.
+    /// Not a refusal, and counted as an import by nothing. It is what the second of the two
+    /// channels to reach one file reports.
     /// </remarks>
     AlreadyHeld,
 
@@ -60,30 +57,22 @@ public enum ImportOutcome
     /// no identifier to say which item should claim it.
     /// </summary>
     /// <remarks>
-    /// Counted against no Whisparr root. The file is in the library and there is nothing for the user
-    /// to correct at a root they configured, so the log line is the whole report.
+    /// Counted against no Whisparr root: there is nothing for the user to correct at a root they
+    /// configured, so the log line is the whole report.
     /// </remarks>
     RefusedDetachedFileWithoutIdentity,
 
     /// <summary>The host was asked to take a verified file and would not.</summary>
     /// <remarks>
     /// Counted against the reporting root, unlike an import service that could not be obtained: the
-    /// path the host declined came from that root, and it is the one thing the user can go and look
-    /// at.
+    /// path the host declined came from that root.
     /// </remarks>
     RefusedHostRefusedFile,
 }
 
-/// <summary>
-/// The one home both ingest channels enter, and the only place a file becomes a library item.
-/// </summary>
-/// <remarks>
-/// Each channel projects its own input into <see cref="ImportCandidate"/> and hands it here, so the
-/// classification, the refusals and the bookkeeping have one writer and cannot drift between the
-/// live channel and the periodic one.
-/// </remarks>
+// Both ingest channels enter here, and this is the only place a file becomes a library item, so the
+// classification, the refusals and the bookkeeping have one writer.
 internal interface IImportCore
 {
-    /// <summary>Ingests <paramref name="candidate"/>, and reports what that did.</summary>
     Task<ImportOutcome> IngestAsync(ImportCandidate candidate, CancellationToken ct);
 }

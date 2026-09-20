@@ -23,9 +23,8 @@ public sealed partial class WhisparrSync
 {
     private void MapMissingMonitorAllEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // The same tier again, and the same act over a wider reach. It names no scene at all: the
-        // narrowing rides the query string and the run re-derives its own set, so what a caller can
-        // reach is one entity's catalogue and never a set it composed itself.
+        // Configure tier. The request names no scene: the narrowing rides the query string and the
+        // run re-derives its own set, so the reach is one entity's catalogue.
         endpoints.MapPost(MissingMonitorAllRoute,
             (string kind, int coveId, string? q, string? filters,
              ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
@@ -38,21 +37,9 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
 
-    /// <summary>Marks every scene the narrowed catalogue lists as wanted, as one background run.</summary>
-    /// <remarks>
-    /// The route carries the narrowing the grid is showing and no scene identifiers at all: the run
-    /// re-derives its own set through the derivation the grid reads through, so the set acted on is
-    /// the set on screen without the browser enumerating pages to name it.
-    /// <para>
-    /// Studios and performers only. A tag's catalogue is the whole library's scene set rather than
-    /// one entity's, so this route can put no bound on the run it would start and expresses no tag.
-    /// </para>
-    /// <para>
-    /// The run is started and its id answered immediately, for the reason the selection route's is: a
-    /// catalogue is many requests to a third party and waiting would hold the browser open for the
-    /// length of the run.
-    /// </para>
-    /// </remarks>
+    // Studios and performers only. A tag's catalogue is the whole library's scene set rather than
+    // one entity's, so the run would carry no bound. The run id is answered immediately, because a
+    // catalogue is many requests to a third party.
     internal async Task<Results<Ok<MissingBulkEnqueued>, BadRequest, ForbiddenCode>>
         EnqueueMissingMonitorAllAsync(
             string kind,
@@ -67,8 +54,7 @@ public sealed partial class WhisparrSync
             IWhisparrClient client,
             CancellationToken ct)
     {
-        // Checked in the handler, because the route's own declaration enforces nothing on a minimal
-        // API.
+        // Re-checked here because the route declaration enforces nothing on a minimal API.
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
@@ -104,12 +90,8 @@ public sealed partial class WhisparrSync
                 MissingRefusalKind.None));
     }
 
-    /// <summary>Starts one whole-catalogue marking run in the background.</summary>
-    /// <remarks>
-    /// Enqueued EXCLUSIVE, for the reason the selection run is: one scene can be reached from two
-    /// entities, because a video carries a studio and its performers at once, so overlapping runs
-    /// would offer the same scene twice.
-    /// </remarks>
+    // Exclusive because one scene can be reached from two entities, a video carrying a studio and
+    // its performers at once, so overlapping runs would offer the same scene twice.
     private string EnqueueMissingMonitorAll(
         IJobService jobs,
         IServiceScopeFactory scopes,
@@ -127,16 +109,8 @@ public sealed partial class WhisparrSync
             exclusive: true);
     }
 
-    /// <summary>Runs one enqueued whole-catalogue pass.</summary>
-    /// <remarks>
-    /// Everything the run acts through is resolved when it STARTS. The profile and the root each add
-    /// carries are the instance's to change at any time, and a run enqueued minutes ago must not
-    /// create catalogue items under values read before that.
-    /// <para>
-    /// A cancellation is rethrown after the summary is written, so the host classifies the run as
-    /// cancelled rather than completed while the reader is still told what it managed to mark.
-    /// </para>
-    /// </remarks>
+    // Cancellation is rethrown after the summary is written, so the host classifies the run as
+    // cancelled while the reader is still told what it managed to mark.
     private async Task RunMissingMonitorAllAsync(
         IReadOnlyDictionary<string, string> parameters,
         IServiceScopeFactory scopes,
@@ -149,7 +123,7 @@ public sealed partial class WhisparrSync
             .ConfigureAwait(false);
 
         // The host's progress carries no summary field, so the run's one line rides the final
-        // report's sub-task. The wording is the selection run's, both being one marking pass.
+        // report's sub-task.
         progress.Report(1d, MissingBulkJob.SummaryOf(run));
         ct.ThrowIfCancellationRequested();
 
@@ -165,16 +139,9 @@ public sealed partial class WhisparrSync
             => ReadMonitorAllPageAsync(services, reading, page, _log, runCt);
     }
 
-    /// <summary>One page of the run's own narrowed catalogue, or null where it could not be derived.</summary>
-    /// <remarks>
-    /// Through <see cref="MissingPagePlanner"/> and the same request shape the grid's read builds, so
-    /// what the run marks is what the reader was looking at rather than a second derivation that can
-    /// disagree with it.
-    /// <para>
-    /// No ordering is asked for. An ordering decides which page a scene lands on and never whether it
-    /// is in the set, and the run covers every page.
-    /// </para>
-    /// </remarks>
+    // Null where the page could not be derived. It uses the same request shape as the grid's read,
+    // so the run marks what the reader was looking at. No ordering is asked for: an ordering decides
+    // which page a scene lands on and not whether it is in the set, and the run covers every page.
     private static async Task<MissingPageView?> ReadMonitorAllPageAsync(
         IServiceProvider services,
         MissingMonitorAllBatch batch,

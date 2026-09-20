@@ -7,15 +7,11 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Jobs;
 
-/// <summary>Which catalogue one whole-entity marking run is about, as the host's map held it.</summary>
+/// <summary>Which catalogue one whole-entity marking run is about.</summary>
 /// <remarks>
-/// The narrowing rather than the scenes. The run re-derives its own set from these, so the map stays
-/// one entity and two short strings however large the catalogue behind them is.
+/// Carries the narrowing, never the scenes, so the parameter map does not grow with the catalogue.
+/// A null kind or a zero id means the map carried none that could be read.
 /// </remarks>
-/// <param name="Kind">The entity kind, or null where the map named none this product expresses.</param>
-/// <param name="CoveId">The Cove id, or zero where the map carried none that could be read.</param>
-/// <param name="TitleSearch">The title search in force, or null for none.</param>
-/// <param name="Filters">The facet selections in force, in the form the address carries them.</param>
 public sealed record MissingMonitorAllBatch(
     WhisparrEntityKind? Kind, int CoveId, string? TitleSearch, string? Filters);
 
@@ -24,18 +20,11 @@ public sealed record MissingMonitorAllBatch(
 /// map, and the page walk one run goes through.
 /// </summary>
 /// <remarks>
-/// The run carries a query rather than a list of scenes, so nothing it holds grows with the
-/// catalogue: each page is derived, marked and dropped before the next is read. That is also what
-/// makes the set it acts on the set the reader was looking at, the derivation being the one the grid
-/// itself reads through.
-/// <para>
-/// Every body this run composes is the scene add the card's own verb composes. Nothing here reaches
-/// a search of any kind.
-/// </para>
+/// The run carries a query, not a list of scenes, so nothing it holds grows with the catalogue: each
+/// page is derived, marked and dropped before the next is read.
 /// </remarks>
 public static class MissingMonitorAllJob
 {
-    /// <summary>The job id this extension's own type prefix is minted onto.</summary>
     public const string JobId = "missing-monitor-all";
 
     private const string KindKey = "kind";
@@ -43,7 +32,6 @@ public static class MissingMonitorAllJob
     private const string TitleSearchKey = "titleSearch";
     private const string FiltersKey = "filters";
 
-    /// <summary>Encodes one whole-catalogue run onto the host's parameter map.</summary>
     public static Dictionary<string, string> Encode(
         WhisparrEntityKind kind, int coveId, string? titleSearch, string? filters)
     {
@@ -53,8 +41,8 @@ public static class MissingMonitorAllJob
             [CoveIdKey] = coveId.ToString(CultureInfo.InvariantCulture),
         };
 
-        // Written only where there is one, so a narrowing nobody asked for cannot be read back out of
-        // a key holding an empty string.
+        // Written only where there is one, so an empty key cannot read back as a narrowing nobody
+        // asked for.
         if (!string.IsNullOrWhiteSpace(titleSearch))
         {
             parameters[TitleSearchKey] = titleSearch;
@@ -70,10 +58,9 @@ public static class MissingMonitorAllJob
 
     /// <summary>Reads one whole-catalogue run back off the host's parameter map.</summary>
     /// <remarks>
-    /// Never throws, for the reason the selection run's decode does not: it is read inside the host's
-    /// job runner, where a throw is a faulted job rather than a handled answer. A map naming no kind
-    /// answers none rather than the first one declared, because a run that defaulted to a kind would
-    /// mark scenes under an entity nobody named.
+    /// Never throws; it runs inside the host's job runner, where a throw faults the job. A map naming
+    /// no kind answers null rather than the first kind declared, so a run never marks scenes under an
+    /// entity nobody named.
     /// </remarks>
     public static MissingMonitorAllBatch Decode(IReadOnlyDictionary<string, string>? parameters)
     {
@@ -96,33 +83,12 @@ public static class MissingMonitorAllJob
             kind, coveId, Read(parameters, TitleSearchKey), Read(parameters, FiltersKey));
     }
 
-    /// <summary>
-    /// Walks the narrowed catalogue a page at a time and offers each scene on it to the instance,
-    /// inside ONE scope elevated to System.
-    /// </summary>
-    /// <remarks>
-    /// The run carries no principal of its own, and Cove's per-principal query filters answer an
-    /// anonymous reader with zero rows and no error.
-    /// <para>
-    /// A page that could not be derived ends the walk with what was marked so far. Continuing past it
-    /// would skip a page of the catalogue in silence, which reads as a completed run over a set that
-    /// was never whole.
-    /// </para>
-    /// <para>
-    /// A cancellation classifies the run as cancelled and what was marked before it stays marked: the
-    /// scenes are in the instance's catalogue and there is nothing to undo.
-    /// </para>
-    /// </remarks>
-    /// <param name="batch">Which catalogue the run is about.</param>
-    /// <param name="scopes">The scope factory the extension was handed at initialization.</param>
-    /// <param name="aiming">
-    /// What the run offers each scene through, over the run's own elevated services, or null where it
-    /// must not act.
-    /// </param>
-    /// <param name="readPage">
-    /// The derivation one page is read through, answering null where the page could not be derived.
-    /// </param>
-    /// <param name="ct">Cancelled when the host stops the job.</param>
+    // Runs as System: the job carries no principal, and Cove's per-principal filters answer an
+    // anonymous reader with zero rows and no error.
+    // A page that could not be derived ends the walk. Continuing past it would skip a page in
+    // silence and report a completed run over a set that was never whole.
+    // A stop classifies as cancelled, not failed: what was already marked is in the instance's
+    // catalogue and there is nothing to undo.
     internal static Task<MissingBulkRun> RunAsync(
         MissingMonitorAllBatch batch,
         IServiceScopeFactory scopes,
@@ -150,12 +116,8 @@ public static class MissingMonitorAllJob
         });
     }
 
-    /// <summary>Offers every scene the walk reaches, keeping only counts.</summary>
-    /// <remarks>
-    /// Repeats are dropped within a page and not across the walk. A set spanning the walk would grow
-    /// with the catalogue, and offering one scene twice costs one add the instance answers as already
-    /// held rather than a second registration.
-    /// </remarks>
+    // Repeats are dropped within a page, not across the walk: a set spanning the walk would grow
+    // with the catalogue. Offering one scene twice costs one add answered as already held.
     private static async Task<MissingBulkRun> MarkAsync(
         Func<int, Task<MissingPageView?>> readPage,
         Func<string, CancellationToken, Task<WhisparrResponse?>> mark,
@@ -217,11 +179,9 @@ public static class MissingMonitorAllJob
             : new MissingBulkRun(MissingBulkRunOutcome.Completed, marked, alreadyHeld, refused);
     }
 
-    /// <summary>A run that offered nothing, because it was never aimed at a scene.</summary>
     private static MissingBulkRun Untaken { get; } =
         new(MissingBulkRunOutcome.NothingToMark, 0, 0, 0);
 
-    /// <summary>One page's identifiers with repeats removed, keeping first appearance.</summary>
     private static List<string> Distinct(IReadOnlyList<MissingCard> cards)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);

@@ -20,19 +20,12 @@ public enum PathCandidateRefusal
 }
 
 /// <summary>What a reported path and the two systems' library roots make of each other.</summary>
-/// <param name="ReportingRoots">
-/// The reporting instance's own roots that contain the reported path, in the order the instance gave
-/// them. Empty when none does.
-/// </param>
-/// <param name="Tails">
-/// The parts of the reported path below each reporting root that contains it, in the order those
-/// roots were given. Empty beside a non-null <paramref name="Refusal"/>.
-/// </param>
-/// <param name="Candidates">
-/// The absolute paths to probe: every tail placed under every host library root, de-duplicated and
-/// in the order they were formed. Empty beside a non-null <paramref name="Refusal"/>.
-/// </param>
-/// <param name="Refusal">Why there is nothing to probe, or null when there is.</param>
+/// <remarks>
+/// The reporting roots are those containing the reported path, in the order the instance gave them,
+/// and the tails are the parts below each of them. The candidates are every tail placed under every
+/// host library root, de-duplicated and in the order they were formed. Tails and candidates are
+/// empty beside a non-null refusal.
+/// </remarks>
 public sealed record PathCandidateReading(
     IReadOnlyList<string> ReportingRoots,
     IReadOnlyList<string> Tails,
@@ -41,16 +34,17 @@ public sealed record PathCandidateReading(
 {
     /// <summary>The reporting root a refusal from this reading is counted under.</summary>
     /// <remarks>
-    /// Blank when no reporting root contains the reported path, which is a delivery the banner has to
-    /// show rather than drop. Where several reporting roots nest, the first the instance listed
-    /// carries the line: this groups a count, and never decides which file to import.
+    /// Blank when no reporting root contains the reported path. Where several reporting roots nest,
+    /// the first the instance listed carries the line. This groups a count and never decides which
+    /// file to import.
     /// </remarks>
     public string RefusalRoot => ReportingRoots.Count > 0 ? ReportingRoots[0] : "";
 }
 
-/// <summary>One candidate path and what a probe found there.</summary>
-/// <param name="Path">The candidate, as <see cref="PathCandidateGuard"/> constructed it.</param>
-/// <param name="Probed">What <see cref="IImportPathPort"/> answered for it.</param>
+/// <summary>
+/// One candidate path, as <see cref="PathCandidateGuard"/> constructed it, and what a probe found
+/// there.
+/// </summary>
 public sealed record ProbedCandidate(string Path, ProbedPath Probed);
 
 /// <summary>The one path to import, or why there is none.</summary>
@@ -82,48 +76,42 @@ public sealed record PathResolution
 /// </summary>
 /// <remarks>
 /// The arithmetic is direction-neutral. Inbound it is called with the reporting instance's roots to
-/// strip under and the host's library roots to rebuild under; outbound those two are swapped, with a
-/// single library root to strip under so exactly one tail is produced.
+/// strip under and the host's library roots to rebuild under; outbound those two are swapped, with
+/// a single library root to strip under so exactly one tail is produced.
 /// <para>
 /// Pure, and performs no I/O. Whether a candidate is really that file is a separate reading, taken
-/// through <see cref="IImportPathPort"/> inbound and through the instance outbound, and folded back
-/// in by the caller. Two rules here are security-load-bearing rather than conveniences.
+/// through <see cref="IImportPathPort"/> inbound and through the instance outbound.
 /// </para>
 /// <para>
-/// The path handed onward is always one this class CONSTRUCTED by joining a tail under a host
-/// library root. The string the delivery reported is never passed through, and the host's own import
-/// creates a folder row from whatever directory it is handed without consulting a library root at
-/// all.
+/// The path handed onward is always one this class constructed by joining a tail under a host
+/// library root. The string the delivery reported is never passed through, because the host's own
+/// import creates a folder row from whatever directory it is handed without consulting a library
+/// root.
 /// </para>
 /// <para>
-/// Each constructed candidate is canonicalized and then re-checked for containment under the root it
-/// was built under. A parent-directory segment in the reported tail collapses during that step, so
-/// the check has to come after it rather than before.
+/// Each constructed candidate is canonicalized and then re-checked for containment under the root
+/// it was built under. A parent-directory segment in the reported tail collapses during that step,
+/// so the check has to come after it.
 /// </para>
 /// <para>
-/// Where several reporting roots nest, every one that contains the reported path yields its own tail
-/// and its own candidates. None is chosen here: which file is really meant is settled by what is on
-/// disk, and a winner picked in arithmetic would be a guess the caller could not see.
+/// Where several reporting roots nest, every one containing the reported path yields its own tail
+/// and its own candidates, and none is chosen here: what is on disk settles which file is meant.
 /// </para>
 /// <para>
-/// Containment under a host library root is a yes-or-no gate and never selects one. The host's import
-/// takes an absolute path and no root, so nothing needs an answer to which root owns a path.
+/// Containment under a host library root is a yes-or-no gate and never selects one. The host's
+/// import takes an absolute path and no root.
 /// </para>
 /// </remarks>
 public static class PathCandidateGuard
 {
-    /// <summary>The separator every path here is spelled with.</summary>
-    /// <remarks>
-    /// Deliberately not the platform's own. These paths are a Linux container's whichever machine
-    /// this code runs on, so taking the separator from the running process would make the arithmetic
-    /// answer differently in a test than in the container it describes.
-    /// </remarks>
+    // Not the platform's separator. These paths are a Linux container's whichever machine this code
+    // runs on, so taking it from the running process would answer differently in a test.
     private const string Separator = "/";
 
-    /// <summary>What <paramref name="path"/> could resolve to under the rebuilding roots.</summary>
-    /// <param name="path">The absolute path to re-express, in its own spelling.</param>
-    /// <param name="strippedUnder">The roots a tail is taken below.</param>
-    /// <param name="rebuiltUnder">The roots each tail is placed under.</param>
+    /// <summary>
+    /// What <paramref name="path"/> could resolve to: a tail taken below each of
+    /// <paramref name="strippedUnder"/> and placed under each of <paramref name="rebuiltUnder"/>.
+    /// </summary>
     /// <exception cref="ArgumentNullException">Either root list is null.</exception>
     public static PathCandidateReading Read(
         string? path,
@@ -177,16 +165,10 @@ public static class PathCandidateGuard
 
     /// <summary>What the probe results make of the candidates.</summary>
     /// <remarks>
-    /// Three branches and nothing between them: one verified candidate is the file the delivery named,
-    /// none means the product does not know where that file is, and more than one means it cannot say
-    /// which of them the delivery meant. The two refusals are distinct causes because a misconfigured
-    /// root and one absent file are different things to act on.
+    /// One verified candidate is the file the delivery named; none and more than one are separate
+    /// refusals, because a misconfigured root and one absent file are different things to act on.
+    /// A null <paramref name="reportedSize"/> verifies on presence alone and is not a mismatch.
     /// </remarks>
-    /// <param name="probed">Every candidate and what the probe answered for it.</param>
-    /// <param name="reportedSize">
-    /// The size the delivery reported, or null when it carried none. A delivery that reported no size
-    /// is verified on presence alone; absence of a size is not a mismatch.
-    /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="probed"/> is null.</exception>
     public static PathResolution Resolve(IReadOnlyList<ProbedCandidate> probed, long? reportedSize)
     {
@@ -205,25 +187,16 @@ public static class PathCandidateGuard
         };
     }
 
-    /// <summary>Whether the file the probe found is the one the delivery described.</summary>
-    /// <remarks>
-    /// A file of the right name and a different length is a different file. Both generations report a
-    /// size, so accepting on presence alone where one was reported would give up a check that is
-    /// always available.
-    /// </remarks>
+    // A file of the right name and a different length is a different file. Both generations report
+    // a size, so a reported one is always checked.
     internal static bool Verifies(ProbedCandidate candidate, long? reportedSize)
         => candidate.Probed.Exists
             && (reportedSize is null || candidate.Probed.Size == reportedSize);
 
-    /// <summary>
-    /// The part of <paramref name="path"/> below <paramref name="root"/>, or null when it is not
-    /// under it.
-    /// </summary>
-    /// <remarks>
-    /// Compared case-insensitively. Both strings come from the same instance describing its own
-    /// filesystem, so a difference of case between them is a difference of spelling rather than of
-    /// folder, and refusing on one would drop a file the instance can see.
-    /// </remarks>
+    // The part of the path below the root, or null when it is not under it. The prefix carries a
+    // trailing separator, so a sibling whose name starts with the root's is not matched.
+    // Compared case-insensitively: both strings come from the same instance describing its own
+    // filesystem, so a difference of case is a difference of spelling and not of folder.
     internal static string? TailBelow(string path, string root)
     {
         var normalizedRoot = Normalize(root);
@@ -239,15 +212,9 @@ public static class PathCandidateGuard
             : null;
     }
 
-    /// <summary>
-    /// <paramref name="tail"/> placed under <paramref name="root"/>, or null when the result leaves
-    /// that root.
-    /// </summary>
-    /// <remarks>
-    /// Compared ordinally. The two strings compared are the root and something built from it, so
-    /// they differ in case only if a parent-directory segment moved the result elsewhere, which is
-    /// the case this refuses.
-    /// </remarks>
+    // The tail placed under the root, or null when the result leaves that root. Containment is
+    // checked against the root plus a separator, ordinally: the candidate is built from the root,
+    // so a difference of case means a parent-directory segment moved the result elsewhere.
     internal static string? CandidateUnder(string root, string tail)
     {
         var normalizedRoot = Canonicalize(Normalize(root)).TrimEnd('/');
@@ -262,27 +229,17 @@ public static class PathCandidateGuard
             : null;
     }
 
-    /// <summary>One spelling of a path: forward slashes, no trailing separator beyond a bare root.</summary>
+    // One spelling of a path: forward slashes, no trailing separator beyond a bare root.
     internal static string Normalize(string path)
     {
         var slashed = path.Replace('\\', '/').Trim();
         return slashed.Length > 1 ? slashed.TrimEnd('/') : slashed;
     }
 
-    /// <summary>
-    /// <paramref name="path"/> with its current- and parent-directory segments collapsed.
-    /// </summary>
-    /// <remarks>
-    /// Collapsed over the string rather than through the platform's own resolver, which anchors a
-    /// path to the running process's drive and working directory. The paths here are a container's,
-    /// and this code is also exercised on a machine whose separators and roots are not that
-    /// container's.
-    /// <para>
-    /// A parent segment with nothing left to remove is dropped, so the result stays an absolute path
-    /// and the containment check that follows sees a path shorter than its root rather than a
-    /// spelling that could still start with one.
-    /// </para>
-    /// </remarks>
+    // Collapses current- and parent-directory segments over the string, not through the platform's
+    // resolver, which anchors a path to the running process's drive and working directory.
+    // A parent segment with nothing left to remove is dropped, so the result stays absolute and the
+    // containment check that follows sees a path shorter than its root.
     internal static string Canonicalize(string path)
     {
         var rooted = path.StartsWith('/');

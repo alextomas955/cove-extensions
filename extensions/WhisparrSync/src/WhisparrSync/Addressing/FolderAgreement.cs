@@ -7,8 +7,7 @@ namespace WhisparrSync.Addressing;
 /// <summary>Why one Cove library root has no agreed spelling on the connected instance.</summary>
 /// <remarks>
 /// Stored in the options blob and served to the settings page, so the wire spelling is declared on
-/// the type. An equivalent converter in a serializer options collection would outrank this one rather
-/// than duplicate it.
+/// the type. An equivalent converter on a serializer options object would outrank this one.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum FolderAgreementRefusal
@@ -39,21 +38,18 @@ public enum FolderAgreementRefusal
 }
 
 /// <summary>The paths to ask the instance about for one Cove root, or why there are none.</summary>
-/// <param name="Candidates">
-/// One path per root the instance declares: that root followed by the sample file's tail below the
-/// Cove root. Empty beside a non-null <paramref name="Refusal"/>.
-/// </param>
-/// <param name="Refusal">Why there is nothing to ask about, or null when there is.</param>
+/// <remarks>
+/// A candidate is one root the instance declares followed by the sample file's tail below the Cove
+/// root. Candidates is empty exactly when Refusal is non-null.
+/// </remarks>
 public sealed record FolderCandidates(
     IReadOnlyList<string> Candidates, FolderAgreementRefusal? Refusal);
 
 /// <summary>What one Cove library root agreed with on the connected instance, or why it did not.</summary>
-/// <param name="InstanceRoot">
-/// The instance's own spelling of the Cove root, or null beside a non-null
-/// <paramref name="Refusal"/>.
-/// </param>
-/// <param name="Refusal">Why nothing was agreed, or null when something was.</param>
-/// <param name="Tried">Every candidate the instance was asked about, in the order they were formed.</param>
+/// <remarks>
+/// InstanceRoot is the instance's own spelling of the Cove root, and is non-null exactly when
+/// Refusal is null. Tried lists the candidates in the order they were formed.
+/// </remarks>
 public sealed record FolderAgreementReading(
     string? InstanceRoot, FolderAgreementRefusal? Refusal, IReadOnlyList<string> Tried);
 
@@ -61,35 +57,23 @@ public sealed record FolderAgreementReading(
 /// What one Cove library root and the roots an instance declares make of each other.
 /// </summary>
 /// <remarks>
-/// Pure, and performs no I/O. Whether a candidate really holds the sample file is a separate reading,
-/// taken through the instance and folded back in by the caller.
-/// <para>
-/// The candidates are built by <see cref="PathCandidateGuard"/>, which is the same arithmetic the
-/// inbound direction uses with its two root lists the other way round. One statement of the
-/// stripping, the rebuilding and the containment re-check serves both directions.
-/// </para>
+/// Pure, and performs no I/O. Whether a candidate really holds the sample file is a separate
+/// reading, taken through the instance and folded back in by the caller.
 /// <para>
 /// The agreement is taken off the verified candidate by removing the tail that was appended to it,
-/// rather than by searching the declared roots for one that is a prefix. Instance roots that nest
-/// therefore need no tie-break.
+/// not by searching the declared roots for a prefix. Instance roots that nest therefore need no
+/// tie-break.
 /// </para>
 /// </remarks>
 public static class FolderAgreement
 {
     /// <summary>What to ask the instance about for <paramref name="coveRoot"/>.</summary>
     /// <remarks>
-    /// A supplied <paramref name="mapping"/> REPLACES the roots the instance declares rather than
-    /// joining them, and the library's own spelling is not asked about either. An operator who states
-    /// where a root is has settled it, and asking about the alternatives as well would reintroduce
-    /// the ambiguity the mapping was supplied to remove.
+    /// A supplied mapping replaces the roots the instance declares rather than joining them, and
+    /// the library's own spelling is not asked about either: an operator who states where a root is
+    /// has settled it, and asking about the alternatives would restore the ambiguity the mapping
+    /// removes. The mapping is still only a candidate, and the instance's answer to it decides.
     /// </remarks>
-    /// <param name="sampleFilePath">One file the library holds under <paramref name="coveRoot"/>.</param>
-    /// <param name="coveRoot">The Cove library root the sample file sits under.</param>
-    /// <param name="instanceRoots">The roots the connected instance declares for itself.</param>
-    /// <param name="mapping">
-    /// Where an operator states the instance holds <paramref name="coveRoot"/>, or blank where none
-    /// is supplied. Still only a candidate: the instance's answer to it decides.
-    /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="instanceRoots"/> is null.</exception>
     public static FolderCandidates CandidatesFor(
         string? sampleFilePath,
@@ -121,10 +105,9 @@ public static class FolderAgreement
         }
 
         // The library's own spelling is asked about too. Where both systems reach one filesystem at
-        // one path, and where the instance's root sits below the Cove root, no rebuilt candidate
-        // names the file: the rebuild would carry the segments the instance's own root already holds.
-        // Only the instance's answer tells that deployment from one whose mounts differ. Last, so a
-        // run reporting one of the paths it tried reports one the instance could have held.
+        // one path, or the instance's root sits below the Cove root, no rebuilt candidate names the
+        // file: the rebuild would carry segments the instance's own root already holds. It goes
+        // last so a run reporting one of the paths it tried reports one the instance could hold.
         var asTheLibrarySpellsIt = PathCandidateGuard.Normalize(sampleFilePath);
 
         return new FolderCandidates(
@@ -135,10 +118,6 @@ public static class FolderAgreement
     }
 
     /// <summary>What the instance's answers make of the candidates.</summary>
-    /// <param name="sampleFilePath">The file the candidates were built from.</param>
-    /// <param name="coveRoot">The Cove library root that file sits under.</param>
-    /// <param name="probed">Each candidate and what the instance reported at it.</param>
-    /// <param name="sampleSize">The size the library holds for the sample file.</param>
     /// <exception cref="ArgumentNullException"><paramref name="probed"/> is null.</exception>
     public static FolderAgreementReading Resolve(
         string sampleFilePath,
@@ -180,14 +159,9 @@ public static class FolderAgreement
         return tail is null ? null : PathCandidateGuard.CandidateUnder(instanceRoot, tail);
     }
 
-    /// <summary>
-    /// <paramref name="candidate"/> with <paramref name="tail"/> removed from its end.
-    /// </summary>
-    /// <remarks>
-    /// A candidate was formed as a declared root followed by this tail, so what remains is that root.
-    /// Null where the candidate's spelling does not end in the tail, which the containment re-check
-    /// inside the arithmetic can produce by collapsing a parent segment.
-    /// </remarks>
+    // A candidate was formed as a declared root followed by this tail, so what remains is that
+    // root. Null where the candidate does not end in the tail, which the containment re-check can
+    // produce by collapsing a parent segment.
     private static string? RootOf(string candidate, string tail)
     {
         var suffix = "/" + PathCandidateGuard.Normalize(tail).TrimStart('/');
@@ -196,11 +170,9 @@ public static class FolderAgreement
             : null;
     }
 
-    // The inbound vocabulary never leaves this module. Outbound surfaces none of it, and mapping it
-    // here keeps the inbound refusal projection and the wire document it feeds unchanged.
-    //
-    // Outbound the two root lists are swapped, so the reported-path reasons are all about the sample
-    // file and the library-root reason is about the instance.
+    // The inbound refusal vocabulary is mapped here so it never reaches the outbound wire document.
+    // Outbound the two root lists are swapped, so the reported-path reasons are all about the
+    // sample file and the library-root reason is about the instance.
     private static FolderAgreementRefusal ReasonFor(PathCandidateRefusal refusal)
         => refusal switch
         {

@@ -14,11 +14,6 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
-    /// <summary>What the connected instance is, and what its generation can honour.</summary>
-    /// <remarks>
-    /// The stored default scope rides here because the same load that resolved the connection read
-    /// it, so an acting path takes it without issuing a second read.
-    /// </remarks>
     private sealed record MonitoringTarget(
         WhisparrGeneration Generation,
         Uri BaseAddress,
@@ -27,17 +22,8 @@ public sealed partial class WhisparrSync
         IWhisparrClient Reads,
         MonitorScope DefaultMonitorScope);
 
-    /// <summary>The instance to act against, or null when none is configured.</summary>
-    /// <summary>Records what one run established about the Cove library roots it reached.</summary>
-    /// <remarks>
-    /// A run that reached no folder at all writes nothing: it established nothing about any root, and
-    /// its zero counts are the run never having been aimed rather than the roots disagreeing.
-    /// <para>
-    /// Written outside the run's own cancellation. What a run established about a root holds whether
-    /// or not the run went on to finish, and a stopped run that dropped its readings would leave the
-    /// settings page asking about roots it had just agreed with.
-    /// </para>
-    /// </remarks>
+    // Written outside the run's own cancellation. What a run established about a root holds whether
+    // or not the run finished.
     private static async Task RecordRootReadingsAsync(
         IServiceScopeFactory scopes,
         IReadOnlyList<FolderAddressRefusal>? refused,
@@ -85,26 +71,11 @@ public sealed partial class WhisparrSync
             : null;
     }
 
-    /// <summary>The acting verbs one entity kind is monitored through, already aimed.</summary>
-    /// <remarks>
-    /// One kind's members reduced to what the shared flow needs, so the flow is written once and the
-    /// difference between the two kinds is confined to where each is built. The scope is bound where
-    /// the studio's verbs are, so no shared step can carry a scope to a kind that expresses none.
-    /// </remarks>
     private sealed record KindActing(
         HeldActing Held,
         Func<AddDefaults, CancellationToken, Task<WhisparrResponse>> AddMonitored);
 
-    /// <summary>The verbs an entity the instance ALREADY holds is changed through.</summary>
-    /// <remarks>
-    /// Separate from the add, and reachable without naming a scope, because unmonitoring names none.
-    /// A shared record carrying the add's bound scope would hand every verb a scope its caller never
-    /// chose.
-    /// <para>
-    /// <see cref="SetScope"/> is null for a kind expressing no scope, so a scope cannot reach one
-    /// through this seam at all rather than reaching a member that refuses once it is called.
-    /// </para>
-    /// </remarks>
+    // SetScope is null for a kind that expresses no scope, so a scope cannot reach one at all.
     private sealed record HeldActing(
         Func<CancellationToken, Task<WhisparrResponse>> ReadEntity,
         Func<int, bool, CancellationToken, Task<WhisparrResponse>> SetMonitored,
@@ -170,9 +141,8 @@ public sealed partial class WhisparrSync
         var answer = MonitoringProjector.Classify(read);
         return answer.Reading switch
         {
-            // Not held is not a refusal: the instance holds no entry, and the entity is simply not
-            // monitored yet. The two are answered as separate members, so a reader is not left to
-            // infer an absence from an unmonitored flag.
+            // Not held is not a refusal: the instance holds no entry, so the entity is simply not
+            // monitored yet.
             MonitoringProjector.EntityReading.NotHeld
                 => State(kind, target, present: false, monitored: false, scope: null),
             MonitoringProjector.EntityReading.Held => Held(read.Body),
@@ -189,30 +159,19 @@ public sealed partial class WhisparrSync
         }
     }
 
-    /// <summary>How many of one entity's own files sit under one library root.</summary>
     private static Func<IEntityFolderPort, string, CancellationToken, Task<int>> FilesOfEntity(
         WhisparrEntityKind kind, int coveId)
         => (files, coveRoot, ct) => files.FilesUnderAsync(kind, coveId, coveRoot, ct);
 
-    /// <summary>How many of one video's own files sit under one library root.</summary>
     private static Func<IEntityFolderPort, string, CancellationToken, Task<int>> FilesOfVideo(
         int videoId)
         => (files, coveRoot, ct) => files.VideoFilesUnderAsync(videoId, coveRoot, ct);
 
-    /// <summary>
-    /// Composes an add's root per entity from a path holding no elevated services of its own.
-    /// </summary>
-    /// <remarks>
-    /// The count is taken inside a System scope. Cove's per-principal query filters answer a reader
-    /// with the rows that reader can see, so a count taken as the caller would report an entity that
-    /// holds files as holding none, and the add would then go to the wrong root with no error.
-    /// <para>
-    /// What the addressing established about each root is recorded, the same way a run records it.
-    /// This is the doorway a single gesture comes through, and its refusal tells the reader to state
-    /// the folder's path on the settings page. That page offers a root only once something has
-    /// recorded a reading for it, so without this the sentence names a remedy the page cannot show.
-    /// </para>
-    /// </remarks>
+    // The count is taken inside a System scope. Cove's per-principal query filters answer a reader
+    // with the rows that reader can see, so a count taken as the caller would report an entity that
+    // holds files as holding none, and the add would go to the wrong root with no error.
+    // The readings are recorded because the settings page offers a root only once a reading exists
+    // for it, and the refusal tells the reader to state that folder's path there.
     private static Func<AddDefaults, CancellationToken, Task<EntityAddDefaultsResolution>>
         EntityRootThrough(
             IServiceScopeFactory scopes,
@@ -241,7 +200,6 @@ public sealed partial class WhisparrSync
             return composed;
         };
 
-    /// <summary>Composes an add's root per entity inside a run's own elevated services.</summary>
     private static Func<AddDefaults, CancellationToken, Task<EntityAddDefaultsResolution>>
         EntityRootIn(
             IServiceProvider services,
@@ -250,12 +208,8 @@ public sealed partial class WhisparrSync
         => (runWide, ct) =>
             ComposeWithEntityRootAsync(services, target, countUnder, runWide, observe: null, ct);
 
-    /// <summary>The one place every add body's root is composed, whatever doorway reached it.</summary>
-    /// <remarks>
-    /// An observer is told what the addressing established about each root it was asked about, and
-    /// is null where the caller records nothing. A run keeps its own loop over the roots and records
-    /// from there; a single gesture has no such loop, so this is where it learns the same thing.
-    /// </remarks>
+    // observe is null where the caller records the root readings itself, as a run does from its own
+    // loop over the roots.
     private static Task<EntityAddDefaultsResolution> ComposeWithEntityRootAsync(
         IServiceProvider services,
         MonitoringTarget target,
@@ -283,13 +237,8 @@ public sealed partial class WhisparrSync
             ct);
     }
 
-    /// <summary>Monitors one entity, at the scope <paramref name="actingFor"/> was armed with.</summary>
-    /// <remarks>
-    /// The scope reaches the instance through the arm and is never answered from here: every branch
-    /// answers a read, for the reason <see cref="ScopeHeld"/> states. So a caller composing a scope
-    /// supplies it once, to <paramref name="actingFor"/>, and reads the result back off the
-    /// instance's own answer.
-    /// </remarks>
+    // The scope reaches the instance through actingFor and is never answered from here: every
+    // branch answers a read, for the reason ScopeHeld states.
     private static async Task<EntityMonitoringView> MonitorResolvedAsync(
         WhisparrEntityKind kind,
         int coveId,
@@ -372,36 +321,13 @@ public sealed partial class WhisparrSync
                 .ConfigureAwait(false);
     }
 
-    /// <summary>Reads the entity again and answers the state that read reports.</summary>
-    /// <remarks>
-    /// The evidence a write took effect is a later read rather than the write's own status. This
-    /// generation answers an add it did not understand with a created status and an echo showing the
-    /// monitored field dropped, so an accepted write the instance then reports unmonitored is a
-    /// refusal.
-    /// <para>
-    /// The scope answered is the read's own, for the reason <see cref="ScopeHeld"/> states: what an
-    /// add composed and what a later read reports are different facts, and this generation answers a
-    /// body whose fields it dropped with a success. So a composed scope cannot stand in for one.
-    /// </para>
-    /// <para>
-    /// A read that cannot be classified is a refusal too: what the instance holds is then unknown,
-    /// and unknown is not evidence.
-    /// </para>
-    /// <para>
-    /// The refusal it answers is <see cref="MonitorRefusalKind.InstanceDidNotReportTheChange"/> and
-    /// not the refusal a read's own classification names. This site is reached only after a write was
-    /// accepted, so an absence here is not "there was nothing to act on" and a reading this product
-    /// rejected is not "nothing was changed": the sentences those kinds carry would tell a reader
-    /// that nothing happened when something may well have. A refusal the answering seam read for
-    /// itself is kept, because that names this product's own limit rather than what the instance now
-    /// holds.
-    /// </para>
-    /// <para>
-    /// The cost is one more outbound read per entity, which a batch pays per selected entity. It
-    /// already issues a read and a write for each, so this is what turns a reported outcome into an
-    /// observed one for a third of an increase.
-    /// </para>
-    /// </remarks>
+    // The evidence a write took effect is a later read, not the write's own status: this generation
+    // answers an add it did not understand with a created status and an echo whose monitored field
+    // is dropped. A read that cannot be classified is a refusal too, since what the instance holds
+    // is then unknown.
+    // The refusal answered is InstanceDidNotReportTheChange rather than the one a read's own
+    // classification names, because a write was already accepted here and the other kinds say
+    // nothing happened.
     private static async Task<EntityMonitoringView> ReadBackMonitoredAsync(
         WhisparrEntityKind kind,
         MonitoringTarget target,
@@ -436,14 +362,7 @@ public sealed partial class WhisparrSync
         return Refused(kind, target, refusal);
     }
 
-    /// <summary>Whether <paramref name="kind"/> expresses a monitor scope at all.</summary>
-    /// <remarks>
-    /// Transcribed rather than derived from the acting seam, so a kind added later is classified by
-    /// whoever adds it. The field a narrower scope is carried in exists on one resource only.
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="kind"/> is not a kind this product expresses.
-    /// </exception>
+    // The field a narrower scope is carried in exists on the studio resource only.
     private static bool ExpressesAScope(WhisparrEntityKind kind)
         => kind switch
         {
@@ -453,19 +372,9 @@ public sealed partial class WhisparrSync
                 nameof(kind), kind, "This is not an entity kind this product expresses."),
         };
 
-    /// <summary>
-    /// Resolves identity, reads the entity, and applies <paramref name="change"/> to one the instance
-    /// holds.
-    /// </summary>
-    /// <remarks>
-    /// The order is the monitor route's own: identity first, so a refusal costs no outbound request,
-    /// then the entity itself. Nothing the instance holds is nothing to change, and it is not
-    /// monitored either, so that answers the current state and sends nothing.
-    /// <para>
-    /// The instance-side row id is read from the entity's own record rather than substituted. It
-    /// exists only for an entity the instance holds, so an absent one is refused rather than guessed.
-    /// </para>
-    /// </remarks>
+    // Identity is resolved first, so a refusal costs no outbound request.
+    // The instance-side row id is read from the entity's own record rather than substituted: it
+    // exists only for an entity the instance holds.
     private static async Task<EntityMonitoringView> ChangingHeldEntityAsync(
         WhisparrEntityKind kind,
         int coveId,
@@ -509,13 +418,9 @@ public sealed partial class WhisparrSync
             : Refused(kind, target, MonitorRefusalKind.InstanceRefused);
     }
 
-    /// <summary>Turns monitoring on for an entity the instance already holds.</summary>
-    /// <remarks>
-    /// A held entity keeps its own profile, root folder, tags and date gate: only the flag is sent,
-    /// and every other field of the editor resource is left unset because an unset field is not
-    /// applied. Reporting the click as done without sending the flip would be a success for something
-    /// that did not happen.
-    /// </remarks>
+    // Only the monitored flag is sent. Every other field of the editor resource is left unset,
+    // because an unset field is not applied and the held entity keeps its own profile, root folder,
+    // tags and date gate.
     private static async Task<EntityMonitoringView> MonitorHeldEntityAsync(
         WhisparrEntityKind kind,
         string body,
@@ -526,8 +431,7 @@ public sealed partial class WhisparrSync
     {
         if (MonitoringProjector.MonitoredIn(body))
         {
-            // Nothing is sent, so the read in hand IS the state: both the flag and the date gate it
-            // reports are what the entity is left at.
+            // Nothing is sent, so the read in hand is the state.
             return State(
                 kind,
                 target,
@@ -557,20 +461,8 @@ public sealed partial class WhisparrSync
                 .ConfigureAwait(false);
     }
 
-    /// <summary>Which refusal a classified answer states.</summary>
-    /// <remarks>
-    /// Total over both members of the answer, in this order. A refusal the answering seam read for
-    /// itself outranks the status, for the reason <see cref="MonitoringProjector.Classify"/> states.
-    /// A not-held reading is its own fact: the instance reported an absence rather than declining, and
-    /// a reader acts on the two differently. Everything left is the instance refusing, which includes
-    /// a held entity the flow rejected for a reason of its own, such as one carrying no
-    /// instance-side id.
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="answer"/> carries a reading this product does not express. Every reading is
-    /// named, so one added later stops here rather than arriving under whichever arm a fallthrough
-    /// chose.
-    /// </exception>
+    // A refusal the answering seam read for itself outranks the status, for the reason
+    // MonitoringProjector.Classify states.
     private static MonitorRefusalKind RefusalIn(MonitoringProjector.EntityAnswer answer)
         => (answer.Refusal, answer.Reading) switch
         {
@@ -583,14 +475,8 @@ public sealed partial class WhisparrSync
                 nameof(answer), answer.Reading, "This reading has no refusal written down for it."),
         };
 
-    /// <summary>
-    /// Which refusal to answer, given the two reasons a resolved flow can observe.
-    /// </summary>
-    /// <remarks>
-    /// A connection has already been established wherever this is reached, so the first reason of the
-    /// precedence cannot hold here. The order among the rest is not restated: it is read from the one
-    /// place that states it, so a change there moves every route at once.
-    /// </remarks>
+    // A connection has already been established wherever this is reached, so the first reason of
+    // the precedence cannot hold. The precedence itself is read from MonitoringProjector.
     private static MonitorRefusalKind RefusalAmong(
         bool capabilityAbsent, MonitorRefusalKind identityRefusal)
         => MonitoringProjector.FirstRefusal(new MonitoringProjector.MonitorReasons(
@@ -598,7 +484,6 @@ public sealed partial class WhisparrSync
             CapabilityAbsentOnThisGeneration: capabilityAbsent,
             IdentityRefusal: identityRefusal));
 
-    /// <summary>How one entity is read, or null where the generation cannot read that kind.</summary>
     private static Func<string, CancellationToken, Task<WhisparrResponse>>? ReadingEntity(
         WhisparrEntityKind kind, MonitoringTarget target)
         => kind switch
@@ -616,7 +501,6 @@ public sealed partial class WhisparrSync
             _ => NoArmFor<Func<string, CancellationToken, Task<WhisparrResponse>>>(kind, target),
         };
 
-    /// <summary>How one entity is monitored, or null where the generation cannot monitor that kind.</summary>
     private static Func<string, KindActing>? ActingFor(
         WhisparrEntityKind kind, MonitoringTarget target, MonitorScope scope)
         => kind switch
@@ -630,36 +514,12 @@ public sealed partial class WhisparrSync
             _ => NoArmFor<Func<string, KindActing>>(kind, target),
         };
 
-    /// <summary>
-    /// How one entity the instance holds is changed, or null where the generation cannot.
-    /// </summary>
-    /// <summary>
-    /// How <paramref name="target"/> is asked to search, or null where its generation holds no search
-    /// at all.
-    /// </summary>
-    /// <remarks>
-    /// Obtained BY NAME, and this is the only place in the product that does so, which is what makes
-    /// "a call site that never asks for the role cannot express the request" a property of the type
-    /// set rather than a habit. A generation holding no search has no implementation to hand over,
-    /// which is a refusal at the caller rather than a member that accepts the call and declines it.
-    /// <para>
-    /// Both gestures that can reach a search come through here: the one over a single entity and the
-    /// one over a selection. A third would have to be written against this same member.
-    /// </para>
-    /// </remarks>
+    // The only place the search role is obtained. A generation holding no search hands over no
+    // implementation, so the refusal is at the caller rather than inside a member that declines.
     private static IWhisparrSearchGrabbing? SearchGrabbingOn(MonitoringTarget target)
         => target.Capabilities.Obtain<IWhisparrSearchGrabbing>()
             .Match<IWhisparrSearchGrabbing?>(held => held, _ => null);
 
-    /// <summary>
-    /// The instance's own identifier for one selected entity, or why the instance cannot be told to
-    /// search it.
-    /// </summary>
-    /// <remarks>
-    /// The same order the single-entity route takes: identity first, so an entity carrying no link
-    /// costs no outbound request, then the instance's own record, which is what establishes that it
-    /// holds the entity at all. An entity it does not hold monitors nothing there.
-    /// </remarks>
     private static async Task<MonitoringBulkJob.MonitorBulkAim> AimSearchAsync(
         WhisparrEntityKind kind,
         int coveId,
@@ -706,13 +566,8 @@ public sealed partial class WhisparrSync
             _ => NoArmFor<Func<string, HeldActing>>(kind, target),
         };
 
-    /// <summary>Nothing to act through for a kind no route has an arm for.</summary>
-    /// <remarks>
-    /// The capability table is the authority, so a generation that HOLDS the capability while no
-    /// route can act on it is a fault rather than a refusal: a capability is registered with the
-    /// member that honours it, never ahead of it, and reporting a gap that does not exist would send
-    /// the user to a sentence about their instance.
-    /// </remarks>
+    // A generation that holds the capability while no route can act on it is a fault, not a
+    // refusal: a capability is registered with the member that honours it, never ahead of it.
     private static T? NoArmFor<T>(WhisparrEntityKind kind, MonitoringTarget target)
         where T : class
     {
@@ -736,31 +591,16 @@ public sealed partial class WhisparrSync
         => EntityMonitoringView.State(
             kind, target.Generation, target.Capabilities.Held, present, monitored, scope);
 
-    /// <summary>The scope the entity <paramref name="body"/> describes is held at.</summary>
-    /// <remarks>
-    /// The instance's own answer is the only source. Neither acting path may substitute the scope it
-    /// asked for here: what an add composed and what a later read reports are different facts, and
-    /// this generation answers a body whose fields it dropped with a success.
-    /// </remarks>
+    // The instance's own answer is the only source of the scope. Neither acting path may substitute
+    // the scope it asked for: this generation answers a body whose fields it dropped with a success.
     private static MonitorScope? ScopeHeld(
         WhisparrEntityKind kind, MonitoringTarget target, bool monitored, string? body)
         => MonitoringProjector.ScopeIn(kind, target.Generation, monitored, body);
 
-    /// <summary>
-    /// <paramref name="request"/>'s answer, or null when it produced none.
-    /// </summary>
-    /// <remarks>
-    /// Contained rather than propagated: it is raised into a route whose declared results hold no
-    /// failure. Exactly one line is emitted, from a filter naming every exception it contains, and a
-    /// named outcome is returned. A shutdown rethrows, because it is not a verdict about the
-    /// instance.
-    /// <para>
-    /// The filter names an I/O failure as well as a request one. The client reads a body out of the
-    /// response stream, so a connection dropped part way through an answer raises
-    /// <see cref="IOException"/> rather than <see cref="HttpRequestException"/>; a batch that let one
-    /// escape would lose the record of every entity it had already acted on.
-    /// </para>
-    /// </remarks>
+    // A failure is contained rather than propagated, because the route's declared results hold no
+    // failure. A shutdown rethrows: it is not a verdict about the instance.
+    // The filter names IOException as well as HttpRequestException. The client reads the body out
+    // of the response stream, so a connection dropped part way through an answer raises the former.
     private static async Task<WhisparrResponse?> ContainedAsync(
         Func<Task<WhisparrResponse>> request,
         MonitoringTarget target,

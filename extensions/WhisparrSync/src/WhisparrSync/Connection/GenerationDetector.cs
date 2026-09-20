@@ -5,17 +5,11 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Connection;
 
 /// <summary>What a status document says about which generation answered.</summary>
-/// <param name="Generation">
-/// The generation the version major decides, or null when this product manages neither.
-/// </param>
-/// <param name="Version">The instance's own version string, verbatim.</param>
-/// <param name="Branch">The branch the instance names.</param>
-/// <param name="CountFieldsPresent">Whether all four count fields are present.</param>
-/// <param name="Corroborated">
-/// Whether the branch and the count fields agree with the decision, or null when there is no
-/// decision for them to agree with. False is a BUILD GAP finding: a document whose two corroborating
-/// readings contradict its own version major is reported rather than resolved.
-/// </param>
+/// <remarks>
+/// <c>Corroborated</c> is whether the branch and the count fields agree with the version major, or
+/// null when the major names no generation this product manages. False is reported rather than
+/// resolved.
+/// </remarks>
 public sealed record GenerationReading(
     WhisparrGeneration? Generation,
     string? Version,
@@ -27,23 +21,20 @@ public sealed record GenerationReading(
 /// Decides which Whisparr generation a status document came from.
 /// </summary>
 /// <remarks>
-/// Pure. The decision is the <c>version</c> MAJOR and nothing else: the API path is <c>/api/v3</c> on
-/// both generations, and <c>appName</c> reads the same on both, so neither discriminates.
+/// The decision is the <c>version</c> major and nothing else: the API path is <c>/api/v3</c> on both
+/// generations and <c>appName</c> reads the same on both, so neither discriminates.
 /// <para>
-/// <c>branch</c> and the count fields are returned as a separate corroboration reading rather than as
-/// a second vote, so a disagreement between them and the version surfaces instead of being averaged
-/// away. The detector never guesses an adapter for a major it does not manage.
+/// <c>branch</c> and the count fields are a separate corroboration reading rather than a second vote,
+/// so a disagreement with the version surfaces instead of being averaged away. A major this product
+/// does not manage yields no generation.
 /// </para>
 /// </remarks>
 public static class GenerationDetector
 {
-    /// <summary>The branch v3 names.</summary>
     internal const string ErosBranch = "eros";
 
-    /// <summary>The branch v2 names.</summary>
     internal const string V2Branch = "v2";
 
-    /// <summary>What <paramref name="document"/> says about its generation.</summary>
     public static GenerationReading Detect(WhisparrStatusDocument? document)
     {
         if (document is null)
@@ -69,7 +60,6 @@ public static class GenerationDetector
             corroborated);
     }
 
-    /// <summary>The generation <paramref name="version"/>'s major names, or null for any other.</summary>
     internal static WhisparrGeneration? GenerationOf(string? version)
         => MajorOf(version) switch
         {

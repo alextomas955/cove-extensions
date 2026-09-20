@@ -1,6 +1,5 @@
 namespace WhisparrSync.Import;
 
-/// <inheritdoc cref="IImportPathPort"/>
 internal sealed class ImportPathPort : IImportPathPort
 {
     public ProbedPath Probe(string path)
@@ -14,8 +13,8 @@ internal sealed class ImportPathPort : IImportPathPort
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
-            // A path the host cannot read is not a file this product can verify, and the caller's
-            // next step is the same either way.
+            // A path that cannot be read is not a file this product can verify, and the caller
+            // acts the same way on either.
             return new ProbedPath(false, null);
         }
     }

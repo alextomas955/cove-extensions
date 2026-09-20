@@ -5,16 +5,13 @@ namespace WhisparrSync.Contracts;
 /// host services it can obtain, and of the lifecycle the host gave its background worker.
 /// </summary>
 /// <remarks>
-/// Scalars only, so the response stays the same size however large the library grows. None discloses
-/// a filesystem path or any host setting value: the three resolution members say only whether
-/// something could be obtained, one member is a count, and the two instants are in this extension's
-/// own lifecycle.
+/// Scalars only, so the response stays the same size however large the library grows. It discloses
+/// no filesystem path and no host setting value.
 /// <para>
-/// The two worker instants are here rather than in a log line because only the host can start and
-/// cancel that worker, so both halves of its lifecycle have to be readable from outside the process
-/// that observed them. The two host-service readings are here for the same reason: the host copies
-/// its own scoped and transient registrations into a container it builds per extension, so whether
-/// one of them can be obtained is only observable from inside that container.
+/// The host copies its own scoped and transient registrations into a container it builds per
+/// extension, so whether a host service can be obtained is only observable from inside that
+/// container. Only the host can start and cancel the background worker, so both halves of its
+/// lifecycle have to be readable from outside the process that observed them.
 /// </para>
 /// </remarks>
 /// <param name="ConfigurationResolved">

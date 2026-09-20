@@ -21,9 +21,8 @@ public sealed partial class WhisparrSync
 {
     private void MapSceneBatchEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // The same tier again: one gesture aiming this extension's stored credential at a third
-        // party for every scene in a selection is not a lesser act than doing it for one. The reach
-        // is what the body names, and the verb it names decides which bound applies.
+        // Configure tier: one gesture aims the stored credential at a third party for every scene
+        // in the selection. The reach is what the body names.
         endpoints.MapPost(SceneBatchRoute,
             (SceneBatchRequest request, ICurrentPrincipalAccessor principal, IJobService jobs,
              IServiceScopeFactory scopes)
@@ -32,26 +31,12 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
 
-    /// <summary>Enqueues one verb over a whole selection of scenes.</summary>
-    /// <remarks>
-    /// The gate is re-checked here, in the first statement, because the host's own permission filter
-    /// is inert on a minimal-API endpoint, and the required permission the manifest declares beside
-    /// the action hides a button and enforces nothing.
-    /// <para>
-    /// The verb is read before the size of the selection matters, because the verb decides which
-    /// bound applies. The bound is applied BEFORE anything is encoded or enqueued, and an oversized
-    /// selection is refused with a code carrying the bound that applied, so nothing is partially
-    /// applied and the browser can name the limit a reader met.
-    /// </para>
-    /// <para>
-    /// An empty selection is refused rather than enqueued. A run that does nothing still appears in
-    /// the host's Job Drawer, where it reads as work that happened.
-    /// </para>
-    /// <para>
-    /// Enqueued EXCLUSIVE, following the selection this product already enqueues: what it prevents
-    /// is two runs over overlapping selections issuing overlapping adds.
-    /// </para>
-    /// </remarks>
+    // The gate is re-checked in the first statement, because the host's permission filter is inert
+    // on a minimal-API endpoint and the manifest's declared permission only hides a button. The
+    // bound is applied before anything is encoded, so nothing is partially applied, and the refusal
+    // carries the bound so the browser can name the limit. An empty selection is refused rather
+    // than enqueued, because a run that does nothing still reads as work in the host's job list.
+    // Exclusive, so two runs over overlapping selections cannot issue overlapping adds.
     internal Results<Accepted<JobEnqueued>, BadRequest<ErrorCode>, ForbiddenCode> EnqueueSceneBatch(
         SceneBatchRequest request,
         ICurrentPrincipalAccessor principal,
@@ -106,28 +91,16 @@ public sealed partial class WhisparrSync
         return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
     }
 
-    /// <summary>How many Cove ids a selection may carry for <paramref name="verb"/>.</summary>
-    /// <remarks>
-    /// One search becomes one search per scene against every indexer the instance has, so the search
-    /// verb's cost multiplies outside Cove in a way the other four verbs' does not, and it takes the
-    /// lower of the two bounds.
-    /// </remarks>
+    // A search becomes one search per scene against every indexer the instance has, so its cost
+    // multiplies outside Cove and it takes the lower bound.
     private static int BoundFor(SceneBatchVerb verb)
         => verb == SceneBatchVerb.Search ? MaxSceneSearchIdsPerRequest : MaxEntityIdsPerRequest;
 
-    /// <summary>Runs one enqueued selection of scenes.</summary>
-    /// <remarks>
-    /// The parameters are decoded tolerantly, so a run nobody can read does nothing rather than
-    /// faulting inside the host's job runner. A verb the map does not name is that same case.
-    /// <para>
-    /// The instance is resolved once, on the first scene's turn, and reused for the rest: it is one
-    /// stored read and one credential read, and taking them per scene would be a selection of them.
-    /// </para>
-    /// <para>
-    /// A cancellation is rethrown after the summary is written, so the host classifies the run as
-    /// cancelled while the reader is still told what it managed to do.
-    /// </para>
-    /// </remarks>
+    // The parameters are decoded tolerantly, so a run nobody can read does nothing rather than
+    // faulting inside the host's job runner. The instance is resolved on the first scene's turn and
+    // reused, so the stored read and the credential read do not repeat per scene. Cancellation is
+    // rethrown after the summary is written, so the host classifies the run as cancelled while the
+    // reader is still told what it managed to do.
     private async Task RunSceneBatchAsync(
         IReadOnlyDictionary<string, string> parameters,
         IServiceScopeFactory scopes,
@@ -170,9 +143,8 @@ public sealed partial class WhisparrSync
 
             var sceneCards = services.GetRequiredService<ILibraryCardIdentityPort>();
 
-            // The same statement of each verb the single-scene route reaches, so a selection cannot
-            // behave differently from a click: the pre-send refusals a read establishes are answered
-            // per scene and the run carries on to the scenes after it.
+            // The same verbs the single-scene routes reach, so a selection cannot behave
+            // differently from a click. A refusal is answered per scene and the run carries on.
             var acted = verb switch
             {
                 SceneBatchVerb.Add => await AddSceneResolvedAsync(

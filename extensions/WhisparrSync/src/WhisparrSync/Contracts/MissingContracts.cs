@@ -5,13 +5,8 @@ namespace WhisparrSync.Contracts;
 
 /// <summary>What one scene's status is, as the catalogue surface reads it.</summary>
 /// <remarks>
-/// A wire type, because the sentence and the tint a user reads are chosen in the browser from the
-/// value answered here. The converter is on the TYPE: an options-level one outranks a type
-/// attribute, so a second declaration could drift and win in silence.
-/// <para>
 /// There is no excluded value. An excluded scene has left this set, so a state naming it here could
 /// only describe a scene the surface does not carry.
-/// </para>
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum MissingSceneState
@@ -31,12 +26,9 @@ public enum MissingSceneState
 
 /// <summary>Why the whole catalogue surface cannot answer, or that it can.</summary>
 /// <remarks>
-/// Why the GRID cannot answer, stated once above it. Why one card's verb did not take is a separate
-/// vocabulary, because the two are read in different places and mean different things.
-/// <para>
-/// The backend answers with a kind. The sentence a user reads is a frontend constant, so nothing a
-/// provider or an instance said can reach the copy.
-/// </para>
+/// Stated once above the grid. Why one card's verb did not take is a separate vocabulary,
+/// <see cref="MissingSceneActionRefusal"/>. The backend answers with a kind, and the sentence a user
+/// reads is a frontend constant, so nothing a provider or an instance said can reach the copy.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum MissingRefusalKind
@@ -55,8 +47,8 @@ public enum MissingRefusalKind
     /// </summary>
     /// <remarks>
     /// One kind whether the library holds no identity row and the name lookup found nothing, or the
-    /// lookup found several. Two exact matches leaves the choice to match order, which is not
-    /// something a caller or a reader chose, so it counts as no identifier.
+    /// lookup found several. Two exact matches leaves the choice to match order, so it counts as no
+    /// identifier.
     /// </remarks>
     NoProviderIdForEntity,
 
@@ -72,11 +64,13 @@ public enum MissingRefusalKind
     /// </remarks>
     WhisparrStatusNotRead,
 
-    /// <inheritdoc cref="WhisparrStatusNotRead"/>
+    /// <summary>
+    /// The catalogue was read and the instance keeps no per-scene records, so every card carries an
+    /// unknown status.
+    /// </summary>
     /// <remarks>
-    /// Its own kind because nothing clears it: the connected generation keeps no per-scene records at
-    /// all, so a retry would read the same absence. A reader offered a retry here would be offered a
-    /// gesture that cannot change the answer.
+    /// Its own kind because nothing clears it: a retry would read the same absence, so a reader is
+    /// offered no retry here.
     /// </remarks>
     WhisparrKeepsNoSceneRecords,
 }
@@ -84,8 +78,7 @@ public enum MissingRefusalKind
 /// <summary>Why one card's verb did not take, or that it did.</summary>
 /// <remarks>
 /// Read beneath the card's own action row, so it is held apart from
-/// <see cref="MissingRefusalKind"/>: that one is about the grid and is stated once above it, and a
-/// vocabulary covering both would put a whole-grid sentence under a single card.
+/// <see cref="MissingRefusalKind"/>, which is about the grid and is stated once above it.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum MissingSceneActionRefusal
@@ -99,11 +92,10 @@ public enum MissingSceneActionRefusal
     /// <summary>The instance answered, and would not do it.</summary>
     InstanceRefused,
 
-    /// <summary>The connected generation registers no role for the verb, so nothing was sent.</summary>
-    /// <remarks>
-    /// An absence rather than a decision. The instance was never asked, so a value saying it
-    /// declined would name the wrong party and send a reader to their own instance.
-    /// </remarks>
+    /// <summary>
+    /// The connected generation registers no role for the verb, so nothing was sent. An absence
+    /// rather than a decision: the instance was never asked.
+    /// </summary>
     CapabilityAbsentOnThisGeneration,
 
     /// <summary>The instance offers no quality profile, so no add can be composed.</summary>
@@ -118,45 +110,33 @@ public enum MissingSceneActionRefusal
     /// </summary>
     /// <remarks>
     /// Distinct from <see cref="InstanceOffersNoRootFolder"/>, which is the instance offering no
-    /// root at all. Here its root list is not what is wrong: what is unsettled is which of those
-    /// roots holds this scene's files, which is a folder mapping rather than a Whisparr setting.
+    /// root at all. Here what is unsettled is which of those roots holds this scene's files, which
+    /// is a folder mapping rather than a Whisparr setting.
     /// </remarks>
     NoAgreedRootForThisEntity,
 
     /// <summary>The instance holds no entry for the scene, so there was nothing to act on.</summary>
     /// <remarks>
-    /// A legitimate answer rather than a failure, and read as one: the instance reported an absence
-    /// instead of declining, which sends a reader somewhere different from every other value here.
+    /// A legitimate answer rather than a failure: the instance reported an absence instead of
+    /// declining, which sends a reader somewhere different from every other value here.
     /// </remarks>
     WhisparrHasNoEntryForScene,
 }
 
 /// <summary>One performer named on a catalogue scene.</summary>
-/// <param name="ProviderPerformerId">The identifier the provider issued.</param>
-/// <param name="Name">The performer's name as the provider spells it.</param>
-/// <param name="ImageUrl">The provider's own picture, or null where it offers none.</param>
 public sealed record MissingPerformerChip(string ProviderPerformerId, string Name, string? ImageUrl);
 
 /// <summary>One catalogue scene, with its status already derived.</summary>
 /// <remarks>
 /// The subtraction of what the library and the instance already hold runs on the server, so this
 /// carries a finished card and the provider's own key never reaches the browser.
+/// <para>
+/// <c>SceneUrl</c> is composed by the source that answered, so the browser holds no address pattern
+/// of its own, and is null where the source publishes no address. <c>Performers</c> and <c>Tags</c>
+/// are bounded by what one card renders; <c>PerformerCount</c> and <c>TagCount</c> are how many the
+/// provider names, however many are shown.
+/// </para>
 /// </remarks>
-/// <param name="ProviderSceneId">The identifier the provider issued, which the card's verbs name.</param>
-/// <param name="Title">The scene title as the provider spells it.</param>
-/// <param name="ReleaseDate">The release date the provider carries, or null where it carries none.</param>
-/// <param name="CoverUrl">The provider's own cover address, or null where it offers none.</param>
-/// <param name="SceneUrl">
-/// Where the source shows the scene, or null where the source publishes no address for it. Composed
-/// by the source that answered, so the browser holds no address pattern of its own.
-/// </param>
-/// <param name="StudioName">The studio the provider names, or null where it names none.</param>
-/// <param name="Description">The provider's own description, or null where it carries none.</param>
-/// <param name="Performers">The performers the card shows, bounded by what one card renders.</param>
-/// <param name="Tags">The tags the card shows, bounded by what one card renders.</param>
-/// <param name="PerformerCount">How many performers the provider names, however many are shown.</param>
-/// <param name="TagCount">How many tags the provider names, however many are shown.</param>
-/// <param name="State">What the connected instance holds for this scene.</param>
 public sealed record MissingCard(
     string ProviderSceneId,
     string Title,
@@ -172,22 +152,17 @@ public sealed record MissingCard(
     MissingSceneState State);
 
 /// <summary>One value a facet menu offers.</summary>
-/// <param name="Value">The opaque string the provider itself issued.</param>
-/// <param name="Label">How the value reads.</param>
+/// <remarks>The value is the opaque string the provider itself issued.</remarks>
 public sealed record MissingFacetValue(string Value, string Label);
 
 /// <summary>One facet menu, as the provider filled it.</summary>
 /// <remarks>
 /// A facet the provider can neither list nor filter by is absent from this list rather than present
-/// and empty, so nothing on the toolbar states a capability that does not exist.
+/// and empty, so nothing on the toolbar states a capability that does not exist. The key is the
+/// opaque one the provider itself issued, and the values are whole-catalogue rather than
+/// page-derived. <c>ReportedValueCount</c> is how many values the provider reported, and the menu
+/// carries at most one page of them.
 /// </remarks>
-/// <param name="Key">The opaque key the provider itself issued.</param>
-/// <param name="Label">How the menu reads.</param>
-/// <param name="Values">The values offered, whole-catalogue rather than page-derived.</param>
-/// <param name="ReportedValueCount">
-/// How many values the provider reported for the menu. The menu carries at most one page of them, so
-/// a surface can say which of the two figures it is showing.
-/// </param>
 public sealed record MissingFacetMenu(
     string Key,
     string Label,
@@ -223,65 +198,42 @@ public enum MissingFacetSearchOutcome
 /// <summary>The values of one facet that match what a reader typed.</summary>
 /// <remarks>
 /// Carries the same rows a menu carries, so a value found here is picked the same way a value the
-/// menu was handed is.
+/// menu was handed is. <c>Values</c> is bounded by what one lookup returns, and
+/// <c>ReportedValueCount</c> is how many the source says match.
 /// </remarks>
-/// <param name="Values">The values matched, bounded by what one lookup returns.</param>
-/// <param name="ReportedValueCount">
-/// How many values the source says match, however many <paramref name="Values"/> carries.
-/// </param>
-/// <param name="Outcome">What the lookup answered, or why it answered no values.</param>
 public sealed record MissingFacetSearchView(
     IReadOnlyList<MissingFacetValue> Values,
     int ReportedValueCount,
     MissingFacetSearchOutcome Outcome);
 
 /// <summary>One ordering the provider offers.</summary>
-/// <param name="Value">
-/// The opaque string the provider itself issued. One value, never an ordering plus a direction: one
-/// provider carries the direction inside each value and the other carries it separately, so a
-/// direction model of this product's own would be wrong for one of them.
-/// </param>
-/// <param name="Label">How the option reads.</param>
+/// <remarks>
+/// The value is the opaque string the provider itself issued. One value, never an ordering plus a
+/// direction: one provider carries the direction inside each value and the other carries it
+/// separately, so a direction model of this product's own would be wrong for one of them.
+/// </remarks>
 public sealed record MissingSortOption(string Value, string Label);
 
 /// <summary>One page of an entity's catalogue, as the tab reads it.</summary>
 /// <remarks>
 /// Discloses no provider credential and no part of any response body: classified values and the
 /// named ones a sentence needs.
+/// <para>
+/// <c>CatalogueSize</c> is how many scenes the provider lists for the entity, not the number
+/// missing. <c>SizeIsLowerBound</c> says the provider's figure is a floor rather than a count, so
+/// the count line renders a trailing plus; the badge carries the plain figure either way, the host
+/// taking a number. <c>LastPage</c> is held apart from <c>CatalogueSize</c> because a page count
+/// derived from the size would offer pages past a provider ceiling, and one provider clamps a page
+/// number past its own and re-serves the last page rather than answering an error.
+/// </para>
+/// <para>
+/// <c>SortInForce</c> is the ordering this page was read under, which is the provider's own where
+/// the caller named none, and is null only on a refused page. <c>StatusIsPermanentlyAbsent</c> means
+/// no retry can establish a status, because the connected generation keeps no per-scene records.
+/// <c>ProviderName</c> is carried on the page rather than held by the surface, because which source
+/// answers follows the connected generation.
+/// </para>
 /// </remarks>
-/// <param name="Cards">The scenes this page carries, after what is already held is removed.</param>
-/// <param name="CatalogueSize">
-/// How many scenes the provider lists for the entity, which is the figure the count line states. It
-/// is not the number missing, and the count line says so.
-/// </param>
-/// <param name="SizeIsLowerBound">
-/// The provider's own figure is a floor rather than a count, so the count line renders a trailing
-/// plus. The badge carries the plain figure either way, the host taking a number.
-/// </param>
-/// <param name="Page">The page this view is of.</param>
-/// <param name="PerPage">How many scenes a page is read in.</param>
-/// <param name="LastPage">
-/// The last page the provider will serve. Held apart from <paramref name="CatalogueSize"/> because a
-/// page count derived from the size would offer pages past a provider ceiling, and one provider
-/// clamps a page number past its own and re-serves the last page rather than answering an error.
-/// </param>
-/// <param name="RangeFrom">The first position this page covers, as the provider reports it.</param>
-/// <param name="RangeTo">The last position this page covers, as the provider reports it.</param>
-/// <param name="Refusal">Why the grid cannot answer, or that it can.</param>
-/// <param name="Facets">The facet menus the provider filled.</param>
-/// <param name="Sorts">The orderings the provider offers.</param>
-/// <param name="SortInForce">
-/// The ordering this page was read under, which is the provider's own where the caller named none.
-/// Null only on a refused page, because nothing was read and so nothing was ordered.
-/// </param>
-/// <param name="StatusWasRead">Whether a status was established for the scenes on this page.</param>
-/// <param name="StatusIsPermanentlyAbsent">
-/// No retry can establish a status, because the connected generation keeps no per-scene records.
-/// </param>
-/// <param name="ProviderName">
-/// The metadata source this page was read from, as a sentence names it. Carried on the page rather
-/// than held by the surface, because which source answers follows the connected generation.
-/// </param>
 public sealed record MissingPageView(
     IReadOnlyList<MissingCard> Cards,
     int CatalogueSize,
@@ -311,8 +263,6 @@ public sealed record MissingPageView(
 public sealed record MissingCountView(int? Count);
 
 /// <summary>What one card's verb produced.</summary>
-/// <param name="State">What the instance holds for the scene after the verb.</param>
-/// <param name="Refusal">Why the verb did not take, or that it did.</param>
 public sealed record MissingSceneActionResult(
     MissingSceneState State, MissingSceneActionRefusal Refusal);
 
@@ -322,7 +272,6 @@ public sealed record MissingSceneActionResult(
 /// The route names the Cove entity and cannot name which of a page's scenes were ticked, so there is
 /// nothing on the server to read them from.
 /// </remarks>
-/// <param name="ProviderSceneIds">The scenes ticked, as the provider issued their identifiers.</param>
 public sealed record MissingBulkRequest(IReadOnlyList<string> ProviderSceneIds);
 
 /// <summary>What asking for a selection to be marked produced.</summary>
@@ -331,6 +280,4 @@ public sealed record MissingBulkRequest(IReadOnlyList<string> ProviderSceneIds);
 /// the run that was started. It carries no count, because what the run did is a line in the host's
 /// job list rather than a number read before the run had offered anything.
 /// </remarks>
-/// <param name="JobId">The run the host's job list reports, or null.</param>
-/// <param name="Refusal">Why nothing could be started, or that something was.</param>
 public sealed record MissingBulkEnqueued(string? JobId, MissingRefusalKind Refusal);

@@ -6,37 +6,14 @@ using WhisparrSync.Import;
 
 namespace WhisparrSync.Monitoring;
 
-/// <inheritdoc cref="IEntityFolderPort"/>
-/// <remarks>
-/// Binds the base <see cref="DbContext"/> for the same reason the identity port does: this extension
-/// compiles against the host's entity assembly but not against the assembly its context lives in,
-/// and the host registers that context resolvable as the base type.
-/// <para>
-/// The de-duplication and the ordering are the DATABASE's. A set assembled here would be one entry
-/// per distinct folder and still cost one loaded row per file to build, so on a library of millions
-/// it would answer correctly and be unusable. Nothing in this file may collect.
-/// </para>
-/// <para>
-/// The path answered is the folder's own, never the denormalized full path a file carries: the
-/// instance is asked to parse a directory, and a file path names no directory to read.
-/// </para>
-/// <para>
-/// A blank path is excluded IN the query, for the same reason the de-duplication is: a filter over
-/// the materialized sequence would load every row to drop a few. The consumer that reads a folder,
-/// <c>ListImportableFilesAsync</c>, refuses a blank one with an <see cref="ArgumentException"/>,
-/// which no exception filter on the route and no catch in the run contains, so a blank row reaching
-/// it faults the whole run instead of skipping one folder. On a selection that is every entity
-/// after the first losing its outcome.
-/// </para>
-/// </remarks>
+// Binds the base DbContext because this extension compiles against the host's entity assembly but
+// not against the assembly its context lives in, and the host registers that context resolvable as
+// the base type.
 internal sealed class EntityFolderPort(DbContext db) : IEntityFolderPort
 {
     public async IAsyncEnumerable<string> FoldersFor(
         WhisparrEntityKind kind, int coveId, [EnumeratorCancellation] CancellationToken ct)
     {
-        // The kind is read before the id is, so an unexpressible kind is a fault rather than an
-        // entity holding no files: the two answers mean different things and only one is about the
-        // library.
         var files = FilesOf(kind, coveId);
         if (coveId < 1)
         {
@@ -60,8 +37,6 @@ internal sealed class EntityFolderPort(DbContext db) : IEntityFolderPort
     public async Task<int> FilesUnderAsync(
         WhisparrEntityKind kind, int coveId, string coveRoot, CancellationToken ct)
     {
-        // The kind is read first for the reason the folder read states: an unexpressible kind and an
-        // entity holding nothing are different facts and only one of them is about the library.
         var files = FilesOf(kind, coveId);
         ArgumentException.ThrowIfNullOrWhiteSpace(coveRoot);
         if (coveId < 1)
@@ -69,9 +44,9 @@ internal sealed class EntityFolderPort(DbContext db) : IEntityFolderPort
             return 0;
         }
 
-        // The stored path is the forward-slash form, so a root configured with the other separator
-        // would otherwise match nothing. The separator is part of the prefix, so a sibling whose name
-        // begins with the root's own is not under it.
+        // Stored paths are the forward-slash form, so a root configured with the other separator
+        // matches nothing without this. The trailing separator keeps a sibling whose name begins with
+        // the root's own name out of the prefix match.
         var prefix = PathCandidateGuard.Normalize(coveRoot).TrimEnd('/') + "/";
 
         return await files
@@ -99,12 +74,8 @@ internal sealed class EntityFolderPort(DbContext db) : IEntityFolderPort
             .ConfigureAwait(false);
     }
 
-    /// <summary>The video files one entity holds, as a query.</summary>
-    /// <remarks>
-    /// A studio's files reach it through the column its videos carry; a performer's reach it through
-    /// the join table, which no studio row appears in. Neither is reachable from the other's entity
-    /// without a navigation walk over loaded rows.
-    /// </remarks>
+    // A studio's files are reached through the column its videos carry; a performer's through the
+    // join table, which holds no studio row. Neither query reaches the other's entity.
     private IQueryable<VideoFile> FilesOf(WhisparrEntityKind kind, int coveId)
         => kind switch
         {

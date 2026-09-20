@@ -3,35 +3,21 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Scene;
 
-/// <summary>What an instance's own answers say about a command that was posted to it.</summary>
-/// <remarks>
-/// Total in both members. Every answer read here was composed by a third party, so an unparseable
-/// body, an empty one and a body naming no numeric identifier each answer the absent value rather
-/// than throwing.
-/// <para>
-/// Confirmation is identifier equality and nothing else. The status a just-posted command reports is
-/// not read: which value that is on a given build is unmeasured, and a decision resting on it would
-/// be resting on a vocabulary nobody established.
-/// </para>
-/// </remarks>
+// Every answer read here was composed by a third party, so an unparseable body, an empty one and
+// a body naming no numeric identifier each return null instead of throwing.
+//
+// Confirmation is identifier equality and nothing else. The status a just-posted command reports
+// is not read: which value that is on a given build is unmeasured.
 internal static class CommandProjector
 {
-    /// <summary>The command the answer to a post names, or none it named.</summary>
     internal static int? IdIn(WhisparrResponse posted)
     {
         ArgumentNullException.ThrowIfNull(posted);
         return IdentifierIn(posted);
     }
 
-    /// <summary>
-    /// Whether <paramref name="held"/> is the instance's own answer for command
-    /// <paramref name="commandId"/>.
-    /// </summary>
-    /// <remarks>
-    /// A null answer is a read that produced none, which establishes nothing and confirms nothing.
-    /// Whatever progress a confirmed answer reports is left unread: this says the instance holds the
-    /// command, and deliberately says nothing about anything having been downloaded.
-    /// </remarks>
+    // Confirms only that the instance holds the command. It says nothing about progress and
+    // nothing about anything having been downloaded.
     internal static bool Confirmed(WhisparrResponse? held, int commandId)
         => held is not null && IdentifierIn(held) == commandId;
 

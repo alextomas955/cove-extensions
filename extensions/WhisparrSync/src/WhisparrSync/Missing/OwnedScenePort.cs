@@ -6,8 +6,8 @@ namespace WhisparrSync.Missing;
 
 /// <summary>Which of one page's scenes the library already holds.</summary>
 /// <remarks>
-/// Bounded by the page. Nothing here grows with the library, so a caller holding forty identifiers
-/// costs one query with forty parameters whatever the library's size.
+/// Bounded by the page: one query whose parameters are the page's own identifiers, whatever the
+/// library's size.
 /// </remarks>
 public interface IOwnedScenePort
 {
@@ -23,17 +23,12 @@ public interface IOwnedScenePort
         string identityEndpoint, IReadOnlyList<string> providerSceneIds, CancellationToken ct);
 }
 
-/// <inheritdoc cref="IOwnedScenePort"/>
-/// <remarks>
-/// Binds the base <see cref="DbContext"/> rather than the host's own context type: this extension
-/// compiles against the host's entity assembly but not against the assembly that type lives in, and
-/// the host registers its context resolvable as the base type.
-/// <para>
-/// The query is narrowed on the indexed identifier column and never walks a navigation property. The
-/// parameter list is the page's own identifiers, so what one page costs does not grow with what the
-/// library holds. There is no row cap: a cap truncates with no error.
-/// </para>
-/// </remarks>
+// Binds the base DbContext rather than the host's own context type: this extension compiles against
+// the host's entity assembly but not against the assembly that type lives in, and the host
+// registers its context resolvable as the base type.
+//
+// The query is narrowed on the page's own identifiers, so what one page costs does not grow with
+// what the library holds. There is no row cap: a cap truncates with no error.
 internal sealed class OwnedScenePort(DbContext db) : IOwnedScenePort
 {
     public async Task<IReadOnlySet<string>> ReadOwnedAsync(

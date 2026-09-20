@@ -21,10 +21,8 @@ public sealed partial class WhisparrSync
 {
     private void MapMissingBulkEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // The configure tier, matching the whole-entity registration route above: one gesture over a
-        // page's selection aims this extension's stored credential at a third party and creates items
-        // in the reader's own Whisparr, which is not something a caller who cannot configure the
-        // extension may do.
+        // Configure tier: one gesture aims the stored credential at a third party and creates items
+        // in the reader's Whisparr, which a caller who cannot configure the extension may not do.
         endpoints.MapPost(MissingBulkMonitorRoute,
             (string kind, int coveId, MissingBulkRequest request,
              ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
@@ -36,17 +34,8 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
 
-    /// <summary>Marks a page's ticked scenes as wanted, as one background run.</summary>
-    /// <remarks>
-    /// Acts on what was ticked and re-derives nothing. Marking a scene wanted does not remove it from
-    /// the missing set, so a fresh derivation would answer the same page; what a reader sees is the
-    /// truth until they ask for it again.
-    /// <para>
-    /// The run is started and its id answered immediately. A selection is a page of scenes and each
-    /// one is a request to a third party, so waiting for it would hold the browser open for the
-    /// length of the run.
-    /// </para>
-    /// </remarks>
+    // Answers the run id immediately. A selection is a page of scenes and each one is a request to a
+    // third party, so waiting for the run would hold the browser open for its whole length.
     internal async Task<Results<Ok<MissingBulkEnqueued>, BadRequest, ForbiddenCode>>
         EnqueueMissingBulkMonitorAsync(
             string kind,
@@ -60,8 +49,7 @@ public sealed partial class WhisparrSync
             IWhisparrClient client,
             CancellationToken ct)
     {
-        // Checked in the handler, because the route's own declaration enforces nothing on a minimal
-        // API.
+        // Re-checked here because the route declaration enforces nothing on a minimal API.
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
@@ -69,9 +57,8 @@ public sealed partial class WhisparrSync
 
         ArgumentNullException.ThrowIfNull(jobs);
 
-        // A body naming no scene is a request this route cannot express: the route names the Cove
-        // entity and the scenes are the only thing the body carries. More than one page of them is a
-        // body no page of this surface can produce, and the run's cost grows with what it carries.
+        // Bounded to one page of scenes: a longer body is one no page of this surface can produce,
+        // and the run's cost grows with what it carries.
         if (!TryReadEntity(kind, coveId, out var entityKind)
             || request is not { ProviderSceneIds.Count: > 0 }
             || request.ProviderSceneIds.Count > MissingPerPage
@@ -102,18 +89,9 @@ public sealed partial class WhisparrSync
                 MissingRefusalKind.None));
     }
 
-    /// <summary>Starts one selection's marking run in the background.</summary>
-    /// <remarks>
-    /// One job for the whole selection rather than one per scene: the selection is one page of one
-    /// entity, and a job per scene would put a page of rows in the host's job list for one gesture.
-    /// <para>
-    /// Enqueued EXCLUSIVE, for the reason the registration run is: one scene can be reached from two
-    /// entities, because a video carries a studio and its performers at once, so overlapping runs
-    /// would offer the same scene twice. What exclusivity costs when that does not happen is that the
-    /// runs go one after the other, against a third party this product should not be issuing parallel
-    /// work to.
-    /// </para>
-    /// </remarks>
+    // One job for the whole selection: a job per scene would put a page of rows in the host's job
+    // list for one gesture. Exclusive because one scene can be reached from two entities, a video
+    // carrying a studio and its performers at once, so overlapping runs would offer it twice.
     private string EnqueueMissingBulk(
         IJobService jobs,
         IServiceScopeFactory scopes,
@@ -130,16 +108,8 @@ public sealed partial class WhisparrSync
             exclusive: true);
     }
 
-    /// <summary>Runs one enqueued marking pass.</summary>
-    /// <remarks>
-    /// Everything the run acts through is resolved when it STARTS. The profile and the root each add
-    /// carries are the instance's to change at any time, and a run enqueued minutes ago must not
-    /// create catalogue items under values read before that.
-    /// <para>
-    /// A cancellation is rethrown after the summary is written, so the host classifies the run as
-    /// cancelled rather than completed while the reader is still told what it managed to mark.
-    /// </para>
-    /// </remarks>
+    // Cancellation is rethrown after the summary is written, so the host classifies the run as
+    // cancelled while the reader is still told what it managed to mark.
     private async Task RunMissingBulkAsync(
         IReadOnlyDictionary<string, string> parameters,
         IServiceScopeFactory scopes,
@@ -162,18 +132,9 @@ public sealed partial class WhisparrSync
         ct.ThrowIfCancellationRequested();
     }
 
-    /// <summary>
-    /// What a marking run offers each scene through, or null where it must not act at all.
-    /// </summary>
-    /// <remarks>
-    /// The one composition every marking run in this product aims through. The verb it closes over is
-    /// the non-grabbing scene add, so no run built from this can make an instance download.
-    /// <para>
-    /// The profile and the root are read here rather than at enqueue: each is the instance's to
-    /// change at any time, and a run started minutes ago must not create catalogue items under values
-    /// read before that.
-    /// </para>
-    /// </remarks>
+    // Null where the run must not act at all. The verb closed over is the non-grabbing scene add, so
+    // no run built from this can make an instance download. The profile and the root are read here
+    // rather than at enqueue, because the instance may change either after a run is queued.
     private async Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?>
         ComposeSceneAddAsync(
             WhisparrEntityKind? owningKind,

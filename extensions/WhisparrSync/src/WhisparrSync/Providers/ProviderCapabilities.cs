@@ -3,96 +3,62 @@ namespace WhisparrSync.Providers;
 /// <summary>What one metadata provider can be asked to do.</summary>
 /// <remarks>
 /// A capability is written down here only once some provider has an implementation to register for
-/// it. Registered ahead of one it would name a capability whose only possible answer is a fault.
+/// it. Registered ahead of one, its only possible answer is a fault.
 /// </remarks>
 public enum ProviderCapability
 {
-    /// <summary>The catalogue can be ordered by title.</summary>
     SortByTitle,
-
-    /// <summary>The catalogue can be ordered by release date.</summary>
     SortByDate,
-
-    /// <summary>The catalogue can be ordered by duration.</summary>
     SortByDuration,
-
-    /// <summary>The catalogue can be narrowed to a year exactly.</summary>
     FilterByYear,
-
-    /// <summary>The performers in a catalogue can be listed and filtered by.</summary>
     ListPerformerFacet,
-
-    /// <summary>The tags in a catalogue can be listed and filtered by.</summary>
     ListTagFacet,
-
-    /// <summary>A studio's own sub-studios can be listed and filtered by.</summary>
     ListSubStudioFacet,
-
-    /// <summary>Titles can be searched over the whole catalogue.</summary>
     SearchTitles,
-
-    /// <summary>An entity can be looked up by its exact name.</summary>
     LookUpByName,
-
-    /// <summary>A stored scene identifier can be resolved to the provider's own numeric id.</summary>
     ResolveNumericSceneId,
-
-    /// <summary>A stored site identifier can be resolved to the provider's own numeric id.</summary>
     ResolveNumericSiteId,
 }
 
-/// <summary>The catalogue can be ordered by title.</summary>
 public interface ISortsByTitle;
 
-/// <summary>The catalogue can be ordered by release date.</summary>
 public interface ISortsByDate;
 
-/// <summary>The catalogue can be ordered by duration.</summary>
 public interface ISortsByDuration;
 
 /// <summary>The catalogue can be narrowed to a year exactly.</summary>
 /// <remarks>
-/// Held by a provider that filters on a year and by no provider that only approximates one. An
-/// approximate answer under an exact name is a wrong answer a reader would read as right.
+/// Not held by a provider that only approximates a year. An approximate answer under an exact name
+/// is a wrong answer a reader would read as right.
 /// </remarks>
 public interface IFiltersByYear;
 
-/// <summary>The performers in a catalogue can be listed and filtered by.</summary>
 public interface IListsPerformerFacet;
 
-/// <summary>The tags in a catalogue can be listed and filtered by.</summary>
 public interface IListsTagFacet;
 
-/// <summary>A studio's own sub-studios can be listed and filtered by.</summary>
 public interface IListsSubStudioFacet;
 
-/// <summary>Titles can be searched over the whole catalogue.</summary>
 public interface ISearchesTitles;
 
-/// <summary>An entity can be looked up by its exact name.</summary>
 public interface ILooksUpByName;
 
 /// <summary>A stored scene identifier can be resolved to the provider's own numeric id.</summary>
 /// <remarks>
-/// Held by a provider that issues a number of its own for a scene beside the identifier Cove
-/// stores. A provider that issues none holds no role here, so the resolution is refused before any
-/// request rather than answered as a scene the provider does not name.
+/// A provider that issues no number of its own does not implement this interface, so the
+/// resolution is refused before any request rather than answered as a scene the provider does not
+/// name.
 /// </remarks>
 public interface IResolvesNumericSceneId;
 
 /// <summary>A stored site identifier can be resolved to the provider's own numeric id.</summary>
 /// <remarks>
-/// Held by a provider that issues a number of its own for a site beside the identifier Cove stores.
-/// A provider that issues none holds no role here, so the resolution is refused before any request
-/// rather than answered as a site the provider does not name.
+/// A provider that issues no number of its own does not implement this interface, so the
+/// resolution is refused before any request rather than answered as a site the provider does not
+/// name.
 /// </remarks>
 public interface IResolvesNumericSiteId;
 
-/// <summary>The capability set each provider holds.</summary>
-/// <remarks>
-/// A role is registered here only where the provider has been measured to honour it. A capability
-/// absent from a set is one the surface offers no control for at all.
-/// </remarks>
 internal static class ProviderCapabilities
 {
     // Ordering by title is StashDB's alone: ThePornDB's ordering vocabulary declares no title value
@@ -110,11 +76,10 @@ internal static class ProviderCapabilities
         ProviderCapability.LookUpByName,
     ];
 
-    // Neither the performer route nor the site route exposes a filter that would scope its values to
-    // one entity, so neither of those menus is listable here. Resolving a scene or a site to a
+    // Neither the performer route nor the site route exposes a filter that would scope its values
+    // to one entity, so neither of those menus is listable here. Resolving a scene or a site to a
     // number is this provider's alone: its scene rows carry an `_id` beside the uuid Cove stores,
-    // measured on 2026-09-10 against the whole of one site, where 412 of 412 numbers matched, and
-    // its site route answers an `id` beside the same uuid. StashDB names both by uuid and by
+    // and its site route answers an `id` beside the same uuid. StashDB names both by uuid and by
     // nothing else, so it issues no such number to resolve to.
     private static readonly ProviderCapability[] ThePornDbHolds =
     [
@@ -128,11 +93,9 @@ internal static class ProviderCapabilities
         ProviderCapability.ResolveNumericSiteId,
     ];
 
-    /// <summary>What StashDB holds, acting through <paramref name="source"/>.</summary>
     internal static ProviderCapabilitySet ForStashDb(object source)
         => SetFor("StashDB", StashDbHolds, source);
 
-    /// <summary>What ThePornDB holds, acting through <paramref name="source"/>.</summary>
     internal static ProviderCapabilitySet ForThePornDb(object source)
         => SetFor("ThePornDB", ThePornDbHolds, source);
 
@@ -146,8 +109,6 @@ internal static class ProviderCapabilities
 }
 
 /// <summary>A capability the provider does not hold.</summary>
-/// <param name="Capability">The capability that was asked for.</param>
-/// <param name="Provider">The provider it was refused on.</param>
 public sealed record ProviderCapabilityRefusal(ProviderCapability Capability, string Provider);
 
 /// <summary>A role obtained from a capability set, or the refusal standing in its place.</summary>
@@ -155,7 +116,6 @@ public sealed record ProviderCapabilityRefusal(ProviderCapability Capability, st
 /// There is no third answer, and no way to reach the role without also stating what happens when it
 /// is absent.
 /// </remarks>
-/// <typeparam name="TRole">The role asked for.</typeparam>
 public sealed class Capability<TRole>
     where TRole : class
 {
@@ -168,9 +128,6 @@ public sealed class Capability<TRole>
         _refusal = refusal;
     }
 
-    /// <summary>
-    /// Applies <paramref name="held"/> to the role, or <paramref name="refused"/> to the refusal.
-    /// </summary>
     public TResult Match<TResult>(
         Func<TRole, TResult> held, Func<ProviderCapabilityRefusal, TResult> refused)
     {
@@ -207,7 +164,6 @@ public sealed class ProviderCapabilitySet
 
     private readonly Dictionary<ProviderCapability, object> _roles;
 
-    /// <summary>The set <paramref name="provider"/> holds, acting through <paramref name="roles"/>.</summary>
     /// <remarks>
     /// <paramref name="held"/> is what the provider can honour, which is not what this set happened
     /// to be built with: a set built for a read would otherwise report that the provider cannot do
@@ -225,14 +181,11 @@ public sealed class ProviderCapabilitySet
         _roles = roles;
     }
 
-    /// <summary>The provider this set was built for.</summary>
     public string Provider { get; }
 
-    /// <summary>The capabilities that provider holds.</summary>
     public IReadOnlyList<ProviderCapability> Held { get; }
 
     /// <summary>The role <typeparamref name="TRole"/>, or the refusal standing in its place.</summary>
-    /// <typeparam name="TRole">The role asked for.</typeparam>
     /// <exception cref="InvalidOperationException">
     /// <typeparamref name="TRole"/> is not one of this product's roles, or it is one this provider
     /// holds and this set was built without the source that implements it. Neither says anything
@@ -253,9 +206,9 @@ public sealed class ProviderCapabilitySet
             return new Capability<TRole>((TRole)role, null);
         }
 
-        // A capability the provider HOLDS, asked of a set built without the source implementing it,
-        // is a construction fault. Answered as a refusal it would be indistinguishable from a real
-        // provider gap, which is the silent-bug class the capability split exists to remove.
+        // A capability the provider does hold, asked of a set built without the source implementing
+        // it, is a construction fault. Answered as a refusal it would be indistinguishable from a
+        // real provider gap.
         if (Held.Contains(capability))
         {
             throw new InvalidOperationException(

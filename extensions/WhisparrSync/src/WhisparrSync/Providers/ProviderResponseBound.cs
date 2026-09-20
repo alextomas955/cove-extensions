@@ -3,16 +3,12 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Providers;
 
-/// <summary>Reads a provider's answer whole, or refuses one past the bound this product reads at.</summary>
-/// <remarks>
-/// A truncated body parses as a valid short page, so an answer past the bound is refused rather than
-/// returned as far as it was held.
-/// </remarks>
+// A truncated body parses as a valid short page, so an answer past the bound is refused as null
+// rather than returned as far as it was read.
 internal static class ProviderResponseBound
 {
     private const int ChunkBytes = 64 * 1024;
 
-    /// <summary>The whole of <paramref name="content"/>, or null where it passed the bound.</summary>
     internal static async Task<string?> ReadAsync(HttpContent content, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(content);

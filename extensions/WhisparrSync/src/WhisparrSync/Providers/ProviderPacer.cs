@@ -2,15 +2,10 @@ using System.Threading.RateLimiting;
 
 namespace WhisparrSync.Providers;
 
-/// <summary>Holds outbound provider requests to the rate the host is configured with.</summary>
-/// <remarks>
-/// One limiter shared by every request, so it has to outlive a request scope. Pacing held per scope
-/// would let concurrent requests each spend a full allowance.
-/// <para>
-/// The limiter replenishes its whole allowance once a minute rather than trickling, which lets a
-/// page's own reads proceed together and holds the minute's total to the configured number.
-/// </para>
-/// </remarks>
+// One limiter shared by every request, so it must outlive a request scope. Pacing held per scope
+// would let concurrent requests each spend a full allowance. The whole allowance replenishes once a
+// minute rather than trickling, so a page's reads proceed together and the minute's total still
+// holds to the configured number.
 internal sealed class ProviderPacer : IDisposable
 {
     // A queue rather than a refusal: a paced call waits its turn. The depth bounds how many callers
@@ -21,10 +16,6 @@ internal sealed class ProviderPacer : IDisposable
     private readonly Lock _gate = new();
     private bool _disposed;
 
-    /// <summary>Waits until a request at <paramref name="maxRequestsPerMinute"/> may be sent.</summary>
-    /// <remarks>
-    /// A rate at or below zero paces nothing, the host having named no limit to honour.
-    /// </remarks>
     internal async Task<bool> WaitForTurnAsync(int maxRequestsPerMinute, CancellationToken ct)
     {
         if (maxRequestsPerMinute <= 0)

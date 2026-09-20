@@ -5,34 +5,25 @@ namespace WhisparrSync.Contracts;
 
 /// <summary>The address and key one connection test is taken against.</summary>
 /// <remarks>
-/// The key travels IN, never out. Nothing on the response side carries it back, so a browser that
+/// The key travels in, never out. Nothing on the response side carries it back, so a browser that
 /// submitted one cannot read it again from any answer this extension gives.
 /// </remarks>
-/// <param name="Address">The base address of the Whisparr instance, as the operator typed it.</param>
-/// <param name="ApiKey">The instance's API key.</param>
 public sealed record ConnectionTestRequest(string? Address, string? ApiKey);
 
 /// <summary>Which Whisparr generation answered.</summary>
-/// <remarks>
-/// The wire spelling is declared HERE, on the type. An equivalent converter in a serializer options
-/// collection would outrank this one rather than duplicate it, so a second declaration could drift
-/// and win in silence.
-/// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum WhisparrGeneration
 {
     /// <summary>Whisparr v3, the Eros line.</summary>
     V3,
 
-    /// <summary>Whisparr v2.</summary>
     V2,
 }
 
 /// <summary>Something a Whisparr generation can do.</summary>
 /// <remarks>
-/// Names what the connected instance CAN do rather than what it was checked for: a generation that
-/// cannot honour one holds no role expressing it, so the capability is absent from the list rather
-/// than present with a false beside it. The wire spelling is declared on the type.
+/// A generation that cannot honour a capability holds no role expressing it, so the capability is
+/// absent from the list rather than present with a false beside it.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum WhisparrCapability
@@ -53,8 +44,7 @@ public enum WhisparrCapability
     ReflectOwnedFiles,
 
     /// <summary>
-    /// The instance can be asked to look for what it monitors and does not hold. The one capability
-    /// here that acquires anything.
+    /// The instance can be asked to look for what it monitors and does not hold. Acquires content.
     /// </summary>
     SearchMonitored,
 
@@ -68,8 +58,7 @@ public enum WhisparrCapability
     ReadSceneExclusions,
 
     /// <summary>
-    /// The instance can be asked to look for one catalogue scene it holds. The second capability
-    /// here that acquires anything, and the narrower of the two.
+    /// The instance can be asked to look for one catalogue scene it holds. Acquires content.
     /// </summary>
     SearchScene,
 
@@ -104,17 +93,12 @@ public enum WhisparrCapability
     ReadInstanceFilesystem,
 }
 
-/// <summary>
-/// What one connection attempt turned out to be. One value per step of the decision table.
-/// </summary>
+/// <summary>What one connection attempt turned out to be.</summary>
 /// <remarks>
 /// The four refusals are distinct values on purpose and must never be collapsed into one generic
-/// failure: each sends the user somewhere different, and three of the four are indistinguishable
-/// under the wrong test.
-/// <para>
-/// The backend answers with a KIND. The sentence a user reads is a frontend constant, so no server
-/// value can reach the copy except through a named field on the view.
-/// </para>
+/// failure: each sends the user somewhere different. The backend answers with a kind, and the
+/// sentence a user reads is a frontend constant, so no server value reaches the copy except through
+/// a named field on the view.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum ConnectionFailureKind
@@ -139,54 +123,33 @@ public enum ConnectionFailureKind
 }
 
 /// <summary>A setting a connection cannot be attempted without.</summary>
-/// <remarks>
-/// Named on a refusal so the sentence points at the field that is actually empty rather than at the
-/// pair. The wire spelling is declared on the type.
-/// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum ConnectionSetting
 {
-    /// <summary>The instance's base address.</summary>
     Address,
-
-    /// <summary>The instance's API key.</summary>
     ApiKey,
 }
 
 /// <summary>The result of one connection test, as the settings page reads it.</summary>
 /// <remarks>
 /// Discloses no API key and no response body: only a classified kind and the named values a sentence
-/// needs. That is what keeps the route from working as a request-forwarding oracle — a caller who
-/// aims it at an internal address learns which of six kinds applied, never what answered.
+/// needs. That keeps the route from working as a request-forwarding oracle. A caller who aims it at
+/// an internal address learns which kind applied, never what answered.
+/// <para>
+/// <c>Generation</c> and <c>Capabilities</c> are null unless the attempt connected. A capability
+/// absent from the list is a generation gap: that generation has no such thing on any build of it.
+/// <c>Corroborated</c> reports the other finding, a build disagreeing with itself, and is false for
+/// a build gap rather than a generation gap; it is null when there was no generation to corroborate.
+/// </para>
+/// <para>
+/// <c>Version</c> is the instance's own version string, character for character as it sent it, and
+/// is present on a success and on a refusal that names the version found. <c>OtherApplication</c>
+/// is the <c>appName</c> received when it was not this product's, so the refusal names what actually
+/// answered. <c>Address</c> has any credentials in it removed. <c>MissingSetting</c> is null on any
+/// kind other than <see cref="ConnectionFailureKind.NotConfigured"/>, and names the address when
+/// both are empty, so two runs of the same refusal read the same.
+/// </para>
 /// </remarks>
-/// <param name="Kind">Which step of the decision table this attempt reached.</param>
-/// <param name="Generation">The generation detected, or null unless the attempt connected.</param>
-/// <param name="Capabilities">
-/// What the connected generation can do, or null unless the attempt connected. A capability absent
-/// from this list is a GENERATION gap — that generation has no such thing, on any build of it.
-/// <paramref name="Corroborated"/> reports the other finding, a build disagreeing with itself.
-/// </param>
-/// <param name="Version">
-/// The instance's own version string, character for character as it sent it. Present on a success and
-/// on a refusal that names the version found.
-/// </param>
-/// <param name="Branch">The branch the instance named, when it named one.</param>
-/// <param name="Corroborated">
-/// Whether the branch and count-field readings agree with the detected generation, or null when
-/// there was no generation to corroborate. False is a build-gap finding, not a generation gap.
-/// </param>
-/// <param name="OtherApplication">
-/// The <c>appName</c> received when it was not this product's, so the refusal names what actually
-/// answered rather than a value from a table of applications this code knows about.
-/// </param>
-/// <param name="Address">
-/// The address the attempt was made against, with any credentials in it removed, so a result can be
-/// matched to the request that produced it.
-/// </param>
-/// <param name="MissingSetting">
-/// Which setting was empty when nothing was configured, or null on any other kind. When both are
-/// empty this names the address, so two runs of the same refusal read the same.
-/// </param>
 public sealed record ConnectionTestView(
     ConnectionFailureKind Kind,
     WhisparrGeneration? Generation,

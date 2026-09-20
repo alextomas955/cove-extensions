@@ -5,30 +5,19 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 
-/// <summary>What one offer established, and what the instance now calls the entry.</summary>
-/// <remarks>
-/// The classification travels with the answer rather than being derived from it here, because the
-/// two passes establish it from different requests: the scene pass reads it off the add's own
-/// refusal, and the site pass off the read that precedes the add. A single derivation would have to
-/// treat one generation's success as the other's already-held.
-/// </remarks>
-/// <param name="Registration">What the offer established.</param>
-/// <param name="Answer">Whatever the instance said, or null where nothing arrived.</param>
-/// <param name="InstanceId">
-/// The instance's own numeric id for the entry, or null where the answer names none. Read off the
-/// answer the offer already has, so reaching the entry afterwards costs no further request.
-/// </param>
-/// <param name="Root">
-/// What choosing a root for this entry found, or null where no root was chosen for it. Null on the
-/// scene pass, which registers a scene under a site the instance already placed.
-/// </param>
+// The classification travels with the answer rather than being derived here, because the two
+// passes establish it from different requests: the scene pass reads it off the add's own refusal,
+// the site pass off the read that precedes the add.
+//
+// InstanceId is read off the answer the offer already has, so reaching the entry afterwards costs
+// no further request. Root is null on the scene pass, which registers a scene under a site the
+// instance already placed.
 internal sealed record SyncRegistration(
     SceneRegistration Registration,
     WhisparrResponse? Answer,
     int? InstanceId,
     EntityRoot? Root = null)
 {
-    /// <summary>What <paramref name="answered"/> says about an entry that was offered outright.</summary>
     internal static SyncRegistration Offered(WhisparrResponse? answered)
         => new(
             AddAllMissingPlanner.Classify(answered),
@@ -36,35 +25,19 @@ internal sealed record SyncRegistration(
             MonitoringProjector.EntityIdIn(answered?.Body));
 }
 
-/// <summary>What marking one registered entry's scenes wanted did, counted in scenes.</summary>
-/// <remarks>
-/// Counts and nothing else, for the reason the run's own result states. One entry the run registers
-/// can carry any number of scenes - a site carries a whole studio's - so a member listing them would
-/// grow with the library.
-/// <para>
-/// The three failures are counted apart because they are different facts a reader acts on
-/// differently: a scene the metadata provider names no number for is one this product cannot address
-/// at all, a scene the instance holds no row for is one the instance has never seen, and a refusal is
-/// the instance declining to set a flag on a row it does hold.
-/// </para>
-/// </remarks>
-/// <param name="Monitored">How many scenes were marked wanted.</param>
-/// <param name="Unnumbered">
-/// How many carried no number the metadata provider would answer, so nothing could address them.
-/// </param>
-/// <param name="Unresolved">How many the instance holds no row for, or would not answer about.</param>
-/// <param name="Refused">How many the instance declined to flag.</param>
+// Counts only. One entry can carry any number of scenes, so a member listing them would grow with
+// the library.
+//
+// The three failures are counted apart because a reader acts on them differently: Unnumbered is a
+// scene the metadata provider names no number for, Unresolved is one the instance holds no row for
+// or would not answer about, and Refused is the instance declining to flag a row it does hold.
 internal readonly record struct SceneMonitorTally(
     int Monitored, int Unnumbered, int Unresolved, int Refused)
 {
-    /// <summary>Nothing counted at all.</summary>
     internal static SceneMonitorTally Nothing => default;
 
-    /// <summary>One scene, classified from what the instance answered.</summary>
-    /// <remarks>
-    /// An answer nothing could be read out of counts as refused. Reporting a flag as set that was not
-    /// leaves a reader believing the instance is watching for a scene it is not.
-    /// </remarks>
+    // An answer nothing could be read out of counts as refused. Reporting a flag as set that was
+    // not leaves a reader believing the instance is watching for a scene it is not.
     internal static SceneMonitorTally For(WhisparrResponse? answer)
         => answer is not null
             && answer.Refusal is MonitorRefusalKind.None
@@ -72,10 +45,8 @@ internal readonly record struct SceneMonitorTally(
                 ? new SceneMonitorTally(1, 0, 0, 0)
                 : new SceneMonitorTally(0, 0, 0, 1);
 
-    /// <summary>How many scenes were not marked wanted, however they failed.</summary>
     internal int NotMonitored => Unnumbered + Unresolved + Refused;
 
-    /// <summary>This tally and <paramref name="other"/> added together.</summary>
     internal SceneMonitorTally Plus(SceneMonitorTally other)
         => new(
             Monitored + other.Monitored,
@@ -84,74 +55,28 @@ internal readonly record struct SceneMonitorTally(
             Refused + other.Refused);
 }
 
-/// <summary>How a run over the whole library's identifiers ended.</summary>
 internal enum SyncLibraryRunOutcome
 {
-    /// <summary>Every identifier was offered.</summary>
     Completed,
 
-    /// <summary>Nothing in the library carries an identifier, so nothing was offered at all.</summary>
     NothingToRegister,
 
-    /// <summary>
-    /// The run was stopped part way. What it registered before that stays registered.
-    /// </summary>
+    // Stopped part way. What was registered before the stop stays registered.
     Cancelled,
 }
 
-/// <summary>What a run over the whole library's identifiers did.</summary>
-/// <remarks>
-/// Counts and nothing else. A member listing the identifiers would grow with the library, and a
-/// library reaches millions of files.
-/// </remarks>
-/// <param name="Outcome">How the run ended.</param>
-/// <param name="Registered">How many entries the instance's catalogue did not already hold.</param>
-/// <param name="AlreadyHeld">How many it already held, which is not a failure.</param>
-/// <param name="Refused">How many it would not take.</param>
-/// <param name="Monitored">
-/// How many scenes were marked wanted, which is zero unless monitoring was on. Counted in scenes on
-/// both passes: what a reader owns on a site is its scenes, so a site's registration and the scenes
-/// marked under it are different nouns and the summary states each as what it is.
-/// </param>
-/// <param name="MonitorRefused">
-/// How many scenes the instance declined to flag. Counted apart from <paramref name="Refused"/>
-/// because they are different facts: a scene the instance holds and will not flag is not a scene it
-/// declined.
-/// </param>
-/// <param name="Unnumbered">
-/// How many scenes carried no number the metadata provider would answer, so nothing could address
-/// them on the instance.
-/// </param>
-/// <param name="Unresolved">
-/// How many scenes the instance holds no row for, or would not answer about.
-/// </param>
-/// <param name="Offered">How many identifiers the run reached.</param>
-/// <param name="Moved">
-/// How many entries the instance already held at a root other than the one their own files sit
-/// under, and were moved to it. Counted apart from <paramref name="Registered"/> and from
-/// <paramref name="AlreadyHeld"/>: the run changed the instance, and it added nothing.
-/// </param>
-/// <param name="SplitAcrossRoots">
-/// How many entries own files under more than one library root. Only one root can be registered, so
-/// each of these has files the instance was not told where to find.
-/// </param>
-/// <param name="FilesLeftElsewhere">
-/// How many files sit under a library root their entry was not registered at. Nothing was copied or
-/// moved to reach the chosen root, so these are where they have always been.
-/// </param>
-/// <param name="WithoutAnAgreedRoot">
-/// How many entries had no instance root agreed for the library root their files sit under. Neither
-/// inside <paramref name="Refused"/> nor apart from it: an entry the instance already holds is
-/// counted as already held and its scenes are still marked, while one it does not hold is refused,
-/// and both are counted here. The instance declined nothing either way, and what a reader fixes is
-/// the folder mapping.
-/// </param>
-/// <param name="RootsLeftBehind">
-/// The library roots holding files whose entries were registered somewhere else, each named once.
-/// The one member here that names anything rather than counting it: an operator creates these roots
-/// by hand and there are few of them, while the entries and the files under them grow with the
-/// library.
-/// </param>
+// Counts only. A member listing the identifiers would grow with the library.
+//
+// Monitored and MonitorRefused are counted in scenes on both passes, apart from Registered and
+// Refused, which count entries. Moved counts entries the run relocated, apart from Registered and
+// AlreadyHeld because the run changed the instance and added nothing.
+//
+// WithoutAnAgreedRoot is neither inside Refused nor apart from it: an entry the instance already
+// holds is counted as already held and its scenes are still marked, while one it does not hold is
+// refused, and both are counted here. What a reader fixes is the folder mapping.
+//
+// RootsLeftBehind is the one member naming anything rather than counting it. An operator creates
+// those roots by hand, so it does not grow with the library.
 internal sealed record SyncLibraryRun(
     SyncLibraryRunOutcome Outcome,
     int Registered,
@@ -168,87 +93,41 @@ internal sealed record SyncLibraryRun(
     int WithoutAnAgreedRoot,
     IReadOnlyList<string> RootsLeftBehind);
 
-/// <summary>
-/// Offers every identifier the library yields to the connected instance once, one bounded request
-/// each, reporting on the host's own progress as it goes.
-/// </summary>
-/// <remarks>
-/// Pure. It drives the delegates it is given and performs no I/O of its own, and nothing outlives
-/// one identifier: each is offered, classified into a count and dropped, so nothing here grows with
-/// the library.
-/// <para>
-/// Which kind of entry the identifiers name is the caller's, not this loop's. Whatever the run
-/// registers, the counts and the lines are the same shape and every figure a reader sees is stated
-/// in that generation's own noun.
-/// </para>
-/// <para>
-/// Whether the instance already holds an entry is answered by the instance, one row at a time, rather
-/// than computed from a catalogue listing read off it. That is what makes a second run over the same
-/// library create no duplicate: a second offer of a scene the instance holds costs one request and
-/// changes nothing.
-/// </para>
-/// <para>
-/// A refusal never ends the run. Every identifier is offered once and the refusals are counted, so
-/// an instance that declines a hundred scenes still leaves the rest of the library registered.
-/// </para>
-/// <para>
-/// The classification arrives on <see cref="SyncRegistration"/> rather than being derived here. The
-/// scene pass composes it through <see cref="AddAllMissingPlanner.Classify(WhisparrResponse)"/> and
-/// its <see cref="AddAllMissingPlanner.AlreadyHeldErrorCode"/>, reused rather than restated: the code
-/// is transcribed from what one instance answered, and a second transcription could drift from it
-/// while both files still passed their own tests.
-/// </para>
-/// </remarks>
+// Nothing outlives one identifier: each is offered, classified into a count and dropped, so
+// nothing grows with the library.
+//
+// Whether the instance already holds an entry is the instance's own answer, one row at a time,
+// never computed from a catalogue listing. A second run over the same library therefore creates no
+// duplicate.
+//
+// A refusal never ends the run. Every identifier is offered once and the refusals are counted.
+//
+// The classification arrives on SyncRegistration rather than being derived here. The scene pass
+// composes it through AddAllMissingPlanner.Classify and its AlreadyHeldErrorCode, reused rather
+// than restated: the code is transcribed from what one instance answered, and a second
+// transcription could drift while both files still passed their own tests.
 internal static class SyncLibraryPlanner
 {
-    /// <summary>
-    /// Offers each identifier <paramref name="identities"/> yields once through
-    /// <paramref name="register"/>, reporting one host unit per entry on <paramref name="progress"/>.
-    /// </summary>
-    /// <remarks>
-    /// The three progress calls are in the order the host requires, and each order is load-bearing.
-    /// The count comes first, because the host refuses a declaration made once a unit has started.
-    /// The declaration comes before the first unit, because a run that never declares one never
-    /// derives a fraction. The summary comes last, because the host writes its own aggregate line
-    /// into the job's summary on every unit completion and copies that over the sub-task, so a
-    /// summary set before the final completion is silently replaced by phrasing that counts units
-    /// rather than scenes.
-    /// <para>
-    /// A unit is completed and disposed inside one scope. The host removes a completed unit's state
-    /// only on disposal, so a run that completed every unit and disposed none would leave one entry
-    /// per scene in a host dictionary - which is what would make a per-scene tick unaffordable here.
-    /// </para>
-    /// </remarks>
-    /// <param name="identities">
-    /// The identifier stream, as a factory rather than one enumerable. It is enumerated twice - once
-    /// to count and once to offer - and both enumerations must come from the same derivation: the
-    /// stream applies the host's same-source rule in memory after the query's own distinct, and two
-    /// spellings of one source are present in real data, so a second cheaper count would disagree
-    /// with the number of ticks.
-    /// </param>
-    /// <param name="registers">
-    /// What the run registers, which is the noun every line and every summary figure is stated in.
-    /// </param>
-    /// <param name="named">
-    /// What one identifier is called on the host's own unit. The unit name is what a reader sees
-    /// beside the line, so it is the identifier itself rather than anything composed from it.
-    /// </param>
-    /// <param name="register">
-    /// Offers one entry, answering what it established and whatever the instance said.
-    /// </param>
-    /// <param name="monitor">
-    /// Marks one entry's scenes wanted and answers what that did, or null where monitoring is off.
-    /// Called for an entry the instance already held as well as for one just registered: the choice
-    /// means monitor what I own, not monitor what I just added. It is handed the offer's own answer,
-    /// so the instance's numeric id costs no further request.
-    /// <para>
-    /// It answers a tally rather than one response because one entry can carry any number of scenes.
-    /// On the pass whose entry IS a scene the tally is that one scene.
-    /// </para>
-    /// </param>
-    /// <param name="progress">The host's own progress, which the units are reported on.</param>
-    /// <param name="ct">Cancelled when the host stops the job.</param>
-    /// <typeparam name="TIdentity">What one identifier the run offers carries.</typeparam>
+    // The three progress calls are in the order the host requires. The count comes first, because
+    // the host refuses a declaration made once a unit has started. The declaration comes before the
+    // first unit, because a run that never declares one never derives a fraction. The summary comes
+    // last, because the host writes its own aggregate line into the job's summary on every unit
+    // completion and copies that over the sub-task, so a summary set earlier is silently replaced
+    // by phrasing that counts units rather than scenes.
+    //
+    // A unit is completed and disposed inside one scope. The host removes a completed unit's state
+    // only on disposal, so a run that disposed none would leave one entry per scene in a host
+    // dictionary.
+    //
+    // identities is a factory rather than one enumerable because it is enumerated twice, once to
+    // count and once to offer, and both enumerations must come from the same derivation: the stream
+    // applies the host's same-source rule in memory after the query's own distinct, so a cheaper
+    // count would disagree with the number of ticks.
+    //
+    // monitor is called for an entry the instance already held as well as for one just registered:
+    // the choice means monitor what I own, not monitor what I just added. It is handed the offer's
+    // own answer, so the instance's numeric id costs no further request, and it answers a tally
+    // because one entry can carry any number of scenes.
     internal static async Task<SyncLibraryRun> RunAsync<TIdentity>(
         SyncRegisters registers,
         Func<CancellationToken, IAsyncEnumerable<TIdentity>> identities,
@@ -386,28 +265,17 @@ internal static class SyncLibraryPlanner
                 rootsLeftBehind);
     }
 
-    /// <summary>The one line a reader sees while the run works.</summary>
-    /// <remarks>
-    /// Whatever the run registers, and nothing else. Composed under the invariant culture with a
-    /// grouped format, so the same figure reads the same wherever it appears - including beside the
-    /// browser's own hand-written grouping on the settings page.
-    /// <para>
-    /// No word for a batch, a chunk, a unit or a slice appears here or in the summary. A reader could
-    /// take any of them for a number of entries, which is the confusion SYNC-5 is about.
-    /// </para>
-    /// </remarks>
+    // Composed under the invariant culture with a grouped format, so the same figure reads the
+    // same wherever it appears, including beside the browser's own hand-written grouping on the
+    // settings page. No word for a batch, a chunk, a unit or a slice appears here or in the
+    // summary: a reader could take any of them for a number of entries.
     internal static string LineFor(int offered, int total, SyncRegisters registers)
         => string.Create(
             CultureInfo.InvariantCulture, $"{Singular(registers)} {offered:N0} of {total:N0}");
 
-    /// <summary>The one line the host's job list shows for <paramref name="run"/>.</summary>
-    /// <remarks>
-    /// Counts rather than a list of scenes. What was registered, what was already held and what was
-    /// refused are stated apart, because they are different facts: one is work done, one is a
-    /// catalogue that was already complete, and one is the instance declining. What was monitored is
-    /// named only where monitoring was asked for, so a run with the choice off says nothing about a
-    /// flag it never set.
-    /// </remarks>
+    // Counts rather than a list of scenes. Registered, already held and refused are stated apart
+    // because they are different facts. What was monitored is named only where monitoring was asked
+    // for, so a run with the choice off says nothing about a flag it never set.
     internal static string SummaryOf(SyncLibraryRun run, bool monitoring, SyncRegisters registers)
     {
         ArgumentNullException.ThrowIfNull(run);
@@ -432,15 +300,8 @@ internal static class SyncLibraryPlanner
             + Split(run, registers);
     }
 
-    /// <summary>
-    /// What the summary says about entries no root was agreed for, or nothing where there were none.
-    /// </summary>
-    /// <remarks>
-    /// Stated beside the other figures rather than inside the refused one, because an entry the
-    /// instance already holds is counted as already held: these entries are spread across two of the
-    /// figures and a parenthetical inside either would read as a subset of it. What fixes them is the
-    /// folder mapping rather than anything about the instance's catalogue.
-    /// </remarks>
+    // Stated beside the other figures rather than inside the refused one: these entries are spread
+    // across two of the figures, so a parenthetical inside either would read as a subset of it.
     private static string Unagreed(SyncLibraryRun run)
         => run.WithoutAnAgreedRoot == 0
             ? string.Empty
@@ -448,17 +309,9 @@ internal static class SyncLibraryPlanner
                 CultureInfo.InvariantCulture,
                 $", {run.WithoutAnAgreedRoot:N0} with no agreed root");
 
-    /// <summary>
-    /// What the summary says about files left under another root, or nothing where none were.
-    /// </summary>
-    /// <remarks>
-    /// Absent entirely where nothing was split, so a library with one root reads as it always has.
-    /// <para>
-    /// The library roots are named and nothing else is. What a reader most needs from this line is
-    /// that the files were left where they are, so it says so in plain words: an operator reading
-    /// that an entry moved could otherwise take it to mean the files moved with it.
-    /// </para>
-    /// </remarks>
+    // Absent where nothing was split. The library roots are named and nothing else is, and the
+    // line says the files were left where they are: an operator reading that an entry moved could
+    // otherwise take it to mean the files moved with it.
     private static string Split(SyncLibraryRun run, SyncRegisters registers)
     {
         if (run.SplitAcrossRoots == 0 || run.RootsLeftBehind.Count == 0)
@@ -478,12 +331,8 @@ internal static class SyncLibraryPlanner
                 + $"{string.Join(", ", run.RootsLeftBehind)}, and nothing was copied.");
     }
 
-    /// <summary>What the summary says about entries this run moved, or nothing where it moved none.</summary>
-    /// <remarks>
-    /// Stated only where there is a figure to act on. One of the two passes can never move anything,
-    /// and a permanent zero there would read as a thing that failed rather than one that never
-    /// applied.
-    /// </remarks>
+    // Stated only where there is a figure to act on. One of the two passes can never move
+    // anything, and a permanent zero there would read as something that failed.
     private static string Relocated(SyncLibraryRun run)
         => run.Moved == 0
             ? string.Empty
@@ -491,11 +340,7 @@ internal static class SyncLibraryPlanner
                 CultureInfo.InvariantCulture,
                 $", {run.Moved:N0} moved to the root holding their files");
 
-    /// <summary>What one entry the run registers is called.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="registers"/> is not something this product registers. A default noun would
-    /// state the wrong one to a reader rather than failing.
-    /// </exception>
+    // Throws rather than defaulting: a default noun would state the wrong one to a reader.
     private static string Singular(SyncRegisters registers) => registers switch
     {
         SyncRegisters.Scenes => "Scene",
@@ -504,7 +349,6 @@ internal static class SyncLibraryPlanner
             nameof(registers), registers, "This is not something this product registers."),
     };
 
-    /// <inheritdoc cref="Singular"/>
     private static string Plural(SyncRegisters registers) => registers switch
     {
         SyncRegisters.Scenes => "scenes",
@@ -513,11 +357,9 @@ internal static class SyncLibraryPlanner
             nameof(registers), registers, "This is not something this product registers."),
     };
 
-    /// <summary>A run that reached no identifier at all.</summary>
     internal static SyncLibraryRun Nothing { get; } =
         new(SyncLibraryRunOutcome.NothingToRegister, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, []);
 
-    /// <summary>Sets <paramref name="run"/>'s own summary as the last progress call, and answers it.</summary>
     private static SyncLibraryRun Ending(
         SyncLibraryRun run, bool monitoring, SyncRegisters registers, IJobProgress progress)
     {
@@ -525,18 +367,12 @@ internal static class SyncLibraryPlanner
         return run;
     }
 
-    /// <summary>What the summary says about monitoring, or nothing where it was off.</summary>
-    /// <remarks>
-    /// What was monitored is scenes on both passes. Where the run registers scenes the noun is
-    /// already the one every other figure in the sentence is stated in, so it is left implicit; where
-    /// it registers sites it is stated, because a bare figure between two counts of sites would read
-    /// as a third one.
-    /// <para>
-    /// The figure that could not be monitored covers every way a scene was not flagged - no number to
-    /// address it by, no row on the instance, and the instance declining - because a reader is being
-    /// told how many of their own scenes are not being watched for.
-    /// </para>
-    /// </remarks>
+    // What was monitored is scenes on both passes. On the scene pass the noun is already the one
+    // every other figure is stated in, so it is left implicit; on the site pass it is stated,
+    // because a bare figure between two counts of sites would read as a third one.
+    //
+    // The figure that could not be monitored covers every way a scene was not flagged, because a
+    // reader is being told how many of their own scenes are not being watched for.
     private static string Monitoring(SyncLibraryRun run, bool monitoring, SyncRegisters registers)
     {
         if (!monitoring)
@@ -556,19 +392,15 @@ internal static class SyncLibraryPlanner
             $", {run.Monitored:N0}{Scenes(run.Monitored, registers)} monitored{couldNot}");
     }
 
-    /// <summary>The noun a monitoring figure is stated in, or nothing where it is already implicit.</summary>
     private static string Scenes(int counted, SyncRegisters registers) => registers switch
     {
         SyncRegisters.Scenes => string.Empty,
         _ => counted == 1 ? " scene" : " scenes",
     };
 
-    /// <summary>The host outcome one scene's unit is completed under.</summary>
-    /// <remarks>
-    /// A scene the instance already held is skipped rather than succeeded: nothing about it changed,
-    /// and the host's own aggregate counts the two apart. An entry this run moved succeeded, because
-    /// the run did change the instance, which is the opposite of that skip.
-    /// </remarks>
+    // A scene the instance already held is skipped rather than succeeded: nothing about it
+    // changed, and the host's own aggregate counts the two apart. An entry this run moved
+    // succeeded, because the run did change the instance.
     private static JobUnitOutcome OutcomeFor(SceneRegistration registration) => registration switch
     {
         SceneRegistration.Registered => JobUnitOutcome.Succeeded,

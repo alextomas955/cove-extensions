@@ -8,14 +8,10 @@ namespace WhisparrSync.Scene;
 
 /// <summary>Monitors one scene the connected instance already holds.</summary>
 /// <remarks>
-/// Narrow in the same way the entity acting roles are: no member takes a caller-supplied route and
-/// none takes an HTTP verb. The identifier arrives already resolved off the instance's own row for
-/// the scene, so nothing here can be aimed by an identifier a browser supplied.
-/// <para>
-/// Both generations register it, so the member takes one, and each composes the flag in its own
-/// shape. Nothing declared here can make an instance download: the verbs that can are on the
-/// grabbing roles, each of which a caller has to obtain by name.
-/// </para>
+/// No member takes a caller-supplied route or an HTTP verb. The identifier arrives already resolved
+/// off the instance's own row for the scene, so nothing here can be aimed by an identifier a
+/// browser supplied. Nothing declared here can make an instance download.
+/// <para>Both generations register it, and each composes the flag in its own shape.</para>
 /// </remarks>
 public interface IWhisparrSceneMonitorActing
 {
@@ -23,12 +19,9 @@ public interface IWhisparrSceneMonitorActing
     /// <remarks>
     /// Every other field the instance holds for that scene is left unset, and an unset field is not
     /// applied. Setting the flag false governs what a later catalogue addition does and retracts
-    /// nothing already downloaded.
-    /// <para>
-    /// <paramref name="sceneId"/> is the instance's own identifier for the scene on whichever
-    /// generation is named: the catalogue item's id on one, and the row's id under its site on the
+    /// nothing already downloaded. <paramref name="sceneId"/> is the instance's own identifier for
+    /// the scene: the catalogue item's id on one generation, the row's id under its site on the
     /// other.
-    /// </para>
     /// </remarks>
     Task<WhisparrResponse> SetSceneMonitoredAsync(
         Uri baseAddress,
@@ -41,14 +34,12 @@ public interface IWhisparrSceneMonitorActing
 
 /// <summary>Excludes one scene from what the connected instance will take.</summary>
 /// <remarks>
-/// A writing role of its own rather than a widening of the exclusion read: the safety invariants
-/// classify per member, and a role whose name says reading is what lets a caller hold it without
-/// holding a write.
+/// A writing role of its own, not a widening of the exclusion read, so a caller can hold the
+/// reading role without holding a write.
 /// <para>
-/// Narrow in the same way the other acting roles are: no member takes a caller-supplied route and
-/// none takes an HTTP verb. Only v3 registers it, so neither member takes a
-/// generation, and the identifiers arrive already resolved off a stored identity row or off the
-/// instance's own exclusion list.
+/// No member takes a caller-supplied route or an HTTP verb. Only v3 registers it, so neither member
+/// takes a generation, and the identifiers arrive already resolved off a stored identity row or off
+/// the instance's own exclusion list.
 /// </para>
 /// </remarks>
 public interface IWhisparrSceneExclusionActing

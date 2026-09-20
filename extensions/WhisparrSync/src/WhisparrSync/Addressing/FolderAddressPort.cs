@@ -9,39 +9,21 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Addressing;
 
-/// <summary>
-/// Holds what each library root last agreed with on each generation's instance, so a run over many
-/// folders costs one sample file and one set of probes per root.
-/// </summary>
-/// <remarks>
-/// A singleton, and bounded by construction: one entry per generation and configured library root,
-/// both of which an operator created by hand. Nothing per folder, per file or per entity joins it.
-/// <para>
-/// An entry carries the time it is good for, because a root that agreed on nothing is held for less
-/// time than one that agreed.
-/// </para>
-/// <para>
-/// An entry is good only for what it was established from: the instance it was read off and the
-/// stored path, if any, it was read under. Either of those changing misses the entry rather than
-/// waiting out its expiry, so a path an operator withdraws or changes is out of use on the next run.
-/// </para>
-/// <para>
-/// Everything else the reading depends on expires rather than being noticed. A root added or
-/// remounted in Whisparr is a change this extension is never told about, so a reading with no expiry
-/// could stay wrong until the host restarted.
-/// </para>
-/// </remarks>
+// A singleton, bounded by construction: one entry per generation and configured library root, both
+// operator-created. Nothing per folder, file or entity joins it.
+//
+// An entry is good only for what it was established from: the instance it was read off and the
+// stored path, if any, it was read under. A change to either misses the entry instead of waiting
+// out its expiry, so a withdrawn or changed path is out of use on the next run. Everything else
+// the reading depends on expires rather than being noticed, because a root added or remounted in
+// Whisparr is a change this extension is never told about.
 internal sealed class FolderAgreementCache(TimeProvider clock)
 {
-    /// <summary>How long an agreed root is reused before it is established again.</summary>
     internal static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(30);
 
-    /// <summary>How long a root that agreed on nothing is reused.</summary>
-    /// <remarks>
-    /// Shorter than <see cref="Lifetime"/>: a refusal says only that asking is not currently worth
-    /// doing, and a mount that came back has to be noticed within a run or two. It still outlives one
-    /// run's own folder loop, so a run over thousands of folders cannot re-probe per folder.
-    /// </remarks>
+    // Shorter than Lifetime: a refusal says only that asking is not currently worth doing, and a
+    // mount that came back has to be noticed within a run or two. It still outlives one run's
+    // folder loop, so a run over thousands of folders cannot re-probe per folder.
     internal static readonly TimeSpan RefusedLifetime = TimeSpan.FromMinutes(2);
 
     private readonly ConcurrentDictionary<
@@ -69,8 +51,8 @@ internal sealed class FolderAgreementCache(TimeProvider clock)
             reading);
 
     // Keyed on the path, not the authority: TryReadAddress keeps the stored address's URL base, so
-    // two instances behind one reverse proxy differ by that base alone. Trimmed of its trailing
-    // separator to agree with NormaliseAddress, which decides what a connection save calls the same
+    // two instances behind one reverse proxy differ by that base alone. The trailing separator is
+    // trimmed to agree with NormaliseAddress, which decides what a connection save calls the same
     // instance.
     private static (WhisparrGeneration, string, string) KeyFor(
         FolderAddressTarget target, string coveRoot)
@@ -80,7 +62,6 @@ internal sealed class FolderAgreementCache(TimeProvider clock)
             coveRoot);
 }
 
-/// <inheritdoc cref="IFolderAddressPort"/>
 internal sealed class FolderAddressPort(
     ISampleFilePort samples,
     ICoveLibraryPort library,
@@ -135,8 +116,8 @@ internal sealed class FolderAddressPort(
 
         if (reading.InstanceRoot is not null)
         {
-            // Stamped with the spelling the probe answered to rather than the one that was typed,
-            // because that is what the caller goes on to store and what the next run will read.
+            // Held under the spelling the probe answered to, not the one that was typed: that is
+            // what the caller stores and what the next run reads.
             cache.Hold(target, coveRoot, reading.InstanceRoot, reading);
         }
 
@@ -171,23 +152,14 @@ internal sealed class FolderAddressPort(
         return reading;
     }
 
-    /// <summary>The stored options, loaded once for the life of this port.</summary>
-    /// <remarks>
-    /// A load reads the blob from the host store and deserialises it every time. The port is scoped
-    /// and a run's folder loop is one sequential pass through one instance of it, so memoising here
-    /// costs one read per run rather than one per folder.
-    /// </remarks>
+    // A load reads and deserialises the host store's blob every time. The port is scoped and a
+    // run's folder loop is one sequential pass through one instance, so memoising costs one read
+    // per run rather than one per folder.
     private async Task<WhisparrSyncOptions> StoredAsync(CancellationToken ct)
         => _stored ??= await options.LoadAsync(ct).ConfigureAwait(false);
 
-    /// <summary>
-    /// What <paramref name="coveRoot"/> agrees with, asking about <paramref name="mapping"/> where
-    /// one is supplied and about the roots the instance declares where none is.
-    /// </summary>
-    /// <remarks>
-    /// The roots the instance declares are not read at all under a supplied mapping. That read is an
-    /// outbound request, and its answer has no part in a root an operator has settled.
-    /// </remarks>
+    // Under a supplied mapping the instance's declared roots are not read: that outbound request
+    // has no part in a root an operator has settled.
     private async Task<FolderAgreementReading> ReadAgreementAsync(
         FolderAddressTarget target, string coveRoot, string? mapping, CancellationToken ct)
     {
@@ -225,14 +197,8 @@ internal sealed class FolderAddressPort(
         return FolderAgreement.Resolve(sample.Path, coveRoot, probed, sample.Size);
     }
 
-    /// <summary>
-    /// What the instance reports at <paramref name="candidate"/>, or null where it could not be read.
-    /// </summary>
-    /// <remarks>
-    /// The candidate's own directory is what is asked for, and the answer is reduced to whether a file
-    /// of the candidate's name is in it. A path the instance cannot open answers an empty listing
-    /// rather than a failure, which is what makes the question a definitive yes or no.
-    /// </remarks>
+    // Returns null where the instance could not be read. The instance answers an empty listing for
+    // a path it cannot open rather than failing, which makes the question a definite yes or no.
     private async Task<ProbedPath?> ProbeAsync(
         FolderAddressTarget target, string candidate, CancellationToken ct)
     {
@@ -264,15 +230,9 @@ internal sealed class FolderAddressPort(
         return FileIn(answer.Body, candidate);
     }
 
-    /// <summary>
-    /// What one listing says about <paramref name="candidate"/>, or null where it is not the
-    /// instance's own listing shape.
-    /// </summary>
-    /// <remarks>
-    /// An answer beyond the client's read bound, an unreadable body and an answer of another shape
-    /// are one outcome: nothing was established either way. A body that IS a listing and names no
-    /// such file is an answer, and reads as no file there.
-    /// </remarks>
+    // Returns null where the body is not a listing: an answer past the client's read bound, an
+    // unreadable body and another shape all establish nothing. A listing that names no such file
+    // is an answer, and reads as no file there.
     private static ProbedPath? FileIn(string body, string candidate)
     {
         JsonNode? parsed;
@@ -309,12 +269,9 @@ internal sealed class FolderAddressPort(
         return new ProbedPath(false, null);
     }
 
-    /// <summary>The configured library root <paramref name="folder"/> sits under, or null.</summary>
-    /// <remarks>
-    /// The most specific of the roots that contain it. The tail is taken below this root, so a
-    /// shallower one produces a tail carrying the very segments an instance root already holds, and
-    /// the rebuilt candidate then names a path neither system has.
-    /// </remarks>
+    // The most specific containing root, or null. The tail is taken below this root, so a
+    // shallower one gives a tail carrying segments an instance root already holds, and the rebuilt
+    // candidate then names a path neither system has.
     private string? RootContaining(string folder)
         => library.LibraryRoots
             .Where(root => PathCandidateGuard.TailBelow(folder, root) is not null)

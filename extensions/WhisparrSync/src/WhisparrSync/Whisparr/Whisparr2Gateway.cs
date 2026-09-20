@@ -5,20 +5,12 @@ using Whisparr2.Net.Client;
 
 namespace WhisparrSync.Whisparr;
 
-/// <summary>
-/// Whisparr v2's request surface, obtained from the generated Whisparr 2 client.
-/// </summary>
-/// <remarks>
-/// The two generations' packages declare unrelated <c>IApiResponse</c> interfaces with no common base
-/// and unrelated registration option types, so one type cannot serve both and this is a twin of
-/// <see cref="Whisparr3Gateway"/>.
-/// <para>
-/// The transport settings this product requires are applied to every typed client the registration
-/// creates: the redirect cap, the bound on how much of one answer is read, and the budget the target
-/// names. None is the generated client's default, and each is a requirement stated in
-/// <see cref="WhisparrClient"/>.
-/// </para>
-/// </remarks>
+// Whisparr v2's request surface, from the generated Whisparr 2 client. The v2 and v3 packages
+// declare unrelated IApiResponse interfaces and unrelated option types, so one type cannot serve
+// both and this is a twin of Whisparr3Gateway.
+//
+// The redirect cap, the read bound and the target's budget are applied to every typed client the
+// registration creates. None is the generated client's default; each is stated in WhisparrClient.
 internal sealed class Whisparr2Gateway : IDisposable
 {
     private readonly GeneratedClientRegistry<Whisparr2Target> _registry;
@@ -28,22 +20,18 @@ internal sealed class Whisparr2Gateway : IDisposable
         Action<HttpClient>? configure = null)
     {
         var handler = primaryHandler ?? WhisparrClient.CreateHandler;
-        // No default settings of its own: the budget below is where a gateway client's timeout comes
-        // from, and a supplied configure still runs after it so a caller can override.
+        // No default settings: the timeout comes from the target's budget below, and a supplied
+        // configure runs after it so a caller can override.
         var settings = configure ?? (static _ => { });
         _registry = new GeneratedClientRegistry<Whisparr2Target>(
             target => Register(target, handler, settings));
     }
 
-    /// <summary>The typed APIs for the instance <paramref name="target"/> names.</summary>
     public Whisparr2Apis For(Whisparr2Target target) => new(_registry.Reach(target));
 
-    /// <summary>What one generated call answered, in the spelling every seam member returns.</summary>
-    /// <remarks>
-    /// The status and the body are taken as received. The generated accessor deserialises on exactly
-    /// one status and answers null on every other, so reading through it would lose the difference
-    /// between a refusal and an empty answer that this product's own classification rests on.
-    /// </remarks>
+    // Status and body are taken as received. The generated accessor deserialises on exactly one
+    // status and answers null on every other, which would lose the difference between a refusal and
+    // an empty answer.
     public static WhisparrResponse Answered(IApiResponse answered)
     {
         ArgumentNullException.ThrowIfNull(answered);
@@ -71,8 +59,6 @@ internal sealed class Whisparr2Gateway : IDisposable
                 .ConfigurePrimaryHttpMessageHandler(handler)
                 .AddHttpMessageHandler(static () =>
                     new BoundedResponseHandler(WhisparrClient.MaxResponseBytes))
-                // The registry keys by value, so a second budget against one instance is a second
-                // client rather than a setting changed on a client already in use.
                 .ConfigureHttpClient(client => client.Timeout = target.Budget)
                 .ConfigureHttpClient(settings),
         });
@@ -81,27 +67,20 @@ internal sealed class Whisparr2Gateway : IDisposable
     }
 }
 
-/// <summary>The instance one generated call is made against, and how long it may take.</summary>
-/// <remarks>
-/// A record so the whole of it is the cache key by value. The address and the key are both in it
-/// because a key edited against the same address is a different registration. The budget is in it
-/// because <see cref="HttpClient.Timeout"/> cannot be changed once a client has been used, so a
-/// second budget against the same instance is a second client rather than a setting.
-/// </remarks>
+// The whole record is the registry cache key by value. The key is part of it because a key edited
+// against the same address is a different registration. The budget is part of it because
+// HttpClient.Timeout cannot change once a client has been used, so a second budget against the same
+// instance needs a second client.
 internal readonly record struct Whisparr2Target(Uri BaseAddress, string ApiKey, TimeSpan Budget)
 {
-    /// <summary>The instance at <paramref name="baseAddress"/>, for a per-item call.</summary>
     public Whisparr2Target(Uri baseAddress, string apiKey)
         : this(baseAddress, apiKey, WhisparrClient.RequestTimeout)
     {
     }
 }
 
-/// <summary>The generated client's typed APIs, already bound to one instance.</summary>
-/// <remarks>
-/// Bound rather than taking the instance per call, so a call site cannot name one instance for the
-/// read and another for the write that follows it.
-/// </remarks>
+// Bound to one instance rather than taking it per call, so a call site cannot name one instance for
+// the read and another for the write that follows it.
 internal readonly struct Whisparr2Apis(IServiceProvider provider)
 {
     public TApi Api<TApi>()

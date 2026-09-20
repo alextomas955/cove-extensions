@@ -5,9 +5,7 @@ namespace WhisparrSync.Contracts;
 
 /// <summary>Why the scene surface cannot answer, or that it can.</summary>
 /// <remarks>
-/// A wire type, because the sentence a user reads is chosen in the browser from the value answered
-/// here. The converter is on the TYPE: an options-level one outranks a type attribute, so a second
-/// declaration could drift and win in silence.
+/// The backend answers with a kind, and the sentence a user reads is chosen in the browser from it.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum SceneRefusalKind
@@ -21,27 +19,19 @@ public enum SceneRefusalKind
     /// <summary>
     /// The library holds no link for the scene the connected instance could be given.
     /// </summary>
-    /// <remarks>
-    /// The scene identity resolution answers this for a library holding several conflicting links
-    /// too: which of them an outbound request would name depends on row order, and row order is not
-    /// something a reader chose, so it counts as no link.
-    /// </remarks>
     NoIdentityInThisNamespace,
 
     /// <summary>The library holds several conflicting links, each naming a different scene.</summary>
     /// <remarks>
-    /// Held apart because the two send a reader to different places: one link is missing and the
-    /// other is a link on the scene's own page that does not belong there.
+    /// Held apart from a missing link because the two send a reader to different places: one link is
+    /// missing and the other is a link on the scene's own page that does not belong there.
     /// </remarks>
     SeveralIdentitiesInThisNamespace,
 
     /// <summary>
-    /// The connected generation registers no role for the read, so nothing was sent.
+    /// The connected generation registers no role for the read, so nothing was sent. An absence
+    /// rather than a decision: the instance was never asked.
     /// </summary>
-    /// <remarks>
-    /// An absence rather than a decision. The instance was never asked, so a value saying it
-    /// declined would name the wrong party and send a reader to their own instance.
-    /// </remarks>
     CapabilityAbsentOnThisGeneration,
 
     /// <summary>The instance was asked and no whole answer arrived.</summary>
@@ -70,15 +60,15 @@ public enum SceneRefusalKind
     /// </summary>
     /// <remarks>
     /// Distinct from <see cref="InstanceOffersNoRootFolder"/>, which is the instance offering no
-    /// root at all. Here its root list is not what is wrong: what is unsettled is which of those
-    /// roots holds this scene's files, which is a folder mapping rather than a Whisparr setting.
+    /// root at all. Here what is unsettled is which of those roots holds this scene's files, which
+    /// is a folder mapping rather than a Whisparr setting.
     /// </remarks>
     NoAgreedRootForThisEntity,
 
     /// <summary>The instance holds no entry for the scene, so there was nothing to act on.</summary>
     /// <remarks>
-    /// A legitimate answer rather than a failure, and read as one: the instance reported an absence
-    /// instead of declining, which sends a reader somewhere different from every other value here.
+    /// A legitimate answer rather than a failure: the instance reported an absence instead of
+    /// declining, which sends a reader somewhere different from every other value here.
     /// </remarks>
     WhisparrHasNoEntryForScene,
 
@@ -91,18 +81,13 @@ public enum SceneRefusalKind
 
     /// <summary>The instance holds the scene and is not looking for it, so nothing was sent.</summary>
     /// <remarks>
-    /// Held apart from an absent entry: the two send a reader to different next steps, and a search
-    /// on a scene the instance is not monitoring would find nothing whatever the indexers hold.
+    /// Held apart from an absent entry: a search on a scene the instance is not monitoring would
+    /// find nothing whatever the indexers hold.
     /// </remarks>
     WhisparrIsNotMonitoringThisScene,
 }
 
 /// <summary>What one selection of scenes is asked to do.</summary>
-/// <remarks>
-/// A wire type, because the browser sends the value chosen in its own overlay. The converter is on
-/// the TYPE: an options-level one outranks a type attribute, so a second declaration could drift and
-/// win in silence.
-/// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum SceneBatchVerb
 {
@@ -125,26 +110,23 @@ public enum SceneBatchVerb
 /// <summary>What a caller may say when it asks for a selection of scenes to be acted on.</summary>
 /// <remarks>
 /// Every member is nullable, so a body naming none is a refusal this product writes with a code the
-/// browser can read rather than a bind failure whose shape it does not choose.
+/// browser can read rather than a bind failure whose shape it does not choose. <c>EntityType</c>
+/// arrives in the spelling the host's bar passed. The verb decides which bound applies, and
+/// <c>CoveIds</c> arrives with repeats and all.
 /// </remarks>
-/// <param name="EntityType">The selection type as the host's bar passed it.</param>
-/// <param name="Verb">The gesture chosen, which decides which bound applies.</param>
-/// <param name="CoveIds">The Cove videos selected, repeats and all.</param>
 public sealed record SceneBatchRequest(
     string? EntityType, SceneBatchVerb? Verb, int[]? CoveIds);
 
 /// <summary>What one of the scene tab's own verbs produced.</summary>
 /// <remarks>
 /// It carries no state. The browser re-reads the scene's facts after every verb, so what a reader
-/// sees is read off the instance rather than painted from what the browser asked for, and this
-/// answer cannot disagree with the tab beneath it.
+/// sees is read off the instance rather than painted from what the browser asked for.
+/// <para>
+/// <c>SearchIsWithWhisparr</c> means the instance holds the search command, read back off it by the
+/// command's own id. It says nothing about a download: no answer here reports a file, a release or
+/// a queue.
+/// </para>
 /// </remarks>
-/// <param name="Refusal">Why the verb did not take, or that it did.</param>
-/// <param name="SearchIsWithWhisparr">
-/// The instance holds the search command, read back off it by the command's own id. It says nothing
-/// about a download: whether anything was taken is the instance's own business, and no answer here
-/// reports a file, a release or a queue.
-/// </param>
 public sealed record SceneActionResult(
     SceneRefusalKind Refusal, bool SearchIsWithWhisparr);
 
@@ -155,30 +137,12 @@ public sealed record SceneActionResult(
 /// <para>
 /// Every named value is nullable, and the surface states a null in that value's own place. The tab
 /// draws the same rows for every scene, so an absent value never reads as a failed read.
+/// <c>CutoffName</c> is the quality the profile stops taking better files at, and is null where the
+/// profile resolves its own cutoff to nothing. <c>ProfileReadDidNotComplete</c> says the profile
+/// read answered nothing while the scene read succeeded, so the two profile-derived values are
+/// absent for a reason that is not about the scene.
 /// </para>
 /// </remarks>
-/// <param name="Refusal">Why nothing could be established, or that something was.</param>
-/// <param name="Excluded">The scene is on the instance's own exclusion list.</param>
-/// <param name="Present">
-/// The instance holds an entry for the scene, or null where that could not be established.
-/// </param>
-/// <param name="Monitored">
-/// The instance is looking for the scene, or null where that could not be established.
-/// </param>
-/// <param name="QualityName">
-/// The instance's own name for the quality of the file it holds, or null where it holds no file.
-/// </param>
-/// <param name="QualityProfileName">
-/// The instance's own name for the profile the scene is under, or null where there is none to name.
-/// </param>
-/// <param name="CutoffName">
-/// The quality the profile stops taking better files at, as the profile names it, or null where the
-/// profile resolves its own cutoff to nothing.
-/// </param>
-/// <param name="ProfileReadDidNotComplete">
-/// The profile read answered nothing while the scene read succeeded, so the two profile-derived
-/// values are absent for a reason that is not about the scene.
-/// </param>
 public sealed record SceneDetailView(
     SceneRefusalKind Refusal,
     bool Excluded,

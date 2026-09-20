@@ -2,19 +2,12 @@ using System.Text.Json;
 
 namespace WhisparrSync.Providers;
 
-/// <summary>Turns one provider's scene row into this product's own scene.</summary>
-/// <remarks>
-/// Pure. A member the provider gave no value for stays null, so a surface omits that row rather than
-/// rendering an empty one. The two providers share no field spelling, so each has its own reader and
-/// both reach the same record.
-/// </remarks>
+// The two providers share no field spelling, so each has its own reader and both reach the same
+// record. A member the provider gave no value for stays null, so a surface omits that row rather
+// than rendering an empty one.
 internal static class ProviderSceneProjector
 {
-    /// <summary>The scene <paramref name="row"/> describes, or null where it names no identifier.</summary>
-    /// <remarks>
-    /// A row with no identifier is dropped: every verb a card offers names the scene by it, so a card
-    /// without one carries no action that could be composed.
-    /// </remarks>
+    // A row with no identifier is dropped: every verb a card offers names the scene by it.
     internal static ProviderScene? Project(JsonElement row)
     {
         var id = Text(row, "id");
@@ -34,11 +27,8 @@ internal static class ProviderSceneProjector
             Tags(row));
     }
 
-    /// <summary>The scene <paramref name="row"/> describes, spelled as ThePornDB spells it.</summary>
-    /// <remarks>
-    /// The performer named on a scene is that site's own credit rather than the canonical record, so
-    /// the name and picture are read from it and the scene reads as the site published it.
-    /// </remarks>
+    // ThePornDB's performer on a scene is that site's own credit, not the canonical record, so the
+    // name and picture are read from it and the scene reads as the site published it.
     internal static ProviderScene? ProjectThePornDbScene(JsonElement row)
     {
         var id = Text(row, "id");

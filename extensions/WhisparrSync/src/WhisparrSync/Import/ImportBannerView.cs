@@ -3,26 +3,18 @@ using WhisparrSync.Options;
 namespace WhisparrSync.Import;
 
 /// <summary>One offending path, and why it was not imported.</summary>
-/// <param name="Path">The path the delivery reported.</param>
-/// <param name="Cause">
-/// Why that path was refused. Named per path rather than per root, so a misconfigured root and one
-/// unreadable file do not read identically.
-/// </param>
+/// <remarks>
+/// The cause is named per path rather than per root, so a misconfigured root and one unreadable
+/// file do not read identically.
+/// </remarks>
 public sealed record ImportBannerPathLine(string Path, ImportRefusalCause Cause);
 
 /// <summary>One Whisparr root's outstanding refusals, as the settings page reads them.</summary>
-/// <param name="Root">
-/// The root as the reporting instance spells it. Blank where no reporting root contained the path,
-/// which the surface names rather than dropping.
-/// </param>
-/// <param name="CountSinceLastSuccess">
-/// How many refusals this root has had since its last successful import, as stored. Nothing on this
-/// path derives a second figure from it.
-/// </param>
-/// <param name="NewestPaths">
-/// The newest offending paths, newest first, at most
-/// <see cref="ImportRootRefusals.NewestPathsKept"/> of them.
-/// </param>
+/// <remarks>
+/// The root is spelled as the reporting instance spells it, and is blank where no reporting root
+/// contained the path. The count is the stored one, since that root's last successful import. The
+/// paths are newest first, at most <see cref="ImportRootRefusals.NewestPathsKept"/> of them.
+/// </remarks>
 public sealed record ImportBannerRootLine(
     string Root,
     int CountSinceLastSuccess,
@@ -34,29 +26,21 @@ public sealed record ImportBannerRootLine(
 /// </summary>
 /// <remarks>
 /// A projection of the stored aggregates, never a live options type. Its size is the Whisparr root
-/// count times <see cref="ImportRootRefusals.NewestPathsKept"/> plus two scalars, which is a property
-/// of what is stored rather than of a truncation applied here.
+/// count times <see cref="ImportRootRefusals.NewestPathsKept"/> plus two scalars, which is a
+/// property of what is stored rather than of a truncation applied here. Roots come in the order
+/// they are stored.
 /// <para>
-/// The surface renders nothing for an answer with no roots and nothing contained.
+/// The contained count is a running total over every pass: the mark moved past each of those
+/// records, so this channel never offers them again and no later success clears the count. The
+/// instant is null when no pass ever contained one.
 /// </para>
 /// </remarks>
-/// <param name="Roots">One line per root with refusals outstanding, in the order they are stored.</param>
-/// <param name="RecordsContained">
-/// How many of Whisparr's history records the backstop could not take, over every pass. A running
-/// total: the mark moved past each of them, so this channel never offers them again and no later
-/// success clears the count.
-/// </param>
-/// <param name="LastContainedAtUtc">
-/// When a pass last could not take a record, or null when none ever has.
-/// </param>
 public sealed record ImportBannerView(
     IReadOnlyList<ImportBannerRootLine> Roots,
     int RecordsContained,
     DateTimeOffset? LastContainedAtUtc)
 {
-    /// <summary>What <paramref name="refusals"/> and <paramref name="health"/> read as.</summary>
-    /// <param name="refusals">The stored refusals, one entry per root that has any.</param>
-    /// <param name="health">The stored import health, which carries the containment.</param>
+    /// <summary>What the stored refusals and import health read as.</summary>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="refusals"/> or <paramref name="health"/> is null.
     /// </exception>

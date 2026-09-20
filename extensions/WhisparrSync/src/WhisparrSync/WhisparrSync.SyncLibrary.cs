@@ -29,9 +29,8 @@ public sealed partial class WhisparrSync
 {
     private void MapSyncLibraryEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // The configure tier because it aims this extension's stored credential at a third party and
-        // reads the whole library to do it. It names nothing at all: what is counted is the reader's
-        // own library, so a caller can compose no set of its own here.
+        // The configure tier, because this aims the stored credential at a third party and reads
+        // the whole library to do it.
         endpoints.MapPost(SyncPreviewRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
              OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
@@ -41,9 +40,8 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
-        // The same tier for the read half, which answers what the count above left. Not a lesser
-        // tier than the start: it reports how much of the reader's library a third party holds, and
-        // that is the same fact whichever route answered it.
+        // The same tier for the read half: it reports how much of the reader's library a third
+        // party holds, which is the same fact whichever route answered it.
         endpoints.MapGet(SyncPreviewRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs, SyncPreviewCache counts,
              OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
@@ -53,8 +51,8 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
-        // The same tier as the count, and for a stronger reason: this one writes into a third
-        // party's catalogue on behalf of the whole library.
+        // The same tier again: this one writes into a third party's catalogue on behalf of the
+        // whole library.
         endpoints.MapPost(SyncRunRoute,
             (SyncRunRequest? request, ICurrentPrincipalAccessor principal, IJobService jobs,
              IServiceScopeFactory scopes, OptionsStore options, ICredentialPort credentials,
@@ -65,23 +63,12 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
 
-    /// <summary>The job id one library sync run is minted onto.</summary>
-    /// <remarks>
-    /// Declared beside the routes rather than on the run, because the count route derives whether a
-    /// run is in flight from it and the run reads it for its own type. One literal, so the route's
-    /// derivation and the type the host enqueues cannot drift apart.
-    /// </remarks>
+    // One literal, so the route's in-flight derivation and the type the host enqueues cannot drift
+    // apart.
     internal const string SyncLibraryJobId = "sync-library";
 
-    /// <summary>Starts one count of what a library sync would offer.</summary>
-    /// <remarks>
-    /// The count is a background run and its id is answered immediately: the comparison is one
-    /// request per batch to a third party, and waiting would hold the browser open for its length.
-    /// <para>
-    /// Enqueued non-exclusive. The count creates nothing and changes nothing, so two of them cost
-    /// only requests, and it must not queue behind an unrelated run this extension made exclusive.
-    /// </para>
-    /// </remarks>
+    // Enqueued non-exclusive. The count creates nothing and changes nothing, and it must not queue
+    // behind an unrelated run this extension made exclusive.
     internal async Task<Results<Ok<SyncEnqueued>, ForbiddenCode>> EnqueueSyncPreviewAsync(
         ICurrentPrincipalAccessor principal,
         IJobService jobs,
@@ -115,15 +102,8 @@ public sealed partial class WhisparrSync
         return TypedResults.Ok(new SyncEnqueued(started, SyncRefusalKind.None));
     }
 
-    /// <summary>Answers the counts the last count left, and whether a run is in flight.</summary>
-    /// <remarks>
-    /// A local read of the held slot. It starts no run and issues no outbound request, so a reader
-    /// opening the settings page has paid nothing.
-    /// <para>
-    /// Whether a run is in flight is derived from the host's own job list rather than from a stored
-    /// flag, so it answers false the moment the run ends and no client-side timer is involved.
-    /// </para>
-    /// </remarks>
+    // Whether a run is in flight is derived from the host's own job list rather than from a stored
+    // flag, so it answers false the moment the run ends.
     internal async Task<Results<Ok<SyncPreviewRead>, ForbiddenCode>> ReadSyncPreviewAsync(
         ICurrentPrincipalAccessor principal,
         IJobService jobs,
@@ -155,16 +135,10 @@ public sealed partial class WhisparrSync
                 counts.Held(stored.SelectedGeneration), SyncRefusalKind.None, running));
     }
 
-    /// <summary>Runs one enqueued count.</summary>
-    /// <remarks>
-    /// Everything the count compares against is resolved when it starts, because which instance is
-    /// connected is a setting a person can change while a run is queued.
-    /// <para>
-    /// The summary is the last progress call. The host writes its own unit line over
-    /// <c>JobInfo.Summary</c> for a run that declares units, and this one declares none, so the line
-    /// written here is the line a reader sees.
-    /// </para>
-    /// </remarks>
+    // What the count compares against is resolved when the run starts, because the connected
+    // instance is a setting a person can change while a run is queued.
+    // The summary is the last progress call: the host writes its own unit line over
+    // JobInfo.Summary for a run that declares units, and this one declares none.
     private async Task RunSyncPreviewAsync(
         IServiceScopeFactory scopes, CoreJobProgress progress, CancellationToken ct)
     {
@@ -228,25 +202,12 @@ public sealed partial class WhisparrSync
         }
     }
 
-    /// <summary>
-    /// Which of <paramref name="asked"/> the instance holds a site for, and which of them the
-    /// metadata source names no site for.
-    /// </summary>
-    /// <remarks>
-    /// The library's identifiers are mapped forward to the numbers a site is named by rather than
-    /// the instance's own numbers being mapped back, because a run has to map forward to register
-    /// anything at all, and because the reverse direction cannot tell a studio the metadata source
-    /// names no site for from one the instance simply does not hold.
-    /// <para>
-    /// The resolve runs here rather than behind the batched read, which answers a local question and
-    /// sends one request: a resolve inside it would cost that read a request per element.
-    /// </para>
-    /// </remarks>
-    /// <exception cref="HttpRequestException">
-    /// The instance was not reached for one of the identifiers, so nothing about that studio is
-    /// known and no count is held. Raised rather than counted as a studio the instance does not
-    /// hold, which would offer it for registration on the strength of nothing.
-    /// </exception>
+    // The library's identifiers are mapped forward to the numbers a site is named by, because the
+    // reverse direction cannot tell a studio the metadata source names no site for from one the
+    // instance does not hold.
+    // Throws HttpRequestException where the metadata source was not reached for an identifier.
+    // Counting it as a studio the instance does not hold would offer it for registration on the
+    // strength of nothing.
     internal static async Task<SiteBatchReading> ReduceHeldSitesAsync(
         ISiteNumberPort siteNumbers,
         Uri baseAddress,
@@ -314,20 +275,10 @@ public sealed partial class WhisparrSync
         }
     }
 
-    /// <summary>Starts one library run, or refuses it by name.</summary>
-    /// <remarks>
-    /// Enqueued non-exclusive, which is the one departure from every other enqueue in this
-    /// extension. A library-wide run takes as long as the library is large, and enqueued exclusive it
-    /// would hold the reader's own Cove scans and refreshes behind it for that whole time. A
-    /// non-exclusive run still appears in the host's job list and is still cancellable, so nothing a
-    /// reader can see or do about it is given up.
-    /// <para>
-    /// A second run is refused while the first is pending or running, and the refusal carries the
-    /// running job's own id so the page can point at it. Whether one is in flight is the host's own
-    /// job list rather than a stored flag: it answers false the moment the run ends, and it is empty
-    /// after a process restart, which is the correct answer.
-    /// </para>
-    /// </remarks>
+    // Enqueued non-exclusive. A library-wide run takes as long as the library is large, and
+    // exclusive it would hold the reader's own Cove scans and refreshes behind it for that time.
+    // A second run is refused while the first is pending or running. The host's job list is the
+    // source: it answers false the moment a run ends and is empty after a process restart.
     internal async Task<Results<Ok<SyncEnqueued>, ForbiddenCode>> EnqueueSyncRunAsync(
         SyncRunRequest? request,
         ICurrentPrincipalAccessor principal,
@@ -369,15 +320,10 @@ public sealed partial class WhisparrSync
         return TypedResults.Ok(new SyncEnqueued(started, SyncRefusalKind.None));
     }
 
-    /// <summary>Runs one enqueued library run.</summary>
-    /// <remarks>
-    /// Everything the run acts through is resolved when it starts, because the profile, the root and
-    /// which instance is connected are each the reader's to change while a run is queued.
-    /// <para>
-    /// A cancellation is rethrown after the run has written its own summary, so the host classifies
-    /// the run as cancelled rather than completed while the reader is still told what it offered.
-    /// </para>
-    /// </remarks>
+    // Everything the run acts through is resolved when it starts, because the profile, the root
+    // and the connected instance are each the reader's to change while a run is queued.
+    // A cancellation is rethrown after the run has written its summary, so the host classifies the
+    // run as cancelled while the reader is still told what it offered.
     private async Task RunSyncLibraryAsync(
         IReadOnlyDictionary<string, string> parameters,
         IServiceScopeFactory scopes,
@@ -385,8 +331,7 @@ public sealed partial class WhisparrSync
         CancellationToken ct)
     {
         // One entry per library root the pass asked about, so the settings page can offer a root
-        // this run could not settle. The run's own ending says how many sites were left for want of
-        // one, and that sentence sends the reader to a page that lists nothing without this.
+        // this run could not settle.
         var readings = new ConcurrentDictionary<string, AddressedFolder>(StringComparer.Ordinal);
 
         await SyncLibraryJob.RunAsync(
@@ -424,14 +369,10 @@ public sealed partial class WhisparrSync
 
             return SyncPassFor(target) switch
             {
-                // The one composition every registering run in this product aims through, so the add
-                // this run offers is the non-grabbing one and the values it composes with are read
-                // here rather than at enqueue.
-                //
-                // This pass offers scenes and nothing else: the generation that keeps them creates a
-                // scene's studio and its performers itself as presence, so there is no studio pass
-                // and no performer pass. Nor is there a catalogue refresh after the loop - that is a
-                // per-entity act, and there is no single entity here.
+                // This pass offers scenes and nothing else: the generation that keeps them creates
+                // a scene's studio and its performers itself, so there is no studio pass and no
+                // performer pass. There is no catalogue refresh after the loop either, because
+                // that is a per-entity act and there is no single entity here.
                 SyncRegisters.Scenes =>
                     await ComposeSceneAddAsync(owningKind: null, owningId: 0, services, runCt)
                             .ConfigureAwait(false) is { } register
@@ -443,8 +384,8 @@ public sealed partial class WhisparrSync
                             MonitorFor(batch, target))
                         : null,
 
-                // The other pass registers a site's presence. Nothing monitors the site itself: what
-                // the reader owns on a site is its scenes, so the monitor slot here marks those.
+                // Nothing monitors the site itself: what the reader owns on a site is its scenes,
+                // so the monitor slot here marks those.
                 SyncRegisters.Sites =>
                     await ComposeSiteRegistrationAsync(services, readings, runCt)
                             .ConfigureAwait(false)
@@ -463,25 +404,14 @@ public sealed partial class WhisparrSync
         }
     }
 
-    /// <summary>Offers one scene and classifies what the instance answered.</summary>
-    /// <remarks>
-    /// The add's own refusal is what tells a scene the instance already holds from one it declines,
-    /// so the classification is composed where that answer arrives.
-    /// </remarks>
+    // The add's own refusal is what tells a scene the instance already holds from one it declines.
     private static async Task<SyncRegistration> OfferSceneAsync(
         Func<string, CancellationToken, Task<WhisparrResponse?>> register,
         string identity,
         CancellationToken ct)
         => SyncRegistration.Offered(await register(identity, ct).ConfigureAwait(false));
 
-    /// <summary>
-    /// What a site pass registers each site through, or null where it must not act at all.
-    /// </summary>
-    /// <remarks>
-    /// The presence-only add, so nothing this run registers is monitored and nothing it registers is
-    /// searched for. The profile and the root are read here rather than at enqueue, for the reason
-    /// the scene composition reads them here.
-    /// </remarks>
+    // The presence-only add, so nothing this run registers is monitored or searched for.
     private async Task<Func<LibrarySiteIdentity, CancellationToken, Task<SyncRegistration>>?>
         ComposeSiteRegistrationAsync(
             IServiceProvider services,
@@ -523,9 +453,9 @@ public sealed partial class WhisparrSync
             return null;
         }
 
-        // Resolved out of the run's own elevated services, because Cove's per-principal query filters
-        // answer an anonymous reader zero rows and no error - which here would report every studio as
-        // owning no file and register all of them at the run-wide root.
+        // Resolved out of the run's own elevated services. Cove's per-principal query filters
+        // answer an anonymous reader zero rows and no error, which here would report every studio
+        // as owning no file and register all of them at the run-wide root.
         var files = services.GetRequiredService<IEntityFolderPort>();
         var library = services.GetRequiredService<ICoveLibraryPort>();
         var addressing = AgreedRootThrough(
@@ -548,9 +478,8 @@ public sealed partial class WhisparrSync
                 siteCt).ConfigureAwait(false);
 
             // A composition that refused still reaches the step, so the site is read. Where the
-            // instance already holds it, nothing about its root has to be settled for its scenes to
-            // be marked, and stopping short would leave a whole run's scenes unflagged whenever the
-            // instance could not be probed.
+            // instance already holds it, its root need not be settled for its scenes to be marked,
+            // and stopping short would leave a whole run's scenes unflagged.
             var registered = await SiteRegistrationStep.RegisterAsync(
                 (identity, readCt) => ContainedAsync(
                     () => studios.ReadStudioAsync(
@@ -588,13 +517,10 @@ public sealed partial class WhisparrSync
                     _log, site.StudioId, site.RemoteId, RefusalReason(registered.Answer));
             }
 
-            // The root choice travels on the outcome rather than being read again by the run, which
-            // holds nothing per studio and counts what each one answered.
             return registered with { Root = composed.Root };
         };
 
-        // Nothing was sent, so there is no status to classify and the refusal is the whole of what a
-        // caller reads. The body is empty, so no sentence can be composed from what an instance said.
+        // Nothing was sent, so there is no status to classify and the refusal is all a caller reads.
         static WhisparrResponse Nothing(MonitorRefusalKind refusal)
             => new(0, null, string.Empty) { Refusal = refusal };
 
@@ -611,15 +537,8 @@ public sealed partial class WhisparrSync
         }
     }
 
-    /// <summary>
-    /// What each library root agrees with on <paramref name="target"/>, or a refusal where the
-    /// connected generation holds no role that could be asked.
-    /// </summary>
-    /// <remarks>
-    /// A generation this product cannot ask refuses the root rather than composing one, for the
-    /// reason the reflect-owned addressing states: a root nobody checked reads back as a clean pass
-    /// over an entry holding nothing.
-    /// </remarks>
+    // A generation this product cannot ask refuses the root rather than composing one: a root
+    // nobody checked reads back as a clean pass over an entry holding nothing.
     private static Func<string, CancellationToken, Task<AddressedFolder>> AgreedRootThrough(
         MonitoringTarget target, IFolderAddressPort addressing)
     {
@@ -639,27 +558,11 @@ public sealed partial class WhisparrSync
         return (coveRoot, ct) => addressing.AgreedRootAsync(aimed, coveRoot, ct);
     }
 
-    /// <summary>
-    /// How the scenes a reader owns on one registered site are marked wanted, or null where nothing
-    /// marks them.
-    /// </summary>
-    /// <remarks>
-    /// Null unless the reader asked and the generation registers both the row read and the per-scene
-    /// monitor. With it null the run registers its sites and makes no provider read and no row read
-    /// at all, so the whole cost of monitoring is paid only where it was asked for.
-    /// <para>
-    /// Whether the connected provider issues a number to address a scene by is not asked here. The
-    /// generation this pass runs on reads through the provider that issues one, so a refusal on that
-    /// ground would be a sentence no run can produce; a scene left without a number is counted
-    /// unnumbered in the run's own ending instead.
-    /// </para>
-    /// <para>
-    /// Every role is obtained by name and none is chosen by comparing a version. The scene stream is
-    /// resolved out of the run's own elevated services, because Cove's per-principal query filters
-    /// answer an anonymous reader with zero rows and no error - which here would monitor nothing
-    /// while reporting a library that holds nothing.
-    /// </para>
-    /// </remarks>
+    // Null unless the reader asked and the generation registers both the row read and the
+    // per-scene monitor, so the cost of monitoring is paid only where it was asked for.
+    // The scene stream is resolved out of the run's own elevated services. Cove's per-principal
+    // query filters answer an anonymous reader zero rows and no error, which here would monitor
+    // nothing while reporting a library that holds nothing.
     private Func<LibrarySiteIdentity, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>?
         ComposeSiteSceneMonitor(
             IServiceProvider services, SyncLibraryBatch batch, MonitoringTarget target)
@@ -689,22 +592,16 @@ public sealed partial class WhisparrSync
                 _log,
                 ct));
 
-        // A site the instance named no id for is a site nothing can reach the scenes under. Its own
-        // registration is already counted as refused, and no scene under it is claimed either way.
+        // A site the instance named no id for is a site nothing can reach the scenes under. Its
+        // registration is already counted as refused.
         return (site, registered, ct) => registered.InstanceId is { } siteId
             ? SiteSceneMonitorPass.MonitorAsync(ports, site, siteId, _log, ct)
             : Task.FromResult(SceneMonitorTally.Nothing);
     }
 
-    /// <summary>How one offered scene is marked wanted, or null where nothing marks one.</summary>
-    /// <remarks>
-    /// Null unless the reader asked and the generation registers a per-scene monitor, so v2 obtains
-    /// none and monitors nothing rather than being refused once it is called.
-    /// <para>
-    /// One request at a time throughout. The instance's own command queue is the shared resource, so
-    /// there is no parallel loop here and no second request in flight.
-    /// </para>
-    /// </remarks>
+    // Null unless the reader asked and the generation registers a per-scene monitor, so v2 obtains
+    // none and monitors nothing rather than being refused once it is called.
+    // One request at a time: the instance's own command queue is the shared resource.
     private Func<string, SyncRegistration, CancellationToken, Task<SceneMonitorTally>>? MonitorFor(
         SyncLibraryBatch batch, MonitoringTarget target)
     {
@@ -718,19 +615,14 @@ public sealed partial class WhisparrSync
         var reading = target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
             .Match<IWhisparrSceneStatusReading?>(held => held, _ => null);
 
-        // One scene, so the tally this pass answers is that one scene either way.
         return async (identity, offered, ct) => SceneMonitorTally.For(
             await MonitorOfferedSceneAsync(target, monitoring, reading, identity, offered, ct)
                 .ConfigureAwait(false));
     }
 
-    /// <summary>Marks one scene the instance now holds wanted.</summary>
-    /// <remarks>
-    /// The flag is set by the instance's own numeric scene id, which is not an identifier this
-    /// product holds. It is taken off the accepted add's own answer where the add was accepted, and
-    /// otherwise off one read of the scene the instance already held - one extra request for a scene
-    /// that was already there, and none for a scene that was just registered.
-    /// </remarks>
+    // The flag is set by the instance's own numeric scene id, which this product does not hold. It
+    // is taken off an accepted add's answer, and otherwise off one read of the scene the instance
+    // already held.
     private async Task<WhisparrResponse?> MonitorOfferedSceneAsync(
         MonitoringTarget target,
         IWhisparrSceneMonitorActing monitoring,
@@ -768,26 +660,14 @@ public sealed partial class WhisparrSync
             : null;
     }
 
-    /// <summary>Whether one of this extension's own sync runs is pending or running.</summary>
     private bool SyncRunIsInFlight(IJobService jobs) => SyncRunInFlight(jobs) is not null;
 
-    /// <summary>The one of this extension's own sync runs that is pending or running, or none.</summary>
-    /// <remarks>
-    /// One derivation for both readers: the count route answers whether a run is in flight, and the
-    /// run route names the job it refuses a second run for, so neither can disagree with the other
-    /// about what is running.
-    /// </remarks>
     private JobInfo? SyncRunInFlight(IJobService jobs)
         => jobs.GetAllJobs().FirstOrDefault(job =>
             string.Equals(
                 job.Type, OwnJobTypePrefix + SyncLibraryJobId, StringComparison.Ordinal)
             && job.Status is JobStatus.Pending or JobStatus.Running);
 
-    /// <summary>Why the sync surface cannot act at all, or that it can.</summary>
-    /// <remarks>
-    /// Both routes refuse for the same two reasons, and a reader is shown one sentence for each, so
-    /// the two are derived once rather than in each handler.
-    /// </remarks>
     private static async Task<SyncRefusalKind> SyncRefusalFor(
         OptionsStore options,
         ICredentialPort credentials,
@@ -800,10 +680,9 @@ public sealed partial class WhisparrSync
             return SyncRefusalKind.NoInstanceConnected;
         }
 
-        // Read off the roles the target obtains rather than off its version. A generation keeping no
-        // per-scene records registers no scene-status read, so there is nothing to ask which scenes
-        // it holds - and what it can be told about instead is its sites. The refusal stands only
-        // where neither role is obtained.
+        // Read off the roles the target obtains rather than off its version. A generation keeping
+        // no per-scene records registers no scene-status read, and can be told about its sites
+        // instead, so the refusal stands only where neither role is obtained.
         if (SyncPassFor(target) is not null)
         {
             return SyncRefusalKind.None;
@@ -812,13 +691,8 @@ public sealed partial class WhisparrSync
         return SyncRefusalKind.WhisparrKeepsNoSceneRecords;
     }
 
-    /// <summary>Which pass <paramref name="target"/> can take, or none.</summary>
-    /// <remarks>
-    /// One derivation for the three routes and for the run, so the refusal a reader is shown and the
-    /// pass the run then makes cannot disagree. Scenes are preferred where both are obtainable: a
-    /// per-scene entry is what the reader's own library holds, and a site entry stands in for one
-    /// only where no per-scene entry exists.
-    /// </remarks>
+    // Scenes are preferred where both are obtainable: a per-scene entry is what the reader's own
+    // library holds, and a site entry stands in only where no per-scene entry exists.
     private static SyncRegisters? SyncPassFor(MonitoringTarget target)
     {
         if (target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
