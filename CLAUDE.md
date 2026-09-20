@@ -166,8 +166,8 @@ Libraries reach millions of files. Nothing may grow with the library.
 
 ## Tests
 
-- Tests mirror source folders. `TestSupport/`, the cross-cutting suites (`Concurrency/`,
-  `Preview/`, `Wire/`) and e2e sit outside the mirror.
+- A test mirrors its source folder. A group that tests no single source unit gets a folder of its
+  own instead: test support, the wire document, cross-cutting invariants, concurrency, e2e.
 - An extension has one backend test project. It references Cove's own source unconditionally, so the
   suite needs a checkout and refuses to build without one rather than running a smaller set.
 - The cove-absent CI leg builds and publishes the extension and runs no tests. It proves the shipped
