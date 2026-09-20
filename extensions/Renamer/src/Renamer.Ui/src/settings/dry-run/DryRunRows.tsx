@@ -52,6 +52,16 @@ function newNameLabel(bucket: string, nameChanged: boolean, newName: string): st
   return nameChanged ? newName : "(name unchanged)";
 }
 
+function loadedText(loaded: number, total: number, searching: boolean): string {
+  // The denominator is shown only while it is one. A search has no known total until the walk ends,
+  // and a library edited since the scan can yield more rows than the scan counted, so "5 of 3 loaded"
+  // would be a worse answer than no denominator at all.
+  if (!searching && loaded <= total) {
+    return `${loaded} of ${total} row${total === 1 ? "" : "s"} loaded`;
+  }
+  return `${loaded} ${searching ? "matching " : ""}row${loaded === 1 ? "" : "s"} loaded`;
+}
+
 function emptyText(loading: boolean, complete: boolean, searching: boolean): string {
   if (loading) return "Looking…";
   if (complete) {
@@ -186,10 +196,6 @@ export function DryRunRows({
   }, [rows.length, targetRows, complete, loading, error, loadMore]);
 
   const searching = query.trim() !== "";
-  // Show the denominator only while it is one. A search has no known total until the walk ends, and a
-  // library edited since the scan can yield more rows than the scan counted — "5 of 3 loaded" would be
-  // a worse answer than no denominator at all.
-  const showTotal = !searching && rows.length <= bucketTotal;
 
   return (
     <>
@@ -245,10 +251,8 @@ export function DryRunRows({
             scroll. */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-card px-3 py-2 text-xs text-muted">
           <span>
-            {showTotal
-              ? `${rows.length} of ${bucketTotal} row${bucketTotal === 1 ? "" : "s"} loaded`
-              : `${rows.length} ${searching ? "matching " : ""}row${rows.length === 1 ? "" : "s"} loaded`}
-            , in scan order (by type, then by item). {walkStatus(complete, searching, examined)}
+            {loadedText(rows.length, bucketTotal, searching)}, in scan order (by type, then by
+            item). {walkStatus(complete, searching, examined)}
           </span>
           {complete ? null : (
             <Button variant="ghost" onClick={loadMore} disabled={loading}>
