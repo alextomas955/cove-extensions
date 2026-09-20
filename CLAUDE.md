@@ -134,9 +134,9 @@ Libraries reach millions of files. Nothing may grow with the library.
 - A partial class file is named for the one thing it holds, and holds only that. A job body lives
   with the work it runs, never with the endpoint that enqueues it.
 - An interface member with no production caller is deleted, not kept for symmetry. A seam that only
-  a test double implements is not a boundary. Keep an interface for a real dependency inversion:
-  Renamer's data port exists because its planner and engine work only in Renamer-owned records and
-  take no dependency on Cove.Core entities.
+  a test double implements is not a boundary.
+- Renamer's data port exists because production takes no runtime dependency on Cove.Core entities.
+  An interface here is a dependency inversion of that kind, not a test seam.
 
 ## UI conventions
 
