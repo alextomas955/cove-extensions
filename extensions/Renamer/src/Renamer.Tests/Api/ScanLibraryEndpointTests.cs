@@ -1,4 +1,3 @@
-using System.Data.Common;
 using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
@@ -8,7 +7,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
 using Renamer.Options;
@@ -315,25 +313,6 @@ public sealed class ScanLibraryEndpointTests
     }
 
     /// <summary>Counts each executed reader command so a test can prove the port issues ~N/chunk queries, not N.</summary>
-    private sealed class SelectCountingInterceptor : DbCommandInterceptor
-    {
-        public int ReaderCount { get; set; }
-
-        public override ValueTask<DbDataReader> ReaderExecutedAsync(
-            DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
-            CancellationToken cancellationToken = default)
-        {
-            ReaderCount++;
-            return ValueTask.FromResult(result);
-        }
-
-        public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result)
-        {
-            ReaderCount++;
-            return result;
-        }
-    }
-
     [Fact]
     public async Task ScanLoop_UsesBatchLoad_NotPerIdLoad()
     {
@@ -376,7 +355,7 @@ public sealed class ScanLibraryEndpointTests
         // Prove the port collapses N per-entity round-trips into ceil(N/chunk) reader queries. Seed
         // more ids than one chunk so the assertion is meaningful (2 chunks worth). Count executed
         // reader commands via an EF command interceptor over a real SQLite context.
-        var interceptor = new SelectCountingInterceptor();
+        var interceptor = new ReaderCountingInterceptor();
         var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
         try
@@ -467,8 +446,7 @@ public sealed class ScanLibraryEndpointTests
             StatusCounts: [.. Enum.GetValues<RenamerStatus>()
                 .Select(s => new global::Renamer.Contracts.ScanStatusCount(s, s == status ? files : 0))],
             BlastRadius: new PreviewSummary(
-                files, files, 0, 0, [], ConfirmLevel.Light, Undoable: true,
-                InFlightPathOverflowCount: 0),
+                files, files, 0, 0, [], ConfirmLevel.Light, InFlightPathOverflowCount: 0),
             VolumePairsTruncated: false);
 
     private static Task StoreSummaryAsync(FakeStore store, params global::Renamer.Contracts.ScanKindSummary[] kinds)

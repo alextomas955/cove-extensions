@@ -285,31 +285,47 @@ public sealed partial class Renamer
             var port = new CoveRenamerDataPort(readDb, _coveConfig);
             var planner = new RenamerPlanner(port);
 
+            // The chunk's entities in one bounded set of round-trips, the same shape the library scan
+            // uses, rather than one entity-graph load per id. The walk below still follows the caller's
+            // id order, so the preview order and the units it produces do not depend on what the
+            // database returned first. An id naming an entity the load did not return vanished between
+            // the id list and this read, and contributes nothing.
+            var loaded = await port.LoadEntitiesAsync(kind, ids, ct);
+            var byId = new Dictionary<int, RenamerEntity>(loaded.Count);
+            foreach (var entity in loaded)
+            {
+                byId[entity.EntityId] = entity;
+            }
+
             int planIndex = 0;
             foreach (var id in ids)
             {
                 ct.ThrowIfCancellationRequested();
-                var (plan, entity) = await planner.PlanWithEntityAsync(kind, id, options, lookups, ct);
-
-                // File sizes for the free-space sum live on the loaded entity's files, not on the plan
-                // item, so they are read off the entity the planner just loaded.
-                var sizeByFileId = entity?.Files.ToDictionary(f => f.FileId, f => f.SizeBytes) ?? [];
 
                 int actingThisItem = 0;
-                foreach (var item in plan.Items)
+                if (byId.TryGetValue(id, out var entity))
                 {
-                    if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
-                    {
-                        continue;
-                    }
+                    var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
 
-                    actingThisItem++;
-                    long size = sizeByFileId.GetValueOrDefault(item.FileId);
-                    // Each worker is handed a single-file plan so the executor acts on exactly this file;
-                    // the parent entity id rides the unit for logging.
-                    var unitPlan = new RenamerPlan(plan.EntityId, plan.Kind, [item]);
-                    planned.Add(new BatchUnit(plan.EntityId, unitPlan,
-                        (item.OldFullPath, item.NewFullPath, size)));
+                    // File sizes for the free-space sum live on the loaded entity's files, not on the
+                    // plan item, so they are read off the entity the plan was built from.
+                    var sizeByFileId = entity.Files.ToDictionary(f => f.FileId, f => f.SizeBytes);
+
+                    foreach (var item in plan.Items)
+                    {
+                        if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
+                        {
+                            continue;
+                        }
+
+                        actingThisItem++;
+                        long size = sizeByFileId.GetValueOrDefault(item.FileId);
+                        // Each worker is handed a single-file plan so the executor acts on exactly this
+                        // file; the parent entity id rides the unit for logging.
+                        var unitPlan = new RenamerPlan(plan.EntityId, plan.Kind, [item]);
+                        planned.Add(new BatchUnit(plan.EntityId, unitPlan,
+                            (item.OldFullPath, item.NewFullPath, size)));
+                    }
                 }
 
                 LogItemPlanned(runId, ++planIndex, ids.Count, id, actingThisItem);
