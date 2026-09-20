@@ -11,7 +11,9 @@ export const RENAMER_EXTENSION = resolveExtensionPaths(import.meta.url, {
 });
 
 export const test = baseTest.extend({
-  extension: [RENAMER_EXTENSION, { option: true }],
+  // Worker-scoped to match the option the shared fixtures declare. An override at test scope would
+  // not satisfy the worker-scoped `harness` fixture that reads it, and the runner refuses the mix.
+  extension: [RENAMER_EXTENSION, { scope: "worker", option: true }],
 });
 
 export { expect } from "@cove-extensions/e2e";

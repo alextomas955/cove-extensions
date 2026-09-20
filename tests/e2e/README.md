@@ -35,8 +35,8 @@ npm test
 ```
 
 That's it — `npm test` runs every project in [`playwright.config.mjs`](playwright.config.mjs) (see
-"One Playwright install, many extensions" below) across 4 parallel workers by default, each spec
-file provisioning and tearing down its own isolated Cove instance.
+"One Playwright install, many extensions" below) across 6 parallel workers by default, each
+worker provisioning and tearing down its own isolated Cove instance.
 
 `npm test` also builds what it installs: a `pretest` hook runs
 [`scripts/publish-extensions.mjs`](../../scripts/publish-extensions.mjs), which publishes every
@@ -83,7 +83,7 @@ e2e workspace on the next root `npm install` — no root-config edit needed.
 
 ## Parallel execution
 
-`fullyParallel: true` with `workers: process.env.CI ? 2 : 4` — tests run concurrently by default,
+`fullyParallel: true` with `workers: process.env.CI ? 2 : 6` — tests run concurrently by default,
 each against its own isolated Cove instance. This is safe because:
 
 - Worker-shared-harness test files (the default — see `lib/fixtures.mjs`) each seed their own
@@ -97,17 +97,21 @@ each against its own isolated Cove instance. This is safe because:
 
 **Worker count is capped, not left at Playwright's CPU-based default, and CI gets fewer workers
 than local.** Each worker brings up its own Docker Compose network plus a real browser instance.
-Locally, 4 is capped because Docker's default address-pool allocation is a finite, **host-wide**
+Locally, 6 is capped because Docker's default address-pool allocation is a finite, **host-wide**
 resource shared with any other Docker projects already running on the machine — confirmed
 directly: an uncapped run (Playwright's default, which scaled to 13 workers on the machine this was
 built on) failed 3 of 13 tests with `all predefined address pools have been fully subnetted`
 because other, unrelated Docker projects on that machine had already claimed part of the default
-pool. In CI, each worker's fixed cost (a full Compose stack + Postgres + a real Chromium, not a
-lightweight browser context against one already-running server) is high relative to a standard
-GitHub-hosted runner's 4 vCPU/16GB — running 4 concurrently there oversubscribes the runner, so CI
-is capped at 2 instead. `retries: 2` and `trace: 'on-first-retry'` are also CI-only, standard
-Playwright CI hygiene. Override with `--workers=N` if a given machine/runner can sustain more (or
-fewer) than its default.
+pool. That pool, not the machine's cores, is the ceiling: 8 workers ran the Renamer suite green
+twice at 2.0m against 6's 2.5m on a 32-core host, so `--workers=8` is available to a machine
+running no other Docker projects. In CI, each worker's fixed cost (a full Compose stack + Postgres
+
+- a real Chromium, not a lightweight browser context against one already-running server) is high
+  relative to a standard GitHub-hosted runner's 4 vCPU/16GB, and the peak is twice the worker count
+  because an isolated-harness spec starts a second stack alongside its worker's — so CI is capped at
+  2 instead. `retries: 2` and `trace: 'on-first-retry'` are also CI-only, standard
+  Playwright CI hygiene. Override with `--workers=N` if a given machine/runner can sustain more (or
+  fewer) than its default.
 
 **If a run is killed or a worker crashes before `environment.up()` finishes**, Testcontainers'
 Ryuk cleanup can leave healthy containers running (confirmed directly — Ryuk reaps containers when
@@ -162,6 +166,13 @@ run against an instance with your extension already installed (via Testcontainer
 produces, just without depending on your machine's file-sharing configuration) — see
 [`lib/install-extension.mjs`](lib/install-extension.mjs). If a test file has no `extension` fixture
 set, it gets a clean instance with only Cove's built-in extensions installed.
+
+The option is **worker-scoped**, and the install runs once per worker inside the `harness` fixture
+rather than once per test. The install restarts Cove, so charging it per test cost every test in
+the worker a container restart — about 5.5s each, measured. Two consequences: an override in an
+extension's own fixtures file must declare `{ scope: "worker", option: true }` to match, and
+Playwright reuses a worker only across files whose worker fixtures agree, so two extensions' files
+never share one instance.
 
 ### Signing in
 
