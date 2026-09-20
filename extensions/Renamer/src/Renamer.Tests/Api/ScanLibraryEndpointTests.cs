@@ -355,7 +355,7 @@ public sealed class ScanLibraryEndpointTests
         // Prove the port collapses N per-entity round-trips into ceil(N/chunk) reader queries. Seed
         // more ids than one chunk so the assertion is meaningful (2 chunks worth). Count executed
         // reader commands via an EF command interceptor over a real SQLite context.
-        var interceptor = new ReaderCountingInterceptor();
+        var interceptor = new CommandCountingInterceptor();
         var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
         try

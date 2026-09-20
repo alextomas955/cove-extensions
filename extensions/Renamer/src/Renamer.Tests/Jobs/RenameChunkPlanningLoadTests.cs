@@ -5,6 +5,7 @@ using Cove.Plugins;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Renamer.Execution;
 using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Tests.Execution;
@@ -25,12 +26,12 @@ namespace Renamer.Tests.Jobs;
 /// </remarks>
 public sealed class RenameChunkPlanningLoadTests
 {
-    private static async Task<(SqliteConnection Connection, DbContext Db, ReaderCountingInterceptor Interceptor,
+    private static async Task<(SqliteConnection Connection, DbContext Db, CommandCountingInterceptor Interceptor,
         ServiceProvider Provider)> OpenAsync()
     {
         var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
-        var interceptor = new ReaderCountingInterceptor();
+        var interceptor = new CommandCountingInterceptor();
 
         DbContext NewContext() => new CoveContext(
             new DbContextOptionsBuilder<CoveContext>()
@@ -59,16 +60,20 @@ public sealed class RenameChunkPlanningLoadTests
         return ext;
     }
 
-    [Fact]
-    public async Task PlanningPass_ReadsTheChunkInBulk_NotOnceForEveryId()
+    /// <summary>
+    /// Plans <paramref name="entities"/> unorganized entities under the only-organized gate and returns
+    /// how many reader commands the run issued.
+    /// </summary>
+    /// <remarks>
+    /// The gate makes every file plan as a skip, so the chunk acts on nothing and the reads counted are
+    /// the planning pass's own. The count is taken after the extension is built, so it excludes setup.
+    /// </remarks>
+    private static async Task<int> PlanningReadsAsync(int entities)
     {
         using var dir = new TempDir();
         var (connection, db, interceptor, provider) = await OpenAsync();
         try
         {
-            // Unorganized entities under the only-organized gate: every file plans as a skip, so the
-            // chunk acts on nothing and the reads the counter sees are the planning pass's own.
-            const int entities = 12;
             string folderPath = dir.Root.Replace('\\', '/');
             var (folderId, firstId, _) = await ExecutorTestSeed.SeedVideoAsync(
                 db, folderPath, "raw 0.mkv", "Film 0", organized: false);
@@ -89,10 +94,8 @@ public sealed class RenameChunkPlanningLoadTests
             interceptor.ReaderCount = 0;
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
 
-            Assert.True(interceptor.ReaderCount > 0, "the planning pass read nothing at all");
-            Assert.True(interceptor.ReaderCount < entities,
-                $"planning {entities} ids must not cost a read per id; got {interceptor.ReaderCount} readers");
             Assert.Equal(1d, progress.LastPercent);
+            return interceptor.ReaderCount;
         }
         finally
         {
@@ -100,6 +103,25 @@ public sealed class RenameChunkPlanningLoadTests
             await db.DisposeAsync();
             await connection.DisposeAsync();
         }
+    }
+
+    [Fact]
+    public async Task PlanningPass_CostsTheSameReads_ForTenTimesAsManyEntitiesInOneLoadChunk()
+    {
+        // Both populations sit inside a single CoveRenamerDataPort.LoadChunkSize, so a bulk load plans
+        // either in the same number of round-trips. Ten times the entities for the same reads is the
+        // property under test - a read per id would make the larger run cost ten times the smaller.
+        const int few = 12;
+        const int many = 120;
+        Assert.True(many <= CoveRenamerDataPort.LoadChunkSize, "both populations must fit one load chunk");
+
+        int readsForFew = await PlanningReadsAsync(few);
+        int readsForMany = await PlanningReadsAsync(many);
+
+        Assert.True(readsForFew > 0, "the planning pass read nothing at all");
+        Assert.Equal(readsForFew, readsForMany);
+        Assert.True(readsForMany < few,
+            $"a bulk load must cost fewer reads than the smaller population has ids; got {readsForMany}");
     }
 
     [Fact]

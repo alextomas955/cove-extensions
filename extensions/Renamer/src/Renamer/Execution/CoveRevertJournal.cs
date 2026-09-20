@@ -39,6 +39,12 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
     // has to run unchanged on every provider this extension is tested against.
     private long _lastSeq;
 
+    // Whether this instance has already swept retention. One instance serves a whole rename run, and a
+    // run opens a batch per chunk and per kind, so without the latch a whole-library rename sweeps the
+    // table once per chunk. The sweep is over every batch and not over this run's, so the second call
+    // and every one after it re-read the same rows to delete nothing.
+    private int _purged;
+
     public CoveRevertJournal(DbContext db) => _db = db;
 
     public async Task BeginBatchAsync(
@@ -47,8 +53,13 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
     {
         // Retention runs here and nowhere else. Opening a batch is the only place a batch is created, so
         // it is the only place the window can be crossed by new work, and no timer or background service
-        // is needed. Outside the gate because the purge takes it.
-        await PurgeExpiredAsync(nowUtc, ct);
+        // is needed. Outside the gate because the purge takes it. The undo endpoint sweeps through
+        // PurgeExpiredAsync directly, which the latch does not cover: it has to refuse a batch that
+        // expired since the last rename.
+        if (Interlocked.Exchange(ref _purged, 1) == 0)
+        {
+            await PurgeExpiredAsync(nowUtc, ct);
+        }
 
         await _writes.WaitAsync(ct);
         try

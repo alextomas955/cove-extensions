@@ -26,11 +26,16 @@ public sealed class ChunkedRenameTests
     // Nothing is denied here: this suite's subject is what the chunk walk does, not who may reach it.
     private static readonly global::Renamer.AllowedIds AllowAll = (_, ids, _) => Task.FromResult(ids);
 
-    private static async Task<global::Renamer.Renamer> BuildAsync(
+    private static Task<global::Renamer.Renamer> BuildAsync(
         SharedCacheSqlite shared, RenamerOptions options, params string[] libraryPaths)
+        => BuildAsync(shared, options, interceptor: null, libraryPaths);
+
+    private static async Task<global::Renamer.Renamer> BuildAsync(
+        SharedCacheSqlite shared, RenamerOptions options, CommandCountingInterceptor? interceptor,
+        params string[] libraryPaths)
     {
         var services = new ServiceCollection();
-        services.AddScoped<DbContext>(_ => shared.NewContext());
+        services.AddScoped<DbContext>(_ => shared.NewContext(interceptor));
         services.AddLibraryPaths(libraryPaths);
         services.AddSingleton<IEventBus>(new CapturingEventBus());
         var provider = services.BuildServiceProvider();
@@ -99,6 +104,42 @@ public sealed class ChunkedRenameTests
             Assert.Equal(3, batches.Count);
             Assert.All(batches, b => Assert.Equal("op", b.OperationId));
             Assert.Equal(entities, batches.Sum(b => b.OriginalCount));
+            Assert.Equal(1d, progress.LastPercent);
+        }
+        finally
+        {
+            await shared.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task AMultiChunkRun_SweepsRetentionOnce_NotOncePerChunk()
+    {
+        using var dir = new TempDir();
+        var shared = await SharedCacheSqlite.CreateAsync();
+        try
+        {
+            const int entities = 5;
+            await using (var seedDb = shared.NewContext())
+            {
+                await SeedVideosAsync(seedDb, dir.Root, entities);
+            }
+
+            var options = new RenamerOptions { FilenameTemplate = "$title" };
+            var interceptor = new CommandCountingInterceptor();
+            var ext = await BuildAsync(shared, options, interceptor);
+            var progress = new FakeJobProgress();
+
+            // Three chunks of two, two and one, so three batches open under one operation. The sweep is
+            // over every batch in the table rather than over this run's, so repeating it per chunk
+            // re-reads the same rows to delete nothing.
+            await ext.RunRenamerKindAsync(
+                RenamerFileKind.Video, entities, "op", options, AllowAll, progress,
+                default, chunkEntities: 2);
+
+            await using var readDb = shared.NewContext();
+            Assert.Equal(3, await readDb.Set<RevertBatchEntity>().AsNoTracking().CountAsync());
+            Assert.Equal(1, interceptor.DeletesAgainst("renamer_revert_batches"));
             Assert.Equal(1d, progress.LastPercent);
         }
         finally

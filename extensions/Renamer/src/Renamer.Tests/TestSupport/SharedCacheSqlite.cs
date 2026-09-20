@@ -1,6 +1,7 @@
 using Cove.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace Renamer.Tests.TestSupport;
 
@@ -42,10 +43,20 @@ internal sealed class SharedCacheSqlite : IAsyncDisposable
     }
 
     /// <summary>Builds a <see cref="CoveContext"/> over its own connection to the shared database.</summary>
-    public DbContext NewContext()
+    /// <remarks>
+    /// <paramref name="interceptor"/> lets a caller count what the context executes. Every context a
+    /// run resolves has to carry the same one, because the work being counted is spread over the
+    /// per-worker scopes.
+    /// </remarks>
+    public DbContext NewContext(IInterceptor? interceptor = null)
     {
-        var options = new DbContextOptionsBuilder<CoveContext>().UseSqlite(OpenConnection()).Options;
-        return new CoveContext(options, principalAccessor: null);
+        var builder = new DbContextOptionsBuilder<CoveContext>().UseSqlite(OpenConnection());
+        if (interceptor is not null)
+        {
+            builder = builder.AddInterceptors(interceptor);
+        }
+
+        return new CoveContext(builder.Options, principalAccessor: null);
     }
 
     /// <summary>Names a fresh shared-cache database, opens the keep-alive connection, and materializes the schema once.</summary>
