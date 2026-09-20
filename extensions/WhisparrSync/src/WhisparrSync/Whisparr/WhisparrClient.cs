@@ -223,8 +223,8 @@ public interface IWhisparrClient
 /// type holding an outbound surface and a second holder would be a second one for every invariant
 /// that reflects over this one to cover.
 /// <para>
-/// Each generation's requests are composed by its own generated client, the newer through
-/// <see cref="Whisparr3Gateway"/> and the older through <see cref="Whisparr2Gateway"/>. The routes
+/// Each generation's requests are composed by its own generated client, v3 through
+/// <see cref="Whisparr3Gateway"/> and v2 through <see cref="Whisparr2Gateway"/>. The routes
 /// still declared here are sent through the held <see cref="HttpClient"/>.
 /// </para>
 /// </remarks>

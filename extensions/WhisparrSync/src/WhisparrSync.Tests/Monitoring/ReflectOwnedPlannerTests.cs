@@ -181,17 +181,17 @@ public sealed class ReflectOwnedPlannerTests
         Assert.False(((JsonObject)JsonNode.Parse(V3UnmatchedRow)!).ContainsKey("movie"));
         Assert.False(((JsonObject)JsonNode.Parse(V2UnmatchedRow)!).ContainsKey("series"));
 
-        var newer = Entries(
+        var v3 = Entries(
             WhisparrGeneration.V3, $"[{V3MatchedRow},{V3UnmatchedRow}]");
-        var older = Entries(
+        var v2 = Entries(
             WhisparrGeneration.V2, $"[{V2UnmatchedRow},{V2MatchedRow}]");
 
-        Assert.NotNull(newer);
-        Assert.NotNull(older);
-        Assert.Equal(7, Assert.IsType<JsonObject>(Assert.Single(newer))["movieId"]!.GetValue<int>());
-        Assert.Equal(3, Assert.IsType<JsonObject>(Assert.Single(older))["seriesId"]!.GetValue<int>());
-        Assert.DoesNotContain("unknown.mp4", newer.ToJsonString(), StringComparison.Ordinal);
-        Assert.DoesNotContain("unknown.mp4", older.ToJsonString(), StringComparison.Ordinal);
+        Assert.NotNull(v3);
+        Assert.NotNull(v2);
+        Assert.Equal(7, Assert.IsType<JsonObject>(Assert.Single(v3))["movieId"]!.GetValue<int>());
+        Assert.Equal(3, Assert.IsType<JsonObject>(Assert.Single(v2))["seriesId"]!.GetValue<int>());
+        Assert.DoesNotContain("unknown.mp4", v3.ToJsonString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("unknown.mp4", v2.ToJsonString(), StringComparison.Ordinal);
     }
 
     /// <summary>A folder whose parse answers no rows, or only rows nothing matched, composes no command.</summary>
@@ -237,14 +237,14 @@ public sealed class ReflectOwnedPlannerTests
 
     /// <summary>
     /// Each generation's file entry is spelled as its own interface spells it, transcribed from the
-    /// two bundles: the newer names one scene, the older names a series and its episodes.
+    /// two bundles: v3 names one scene, v2 names a series and its episodes.
     /// </summary>
     [Fact]
     public void TheFileEntryIsSpelledPerGenerationAsEachInterfaceSpellsIt()
     {
-        var newer = Assert.IsType<JsonObject>(Assert.Single(
+        var v3 = Assert.IsType<JsonObject>(Assert.Single(
             Entries(WhisparrGeneration.V3, $"[{V3MatchedRow}]")!));
-        var older = Assert.IsType<JsonObject>(Assert.Single(
+        var v2 = Assert.IsType<JsonObject>(Assert.Single(
             Entries(WhisparrGeneration.V2, $"[{V2MatchedRow}]")!));
 
         Assert.Equal(
@@ -252,19 +252,19 @@ public sealed class ReflectOwnedPlannerTests
                 "downloadId", "folderName", "indexerFlags", "languages", "movieFileId", "movieId",
                 "path", "quality", "releaseGroup",
             ],
-            newer.Select(member => member.Key).Order());
+            v3.Select(member => member.Key).Order());
         Assert.Equal(
             [
                 "downloadId", "episodeFileId", "episodeIds", "folderName", "indexerFlags", "languages",
                 "path", "quality", "releaseGroup", "seriesId",
             ],
-            older.Select(member => member.Key).Order());
+            v2.Select(member => member.Key).Order());
 
-        Assert.Equal("/config/library/Vixen/scene.mp4", newer["path"]!.GetValue<string>());
-        Assert.Equal("Vixen", newer["folderName"]!.GetValue<string>());
-        Assert.Equal([41], Assert.IsType<JsonArray>(older["episodeIds"]).Select(id => id!.GetValue<int>()));
-        Assert.DoesNotContain("seriesId", newer.ToJsonString(), StringComparison.Ordinal);
-        Assert.DoesNotContain("movieId", older.ToJsonString(), StringComparison.Ordinal);
+        Assert.Equal("/config/library/Vixen/scene.mp4", v3["path"]!.GetValue<string>());
+        Assert.Equal("Vixen", v3["folderName"]!.GetValue<string>());
+        Assert.Equal([41], Assert.IsType<JsonArray>(v2["episodeIds"]).Select(id => id!.GetValue<int>()));
+        Assert.DoesNotContain("seriesId", v3.ToJsonString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("movieId", v2.ToJsonString(), StringComparison.Ordinal);
     }
 
     /// <summary>A matched series with no episode named is no match: nothing could be attached.</summary>

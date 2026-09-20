@@ -251,15 +251,15 @@ public sealed class SettingsEndpointTests
         var extension = WhisparrSyncFixture.Create();
 
         await SaveOnAsync(extension, options, gate, credentials, WhisparrGeneration.V3);
-        var newer = SlotsOf(extension);
+        var afterV3 = SlotsOf(extension);
 
         await SaveOnAsync(extension, options, gate, credentials, WhisparrGeneration.V2);
-        var older = SlotsOf(extension);
+        var afterV2 = SlotsOf(extension);
 
-        Assert.Contains("video-card-content", newer);
-        Assert.DoesNotContain("video-card-content", older);
-        Assert.Contains("studio-card-footer", newer);
-        Assert.Contains("studio-card-footer", older);
+        Assert.Contains("video-card-content", afterV3);
+        Assert.DoesNotContain("video-card-content", afterV2);
+        Assert.Contains("studio-card-footer", afterV3);
+        Assert.Contains("studio-card-footer", afterV2);
     }
 
     /// <summary>Every slot the extension's manifest registers right now.</summary>
