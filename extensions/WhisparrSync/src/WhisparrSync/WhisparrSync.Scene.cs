@@ -1,7 +1,10 @@
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
@@ -17,6 +20,85 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapSceneEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        // The read tier, not the configure one: the route names one scene as a path segment and
+        // composes no write, so a caller who may see the library may read what Whisparr holds for a
+        // scene in it.
+        endpoints.MapGet(SceneDetailRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => SceneDetailAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        // The configure tier for each of the five: one gesture aiming this extension's stored
+        // credential at a third party, creating or removing items in the reader's own Whisparr, is
+        // not something a caller who cannot configure the extension may do. Which scene a request
+        // touches is a path segment, so a caller cannot name one in a body the route would otherwise
+        // have to refuse.
+        endpoints.MapPost(SceneAddRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, IServiceScopeFactory scopes,
+             CancellationToken ct)
+                => AddSceneAsync(
+                    coveId, principal, options, credentials, client, sceneCards, scopes, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneMonitorRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => MonitorSceneAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneUnmonitorRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => UnmonitorSceneAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneExcludeRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => ExcludeSceneAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(SceneRemoveExclusionRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => RemoveSceneExclusionAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The configure tier for two reasons rather than one: the route aims this extension's stored
+        // credential at a third party AND it spends the reader's indexer traffic and disk. It is the
+        // most consequential route this surface mounts, and it must not sit at a tier a caller who
+        // cannot configure the extension can reach.
+        endpoints.MapPost(SceneSearchRoute,
+            (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client,
+             ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => SearchSceneNowAsync(
+                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
     /// <summary>What the connected instance holds for one scene the library names.</summary>
     /// <remarks>
     /// Reads and changes nothing, and reaches no metadata provider: the identifier the scene is

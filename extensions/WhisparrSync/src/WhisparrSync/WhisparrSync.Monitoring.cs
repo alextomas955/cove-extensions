@@ -1,8 +1,11 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
@@ -15,6 +18,65 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapMonitoringEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet(MonitoringReadRoute,
+            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
+             CancellationToken ct)
+                => ReadEntityMonitoringAsync(
+                    kind, coveId, principal, options, credentials, client, identities, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        endpoints.MapPost(MonitorRoute,
+            (string kind, int coveId, MonitorEntityRequest request,
+             ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
+             IWhisparrClient client, IEntityIdentityPort identities, IJobService jobs,
+             IServiceScopeFactory scopes, CancellationToken ct)
+                => MonitorEntityAsync(
+                    kind, coveId, request, principal, options, credentials, client, identities, jobs,
+                    scopes, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The same tier as the monitor route, and for the same reason: each aims this extension's
+        // stored credential at a third party.
+        endpoints.MapPost(UnmonitorRoute,
+            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
+             CancellationToken ct)
+                => UnmonitorEntityAsync(
+                    kind, coveId, principal, options, credentials, client, identities, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The configure tier, and the reach decision is this route's own rather than the monitor
+        // route's borrowed. Its reach is one Cove entity named by the route segment and its effect is
+        // bounded by what that entity already monitors, so it is neither a whole-library verb nor a
+        // body-named one. The tier is the configure tier for two reasons rather than one: the route
+        // aims this extension's stored credential at a third party AND it spends the reader's
+        // bandwidth and disk. It is the most consequential route this extension mounts, and it must
+        // not sit at a tier a caller who cannot configure the extension can reach.
+        endpoints.MapPost(SearchAllMonitoredRoute,
+            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
+             CancellationToken ct)
+                => SearchAllMonitoredEntityAsync(
+                    kind, coveId, principal, options, credentials, client, identities, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPost(MonitorScopeRoute,
+            (string kind, int coveId, MonitorEntityRequest request,
+             ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
+             IWhisparrClient client, IEntityIdentityPort identities, CancellationToken ct)
+                => SetMonitorScopeAsync(
+                    kind, coveId, request, principal, options, credentials, client, identities, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
     /// <summary>Reads how the connected instance monitors one Cove entity, right now.</summary>
     /// <remarks>
     /// Live on every read, holding nothing: one request per entity page view, no cache and no stored

@@ -1,7 +1,10 @@
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
@@ -13,6 +16,60 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapSettingsEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet(HostConfigurationRoute,
+            (ICurrentPrincipalAccessor principal) => HostConfiguration(principal))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        endpoints.MapPost(ConnectionTestRoute,
+            (ConnectionTestRequest request, ICurrentPrincipalAccessor principal,
+             IConnectionTestRunner runner, CancellationToken ct)
+                => ConnectionTestAsync(request, principal, runner, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapGet(SettingsRoute,
+            (ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
+             CancellationToken ct)
+                => ReadSettingsAsync(principal, options, credentials, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPut(SettingsRoute,
+            (WhisparrSyncSettingsSaveRequest request, ICurrentPrincipalAccessor principal,
+             OptionsStore options, OptionsWriteGate gate, ICredentialPort credentials,
+             TimeProvider clock, CancellationToken ct)
+                => SaveSettingsAsync(request, principal, options, gate, credentials, clock, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapGet(ImportBannerRoute,
+            (ICurrentPrincipalAccessor principal, OptionsStore options, CancellationToken ct)
+                => ReadImportBannerAsync(principal, options, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The same tier as the settings routes, and for the same reason: both read and write stored
+        // configuration, and the save aims this extension's stored credential at a third party.
+        endpoints.MapGet(FolderMappingsRoute,
+            (ICurrentPrincipalAccessor principal, OptionsStore options, CancellationToken ct)
+                => ReadFolderMappingsAsync(principal, options, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPut(FolderMappingsRoute,
+            (FolderMappingSaveRequest request, ICurrentPrincipalAccessor principal,
+             OptionsStore options, OptionsWriteGate gate, ICredentialPort credentials,
+             IWhisparrClient client, ICoveLibraryPort library, IFolderAddressPort addressing,
+             CancellationToken ct)
+                => SaveFolderMappingAsync(
+                    request, principal, options, gate, credentials, client, library, addressing, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
     /// <summary>
     /// What this extension can see of the host's own configuration, of the host services it can
     /// obtain, and of its worker's lifecycle, from inside its container.

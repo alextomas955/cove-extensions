@@ -1,7 +1,10 @@
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Library;
@@ -12,6 +15,21 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapLibraryStatusEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        // The read tier. This route names its cards in the body, the way the bulk route names its
+        // scenes, so its reach is the set the caller sent and never the library. It composes no
+        // write, and a caller who may see the library may see a read-only status over it.
+        endpoints.MapPost(LibraryStatusRoute,
+            (string kind, LibraryStatusRequest request, ICurrentPrincipalAccessor principal,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             LibraryStatusPort cards, ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+                => ReadLibraryStatusAsync(
+                    kind, request, principal, options, credentials, client, cards, sceneCards, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+    }
+
     /// <summary>What the connected instance holds for each card on one rendered page.</summary>
     /// <remarks>
     /// Reads and changes nothing. It reaches no metadata provider either: the identifier each card is

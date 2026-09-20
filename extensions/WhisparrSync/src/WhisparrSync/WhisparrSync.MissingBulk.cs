@@ -1,8 +1,11 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
@@ -16,6 +19,23 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapMissingBulkEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        // The configure tier, matching the whole-entity registration route above: one gesture over a
+        // page's selection aims this extension's stored credential at a third party and creates items
+        // in the reader's own Whisparr, which is not something a caller who cannot configure the
+        // extension may do.
+        endpoints.MapPost(MissingBulkMonitorRoute,
+            (string kind, int coveId, MissingBulkRequest request,
+             ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             CancellationToken ct)
+                => EnqueueMissingBulkMonitorAsync(
+                    kind, coveId, request, principal, jobs, scopes, options, credentials, client, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
     /// <summary>Marks a page's ticked scenes as wanted, as one background run.</summary>
     /// <remarks>
     /// Acts on what was ticked and re-derives nothing. Marking a scene wanted does not remove it from

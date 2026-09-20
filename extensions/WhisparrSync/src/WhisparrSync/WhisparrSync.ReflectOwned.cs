@@ -1,8 +1,11 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
@@ -17,6 +20,22 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapReflectOwnedEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        // The same tier as the monitor route, and for the reason that route's own remark gives: it
+        // aims this extension's stored credential at a third party. Its reach is the one Cove entity
+        // the route segment names, so it is neither a whole-library read nor a body-named
+        // no-content call, and neither lesser tier expresses it.
+        endpoints.MapPost(ReflectOwnedRoute,
+            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
+             IJobService jobs, IServiceScopeFactory scopes, CancellationToken ct)
+                => ReflectOwnedEntityAsync(
+                    kind, coveId, principal, options, credentials, client, identities, jobs, scopes, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
     /// <summary>
     /// Asks the connected instance to link the files the library already holds for one entity into
     /// place, in the background.

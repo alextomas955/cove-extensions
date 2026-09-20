@@ -1,7 +1,10 @@
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
@@ -14,6 +17,45 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapMissingEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        // Entity-scoped reads: the reach of each is the one Cove entity the route segment names, so
+        // the read tier expresses it.
+        endpoints.MapGet(MissingPageRoute,
+            (string kind, int coveId, int? page, int? perPage, string? sort, string? q,
+             string? filters, bool? menusHeld, ICurrentPrincipalAccessor principal,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             ProviderEndpointPort endpoints, MissingPagePlanner planner, CancellationToken ct)
+                => ReadMissingPageAsync(
+                    kind, coveId, page, perPage, sort, q, filters, menusHeld, principal, options,
+                    credentials, client, endpoints, planner, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        endpoints.MapGet(MissingCountRoute,
+            (string kind, int coveId, string? q, string? filters,
+             ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
+             IWhisparrClient client, ProviderEndpointPort endpoints, MissingPagePlanner planner,
+             CancellationToken ct)
+                => ReadMissingCountAsync(
+                    kind, coveId, q, filters, principal, options, credentials, client, endpoints,
+                    planner, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        // The same read tier as the page and the count beside it: the reach is the one Cove entity
+        // the route segment names, and the answer is a list of values the metadata source already
+        // publishes. It composes no write and asks the connected instance nothing.
+        endpoints.MapGet(MissingFacetValuesRoute,
+            (string kind, int coveId, string facetKey, string? q,
+             ICurrentPrincipalAccessor principal, OptionsStore options, MissingPagePlanner planner,
+             CancellationToken ct)
+                => ReadMissingFacetValuesAsync(
+                    kind, coveId, facetKey, q, principal, options, planner, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+    }
+
     /// <summary>One page of what an entity's configured metadata source lists and Cove does not hold.</summary>
     /// <remarks>
     /// The ordering, the title search and every facet selection are bound from the query string and
