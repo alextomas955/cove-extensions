@@ -17,9 +17,8 @@ public sealed partial class WhisparrSync
 {
     private void MapLibraryStatusEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // The read tier. This route names its cards in the body, the way the bulk route names its
-        // scenes, so its reach is the set the caller sent and never the library. It composes no
-        // write, and a caller who may see the library may see a read-only status over it.
+        // Read tier. The body names the cards, so the route reaches the caller's set and never the
+        // library, and it composes no write.
         endpoints.MapPost(LibraryStatusRoute,
             (string kind, LibraryStatusRequest request, ICurrentPrincipalAccessor principal,
              OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
@@ -30,20 +29,8 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
     }
 
-    /// <summary>What the connected instance holds for each card on one rendered page.</summary>
-    /// <remarks>
-    /// Reads and changes nothing. It reaches no metadata provider either: the identifier each card is
-    /// named by is the library's own stored row, so there is no lookup to make.
-    /// <para>
-    /// One row per requested identifier, in the order requested. The answer's size is the caller's
-    /// own and never the library's, and there is no cap that truncates: a body over the bound is
-    /// refused rather than served short.
-    /// </para>
-    /// <para>
-    /// The read tier, <see cref="ReadPermissions"/>: the route composes no write, and a caller who
-    /// may see the library may see a read-only status over it.
-    /// </para>
-    /// </remarks>
+    // One row per requested identifier, in the order requested. The row count is the caller's and
+    // never the library's.
     internal static async Task<Results<Ok<LibraryStatusView>, BadRequest, ForbiddenCode>>
         ReadLibraryStatusAsync(
             string kind,
@@ -56,8 +43,7 @@ public sealed partial class WhisparrSync
             ILibraryCardIdentityPort sceneCards,
             CancellationToken ct)
     {
-        // Checked in the handler, because the route's own declaration enforces nothing on a minimal
-        // API.
+        // Re-checked here because the route declaration enforces nothing on a minimal API.
         if (!HasReadPermission(principal))
         {
             return new ForbiddenCode();
@@ -70,10 +56,8 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        // One rendered page, which is the same figure Cove's own list pages default their perPage
-        // to. Referenced rather than restated, so the two cannot drift. A body over it is answered
-        // as far as the page reaches and reports the remainder, so no caller has to hold this figure
-        // to send a request this route can answer.
+        // Bounded to one rendered page, the same figure Cove's list pages default perPage to. A
+        // longer body is answered as far as the page reaches, and the response says it was trimmed.
         var asked = request.CoveIds.Count > MissingPerPage
             ? request.CoveIds.Take(MissingPerPage).ToArray()
             : request.CoveIds;
@@ -105,13 +89,8 @@ public sealed partial class WhisparrSync
                     asked.Count != request.CoveIds.Count));
     }
 
-    /// <summary>
-    /// One row per requested entity card, or null rows where the generation registers no role to ask.
-    /// </summary>
-    /// <remarks>
-    /// Refused by the absence of a capability rather than by a probe: a generation registering no
-    /// role for this kind has nothing to ask, so nothing is sent and no read can have dropped.
-    /// </remarks>
+    // Null rows where the generation registers no role for this kind: nothing is sent, so no read
+    // can have dropped.
     private static async Task<(IReadOnlyList<LibraryStatusRow>? Rows, bool AnyReadDropped)>
         ReadEntityCardsAsync(
             LibraryStatusPort cards,
@@ -126,14 +105,8 @@ public sealed partial class WhisparrSync
                 .ConfigureAwait(false)
             : (null, false);
 
-    /// <summary>
-    /// One row per requested scene card, or null rows where the generation reads no per-scene record.
-    /// </summary>
-    /// <remarks>
-    /// The identity is resolved before anything leaves, so a card the library names no single
-    /// identifier for costs no request and carries no reading. The requested order is the answer's,
-    /// and a card the identity read answered nothing for carries a null reading in its place.
-    /// </remarks>
+    // Null rows where the generation reads no per-scene record. Rows come back in the requested
+    // order, and a card the identity read answered nothing for carries a null reading.
     private static async Task<(IReadOnlyList<LibraryStatusRow>? Rows, bool AnyReadDropped)>
         ReadSceneCardsAsync(
             LibraryStatusPort cards,
@@ -169,23 +142,10 @@ public sealed partial class WhisparrSync
             answered.AnyReadDropped);
     }
 
-    /// <summary>What the page as a whole could not be answered for, or that it could.</summary>
-    /// <remarks>
-    /// Both halves of the sentence have to hold before it is stated. A read has to have left for the
-    /// instance and not come back, which is what "could not reach Whisparr" says, and no card on the
-    /// page may have established anything, which is what "no card can show a status" says.
-    /// <para>
-    /// An instance that answered establishes no reason here whatever it answered. A stored identifier
-    /// its own metadata source resolves to nothing, or to several entities, or an answer this cannot
-    /// read, are each a fact about ONE card, and the card already carries it by drawing no badge.
-    /// Naming the connection for them sends a reader to audit an instance that answered every request
-    /// it was given, and one sentence for the page cannot truthfully describe one card out of forty.
-    /// </para>
-    /// <para>
-    /// A page whose cards all carry no usable identifier claims nothing either, because nothing left
-    /// for it.
-    /// </para>
-    /// </remarks>
+    // A page-wide refusal needs both halves: a read left for the instance and did not come back, and
+    // no card on the page established anything. An instance that answered establishes no page-wide
+    // reason, whatever it answered, because an unresolved or unreadable identifier is a fact about
+    // one card and that card already shows it by drawing no badge.
     private static LibraryStatusRefusalKind RefusalOver(
         IReadOnlyList<LibraryStatusRow> rows, bool anyReadDropped)
     {
@@ -197,19 +157,11 @@ public sealed partial class WhisparrSync
             : LibraryStatusRefusalKind.None;
     }
 
-    /// <summary>The card kind the route segment names, or that it names none.</summary>
-    /// <remarks>
-    /// A parse that succeeds is not the same as a member: the enum's underlying type accepts an
-    /// integer inside no member, and every arm downstream would then take its default.
-    /// </remarks>
+    // A parse that succeeds is not the same as a member: the enum's underlying type accepts an
+    // integer that names no member, so IsDefined is checked too.
     private static bool TryReadCardKind(string kind, out LibraryCardKind card)
         => Enum.TryParse(kind, ignoreCase: true, out card) && Enum.IsDefined(card);
 
-    /// <summary>The monitored-entity kind a card kind stands for.</summary>
-    /// <remarks>
-    /// A video reaches this for nothing: it is a card kind this product expresses and no entity it
-    /// monitors, so its own branch answers it and every arm here would throw.
-    /// </remarks>
     private static WhisparrEntityKind EntityKindOf(LibraryCardKind card)
         => card switch
         {

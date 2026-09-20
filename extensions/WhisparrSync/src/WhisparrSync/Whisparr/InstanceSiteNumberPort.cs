@@ -6,25 +6,13 @@ using V2Api = Whisparr2.Net.Api;
 
 namespace WhisparrSync.Whisparr;
 
-/// <summary>Answers a site number out of the instance's own lookup.</summary>
-/// <remarks>
-/// The instance's lookup takes the identifier the library holds - a provider's own code as readily
-/// as a number - and answers the site it names. Resolving through it rather than through Cove's
-/// configured metadata source spends one request where there were two, and leaves the run depending
-/// on the instance it is already talking to rather than on a third party it does not otherwise need
-/// to reach.
-/// <para>
-/// A library whose studios are held under a provider's codes made the source read mandatory: every
-/// identifier missed the numeric path, so every count paid a source request per studio and raised
-/// where the source was unreachable. Neither is true of a lookup the instance answers.
-/// </para>
-/// </remarks>
+// v2's lookup takes the identifier the library holds, a provider's own code as readily as a number,
+// and answers the site it names. Cove's configured metadata source is not asked.
 internal sealed class InstanceSiteNumberPort(Whisparr2Gateway v2Gateway) : ISiteNumberPort
 {
-    /// <summary>The member the lookup names a site's own number under.</summary>
+    // v2's lookup carries a site's own number under tvdbId.
     private const string SiteNumberMember = "tvdbId";
 
-    /// <inheritdoc/>
     public async Task<WhisparrSiteNumber> ResolveSiteNumberAsync(
         Uri baseAddress, string apiKey, string storedSiteId, CancellationToken ct)
     {
@@ -32,8 +20,8 @@ internal sealed class InstanceSiteNumberPort(Whisparr2Gateway v2Gateway) : ISite
         ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(storedSiteId);
 
-        // A library reaching this generation may already hold the number itself, and a lookup to
-        // confirm a number already in hand is a request paid per studio for nothing.
+        // The library may already hold the number itself, and confirming it costs a request per
+        // studio for nothing.
         if (int.TryParse(storedSiteId, NumberStyles.None, CultureInfo.InvariantCulture, out var held)
             && held > 0)
         {
@@ -51,9 +39,8 @@ internal sealed class InstanceSiteNumberPort(Whisparr2Gateway v2Gateway) : ISite
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
         {
-            // Nothing whole arrived, which establishes nothing about the site. Reported as a site
-            // the instance names no number for, it would offer a registered studio for registration
-            // again on the strength of a request that never landed.
+            // Nothing arrived, which establishes nothing about the site. Reported as "no number",
+            // it would offer an already registered studio for registration again.
             return WhisparrSiteNumber.NotReached;
         }
 
@@ -66,12 +53,9 @@ internal sealed class InstanceSiteNumberPort(Whisparr2Gateway v2Gateway) : ISite
         return NumberIn(reading.Body);
     }
 
-    /// <summary>The number the first site <paramref name="body"/> names carries, or why none does.</summary>
-    /// <remarks>
-    /// The lookup orders by its own relevance and this product asks by an exact identifier, so the
-    /// first entry is the site asked about. An answer carrying no entry is the instance stating it
-    /// names no site for the identifier, which is not the same as not having answered.
-    /// </remarks>
+    // The lookup orders by its own relevance and the ask is an exact identifier, so the first entry
+    // is the site asked about. An answer carrying no entry is the instance naming no site, which is
+    // not the same as not having answered.
     private static WhisparrSiteNumber NumberIn(string body)
     {
         JsonNode? parsed;

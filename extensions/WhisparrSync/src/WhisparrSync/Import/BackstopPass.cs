@@ -7,7 +7,6 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Import;
 
-/// <inheritdoc cref="IBackstopPass"/>
 internal sealed class BackstopPass(
     IWhisparrClient client,
     OptionsStore options,
@@ -19,12 +18,8 @@ internal sealed class BackstopPass(
     ICoveLibraryPort library,
     ILogger log) : IBackstopPass
 {
-    /// <summary>How many records one page asks for.</summary>
-    /// <remarks>
-    /// The walk's bound is the stored mark, not this. A page size caps what one response has to hold;
-    /// capping the number of pages would drop history the mark says has not been read, and then move
-    /// the mark past it.
-    /// </remarks>
+    // Caps one response, not the walk. The walk's bound is the stored mark: capping the page count
+    // would drop history the mark says is unread and then move the mark past it.
     internal const int PageSize = 50;
 
     public async Task<BackstopPassResult> RunAsync(CancellationToken ct)
@@ -34,28 +29,27 @@ internal sealed class BackstopPass(
         var connection = stored.ConnectionFor(generation);
         var apiKey = await credentials.ReadAsync(generation, ct).ConfigureAwait(false);
 
-        // Refused here rather than by handing an empty pair to the client, so an unconfigured
-        // connection reaches nothing that could make a request.
+        // Refused here, so an unconfigured connection reaches nothing that could make a request.
         if (!ConnectionTester.TryReadConnection(connection?.Address, apiKey, out var baseAddress, out _))
         {
             return new BackstopPassResult(BackstopPassOutcome.NotConfigured, null, 0, 0, 0, 0, 0);
         }
 
-        // Captured beside the connection this pass is about to use rather than read back at the end: a
-        // save committed while the walk runs moves the stored one, and what the fold has to decide is
-        // whether the record it lands on is still the instance this walk read.
+        // Captured before the walk, not read back after it: a save committed while the walk runs
+        // moves the stored address, and the fold has to know whether the record is still this
+        // instance.
         var walkedAddress = connection!.Address;
 
         var walk = await WalkAsync(generation, baseAddress, apiKey, connection.BackstopWatermarkUtc, ct)
             .ConfigureAwait(false);
 
-        // A refused pass leaves the mark where it was. Moving it forward over pages the walk declined
-        // to read would skip those records for good, which is the failure the refusal exists to avoid.
+        // A refused pass leaves the mark where it was. Moving it over pages the walk declined to
+        // read would skip those records for good.
         if (walk.Outcome == BackstopPassOutcome.FirstConnect)
         {
-            // A mark is written even against an instance with no history: without one, every later
-            // pass is another first connect. The position IS lost here - the records before this mark
-            // are never replayed - so the flag is raised in the same fold that clears the failures.
+            // A mark is written even against an instance with no history, or every later pass is
+            // another first connect. Records before this mark are never replayed, so the
+            // position-lost flag is raised in the same fold that clears the failures.
             await RecordWalkedAsync(
                 generation,
                 walkedAddress,
@@ -67,9 +61,9 @@ internal sealed class BackstopPass(
         }
         else if (walk.Outcome == BackstopPassOutcome.Walked)
         {
-            // Recorded even with no watermark to write. A page with nothing past the mark is an
-            // instance this pass reached, authenticated against and read the history of, which is what
-            // the health half of this write reports; the mark simply stays where it was.
+            // Recorded even with no watermark to write. The pass still reached, authenticated
+            // against and read the instance, which is what the health half reports; the mark stays
+            // where it was.
             await RecordWalkedAsync(
                 generation, walkedAddress, walk.Watermark, positionLost: false, walk.Contained, ct)
                 .ConfigureAwait(false);
@@ -80,8 +74,7 @@ internal sealed class BackstopPass(
             await RecordFailureAsync(walk.Outcome, ct).ConfigureAwait(false);
         }
 
-        // The pass boundary is a batch boundary: whatever this walk imported is covered by one scan
-        // rather than by one per record.
+        // The pass boundary is a batch boundary: one scan covers whatever this walk imported.
         followUp.Flush(library);
         return walk;
     }
@@ -91,8 +84,7 @@ internal sealed class BackstopPass(
             or BackstopPassOutcome.RefusedUnreadableAnswer
             or BackstopPassOutcome.RefusedUnreachable;
 
-    // Counters, instants, and one page's record ids. Nothing held across an iteration grows with the
-    // walk: however far it reads, what it holds and what it hands back are the same size.
+    // Nothing held across an iteration grows with the walk: counters, instants, and one page's ids.
     private async Task<BackstopPassResult> WalkAsync(
         WhisparrGeneration generation,
         Uri baseAddress,
@@ -109,7 +101,7 @@ internal sealed class BackstopPass(
         DateTimeOffset? previousPageOldest = null;
         DateTimeOffset? previousPageNewest = null;
 
-        // Replaced by each page rather than added to, so it holds one page's ids however far the walk
+        // Replaced by each page, never appended to, so it holds one page's ids however far the walk
         // reads.
         IReadOnlyList<string>? previousPageIds = null;
 
@@ -159,11 +151,9 @@ internal sealed class BackstopPass(
                 switch (HistoryProjector.Read(generation, records[index] as JsonObject))
                 {
                     case { Outcome: HistoryProjectionOutcome.Projected, Candidate: { } candidate }:
-                        // Guarded per record, because the pass's mark means "history up to here has
-                        // been read". One record the ingest cannot take must not decide whether the
-                        // mark is written: a walk that ends in a throw leaves the mark where it was,
-                        // and every later pass then reads the same page and throws on the same
-                        // record for ever.
+                        // Guarded per record: one record the ingest cannot take must not stop the
+                        // mark being written. A walk that ends in a throw leaves the mark where it
+                        // was, so every later pass reads the same page and throws again.
                         try
                         {
                             if (await core.IngestAsync(candidate, ct).ConfigureAwait(false)
@@ -174,8 +164,7 @@ internal sealed class BackstopPass(
                         }
                         catch (OperationCanceledException) when (ct.IsCancellationRequested)
                         {
-                            // Above the broad catch, so a shutdown classifies as cancelled rather
-                            // than as a record that could not be taken.
+                            // Above the broad catch, so a shutdown classifies as cancelled.
                             throw;
                         }
 #pragma warning disable CA1031 // The point of the guard is that no failure ends the walk.
@@ -221,28 +210,13 @@ internal sealed class BackstopPass(
                 contained);
     }
 
-    /// <summary>
-    /// Records where a pass that read history reached, what it could not take, and that the channel is
-    /// working.
-    /// </summary>
-    /// <remarks>
-    /// One fold, so the mark and the health cannot be written against two different readings of the
-    /// blob. The last-failed instant is left alone: it records that a failure happened, and clearing
-    /// it would destroy the only record of when.
-    /// <para>
-    /// <paramref name="contained"/> is added to the stored total rather than replacing it, and the
-    /// instant is only moved by a pass that contained something. Each counted record is one this same
-    /// write moves the mark past, so no later pass can offer it again and none has anything to clear.
-    /// </para>
-    /// <para>
-    /// The mark is refused when the stored record no longer names <paramref name="walkedAddress"/>,
-    /// because it would then name a position in a different instance's history and every record
-    /// before it would never be read. The health half is written either way: it describes the pass
-    /// and not the position.
-    /// </para>
-    /// </remarks>
-    // Folded onto whatever the gate loads rather than onto the blob this pass opened with: the ingest
-    // core writes the refusal aggregate to the same blob while the walk runs.
+    // One fold, so the mark and the health cannot be written against two readings of the blob, and
+    // folded onto whatever the gate loads: the ingest core writes the refusal aggregate to the same
+    // blob while the walk runs. The last-failed instant is left alone, as it is the only record of
+    // when a failure happened. Contained records are added to the stored total, never replacing it.
+    // The mark is refused when the stored record no longer names the walked address, because it
+    // would then name a position in a different instance's history; the health half is written
+    // either way.
     private async Task RecordWalkedAsync(
         WhisparrGeneration generation,
         string walkedAddress,

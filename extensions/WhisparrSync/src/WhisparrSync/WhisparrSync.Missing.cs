@@ -19,8 +19,7 @@ public sealed partial class WhisparrSync
 {
     private void MapMissingEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Entity-scoped reads: the reach of each is the one Cove entity the route segment names, so
-        // the read tier expresses it.
+        // Read tier: each reaches the one entity the route segment names.
         endpoints.MapGet(MissingPageRoute,
             (string kind, int coveId, int? page, int? perPage, string? sort, string? q,
              string? filters, bool? menusHeld, ICurrentPrincipalAccessor principal,
@@ -43,9 +42,8 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
-        // The same read tier as the page and the count beside it: the reach is the one Cove entity
-        // the route segment names, and the answer is a list of values the metadata source already
-        // publishes. It composes no write and asks the connected instance nothing.
+        // Read tier: the same entity reach, and the answer is values the metadata source publishes.
+        // It composes no write and asks the connected instance nothing.
         endpoints.MapGet(MissingFacetValuesRoute,
             (string kind, int coveId, string facetKey, string? q,
              ICurrentPrincipalAccessor principal, OptionsStore options, MissingPagePlanner planner,
@@ -56,12 +54,8 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
     }
 
-    /// <summary>One page of what an entity's configured metadata source lists and Cove does not hold.</summary>
-    /// <remarks>
-    /// The ordering, the title search and every facet selection are bound from the query string and
-    /// travel to the provider unchanged, so what narrows is the catalogue rather than the page that
-    /// happened to load.
-    /// </remarks>
+    // The sort, the title search and every facet selection travel to the provider unchanged, so
+    // they narrow the catalogue rather than the page that happened to load.
     internal static async Task<Results<Ok<MissingPageView>, BadRequest, ForbiddenCode>>
         ReadMissingPageAsync(
             string kind,
@@ -81,8 +75,7 @@ public sealed partial class WhisparrSync
             ILogger log,
             CancellationToken ct)
     {
-        // Checked in the handler, because the route's own declaration enforces nothing on a minimal
-        // API.
+        // Re-checked here because the route declaration enforces nothing on a minimal API.
         if (!HasReadPermission(principal))
         {
             return new ForbiddenCode();
@@ -127,12 +120,8 @@ public sealed partial class WhisparrSync
         }
     }
 
-    /// <summary>How many scenes an entity's configured metadata source lists.</summary>
-    /// <remarks>
-    /// The catalogue's own size, which is the figure the count line states, and never the number
-    /// missing. A size that cannot be answered is null, so the host draws no badge at all and the
-    /// reason is stated inside the tab where there is room for a sentence.
-    /// </remarks>
+    // The catalogue's own size, never the number missing. A size that cannot be answered is null,
+    // so the host draws no badge.
     internal static async Task<Results<Ok<MissingCountView>, BadRequest, ForbiddenCode>>
         ReadMissingCountAsync(
             string kind,
@@ -187,11 +176,7 @@ public sealed partial class WhisparrSync
         }
     }
 
-    /// <summary>The values of one facet that match what a reader typed.</summary>
-    /// <remarks>
-    /// A read of the metadata source alone. It composes no write, and it asks the connected instance
-    /// nothing: which values a source lists is not a fact the instance holds.
-    /// </remarks>
+    // A read of the metadata source alone. It asks the connected instance nothing.
     internal static async Task<Results<Ok<MissingFacetSearchView>, BadRequest, ForbiddenCode>>
         ReadMissingFacetValuesAsync(
             string kind,
@@ -244,30 +229,18 @@ public sealed partial class WhisparrSync
         }
     }
 
-    /// <summary>The shortest fragment a facet lookup carries to the metadata source.</summary>
-    /// <remarks>
-    /// One character matches most of a source's list, so the answer would be a page of an
-    /// arbitrary slice rather than the values the reader means, at the cost of a request per menu.
-    /// Two is the shortest fragment that can be a whole value: a source spells real tags as two
-    /// letters, so a higher floor would refuse a value that exists.
-    /// </remarks>
+    // Two is the shortest fragment that can be a whole value, because a source spells some real
+    // tags as two letters. One character would match most of a source's list.
     internal const int MinimumFacetFragment = 2;
 
-    /// <summary>No measurement at all, which draws no badge rather than a zero.</summary>
+    // No measurement, which draws no badge rather than a zero.
     private static MissingCountView NoCount => new(null);
 
-    /// <summary>How many scenes one page of the catalogue carries.</summary>
     private const int MissingPerPage = 40;
 
-    /// <summary>
-    /// The connection and provider a catalogue read runs against, or null where either is absent.
-    /// </summary>
-    /// <remarks>
-    /// The status and exclusion roles are obtained from the connected generation's capability set. A
-    /// generation holding no status role hands back null, which the derivation states as a status no
-    /// retry can establish; one holding no exclusion role subtracts nothing, because it keeps no
-    /// scene records and so keeps no exclusions.
-    /// </remarks>
+    // Null where the connection or the provider is absent. A generation holding no status role
+    // gives a null reading, stated downstream as a status no retry can establish. One holding no
+    // exclusion role subtracts nothing, because it keeps no scene records and so no exclusions.
     private static async Task<MissingPageContext?> ResolveMissingContextAsync(
         OptionsStore options,
         ICredentialPort credentials,
@@ -306,7 +279,6 @@ public sealed partial class WhisparrSync
             exclusions);
     }
 
-    /// <summary>A page carrying no scenes, and the reason it carries none.</summary>
     private static MissingPageView RefusedPage(
         int page, int perPage, MissingRefusalKind refusal, MissingPagePlanner planner)
         => new(
@@ -329,14 +301,8 @@ public sealed partial class WhisparrSync
     private static string? Blank(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value;
 
-    /// <summary>
-    /// The page and page size the caller asked for, or that they asked for one outside the bound.
-    /// </summary>
-    /// <remarks>
-    /// A page size above the bound is refused rather than clamped. Clamped silently the answer would
-    /// describe a different page from the one asked for, under a range the caller would read as the
-    /// range it named.
-    /// </remarks>
+    // A page size above the bound is refused, not clamped. Clamping would answer a different page
+    // from the one asked for, under a range the caller would read as the range it named.
     private static bool TryReadPaging(int? page, int? perPage, out int readPage, out int readPerPage)
     {
         readPage = page ?? 1;
@@ -344,15 +310,9 @@ public sealed partial class WhisparrSync
         return readPage >= 1 && readPerPage >= 1 && readPerPage <= MissingPerPage;
     }
 
-    /// <summary>
-    /// The entity the route segments name, or that they name none this product expresses.
-    /// </summary>
-    /// <remarks>
-    /// The kind's two halves are one expression. The parse succeeds for an integer naming no member,
-    /// and every arm reading a kind switches on it and throws for one it cannot express, so the parse
-    /// alone lets untrusted route input reach a throw inside a handler whose declared results hold no
-    /// failure.
-    /// </remarks>
+    // The parse succeeds for an integer that names no member, and every arm reading a kind throws
+    // for one it cannot express, so IsDefined is checked too. Without it, route input reaches a
+    // throw inside a handler whose declared results hold no failure.
     private static bool TryReadEntity(string kind, int coveId, out WhisparrEntityKind entityKind)
         => Enum.TryParse(kind, ignoreCase: true, out entityKind)
             && Enum.IsDefined(entityKind)

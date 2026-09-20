@@ -5,13 +5,9 @@ namespace WhisparrSync.Contracts;
 
 /// <summary>Which kind of library card a status read is about.</summary>
 /// <remarks>
-/// Held apart from <see cref="WhisparrEntityKind"/> and never folded into it. Every arm
-/// switching on that kind throws for one it cannot express, and a video is not an entity this
-/// product monitors, so a member added there would reach a throw rather than an answer.
-/// <para>
-/// The converter is on the TYPE: an options-level one outranks a type attribute, so a second
-/// declaration could drift and win in silence.
-/// </para>
+/// Held apart from <see cref="WhisparrEntityKind"/> and never folded into it. Every arm switching on
+/// that kind throws for one it cannot express, and a video is not an entity this product monitors,
+/// so a member added there would reach a throw rather than an answer.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum LibraryCardKind
@@ -19,18 +15,13 @@ public enum LibraryCardKind
     /// <summary>A scene card in a videos view.</summary>
     Video,
 
-    /// <summary>A studio card.</summary>
     Studio,
 
-    /// <summary>A performer card.</summary>
     Performer,
 }
 
 /// <summary>Why a whole page of cards cannot be answered for, or that it can.</summary>
-/// <remarks>
-/// Stated ONCE for the page rather than once per card. Forty copies of one sentence about the
-/// connection is forty places for a reader to read the same fact.
-/// </remarks>
+/// <remarks>Stated once for the page rather than once per card.</remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum LibraryStatusRefusalKind
 {
@@ -42,12 +33,8 @@ public enum LibraryStatusRefusalKind
 
     /// <summary>
     /// The connected generation registers no role that answers for this card kind, so nothing was
-    /// sent.
+    /// sent. An absence rather than a decision: the instance was never asked.
     /// </summary>
-    /// <remarks>
-    /// An absence rather than a decision. The instance was never asked, so a value saying it
-    /// declined would name the wrong party.
-    /// </remarks>
     WhisparrCannotAnswerForThisKind,
 
     /// <summary>The instance was asked and no whole answer arrived.</summary>
@@ -56,19 +43,13 @@ public enum LibraryStatusRefusalKind
 
 /// <summary>Which cards one status read is about.</summary>
 /// <remarks>
-/// The identifiers are Cove's own. Which identifier the connected instance is given is re-resolved
-/// on the server from the library's own identity row under a host rule the browser does not hold, so
+/// The identifiers are Cove's own, bounded by what one rendered page carries. Which identifier the
+/// connected instance is given is re-resolved on the server from the library's own identity row, so
 /// a caller naming a third party's identifier is not expressible here.
 /// </remarks>
-/// <param name="CoveIds">The cards on one rendered page, bounded by what one page carries.</param>
 public sealed record LibraryStatusRequest(IReadOnlyList<int> CoveIds);
 
 /// <summary>What the connected instance holds for one card.</summary>
-/// <remarks>
-/// The first three members are exactly what the browser's state derivation takes, so nothing is
-/// derived twice and the server never names the state a card draws. The fourth is beside that axis
-/// rather than on it: a file is something a monitored card and an unmonitored card can each have.
-/// </remarks>
 /// <param name="Excluded">
 /// Whether the instance's user has excluded it. Always false on the studio and performer path: this
 /// extension holds no entity exclusion reading role, and inventing one would report a fact no
@@ -87,30 +68,24 @@ public sealed record LibraryCardReading(
     bool Excluded, bool? Present, bool? Monitored, bool? InLibrary = null);
 
 /// <summary>One requested card's answer.</summary>
-/// <param name="CoveId">The card asked about.</param>
-/// <param name="Reading">
-/// What the instance holds, or null where this extension cannot speak for the card at all. A null
-/// reading draws no badge; it is not a state and never reads as one.
-/// </param>
+/// <remarks>
+/// A null <c>Reading</c> is a card this extension cannot speak for at all. It draws no badge; it is
+/// not a state and never reads as one.
+/// </remarks>
 public sealed record LibraryStatusRow(int CoveId, LibraryCardReading? Reading);
 
 /// <summary>What one page of cards holds, as the badges read it.</summary>
 /// <remarks>
 /// One row per identifier answered for, in the order requested, so the row count is bounded by the
-/// route's own page and never grows with the library.
+/// route's own page and never grows with the library. <c>MoreNotAnswered</c> says the request named
+/// more cards than one page answers for; the cards with no row here are the ones to ask about
+/// again, so a caller needs no figure of its own to reach every card.
 /// <para>
 /// The kind is carried because the route names it in a path segment, where no generated type can
 /// reach it. Answered here it reaches the wire document as an enum, so the browser imports the
 /// members instead of transcribing them.
 /// </para>
 /// </remarks>
-/// <param name="Kind">The card kind this answer is about, as the route segment named it.</param>
-/// <param name="Rows">One row per card answered for.</param>
-/// <param name="Refusal">Why the whole page cannot be answered for, or that it can.</param>
-/// <param name="MoreNotAnswered">
-/// Whether the request named more cards than one page answers for. The cards with no row here are
-/// the ones to ask about again, so a caller needs no figure of its own to reach every card.
-/// </param>
 public sealed record LibraryStatusView(
     LibraryCardKind Kind,
     IReadOnlyList<LibraryStatusRow> Rows,

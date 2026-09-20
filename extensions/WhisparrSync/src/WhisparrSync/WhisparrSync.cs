@@ -26,83 +26,45 @@ public sealed partial class WhisparrSync : FullExtensionBase
 
     private CoveConfiguration? _coveConfig;
 
-    /// <summary>
-    /// The host logger, writing to Cove's normal log. Non-null by construction: it defaults to a no-op
-    /// logger and is replaced in <see cref="InitializeAsync"/> if the host supplies one, so the
-    /// source-generated <c>[LoggerMessage]</c> methods never dereference null. (The generator binds to
-    /// this field by its <see cref="ILogger"/> type.)
-    /// </summary>
+    // Defaults to a no-op logger so the generated [LoggerMessage] methods never dereference null.
+    // The generator binds to this field by its ILogger type.
     private ILogger _log = NullLogger.Instance;
 
-    /// <summary>
-    /// The stored generation's enum name, or null while none is established.
-    /// </summary>
-    /// <remarks>
-    /// Volatile because <see cref="GetUIManifest"/> is called on host threads other than the one a
-    /// settings save answers on, and a name because <c>volatile</c> accepts a reference type and no
-    /// nullable enum. Null is a generation not established, which registers every surface: a load
-    /// that could not be made must not remove one.
-    /// </remarks>
+    // The stored generation's enum name, or null while none is established. Volatile because
+    // GetUIManifest runs on host threads other than the one a settings save answers on, and a
+    // string because volatile takes no nullable enum. Null registers every surface, so a load that
+    // could not be made removes none.
     private volatile string? _selectedGeneration;
 
-    /// <summary>
-    /// Whether the host's own configuration object resolved out of this extension's service provider.
-    /// </summary>
     private bool ConfigurationResolved => _coveConfig is not null;
 
-    /// <summary>
-    /// Whether the host's scan service could be obtained from this extension's container at load.
-    /// </summary>
     private bool ScanServiceResolved { get; set; }
 
-    /// <summary>
-    /// Whether the host's metadata-server service could be obtained from this extension's container
-    /// at load.
-    /// </summary>
     private bool MetadataServerServiceResolved { get; set; }
 
-    /// <summary>Cove's configured library paths, blank entries dropped.</summary>
-    /// <remarks>
-    /// A blank entry is not a root anything can be placed under, so counting one would report a
-    /// library location that does not exist.
-    /// </remarks>
+    // A blank path is not a root anything can be placed under, so counting one would report a
+    // library location that does not exist.
     private int LibraryRootCount =>
         _coveConfig?.CovePaths.Count(path => !string.IsNullOrWhiteSpace(path.Path)) ?? 0;
 
-    /// <summary>
-    /// Registers this extension's own services into the container the host builds for it.
-    /// </summary>
-    /// <remarks>
-    /// The outbound client is a TYPED client rather than a constructed <c>HttpClient</c>, so its
-    /// handler is pooled and its lifetime is the factory's. The host stands the
-    /// <c>AddHttpClient</c> stack up before calling this, which is what lets an extension register one
-    /// at all.
-    /// <para>
-    /// The options store is registered as a factory over this instance rather than by its type: the
-    /// host hands an extension its <c>IExtensionStore</c> through <c>IStatefulExtension.SetStore</c>
-    /// and registers it in no container, so a type registration would resolve to nothing. The factory
-    /// runs per scope, which is after the host has supplied one.
-    /// </para>
-    /// </remarks>
     public override void ConfigureServices(IServiceCollection services, ExtensionContext context)
     {
         ArgumentNullException.ThrowIfNull(services);
         base.ConfigureServices(services, context);
 
-        // One registration of the generated client per address-and-key pair, held for the life of the
-        // extension: the pairs come from settings a person edits, and a registration per request
-        // would be a handler pool per request.
+        // Singletons: a registration per request would be a handler pool per request.
         services.AddSingleton<Whisparr3Gateway>();
         services.AddSingleton<Whisparr2Gateway>();
 
         // Resolved off the instance's own lookup rather than the configured metadata source, so a
-        // studio held under a provider's code costs the run no second request and no dependency on
-        // a source it does not otherwise need. Singleton like the gateway it sends through: it
-        // holds nothing between calls and takes the instance per call.
+        // studio held under a provider's code costs no second request. Singleton like the gateway
+        // it sends through: it holds nothing between calls and takes the instance per call.
         services.AddSingleton<ISiteNumberPort>(
             provider => new InstanceSiteNumberPort(
                 provider.GetRequiredService<Whisparr2Gateway>()));
 
+        // A typed client rather than a constructed HttpClient, so the handler is pooled and its
+        // lifetime is the factory's. The host stands the AddHttpClient stack up before this call.
         services.AddHttpClient<IWhisparrClient, WhisparrClient>(WhisparrClient.Configure)
             .ConfigurePrimaryHttpMessageHandler(WhisparrClient.CreateHandler)
 
@@ -133,7 +95,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services.GetRequiredService<DbContext>(),
             services.GetRequiredService<OptionsStore>()));
 
-        // A singleton, so the request scopes and the background worker queue behind ONE gate. Per
+        // A singleton, so the request scopes and the background worker queue behind one gate. Per
         // scope it would be a gate per request and would serialise nothing.
         services.AddSingleton(_ => new OptionsWriteGate(_log));
 
@@ -226,29 +188,17 @@ public sealed partial class WhisparrSync : FullExtensionBase
         await base.InitializeAsync(services, ct).ConfigureAwait(false);
     }
 
-    /// <summary>This extension's options store, publishing the generation each load establishes.</summary>
-    /// <remarks>
-    /// The manifest is built synchronously on a host thread, so it cannot load the store and reads
-    /// what the last load published instead. Publishing from the load rather than from this
-    /// extension's own save covers every writer of the blob, including the host's own
-    /// extension-data route, which reaches no code of this extension at all.
-    /// <para>
-    /// A factory over this instance rather than a type registration: the host hands an extension its
-    /// store through <c>IStatefulExtension.SetStore</c> and registers it in no container.
-    /// </para>
-    /// </remarks>
+    // Registered as a factory over this instance because the host hands an extension its store
+    // through IStatefulExtension.SetStore and registers it in no container. Each load publishes
+    // the generation it established, which also covers the host's own extension-data route: the
+    // manifest is built synchronously on a host thread and can only read what a load published.
     internal OptionsStore NewOptionsStore()
         => new(Store, _log, generation => _selectedGeneration = generation);
 
-    /// <summary>Reads the store once at load, so the manifest has a generation to register for.</summary>
-    /// <remarks>
-    /// The load itself publishes what it established, so nothing is assigned here and there is one
-    /// writer rather than two agreeing by hand. A store that could not be read is reported once and
-    /// leaves the generation unestablished, so the extension still loads and keeps every surface.
-    /// <para>
-    /// Resolved inside a scope for the reason <see cref="CanObtain{T}"/> records.
-    /// </para>
-    /// </remarks>
+    // Reads the store once at load, so the manifest has a generation to register for. The load
+    // publishes what it established, so nothing is assigned here. A store that could not be read
+    // is reported once and leaves the generation unestablished, so the extension still loads.
+    // Resolved inside a scope for the reason CanObtain records.
     private async Task ReadStoredGenerationAsync(IServiceProvider services, CancellationToken ct)
     {
         try
@@ -267,22 +217,11 @@ public sealed partial class WhisparrSync : FullExtensionBase
         }
     }
 
-    /// <summary>
-    /// Whether <typeparamref name="T"/> can be obtained from this extension's own container.
-    /// </summary>
-    /// <remarks>
-    /// Resolved inside a scope rather than off <paramref name="services"/> directly. The host copies
-    /// its own scoped registrations into the extension container and builds that container with scope
-    /// validation on, so resolving one of them from the provider handed to
-    /// <see cref="InitializeAsync"/> throws instead of answering, and a throw here disables the
-    /// extension.
-    /// <para>
-    /// The instance is discarded rather than held: a scoped one kept in a field outlives the scope
-    /// that created it. A registration that is present but cannot be constructed in this container is
-    /// a service this extension cannot obtain, which is the reading the caller asked for, so the
-    /// construction failure is an answer rather than a fault.
-    /// </para>
-    /// </remarks>
+    // Resolved inside a scope rather than off the provider directly. The host copies its own scoped
+    // registrations into the extension container and builds it with scope validation on, so
+    // resolving one of them from the provider handed to InitializeAsync throws, and a throw there
+    // disables the extension. The instance is discarded because a scoped one kept in a field
+    // outlives its scope, and a construction failure is the answer the caller asked for.
     private static bool CanObtain<T>(IServiceProvider services)
         where T : class
     {

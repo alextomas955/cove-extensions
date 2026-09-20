@@ -10,16 +10,10 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Providers;
 
-/// <summary>Reads a catalogue from ThePornDB.</summary>
-/// <remarks>
-/// REST rather than the GraphQL address Cove is configured with: that surface answers a scene query
-/// with the requested page size as its count and a null scene list, so a caller reading it would
-/// state a page size as a catalogue's size and never see an error.
-/// <para>
-/// Narrow in the same sense this product's instance client is: every request is a GET on one of the
-/// routes named here, and no member takes a path, verb or query key from a caller.
-/// </para>
-/// </remarks>
+// REST rather than the GraphQL address Cove is configured with: that surface answers a scene query
+// with the requested page size as its count and a null scene list, so a caller reading it would
+// state a page size as a catalogue's size and never see an error. Every request is a GET on one of
+// the routes named here, and no member takes a path, verb or query key from a caller.
 internal sealed class ThePornDbCatalogue
     : IProviderCatalogue,
         ISortsByDate,
@@ -31,49 +25,36 @@ internal sealed class ThePornDbCatalogue
         IResolvesNumericSceneId,
         IResolvesNumericSiteId
 {
-    /// <summary>The provider this catalogue names itself as.</summary>
     internal const string ProviderName = "ThePornDB";
 
-    /// <summary>The largest page the provider serves.</summary>
-    /// <remarks>A larger number is refused with 422 rather than clamped down to this one.</remarks>
+    // A larger page is refused with 422 rather than clamped down to this one.
     internal const int MaxPerPage = 100;
 
-    /// <summary>How many rows of any one catalogue the provider will serve at all.</summary>
-    /// <remarks>
-    /// A size reading this figure is a floor rather than a count, and the reachable set ends here: a
-    /// page past the last one is clamped to the last and re-served with the clamped number echoed
-    /// back, so paging beyond it repeats silently instead of erroring.
-    /// </remarks>
+    // How many rows of any one catalogue the provider will serve at all. A size reading this figure
+    // is a floor rather than a count: a page past the last one is clamped to the last and
+    // re-served with the clamped number echoed back, so paging beyond it repeats silently instead
+    // of erroring.
     internal const int CatalogueCeiling = 10_000;
 
-    /// <summary>How many search pages an exact-name lookup reads before it gives up.</summary>
-    /// <remarks>
-    /// The walk is bounded by the search result rather than by the library. A search is
-    /// relevance-ordered, so an exact match not found within these pages is not found by reading on.
-    /// </remarks>
+    // The exact-name walk is bounded by the search result, not by the library. A search is
+    // relevance-ordered, so an exact match not found within these pages is not found by reading on.
     internal const int MaxLookupPages = 5;
 
-    /// <summary>How many values a facet menu carries before it is offered as a type-ahead.</summary>
-    /// <remarks>The tag set runs to thousands, so a menu read whole would grow with the provider.</remarks>
+    // Past this many values a menu is offered as a type-ahead. The tag set runs to thousands, so a
+    // menu read whole would grow with the provider.
     internal const int FacetPageSize = 25;
 
-    /// <summary>The key a year selection travels under, as the provider spells its own parameter.</summary>
+    // The filter keys are the provider's own parameter spellings.
     internal const string YearKey = "year";
 
-    /// <summary>The key a tag selection travels under, as the provider spells its own parameter.</summary>
     internal const string TagFacetKey = "tags";
 
-    /// <summary>The ordering the provider is read under when the surface names none.</summary>
     internal const string NewestFirst = "recently_released";
 
-    /// <summary>The provider's own name for the reverse of <see cref="NewestFirst"/>.</summary>
     internal const string OldestFirst = "former_released";
 
-    /// <summary>The earliest year the year menu offers.</summary>
-    /// <remarks>
-    /// A date before this is not a release date this provider carries, so a row spelling one is
-    /// read as no year at all and fills the menu with nothing.
-    /// </remarks>
+    // A date before this is not a release date this provider carries, so a row spelling one is read
+    // as no year at all.
     internal const int EarliestReleaseYear = 1970;
 
     private const string ScenesRoute = "scenes";
@@ -102,11 +83,8 @@ internal sealed class ThePornDbCatalogue
         Capabilities = ProviderCapabilities.ForThePornDb(this);
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// The provider's own vocabulary, which carries the direction inside each value and declares no
-    /// title ordering. Title A to Z is therefore absent from this provider's menu.
-    /// </remarks>
+    // The provider's own vocabulary, which carries the direction inside each value and declares no
+    // title ordering, so no title option is offered here.
     public IReadOnlyList<ProviderSortOption> Sorts { get; } =
     [
         new(NewestFirst, "Newest first"),
@@ -115,18 +93,12 @@ internal sealed class ThePornDbCatalogue
         new("duration_asc", "Shortest first"),
     ];
 
-    /// <inheritdoc/>
     public string DefaultSort => NewestFirst;
 
     public ProviderCapabilitySet Capabilities { get; }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// None. The identifier this product reads and carries is the API's own, and nothing measured
-    /// says that identifier addresses a page on the provider's site. A scene row also carries a
-    /// <c>url</c>, which is the studio's own address rather than the provider's. A composed address
-    /// that answered 404 would be worse than no link, so a card from this source is not a link.
-    /// </remarks>
+    // No address. The identifier this product carries is the API's own and does not address a page
+    // on the provider's site. A scene row's `url` is the studio's own address, not the provider's.
     public string? SceneAddress(string providerSceneId) => null;
 
     public async Task<ProviderCatalogueAnswer> ReadPageAsync(
@@ -201,12 +173,8 @@ internal sealed class ThePornDbCatalogue
         return answered is null ? null : Number(Meta(answered.Value), "total") ?? 0;
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// The scene route answers one row for the uuid Cove stores, and that row carries this
-    /// provider's own <c>_id</c> beside it. Read through the same conversion a performer and a site
-    /// already use, over the scenes collection.
-    /// </remarks>
+    // The scene route answers one row for the uuid Cove stores, and that row carries this
+    // provider's own `_id` beside it.
     public async Task<int?> ResolveNumericSceneIdAsync(
         string providerSceneId, CancellationToken ct)
     {
@@ -225,12 +193,9 @@ internal sealed class ThePornDbCatalogue
                 : null;
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// The site route answers one row for the uuid Cove stores, carrying this provider's own
-    /// <c>id</c> beside it. A status the provider stated is its answer about the site; anything
-    /// else, a rate limiter included, established nothing and is answered as that.
-    /// </remarks>
+    // The site route answers one row for the uuid Cove stores, carrying this provider's own `id`
+    // beside it. A status the provider stated is its answer about the site; anything else, a rate
+    // limiter included, established nothing and is answered as not reached.
     public async Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
         string providerSiteId, CancellationToken ct)
     {
@@ -253,12 +218,9 @@ internal sealed class ThePornDbCatalogue
             : ProviderSiteNumber.NotReached;
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// Each search route matches on a substring and orders by relevance, so the exact filter is this
-    /// product's own. A tag answers the provider's numeric identifier, which is what the scene route
-    /// accepts; a site and a performer answer the identifier Cove itself stores.
-    /// </remarks>
+    // Each search route matches on a substring and orders by relevance, so the exact filter is this
+    // product's own. A tag answers the provider's numeric identifier, which is what the scene route
+    // accepts; a site and a performer answer the identifier Cove itself stores.
     public async Task<ProviderIdentityLookup> LookUpByNameAsync(
         WhisparrEntityKind kind, string name, IReadOnlyList<string> aliases, CancellationToken ct)
     {
@@ -285,12 +247,8 @@ internal sealed class ThePornDbCatalogue
         return ProviderIdentityLookup.Unmatched;
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// Two menus, each filled by asking the provider. Neither the performer route nor the site route
-    /// exposes a filter that would scope its values to an entity, so neither of those menus is
-    /// listable and both are absent.
-    /// </remarks>
+    // Neither the performer route nor the site route exposes a filter that would scope its values
+    // to an entity, so neither of those menus is listable and both are absent.
     public async Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
         WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
     {
@@ -323,12 +281,9 @@ internal sealed class ThePornDbCatalogue
         return menus;
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// The tag route takes a <c>q</c>, so tags are searched at the provider. The year menu is
-    /// derived from the two edges of the entity's own catalogue rather than from a value list, so
-    /// there is nothing to search there and that is what it answers.
-    /// </remarks>
+    // The tag route takes a `q`, so tags are searched at the provider. The year menu is derived
+    // from the two edges of the entity's own catalogue rather than from a value list, so there is
+    // nothing to search there and it answers unsearchable.
     public async Task<ProviderFacetSearch> SearchFacetValuesAsync(
         WhisparrEntityKind kind,
         string providerEntityId,
@@ -414,12 +369,8 @@ internal sealed class ThePornDbCatalogue
         return new ProviderFacetMenu(TagFacetKey, "Tags", values, offered);
     }
 
-    /// <summary>Every year the entity's own catalogue spans, newest first.</summary>
-    /// <remarks>
-    /// Read as the two edges of the catalogue under the provider's own date orderings, so the menu
-    /// covers the whole of it and offers no year it holds no scene in. Null where either edge could
-    /// not be read.
-    /// </remarks>
+    // Every year the entity's catalogue spans, newest first, read as its two edges under the
+    // provider's own date orderings. Null where either edge could not be read.
     private async Task<ProviderFacetMenu?> YearMenuAsync(
         ResolvedProvider resolved,
         WhisparrEntityKind kind,
@@ -733,10 +684,8 @@ internal sealed class ThePornDbCatalogue
     }
 
     // No body where no catalogue arrived: no whole answer, a status that is not a success, or a
-    // body carrying the provider's own refusal. The body decides, so a refusal is never read as a
-    // catalogue that is simply empty. An answer the provider stated ends the attempts, and what is
-    // answered is the last attempt's send: a status worth another try is the only case that reaches
-    // a second one.
+    // body carrying the provider's own refusal. A refusal is never read as a catalogue that is
+    // simply empty, and an answer the provider stated ends the attempts.
     private async Task<ProviderSend> AskAsync(
         ResolvedProvider resolved, string collection, string query, CancellationToken ct)
     {

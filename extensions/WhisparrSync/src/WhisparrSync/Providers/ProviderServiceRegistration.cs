@@ -8,14 +8,8 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Providers;
 
-/// <summary>Where this product's metadata provider services are registered.</summary>
-/// <remarks>
-/// Held apart from the extension's own registration site so the provider slice owns its wiring. The
-/// composition root calls this and nothing about a provider is written there.
-/// </remarks>
 internal static class ProviderServiceRegistration
 {
-    /// <summary>Registers the metadata provider services.</summary>
     internal static IServiceCollection AddMissingProviders(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -25,8 +19,7 @@ internal static class ProviderServiceRegistration
         services.AddScoped(
             provider => new ProviderEndpointPort(provider.GetService<CoveConfiguration>()));
 
-        // A singleton, because pacing has to hold across concurrent requests. Held per scope it
-        // would let each request spend a full allowance.
+        // Singleton: pacing has to hold across concurrent requests.
         services.AddSingleton<ProviderPacer>();
 
         // Each provider carries its own timeout and handler rather than sharing the instance
@@ -53,10 +46,9 @@ internal static class ProviderServiceRegistration
                 provider.GetService<ILogger<ThePornDbCatalogue>>() as ILogger
                     ?? NullLogger.Instance));
 
-        // One registration of the seam, resolving to the provider the connected generation reads
-        // from. A second registration of either catalogue under this service would be shadowed by
-        // this one rather than misbehaving, so it would be dead wiring a reader takes for the live
-        // path.
+        // One registration of the seam. A second registration of either catalogue under this
+        // service would be shadowed by this one, so it would be dead wiring a reader takes for the
+        // live path.
         services.AddScoped<IProviderCatalogue>(provider => new ProviderCatalogueSelector(
             provider.GetRequiredService<OptionsStore>(),
             provider.GetRequiredService<StashDbCatalogue>(),
@@ -73,16 +65,9 @@ internal static class ProviderServiceRegistration
         };
 }
 
-/// <summary>The catalogue of the provider the connected generation identifies against.</summary>
-/// <remarks>
-/// Which generation is connected is a stored setting, so the choice is made per scope from the
-/// options rather than at container build time.
-/// <para>
-/// The seam's ordering and capability members carry no cancellation and no result to await, so a
-/// caller reading one before any read has been asked for waits here for the load this type started
-/// when it was built.
-/// </para>
-/// </remarks>
+// Which generation is connected is a stored setting, so the choice is made per scope rather than at
+// container build time. The seam's ordering and capability members carry no cancellation and no
+// result to await, so reading one blocks on the load the constructor started.
 internal sealed class ProviderCatalogueSelector : IProviderCatalogue
 {
     private readonly Task<IProviderCatalogue> _selected;

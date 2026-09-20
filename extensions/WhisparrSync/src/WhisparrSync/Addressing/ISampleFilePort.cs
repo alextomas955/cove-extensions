@@ -1,18 +1,14 @@
 namespace WhisparrSync.Addressing;
 
-/// <summary>One file the library holds, and how long it is.</summary>
-/// <param name="Path">Its stored path, in the forward-slash spelling the library keeps.</param>
-/// <param name="Size">Its length in bytes.</param>
+/// <summary>One file the library holds, and its length in bytes.</summary>
+/// <remarks>Path is the forward-slash spelling the library stores.</remarks>
 public sealed record SampleFile(string Path, long Size);
 
 /// <summary>Supplies the one file a library root establishes its agreement from.</summary>
 /// <remarks>
-/// One row per root whatever that root holds. A library reaches millions of files, so the narrowing,
-/// the ordering and the limit are all the database's and nothing reading through this collects.
-/// <para>
-/// The same root answers the same file every time, so a run's probes are repeatable and a held
-/// reading describes the same evidence it was taken from.
-/// </para>
+/// One row per root, whatever that root holds. Libraries reach millions of files, so the narrowing,
+/// the ordering and the limit belong to the database and no implementation may collect.
+/// <para>A root answers the same file every time, so a run's probes are repeatable.</para>
 /// </remarks>
 public interface ISampleFilePort
 {

@@ -7,53 +7,33 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 
-/// <summary>The bodies v2 is sent, composed rather than assembled at a call site.</summary>
-/// <remarks>
-/// Pure but for <see cref="MovedSiteRoot"/>, which changes the resource it is handed and says why.
-/// Every flag that suppresses acquisition is set here, from ONE local, so an edit cannot set one
-/// spelling and miss the other. v2's pair is not v3's: a rule stated in v3's
-/// spellings leaves every body composed here unguarded.
-/// <para>
-/// This generation addresses a studio as a series and its catalogue as years, which is why the wire
-/// field names below read the way they do. A wire field name is not user-facing wording, and no
-/// sentence a user reads is composed here.
-/// </para>
-/// <para>
-/// A scope change on this generation is retroactive: re-applying a monitoring option rewrites the flag
-/// on every year the instance already holds, in both directions. On v3 the equivalent
-/// gates only what a later catalogue read adds. A reader who assumes the two behave alike will be
-/// wrong about one of them.
-/// </para>
-/// </remarks>
+// Every flag that suppresses acquisition is set here, from one local, so an edit cannot set one
+// spelling and miss the other. v2's pair is not v3's: a rule stated in v3's spellings leaves every
+// body composed here unguarded.
+//
+// This generation addresses a studio as a series and its catalogue as years, which is why the wire
+// field names below read the way they do. No sentence a user reads is composed here.
+//
+// A scope change on this generation is retroactive: re-applying a monitoring option rewrites the
+// flag on every year the instance already holds, in both directions. The v3 equivalent gates only
+// what a later catalogue read adds.
 internal static class V2BodyProjector
 {
-    /// <summary>This generation's search command. The one verb that downloads.</summary>
+    // The one verb that downloads.
     internal const string SeriesSearchCommand = "SeriesSearch";
 
-    /// <summary>The command asking the instance to look for what one entity monitors and lacks.</summary>
-    /// <remarks>
-    /// Composed only for a caller holding the grabbing role. It is the one body this product can
-    /// compose that makes an instance acquire anything.
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="entityId"/> is below one.</exception>
+    // Composed only for a caller holding the grabbing role: this is a body that makes an instance
+    // acquire.
     internal static JsonObject SearchMonitored(int entityId)
         => Command(SeriesSearchCommand, entityId);
 
-    /// <summary>This generation's catalogue-refresh command.</summary>
     internal const string RefreshSeriesCommand = "RefreshSeries";
 
-    /// <summary>The command asking the instance to re-read one entity's catalogue.</summary>
-    /// <inheritdoc cref="Command" path="/remarks"/>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="entityId"/> is below one.</exception>
     internal static JsonObject RefreshCatalogue(int entityId)
         => Command(RefreshSeriesCommand, entityId);
 
-    /// <summary>One command naming one entity, in this generation's scalar spelling.</summary>
-    /// <remarks>
-    /// A single scalar id, not an array. The other generation names an id array, and a body carrying
-    /// the other's shape is accepted and does nothing at all.
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="entityId"/> is below one.</exception>
+    // A single scalar id, not an array. v3 names an id array, and a body carrying the other's
+    // shape is accepted and does nothing.
     internal static JsonObject Command(string name, int entityId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -65,24 +45,11 @@ internal static class V2BodyProjector
         };
     }
 
-    /// <summary>
-    /// Adds the entity <paramref name="entityId"/> names, monitored at <paramref name="scope"/>.
-    /// </summary>
-    /// <remarks>
-    /// Composed field for field as this generation's own form composes it. The identifier is the
-    /// number the metadata source names the site by, which travels in a field this generation
-    /// misnames after an unrelated metadata source.
-    /// <para>
-    /// The new-item rule is set to the whole catalogue because that is this generation's own default,
-    /// and it governs whether a catalogue addition made later is monitored, which is a different
-    /// question from the scope.
-    /// </para>
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="scope"/> is not a scope this product expresses, or <paramref name="defaults"/>
-    /// names no usable quality profile. This generation refuses a zero profile with a validation
-    /// failure naming the property, and v3 accepts it and then never acquires.
-    /// </exception>
+    // The identifier is the number the metadata source names the site by, which travels in a field
+    // this generation misnames after an unrelated metadata source.
+    //
+    // The new-item rule is the whole catalogue, this generation's own default. It governs whether a
+    // catalogue addition made later is monitored, which is a different question from the scope.
     internal static SeriesResource AddStudio(int entityId, MonitorScope scope, AddDefaults defaults)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
@@ -108,34 +75,19 @@ internal static class V2BodyProjector
                 searchForCutoffUnmetEpisodes: search));
     }
 
-    /// <summary>The name an add carries for the site <paramref name="entityId"/> names.</summary>
-    /// <remarks>
-    /// The instance refuses an add carrying no title, with a validation failure naming the property,
-    /// and discards the value of the one it is given: it resolves the site's real title and its slug
-    /// from the number alone. So the number rendered as text satisfies the refusal and asserts
-    /// nothing this product would have had to be right about.
-    /// <para>
-    /// The slug member is passed null rather than composed. Null is the member's absence on the wire,
-    /// not a value this product chose, and an add carrying no slug at all is accepted.
-    /// </para>
-    /// </remarks>
+    // The instance refuses an add carrying no title and discards the value of the one it is given,
+    // resolving the site's real title and slug from the number alone. The number rendered as text
+    // satisfies the refusal and asserts nothing. The slug member is passed null, which is its
+    // absence on the wire, and an add carrying no slug is accepted.
     private static string NameFor(int entityId)
         => entityId.ToString(CultureInfo.InvariantCulture);
 
-    /// <summary>Registers the entity <paramref name="entityId"/> names, monitoring nothing.</summary>
-    /// <remarks>
-    /// Presence only. The monitored flag is off, the new-item rule is none and the add-time monitor
-    /// covers none of the catalogue, so nothing the instance then reads for the entity is wanted.
-    /// A whole studio's catalogue arrives with it, and the alternative would want every scene in it.
-    /// <para>
-    /// Composed in this generation's own spellings. The other generation's suppression member is one
-    /// this generation discards without saying so, so a body carrying it would suppress nothing.
-    /// </para>
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="defaults"/> names no usable quality profile. This generation refuses a zero
-    /// profile with a validation failure naming the property.
-    /// </exception>
+    // Presence only: the monitored flag is off, the new-item rule is none and the add-time monitor
+    // covers none of the catalogue, so nothing the instance reads for the entity is wanted. A whole
+    // studio's catalogue arrives with it, and the alternative would want every scene in it.
+    //
+    // Composed in this generation's spellings. v3's suppression member is one this generation
+    // discards without saying so, so a body carrying it would suppress nothing.
     internal static SeriesResource RegisterSite(int entityId, AddDefaults defaults)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
@@ -161,30 +113,17 @@ internal static class V2BodyProjector
                 searchForCutoffUnmetEpisodes: search));
     }
 
-    /// <summary>
-    /// <paramref name="held"/> with its path members moved under <paramref name="instanceRoot"/>.
-    /// </summary>
-    /// <remarks>
-    /// The resource the instance answered, changed and handed back rather than rebuilt. Rebuilding it
-    /// would name a fixed member set, and every member outside that set - the tags, the per-year
-    /// flags, whatever a later client carries - would be dropped on the way back out. That is why the
-    /// argument is changed in place: there is no way to copy this model that a package bump cannot
-    /// silently narrow.
-    /// <para>
-    /// The path is what relocates a site. Changing the root folder alone is accepted and relocates
-    /// nothing, and the instance derives the root folder from the path when the path is set. There is
-    /// no member that names a root and moves the site, so the path is recomposed as the new root and
-    /// the site's own existing last segment. The root folder is sent beside it because the value the
-    /// instance derives is the value sent, so sending it states the intent and changes no outcome.
-    /// </para>
-    /// <para>
-    /// Nothing here instructs a transfer. Whether the files move is a parameter of the request rather
-    /// than a member of this body, and it is left off.
-    /// </para>
-    /// </remarks>
-    /// <exception cref="ArgumentException">
-    /// <paramref name="held"/> carries no path, so there is no last segment to move.
-    /// </exception>
+    // The resource the instance answered, changed in place and handed back rather than rebuilt.
+    // Rebuilding would name a fixed member set, and every member outside it - the tags, the
+    // per-year flags, whatever a later client carries - would be dropped on the way back out.
+    //
+    // The path is what relocates a site. Changing the root folder alone is accepted and relocates
+    // nothing, and the instance derives the root folder from the path when the path is set, so the
+    // path is recomposed as the new root plus the site's existing last segment. The root folder is
+    // sent beside it, which states the intent and changes no outcome.
+    //
+    // Nothing here instructs a transfer. Whether the files move is a parameter of the request, not
+    // a member of this body.
     internal static SeriesResource MovedSiteRoot(SeriesResource held, string instanceRoot)
     {
         ArgumentNullException.ThrowIfNull(held);
@@ -199,7 +138,6 @@ internal static class V2BodyProjector
         return held;
     }
 
-    /// <summary>The last segment of <paramref name="path"/>, under <paramref name="root"/>.</summary>
     private static string Under(string root, string path, char separator)
     {
         var trimmedPath = path.TrimEnd('/', '\\');
@@ -226,30 +164,17 @@ internal static class V2BodyProjector
     private static string Respelled(string root, char separator)
         => root.TrimEnd('/', '\\').Replace(separator == '\\' ? '/' : '\\', separator);
 
-    /// <summary>Sets only the monitored flag on the entity <paramref name="entityId"/> names.</summary>
-    /// <remarks>
-    /// Every member of the editor resource this leaves unset is omitted from the wire document, and an
-    /// omitted one is not applied, so the profile, the path, the tags, the new-item rule and every
-    /// per-year flag the instance holds are all left alone.
-    /// </remarks>
+    // Every member left unset is omitted from the wire document, and an omitted one is not
+    // applied, so the profile, path, tags, new-item rule and per-year flags are left alone.
     internal static SeriesEditorResource SetMonitored(int entityId, bool monitored)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
         return new SeriesEditorResource(seriesIds: new List<int> { entityId }, monitored: monitored);
     }
 
-    /// <summary>
-    /// Sets only the monitored flag on the row <paramref name="rowId"/> names, and on nothing else.
-    /// </summary>
-    /// <remarks>
-    /// The instance's own row id and the flag, and no other member. This generation names a scene
-    /// only as a row under a site, so the id is the one its own list answered with rather than the
-    /// number the metadata provider issued.
-    /// <para>
-    /// A list of exactly one row. The route takes a list, and a body naming several would set the
-    /// flag on every one of them.
-    /// </para>
-    /// </remarks>
+    // This generation names a scene only as a row under a site, so the id is the one its own list
+    // answered with, not the number the metadata provider issued. The route takes a list, and a
+    // body naming several rows would set the flag on every one of them.
     internal static EpisodesMonitoredResource MonitorScene(int rowId, bool monitored)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(rowId, 1);
@@ -257,15 +182,8 @@ internal static class V2BodyProjector
             episodeIds: new List<int> { rowId }, monitored: monitored);
     }
 
-    /// <summary>Re-applies <paramref name="scope"/> over what the instance already holds.</summary>
-    /// <remarks>
-    /// The entity is named inside an array of objects rather than as a scalar. The route answers a body
-    /// it cannot read with a server failure and an empty body, so the shape is the whole of what makes
-    /// the request expressible.
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="scope"/> is not a scope this product expresses.
-    /// </exception>
+    // The entity is named inside an array of objects, not as a scalar. The route answers a body it
+    // cannot read with a server failure and an empty body.
     internal static SeasonPassResource SetScope(int entityId, MonitorScope scope)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
@@ -274,13 +192,8 @@ internal static class V2BodyProjector
             monitoringOptions: new MonitoringOptions(monitor: CatalogueTypeFor(scope)));
     }
 
-    /// <summary>How much of a catalogue <paramref name="scope"/> covers, as this generation types it.</summary>
-    /// <remarks>
-    /// Two keys and no others. This generation's own dropdown offers nine more — a missing-only, an
-    /// existing-only, a recent-only, a first and a latest entry, a pilot entry, two specials entries
-    /// and an off entry — four of which it renders to a user as raw localization keys. Mimicry stops
-    /// where the interface being mimicked is defective, and none of the nine is composable here.
-    /// </remarks>
+    // Two keys and no others. This generation's own dropdown offers nine more, four of which it
+    // renders to a user as raw localization keys. None of the nine is composable here.
     private static MonitorTypes CatalogueTypeFor(MonitorScope scope)
         => scope switch
         {
@@ -291,29 +204,14 @@ internal static class V2BodyProjector
         };
 }
 
-/// <summary>What v2's own lists answer.</summary>
-/// <remarks>
-/// Pure. Read on the parsed shape and never on a status: this generation publishes no contract and
-/// answers a body whose fields it dropped with a created status and an echo, so a status is not
-/// evidence about it.
-/// </remarks>
+// Read on the parsed shape and never on a status: this generation publishes no contract and
+// answers a body whose fields it dropped with a created status and an echo.
 internal static class V2ListProjector
 {
-    /// <summary>
-    /// The entity <paramref name="entityId"/> names inside <paramref name="listed"/>, or null when the
-    /// instance holds none.
-    /// </summary>
-    /// <remarks>
-    /// The instance's own list is the one route that answers whether it holds the entity, and the
-    /// row it answers with is the only place its instance-side identifier appears. Only the matched
-    /// entry is returned.
-    /// <para>
-    /// The match stays even where the listing was asked for one entity. The answer is read on its
-    /// parsed shape and never on the fact that a filter was asked for, because this generation
-    /// publishes no contract and accepting a query it silently ignored would return an entity nobody
-    /// named.
-    /// </para>
-    /// </remarks>
+    // The instance's own list is the one route that answers whether it holds the entity, and the
+    // row it answers with is the only place its instance-side identifier appears. The match is made
+    // here even where the listing was asked for one entity, because accepting a query the instance
+    // silently ignored would return an entity nobody named.
     internal static JsonObject? HeldEntry(string? listed, int entityId)
     {
         if (AsArray(listed) is not { } held)
@@ -335,24 +233,13 @@ internal static class V2ListProjector
         return null;
     }
 
-    /// <summary>
-    /// Which of <paramref name="asked"/> the rows in <paramref name="listed"/> name, and each row's
-    /// own identifier, or null where the answer is not a list of rows at all.
-    /// </summary>
-    /// <remarks>
-    /// One reduction over both of this generation's lists. A site row and a scene row name themselves
-    /// by the same misnamed member and carry their instance-side id under the same one, so a second
-    /// reduction beside this one could only drift from it.
-    /// <para>
-    /// The answer is bounded by <paramref name="asked"/> and by nothing the instance sent, so a whole
-    /// catalogue reduces to at most as many entries as were asked about. Each row is read and
-    /// dropped, so nothing here grows with what the instance holds.
-    /// </para>
-    /// <para>
-    /// A number the list does not carry is absent from the answer rather than present with a zero.
-    /// The two would read the same at a caller that looked the number up and got a default.
-    /// </para>
-    /// </remarks>
+    // One reduction over both of this generation's lists. A site row and a scene row name
+    // themselves by the same misnamed member and carry their instance-side id under the same one.
+    //
+    // The answer is bounded by what was asked and by nothing the instance sent, so a whole
+    // catalogue reduces to at most as many entries as were asked about, and nothing grows with what
+    // the instance holds. A number the list does not carry is absent rather than present with a
+    // zero, which a caller could not tell from a default.
     internal static IReadOnlyDictionary<int, int>? RowsByNumber(
         string? listed, IReadOnlyCollection<int> asked)
     {

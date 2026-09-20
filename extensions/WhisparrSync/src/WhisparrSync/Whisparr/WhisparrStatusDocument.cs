@@ -7,23 +7,17 @@ namespace WhisparrSync.Whisparr;
 /// </summary>
 /// <remarks>
 /// Not a mirror of Whisparr's document: members nothing here reads are ignored, and the four count
-/// fields are recorded as PRESENCE rather than as values, because what corroborates a generation is
+/// fields are recorded as presence rather than as values, because what corroborates a generation is
 /// whether the instance serves them at all.
 /// <para>
-/// Both generations serve the document under <c>/api/v3</c>, so the path never tells them apart; the
+/// Both v2 and v3 serve the document under <c>/api/v3</c>, so the path never tells them apart; the
 /// version in the body does.
 /// </para>
+/// <para>
+/// <c>appName</c> tells Whisparr from not-Whisparr: its Radarr and Sonarr siblings are forks of one
+/// codebase and all declare it. A version string absent from the body reads as null.
+/// </para>
 /// </remarks>
-/// <param name="Version">The instance's own version string, verbatim, or null when it declared none.</param>
-/// <param name="Branch">The release branch the instance names.</param>
-/// <param name="AppName">
-/// Which application answered. Whisparr and its Radarr/Sonarr siblings are forks of one codebase and
-/// all declare this, which is what makes it useful for telling Whisparr from not-Whisparr.
-/// </param>
-/// <param name="MovieCountPresent">Whether the document carries <c>movieCount</c>.</param>
-/// <param name="SceneCountPresent">Whether the document carries <c>sceneCount</c>.</param>
-/// <param name="PerformerCountPresent">Whether the document carries <c>performerCount</c>.</param>
-/// <param name="StudioCountPresent">Whether the document carries <c>studioCount</c>.</param>
 public sealed record WhisparrStatusDocument(
     string? Version,
     string? Branch,
@@ -33,11 +27,9 @@ public sealed record WhisparrStatusDocument(
     bool PerformerCountPresent,
     bool StudioCountPresent)
 {
-    /// <summary>Whether all four count fields are present.</summary>
     public bool AllCountFieldsPresent =>
         MovieCountPresent && SceneCountPresent && PerformerCountPresent && StudioCountPresent;
 
-    /// <summary>Whether none of the four count fields is present.</summary>
     public bool NoCountFieldsPresent =>
         !MovieCountPresent && !SceneCountPresent && !PerformerCountPresent && !StudioCountPresent;
 
@@ -46,9 +38,8 @@ public sealed record WhisparrStatusDocument(
     /// object.
     /// </summary>
     /// <remarks>
-    /// Never throws. A body that came from something other than the API is an INPUT to the failure
-    /// taxonomy, not an error: the classifier has a kind for it and an exception here would deny it
-    /// the chance to say so.
+    /// Never throws. A body that came from something other than the API is an input to the failure
+    /// classification, which has a kind for it, not an error.
     /// </remarks>
     public static WhisparrStatusDocument? Parse(string? json)
     {
@@ -81,8 +72,8 @@ public sealed record WhisparrStatusDocument(
         }
     }
 
-    // A member of any other JSON kind reads as absent rather than as its ToString(): a number where a
-    // version string belongs is not a version this product can compare against.
+    // A member of any other JSON kind reads as absent rather than as its ToString(): a number where
+    // a version string belongs is not a version that can be compared.
     private static string? TextOf(JsonElement root, string name)
         => root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()

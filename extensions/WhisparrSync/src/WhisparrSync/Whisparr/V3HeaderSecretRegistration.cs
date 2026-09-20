@@ -2,17 +2,10 @@ using WhisparrSync.Connection;
 
 namespace WhisparrSync.Whisparr;
 
-/// <summary>
-/// Whisparr v3's carrier: a custom request header, set through the Webhook connection's
-/// list-of-headers settings field.
-/// </summary>
-/// <remarks>
-/// The field name is the one that generation's own notification schema declares; the header name is
-/// this product's, declared once on the inbound side that reads it.
-/// </remarks>
+// v3 carries the secret in a custom request header, set through its Webhook connection's
+// list-of-headers settings field. The header name is this extension's, declared on the inbound side.
 internal sealed class V3HeaderSecretRegistration : IOutOfBandSecretRegistration
 {
-    /// <summary>The Webhook settings field holding a list of custom headers.</summary>
     internal const string HeadersField = "headers";
 
     public OutOfBandSecretField Carry(string secret)

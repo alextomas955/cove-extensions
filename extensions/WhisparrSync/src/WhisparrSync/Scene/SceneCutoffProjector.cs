@@ -3,34 +3,18 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Scene;
 
-/// <summary>The two names one scene's quality profile answers for.</summary>
-/// <param name="ProfileName">The profile's own name, or null where none was established.</param>
-/// <param name="CutoffName">
-/// The name the profile resolves its own cutoff to, or null where it resolves it to nothing.
-/// </param>
-/// <param name="ReadDidNotComplete">
-/// The profile read established nothing at all, so the two names above are absent for a reason that
-/// is not about the scene.
-/// </param>
+// ReadDidNotComplete says the profile read established nothing, so the two names are absent for a
+// reason that is not about the scene.
 internal readonly record struct SceneProfileNames(
     string? ProfileName, string? CutoffName, bool ReadDidNotComplete);
 
-/// <summary>What one scene's quality profile is called, and where it stops taking better files.</summary>
-/// <remarks>
-/// The cutoff is an id on the profile and not a name, and not a member of the scene at all, so it
-/// resolves against the profile's own items or it resolves to nothing. An id there names either one
-/// quality or a whole group of them.
-/// </remarks>
+// The cutoff is an id on the profile, not a name, and not a member of the scene at all, so it
+// resolves against the profile's own items or it resolves to nothing. An id there names either one
+// quality or a whole group of them.
 internal static class SceneCutoffProjector
 {
-    /// <summary>
-    /// What the profile <paramref name="qualityProfileId"/> names in <paramref name="profiles"/> is
-    /// called, and what its cutoff resolves to.
-    /// </summary>
-    /// <remarks>
-    /// A null answer, an unsuccessful one and one that cannot be read each establish nothing, and a
-    /// profile a readable list does not carry is an absence the list itself reported.
-    /// </remarks>
+    // A null answer, an unsuccessful one and one that cannot be read each establish nothing. A
+    // profile a readable list does not carry is an absence the list itself reported.
     internal static SceneProfileNames Project(WhisparrResponse? profiles, int? qualityProfileId)
     {
         if (profiles is null || !Parsed(profiles, out var parsed))
@@ -67,12 +51,9 @@ internal static class SceneCutoffProjector
         return default;
     }
 
-    /// <summary>The name <paramref name="cutoff"/> resolves to inside its own profile.</summary>
-    /// <remarks>
-    /// Only a group carries an id of its own, so a group is matched on the item's id and a single
-    /// quality on its quality's. A group's own leaves are walked as well, because a group's members
-    /// are where the qualities under it are declared.
-    /// </remarks>
+    // Only a group carries an id of its own, so a group is matched on the item's id and a single
+    // quality on its quality's. A group's leaves are walked too, because a group's members are
+    // where the qualities under it are declared.
     private static string? NameOf(JsonElement profile, int cutoff)
     {
         if (!profile.TryGetProperty("items", out var items)
@@ -117,9 +98,6 @@ internal static class SceneCutoffProjector
         return null;
     }
 
-    /// <summary>
-    /// The name of <paramref name="item"/>'s own quality where its id is <paramref name="cutoff"/>.
-    /// </summary>
     private static string? QualityNameIn(JsonElement item, int cutoff)
         => item.TryGetProperty("quality", out var quality)
             && quality.ValueKind == JsonValueKind.Object

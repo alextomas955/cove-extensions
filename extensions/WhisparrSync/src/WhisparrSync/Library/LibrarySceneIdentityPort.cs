@@ -7,22 +7,12 @@ using WhisparrSync.Options;
 
 namespace WhisparrSync.Library;
 
-/// <inheritdoc cref="ILibrarySceneIdentityPort"/>
-/// <remarks>
-/// Binds the base <see cref="DbContext"/> for the reason its siblings do: this extension compiles
-/// against the host's entity assembly but not against the assembly its context lives in, and the
-/// host registers that context resolvable as the base type.
-/// <para>
-/// The de-duplication and the ordering are the DATABASE's, and nothing in this file collects. A set
-/// assembled here would cost one loaded row per identified scene, so on a library of millions it
-/// would answer correctly and be unusable.
-/// </para>
-/// <para>
-/// The endpoint rule is the host's own and is applied in memory. Comparing the two spellings as
-/// strings would answer that a video the host itself treats as identified carries no identity, and
-/// that scene would then be counted as one Whisparr cannot be told about.
-/// </para>
-/// </remarks>
+// Binds the base DbContext: this extension compiles against the host's entity assembly but not
+// against the assembly its context lives in, and the host registers the context as the base type.
+// The de-duplication and the ordering are the database's and nothing here collects. A set assembled
+// in memory would cost one loaded row per identified scene, so it would grow with the library.
+// The host's endpoint rule is applied in memory. Comparing the two spellings as strings would answer
+// that a video the host treats as identified carries no identity.
 internal sealed class LibrarySceneIdentityPort(DbContext db, OptionsStore options)
     : ILibrarySceneIdentityPort
 {
@@ -49,13 +39,9 @@ internal sealed class LibrarySceneIdentityPort(DbContext db, OptionsStore option
         }
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// Derived as the library's own scene count minus the videos an identity row in the namespace
-    /// names, because the same-source rule cannot be expressed as a query and a video's rows have to
-    /// be read to apply it. The rows arrive ordered by video, so a video already counted is
-    /// recognised from the one before it and the walk holds one identifier at a time.
-    /// </remarks>
+    // Derived as the library's scene count minus the videos an identity row names, because the
+    // same-source rule cannot be expressed as a query. The rows arrive ordered by video, so a video
+    // already counted is recognised from the one before it and the walk holds one row at a time.
     public async Task<int> CountUnidentifiedAsync(
         WhisparrGeneration generation, CancellationToken ct)
     {
@@ -111,12 +97,8 @@ internal sealed class LibrarySceneIdentityPort(DbContext db, OptionsStore option
         }
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// Derived the way the scene count is, and for the same reason: the same-source rule cannot be
-    /// expressed as a query. The rows arrive ordered by studio, so a studio already counted is
-    /// recognised from the one before it and the walk holds one identifier at a time.
-    /// </remarks>
+    // Derived the way the scene count is. The rows arrive ordered by studio, so a studio already
+    // counted is recognised from the one before it and the walk holds one row at a time.
     public async Task<int> CountUnidentifiedSitesAsync(
         WhisparrGeneration generation, CancellationToken ct)
     {

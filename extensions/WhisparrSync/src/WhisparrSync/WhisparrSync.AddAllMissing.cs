@@ -21,11 +21,8 @@ public sealed partial class WhisparrSync
 {
     private void MapAddAllMissingEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // The configure tier, and the reach decision is this route's own. Its reach is one Cove
-        // entity's own catalogue, named by the route segment, so it is neither a whole-library verb
-        // nor a body-named one. The tier is the configure tier because the route aims this
-        // extension's stored credential at a third party AND creates items in the reader's own
-        // Whisparr, which is not something a caller who cannot configure the extension may do.
+        // Configure tier: the route reaches one entity's catalogue, named by the route segment, and
+        // it aims the stored credential at a third party and creates items in the reader's Whisparr.
         endpoints.MapPost(AddAllMissingRoute,
             (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
              ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
@@ -36,34 +33,11 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
 
-    /// <summary>
-    /// Offers the connected instance every scene the library holds under one entity that its own
-    /// catalogue does not, in the background.
-    /// </summary>
-    /// <remarks>
-    /// Takes no body at all. Which entity is named by the route, and nothing outbound is a value a
-    /// caller could supply: the entity's identifier and every scene's are read from the library's
-    /// own stored rows, and the instance-side id the catalogue refresh names comes from the
-    /// instance's own record of the entity.
-    /// <para>
-    /// The order is the monitor route's own, and every step of it is a stop taken before anything
-    /// is created. Identity first, so an entity the connected generation cannot name is refused
-    /// with no outbound request. Then the scene-registration role, whose ABSENCE is the whole of
-    /// v2's refusal - no route there adds a catalogue item, so the role is not
-    /// registered and nothing here compares a generation. Then the entity itself, because an
-    /// instance that does not hold it has no catalogue to add to. Then the profile and the root,
-    /// each empty answer a stop taken before the first scene is composed.
-    /// </para>
-    /// <para>
-    /// The profile and the root are read HERE rather than at any earlier point, and read again when
-    /// the run starts: they are the instance's own and are its to change in between, and they decide
-    /// what every scene this verb creates is filed under.
-    /// </para>
-    /// <para>
-    /// Enqueued rather than awaited, so a caller cannot hold a request thread for the length of an
-    /// entity's catalogue.
-    /// </para>
-    /// </remarks>
+    // Takes no body: the entity comes from the route and every outbound value is read from the
+    // library's own rows or the instance's record of the entity. A generation that registers no
+    // scene-add role is refused by that absence, which is how v2 is refused; nothing compares a
+    // generation. Enqueued rather than awaited, so no caller holds a request thread for the length
+    // of an entity's catalogue.
     internal async Task<Results<Ok<AddAllMissingEnqueued>, Accepted<AddAllMissingEnqueued>, BadRequest, ForbiddenCode>>
         AddAllMissingEntityAsync(
             string kind,
@@ -115,21 +89,12 @@ public sealed partial class WhisparrSync
                 EnqueueAddAllMissing(jobs, scopes, entityKind, coveId), MonitorRefusalKind.None));
     }
 
-    /// <summary>What one entity's registration run needs, or why it cannot be started.</summary>
-    /// <param name="Aiming">What the run acts through, or null on a refusal.</param>
-    /// <param name="Refusal">Why there is none, or <see cref="MonitorRefusalKind.None"/>.</param>
+    // Aiming is null on a refusal, and Refusal then says why.
     private sealed record AddAllMissingResolution(
         AddAllMissingAiming? Aiming, MonitorRefusalKind Refusal);
 
-    /// <summary>
-    /// Resolves everything one registration run acts through, in the order that makes each refusal
-    /// cost as little as it can.
-    /// </summary>
-    /// <remarks>
-    /// Reached from the route AND again when the run starts, so the two cannot come to disagree
-    /// about what a registration carries. The values it reads are the instance's own and are minutes
-    /// apart on the two paths.
-    /// </remarks>
+    // Reached from the route and again when the run starts, minutes apart. The values it reads are
+    // the instance's own and may change in between, so both paths resolve through this one method.
     private async Task<AddAllMissingResolution> ResolveAddAllMissingAsync(
         WhisparrEntityKind kind,
         int coveId,
@@ -216,13 +181,8 @@ public sealed partial class WhisparrSync
             MonitorRefusalKind.None);
     }
 
-    /// <summary>Starts one entity's registration run in the background.</summary>
-    /// <remarks>
-    /// Enqueued EXCLUSIVE, for the reason the reflect-owned run is: two entities can name one scene
-    /// - a video carries a studio and its performers at once - so overlapping runs would offer the
-    /// same scene twice. What exclusivity costs when that does not happen is that the runs go one
-    /// after the other, against a third party this product should not be issuing parallel work to.
-    /// </remarks>
+    // Exclusive because two entities can name one scene, a video carrying a studio and its
+    // performers at once, so overlapping runs would offer the same scene twice.
     private string EnqueueAddAllMissing(
         IJobService jobs, IServiceScopeFactory scopes, WhisparrEntityKind kind, int coveId)
     {
@@ -235,12 +195,8 @@ public sealed partial class WhisparrSync
             exclusive: true);
     }
 
-    /// <summary>Runs one enqueued registration pass.</summary>
-    /// <remarks>
-    /// Everything the run acts through is resolved when it STARTS. A cancellation is rethrown after
-    /// the summary is written, so the host classifies the run as cancelled rather than completed
-    /// while the reader is still told what it managed to register.
-    /// </remarks>
+    // Cancellation is rethrown after the summary is written, so the host classifies the run as
+    // cancelled while the reader is still told what it managed to register.
     private async Task RunAddAllMissingAsync(
         IReadOnlyDictionary<string, string> parameters,
         IServiceScopeFactory scopes,

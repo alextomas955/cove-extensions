@@ -4,33 +4,24 @@ using WhisparrSync.Contracts;
 namespace WhisparrSync.Whisparr;
 
 // The acting surface is split by entity kind and by verb, so a capability a generation cannot
-// honour is a role it holds no registration for rather than a check inside one wide role. One file
-// per role would be four files declaring one interface each.
+// honour is a role it holds no registration for rather than a check inside one wide role.
 
 /// <summary>Monitors a studio on the connected instance.</summary>
 /// <remarks>
-/// Narrow in the same way the read seam is: no member takes a caller-supplied route and none takes an
-/// HTTP verb. The foreign id arrives already resolved from a stored identity row, so aiming this
-/// extension's credential at an arbitrary entity is impossible in the signature rather than a rule
-/// each call site has to keep.
+/// No member takes a caller-supplied route or verb, and the foreign id arrives already resolved from
+/// a stored identity row.
 /// <para>
-/// Nothing declared here can make an instance download. The verbs that can are on the grabbing
-/// roles, each of which a caller has to obtain by name.
-/// </para>
-/// <para>
-/// Every member names the connected generation, because both generations honour this role and neither
-/// addresses a studio the way the other does. It is the one thing a call site supplies that the
-/// implementation could not read for itself, and it names a lineage rather than a route: which routes
-/// and which bodies follow from it belong to the implementation, so no call site chooses either.
+/// Every member takes the generation, because v2 and v3 do not address a studio the same way. Which
+/// routes and bodies follow from it belong to the implementation.
 /// </para>
 /// </remarks>
 public interface IWhisparrStudioActing
 {
     /// <summary>Reads the studio <paramref name="foreignId"/> names.</summary>
     /// <remarks>
-    /// Returns whatever the instance answered, including a not-found: whether the entity is held at
-    /// all is the precondition the caller classifies. One generation answers that question through no
-    /// single route, so on it the answer is assembled and reported in the same two spellings.
+    /// Returns whatever the instance answered, a not-found included: whether the entity is held at
+    /// all is the caller's to classify. One generation answers that through no single route, so
+    /// there the answer is assembled and reported in the same two spellings.
     /// </remarks>
     Task<WhisparrResponse> ReadStudioAsync(
         Uri baseAddress,
@@ -70,11 +61,11 @@ public interface IWhisparrStudioActing
 
     /// <summary>Sets the monitor scope on the studio <paramref name="entityId"/> names.</summary>
     /// <remarks>
-    /// Declared for a studio and for no other kind, because the field a future-only scope is expressed
-    /// through exists on the studio resource alone.
+    /// Declared for a studio only: the field a future-only scope is expressed through exists on the
+    /// studio resource alone.
     /// <para>
-    /// What the two generations then do differs and a caller has to know it: one re-applies the option
-    /// over everything the instance already holds, in both directions, and the other gates only what a
+    /// The two generations then differ, and a caller has to know it: one re-applies the option over
+    /// everything the instance already holds, in both directions, and the other gates only what a
     /// later catalogue read adds.
     /// </para>
     /// </remarks>
@@ -89,14 +80,8 @@ public interface IWhisparrStudioActing
 
 /// <summary>Monitors a performer on the connected instance.</summary>
 /// <remarks>
-/// Declares no scope member at all. The field a future-only scope is expressed through exists on the
-/// studio resource and on no other, so a performer scope member would be a promise its own signature
-/// could not keep. A performer monitor covers the whole catalogue, and that consequence is stated
-/// where it is chosen rather than implied by a member that cannot honour it.
-/// <para>
-/// Nothing declared here can make an instance download. The verbs that can are on the grabbing
-/// roles, each of which a caller has to obtain by name.
-/// </para>
+/// Declares no scope member: the field a future-only scope is expressed through exists on the studio
+/// resource alone, so a performer monitor covers the whole catalogue.
 /// </remarks>
 public interface IWhisparrPerformerActing
 {
@@ -122,13 +107,9 @@ public interface IWhisparrPerformerActing
 
 /// <summary>Registers scenes an instance's catalogue does not hold.</summary>
 /// <remarks>
-/// Non-acquiring by construction: the add composes its own suppression flags, and the refresh names a
-/// catalogue rather than a release. One generation has no route that adds a scene at all, so it holds
-/// no registration for this role rather than a member that refuses once it is called.
-/// <para>
-/// Nothing declared here can make an instance download. The verbs that can are on the grabbing
-/// roles, each of which a caller has to obtain by name.
-/// </para>
+/// Non-acquiring: the add composes its own suppression flags, and the refresh names a catalogue
+/// rather than a release. One generation has no route that adds a scene, so it holds no registration
+/// for this role.
 /// </remarks>
 public interface IWhisparrMissingSceneActing
 {
@@ -156,25 +137,16 @@ public interface IWhisparrMissingSceneActing
 
 /// <summary>Registers a site the instance's catalogue does not hold, monitoring nothing.</summary>
 /// <remarks>
-/// Presence and nothing else, so the catalogue that arrives with the site is inert: the body is
-/// composed with the monitored flag off and no new-item rule, and a site's catalogue is a whole
-/// studio's worth of scenes. A monitoring add on this path would want every one of them.
-/// <para>
-/// Every acquisition-suppressing flag is composed here rather than passed in, so no caller can leave
-/// one out.
-/// </para>
+/// The body is composed with the monitored flag off, no new-item rule and every acquisition
+/// suppressing flag set here rather than passed in. A site's catalogue is a whole studio's worth of
+/// scenes, and a monitoring add would want every one of them.
 /// <para>
 /// Sent once and never re-issued: a second attempt after an answer that did not arrive would act
 /// twice.
 /// </para>
 /// <para>
 /// One generation registers this role and the other holds no registration for it. On the other,
-/// presence is a scene add and a site arrives as a side effect of one, so it has nothing to
-/// implement.
-/// </para>
-/// <para>
-/// Nothing declared here can make an instance download. The verbs that can are on the grabbing
-/// roles, each of which a caller has to obtain by name.
+/// presence is a scene add and a site arrives as a side effect of one.
 /// </para>
 /// </remarks>
 public interface IWhisparrSiteRegistrationActing
@@ -197,23 +169,16 @@ public interface IWhisparrSiteRegistrationActing
     /// its files where they are.
     /// </summary>
     /// <remarks>
-    /// No file is moved or copied. The files are the library's, and this product relocating them is a
-    /// change the owner cannot undo, so a site registered at the wrong root is corrected by changing
-    /// where the instance records it and by nothing else.
+    /// No file is moved or copied: only where the instance records the site changes. The request
+    /// carries no transfer parameter at all, measured against a live instance holding linked files
+    /// under the old root, so adding that parameter is the edit that could move terabytes.
     /// <para>
-    /// The guarantee rests on the request carrying no transfer instruction at all. The instance
-    /// transfers nothing when the transfer parameter is absent, measured against a live instance
-    /// holding linked files under the old root, and the same when it is stated false. So an edit that
-    /// adds the parameter would be the change that could move terabytes, and a serialized-request
-    /// assertion is what holds it out.
+    /// The instance relinks nothing on its own, so this member issues the catalogue re-read that
+    /// links the files as part of the same call.
     /// </para>
     /// <para>
-    /// The instance relinks nothing on its own: the change alone leaves the site reporting no file,
-    /// so this member issues the catalogue re-read that links them as part of the same call.
-    /// </para>
-    /// <para>
-    /// One generation registers this role and the other holds no registration for it, so a target
-    /// connected to the other is refused before any request leaves.
+    /// Only one generation registers this role, so a target connected to the other is refused before
+    /// any request leaves.
     /// </para>
     /// </remarks>
     Task<WhisparrResponse> MoveSiteRootAsync(
@@ -227,13 +192,11 @@ public interface IWhisparrSiteRegistrationActing
     /// Asks the instance to read the catalogue of the site <paramref name="siteId"/> names again.
     /// </summary>
     /// <remarks>
-    /// The same re-read <see cref="MoveSiteRootAsync"/> issues, on its own. A move whose re-read did
-    /// not arrive leaves the site registered at the right root and reporting no file, and the root
-    /// alone then reads as correct, so there must be a way to send the re-read without moving the
-    /// site again.
+    /// The same re-read <see cref="MoveSiteRootAsync"/> issues, on its own, for a move whose re-read
+    /// did not arrive and left the site reporting no file.
     /// <para>
-    /// Nothing is written. The instance reads what is on disk under the path it already holds, so
-    /// the call is repeatable and moves no file.
+    /// Nothing is written. The instance reads what is on disk under the path it already holds, so the
+    /// call is repeatable and moves no file.
     /// </para>
     /// </remarks>
     Task<WhisparrResponse> RefreshSiteCatalogueAsync(
@@ -245,13 +208,11 @@ public interface IWhisparrSiteRegistrationActing
 
 /// <summary>Reads which of a set of scenes one site the instance holds has a row for.</summary>
 /// <remarks>
-/// A read role, so nothing declared here changes an instance. Only one generation registers it, so
-/// the member takes no generation: the other names a scene by its own identifier and needs no site
-/// to find it, so it has nothing to implement.
+/// A read role. Only one generation registers it, so the member takes no generation: the other names
+/// a scene by its own identifier and needs no site to find it.
 /// <para>
-/// Narrow in the same way the other roles are: no member takes a caller-supplied route, verb or
-/// query key. The site's own numeric id arrives already resolved off the answer the registering
-/// pass read, so nothing here can be aimed by an id a browser supplied.
+/// The site's numeric id arrives already resolved off the answer the registering pass read, so
+/// nothing here can be aimed by an id a browser supplied.
 /// </para>
 /// </remarks>
 public interface IWhisparrSiteSceneReading
@@ -261,18 +222,16 @@ public interface IWhisparrSiteSceneReading
     /// for, and the row's own identifier.
     /// </summary>
     /// <remarks>
-    /// The answer carries only the numbers that were asked about, so what it holds is bounded by the
-    /// caller's own set whatever the site's catalogue holds. The instance narrows its own answer by
-    /// no parameter, so the whole answer is read as it arrives and each row is reduced to this
-    /// question and dropped. There is no row cap: a cap would stop part way and report the rest as
-    /// rows the instance holds none of, with nothing saying so.
+    /// What the answer holds is bounded by the caller's own set, whatever the site's catalogue holds.
+    /// The instance narrows its list by no parameter, so the whole answer is read as it arrives and
+    /// each row is reduced to this question and dropped. There is no row cap: a cap would stop part
+    /// way and report the rest as rows the instance holds none of, with nothing saying so.
     /// <para>
     /// An empty input answers an empty map with no request.
     /// </para>
     /// <para>
-    /// The instance's answer is that site's whole list, so a site whose list exceeds the transport's
-    /// own response bound fails this read rather than being truncated. A caller then counts that
-    /// site's scenes as unresolved rather than reporting them monitored.
+    /// A site whose list exceeds the transport's response bound fails this read rather than being
+    /// truncated, so a caller counts that site's scenes as unresolved.
     /// </para>
     /// </remarks>
     /// <exception cref="HttpRequestException">
@@ -290,22 +249,17 @@ public interface IWhisparrSiteSceneReading
 
 /// <summary>Reads which of a set of sites an instance holds.</summary>
 /// <remarks>
-/// A read role, so nothing declared here changes an instance. Only one generation registers it: the
-/// other answers presence for a site through a route naming the site, and needs no list to do it.
-/// <para>
-/// Narrow in the same way the other roles are: no member takes a caller-supplied route, verb or
-/// query key. The numbers arrive already resolved from the metadata source, so nothing here can be
-/// aimed by an identifier a browser supplied.
-/// </para>
+/// A read role. Only one generation registers it: the other answers presence for a site through a
+/// route naming the site. The numbers arrive already resolved from the metadata source, so nothing
+/// here can be aimed by an identifier a browser supplied.
 /// </remarks>
 public interface IWhisparrHeldSiteReading
 {
     /// <summary>Which of <paramref name="siteNumbers"/> the instance holds a row for.</summary>
     /// <remarks>
-    /// The answer is the subset of the numbers that were asked about, so what it carries is bounded
-    /// by the caller's own set whatever the instance holds. One request answers a whole batch: the
-    /// instance narrows its own list by no parameter, so the whole answer is read as it arrives and
-    /// each row is reduced to this question and dropped.
+    /// The answer is the subset of the numbers asked about, so it is bounded by the caller's own set.
+    /// One request answers a whole batch: the instance narrows its list by no parameter, so the whole
+    /// answer is read as it arrives and each row is reduced to this question and dropped.
     /// <para>
     /// An empty input answers an empty set with no request. There is no row cap: a cap would stop
     /// part way and report the rest as sites the instance holds none of, with nothing saying so.
@@ -325,15 +279,11 @@ public interface IWhisparrHeldSiteReading
 
 /// <summary>Reads what an instance holds at a path on its own filesystem.</summary>
 /// <remarks>
-/// A read role, so nothing declared here changes an instance. Both generations register it: each
-/// serves the route, and v2 was measured answering it.
+/// A read role. Both v2 and v3 serve the route. The directory reaches the instance as a query value
+/// and can never change which route is issued.
 /// <para>
-/// Narrow in the same way the other roles are: the member names no route, no verb and no query key.
-/// The directory reaches the instance as a query value and can never change which route is issued.
-/// </para>
-/// <para>
-/// The row count of an answer grows with the directory rather than with the library, so a caller
-/// reads one directory at a time and reduces each answer rather than accumulating it.
+/// An answer's row count grows with the directory, so a caller reads one directory at a time and
+/// reduces each answer rather than accumulating it.
 /// </para>
 /// </remarks>
 public interface IWhisparrInstanceFilesystemReading
@@ -356,13 +306,8 @@ public interface IWhisparrInstanceFilesystemReading
 /// <summary>Tells an instance where files the library already holds are.</summary>
 /// <remarks>
 /// Transfers no file data. The instance is asked to link a file into place, which costs no second
-/// copy while its own hard-link setting is on. With that setting off there is no mode to ask for that
-/// would not duplicate the data, so a caller reads the setting first and skips with the reason stated
-/// rather than copying.
-/// <para>
-/// Nothing declared here can make an instance download. The verbs that can are on the grabbing
-/// roles, each of which a caller has to obtain by name.
-/// </para>
+/// copy while its own hard-link setting is on. With that setting off every mode duplicates the data,
+/// so a caller reads the setting first and skips with the reason stated rather than copying.
 /// </remarks>
 public interface IWhisparrReflectOwnedActing
 {
@@ -392,13 +337,9 @@ public interface IWhisparrReflectOwnedActing
 
 /// <summary>Reads what an instance holds for one catalogue scene.</summary>
 /// <remarks>
-/// A read role, so nothing declared here changes an instance. Only v3 registers
-/// it: v2 answers a not-found on every per-scene route, so a caller obtains no role and
-/// states what happens instead.
-/// <para>
-/// Narrow in the same way the acting roles are: neither member takes a route, a verb or a query key,
-/// so the one query spelling that narrows cannot be replaced by a caller with one that does not.
-/// </para>
+/// A read role. Only v3 registers it: v2 answers a not-found on every per-scene route, so a caller
+/// there obtains no role. No member takes a route, a verb or a query key, so the one query spelling
+/// that narrows cannot be replaced with one that does not.
 /// </remarks>
 public interface IWhisparrSceneStatusReading
 {
@@ -443,13 +384,10 @@ public interface IWhisparrSceneStatusReading
 
 /// <summary>Reads which of a set of scenes an instance's user has excluded.</summary>
 /// <remarks>
-/// A read role, so nothing declared here changes an instance. Only v3 registers
-/// it: v2 keeps no scene records at all and so keeps no scene exclusions, and a caller
-/// obtains no role rather than a member answering an empty set that would read as nothing excluded.
+/// A read role. Only v3 registers it: v2 keeps no scene records and so keeps no scene exclusions, so
+/// a caller there obtains no role rather than an empty set that would read as nothing excluded.
 /// <para>
-/// The answer is the subset of the identifiers that were asked about, so what it carries is bounded
-/// by the caller's own set whatever the instance holds. The member takes no route, no verb and no
-/// query key.
+/// The answer is the subset of the identifiers asked about, so it is bounded by the caller's own set.
 /// </para>
 /// </remarks>
 public interface IWhisparrSceneExclusionReading
@@ -457,11 +395,8 @@ public interface IWhisparrSceneExclusionReading
     /// <summary>Which of <paramref name="providerSceneIds"/> the instance's user has excluded.</summary>
     /// <remarks>
     /// One request per call. The instance narrows this list by no parameter, so the whole answer is
-    /// read as it arrives and each row is reduced to this question and dropped.
-    /// <para>
-    /// An answer that did not arrive, or one that could not be read, excludes nothing. There is no
-    /// spelling in which this can report a scene as excluded that the instance did not name.
-    /// </para>
+    /// read as it arrives and each row is reduced to this question and dropped. An answer that did
+    /// not arrive, or could not be read, excludes nothing.
     /// </remarks>
     Task<IReadOnlySet<string>> ReduceExclusionsAsync(
         Uri baseAddress,
@@ -474,17 +409,15 @@ public interface IWhisparrSceneExclusionReading
     /// none.
     /// </summary>
     /// <remarks>
-    /// The removing route addresses an exclusion by the exclusion row's own identifier, and the
-    /// reduce above answers scene identifiers, so a caller that has to remove one reads it here.
+    /// The removing route addresses an exclusion by the exclusion row's own identifier, while the
+    /// reduce above answers scene identifiers.
     /// <para>
-    /// One request, read as it arrives, and it stops at the first row naming the scene. Nothing is
-    /// retained between rows, so what this holds is one identifier whatever the instance's list
-    /// holds.
+    /// One request, read as it arrives, stopping at the first row naming the scene. Nothing is
+    /// retained between rows, so this holds one identifier whatever the instance's list holds.
     /// </para>
     /// <para>
-    /// A read that did not complete is held apart from a list naming no exclusion. The two send a
-    /// caller to different answers: one claims nothing about the instance, and the other is the
-    /// instance stating an absence.
+    /// A read that did not complete is held apart from a list naming no exclusion: one claims nothing
+    /// about the instance, the other is the instance stating an absence.
     /// </para>
     /// </remarks>
     Task<SceneExclusionLookup> FindSceneExclusionAsync(
@@ -492,12 +425,10 @@ public interface IWhisparrSceneExclusionReading
 }
 
 /// <summary>What one exclusion-list read established about one scene.</summary>
-/// <param name="ReadCompleted">
-/// A whole answer arrived and was read. False claims nothing about the instance at all.
-/// </param>
-/// <param name="ExclusionId">
-/// The exclusion row's own identifier, or null where the list named no exclusion for the scene.
-/// </param>
+/// <remarks>
+/// A false read-completed flag claims nothing about the instance. The exclusion id is the exclusion
+/// row's own identifier, null where the list named no exclusion for the scene.
+/// </remarks>
 public sealed record SceneExclusionLookup(bool ReadCompleted, int? ExclusionId)
 {
     /// <summary>No whole answer arrived, so nothing about the instance was established.</summary>
@@ -506,6 +437,5 @@ public sealed record SceneExclusionLookup(bool ReadCompleted, int? ExclusionId)
     /// <summary>The list was read and names no exclusion for the scene.</summary>
     public static SceneExclusionLookup NamesNoExclusion { get; } = new(true, null);
 
-    /// <summary>The list names the scene, under <paramref name="exclusionId"/>.</summary>
     public static SceneExclusionLookup At(int exclusionId) => new(true, exclusionId);
 }

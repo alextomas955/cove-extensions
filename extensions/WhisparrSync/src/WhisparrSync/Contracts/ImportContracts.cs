@@ -8,10 +8,6 @@ namespace WhisparrSync.Contracts;
 /// Two values, and deliberately coarse. Whether a file was found, which candidate verified, and
 /// whether anything reached the library are all withheld: the caller is anonymous, and an answer
 /// that varied with what is on disk would turn this route into a filesystem probe.
-/// <para>
-/// The wire spelling is declared on the type. An equivalent converter in a serializer options
-/// collection would outrank this one rather than duplicate it.
-/// </para>
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum ImportEventOutcome
@@ -28,12 +24,8 @@ public enum ImportEventOutcome
 
 /// <summary>What the inbound callback answers a delivery it authenticated with.</summary>
 /// <remarks>
-/// Reports where the delivery carried its secret, which is the reading the note about the less
-/// private form is shown for, and how the event was classified. Neither member varies with the
-/// contents of the filesystem.
+/// Neither member varies with the contents of the filesystem.
 /// </remarks>
-/// <param name="SecretPosition">Where this delivery carried its secret.</param>
-/// <param name="Outcome">Whether this product acts on the event the delivery named.</param>
 public sealed record ImportAcknowledgement(
     CallbackSecretPosition SecretPosition,
     ImportEventOutcome Outcome);

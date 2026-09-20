@@ -9,44 +9,20 @@ using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Jobs;
 
-/// <summary>Which entity one enqueued run is about, as it came back out of the host's map.</summary>
-/// <param name="Kind">The entity kind, or null where the map named none this product expresses.</param>
-/// <param name="CoveId">The Cove id, or zero where the map carried none that could be read.</param>
+/// <summary>Which entity one enqueued run is about.</summary>
+/// <remarks>A null kind or a zero id means the parameter map carried none that could be read.</remarks>
 public sealed record ReflectOwnedBatch(WhisparrEntityKind? Kind, int CoveId);
 
-/// <summary>
-/// What one run needs from the connected instance, already aimed at it.
-/// </summary>
-/// <remarks>
-/// Resolved when the run STARTS rather than when it was asked for. A run enqueued minutes ago must
-/// not act on a connection, a capability or a hard-link setting read before it: the setting decides
-/// whether every matched file is linked or copied in full, and it is the instance's to change at any
-/// time.
-/// </remarks>
-/// <param name="Generation">Whose row spellings the parse answers are read under.</param>
-/// <param name="Address">
-/// Turns a folder the library names into the path the instance confirmed it can open.
-/// </param>
-/// <param name="ReadImportable">Reads one folder's attachable rows.</param>
-/// <param name="Attach">Hands one folder's rows to the instance, answering whether it took them.</param>
+// Resolved when the run starts, not when it was enqueued. The hard-link setting decides whether a
+// matched file is linked or copied in full, and it is the instance's to change at any time.
 internal sealed record ReflectOwnedAiming(
     WhisparrGeneration Generation,
     Func<string, CancellationToken, Task<AddressedFolder>> Address,
     Func<string, CancellationToken, Task<ImportableListing>> ReadImportable,
     Func<JsonArray, CancellationToken, Task<bool>> Attach);
 
-/// <summary>What one run acts through, and why there is nothing to act through.</summary>
-/// <remarks>
-/// Exactly one of two things is true of a null <paramref name="Through"/>: the instance's linking
-/// setting stopped the run, in which case <paramref name="Skipped"/> names which of the two readings
-/// it was, or something else did, in which case <paramref name="Skipped"/> is null and the run
-/// reports as a completed run that attached nothing.
-/// </remarks>
-/// <param name="Through">What the run acts through, or null where it must not act.</param>
-/// <param name="Skipped">
-/// Which reading of the instance's linking setting stopped the run, or null where no setting
-/// stopped it.
-/// </param>
+// A null Through with a Skipped reason means the instance's linking setting stopped the run. A null
+// Through with no reason reports as a completed run that attached nothing.
 internal sealed record ReflectOwnedAim(
     ReflectOwnedAiming? Through, ReflectOwnedSkipReason? Skipped);
 
@@ -54,30 +30,18 @@ internal sealed record ReflectOwnedAim(
 /// The reflect-owned job's id, its (de)serialization onto the host's string-only parameter map, and
 /// the folder loop one entity's run goes through.
 /// </summary>
-/// <remarks>
-/// <see cref="Decode"/> is total: it is read inside the host's job runner, where a throw is a faulted
-/// job rather than a handled answer, so a run nobody can read is a clean no-op.
-/// </remarks>
 public static class ReflectOwnedJob
 {
-    /// <summary>The job id this extension's own type prefix is minted onto.</summary>
     public const string JobId = "reflect-owned";
 
-    /// <summary>The one sentence a run that left files under another root is reported in.</summary>
-    /// <remarks>
-    /// It names no file, no folder and no site. The line is durable and its length must not grow
-    /// with the library.
-    /// </remarks>
+    // Names no file, folder or site: the line is durable and must not grow with the library.
     internal const string LeftUnderAnotherRootSentence =
         "Some files were not linked: Whisparr holds their site under a different root from the "
         + "files, and nothing was copied.";
 
-    /// <summary>The one sentence a run with no root to compare against is reported in.</summary>
-    /// <remarks>
-    /// States that the check was not made rather than that nothing was found to link. An instance
-    /// that could not be asked answers the same empty root list as one declaring none, and linking
-    /// across two roots copies the bytes in full.
-    /// </remarks>
+    // States that the check was not made, not that nothing was found to link. An instance that could
+    // not be asked answers the same empty root list as one declaring none, and linking across two
+    // roots copies the bytes in full.
     internal const string NoRootToCompareSentence =
         "No files were linked: Whisparr declared no root folder, so whether a link would copy the "
         + "data could not be checked.";
@@ -85,7 +49,6 @@ public static class ReflectOwnedJob
     private const string KindKey = "kind";
     private const string CoveIdKey = "coveId";
 
-    /// <summary>Encodes one entity's run onto the host's parameter map.</summary>
     public static Dictionary<string, string> Encode(WhisparrEntityKind kind, int coveId)
         => new(StringComparer.Ordinal)
         {
@@ -95,9 +58,9 @@ public static class ReflectOwnedJob
 
     /// <summary>Reads one entity's run back off the host's parameter map.</summary>
     /// <remarks>
-    /// Never throws. A null map, a missing key, a blank value and a kind this product does not
-    /// express all answer no kind rather than the first one declared, and a run that defaulted to a
-    /// kind would act on an entity nobody named.
+    /// Never throws; it runs inside the host's job runner, where a throw faults the job. An
+    /// unreadable kind answers null rather than the first kind declared, so a run never acts on an
+    /// entity nobody named.
     /// </remarks>
     public static ReflectOwnedBatch Decode(IReadOnlyDictionary<string, string>? parameters)
     {
@@ -119,27 +82,8 @@ public static class ReflectOwnedJob
         return new ReflectOwnedBatch(kind, coveId);
     }
 
-    /// <summary>
-    /// Reads each of the entity's folders through <paramref name="aiming"/> and hands the rows that
-    /// can be attached to the instance, inside ONE scope elevated to System.
-    /// </summary>
-    /// <remarks>
-    /// The run carries no principal of its own, and Cove's per-principal query filters answer an
-    /// anonymous reader with zero rows and no error, which on this path would report an entity that
-    /// holds files as holding none.
-    /// <para>
-    /// A run that cannot be aimed, or that names no entity, reports as a completed run that attached
-    /// nothing. It has not been refused by the instance and there is nothing for a reader to retry;
-    /// what it could not read is already a line in the host's log.
-    /// </para>
-    /// </remarks>
-    /// <param name="batch">Which entity the run is about.</param>
-    /// <param name="scopes">The scope factory the extension was handed at initialization.</param>
-    /// <param name="aiming">
-    /// Both what the run acts through, over the run's own elevated services, and why there is
-    /// nothing to act through.
-    /// </param>
-    /// <param name="ct">Cancelled when the host stops the job.</param>
+    // Runs as System: the job carries no principal, and Cove's per-principal filters answer an
+    // anonymous reader with zero rows and no error, so an entity holding files would read as empty.
     internal static Task<ReflectOwnedRun> RunAsync(
         ReflectOwnedBatch batch,
         IServiceScopeFactory scopes,
@@ -167,27 +111,11 @@ public static class ReflectOwnedJob
         });
     }
 
-    /// <summary>
-    /// Reads one entity's folders through <paramref name="aimed"/> and hands the rows that can be
-    /// attached to the instance.
-    /// </summary>
-    /// <remarks>
-    /// The ONE folder loop, reached by the enqueued run above and by a selection's per-entity step.
-    /// It takes an open <paramref name="services"/> rather than opening its own scope, because a
-    /// selection is already inside one that is elevated to System.
-    /// <para>
-    /// The instance's declared roots are read once for the run and handed down, never once per
-    /// folder. They are what the planner compares a file's root against the root of the site it would
-    /// join. A list that could not be established stops the run before a folder is read: the
-    /// comparison cannot be made without one, and an import made with it unmade copies the bytes in
-    /// full rather than linking them.
-    /// </para>
-    /// </remarks>
-    /// <param name="services">Elevated services the folder read is made through.</param>
-    /// <param name="aimed">What the run acts through, resolved by its caller.</param>
-    /// <param name="kind">Which entity kind the run is about.</param>
-    /// <param name="coveId">Which entity.</param>
-    /// <param name="ct">Cancelled when the host stops the job.</param>
+    // Takes an open services rather than opening its own scope: a selection is already inside one
+    // elevated to System.
+    // The instance's declared roots are read once for the run, never once per folder. A list that
+    // could not be established stops the run before a folder is read, because an import made without
+    // the comparison copies the bytes in full rather than linking them.
     internal static async Task<ReflectOwnedRun> RunOneAsync(
         IServiceProvider services,
         ReflectOwnedAiming aimed,
@@ -216,17 +144,8 @@ public static class ReflectOwnedJob
             ct).ConfigureAwait(false);
     }
 
-    /// <summary>The one line the host's Job Drawer shows for <paramref name="run"/>.</summary>
-    /// <remarks>
-    /// Counts rather than a list of folders. A sentence naming each one would grow with the entity
-    /// and would put recorded filesystem paths in a durable place nothing needs them in.
-    /// <para>
-    /// A run the instance's linking setting stopped reached no folder, so both its counts are zero
-    /// and a count line would say nothing about it. The reason is the whole content of the line
-    /// instead, because this line is the only place that run is reported at all: the gesture that
-    /// started it was answered before the setting was read again.
-    /// </para>
-    /// </remarks>
+    // Counts, never a list of folders: the line must not grow with the entity, and it would put
+    // filesystem paths in a durable place nothing needs them in.
     internal static string SummaryOf(ReflectOwnedRun run)
     {
         ArgumentNullException.ThrowIfNull(run);
@@ -241,27 +160,10 @@ public static class ReflectOwnedJob
             run.RootsCouldNotBeRead);
     }
 
-    /// <summary>The one line a run over an entity's folders is reported on.</summary>
-    /// <remarks>
-    /// Read by the entity's own enqueued run and by a selection's linking step alike, so a selection
-    /// cannot report a run in different words from a click.
-    /// <para>
-    /// A run that reached the instance for nothing leads with why instead of its counts: two zeros
-    /// read as a clean pass over every folder, which is exactly what a run that addressed none of
-    /// them is not.
-    /// </para>
-    /// </remarks>
-    /// <param name="skipped">Which reading of the linking setting stopped the run, or null.</param>
-    /// <param name="attached">How many folders' files the instance took.</param>
-    /// <param name="refused">How many it declined, or never answered about.</param>
-    /// <param name="unaddressed">One entry per library root no path was established under.</param>
-    /// <param name="leftUnderAnotherRoot">
-    /// How many files the instance holds the site for under a different root from the file.
-    /// </param>
-    /// <param name="cancelled">Whether the run was stopped part-way.</param>
-    /// <param name="rootsCouldNotBeRead">
-    /// Whether the run stopped for want of a declared root to compare against.
-    /// </param>
+    // Read by the entity's own enqueued run and by a selection's linking step alike, so a selection
+    // cannot report a run in different words from a click.
+    // A run that reached the instance for nothing leads with why instead of its counts: two zeros
+    // read as a clean pass over every folder.
     internal static string LineFor(
         ReflectOwnedSkipReason? skipped,
         int attached,
@@ -301,14 +203,6 @@ public static class ReflectOwnedJob
         return reasons.Length == 0 ? counts : counts + " " + reasons;
     }
 
-    /// <summary>The one sentence a run stopped by <paramref name="reason"/> is reported in.</summary>
-    /// <remarks>
-    /// Read by the entity's own enqueued run and by a selection's linking step alike. Two statements
-    /// of one sentence is how a selection comes to say something different from a click.
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="reason"/> is a skip reason no sentence is written down for.
-    /// </exception>
     internal static string SentenceFor(ReflectOwnedSkipReason reason)
         => reason switch
         {
@@ -322,15 +216,8 @@ public static class ReflectOwnedJob
                 "This skip reason has no sentence written down for it."),
         };
 
-    /// <summary>The one sentence a library root <paramref name="refusal"/> stopped is reported in.</summary>
-    /// <remarks>
-    /// One library root, named once, with at most one of the paths tried under it: an operator
-    /// created the roots by hand and there are few of them, while the folders under them grow with
-    /// the library.
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="refusal"/> names a reason no sentence is written down for.
-    /// </exception>
+    // One library root, named once, with at most one path tried under it. The roots are few and
+    // operator-created; the folders under them grow with the library.
     internal static string SentenceFor(FolderAddressRefusal refusal)
     {
         ArgumentNullException.ThrowIfNull(refusal);
@@ -343,14 +230,6 @@ public static class ReflectOwnedJob
             + Because(refusal.Refusal, refusal.Tried.Count > 0 ? refusal.Tried[0] : null);
     }
 
-    /// <summary>
-    /// Why one library root established no path, naming <paramref name="tried"/> where the reason is
-    /// about a path the instance was asked about.
-    /// </summary>
-    /// <remarks>
-    /// A root holding no file to establish the agreement from is a library with nothing under it
-    /// rather than a misconfiguration, so its sentence asks the reader for nothing.
-    /// </remarks>
     private static string Because(FolderAgreementRefusal refusal, string? tried)
         => refusal switch
         {
@@ -378,11 +257,8 @@ public static class ReflectOwnedJob
                 "This refusal has no sentence written down for it."),
         };
 
-    /// <summary>A run that reached no folder.</summary>
-    /// <remarks>
-    /// Stands for a run that reached no folder for ANY reason. Where there is a reason a reader can
-    /// act on, it rides on the record rather than on this instance.
-    /// </remarks>
+    // Stands for a run that reached no folder for any reason. A reason a reader can act on rides on
+    // the record rather than on this instance.
     private static ReflectOwnedRun Untaken { get; } =
         new(ReflectOwnedRunOutcome.Completed, 0, 0);
 

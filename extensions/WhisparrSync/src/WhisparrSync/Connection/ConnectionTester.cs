@@ -14,23 +14,16 @@ public interface IWhisparrConnectionTester
     /// Tests <paramref name="address"/> with <paramref name="apiKey"/> and classifies the answer.
     /// </summary>
     /// <remarks>
-    /// Takes both explicitly, because the transient test describes the address that was in the field
-    /// rather than the one that was last saved. Holds no state between calls, so two tests running at
-    /// once each describe their own address.
+    /// Holds no state between calls, so two tests running at once each describe their own address.
     /// </remarks>
     Task<ConnectionTestView> TestAsync(string? address, string? apiKey, CancellationToken ct);
 }
 
-/// <inheritdoc cref="IWhisparrConnectionTester"/>
 internal sealed class ConnectionTester(IWhisparrClient client, ILogger<ConnectionTester> logger)
     : IWhisparrConnectionTester
 {
-    /// <summary>How much of a name the answering instance chose is echoed back.</summary>
-    /// <remarks>
-    /// Long enough for every branch and application name either generation declares. The version
-    /// answers to the stored reading's ceiling instead, so the echoed version and the recorded one
-    /// cannot differ in length.
-    /// </remarks>
+    // How much of a name the answering instance chose is echoed back. The version is bounded by the
+    // stored reading's ceiling instead, so the echoed and the recorded version cannot differ.
     internal const int ReportedNameMaxLength = 64;
 
     public async Task<ConnectionTestView> TestAsync(string? address, string? apiKey, CancellationToken ct)
@@ -57,8 +50,8 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
         catch (Exception failure)
             when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
-            // Best-effort, and therefore exactly one line. The caller turns this into an answer for the
-            // user, so nothing here rethrows and nothing here is swallowed in silence.
+            // The caller turns this into an answer for the user, so nothing here rethrows and the
+            // swallowed failure emits exactly one line.
             var category = CategoryOf(failure);
             WhisparrSyncLog.ConnectionTransportFailure(logger, category, baseAddress.Host);
             observation = ConnectionObservation.TransportFailed(category);
@@ -67,19 +60,9 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
         return Describe(observation, baseAddress);
     }
 
-    /// <summary>
-    /// Reads <paramref name="address"/> and <paramref name="apiKey"/> as a connection a request may be
-    /// made with, and names the setting that is empty when it cannot.
-    /// </summary>
-    /// <remarks>
-    /// The address is examined first, so a call supplying neither setting names the address rather than
-    /// varying between runs. <paramref name="baseAddress"/> is still set on a refusal the key caused,
-    /// so that refusal can echo the address it would have been made against.
-    /// </remarks>
-    /// <param name="address">The base address, as it was typed or stored.</param>
-    /// <param name="apiKey">The key, as it was typed or stored.</param>
-    /// <param name="baseAddress">The address a request may be made to, or null when it is not one.</param>
-    /// <param name="missing">The empty setting, meaningful only when this returns false.</param>
+    // Names the setting that is empty when the pair cannot be read. The address is examined first, so
+    // a call supplying neither names the address. baseAddress is still set on a refusal the key
+    // caused, so that refusal can echo the address it would have used.
     internal static bool TryReadConnection(
         string? address,
         [NotNullWhen(true)] string? apiKey,
@@ -96,14 +79,9 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
         return !string.IsNullOrWhiteSpace(apiKey);
     }
 
-    /// <summary>
-    /// Reads <paramref name="address"/> as an address a request may be made to.
-    /// </summary>
-    /// <remarks>
-    /// Rebuilt from its scheme, authority and path rather than used as typed: the authority carries no
-    /// user-info, so anything a user embedded as credentials is dropped here and cannot reach a log
-    /// line, a response body or the outbound request.
-    /// </remarks>
+    // Rebuilt from scheme, authority and path rather than used as typed. The authority carries no
+    // user-info, so credentials a user embedded cannot reach a log line, a response body or the
+    // outbound request.
     internal static bool TryReadAddress(string? address, [NotNullWhen(true)] out Uri? baseAddress)
     {
         baseAddress = null;
@@ -119,21 +97,13 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
         return true;
     }
 
-    /// <summary>
-    /// <paramref name="address"/> with the parts that do not change where it points removed.
-    /// </summary>
-    /// <remarks>
-    /// Surrounding space and trailing separators only. Nothing is added: an address with no scheme is
-    /// left without one, so it is refused and named rather than turned into a guess at what was meant.
-    /// </remarks>
+    // Strips surrounding space and trailing separators only. Nothing is added: an address with no
+    // scheme is left without one, so it is refused rather than guessed at.
     internal static string NormaliseAddress(string? address)
         => (address ?? "").Trim().TrimEnd('/');
 
-    /// <summary>Whether the two addresses point at the same instance.</summary>
-    /// <remarks>
-    /// A trailing separator and letter case do not count as an edit, so neither discards a reading
-    /// taken against the address before it.
-    /// </remarks>
+    // A trailing separator and letter case do not count as an edit, so neither discards a reading
+    // taken against the address before it.
     internal static bool IsSameAddress(string? left, string? right)
         => string.Equals(
             NormaliseAddress(left), NormaliseAddress(right), StringComparison.OrdinalIgnoreCase);
@@ -146,8 +116,6 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
         _ => ConnectionTransportFailure.NoResponse,
     };
 
-    // The classifier and the detector are both pure and both read the same document, so the kind and
-    // the reading on one view cannot disagree.
     private static ConnectionTestView Describe(ConnectionObservation observation, Uri baseAddress)
     {
         var kind = ConnectionFailureClassifier.Classify(observation);
@@ -159,13 +127,11 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
                 ? appName
                 : null;
 
-        // The capability set is built here because this is where a connection is established: it
-        // describes the generation that answered, not the one the settings currently select.
+        // The capability set describes the generation that answered, not the one the settings select.
         var connected = kind == ConnectionFailureKind.Connected ? reading.Generation : null;
 
         // Nothing between the response buffer's ceiling and this projection bounds what the answering
-        // instance chose to send. The version is held to the stored reading's ceiling because the
-        // stored reading is taken from it.
+        // instance sent, so every echoed string is shortened here.
         return new ConnectionTestView(
             kind,
             connected,

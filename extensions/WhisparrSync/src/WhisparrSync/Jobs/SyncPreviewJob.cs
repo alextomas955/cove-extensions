@@ -7,39 +7,20 @@ using WhisparrSync.Library;
 
 namespace WhisparrSync.Jobs;
 
-/// <summary>What one count needs from the connected instance, already aimed at it.</summary>
-/// <remarks>
-/// Resolved when the run STARTS rather than when it was asked for. Which instance is connected is a
-/// setting a person edits, and a count enqueued minutes ago must not compare against an address read
-/// before that.
-/// <para>
-/// Which count runs follows from <paramref name="Registers"/>, and the read that count needs is the
-/// one supplied. The two are not interchangeable: one asks a batch of scene identifiers and the
-/// other a batch of stored studio identifiers, and a generation registers one of the two.
-/// </para>
-/// </remarks>
-/// <param name="Generation">Whose namespace the library's own identifiers are read under.</param>
-/// <param name="Registers">What a run against this instance would register in it.</param>
-/// <param name="Held">Which of one batch of scene identifiers the instance already holds.</param>
-/// <param name="HeldSites">
-/// Which of one batch of stored studio identifiers the instance already holds a site for, and which
-/// of them the metadata source names no site for. Raises rather than answering a short reading where
-/// nothing could be established, because an identifier absent from both sets lands in the
-/// not-yet-there column on the strength of nothing.
-/// </param>
+// Resolved when the run starts, not when it was enqueued: which instance is connected is a setting
+// a person edits.
+// Registers decides which count runs. Held and HeldSites are not interchangeable: one asks a batch
+// of scene identifiers and the other a batch of stored studio identifiers.
+// HeldSites raises rather than answering a short reading, because an identifier absent from both its
+// sets would land in the not-yet-there column on the strength of nothing.
 internal sealed record SyncPreviewAiming(
     WhisparrGeneration Generation,
     SyncRegisters Registers,
     Func<IReadOnlyCollection<string>, CancellationToken, Task<IReadOnlySet<string>>>? Held,
     Func<IReadOnlyCollection<string>, CancellationToken, Task<SiteBatchReading>>? HeldSites);
 
-/// <summary>What one batch of stored studio identifiers was answered with.</summary>
-/// <remarks>
-/// The two sets are disjoint, and neither is the whole batch: an identifier in neither is one the
-/// metadata source numbered and the instance holds no site for.
-/// </remarks>
-/// <param name="Held">Those the instance already holds a site for.</param>
-/// <param name="NamesNone">Those the metadata source names no site for.</param>
+// The two sets are disjoint and neither is the whole batch: an identifier in neither is one the
+// metadata source numbered and the instance holds no site for.
 internal sealed record SiteBatchReading(
     IReadOnlySet<string> Held,
     IReadOnlySet<string> NamesNone);
@@ -49,90 +30,38 @@ internal sealed record SiteBatchReading(
 /// </summary>
 public static class SyncPreviewJob
 {
-    /// <summary>The job id this extension's own type prefix is minted onto.</summary>
     public const string JobId = "sync-preview";
 
-    /// <summary>How many identifiers one comparison request asks about.</summary>
-    /// <remarks>
-    /// 1,000 is the largest size measured to answer 200 against
-    /// whisparr:v3-3.3.8-release.1097 on 2026-09-10; 250 and 1,000 were both accepted.
-    /// <para>
-    /// It also has to keep a batch's worst-case answer inside
-    /// <see cref="Whisparr.WhisparrClient.MaxResponseBytes"/>, because the transport refuses a
-    /// larger answer outright rather than truncating it. An answered entry measures about
-    /// <see cref="MeasuredBytesPerHit"/> bytes, so a full batch answered in its entirety is about
-    /// 2.3 MiB against an 8 MiB bound.
-    /// </para>
-    /// </remarks>
+    // The largest batch measured to answer 200 against whisparr:v3-3.3.8-release.1097 on 2026-09-10.
+    // It also keeps a batch's worst-case answer inside WhisparrClient.MaxResponseBytes, which the
+    // transport refuses outright rather than truncating: ChunkSize times MeasuredBytesPerHit is
+    // about 2.3 MiB against an 8 MiB bound.
     internal const int ChunkSize = 1000;
 
-    /// <summary>What one answered entry costs, measured against the same instance and date.</summary>
-    /// <remarks>
-    /// Held as a constant so the bound above is arithmetic a test can re-derive, rather than a
-    /// figure written once in prose and never checked again.
-    /// </remarks>
+    // What one answered entry costs, measured against the same instance and date. A constant so the
+    // bound above is arithmetic a test can re-derive.
     internal const int MeasuredBytesPerHit = 2370;
 
-    /// <summary>How many of one site's own scene reads are in flight at once.</summary>
-    /// <remarks>
-    /// A pacing bound and not a ceiling on how many reads are issued. Every scene the reader owns on
-    /// the site is read, however many that is; what this bounds is how many of those reads are
-    /// outstanding at any moment, and it is one because the instance's own request queue is the
-    /// shared resource - the same reason the library run keeps one request in flight.
-    /// <para>
-    /// Raising it costs the instance rather than costing the answer. A bound on how many reads are
-    /// issued would cost the answer: it would leave part of the library unmonitored and report a
-    /// total that reads exactly like a complete one.
-    /// </para>
-    /// </remarks>
+    // A pacing bound, not a ceiling on how many reads are issued: every scene the reader owns on the
+    // site is read. One, because the instance's request queue is the shared resource. A bound on how
+    // many reads are issued would leave part of the library unmonitored and report a total that
+    // reads like a complete one.
     internal const int SiteSceneReadsInFlight = 1;
 
-    /// <summary>How many metadata resolves one site comparison keeps outstanding.</summary>
-    /// <remarks>
-    /// A pacing bound and not a ceiling on how many resolves are issued, the way the batch size's
-    /// neighbours are. Every studio the library yields is resolved; what this bounds is how many of
-    /// those are waiting on the metadata source at any moment.
-    /// <para>
-    /// Measured against a 525-studio library on 2026-09-13: at four, 522 resolved and none was
-    /// rate-limited; at eight, 144 of the 525 were rejected.
-    /// </para>
-    /// <para>
-    /// It is not a second rate bound. <see cref="Providers.ProviderPacer"/> already holds the rate
-    /// to the host's own metadata-server setting, which is stricter than the rate four callers
-    /// reach. What the pacer does not bound is how many callers wait: past its queue depth a caller
-    /// is refused immediately rather than queued, and that arrives here as a source that was not
-    /// reached, which ends the count. A whole batch resolved at once would lose part of itself that
-    /// way.
-    /// </para>
-    /// </remarks>
+    // A pacing bound, not a ceiling: every studio the library yields is resolved. Measured against a
+    // 525-studio library on 2026-09-13: at four, 522 resolved and none was rate-limited; at eight,
+    // 144 of the 525 were rejected.
+    // Not a second rate bound. ProviderPacer already holds the rate to the host's metadata-server
+    // setting. What it does not bound is how many callers wait: past its queue depth a caller is
+    // refused immediately, which arrives here as a source that was not reached and ends the count.
     internal const int MetadataResolvesInFlight = 4;
 
-    /// <summary>
-    /// Counts the library's identified scenes against what the instance holds, inside ONE scope
-    /// elevated to System, and holds the result.
-    /// </summary>
-    /// <remarks>
-    /// The run carries no principal of its own, and Cove's per-principal query filters answer an
-    /// anonymous reader with zero rows and no error, which here would report an empty library.
-    /// <para>
-    /// Nothing per scene is held: the only collection alive at once is one batch of identifiers,
-    /// bounded by <see cref="ChunkSize"/> whatever the library holds.
-    /// </para>
-    /// <para>
-    /// A batch the instance did not answer ends the whole count. Three counts arrive together or not
-    /// at all, because a count missing one of its numbers reads as a zero.
-    /// </para>
-    /// </remarks>
-    /// <param name="scopes">The scope factory the extension was handed at initialization.</param>
-    /// <param name="aiming">
-    /// What the count needs from the connected instance, over the run's own elevated services, or
-    /// null where there is nothing to compare against.
-    /// </param>
-    /// <param name="log">This extension's own logger.</param>
-    /// <param name="ct">Cancelled when the host stops the job.</param>
-    /// <exception cref="InvalidOperationException">
-    /// A batch could not be compared, so no count was held.
-    /// </exception>
+    // Runs as System: the job carries no principal, and Cove's per-principal filters answer an
+    // anonymous reader with zero rows and no error, so the library would read as empty.
+    // Nothing per scene is held: the only collection alive at once is one batch of identifiers,
+    // bounded by ChunkSize whatever the library holds.
+    // A batch the instance did not answer throws and ends the whole count. The three counts arrive
+    // together or not at all, because a count missing one of its numbers reads as a zero.
     internal static Task<SyncPreviewView?> RunAsync(
         IServiceScopeFactory scopes,
         Func<IServiceProvider, CancellationToken, Task<SyncPreviewAiming?>> aiming,
@@ -157,11 +86,7 @@ public static class SyncPreviewJob
         });
     }
 
-    /// <summary>The one line the host's job list shows for <paramref name="counted"/>.</summary>
-    /// <remarks>
-    /// Counts rather than a list of scenes, and it says nothing about the entries the instance
-    /// creates by itself alongside them: the three numbers are what a reader acts on.
-    /// </remarks>
+    // Counts, never a list of scenes: the line must not grow with the library.
     internal static string SummaryOf(SyncPreviewView counted)
     {
         ArgumentNullException.ThrowIfNull(counted);
@@ -185,20 +110,10 @@ public static class SyncPreviewJob
                 nameof(aimed), aimed.Registers, "This is not a count this product takes."),
         };
 
-    /// <summary>
-    /// Counts every site the library's studios name against what the instance holds.
-    /// </summary>
-    /// <remarks>
-    /// One request per batch, and nothing caps how many batches are asked: the whole stream is read
-    /// however many studios the reader owns, and a cap would answer a short already-there and
-    /// not-yet-there pair that reads exactly like a complete one. What is bounded is how many
-    /// metadata resolves one batch keeps outstanding, which is
-    /// <see cref="MetadataResolvesInFlight"/>.
-    /// <para>
-    /// Nothing per site is held. One batch of identifiers is alive at a time, bounded by
-    /// <see cref="ChunkSize"/> whatever the library holds, and the three answers are integers.
-    /// </para>
-    /// </remarks>
+    // Nothing caps how many batches are asked: a cap would answer a short pair that reads like a
+    // complete one. What is bounded is MetadataResolvesInFlight.
+    // Nothing per site is held: one batch of identifiers is alive at a time, bounded by ChunkSize
+    // whatever the library holds, and the three answers are integers.
     private static async Task<SyncPreviewView> CompareSitesAsync(
         ILibrarySceneIdentityPort identities,
         SyncPreviewAiming aimed,

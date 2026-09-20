@@ -27,14 +27,14 @@ public enum WhisparrVerbClass
     Read,
 
     /// <summary>
-    /// A request that changes the instance's own configuration. Never re-issued: a second attempt
-    /// after an answer that did not arrive would act twice.
+    /// Changes the instance's own configuration. Never re-issued: a second attempt after an answer
+    /// that did not arrive would act twice.
     /// </summary>
     Configure,
 
     /// <summary>
-    /// A request that changes what an instance monitors. Never re-issued: a second attempt after an
-    /// answer that did not arrive would act twice.
+    /// Changes what an instance monitors. Never re-issued: a second attempt after an answer that did
+    /// not arrive would act twice.
     /// </summary>
     Act,
 
@@ -67,21 +67,17 @@ public static class WhisparrRetryPolicy
 }
 
 /// <summary>What one Whisparr request answered with.</summary>
-/// <param name="StatusCode">The HTTP status.</param>
-/// <param name="ContentType">
-/// The <c>Content-Type</c> header as received, unparsed. A rejected key answers with none on both
-/// generations, so the empty case is a real observation rather than a missing one.
-/// </param>
-/// <param name="Body">The response body as text; empty when there was none.</param>
+/// <remarks>
+/// The content type is the header as received, unparsed. A rejected key answers with none on both
+/// generations, so an empty one is a real observation. The body is empty when there was none.
+/// </remarks>
 public sealed record WhisparrResponse(int StatusCode, string? ContentType, string Body)
 {
     /// <summary>Why no entity was named, where a seam established that without an instance.</summary>
     /// <remarks>
     /// A v2 site is addressed by a number the metadata source issues, so a site nothing could be
     /// numbered for is refused before any request leaves and there is no status to classify. The
-    /// seam states the reason here instead, so a caller reads the fact rather than a status this
-    /// product would otherwise have had to invent, and the two readings that mean different things
-    /// to a reader stay apart.
+    /// reason is stated here instead of inventing a status.
     /// <para>
     /// <see cref="MonitorRefusalKind.None"/> on every answer that came from an instance, which is
     /// classified from its status.
@@ -94,28 +90,12 @@ public sealed record WhisparrResponse(int StatusCode, string? ContentType, strin
 /// The one seam through which this extension talks to a Whisparr instance.
 /// </summary>
 /// <remarks>
-/// Deliberately narrow: there is no method taking a caller-supplied path and none taking an HTTP
-/// verb, so no call site can express a request that makes Whisparr search for or download anything.
-/// Widening it is the decision that would have to be taken openly.
+/// Narrow by design: no method takes a caller-supplied path and none takes an HTTP verb, so no call
+/// site can express a request that makes Whisparr search for or download anything.
 /// <para>
-/// <see cref="ReadRootFoldersAsync"/> was added under that rule. It takes no caller-supplied path,
-/// no caller-supplied identifier and no verb, so the constraint above still holds over the whole
-/// interface.
-/// </para>
-/// <para>
-/// <see cref="ReadHistoryAsync"/> was added under the same rule, and is a read because re-issuing it
-/// reads again and grabs nothing. It names a page, a page size and a lineage; the route, the order
-/// and the entity spelling belong to the seam, so no call site supplies any of them.
-/// </para>
-/// <para>
-/// <see cref="ReadQualityProfilesAsync"/> was added under the same rule. It takes no caller-supplied
-/// path, no caller-supplied identifier and no verb.
-/// </para>
-/// <para>
-/// The verbs that change what an instance monitors were deliberately NOT added here. They are the
-/// roles in <c>WhisparrSync.Monitoring</c>, and the one verb that can make an instance download is
-/// alone on <c>IWhisparrSearchGrabbing</c> there. Each is obtained by name through a capability set,
-/// so the constraint above stays true of this interface however far the acting surface grows.
+/// The verbs that change what an instance monitors are not here. They are the roles in
+/// <c>WhisparrSync.Monitoring</c>, and the one verb that can make an instance download is alone on
+/// <c>IWhisparrSearchGrabbing</c> there.
 /// </para>
 /// </remarks>
 public interface IWhisparrClient
@@ -131,9 +111,9 @@ public interface IWhisparrClient
     /// <exception cref="HttpRequestException">The request produced no response.</exception>
     /// <exception cref="IOException">
     /// The response ended before the length it declared. The body is read out of the response stream
-    /// rather than buffered inside the send, so a connection dropped part way through one raises this
-    /// rather than <see cref="HttpRequestException"/>. Every caller that contains one contains the
-    /// other, because both mean no whole answer arrived.
+    /// rather than buffered inside the send, so a dropped connection raises this rather than
+    /// <see cref="HttpRequestException"/>. Both mean no whole answer arrived, so a caller containing
+    /// one contains the other.
     /// </exception>
     /// <exception cref="TaskCanceledException">The request outlived the client's timeout.</exception>
     Task<WhisparrResponse> ReadStatusAsync(Uri baseAddress, string apiKey, CancellationToken ct);
@@ -153,9 +133,8 @@ public interface IWhisparrClient
 
     /// <summary>Reads the quality profiles the instance offers.</summary>
     /// <remarks>
-    /// An add cannot be composed without one, and which profiles exist is the instance's own and not
-    /// this product's to assume: a profile id it does not offer is refused by one generation and
-    /// accepted by the other.
+    /// An add cannot be composed without one, and which profiles exist is the instance's own: a
+    /// profile id it does not offer is refused by one generation and accepted by the other.
     /// </remarks>
     Task<WhisparrResponse> ReadQualityProfilesAsync(Uri baseAddress, string apiKey, CancellationToken ct);
 
@@ -163,22 +142,14 @@ public interface IWhisparrClient
     /// Reads one page of the instance's import history, with each record's own metadata entity.
     /// </summary>
     /// <remarks>
-    /// The newest-first order is asked for and not relied on: whether the route honours the request is
-    /// unmeasured, so a caller reads the page's own order and refuses one it cannot walk.
-    /// <para>
-    /// Which entity to embed is the one thing the generation decides here. The route, the order and
-    /// the request to embed at all belong to the seam, so no call site supplies any of them.
-    /// </para>
+    /// The newest-first order is asked for and not relied on: whether the route honours the request
+    /// is unmeasured, so a caller reads the page's own order and refuses one it cannot walk. Pages
+    /// count from one. The generation decides which metadata entity is embedded; the route and the
+    /// order belong to the seam.
     /// </remarks>
-    /// <param name="baseAddress">The instance to read from.</param>
-    /// <param name="apiKey">The key that instance authenticates the read with.</param>
-    /// <param name="generation">The lineage whose entity spelling the page is asked for.</param>
-    /// <param name="page">Which page, counting from one.</param>
-    /// <param name="pageSize">How many records that page holds at most.</param>
-    /// <param name="ct">Cancels the read.</param>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="page"/> or <paramref name="pageSize"/> is below one, or
-    /// <paramref name="generation"/> is not a lineage this product reads.
+    /// <paramref name="generation"/> is not a generation this reads.
     /// </exception>
     Task<WhisparrResponse> ReadHistoryAsync(
         Uri baseAddress,
@@ -190,23 +161,16 @@ public interface IWhisparrClient
 
     /// <summary>Reads the command <paramref name="commandId"/> names back off the instance.</summary>
     /// <remarks>
-    /// Proves that the instance holds the command, which is what a caller that just posted one can
-    /// establish. It proves nothing about anything being downloaded: the command's own progress is
-    /// the instance's business, and no answer here says a release was taken.
-    /// <para>
-    /// A read, so re-issuing it reads again and grabs nothing. The identifier comes off the answer
-    /// to the post rather than from a caller.
-    /// </para>
+    /// Establishes that the instance holds the command and nothing about anything being downloaded.
+    /// The identifier comes off the answer to the post rather than from a caller.
     /// </remarks>
     Task<WhisparrResponse> ReadCommandAsync(
         Uri baseAddress, string apiKey, int commandId, CancellationToken ct);
 
     /// <summary>Creates one notification.</summary>
     /// <remarks>
-    /// Never re-issued on a failure, whatever the failure is. The instance enforces name uniqueness,
-    /// so a second attempt after an answer that did not arrive is refused rather than duplicated -
-    /// but the answer to that refusal is indistinguishable from a real one, so the re-issue is not
-    /// made at all.
+    /// Never re-issued on a failure. The instance refuses a duplicate name, but that refusal cannot
+    /// be told from a real one, so no second attempt is made.
     /// </remarks>
     Task<WhisparrResponse> CreateNotificationAsync(
         Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct);
@@ -217,17 +181,12 @@ public interface IWhisparrClient
         Uri baseAddress, string apiKey, int id, JsonNode body, CancellationToken ct);
 }
 
-/// <inheritdoc cref="IWhisparrClient"/>
-/// <remarks>
-/// The acting roles are implemented here rather than on a type of their own, because this is the one
-/// type holding an outbound surface and a second holder would be a second one for every invariant
-/// that reflects over this one to cover.
-/// <para>
-/// Each generation's requests are composed by its own generated client, v3 through
-/// <see cref="Whisparr3Gateway"/> and v2 through <see cref="Whisparr2Gateway"/>. The routes
-/// still declared here are sent through the held <see cref="HttpClient"/>.
-/// </para>
-/// </remarks>
+// The acting roles are implemented here rather than on a type of their own: this is the one type
+// holding an outbound surface, and every route invariant reflects over it.
+//
+// Each generation's requests are composed by its own generated client, v3 through Whisparr3Gateway
+// and v2 through Whisparr2Gateway. The routes still declared here are sent through the held
+// HttpClient.
 internal sealed class WhisparrClient(
     HttpClient http,
     Whisparr3Gateway v3Gateway,
@@ -250,24 +209,21 @@ internal sealed class WhisparrClient(
         IWhisparrHeldSiteReading,
         IWhisparrInstanceFilesystemReading
 {
-    /// <summary>The header both generations authenticate an API request with.</summary>
+    // The header both v2 and v3 authenticate an API request with.
     internal const string ApiKeyHeader = "X-Api-Key";
 
     // Relative, so they compose onto a base address carrying a URL base (a reverse-proxy subpath).
     // Both generations serve the v3 route family; the version in the path is not the generation.
     private const string NotificationPath = "api/v3/notification";
 
-    // Every route this product composes itself is declared on this type, whichever role issues it.
-    // The route invariant reads this type's own literals, so a constant declared anywhere else is
-    // invisible to it and the transcribed set it is compared against would still agree. The routes
-    // the generated client composes are not literals here, and the invariant names them separately.
+    // Every self-composed route is declared on this type, whichever role issues it: the route
+    // invariant reads this type's own literals, so a constant declared elsewhere is invisible to it.
     internal const string StudioPath = "api/v3/studio";
     internal const string ExclusionsPath = "api/v3/exclusions";
 
-    // The one status this product composes rather than receives. Whisparr v2 answers "do you hold
-    // this site" only as a row inside its own list, so an absent row is reported in the spelling a
-    // caller already classifies. Named rather than written inline so a reader is not left to infer
-    // that an instance sent it.
+    // The one status composed rather than received. Whisparr v2 answers "do you hold this site" only
+    // as a row inside its own list, so an absent row is reported in the spelling a caller already
+    // classifies.
     private const int AssembledNotHeld = 404;
 
     // No request was sent, so there is no status to report. Zero is no status rather than a composed
@@ -277,57 +233,42 @@ internal sealed class WhisparrClient(
     // The member naming the verb on a composed command body.
     private const string CommandNameProperty = "name";
 
-    // The order belongs to the verb rather than to a call: newest-first is the only order a walk that
-    // stops at a stored position can read, and a call site free to spell it could ask for another.
+    // Newest-first is the only order a walk that stops at a stored position can read, so the order
+    // belongs to the verb rather than to a call.
     private const string NewestFirstSortKey = "date";
 
-    /// <summary>How long one attempt may take before it is reported as unreachable.</summary>
+    // How long one attempt may take before it is reported as unreachable.
     internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
-    /// <summary>
-    /// How long a read of everything the instance holds may take before it is reported as
-    /// unreachable.
-    /// </summary>
-    /// <remarks>
-    /// Separate from <see cref="RequestTimeout"/> because the two bound different things. A per-item
-    /// call that has not answered in fifteen seconds is not coming. A read of everything an instance
-    /// holds is answered only once the instance has built all of it, which is work whose cost grows
-    /// with its holdings rather than a sign it cannot be reached: a v2 instance holding 512 sites
-    /// takes about 20 seconds to answer <c>GET /api/v3/series</c>, all of it before the first byte.
-    /// The ceiling is set well above that so several times the holdings still answers, and below
-    /// where a reader waiting on a count they asked for would take the product for hung.
-    /// </remarks>
+    // A read of everything an instance holds is answered only once the instance has built all of it,
+    // so its cost grows with the holdings rather than signalling that it cannot be reached: a v2
+    // instance holding 512 sites takes about 20 seconds to answer GET /api/v3/series, all of it
+    // before the first byte. Set well above that, and below where a waiting reader reads it as hung.
     internal static readonly TimeSpan LibraryReadTimeout = TimeSpan.FromSeconds(120);
 
-    /// <summary>
-    /// How many redirects the client follows. A login redirect is a real deployment, and following an
-    /// unbounded chain of them is not.
-    /// </summary>
+    // A login redirect is a real deployment; an unbounded chain of them is not.
     internal const int MaxRedirects = 3;
 
-    /// <summary>How much of one answer the client will hold in memory before refusing it.</summary>
-    /// <remarks>
-    /// Exceeding it answers <see cref="MonitorRefusalKind.AnswerTooLargeToRead"/> with an empty body,
-    /// rather than a short body, which would parse as a valid page.
-    /// </remarks>
+    // How much of one answer is held in memory before it is refused. Exceeding it answers
+    // MonitorRefusalKind.AnswerTooLargeToRead with an empty body, never a short body that would
+    // parse as a valid page.
     internal const long MaxResponseBytes = 8L * 1024 * 1024;
 
-    // One byte past the bound is what tells an answer at the bound from one over it, so the read stops
-    // there rather than buffering whatever else arrived.
+    // One byte past the bound tells an answer at the bound from one over it.
     private const long ReadCeilingBytes = MaxResponseBytes + 1;
 
     private const int ReadChunkBytes = 64 * 1024;
 
     private static readonly JsonSerializerOptions ExclusionRowShape = new(JsonSerializerDefaults.Web);
 
-    // The two members of an exclusion row this product reads. Declared with no others so a row costs
-    // one small object that is dropped again before the next is read. The identifier is the row's
-    // own, which is what the removing route addresses; the foreign id is the scene's.
+    // The two members of an exclusion row that are read. Declared with no others so a row costs one
+    // small object that is dropped before the next is read. The id is the row's own, which the
+    // removing route addresses; the foreign id is the scene's.
     private sealed record ExclusionRow(int Id, string? ForeignId);
 
     private static readonly JsonSerializerOptions HeldSceneRowShape = new(JsonSerializerDefaults.Web);
 
-    // The two members of an answered entry this product reads. Declared with no others so a chunk's
+    // The two members of an answered entry that are read. Declared with no others so a chunk's
     // answer costs one small object per hit rather than the whole resource the instance sent.
     private sealed record HeldSceneRow(string? StashId, string? ForeignId);
 
@@ -396,10 +337,9 @@ internal sealed class WhisparrClient(
                     includeMovie: true,
                     cancellationToken: ct)),
 
-            // Each generation names its own metadata entity on this one route, and that entity is
-            // where the identifier the two ingest channels agree on lives. Asked for on the same
-            // request rather than through a second one, so what a page costs does not grow with what
-            // it holds.
+            // v2 and v3 name their own metadata entity on this route, and that entity carries the
+            // identifier the two ingest channels agree on. Embedded on the same request, so a page
+            // costs one request whatever it holds.
             WhisparrGeneration.V2 => GeneratedV2ReadAsync(
                 baseAddress,
                 apiKey,
@@ -497,10 +437,9 @@ internal sealed class WhisparrClient(
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
 
-    // On v3 a field-scoped patch, whose body carries only what changes: a
-    // whole-resource replace would write back a resource read a moment earlier, dropping whatever
-    // the read did not answer with. On v2 the flag travels on a list of exactly one row
-    // id, which is the only shape that route takes.
+    // On v3 a field-scoped patch carrying only what changes: a whole-resource replace would write
+    // back a resource read a moment earlier, dropping whatever the read did not answer with. On v2
+    // the flag travels on a list of exactly one row id, the only shape that route takes.
     public Task<WhisparrResponse> SetSceneMonitoredAsync(
         Uri baseAddress,
         string apiKey,
@@ -528,12 +467,8 @@ internal sealed class WhisparrClient(
         };
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// One request against the site's own row list, naming the site and nothing else. The members
-    /// that would attach images, files or the site resource are left off, so nothing arrives that
-    /// this read drops.
-    /// </remarks>
+    // One request against the site's own row list. The members that would attach images, files or
+    // the site resource are left off, so nothing arrives that this read drops.
     public async Task<IReadOnlyDictionary<int, int>> ReduceSiteSceneRowsAsync(
         Uri baseAddress,
         string apiKey,
@@ -569,19 +504,10 @@ internal sealed class WhisparrClient(
                 "The answer to the site's own scene rows is not a list of rows at all.");
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// One request against the instance's own site list, whatever the batch holds. The list is not
-    /// narrowed, and narrowing it would not help even where the route accepts it: this generation
-    /// builds the whole set before filtering, so <c>?tvdbId=</c> answers a single row no faster than
-    /// the unfiltered list answers all of them. Asking per site would pay that cost once per studio
-    /// in the library rather than once per count.
-    /// <para>
-    /// The read is bounded by <see cref="LibraryReadTimeout"/> rather than
-    /// <see cref="RequestTimeout"/>, because what it waits on is the instance's own work over its
-    /// holdings.
-    /// </para>
-    /// </remarks>
+    // One request against the instance's own site list, whatever the batch holds. Narrowing would
+    // not help: v2 builds the whole set before filtering, so ?tvdbId= answers a single row no faster
+    // than the unfiltered list answers all of them. The read is bounded by LibraryReadTimeout,
+    // because what it waits on is the instance's own work over its holdings.
     public async Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
         Uri baseAddress,
         string apiKey,
@@ -684,21 +610,13 @@ internal sealed class WhisparrClient(
             .ConfigureAwait(false);
     }
 
-    /// <summary>Whether v2's instance holds the entity named by an identifier.</summary>
-    /// <remarks>
-    /// One read, narrowed to the number the metadata source names the site by, so how much it
-    /// answers does not vary with how much the instance holds. Only the matched entry is carried
-    /// onward, because this generation narrows its own answer by no parameter it publishes a
-    /// contract for.
-    /// <para>
-    /// How long it takes does vary with the holdings, which is why the read is bounded by
-    /// <see cref="LibraryReadTimeout"/> rather than <see cref="RequestTimeout"/>. This generation
-    /// builds its whole set before filtering, so the narrowed answer is no faster than the
-    /// unfiltered one: an instance holding 512 sites answers this in about 41 seconds while
-    /// returning a few kilobytes. Bounded as a per-item call it times out on every site, and the
-    /// site pass then registers and moves nothing.
-    /// </para>
-    /// </remarks>
+    // Whether v2's instance holds the entity an identifier names. One read, narrowed to the site's
+    // number, and only the matched entry is carried onward.
+    //
+    // How long it takes varies with the holdings, so the read is bounded by LibraryReadTimeout. v2
+    // builds its whole set before filtering, so the narrowed answer is no faster than the unfiltered
+    // one: an instance holding 512 sites answers in about 41 seconds. Bounded as a per-item call it
+    // times out on every site, and the site pass then registers and moves nothing.
     private async Task<WhisparrResponse> ReadHeldSeriesAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
     {
@@ -725,10 +643,8 @@ internal sealed class WhisparrClient(
             : new WhisparrResponse(AssembledNotHeld, listed.ContentType, string.Empty);
     }
 
-    /// <remarks>
-    /// One request. The add carries the number and the scope and nothing the metadata source said,
-    /// because the instance resolves the site's own title and slug from that number.
-    /// </remarks>
+    // The add carries the number and the scope and nothing the metadata source said: the instance
+    // resolves the site's own title and slug from that number.
     private async Task<WhisparrResponse> AddMonitoredSeriesAsync(
         Uri baseAddress,
         string apiKey,
@@ -752,11 +668,8 @@ internal sealed class WhisparrClient(
                 ct)).ConfigureAwait(false);
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// The same one request the monitoring add sends, with the presence-only body, so the catalogue
-    /// the instance then reads for the site is wanted by nothing.
-    /// </remarks>
+    // The same request the monitoring add sends, with the presence-only body, so the catalogue the
+    // instance then reads for the site is wanted by nothing.
     public async Task<WhisparrResponse> RegisterSiteAsync(
         Uri baseAddress,
         string apiKey,
@@ -779,20 +692,12 @@ internal sealed class WhisparrClient(
                 ct)).ConfigureAwait(false);
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// One read and one update, then the catalogue re-read that links the files. The update's body is
-    /// the resource the read answered rather than one composed here, for the reason the v3 scope
-    /// change re-sends its own read.
-    /// <para>
-    /// No transfer parameter is named, which is what leaves the files where they are.
-    /// </para>
-    /// <para>
-    /// The re-read is not optional. The update alone rewrites where the instance records the site and
-    /// links nothing: a site moved onto the root its media really sits under still reports no file
-    /// until the catalogue is re-read.
-    /// </para>
-    /// </remarks>
+    // One read and one update, then the catalogue re-read that links the files. The update's body is
+    // the resource the read answered rather than one composed here. No transfer parameter is named,
+    // which is what leaves the files where they are.
+    //
+    // The re-read is not optional: the update alone rewrites where the instance records the site and
+    // links nothing, so the site reports no file until the catalogue is re-read.
     public async Task<WhisparrResponse> MoveSiteRootAsync(
         Uri baseAddress,
         string apiKey,
@@ -833,7 +738,6 @@ internal sealed class WhisparrClient(
         return Refused(linked) ? linked : moved;
     }
 
-    /// <inheritdoc/>
     public Task<WhisparrResponse> RefreshSiteCatalogueAsync(
         Uri baseAddress, string apiKey, int siteId, CancellationToken ct)
     {
@@ -847,8 +751,8 @@ internal sealed class WhisparrClient(
     }
 
     // The typed resource beside the answer, because the update re-sends what the read answered.
-    // Re-parsing the text answer into a member set named here would drop every member this product
-    // does not name - the tags, the per-year flags, and whatever a later instance build adds.
+    // Re-parsing the text answer into a member set named here would drop every member not named
+    // here: the tags, the per-year flags, and whatever a later instance build adds.
     private async Task<(WhisparrResponse Answer, V2Model.SeriesResource? Held)>
         ReadSeriesResourceAsync(Uri baseAddress, string apiKey, int siteId, CancellationToken ct)
     {
@@ -867,11 +771,9 @@ internal sealed class WhisparrClient(
         return Refused(answered) ? (answered, null) : (answered, held);
     }
 
-    // Nothing was sent, so there is no status to report and the refusal is the whole of what a
-    // caller reads. A source naming no site is the no-identity reading, and a source that was not
-    // reached is not that: it establishes nothing about the site, and reporting it as unidentified
-    // would send a reader to fix an identity that may be correct. The body is empty, so no sentence
-    // a reader is shown can be composed from what the source said.
+    // Nothing was sent, so there is no status and the refusal is the whole of what a caller reads. A
+    // source naming no site is the no-identity reading; a source that was not reached is not, and
+    // reporting it as unidentified would send a reader to fix an identity that may be correct.
     private static WhisparrResponse NoSiteNumber(WhisparrSiteNumber numbered)
         => new(NoInstanceStatus, null, string.Empty)
         {
@@ -963,9 +865,9 @@ internal sealed class WhisparrClient(
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
 
-    // One key, single-valued. Repeating it answers only the first value's row, comma-joining answers
-    // nothing, and the two plural spellings this instance accepts are ignored and answer with the
-    // whole catalogue. A page built on either would look right on a small instance.
+    // One key, single-valued. Repeating it answers only the first value's row, comma-joining
+    // answers nothing, and the two plural spellings v3 accepts are ignored and answer with the whole
+    // catalogue.
     public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
         Uri baseAddress, string apiKey, string remoteId, CancellationToken ct)
         => GeneratedReadAsync(
@@ -986,9 +888,8 @@ internal sealed class WhisparrClient(
         ArgumentNullException.ThrowIfNull(providerSceneIds);
         ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
 
-        // Keyed without regard to case, because an identifier is a hexadecimal uuid and the two
-        // sides spell one in whichever case each stored it. The caller's own spelling is what is
-        // answered, so nothing downstream has to match a spelling this read chose.
+        // Keyed without regard to case: an identifier is a hexadecimal uuid and each side stored its
+        // own spelling. The caller's spelling is what is answered back.
         var asked = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var id in providerSceneIds)
         {
@@ -1004,9 +905,9 @@ internal sealed class WhisparrClient(
             return excluded;
         }
 
-        // An answer that did not arrive, or one this could not read, excludes nothing. Reporting a
-        // scene as excluded on the strength of a failed read would remove it from the surface with
-        // nothing saying why, so the walk's own outcome is deliberately left unread here.
+        // An answer that did not arrive, or one this could not read, excludes nothing: reporting a
+        // scene as excluded on a failed read would remove it from the surface with nothing saying
+        // why. The walk's own outcome is left unread here for that reason.
         await OverExclusionRowsAsync(
             baseAddress,
             apiKey,
@@ -1025,14 +926,11 @@ internal sealed class WhisparrClient(
         return excluded;
     }
 
-    // The batch counterpart of the single-scene read above, and the only member that asks about more
-    // than one scene at once. Each answered row is reduced to one question, so what this holds is the
-    // caller's own set and never the instance's. There is no row cap, for the reason the exclusion
-    // reduce has none.
+    // Each answered row is reduced to one question, so what this holds is the caller's own set and
+    // never the instance's. There is no row cap, for the reason the exclusion reduce has none.
     //
-    // The body is a BARE JSON array of identifier strings, which the generated model expresses. An
-    // object naming the ids as a member is answered 400, measured against
-    // whisparr:v3-3.3.8-release.1097 on 2026-09-10.
+    // The body is a bare JSON array of identifier strings. An object naming the ids as a member is
+    // answered 400, measured against whisparr:v3-3.3.8-release.1097.
     public async Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
         Uri baseAddress,
         string apiKey,
@@ -1042,9 +940,8 @@ internal sealed class WhisparrClient(
         ArgumentNullException.ThrowIfNull(foreignIds);
         ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
 
-        // Keyed without regard to case, because an identifier is a hexadecimal uuid and the two
-        // sides spell one in whichever case each stored it. The caller's own spelling is what is
-        // answered, so nothing downstream has to match a spelling this read chose.
+        // Keyed without regard to case: an identifier is a hexadecimal uuid and each side stored its
+        // own spelling. The caller's spelling is what is answered back.
         var asked = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var id in foreignIds)
         {
@@ -1067,9 +964,8 @@ internal sealed class WhisparrClient(
                 api => api.Api<V3Api.IMovieApi>().CreateMovieListAsync(wanted, ct))
             .ConfigureAwait(false);
 
-        // An answer this could not read is raised rather than reduced to an empty set. A caller
-        // comparing its library against this would otherwise report every scene it asked about as
-        // one the instance does not hold, which is the opposite of the truth.
+        // Raised rather than reduced to an empty set: a caller comparing its library against an
+        // empty set would report every scene it asked about as one the instance does not hold.
         if (answered.StatusCode is < 200 or > 299
             || answered.Refusal is not MonitorRefusalKind.None)
         {
@@ -1090,8 +986,8 @@ internal sealed class WhisparrClient(
 
         foreach (var row in rows ?? [])
         {
-            // The identifier is read off the row's own stash id, falling back to its foreign id:
-            // both carry the same uuid and which one an instance fills in is its own affair.
+            // The identifier is read off the row's stash id, falling back to its foreign id: both
+            // carry the same uuid and which one an instance fills in varies.
             var named = row?.StashId is { Length: > 0 } stashed ? stashed : row?.ForeignId;
             if (named is { Length: > 0 } spelled && asked.TryGetValue(spelled, out var asAsked))
             {
@@ -1114,9 +1010,8 @@ internal sealed class WhisparrClient(
             apiKey,
             row =>
             {
-                // Compared without regard to case for the reason the reduce above keys that way. A
-                // non-positive identifier is no address the removing route could take, so a row
-                // carrying one is passed over rather than answered.
+                // Compared without regard to case, as the reduce above keys. A non-positive
+                // identifier is no address the removing route could take, so such a row is skipped.
                 if (row.Id >= 1
                     && string.Equals(row.ForeignId, foreignId, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1138,25 +1033,13 @@ internal sealed class WhisparrClient(
             : SceneExclusionLookup.NamesNoExclusion;
     }
 
-    /// <summary>
-    /// Reads the instance's exclusion list row by row, until <paramref name="visit"/> answers false.
-    /// </summary>
-    /// <remarks>
-    /// No parameter narrows this route, so none is composed. A filter key, a bare foreign id and a
-    /// foreign id as a further segment were each measured against the instance: the first two are
-    /// ignored and answer the whole list under a success, and the third is a not-found. An ignored
-    /// parameter answering a success is indistinguishable from one that narrowed.
-    /// <para>
-    /// The answer is therefore read as it arrives and each row is dropped again before the next is
-    /// read, so nothing here grows with what the instance holds.
-    /// </para>
-    /// <para>
-    /// Sent once. Nothing is retained between rows, so a failure part way through has already
-    /// discarded what it read, and a re-issue would transfer the whole list a second time to answer
-    /// the same question.
-    /// </para>
-    /// </remarks>
-    /// <returns>Whether a whole answer arrived and could be read.</returns>
+    // Reads the exclusion list row by row until visit answers false, and answers whether a whole
+    // answer arrived and could be read.
+    //
+    // No parameter narrows this route: a filter key and a bare foreign id are both ignored and
+    // answer the whole list under a success, and a foreign id as a further segment is a not-found.
+    // The answer is read as it arrives and each row is dropped before the next, so nothing here
+    // grows with what the instance holds. Sent once, since nothing is retained between rows.
     private async Task<bool> OverExclusionRowsAsync(
         Uri baseAddress, string apiKey, Func<ExclusionRow, bool> visit, CancellationToken ct)
     {
@@ -1278,12 +1161,11 @@ internal sealed class WhisparrClient(
         return directory + (directory.Contains('\\') ? '\\' : '/');
     }
 
-    // The one member of this whole seam that can make an instance acquire anything, and the only one
-    // whose invocation is recorded on its own. Its verb class has no retry entry, so an attempt whose
-    // answer did not arrive is reported rather than re-issued: a second search is a second download.
+    // The one member of this seam that can make an instance acquire anything, and the only one whose
+    // invocation is recorded on its own. Its verb class has no retry entry: a second search is a
+    // second download.
     //
-    // How many commands the ids become is the generation's, not the caller's. v3's command
-    // names an id array and carries every id in one; v2's names a single scalar id, so
+    // v3's command names an id array and carries every id in one; v2's names a single scalar id, so
     // there it is one command per entity and the first answer that was not accepted is the one
     // reported. Either way each entity is searched once.
     public async Task<WhisparrResponse> SearchMonitoredAsync(
@@ -1323,10 +1205,8 @@ internal sealed class WhisparrClient(
         }
     }
 
-    // Recorded for the reason the entity search is, and given nothing at all: which scene, which
-    // instance and which key are either caller-supplied or credentials, and a log sink is durable and
-    // readable. Sent once, so an attempt whose answer did not arrive is reported rather than
-    // re-issued.
+    // Recorded as the entity search is, and given no arguments: the scene, the instance and the key
+    // are caller-supplied or credentials, and a log sink is durable and readable. Sent once.
     public Task<WhisparrResponse> SearchSceneAsync(
         Uri baseAddress, string apiKey, int sceneId, CancellationToken ct)
     {
@@ -1343,11 +1223,8 @@ internal sealed class WhisparrClient(
         return foreignId;
     }
 
-    /// <summary>Whether <paramref name="address"/> is one a socket may be opened to.</summary>
-    /// <remarks>
-    /// Checked before any request so a <c>file:</c> or <c>ftp:</c> address is refused rather than
-    /// handed to a handler that would act on it.
-    /// </remarks>
+    // Checked before any request, so a file: or ftp: address is refused rather than handed to a
+    // handler that would act on it.
     internal static bool IsAddressable(Uri address)
     {
         ArgumentNullException.ThrowIfNull(address);
@@ -1355,30 +1232,17 @@ internal sealed class WhisparrClient(
             && (address.Scheme == Uri.UriSchemeHttp || address.Scheme == Uri.UriSchemeHttps);
     }
 
-    /// <summary>Applies the settings every request through this client is made under.</summary>
-    /// <remarks>
-    /// The response bound is applied inside the send rather than here. A handler-level bound raises
-    /// <see cref="HttpRequestException"/>, which this product's failure classification reduces to a
-    /// type name a refused connection produces too, so a caller could not tell this product's own
-    /// limit from an instance it never reached.
-    /// <para>
-    /// The timeout set here is the number the send bounds a whole attempt with, not only the number
-    /// the framework applies. The framework's own timeout ends at the headers once the body is asked
-    /// for separately, so the send reads this value and bounds both phases with it.
-    /// </para>
-    /// </remarks>
+    // The settings every request through this client is made under. The timeout set here is the
+    // number the send bounds a whole attempt with: the framework's own timeout ends at the headers
+    // once the body is asked for separately, so the send reads this value and bounds both phases.
     internal static void Configure(HttpClient client)
     {
         ArgumentNullException.ThrowIfNull(client);
         client.Timeout = RequestTimeout;
     }
 
-    /// <summary>The handler every request through this client is made through.</summary>
-    /// <remarks>
-    /// Certificate validation stays at its default. A self-signed Whisparr therefore reports as
-    /// unreachable, which is an answer the user can act on; a bypass would make every instance's
-    /// identity unverifiable to buy it.
-    /// </remarks>
+    // Certificate validation stays at its default, so a self-signed Whisparr reports as unreachable
+    // rather than every instance's identity becoming unverifiable.
     internal static HttpMessageHandler CreateHandler()
         => new SocketsHttpHandler
         {
@@ -1573,9 +1437,8 @@ internal sealed class WhisparrClient(
         Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode body, CancellationToken ct)
         => SentOnceAsync(baseAddress, apiKey, method, path, body, ct);
 
-    // Sent once for the same reason, and named apart from a configure because the CLASS of work is
-    // what the retry policy is keyed on: an attempt count added for one class must not silently
-    // cover the other.
+    // Sent once for the same reason, and named apart from a configure because the retry policy is
+    // keyed on the class of work: an attempt count added for one class must not cover the other.
     private Task<WhisparrResponse> ActAsync(
         Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode body, CancellationToken ct)
         => SentOnceAsync(baseAddress, apiKey, method, path, body, ct);
@@ -1660,13 +1523,9 @@ internal sealed class WhisparrClient(
         }
     }
 
-    // Null when the answer is past the bound. Read here rather than bounded by the handler, so the
-    // limit is one this product can name: the handler's own bound raises an exception whose type a
-    // refused connection shares, and no caller could tell the two apart.
-    //
-    // The body of an answer past the bound is discarded unread beyond the ceiling and never returned.
-    // A refused add on one generation answers with a full stack trace, so the value the bound was
-    // passed reading is exactly the value that must not travel.
+    // Null when the answer is past the bound. Read here rather than bounded by the handler, whose
+    // own bound raises an exception whose type a refused connection shares. A body past the bound is
+    // discarded unread and never returned.
     private static async Task<string?> ReadWithinBoundAsync(HttpContent content, CancellationToken ct)
     {
         var stream = await content.ReadAsStreamAsync(ct).ConfigureAwait(false);

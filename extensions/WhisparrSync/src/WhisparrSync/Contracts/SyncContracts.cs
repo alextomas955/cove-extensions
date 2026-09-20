@@ -6,9 +6,7 @@ namespace WhisparrSync.Contracts;
 /// <summary>What a sync run registers in the connected instance.</summary>
 /// <remarks>
 /// Declared here rather than derived from the generation on the page, because this is a wire type
-/// and its spelling is part of this extension's contract. The converter is on the TYPE: an
-/// options-level one outranks a type attribute, so a second declaration could drift and win in
-/// silence.
+/// and its spelling is part of this extension's contract.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum SyncRegisters
@@ -22,8 +20,8 @@ public enum SyncRegisters
 
 /// <summary>Why the sync surface cannot answer or cannot act, or that it can.</summary>
 /// <remarks>
-/// The backend answers with a kind. The sentence a user reads is a frontend constant, so nothing an
-/// instance said can reach the copy.
+/// The backend answers with a kind, and the sentence a user reads is a frontend constant, so
+/// nothing an instance said can reach the copy.
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum SyncRefusalKind
@@ -39,8 +37,8 @@ public enum SyncRefusalKind
     /// to ask about.
     /// </summary>
     /// <remarks>
-    /// Its own kind because nothing clears it: a retry would read the same absence. A reader offered
-    /// a retry here would be offered a gesture that cannot change the answer.
+    /// Its own kind because nothing clears it: a retry would read the same absence, so a reader is
+    /// offered no retry here.
     /// </remarks>
     WhisparrKeepsNoSceneRecords,
 
@@ -59,8 +57,7 @@ public enum SyncRefusalKind
 /// <param name="Skipped">
 /// How many of the library's own entries this count can offer for nothing: they carry no identifier
 /// the instance names entries by, or, on a count of sites, the metadata source names no site for
-/// the identifier they carry. Both are entries a run could compose no add for, and a reader's
-/// answer to either is the same.
+/// the identifier they carry. Both are entries a run could compose no add for.
 /// </param>
 /// <param name="Registers">What a run would register in the instance.</param>
 /// <param name="CountedAt">When the count was taken, so the page can state its age.</param>
@@ -74,11 +71,9 @@ public sealed record SyncPreviewView(
 /// <summary>One read of the count slot, and whether a run is in flight behind it.</summary>
 /// <remarks>
 /// The three counts ride one member, so a read cannot answer two of them. A view missing one number
-/// would render as a zero, which is a confident report this product cannot support.
+/// would render as a zero, which is a confident report this product cannot support. <c>View</c> is
+/// null where no counts are in date.
 /// </remarks>
-/// <param name="View">The counts held, or null where none are in date.</param>
-/// <param name="Refusal">Why nothing can be counted, or that something can.</param>
-/// <param name="SyncRunning">Whether one of this extension's own sync runs is pending or running.</param>
 public sealed record SyncPreviewRead(
     SyncPreviewView? View, SyncRefusalKind Refusal, bool SyncRunning);
 
@@ -94,6 +89,5 @@ public sealed record SyncPreviewRead(
 public sealed record SyncRunRequest(bool AlsoMonitor);
 
 /// <summary>The job id a sync enqueue answered with, or why it answered none.</summary>
-/// <param name="JobId">What this extension's own status route answers about, or null on a refusal.</param>
-/// <param name="Refusal">Why nothing was started, or that something was.</param>
+/// <remarks>The job id is null on a refusal.</remarks>
 public sealed record SyncEnqueued(string? JobId, SyncRefusalKind Refusal);

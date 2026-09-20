@@ -6,22 +6,15 @@ namespace WhisparrSync.Contracts;
 
 /// <summary>One generation's stored connection, as the settings page reads it.</summary>
 /// <remarks>
-/// The recorded version and the instant it was verified are separate nullable members from the instant
-/// the instance last answered anything, because the two readings measure different things: a version is
-/// as old as the test that read it, while reachability is as recent as the last answer of any kind.
+/// <c>VersionVerifiedAtUtc</c> is separate from <c>LastReachableAtUtc</c> because the two readings
+/// measure different things: a version is as old as the test that read it, while reachability is as
+/// recent as the last answer of any kind. Null <c>VersionVerifiedAtUtc</c> is the never-verified
+/// state, which is a different state from a version that was verified and whose instance has since
+/// stopped answering.
 /// <para>
-/// A null <paramref name="VersionVerifiedAtUtc"/> is the never-verified state. It is a different state
-/// from a version that was verified and whose instance has since stopped answering, so the two never
-/// share one representation.
+/// <c>RecordedVersion</c> is the version string a successful test read, character for character.
 /// </para>
 /// </remarks>
-/// <param name="Address">The instance's base address, as it was saved.</param>
-/// <param name="KeyIsSet">Whether a key is stored for this generation.</param>
-/// <param name="RecordedVersion">
-/// The version string a successful test against this stored address read, character for character.
-/// </param>
-/// <param name="VersionVerifiedAtUtc">When that version was read, or null when none ever was.</param>
-/// <param name="LastReachableAtUtc">When this instance last answered anything at all.</param>
 public sealed record WhisparrSyncGenerationSettingsView(
     string Address,
     bool KeyIsSet,
@@ -37,12 +30,9 @@ public sealed record WhisparrSyncGenerationSettingsView(
 /// <para>
 /// The two generations are carried side by side rather than one at a time, so selecting the other
 /// generation and coming back returns the first unchanged with no second read.
+/// <c>UpgradeBehavior</c> is what a redelivery naming a different file does to the item.
 /// </para>
 /// </remarks>
-/// <param name="SelectedGeneration">The generation the page is acting on.</param>
-/// <param name="V3">The v3 connection.</param>
-/// <param name="V2">The v2 connection.</param>
-/// <param name="UpgradeBehavior">What a redelivery naming a different file does to the item.</param>
 public sealed record WhisparrSyncSettingsView(
     WhisparrGeneration SelectedGeneration,
     WhisparrSyncGenerationSettingsView V3,
@@ -54,10 +44,6 @@ public sealed record WhisparrSyncSettingsView(
 /// Three signals, because a form that submitted no key and a form asking for the stored key to be
 /// removed are different requests. Encoding the difference as "a blank means keep" would make it a
 /// convention nothing enforces.
-/// <para>
-/// The wire spelling is declared here, on the type. An equivalent converter in a serializer options
-/// collection would outrank this one rather than duplicate it.
-/// </para>
 /// </remarks>
 [JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum KeyWriteSignal
@@ -75,11 +61,9 @@ public enum KeyWriteSignal
 /// <summary>One generation's half of a settings save.</summary>
 /// <remarks>
 /// A generation this save omits entirely is left alone, which is what lets the page write the
-/// generation it is showing without restating the other.
+/// generation it is showing without restating the other. <c>ApiKey</c> is read only when
+/// <c>KeyWrite</c> is <see cref="KeyWriteSignal.Replace"/>.
 /// </remarks>
-/// <param name="Address">The instance's base address, as the operator typed it.</param>
-/// <param name="KeyWrite">Which of the three key writes this save is.</param>
-/// <param name="ApiKey">The key to store, read only when <paramref name="KeyWrite"/> replaces.</param>
 public sealed record WhisparrSyncGenerationSaveRequest(
     string? Address,
     KeyWriteSignal KeyWrite,
@@ -87,13 +71,9 @@ public sealed record WhisparrSyncGenerationSaveRequest(
 
 /// <summary>One settings save.</summary>
 /// <remarks>
-/// The key travels IN and never back out: nothing on the response side has a member that could carry
-/// it.
+/// The key travels in and never back out: nothing on the response side has a member that could
+/// carry it. A null generation half, or a null <c>UpgradeBehavior</c>, leaves that value alone.
 /// </remarks>
-/// <param name="SelectedGeneration">The generation the page is acting on.</param>
-/// <param name="V3">The v3 half, or null to leave v3 alone.</param>
-/// <param name="V2">The v2 half, or null to leave v2 alone.</param>
-/// <param name="UpgradeBehavior">The upgrade behaviour to store, or null to leave it alone.</param>
 public sealed record WhisparrSyncSettingsSaveRequest(
     WhisparrGeneration SelectedGeneration,
     WhisparrSyncGenerationSaveRequest? V3,

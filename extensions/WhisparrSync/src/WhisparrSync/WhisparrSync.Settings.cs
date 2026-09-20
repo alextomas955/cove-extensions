@@ -51,8 +51,8 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
-        // The same tier as the settings routes, and for the same reason: both read and write stored
-        // configuration, and the save aims this extension's stored credential at a third party.
+        // The settings tier: these read and write stored configuration, and the save aims the
+        // stored credential at a third party.
         endpoints.MapGet(FolderMappingsRoute,
             (ICurrentPrincipalAccessor principal, OptionsStore options, CancellationToken ct)
                 => ReadFolderMappingsAsync(principal, options, ct))
@@ -70,14 +70,6 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
 
-    /// <summary>
-    /// What this extension can see of the host's own configuration, of the host services it can
-    /// obtain, and of its worker's lifecycle, from inside its container.
-    /// </summary>
-    /// <remarks>
-    /// Opens no scope and touches no database: every member is a reading taken at load or an instant
-    /// in this extension's own lifecycle, rather than library data.
-    /// </remarks>
     internal Results<Ok<HostConfigurationView>, ForbiddenCode> HostConfiguration(
         ICurrentPrincipalAccessor principal)
         => HasReadPermission(principal)
@@ -90,20 +82,10 @@ public sealed partial class WhisparrSync
                 MetadataServerServiceResolved))
             : new ForbiddenCode();
 
-    /// <summary>
-    /// Tests one Whisparr connection, and reports which of the six outcomes it produced.
-    /// </summary>
-    /// <remarks>
-    /// A request naming neither an address nor a key tests the STORED connection, which is the one
-    /// call allowed to record what it read. A request naming either tests that pair and records
-    /// nothing about a version, because the instance it reaches may not be the stored one.
-    /// <para>
-    /// The gate is checked BEFORE the body is read, so a principal without it causes no outbound
-    /// request. Without that ordering the route would forward a request on behalf of a caller who is
-    /// not allowed to configure this extension, and the classified answer would tell them what sits
-    /// at an address they chose.
-    /// </para>
-    /// </remarks>
+    // A request naming neither an address nor a key tests the stored connection, which is the one
+    // call allowed to record what it read: another pair may not reach the stored instance.
+    // The gate is checked before the body is read, so a caller who cannot configure this extension
+    // causes no outbound request and learns nothing about an address of their choosing.
     internal static async Task<Results<Ok<ConnectionTestView>, ForbiddenCode>> ConnectionTestAsync(
         ConnectionTestRequest request,
         ICurrentPrincipalAccessor principal,
@@ -124,11 +106,8 @@ public sealed partial class WhisparrSync
                 : await runner.TestTransientAsync(request.Address, request.ApiKey, ct).ConfigureAwait(false));
     }
 
-    /// <summary>Reads the stored settings.</summary>
-    /// <remarks>
-    /// The answer cannot carry an API key: <see cref="WhisparrSyncSettingsView"/> has no member that
-    /// could hold one, and the key is never read here — only its presence is.
-    /// </remarks>
+    // The answer cannot carry an API key: the view has no member that could hold one, and only a
+    // key's presence is read.
     internal static async Task<Results<Ok<WhisparrSyncSettingsView>, ForbiddenCode>> ReadSettingsAsync(
         ICurrentPrincipalAccessor principal,
         OptionsStore options,
@@ -138,15 +117,6 @@ public sealed partial class WhisparrSync
             ? TypedResults.Ok(await ProjectSettingsAsync(options, credentials, ct).ConfigureAwait(false))
             : new ForbiddenCode();
 
-    /// <summary>Applies one settings save and answers with the settings as they now stand.</summary>
-    /// <remarks>
-    /// The gate is checked before the body is read, so a principal without it writes nothing.
-    /// <para>
-    /// The key is written before the options blob. The two are separate stores with no transaction
-    /// between them, so a save interrupted between the two leaves a stored key beside the address it
-    /// was entered against rather than beside an address nothing was entered for.
-    /// </para>
-    /// </remarks>
     internal async Task<Results<Ok<WhisparrSyncSettingsView>, ForbiddenCode>> SaveSettingsAsync(
         WhisparrSyncSettingsSaveRequest request,
         ICurrentPrincipalAccessor principal,
@@ -167,6 +137,9 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(clock);
 
+        // The key is written before the options blob. They are separate stores with no transaction
+        // between them, so an interrupted save leaves a stored key beside the address it was
+        // entered against rather than beside an address nothing was entered for.
         var now = clock.GetUtcNow();
         await credentials.ApplyAsync(
             WhisparrGeneration.V3, SettingsProjector.CredentialWriteFor(request.V3), now, ct)
@@ -187,19 +160,9 @@ public sealed partial class WhisparrSync
             await ProjectSettingsAsync(persisted, credentials, ct).ConfigureAwait(false));
     }
 
-    /// <summary>
-    /// Reads the refusals outstanding, one line per Whisparr root that has any, and how many records
-    /// the backstop could not take.
-    /// </summary>
-    /// <remarks>
-    /// The configure tier, which is the tier Cove's own bulk extension-data route already requires to
-    /// read these same values, so this route exposes nothing a caller could not already read. The gate
-    /// is checked before the store, so a principal without it causes no read.
-    /// <para>
-    /// The answer holds recorded filesystem paths. Its size is the stored aggregate's, which the
-    /// library's size does not enter into.
-    /// </para>
-    /// </remarks>
+    // The configure tier, which is what Cove's own bulk extension-data route already requires to
+    // read these same stored values. The answer's size is the stored aggregate's, not the
+    // library's.
     internal static async Task<Results<Ok<ImportBannerView>, ForbiddenCode>> ReadImportBannerAsync(
         ICurrentPrincipalAccessor principal,
         OptionsStore options,
@@ -216,18 +179,8 @@ public sealed partial class WhisparrSync
         return TypedResults.Ok(ImportBannerView.From(stored.ImportRefusals, stored.ImportHealth));
     }
 
-    /// <summary>
-    /// Reads the Cove library roots the connected instance established no path for, one line each.
-    /// </summary>
-    /// <remarks>
-    /// The configure tier, which is the tier Cove's own bulk extension-data route already requires to
-    /// read these same stored values, so this route exposes nothing a caller could not already read.
-    /// The gate is checked before the store, so a principal without it causes no read.
-    /// <para>
-    /// The answer holds recorded filesystem paths. Its size is the stored aggregate's, which the
-    /// library's size does not enter into.
-    /// </para>
-    /// </remarks>
+    // The configure tier, for the reason above. The answer's size is the stored aggregate's, not
+    // the library's.
     internal static async Task<Results<Ok<FolderAgreementView>, ForbiddenCode>>
         ReadFolderMappingsAsync(
             ICurrentPrincipalAccessor principal, OptionsStore options, CancellationToken ct)
@@ -244,18 +197,10 @@ public sealed partial class WhisparrSync
             FolderAgreementView.From(stored.OutboundRefusals, stored.OutboundMappings));
     }
 
-    /// <summary>Stores where an operator says one library root is, once a probe has resolved it.</summary>
-    /// <remarks>
-    /// The probe is the authority. A mapping typed into this route is built into a candidate and put
-    /// through the same reading a run takes, and it is stored only where the instance reported the
-    /// library's own sample file at the size the library holds. A path taken on trust would attach the
-    /// wrong file to a scene with nothing downstream to reveal it.
-    /// <para>
-    /// A save that resolved also clears that root's stored refusal, and the reading is held on the
-    /// spot, so the next run neither reports a refusal that no longer holds nor waits out the previous
-    /// reading's expiry.
-    /// </para>
-    /// </remarks>
+    // A typed mapping is stored only where the probe found the library's own sample file at the
+    // size the library holds. A path taken on trust would attach the wrong file to a scene with
+    // nothing downstream to reveal it. A save that resolved also clears that root's stored
+    // refusal, so the next run does not report a refusal that no longer holds.
     internal static async Task<Results<Ok<FolderMappingSaveResult>, ForbiddenCode>>
         SaveFolderMappingAsync(
             FolderMappingSaveRequest request,
@@ -346,7 +291,6 @@ public sealed partial class WhisparrSync
             => new(outcome, refusal, tried ?? []);
     }
 
-    /// <summary>Whether two spellings name one configured library root.</summary>
     private static bool SameRoot(string? left, string? right)
         => string.Equals(
             ImportRootRefusals.NormaliseRoot(left),

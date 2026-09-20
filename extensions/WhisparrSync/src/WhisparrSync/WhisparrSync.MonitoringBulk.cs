@@ -24,8 +24,8 @@ public sealed partial class WhisparrSync
 {
     private void MapMonitoringBulkEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // The same tier again: one gesture aiming this extension's stored credential at a third party
-        // for every entity in a selection is not a lesser act than doing it for one.
+        // A selection aims the stored credential at a third party once per entity, so it takes the
+        // same permission as a single entity.
         endpoints.MapPost(BulkMonitorRoute,
             (MonitorBulkRequest request, ICurrentPrincipalAccessor principal, IJobService jobs,
              IServiceScopeFactory scopes)
@@ -40,56 +40,24 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
 
-    /// <summary>
-    /// How many Cove ids one bulk request may carry.
-    /// </summary>
-    /// <remarks>
-    /// Each id is fanned out into per-entity requests against a third party, so a caller-supplied
-    /// array is an unbounded fan-out. The bound is applied before anything is encoded or enqueued,
-    /// and it sits far above any selection a page can make. A larger job is the caller's to split.
-    /// </remarks>
+    // Each id fans out into a per-entity request against a third party, so an uncapped array is an
+    // unbounded fan-out.
     private const int MaxEntityIdsPerRequest = 1000;
 
-    /// <summary>
-    /// How many Cove ids one scene selection may carry for the search verb.
-    /// </summary>
-    /// <remarks>
-    /// One press of that verb becomes one search per scene against every indexer the instance has,
-    /// so its cost multiplies outside Cove in a way the other four verbs' does not, and it takes a
-    /// lower bound of its own. The bound is applied before anything is encoded or enqueued, and it
-    /// is answered under its own code so a caller can state the limit that applied.
-    /// </remarks>
+    // The search verb becomes one search per scene against every indexer the instance has, so it
+    // takes a lower bound than the other verbs.
     private const int MaxSceneSearchIdsPerRequest = 100;
 
-    /// <summary>The prefix the host mints onto every job type this extension enqueues.</summary>
     private string OwnJobTypePrefix => "ext:" + Id + ":";
 
-    /// <summary>Enqueues one bulk monitoring gesture over a whole selection.</summary>
-    /// <remarks>
-    /// The gate is re-checked here, in the first statement, because the host's own permission filter
-    /// is inert on a minimal-API endpoint - and the required permission the manifest declares beside
-    /// the action is a UI affordance only, which hides a button and enforces nothing.
-    /// <para>
-    /// The id array is capped BEFORE anything is encoded or enqueued, and an oversized one is refused
-    /// with the bound named so a caller can split rather than guess.
-    /// </para>
-    /// <para>
-    /// An empty selection is refused rather than enqueued. A job that does nothing still appears in
-    /// the host's Job Drawer, where it reads as work that happened.
-    /// </para>
-    /// <para>
-    /// Enqueued EXCLUSIVE. A monitor batch mutates only Whisparr's own flags, so exclusivity is not
-    /// required for correctness; what it prevents is two batches over overlapping selections issuing
-    /// overlapping adds. This is reasoned rather than measured, and the cost if it is wrong is that
-    /// two batches run one after the other.
-    /// </para>
-    /// </remarks>
     internal Results<Accepted<JobEnqueued>, BadRequest<ErrorCode>, ForbiddenCode> BulkMonitorEnqueue(
         MonitorBulkRequest request,
         ICurrentPrincipalAccessor principal,
         IJobService jobs,
         IServiceScopeFactory scopes)
     {
+        // The host's permission filter is inert on a minimal-API endpoint, and the manifest's
+        // required permission only hides a button, so the gate is re-checked here.
         if (!HasConfigurePermission(principal))
         {
             return new ForbiddenCode();
@@ -103,9 +71,8 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest(new ErrorCode("UNSUPPORTED_ENTITY_TYPE"));
         }
 
-        // Before the id guards rather than beside them. The verb decides what the request IS, so a
-        // body naming none is refused without the size of the selection mattering: a caller told to
-        // split an over-cap selection would send two halves, each still naming no verb.
+        // Checked before the id guards: a caller told to split an over-cap selection would resend
+        // two halves that still name no verb.
         if (request.Verb is not { } verb)
         {
             return TypedResults.BadRequest(new ErrorCode("MISSING_VERB"));
@@ -129,6 +96,7 @@ public sealed partial class WhisparrSync
         var parameters = MonitoringBulkJob.Encode(
             request.EntityType!, verb, request.Scope, entityIds);
 
+        // Exclusive so two batches over overlapping selections do not issue overlapping adds.
         var jobId = jobs.Enqueue(
             OwnJobTypePrefix + MonitoringBulkJob.JobId,
             $"[{Name}] Monitoring, {entityIds.Length} selected",
@@ -138,17 +106,8 @@ public sealed partial class WhisparrSync
         return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
     }
 
-    /// <summary>Where one of this extension's own runs has got to.</summary>
-    /// <remarks>
-    /// This extension serves it because Cove gates its own job route on unrestricted read, so a
-    /// scoped account is refused there even for a run it started itself.
-    /// <para>
-    /// A job whose type does not carry this extension's own prefix is answered NOT FOUND rather than
-    /// forbidden. Answering forbidden would confirm that the id names a real job, which is exactly the
-    /// fact the host's own gate withholds, and would make this route a way around that gate rather
-    /// than a replacement for the part of it this extension owns.
-    /// </para>
-    /// </remarks>
+    // This route exists because Cove gates its own job route on unrestricted read, so a scoped
+    // account is refused there even for a run it started itself.
     internal Results<Ok<BulkJobStatus>, NotFound, ForbiddenCode> BulkJobStatusOf(
         string jobId, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
@@ -159,26 +118,16 @@ public sealed partial class WhisparrSync
 
         ArgumentNullException.ThrowIfNull(jobs);
 
+        // A job outside this extension's prefix is answered not found, not forbidden: forbidden
+        // would confirm the id names a real job, which is what the host's gate withholds.
         var job = jobs.GetJob(jobId);
         return job is null || !job.Type.StartsWith(OwnJobTypePrefix, StringComparison.Ordinal)
             ? TypedResults.NotFound()
             : TypedResults.Ok(BulkJobStatus.From(job));
     }
 
-    /// <summary>Runs one enqueued batch.</summary>
-    /// <remarks>
-    /// The parameters are decoded tolerantly, so a batch nobody can read does nothing rather than
-    /// faulting inside the host's job runner. A verb or a selection type the map does not name is
-    /// that same case.
-    /// <para>
-    /// The target is resolved once, on the first entity's turn, and reused for the rest: it is one
-    /// stored read and one credential read, and taking them per entity would be a batch of them.
-    /// </para>
-    /// <para>
-    /// A cancellation is rethrown after the summary is written, so the host classifies the run as
-    /// cancelled rather than completed while the reader is still told what it managed to do.
-    /// </para>
-    /// </remarks>
+    // Parameters are decoded tolerantly, so an unreadable batch does nothing rather than faulting
+    // inside the host's job runner.
     private async Task RunBulkMonitorAsync(
         IReadOnlyDictionary<string, string> parameters,
         IServiceScopeFactory scopes,
@@ -199,8 +148,8 @@ public sealed partial class WhisparrSync
         var linkingReached = false;
         var rootsCouldNotBeRead = false;
 
-        // One line per library root for the whole selection. Every entity under one root reaches the
-        // same reason, and a line per entity would grow with the selection.
+        // One line per library root, not per entity: a per-entity list would grow with the
+        // selection, and every entity under one root reaches the same reason.
         var addressRefusals = new Dictionary<string, FolderAddressRefusal>(StringComparer.Ordinal);
         var addressedRoots = new HashSet<string>(StringComparer.Ordinal);
 
@@ -212,7 +161,8 @@ public sealed partial class WhisparrSync
             .ConfigureAwait(false);
 
         // The host's progress carries no summary field, so the run's one line rides the final
-        // report's sub-task.
+        // report's sub-task. Cancellation is rethrown after that write, so the host classifies the
+        // run as cancelled and the reader still sees what it managed to do.
         progress.Report(
             1d,
             MonitoringBulkJob.SummaryOf(
@@ -228,8 +178,8 @@ public sealed partial class WhisparrSync
                     : null));
         ct.ThrowIfCancellationRequested();
 
-        // The search verb's instance-side command names an id array, so the whole selection is one
-        // call. Every other verb here is one instance call per entity, and loops.
+        // The search command on the instance takes an id array, so the whole selection is one call.
+        // Every other verb is one call per entity.
         Task<MonitorBulkRun> UnderTheVerbAsync()
             => verb == MonitorBulkVerb.SearchAllMonitored
                 ? MonitoringBulkJob.RunOneCallAsync(
@@ -237,7 +187,7 @@ public sealed partial class WhisparrSync
                 : MonitoringBulkJob.RunAsync(batch.EntityIds, scopes, ActOnOneAsync, progress, ct);
 
         // Resolved once for the whole batch: it is one stored read and one credential read, and
-        // taking them per entity would be a batch of them.
+        // taking them per entity would be one pair per entity.
         async Task<MonitoringTarget?> ResolvedAsync(
             IServiceProvider services, CancellationToken runCt)
         {
@@ -267,9 +217,8 @@ public sealed partial class WhisparrSync
                     _log,
                     entityCt).ConfigureAwait(false);
 
-        // One command naming every entity the resolution step established the instance holds. Its
-        // answer is each of those entities' outcome, because the instance answers the command and
-        // not the ids inside it.
+        // The instance answers the command, not the ids inside it, so its one answer is every
+        // named entity's outcome.
         async Task<MonitorRefusalKind> SearchNamedAsync(
             IServiceProvider services, IReadOnlyList<int> entityIds, CancellationToken runCt)
         {
@@ -305,9 +254,9 @@ public sealed partial class WhisparrSync
 
             var identities = services.GetRequiredService<IEntityIdentityPort>();
 
-            // The same statement of each verb the single-entity route reaches, so a selection cannot
-            // behave differently from a click. A verb the connected generation cannot honour is
-            // answered per entity by that shared path rather than failing the batch.
+            // The same path the single-entity route takes, so a selection cannot behave differently
+            // from a click. A verb the connected generation cannot honour is refused per entity
+            // there rather than failing the batch.
             var view = verb switch
             {
                 MonitorBulkVerb.Monitor => await MonitorResolvedAsync(
@@ -325,9 +274,8 @@ public sealed partial class WhisparrSync
                     $"{verb} is not a verb the bulk surface carries."),
             };
 
-            // Inline rather than enqueued, and only for a monitor a read confirmed. The click
-            // enqueues so the request does not wait for an entity's folder set; a selection is
-            // already inside a run, and enqueuing per entity would make one gesture a run per entity.
+            // Inline rather than enqueued: this is already inside a run, and enqueuing per entity
+            // would turn one gesture into a run per entity.
             if (verb == MonitorBulkVerb.Monitor
                 && view is { Refusal: MonitorRefusalKind.None, Monitored: true })
             {
@@ -344,9 +292,8 @@ public sealed partial class WhisparrSync
             {
                 linkingResolved = true;
 
-                // The hard-link setting is a property of the INSTANCE, resolved once for the batch
-                // the way the target is. A selection of a thousand entities must not read one value
-                // a thousand times.
+                // The hard-link setting belongs to the instance, so it is resolved once for the
+                // batch rather than once per entity.
                 if (ReflectOwnedActingOn(resolved) is { } acting)
                 {
                     linkingReached = true;
@@ -383,13 +330,8 @@ public sealed partial class WhisparrSync
         }
     }
 
-    /// <summary>
-    /// The entity kind <paramref name="entityType"/> names, in the spelling the selection bar passes.
-    /// </summary>
-    /// <remarks>
-    /// Matched against the same constants the registration declares, so what the bar has to send to
-    /// see the button and what the route accepts cannot drift apart.
-    /// </remarks>
+    // Matched against the same constants the registration declares, so the spelling the selection
+    // bar sends and the one the route accepts cannot drift apart.
     private static bool TryParseSelectionType(string? entityType, out WhisparrEntityKind kind)
     {
         switch (entityType)

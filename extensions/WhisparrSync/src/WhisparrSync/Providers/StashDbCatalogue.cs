@@ -9,15 +9,9 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Providers;
 
-/// <summary>Reads a catalogue from StashDB.</summary>
-/// <remarks>
-/// Narrow in the same sense this product's instance client is: every request is this one POST to the
-/// configured endpoint, and no member takes a path, verb or query string from a caller.
-/// <para>
-/// StashDB answers an authentication failure with 200 and an <c>errors</c> member, so a status alone
-/// does not say whether a body carries a catalogue.
-/// </para>
-/// </remarks>
+// Every request is one POST to the configured endpoint, and no member takes a path, verb or query
+// string from a caller. StashDB answers an authentication failure with 200 and an `errors` member,
+// so a status alone does not say whether a body carries a catalogue.
 internal sealed class StashDbCatalogue
     : IProviderCatalogue,
         ISortsByTitle,
@@ -50,43 +44,29 @@ internal sealed class StashDbCatalogue
         Capabilities = ProviderCapabilities.ForStashDb(this);
     }
 
-    /// <summary>The header StashDB authenticates with.</summary>
-    /// <remarks>
-    /// Not the bearer scheme. A bearer header is accepted, answered with 200 and refused inside the
-    /// body, so a client sending one reads as reaching a catalogue that is always empty.
-    /// </remarks>
+    // Not the bearer scheme. A bearer header is accepted, answered with 200 and refused inside the
+    // body, so a client sending one reads as reaching a catalogue that is always empty.
     internal const string ApiKeyHeader = "ApiKey";
 
-    /// <summary>Where StashDB shows a scene to a reader, which is not where it serves its API.</summary>
+    // Where StashDB shows a scene to a reader, which is not where it serves its API.
     internal const string SiteBase = "https://stashdb.org";
 
-    /// <summary>The provider this catalogue names itself as.</summary>
     internal const string ProviderName = "StashDB";
 
-    /// <summary>
-    /// Whether a studio's sub-studios are counted as part of it, keyed as the surface sends it.
-    /// </summary>
-    /// <remarks>
-    /// Mirrors the host studio page's own toggle, which the surface reads from the address rather
-    /// than owning. <c>parentStudio</c> matches a studio or any descendant of it, so a studio with no
-    /// children answers its own scenes under either spelling.
-    /// </remarks>
+    // `parentStudio` matches a studio or any descendant of it, so a studio with no children answers
+    // its own scenes under either spelling.
     internal const string IncludeSubStudiosKey = "includeSubStudios";
 
-    /// <summary>The key a performer selection travels under, as the provider spells its own field.</summary>
+    // The facet keys are the provider's own field spellings.
     internal const string PerformerFacetKey = "performers";
 
-    /// <summary>The key a tag selection travels under, as the provider spells its own field.</summary>
     internal const string TagFacetKey = "tags";
 
-    /// <summary>The key a sub-studio selection travels under, as the provider spells its own field.</summary>
     internal const string SubStudioFacetKey = "studios";
 
-    /// <summary>How many values a facet menu carries before it is offered as a type-ahead.</summary>
-    /// <remarks>
-    /// A large network's performer list runs to thousands and the whole tag set to more, so a menu
-    /// read whole would grow with the provider rather than with the page.
-    /// </remarks>
+    // Past this many values a menu is offered as a type-ahead. A large network's performer list
+    // runs to thousands and the whole tag set to more, so a menu read whole would grow with the
+    // provider rather than with the page.
     internal const int FacetPageSize = 25;
 
     // The one catalogue query this type composes. Its field set is what the projector reads; a field
@@ -155,11 +135,8 @@ internal sealed class StashDbCatalogue
 
     private const string NewestFirst = $"{SortByDate}:{DescendingFirst}";
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// The provider's own ordering and direction, joined into one opaque value because its input
-    /// carries them as two non-null fields. Nothing outside this type reads either half.
-    /// </remarks>
+    // Ordering and direction joined into one opaque value, because the provider's input carries
+    // them as two non-null fields. Nothing outside this type reads either half.
     public IReadOnlyList<ProviderSortOption> Sorts { get; } =
     [
         new(NewestFirst, "Newest first"),
@@ -170,17 +147,11 @@ internal sealed class StashDbCatalogue
         new($"DURATION:{AscendingFirst}", "Shortest first"),
     ];
 
-    /// <inheritdoc/>
     public string DefaultSort => NewestFirst;
 
     public ProviderCapabilitySet Capabilities { get; }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// The site address rather than the GraphQL one the catalogue is read from. Measured: a real
-    /// identifier under this path redirected to the sign-in page carrying the same path back, so
-    /// the route resolves and only the sign-in was missing.
-    /// </remarks>
+    // The site address, not the GraphQL one the catalogue is read from.
     public string? SceneAddress(string providerSceneId)
         => string.IsNullOrWhiteSpace(providerSceneId)
             ? null
@@ -237,33 +208,19 @@ internal sealed class StashDbCatalogue
             : Count(result);
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// None, and no request is sent to establish it. This provider names a scene by its uuid and by
-    /// nothing else, so there is no number of its own to resolve to. It holds no
-    /// <see cref="IResolvesNumericSceneId"/> role either, so a caller that asks by role is refused
-    /// before reaching this null; a caller that reaches it anyway counts the scene unnumbered.
-    /// </remarks>
+    // StashDB names a scene by its uuid and by nothing else, so there is no number to resolve to
+    // and no request is sent. This type implements neither IResolvesNumericSceneId nor
+    // IResolvesNumericSiteId, so a caller asking by role is refused before reaching these answers.
     public Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
         => Task.FromResult<int?>(null);
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// None, and no request is sent to establish it. This provider names a site by its uuid and by
-    /// nothing else, so there is no number of its own to resolve to. It holds no
-    /// <see cref="IResolvesNumericSiteId"/> role either, so a caller that asks by role is refused
-    /// before reaching this answer.
-    /// </remarks>
     public Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
         string providerSiteId, CancellationToken ct)
         => Task.FromResult(ProviderSiteNumber.NamesNone);
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A studio and a tag are found exactly by the provider itself. A performer has no exact
-    /// find-by-name, so its search result is filtered here and several exact matches answer as
-    /// ambiguity rather than as whichever the provider happened to return first.
-    /// </remarks>
+    // A studio and a tag are found exactly by the provider itself. A performer has no exact
+    // find-by-name, so its search result is filtered here and several exact matches answer as
+    // ambiguity rather than as whichever the provider returned first.
     public async Task<ProviderIdentityLookup> LookUpByNameAsync(
         WhisparrEntityKind kind, string name, IReadOnlyList<string> aliases, CancellationToken ct)
     {
@@ -293,11 +250,6 @@ internal sealed class StashDbCatalogue
         return ProviderIdentityLookup.Unmatched;
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A studio's own performers and sub-studios are listable and a tag's are not, so a tag page is
-    /// offered no menu at all rather than one that would narrow to itself.
-    /// </remarks>
     public async Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
         WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
     {
@@ -319,13 +271,8 @@ internal sealed class StashDbCatalogue
         return menus;
     }
 
-    /// <inheritdoc/>
-    /// <remarks>
-    /// The same queries the menus are filled from, under the provider's own <c>name</c> criterion,
-    /// which it matches on a substring. Its <c>alias</c> criterion is not used: it was measured
-    /// answering the whole set, so it is dropped rather than honoured, and a filter dropped in
-    /// silence is worse than one refused.
-    /// </remarks>
+    // The same queries the menus are filled from, under the provider's own `name` criterion, which
+    // it matches on a substring. Its `alias` criterion answers the whole set, so it is not used.
     public async Task<ProviderFacetSearch> SearchFacetValuesAsync(
         WhisparrEntityKind kind,
         string providerEntityId,
@@ -348,12 +295,9 @@ internal sealed class StashDbCatalogue
             : ProviderFacetSearch.Matched(answered.Values, answered.Reported);
     }
 
-    /// <summary>The scope one catalogue request narrows the provider's scenes to.</summary>
-    /// <remarks>
-    /// A studio reads its own scenes, or itself and every descendant where the surface says the
-    /// host's sub-studio toggle is on. A chosen sub-studio replaces that scope rather than joining
-    /// it, so the selection narrows what is read instead of widening it.
-    /// </remarks>
+    // A studio reads its own scenes, or itself and every descendant where the surface says the
+    // host's sub-studio toggle is on. A chosen sub-studio replaces that scope rather than joining
+    // it, so the selection narrows what is read instead of widening it.
     internal static JsonObject ScopeFor(ProviderCatalogueRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -400,7 +344,6 @@ internal sealed class StashDbCatalogue
         return scope;
     }
 
-    /// <summary>One facet's query, its scope, and how the menu it fills reads.</summary>
     private sealed record FacetQuery(
         string Query,
         string Member,
@@ -409,19 +352,13 @@ internal sealed class StashDbCatalogue
         string Label,
         JsonObject Input);
 
-    /// <summary>The menus a page offers, in the order they are drawn.</summary>
+    // The order the menus are drawn in.
     private static readonly string[] MenuOrder =
         [PerformerFacetKey, SubStudioFacetKey, TagFacetKey];
 
-    /// <summary>
-    /// The query the facet <paramref name="facetKey"/> names is read through, or null where this
-    /// entity kind is offered no such menu.
-    /// </summary>
-    /// <remarks>
-    /// The one table both the menu fill and the value search read, so the two cannot come to offer
-    /// different facets. A studio's own performers and sub-studios are listable and a tag's are not,
-    /// and a tag menu on a tag page would narrow a tag to itself.
-    /// </remarks>
+    // The one table both the menu fill and the value search read, so the two cannot come to offer
+    // different facets. A studio's performers and sub-studios are listable and a tag's are not, and
+    // a tag menu on a tag page would narrow a tag to itself.
     private static FacetQuery? FacetQueryFor(
         WhisparrEntityKind kind, string facetKey, string providerEntityId)
         => facetKey switch

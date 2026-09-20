@@ -4,10 +4,8 @@ namespace WhisparrSync.Import;
 
 /// <summary>How one call to the host's own import ended.</summary>
 /// <remarks>
-/// Two states rather than one "did not register": a host whose import this extension's container
-/// could not produce is the host's own configuration, and a file the host was asked for and would
-/// not take is that file's. Reported as one value they would reach the user as one sentence, and
-/// only one of the two is anything a user can act on.
+/// An import the container could not produce and a file the host refused are separate states. Only
+/// one of the two is something a user can act on.
 /// </remarks>
 public enum LibraryImportOutcome
 {
@@ -22,20 +20,16 @@ public enum LibraryImportOutcome
 }
 
 /// <summary>What one call to the host's own import produced.</summary>
-/// <param name="Outcome">How the call ended.</param>
-/// <param name="VideoId">
-/// The item the host attached the file to, or null when the call registered nothing.
-/// </param>
+/// <remarks>The video key is null when the call registered nothing.</remarks>
 public sealed record LibraryImport(LibraryImportOutcome Outcome, int? VideoId);
 
 /// <summary>A file row the library holds at one path.</summary>
 /// <remarks>
-/// A null key is a row no item claims, which is the state
+/// A null video key is a row no item claims, the state
 /// <see cref="ICoveLibraryPort.DetachSupersededFilesAsync"/> leaves behind. Reading it as "the
 /// library holds nothing here" would hand the host's own import a path it already has a row for and
 /// no item to attach it to, which is the one input that import answers by throwing.
 /// </remarks>
-/// <param name="VideoId">The item claiming the row, or null when none does.</param>
 public sealed record HeldFile(int? VideoId);
 
 /// <summary>Which video a remote identifier names, or why none can be named.</summary>
@@ -68,10 +62,8 @@ public sealed record IdentityResolution
 
 /// <summary>The record a metadata source supplied could not be written to the library.</summary>
 /// <remarks>
-/// Enrichment merges the source's record into the entity and then saves it, so two unrelated failures
-/// otherwise reach one caller through one answer: a source that applied nothing, and an application
-/// that could not be committed. The second is raised as this, because a caller that cannot tell them
-/// apart can only report the source — and in this case the source answered.
+/// Raised apart from a source that applied nothing, because a caller that cannot tell the two apart
+/// can only report the source, which in this case answered.
 /// </remarks>
 public sealed class EnrichmentNotCommittedException(Exception inner)
     : Exception("The record the metadata source supplied could not be committed.", inner);
@@ -82,12 +74,10 @@ public sealed class EnrichmentNotCommittedException(Exception inner)
 /// <remarks>
 /// Registering a file is the host's own operation, never rows written here: it also probes the
 /// media, computes a hash, discovers caption sidecars, creates the folder row under a striped lock,
-/// recomputes the item's aggregates and publishes the event a client listens for. A second
-/// implementation of any of that would diverge on the next host release.
+/// recomputes the item's aggregates and publishes the event a client listens for.
 /// <para>
-/// Every read here is taken live against the host and nothing about a match is kept: the answers to
-/// "does the library already hold this file" and "which video carries this identifier" are derived
-/// per call, so no state of this extension's can disagree with the library.
+/// Every read is taken live against the host and no match is cached, so no state of this
+/// extension's can disagree with the library.
 /// </para>
 /// </remarks>
 public interface ICoveLibraryPort
@@ -97,10 +87,10 @@ public interface ICoveLibraryPort
 
     /// <summary>The endpoints of the metadata sources the host is configured with.</summary>
     /// <remarks>
-    /// The host's own merge writes an identity row under its CONFIGURED spelling and dedupes those
+    /// The host's own merge writes an identity row under the configured spelling and dedupes those
     /// rows by exact string, while resolving an endpoint to a source on the registrable domain. A
-    /// stamp written under a different spelling of the same source therefore acquires a second row
-    /// on the next merge, with nothing at the database level to prevent it.
+    /// stamp written under a different spelling of the same source acquires a second row on the
+    /// next merge, with nothing at the database level to prevent it.
     /// </remarks>
     IReadOnlyList<string> ConfiguredMetadataEndpoints { get; }
 
@@ -110,13 +100,11 @@ public interface ICoveLibraryPort
     /// verified. The host's own import resolves a folder row from whatever directory it is handed
     /// and consults no library root, so passing a reported string here would register a file from
     /// outside the library and create an orphan folder tree for it.
+    /// <para>
+    /// A null <paramref name="videoId"/> lets the host decide. Supplying one on an item whose title
+    /// is blank also makes the host fill that title from the file name.
+    /// </para>
     /// </remarks>
-    /// <param name="path">The verified absolute path of the file to register.</param>
-    /// <param name="videoId">
-    /// The item to attach the file to, or null to let the host decide. Supplying one on an item whose
-    /// title is blank also makes the host fill that title from the file name.
-    /// </param>
-    /// <param name="ct">Cancels the operation.</param>
     Task<LibraryImport> ImportVideoAsync(string path, int? videoId, CancellationToken ct);
 
     /// <summary>The file row the library holds at <paramref name="path"/>.</summary>
@@ -131,15 +119,13 @@ public interface ICoveLibraryPort
     /// <paramref name="keptPath"/>.
     /// </summary>
     /// <remarks>
-    /// The row's video key and nothing else. No file is moved, renamed or deleted in either system's
-    /// storage, and this port declares no member that could: an upgrade behaviour the user chose is
-    /// not a licence to acquire the capability.
+    /// The row's video key and nothing else. No file is moved, renamed or deleted in either
+    /// system's storage, and this port declares no member that could.
     /// <para>
-    /// The rows are those of one item, so this is bounded by how many files that item holds and never
-    /// by the library.
+    /// The rows are one item's, so this is bounded by that item's file count, never by the library.
     /// </para>
     /// <para>
-    /// The item's own file count, duration, resolution and path figures are recomputed by the host's
+    /// The item's file count, duration, resolution and path figures are recomputed by the host's
     /// save, which gathers both the current and the original value of a changed video key.
     /// </para>
     /// </remarks>
@@ -149,15 +135,14 @@ public interface ICoveLibraryPort
     /// <summary>Starts one host scan over <paramref name="paths"/> and returns without waiting.</summary>
     /// <remarks>
     /// The host's enqueue deduplicates nothing and defaults to exclusive, so one call per imported
-    /// file would serialise a burst of grabs into a burst of library scans. A caller passes the paths
-    /// of a batch.
+    /// file would serialise a burst of grabs into a burst of library scans. A caller passes the
+    /// verified absolute paths of a batch.
     /// <para>
-    /// Otherwise-unchanged discovered files are included in the asset-generation pass, which is what
-    /// the host's own documentation describes this workflow as: the files were registered before the
-    /// scan job starts, so a pass that skipped them would find nothing to do.
+    /// Otherwise-unchanged discovered files are included in the asset-generation pass: the files
+    /// were registered before the scan job starts, so a pass that skipped them would find nothing
+    /// to do.
     /// </para>
     /// </remarks>
-    /// <param name="paths">The verified absolute paths the scan covers.</param>
     /// <returns>Whether the host's scan service could be reached at all.</returns>
     bool StartFollowUpScan(IReadOnlyList<string> paths);
 
@@ -169,7 +154,6 @@ public interface ICoveLibraryPort
     /// </remarks>
     Task<IdentityResolution> ResolveByRemoteIdAsync(string endpoint, string remoteId, CancellationToken ct);
 
-    /// <summary>Whether <paramref name="videoId"/> already carries an identity row for the source.</summary>
     Task<bool> CarriesIdentityAsync(int videoId, string endpoint, CancellationToken ct);
 
     /// <summary>Writes one identity row for <paramref name="videoId"/>, if it carries none yet.</summary>
@@ -183,8 +167,8 @@ public interface ICoveLibraryPort
     /// <summary>Applies the source's record for <paramref name="remoteId"/> to <paramref name="videoId"/>.</summary>
     /// <remarks>
     /// The host applies its record with the overwriting default when no import configuration is
-    /// passed, and there is no configuration at that call which would make a second application safe.
-    /// The caller must therefore never make this call twice for one scene.
+    /// passed, and no configuration at that call would make a second application safe. A caller
+    /// must never make this call twice for one scene.
     /// </remarks>
     /// <returns>Whether the host could be reached and applied a record.</returns>
     /// <exception cref="InvalidOperationException">
@@ -192,9 +176,7 @@ public interface ICoveLibraryPort
     /// that cannot guarantee one must treat this as best-effort and catch it.
     /// </exception>
     /// <exception cref="EnrichmentNotCommittedException">
-    /// The source applied its record and it could not be written. Declared apart from the failure
-    /// above because a caller catching one answer for both can only report the source, which in this
-    /// case answered correctly.
+    /// The source applied its record and it could not be written.
     /// </exception>
     Task<bool> EnrichAsync(int videoId, string endpoint, string remoteId, CancellationToken ct);
 }

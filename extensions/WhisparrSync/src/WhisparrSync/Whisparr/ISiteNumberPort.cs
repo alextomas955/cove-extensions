@@ -3,11 +3,10 @@ namespace WhisparrSync.Whisparr;
 /// <summary>The number a site is named by, or why none was established.</summary>
 /// <remarks>
 /// Whisparr v2 names a site by a number of its own rather than by the identifier Cove holds, and
-/// every route that addresses a site there is addressed by that number.
+/// every v2 route addressing a site takes that number.
 /// <para>
-/// A read that never arrived names no site and states no absence, and the two are held apart so a
-/// caller cannot report one as the other. One site nothing could be established for is a site this
-/// run leaves alone; a read that arrived at nothing says nothing about the site at all.
+/// A read that never arrived and an answer naming no site are held apart, so a caller cannot report
+/// one as the other.
 /// </para>
 /// </remarks>
 public sealed record WhisparrSiteNumber
@@ -44,17 +43,15 @@ public sealed record WhisparrSiteNumber
 /// <summary>Turns the identifier the library holds for a studio into the number a site is named by.</summary>
 /// <remarks>
 /// The instance answers this, not the metadata source Cove is configured with. The instance's own
-/// lookup takes the identifier the library holds and answers the number it names that site by, so
-/// asking the source first is a second request for an answer the instance was going to give anyway
-/// - and one that fails the whole count where the source cannot be reached, for a library whose
-/// identifiers the instance would have resolved.
+/// lookup resolves the stored identifier, so a source request per studio is not paid and the run
+/// does not fail where the source is unreachable.
 /// </remarks>
 public interface ISiteNumberPort
 {
     /// <summary>What the site <paramref name="storedSiteId"/> names is numbered.</summary>
     /// <remarks>
     /// One resolution per site, and nothing is held between calls. How many run at once is the
-    /// caller walking the library to bound; a bound here would be a second one no reader could see.
+    /// caller's to bound.
     /// </remarks>
     Task<WhisparrSiteNumber> ResolveSiteNumberAsync(
         Uri baseAddress, string apiKey, string storedSiteId, CancellationToken ct);
