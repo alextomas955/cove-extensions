@@ -6,48 +6,27 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// The two stops taken before an add is composed, and the rule about which profile is taken.
-/// </summary>
-/// <remarks>
-/// Half the cases drive the pure decision directly, because it is the whole rule and it needs no
-/// environment. The other half drive the mapped route against the recording double, because a stop
-/// is a claim about what left rather than about what a function returned.
-/// <para>
-/// Every emptiness assertion here is PAIRED, in this class, with a case that acts through the same
-/// double. Read on its own an empty log agrees with itself whatever the code does: a double nothing
-/// could ever have reached reports the same empty list as a refusal that worked.
-/// </para>
-/// <para>
-/// What is asserted empty is the log filtered to the classes of work that CHANGE the instance. Both
-/// stops happen after the instance has been read, so an assertion that nothing at all was sent would
-/// be false for a reason that has nothing to do with the stop.
-/// </para>
-/// </remarks>
+// Every emptiness assertion here is paired with a case that acts through the same double. Read on
+// its own, an empty log agrees with itself whatever the code does.
+// What is asserted empty is the log filtered to the verbs that change the instance. Both stops
+// happen after the instance has been read, so asserting that nothing at all was sent would fail
+// for a reason unrelated to the stop.
 public sealed class AddDefaultsProjectorTests
 {
-    /// <summary>Two profiles in id order, so an id-ordering bug would go unseen against it.</summary>
+    // In id order, so it answers the same id whether the code takes the first offered or the lowest.
     private const string SortedProfiles = """[{"id":1,"name":"HD-1080p"},{"id":4,"name":"Any"}]""";
 
-    /// <summary>One profile whose id is the value v3 accepts and cannot use.</summary>
     private const string ZeroFirstProfile = """[{"id":0,"name":"Any"},{"id":4,"name":"HD-1080p"}]""";
 
-    /// <summary>
-    /// The profile a studio of its own already carries, offered first by the instance as well.
-    /// </summary>
-    /// <remarks>
-    /// The name is what makes the case legible; nothing reads it. The point is that one id is taken
-    /// once, so a second decision about whose profile wins has no place to live.
-    /// </remarks>
+    // The profile the studio already carries is also the one the instance offers first, so the two
+    // candidates coincide.
     private const string StudiosOwnProfileOffered =
         """[{"id":7,"name":"Studio Default"},{"id":1,"name":"HD-1080p"}]""";
 
     private const string EmptyList = "[]";
 
-    /// <summary>A scene as the provider issues its identifier.</summary>
     private const string SceneOnTheProvider = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-    /// <summary>An instance offering no profile at all composes nothing.</summary>
     [Fact]
     public void AnEmptyProfileListRefusesAndComposesNothing()
     {
@@ -57,11 +36,8 @@ public sealed class AddDefaultsProjectorTests
         Assert.Null(resolved.Defaults);
     }
 
-    /// <summary>An instance offering no library root composes nothing.</summary>
-    /// <remarks>
-    /// A fresh instance is exactly this case, and v3's add then answers a conflict
-    /// carrying a full stack trace, so this stop is the difference between a sentence and that.
-    /// </remarks>
+    // A fresh instance is exactly this case, and v3's add then answers a conflict carrying a full
+    // stack trace.
     [Fact]
     public void AnEmptyRootFolderListRefusesAndComposesNothing()
     {
@@ -71,11 +47,8 @@ public sealed class AddDefaultsProjectorTests
         Assert.Null(resolved.Defaults);
     }
 
-    /// <summary>Both lists empty answers the profile stop, which is the earlier one.</summary>
-    /// <remarks>
-    /// The order between the two stops is a decision rather than an accident: a user reads one
-    /// sentence, and it names the value the composition needs first.
-    /// </remarks>
+    // The order between the two stops is a decision: the user reads one sentence, and it names the
+    // value the composition needs first.
     [Fact]
     public void BothListsEmptyAnswersTheProfileStopBecauseAProfileIsTheEarlierOne()
     {
@@ -85,15 +58,8 @@ public sealed class AddDefaultsProjectorTests
         Assert.Null(resolved.Defaults);
     }
 
-    /// <summary>
-    /// The profile taken is the first element AS RECEIVED, and not the lowest id and not the first
-    /// alphabetically.
-    /// </summary>
-    /// <remarks>
-    /// The list is ordered so that the three answers differ: taken as received it is 4, by id it is
-    /// 1, and by name it is 1 as well ("Any" sorts before "HD-1080p" only in the sorted control). A
-    /// sort anywhere on the path changes the answer and is reported here.
-    /// </remarks>
+    // The fixture is ordered so the candidate answers differ: first as received is 4, lowest id is
+    // 1, first by name is 1. A sort anywhere on the path changes the answer.
     [Fact]
     public void TheProfileTakenIsTheFirstOfferedAndNotTheLowestIdAndNotTheFirstByName()
     {
@@ -103,21 +69,15 @@ public sealed class AddDefaultsProjectorTests
         Assert.Equal(MonitorRefusalKind.None, asReceived.Refusal);
         Assert.Equal(4, asReceived.Defaults?.QualityProfileId);
 
-        // The same two profiles offered the other way round answer the other id, which is what makes
-        // the assertion above about the ORDER rather than about the pair.
+        // The same two profiles offered the other way round answer the other id, which makes the
+        // assertion above about the order rather than about the pair.
         var reversed = AddDefaultsProjector.From(SortedProfiles, MonitorHost.OneRootFolder);
 
         Assert.Equal(1, reversed.Defaults?.QualityProfileId);
     }
 
-    /// <summary>
-    /// A first-offered profile that is also the studio's own yields exactly that one id.
-    /// </summary>
-    /// <remarks>
-    /// There is one decision here and not two. A scene a refresh creates inherits its studio's own
-    /// profile, so nothing this product does chooses a profile for the catalogue, and a branch for
-    /// the case where the two coincide would be a branch for a case that does not exist.
-    /// </remarks>
+    // A scene a refresh creates inherits its studio's own profile, so nothing here chooses a
+    // profile for the catalogue and the two candidates never have to be reconciled.
     [Fact]
     public void AFirstProfileThatIsAlsoTheStudiosOwnYieldsExactlyThatOneIdAndNoAmbiguity()
     {
@@ -129,14 +89,8 @@ public sealed class AddDefaultsProjectorTests
         Assert.Equal("/config/library", resolved.Defaults?.RootFolderPath);
     }
 
-    /// <summary>
-    /// No composition ever carries a zero profile id, whatever the instance offered.
-    /// </summary>
-    /// <remarks>
-    /// Stated as an invariant over the shapes rather than as one example, because the value is
-    /// accepted and echoed back by v3: an entity stored with it monitors and can
-    /// never acquire anything, so there is no answer from the instance that reveals the mistake.
-    /// </remarks>
+    // v3 accepts a zero profile id and echoes it back. An entity stored with it monitors and can
+    // never acquire anything, so no answer from the instance reveals the mistake.
     [Theory]
     [InlineData(ZeroFirstProfile)]
     [InlineData("""[{"id":0,"name":"Any"}]""")]
@@ -151,7 +105,6 @@ public sealed class AddDefaultsProjectorTests
         Assert.Null(resolved.Defaults);
     }
 
-    /// <summary>A body that is not a readable array of objects is the same stop as an empty one.</summary>
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -167,7 +120,6 @@ public sealed class AddDefaultsProjectorTests
             AddDefaultsProjector.From(offered, MonitorHost.OneRootFolder).Refusal);
     }
 
-    /// <summary>The same leniency, and the same stop, for the root-folder list.</summary>
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -183,13 +135,9 @@ public sealed class AddDefaultsProjectorTests
             AddDefaultsProjector.From(MonitorHost.UnsortedProfiles, offered).Refusal);
     }
 
-    /// <summary>
-    /// The control the two emptiness assertions below rest on: this double DOES record what acted.
-    /// </summary>
-    /// <remarks>
-    /// The add's own arguments are read back rather than the fact that a call happened. A count would
-    /// hold for a call carrying the wrong profile just as well.
-    /// </remarks>
+    // The control the two emptiness assertions below rest on: this double does record what acted.
+    // The add's own arguments are read back, because a count would hold for a call carrying the
+    // wrong profile.
     [Fact]
     public async Task APathThatDoesActRecordsTheProfileAndRootItSent()
     {
@@ -206,7 +154,6 @@ public sealed class AddDefaultsProjectorTests
         Assert.Equal("/config/library", add.Defaults?.RootFolderPath);
     }
 
-    /// <summary>An instance offering no profile refuses with nothing acted upon.</summary>
     [Fact]
     public async Task AnInstanceOfferingNoProfileRefusesWithNothingActedUpon()
     {
@@ -223,11 +170,8 @@ public sealed class AddDefaultsProjectorTests
         Assert.Empty(Acts(host));
     }
 
-    /// <summary>An instance offering no library root refuses with nothing acted upon.</summary>
-    /// <remarks>
-    /// The profile list is left as the fixture offers it, so the case reached is the root-folder stop
-    /// rather than the earlier one.
-    /// </remarks>
+    // The profile list is left as the fixture offers it, so the stop reached is the root-folder one
+    // rather than the earlier one.
     [Fact]
     public async Task AnInstanceOfferingNoRootFolderRefusesWithNothingActedUpon()
     {
@@ -244,14 +188,8 @@ public sealed class AddDefaultsProjectorTests
         Assert.Empty(Acts(host));
     }
 
-    /// <summary>
-    /// The same two stops on one scene's own add, which is a route of its own.
-    /// </summary>
-    /// <remarks>
-    /// Both surfaces compose an add, and this one refuses in its own vocabulary. Covered per route
-    /// rather than once, because a stop the entity path takes says nothing about a route that
-    /// composes its add somewhere else.
-    /// </remarks>
+    // Covered per route, because a stop the entity path takes says nothing about a route that
+    // composes its add somewhere else. The scene route refuses in its own vocabulary.
     [Theory]
     [InlineData(
         nameof(IWhisparrClient.ReadQualityProfilesAsync),
@@ -279,13 +217,8 @@ public sealed class AddDefaultsProjectorTests
         Assert.Empty(Acts(host));
     }
 
-    /// <summary>
-    /// A scene add has these two stops and no third.
-    /// </summary>
-    /// <remarks>
-    /// The projector declares one member and it answers one of two refusals, so a third stop would
-    /// have no member to be read off. Nothing reads the instance's indexer list, by decision.
-    /// </remarks>
+    // The projector declares one member answering one of two refusals, so a third stop would have
+    // no member to be read off. Nothing reads the instance's indexer list.
     [Fact]
     public void TheProjectorAnswersTheseTwoRefusalsAndNoOther()
     {
@@ -306,14 +239,8 @@ public sealed class AddDefaultsProjectorTests
             refusals);
     }
 
-    /// <summary>
-    /// An entity the instance already holds is never read for defaults at all.
-    /// </summary>
-    /// <remarks>
-    /// The rule that such an entity keeps its own profile and root is enforced by not reading them,
-    /// rather than by composing them and remembering not to send them. Read off the ordered verb log,
-    /// so a read issued and discarded is a failure here.
-    /// </remarks>
+    // Such an entity keeps its own profile and root because the defaults are never read, not
+    // because they are composed and dropped. A read issued and discarded fails here.
     [Fact]
     public async Task AnEntityTheInstanceAlreadyHoldsIsNeverReadForDefaults()
     {
@@ -333,13 +260,8 @@ public sealed class AddDefaultsProjectorTests
         Assert.DoesNotContain(nameof(IWhisparrClient.ReadRootFoldersAsync), host.Client.Verbs);
     }
 
-    /// <summary>
-    /// Every request the path issued that changes what the instance holds.
-    /// </summary>
-    /// <remarks>
-    /// The class comes from the transcribed seam table rather than from the member name, so a verb
-    /// added to the seam is classified by whoever wrote it down and not by a spelling rule here.
-    /// </remarks>
+    // The class comes from the transcribed seam table rather than from the member name, so a verb
+    // added to the seam is classified where it was written down and not by a spelling rule here.
     private static IEnumerable<ActingCall> Acts(MonitorHost host)
         => host.Client.Acting.Where(call =>
             OutboundSeam.VerbClassByMember.GetValueOrDefault(call.Verb) != WhisparrVerbClass.Read);

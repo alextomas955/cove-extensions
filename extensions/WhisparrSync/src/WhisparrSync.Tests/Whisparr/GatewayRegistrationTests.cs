@@ -6,16 +6,9 @@ using V3Api = Whisparr3.Net.Api;
 
 namespace WhisparrSync.Tests.Whisparr;
 
-/// <summary>
-/// What a gateway holds per instance, on each generation.
-/// </summary>
-/// <remarks>
-/// Each case asserts what a caller can observe: how many primary handlers the registration asked the
-/// supplied factory for, and whether a provider a discarded registration handed out still answers. A
-/// case reading the cache itself would pass on a gateway that held one registration and used none of
-/// it. Both generations are covered case for case, because the bookkeeping is one type and a case
-/// running on one generation would leave the other's use of it untested.
-/// </remarks>
+// Each case asserts what a caller can observe: how many handlers the registration asked the factory
+// for, and whether a provider from a discarded registration still answers. A case reading the cache
+// itself would pass on a gateway that held one registration and used none of it.
 public sealed class GatewayRegistrationTests
 {
     private const string SomeKey = "0123456789abcdef0123456789abcdef";
@@ -61,11 +54,8 @@ public sealed class GatewayRegistrationTests
         Assert.Equal(afterFirst, askedFor);
     }
 
-    /// <summary>A key edited against the same address is a registration of its own.</summary>
-    /// <remarks>
-    /// The pair is the key, so a request after a key change cannot travel through a registration bound
-    /// to the credential the person replaced.
-    /// </remarks>
+    // The address and key together are the cache key, so a request after a key change cannot travel
+    // through a registration bound to the replaced credential.
     [Fact]
     public async Task AKeyChangedAgainstTheSameAddressAsksForAnotherHandlerOnBothGenerations()
     {

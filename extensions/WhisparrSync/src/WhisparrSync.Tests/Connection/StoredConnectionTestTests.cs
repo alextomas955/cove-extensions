@@ -6,14 +6,6 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Connection;
 
-/// <summary>
-/// Which of the two ways a connection test is asked for may record what it learned, and what an
-/// unconfigured connection answers before anything leaves.
-/// </summary>
-/// <remarks>
-/// The outbound seam is a double that records its arguments, so a case asserting that no request was
-/// made is asserting on the absence of a call rather than on an inspection of the code.
-/// </remarks>
 public sealed class StoredConnectionTestTests
 {
     private const string StoredAddress = "http://whisparr-v3:6969";
@@ -41,10 +33,8 @@ public sealed class StoredConnectionTestTests
         Assert.Equal(Now, stored.LastReachableAtUtc);
     }
 
-    /// <summary>
-    /// A transient test describes an instance the user may only be considering, so a success there is
-    /// not a reading of the stored one.
-    /// </summary>
+    // A transient test describes an instance the user may only be considering, so a success there
+    // is not a reading of the stored one.
     [Fact]
     public async Task ASuccessfulTransientTestLeavesTheRecordedVersionAlone()
     {
@@ -59,10 +49,8 @@ public sealed class StoredConnectionTestTests
         Assert.Equal(Verified, stored.LastReachableAtUtc);
     }
 
-    /// <summary>
-    /// A transient test aimed at the stored address did reach the stored instance, so what it says
-    /// about reachability is true of it — but it still read no version of the stored connection.
-    /// </summary>
+    // A transient test aimed at the stored address did reach the stored instance, so reachability
+    // is true of it. It still read no version of the stored connection.
     [Fact]
     public async Task ATransientTestOfTheStoredAddressRecordsReachabilityOnly()
     {
@@ -77,10 +65,7 @@ public sealed class StoredConnectionTestTests
         Assert.Equal(Verified, stored.VersionVerifiedAtUtc);
     }
 
-    /// <summary>
-    /// The two recorded lines measure different things: an instance that turned the key down was still
-    /// reached.
-    /// </summary>
+    // An instance that turned the key down was still reached, so the two recorded lines differ.
     [Fact]
     public async Task ARejectedKeyRecordsReachabilityAndLeavesTheVersionReading()
     {
@@ -153,7 +138,7 @@ public sealed class StoredConnectionTestTests
         Assert.Empty(tester.Calls);
     }
 
-    /// <summary>With both settings empty the refusal names one of them, the same one on every run.</summary>
+    // With both settings empty the refusal names the address, the same one on every run.
     [Fact]
     public async Task WithNeitherSettingSetTheRefusalNamesTheAddress()
     {
@@ -177,14 +162,8 @@ public sealed class StoredConnectionTestTests
         string stored, string typed, bool same)
         => Assert.Equal(same, ConnectionTester.IsSameAddress(stored, typed));
 
-    /// <summary>
-    /// A writer that commits while the probe is in flight keeps its value, and the reading is still
-    /// recorded.
-    /// </summary>
-    /// <remarks>
-    /// The competing writer is the production secret-position write, which lands on the very
-    /// connection record this path read before it asked the instance anything.
-    /// </remarks>
+    // The competing writer is the production secret-position write. It lands on the connection
+    // record this path read before it asked the instance anything.
     [Fact]
     public async Task AStoredTestKeepsAWriteCommittedWhileTheProbeWasInFlight()
     {
@@ -207,10 +186,8 @@ public sealed class StoredConnectionTestTests
         Assert.Equal(Now, stored.LastReachableAtUtc);
     }
 
-    /// <summary>
-    /// The version an instance reports is stored shortened however long the answer was, so the one
-    /// write that records a reading cannot be how an oversized value reaches the blob.
-    /// </summary>
+    // Shortening here keeps the one write that records a reading from putting an oversized value
+    // in the settings blob.
     [Fact]
     public async Task AnOverLongReportedVersionIsStoredShortened()
     {
@@ -227,15 +204,9 @@ public sealed class StoredConnectionTestTests
         Assert.Equal(Now, stored.VersionVerifiedAtUtc);
     }
 
-    /// <summary>
-    /// The three readings the answering instance chooses are shortened where the view is projected,
-    /// so the body the settings page reads cannot be as large as the body that arrived.
-    /// </summary>
-    /// <remarks>
-    /// The ordinary document is the control: a projection that dropped all three would satisfy the
-    /// length assertions on their own. The echoed version is held to the ceiling the stored reading
-    /// uses, because the stored reading is this value.
-    /// </remarks>
+    // The instance chooses these three readings, so the projection shortens them. The ordinary
+    // document is the control: a projection that dropped all three would satisfy the length
+    // assertions on their own.
     [Fact]
     public async Task TheEchoedReadingsAreShortenedWhereTheViewIsProjected()
     {
@@ -257,11 +228,8 @@ public sealed class StoredConnectionTestTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>The view a status document naming those three readings is projected into.</summary>
-    /// <remarks>
-    /// Driven through the real tester over the recording client seam, so the projection under test is
-    /// the one the route reaches rather than a view a double assembled.
-    /// </remarks>
+    // Driven through the real tester over the recording client seam, so the projection under test
+    // is the one the route reaches rather than a view a double assembled.
     private static async Task<ConnectionTestView> ViewOfAsync(
         string version, string branch, string appName)
     {
@@ -318,14 +286,8 @@ public sealed class StoredConnectionTestTests
         return options;
     }
 
-    /// <summary>
-    /// A tester that commits the production secret-position write before it answers, which is what a
-    /// delivery arriving during a probe does.
-    /// </summary>
-    /// <remarks>
-    /// The delivery is attributed to the generation this fixture stores and selects, which is the
-    /// connection the probe under test read before it asked the instance anything.
-    /// </remarks>
+    // Commits the production secret-position write before answering, as a delivery arriving during
+    // a probe does. The write is attributed to the generation this fixture stores and selects.
     private sealed class DeliveringConnectionTester(
         IWhisparrConnectionTester inner,
         OptionsStore options,

@@ -4,21 +4,14 @@ using WhisparrSync.Options;
 
 namespace WhisparrSync.Tests.Options;
 
-/// <summary>
-/// What a run's answers about the library roots come to once stored: the entries a run writes, the
-/// ones it clears, that they survive the blob, and what the settings page reads off them.
-/// </summary>
-/// <remarks>
-/// The outbound pair mirrors the import refusals: one entry per root rather than per folder, so a
-/// library of any size leaves these the same length.
-/// </remarks>
+// The outbound pair mirrors the import refusals: one entry per root rather than per folder, so a
+// library of any size leaves these the same length.
 public sealed class FolderMappingOptionsTests
 {
     private const string CoveRoot = "G:/Downloads/P";
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>A run that could not address a root records why, and what it asked about.</summary>
     [Fact]
     public void ARunThatCouldNotAddressARootStoresTheReasonAndThePathsTried()
     {
@@ -33,13 +26,8 @@ public sealed class FolderMappingOptionsTests
         Assert.Equal(["/data/Blue Harbor/a.mp4"], entry.PathsTried);
     }
 
-    /// <summary>
-    /// A second run over one root replaces that root's entry rather than appending to it.
-    /// </summary>
-    /// <remarks>
-    /// The reason and the paths are what the LAST run established. An entry that accumulated would
-    /// grow with the runs an operator makes and would report a reason that no longer holds.
-    /// </remarks>
+    // The reason and the paths are what the last run established. An entry that accumulated would
+    // grow with the runs an operator makes and would report a reason that no longer holds.
     [Fact]
     public void ASecondRunOverOneRootReplacesItsEntry()
     {
@@ -58,7 +46,6 @@ public sealed class FolderMappingOptionsTests
         Assert.Empty(entry.PathsTried);
     }
 
-    /// <summary>A root a run addressed loses its entry, and the other roots keep theirs.</summary>
     [Fact]
     public void ARootARunAddressedLosesItsEntryAndTheOthersKeepTheirs()
     {
@@ -75,9 +62,6 @@ public sealed class FolderMappingOptionsTests
         Assert.Equal("/shared", Assert.Single(folded).Root);
     }
 
-    /// <summary>
-    /// Two spellings of one root differing only by a trailing separator are one entry.
-    /// </summary>
     [Fact]
     public void TwoSpellingsOfOneRootDifferingOnlyByATrailingSeparatorAreOneEntry()
     {
@@ -90,7 +74,6 @@ public sealed class FolderMappingOptionsTests
         Assert.Empty(OutboundRefusalProjector.Fold(stored, refused: [], addressed: [CoveRoot]));
     }
 
-    /// <summary>The paths one entry keeps are bounded by the named constant.</summary>
     [Fact]
     public void ThePathsOneEntryKeepsAreBoundedByTheNamedConstant()
     {
@@ -104,10 +87,8 @@ public sealed class FolderMappingOptionsTests
         Assert.Equal("/data/0.mp4", entry.PathsTried[0]);
     }
 
-    /// <summary>
-    /// A mapping's two roots are both normalised, so a path typed with a trailing separator keys and
-    /// rebuilds the same way one typed without it does.
-    /// </summary>
+    // Both roots are normalised, so a path typed with a trailing separator keys and rebuilds the
+    // same way one typed without it does.
     [Fact]
     public void AMappingsTwoRootsAreBothNormalised()
     {
@@ -117,10 +98,6 @@ public sealed class FolderMappingOptionsTests
         Assert.Equal("/data", mapping.InstanceRoot);
     }
 
-    /// <summary>
-    /// A save stores one mapping per root, replaces the one already stored, and a blank path removes
-    /// it.
-    /// </summary>
     [Fact]
     public void AMappingIsStoredOncePerRootAndABlankPathRemovesIt()
     {

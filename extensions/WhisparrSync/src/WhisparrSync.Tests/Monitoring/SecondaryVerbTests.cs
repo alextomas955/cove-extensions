@@ -9,42 +9,27 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// The three verbs that appear only once an entity is monitored: registering the scenes an instance's
-/// catalogue lacks, linking files the library already holds, and the one verb that downloads.
-/// </summary>
-/// <remarks>
-/// No search is executed here or anywhere else. The grabbing verb's correctness is asserted on the
-/// body it composes and on the role's reachability, because both fixture instances report no indexer
-/// and no download client: a search that did start could find nothing, so running one would prove
-/// nothing about the payload and would still cost a real instance work if the fixture ever gained one.
-/// <para>
-/// The command payloads are transcribed from the two interface bundles rather than derived, and the
-/// array-versus-scalar split is the subject: a cross-lineage payload is accepted and does nothing.
-/// </para>
-/// </remarks>
+// No search is executed here. Both fixture instances report no indexer and no download client, so
+// a search that did start could find nothing, and it would still cost a real instance work if the
+// fixture ever gained one. The grabbing verb is asserted on the body it composes and on the role's
+// reachability.
+//
+// The command payloads are transcribed from the two interface bundles. The array-versus-scalar
+// split is the subject: a cross-lineage payload is accepted and does nothing.
 public sealed class SecondaryVerbTests
 {
     private const string SceneForeignId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-    /// <summary>The instance-side values every composed add carries, as an instance offered them.</summary>
     private static readonly AddDefaults Defaults = new(4, "/config/library");
 
-    /// <summary>
-    /// A parent studio whose own profile differs from the one the instance offers first, so a body
-    /// copying the parent's is distinguishable from one taking the instance's.
-    /// </summary>
+    // A parent studio profile that differs from the one the instance offers first, so a body copying
+    // the parent's is distinguishable from one taking the instance's.
     private const string ParentStudioProfileId = "9";
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// The scene add suppresses acquisition, monitors the scene alone, and says a person asked for it.
-    /// </summary>
-    /// <remarks>
-    /// Presence is asserted apart from the value: an absent member and a false one read the same off a
-    /// value, and the instance's default for the absent case is not this product's to rely on.
-    /// </remarks>
+    // Presence is asserted apart from the value: an absent member and a false one read the same off
+    // a value, and the instance's default for the absent case is not this product's to rely on.
     [Fact]
     public void TheSceneAddSuppressesAcquisitionAndNamesTheSceneOnlyMonitorTypeAndTheManualAddMethod()
     {
@@ -62,7 +47,6 @@ public sealed class SecondaryVerbTests
         Assert.Equal("manual", addOptions["addMethod"]!.GetValue<string>());
     }
 
-    /// <summary>Every composed scene add carries the fields the instance's own database requires.</summary>
     [Fact]
     public void EveryComposedSceneAddCarriesTheRootTheTagsAndAUsableProfile()
     {
@@ -80,15 +64,9 @@ public sealed class SecondaryVerbTests
             () => ComposedBody.Of(V3BodyProjector.AddScene(SceneForeignId, new AddDefaults(0, "/config/library"))));
     }
 
-    /// <summary>
-    /// No scene add carries a profile read off the parent entity. Whisparr sets a refresh-created
-    /// scene's profile from its own studio itself, so copying one would be this product deciding
-    /// something the instance owns.
-    /// </summary>
-    /// <remarks>
-    /// Composed beside a parent resource whose profile is a value the instance never offered, so a
-    /// body carrying the parent's is distinguishable from one carrying the instance's first.
-    /// </remarks>
+    // Whisparr sets a refresh-created scene's profile from its own studio, so copying one would be
+    // this product deciding something the instance owns. Composed beside a parent resource whose
+    // profile is a value the instance never offered.
     [Fact]
     public void NoSceneAddCarriesAProfileCopiedFromTheParentStudio()
     {
@@ -106,14 +84,8 @@ public sealed class SecondaryVerbTests
             ParentStudioProfileId, body["qualityProfileId"]!.ToJsonString(), StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The catalogue refresh names an id ARRAY on v3 and a single SCALAR id on v2, and neither
-    /// spelling reaches the other generation.
-    /// </summary>
-    /// <remarks>
-    /// The split is real and silent: a cross-lineage payload is answered as created and does nothing
-    /// at all, so what is asserted is the composed body rather than any status.
-    /// </remarks>
+    // The split is real and silent: a cross-lineage payload is answered as created and does nothing,
+    // so what is asserted is the composed body rather than any status.
     [Fact]
     public void TheRefreshCommandComposesAnArrayOnV3AndAScalarOnV2()
     {
@@ -138,15 +110,9 @@ public sealed class SecondaryVerbTests
         Assert.DoesNotContain("performerIds", series.ToJsonString(), StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// Whisparr v2 holds no scene-registration capability, and a caller asking for that role
-    /// is told which capability was refused and on which generation.
-    /// </summary>
-    /// <remarks>
-    /// No route on that generation adds a catalogue item at all, so the capability is genuinely absent
-    /// rather than expressed differently. Redefining it there as a catalogue refresh would read to a
-    /// user as an action that did nothing.
-    /// </remarks>
+    // No v2 route adds a catalogue item at all, so the capability is absent rather than expressed
+    // differently. Redefining it there as a catalogue refresh would read as an action that did
+    // nothing.
     [Fact]
     public void TheOlderGenerationRefusesTheSceneRegistrationRoleByName()
     {
@@ -162,7 +128,6 @@ public sealed class SecondaryVerbTests
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
     }
 
-    /// <summary>Whisparr v3 holds it and hands out the role the set was built with.</summary>
     [Fact]
     public void TheNewerGenerationHandsOutTheSceneRegistrationRole()
     {
@@ -175,10 +140,8 @@ public sealed class SecondaryVerbTests
                 .Match<IWhisparrMissingSceneActing?>(held => held, _ => null));
     }
 
-    /// <summary>
-    /// Both generations hand out the reflect-owned role, because the two cases that verb decides
-    /// between are identical on each: neither offers an import mode that only links.
-    /// </summary>
+    // Neither generation offers an import mode that only links, so the two cases the verb decides
+    // between are identical on each.
     [Fact]
     public void BothGenerationsHandOutTheReflectOwnedRole()
     {
@@ -197,15 +160,9 @@ public sealed class SecondaryVerbTests
         }
     }
 
-    /// <summary>
-    /// A whole add-all-missing run records no grabbing-class verb at ANY position, and the log holds
-    /// the acting verbs the run is made of.
-    /// </summary>
-    /// <remarks>
-    /// Every index rather than the last: a grab issued before the adds would be just as acquiring.
-    /// Paired with the acting assertion, so a run that contacted the instance not at all cannot
-    /// satisfy the emptiness half.
-    /// </remarks>
+    // Every index rather than the last: a grab issued before the adds would be just as acquiring.
+    // Paired with the acting assertion, so a run that contacted the instance not at all cannot
+    // satisfy the emptiness half.
     [Fact]
     public async Task AWholeAddAllMissingRunHoldsNoGrabbingVerbAtAnyPosition()
     {
@@ -234,10 +191,7 @@ public sealed class SecondaryVerbTests
         Assert.Single(client.Acting, call => call.Verb == nameof(acting.RefreshCatalogueAsync));
     }
 
-    /// <summary>
-    /// The scene add and the catalogue refresh reach the instance's own routes with the composed
-    /// bodies, read off a stub below the client rather than off the role double.
-    /// </summary>
+    // Read off a stub below the client rather than off the role double.
     [Fact]
     public async Task TheSceneAddAndTheRefreshReachTheirOwnRoutesWithTheComposedBodies()
     {
@@ -265,10 +219,8 @@ public sealed class SecondaryVerbTests
         Assert.Equal([11], Assert.IsType<JsonArray>(refresh["studioIds"]).Select(id => id!.GetValue<int>()));
     }
 
-    /// <summary>
-    /// The batched add form is not built. A per-scene add needs no second shape, and a batch that
-    /// fails part-way is harder to report honestly than a sequence of per-scene outcomes.
-    /// </summary>
+    // A per-scene add needs no second shape, and a batch that fails part-way is harder to report
+    // honestly than a sequence of per-scene outcomes.
     [Fact]
     public void TheBatchedAddFormIsNotComposableAnywhereInThisProduct()
         => Assert.DoesNotContain(
@@ -285,11 +237,8 @@ public sealed class SecondaryVerbTests
                     .OfType<string>()),
             StringComparison.Ordinal);
 
-    /// <summary>The reflect-owned reads and the attach reach their own routes.</summary>
-    /// <remarks>
-    /// The folder travels as a query value and never as a route segment, so a folder name cannot
-    /// change which route is issued.
-    /// </remarks>
+    // The folder travels as a query value and never as a route segment, so a folder name cannot
+    // change which route is issued.
     [Fact]
     public async Task TheReflectOwnedReadsAndTheAttachReachTheirOwnRoutes()
     {
@@ -321,10 +270,7 @@ public sealed class SecondaryVerbTests
         Assert.Equal("copy", attach["importMode"]!.GetValue<string>());
     }
 
-    /// <summary>
-    /// Whisparr v3's search names the studio command and the performer command, each with an
-    /// id ARRAY, matching literals transcribed from that generation's own interface bundle.
-    /// </summary>
+    // The command names and the id array are transcribed from v3's own interface bundle.
     [Fact]
     public void TheNewerGenerationsSearchNamesEachCommandWithAnIdArray()
     {
@@ -342,10 +288,6 @@ public sealed class SecondaryVerbTests
             () => V3BodyProjector.SearchMonitored((WhisparrEntityKind)(-1), 1));
     }
 
-    /// <summary>
-    /// Whisparr v2's search names its own command with a SCALAR id, and no array form reaches
-    /// it.
-    /// </summary>
     [Fact]
     public void TheOlderGenerationsSearchNamesItsCommandWithAScalarIdAndNoArrayReachesIt()
     {
@@ -359,14 +301,8 @@ public sealed class SecondaryVerbTests
         Assert.DoesNotContain("performerIds", series.ToJsonString(), StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The body that leaves for each generation is that generation's own, chosen inside the seam from
-    /// the lineage rather than by a call site.
-    /// </summary>
-    /// <remarks>
-    /// Read off a stub below the client. A cross-lineage payload is answered as created and does
-    /// nothing at all, so a status says nothing about whether the right shape was sent.
-    /// </remarks>
+    // Read off a stub below the client. A cross-lineage payload is answered as created and does
+    // nothing, so a status says nothing about whether the right shape was sent.
     [Fact]
     public async Task EachGenerationsSearchBodyIsChosenInsideTheSeam()
     {
@@ -396,15 +332,9 @@ public sealed class SecondaryVerbTests
                 Address, Key, (WhisparrGeneration)(-1), WhisparrEntityKind.Studio, [3], TestCt));
     }
 
-    /// <summary>
-    /// A caller reaches the grabbing verb only by obtaining its role by name, and obtaining it forces
-    /// the caller to state what happens when it is absent.
-    /// </summary>
-    /// <remarks>
-    /// The refusal is taken over a lineage this product does not manage, which holds nothing at all.
-    /// Both managed generations hold the capability, so their refusal is not reachable and asserting
-    /// one over a set built without the role would assert a construction fault instead.
-    /// </remarks>
+    // The refusal is taken over a lineage this product does not manage. Both managed generations
+    // hold the capability, so a refusal over a set built without the role would assert a
+    // construction fault instead.
     [Fact]
     public void TheSearchVerbIsReachedThroughItsOwnRoleAndAnAbsentOneIsARefusal()
     {
@@ -428,11 +358,8 @@ public sealed class SecondaryVerbTests
         Assert.Empty(client.Verbs);
     }
 
-    /// <summary>The one class that downloads gets one attempt and is never re-issued.</summary>
-    /// <remarks>
-    /// Read back through the policy a request actually goes through rather than off the table it reads,
-    /// and asserted now that a live implementation stands behind each declaration.
-    /// </remarks>
+    // Read back through the policy a request goes through rather than off the table it reads, with a
+    // live implementation standing behind each declaration.
     [Fact]
     public void TheGrabbingClassGetsOneAttemptOverALiveImplementation()
     {
@@ -448,15 +375,8 @@ public sealed class SecondaryVerbTests
         Assert.Contains(typeof(IWhisparrSceneSearchGrabbing), typeof(WhisparrClient).GetInterfaces());
     }
 
-    /// <summary>
-    /// A search on an entity the instance does not hold states that absence, not that the instance
-    /// declined.
-    /// </summary>
-    /// <remarks>
-    /// Driven through the mounted route rather than through a projector: the function that states the
-    /// rule is private to the API, so a projector call would assert something no user reaches. The
-    /// expected kind is a literal.
-    /// </remarks>
+    // Driven through the mounted route rather than through a projector: the function stating the
+    // rule is private to the API, so a projector call would assert something no user reaches.
     [Fact]
     public async Task ASearchOnAnEntityTheInstanceDoesNotHoldStatesThatRatherThanTheInstanceRefusing()
     {
@@ -474,14 +394,8 @@ public sealed class SecondaryVerbTests
             nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync), host.Client.Verbs);
     }
 
-    /// <summary>
-    /// Add all missing on an entity the instance does not hold states the same absence, so the two
-    /// secondary routes do not disagree about one fact.
-    /// </summary>
-    /// <remarks>
-    /// The expected kind is a literal here too, written out rather than read off the other route, so
-    /// the two are pinned separately and a change to one is reported.
-    /// </remarks>
+    // The expected kind is written out rather than read off the other route, so the two are pinned
+    // separately and a change to one is reported.
     [Fact]
     public async Task AddAllMissingOnAnEntityTheInstanceDoesNotHoldStatesThatRatherThanTheInstanceRefusing()
     {
@@ -495,7 +409,6 @@ public sealed class SecondaryVerbTests
         Assert.Null(enqueued.JobId);
     }
 
-    /// <summary>An answer a request is given when nothing about the answer is the subject.</summary>
     private const string EmptyEntity = """{"id":1}""";
 
     private static Uri Address { get; } = new(MonitorHost.StoredAddress);

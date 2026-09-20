@@ -9,30 +9,13 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Library;
 
-/// <summary>
-/// Which slots, tabs and selection actions
-/// <see cref="global::WhisparrSync.WhisparrSync.GetUIManifest"/> registers for each stored
-/// generation.
-/// </summary>
-/// <remarks>
-/// The browser fetches the manifest, and a slot nothing registers makes the host render no wrapper
-/// element at all, so an omission here is what removes a surface from the page. A component that
-/// returned nothing would leave the wrapper behind.
-/// <para>
-/// All three groups are projected, because a registration written outside the generation-conditional
-/// block reaches both manifests and a slot-only projection agrees with itself about that.
-/// </para>
-/// <para>
-/// The two sets are compared as sets. A count agrees with itself when one registration is swapped
-/// for another.
-/// </para>
-/// </remarks>
+// A slot nothing registers makes the host render no wrapper element, so an omission here removes
+// the surface from the page. All three registration groups are projected, because a registration
+// written outside the generation-conditional block reaches both manifests.
 public sealed class ManifestGenerationTests
 {
-    /// <summary>
-    /// The surfaces v2 has no meaning for: it publishes no per-scene identity and
-    /// holds no performer entity.
-    /// </summary>
+    // The surfaces v2 has no meaning for. It publishes no per-scene identity and holds no
+    // performer entity.
     private static readonly string[] VideosViewSlots =
     [
         "videos-list-toolbar-end",
@@ -43,30 +26,21 @@ public sealed class ManifestGenerationTests
         "performers-list-row",
     ];
 
-    /// <inheritdoc cref="VideosViewSlots"/>
-    /// <remarks>
-    /// The whole tuple, so a count route or a glyph added to the registration is reported here. The
-    /// video detail page keeps only the key, the label and the manual contexts of a contributed tab,
-    /// so either would be fetched and drawn by nothing.
-    /// </remarks>
+    // The whole tuple, so a count route or a glyph added to the registration is reported here. The
+    // video detail page keeps only a contributed tab's key, label and manual contexts, so either
+    // would be fetched and drawn by nothing.
     private static readonly string[] VideosViewTabs =
     [
         "video|whisparr-scene|Whisparr|WhisparrSceneTab|150|no count route|no glyph",
     ];
 
-    /// <inheritdoc cref="VideosViewSlots"/>
-    /// <remarks>
-    /// The whole tuple, so the entity type is asserted as the SINGULAR spelling the host's selection
-    /// bar passes for a video selection. The plural would make the button simply not appear, with no
-    /// error anywhere. The absent endpoint is carried too, because the handler has to ask for a verb
-    /// before anything is sent.
-    /// </remarks>
+    // The entity type is the singular spelling the host's selection bar passes for a video
+    // selection. The plural makes the button not appear, with no error anywhere.
     private static readonly string[] VideosViewActions =
     [
         "whisparr-scene-batch|bulk|video|whisparrSceneBatch|no endpoint|100",
     ];
 
-    /// <summary>Which prefix of a projected tab names the video detail page.</summary>
     private const string VideoTabPrefix = "video|";
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
@@ -98,10 +72,8 @@ public sealed class ManifestGenerationTests
         Assert.Empty(VideoActionsIn(surfaces.Actions));
     }
 
-    /// <summary>
-    /// The two manifests differ in exactly the videos-view surfaces, so a conditional block written
-    /// too wide or too narrow is reported here rather than in the browser.
-    /// </summary>
+    // A generation-conditional block written too wide or too narrow is reported here rather than
+    // in the browser.
     [Fact]
     public async Task TheTwoManifestsDifferInTheVideosViewSurfacesAndInNothingElse()
     {
@@ -118,10 +90,8 @@ public sealed class ManifestGenerationTests
         Assert.Empty(v2.Actions.Except(v3.Actions));
     }
 
-    /// <summary>
-    /// A store nothing has written to is a generation not established, which keeps every surface: a
-    /// user who has not configured the extension yet is not a user on v2.
-    /// </summary>
+    // A store nothing has written to establishes no generation and keeps every surface. A user who
+    // has not configured the extension yet is not a user on v2.
     [Fact]
     public async Task AGenerationNeverStoredRegistersEverySurface()
     {
@@ -132,15 +102,9 @@ public sealed class ManifestGenerationTests
         Assert.Equal(v3.Order(), slots.Order());
     }
 
-    /// <summary>
-    /// A generation written straight into the store reaches the manifest on the next load.
-    /// </summary>
-    /// <remarks>
-    /// The blob has writers this extension never sees: the host ships a route that writes an
-    /// extension's store directly and reaches no code here. A manifest refreshed only where this
-    /// extension saves keeps registering the previous generation's surfaces, and every badge on them
-    /// refuses.
-    /// </remarks>
+    // The host ships a route that writes an extension's store directly and reaches no code here. A
+    // manifest refreshed only where this extension saves keeps registering the previous
+    // generation's surfaces, and every badge on them refuses.
     [Fact]
     public async Task AGenerationWrittenStraightIntoTheStoreReachesTheManifestOnTheNextLoad()
     {
@@ -162,17 +126,8 @@ public sealed class ManifestGenerationTests
         Assert.All(VideosViewSlots, slot => Assert.DoesNotContain(slot, slots));
     }
 
-    /// <summary>
-    /// A stored blob the model cannot bind establishes no generation, rather than the default one.
-    /// </summary>
-    /// <remarks>
-    /// The load answers such a blob with manufactured defaults, and the default names v3. Publishing that would register every v3 surface on an instance the
-    /// blob names as v2, with full confidence and on a value no user configured.
-    /// <para>
-    /// Observed through the callback the extension's own store factory hands in, which is the only
-    /// reader of the published value a test can stand beside.
-    /// </para>
-    /// </remarks>
+    // The load answers an unbindable blob with manufactured defaults, and the default names v3.
+    // Publishing that would register every v3 surface on an instance the blob names as v2.
     [Fact]
     public async Task ABlobTheModelCannotBindEstablishesNoGeneration()
     {
@@ -185,11 +140,8 @@ public sealed class ManifestGenerationTests
         Assert.Equal([null], published);
     }
 
-    /// <summary>A store nothing has written to establishes the default, which is v3.</summary>
-    /// <remarks>
-    /// Its defaults are the answer, so it is not the same case as a blob that failed to bind. This is
-    /// the input the never-stored manifest case runs on, named here so the two are not confused.
-    /// </remarks>
+    // An empty store is not the same case as a blob that failed to bind: its defaults are the
+    // answer.
     [Fact]
     public async Task AStoreNothingHasWrittenToEstablishesTheNewerGeneration()
     {
@@ -199,13 +151,8 @@ public sealed class ManifestGenerationTests
         Assert.Equal([nameof(WhisparrGeneration.V3)], published);
     }
 
-    /// <summary>
-    /// The full-width row goes with the card badges it counts, on every page that has them.
-    /// </summary>
-    /// <remarks>
-    /// A row registered where no badge is is a row of counts over nothing, and a page of badges with
-    /// no row leaves every glyph on it unnamed.
-    /// </remarks>
+    // A row registered where no badge is counts nothing, and a page of badges with no row leaves
+    // every glyph on it unnamed.
     [Fact]
     public async Task EveryPageWithCardBadgesCarriesTheFullWidthRow()
     {
@@ -226,7 +173,6 @@ public sealed class ManifestGenerationTests
         }
     }
 
-    /// <summary>Every surface the manifest registers for a stored <paramref name="generation"/>.</summary>
     private static async Task<RegisteredSurfaces> SurfacesForAsync(WhisparrGeneration generation)
     {
         var store = new FakeStore();
@@ -239,32 +185,19 @@ public sealed class ManifestGenerationTests
             ActionsOf(loaded.Extension));
     }
 
-    /// <summary>Every slot the manifest registers for a stored <paramref name="generation"/>.</summary>
     private static async Task<IReadOnlyList<string>> SlotsForAsync(WhisparrGeneration generation)
         => (await SurfacesForAsync(generation)).Slots;
 
-    /// <summary>The projected tabs of <paramref name="tabs"/> that name the video detail page.</summary>
     private static IReadOnlyList<string> VideoTabsIn(IReadOnlyList<string> tabs)
         => [.. tabs.Where(tab => tab.StartsWith(VideoTabPrefix, StringComparison.Ordinal))];
 
-    /// <summary>
-    /// The projected actions of <paramref name="actions"/> that a video selection offers.
-    /// </summary>
-    /// <remarks>
-    /// Matched on the entity type the host's selection bar passes, which is the SINGULAR spelling
-    /// for a video selection while a studio or performer selection arrives plural.
-    /// </remarks>
+    // Matched on the entity type the host's selection bar passes, the singular spelling for a
+    // video selection while a studio or performer selection arrives plural.
     private static IReadOnlyList<string> VideoActionsIn(IReadOnlyList<string> actions)
         => [.. actions.Where(action => action.Contains("|video|", StringComparison.Ordinal))];
 
-    /// <summary>
-    /// Every slot the manifest registers for an extension loaded against <paramref name="store"/>.
-    /// </summary>
-    /// <remarks>
-    /// Loaded through <c>InitializeAsync</c> the way the host loads it, and over the extension's own
-    /// options store, so the field the manifest reads is filled by the shipped path and not by the
-    /// test.
-    /// </remarks>
+    // Loaded through InitializeAsync the way the host loads it, over the extension's own options
+    // store, so the field the manifest reads is filled by the shipped path and not by the test.
     private static async Task<IReadOnlyList<string>> SlotsOfAsync(FakeStore store)
     {
         await using var loaded = await LoadedOverAsync(store);
@@ -274,12 +207,8 @@ public sealed class ManifestGenerationTests
     private static IReadOnlyList<string> SlotsOf(global::WhisparrSync.WhisparrSync extension)
         => [.. extension.GetUIManifest().Slots.Select(slot => slot.Slot)];
 
-    /// <summary>Every tab the manifest registers, as one comparable string each.</summary>
-    /// <remarks>
-    /// The page type leads, because it is what a tab registered on one page type and not another is
-    /// told apart by, and the count route and the glyph are carried so their ABSENCE is asserted
-    /// rather than assumed.
-    /// </remarks>
+    // The page type leads, because it tells apart a tab registered on one page type from another.
+    // The count route and the glyph are carried so their absence is asserted rather than assumed.
     private static IReadOnlyList<string> TabsOf(global::WhisparrSync.WhisparrSync extension)
         => [.. extension.GetUIManifest().Tabs.Select(tab => string.Join(
             '|',
@@ -291,7 +220,6 @@ public sealed class ManifestGenerationTests
             tab.CountEndpoint ?? "no count route",
             tab.Icon ?? "no glyph"))];
 
-    /// <summary>Every selection action the manifest registers, as one comparable string each.</summary>
     private static IReadOnlyList<string> ActionsOf(global::WhisparrSync.WhisparrSync extension)
         => [.. extension.GetUIManifest().Actions.Select(action => string.Join(
             '|',
@@ -337,7 +265,6 @@ public sealed class ManifestGenerationTests
         }
     }
 
-    /// <summary>The three registration groups one manifest carries, each already projected.</summary>
     private sealed record RegisteredSurfaces(
         IReadOnlyList<string> Slots,
         IReadOnlyList<string> Tabs,

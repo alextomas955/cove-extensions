@@ -4,18 +4,8 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Whisparr;
 
-/// <summary>
-/// What the Whisparr slice is answered when it asks for the number a site is named by.
-/// </summary>
-/// <remarks>
-/// Driven over a stub handler rather than a live instance: the subject is which of the three answers
-/// each shape of reply becomes, and a read of a real instance would settle none of them.
-/// <para>
-/// The identifier asked about is the shape a library actually holds. Studios reach this generation
-/// carrying a provider's own code, not a number, so a case asking only about numbers would leave the
-/// path every real studio takes untested.
-/// </para>
-/// </remarks>
+// Studios reach this generation carrying a provider's own code, not a number, so the identifier
+// the cases ask about is the shape a library actually holds.
 public sealed class InstanceSiteNumberPortTests
 {
     private const string StudioUuid = "e3b61b3e-0c20-4bea-9441-b88430ed6317";
@@ -25,10 +15,7 @@ public sealed class InstanceSiteNumberPortTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// A library may already hold the number itself, and a lookup to confirm a number already in
-    /// hand is a request paid per studio for nothing.
-    /// </summary>
+    // A library may already hold the number, and confirming it would cost a request per studio.
     [Fact]
     public async Task AnIdentifierThatIsAlreadyANumberIsAnsweredWithoutAskingTheInstance()
     {
@@ -42,10 +29,6 @@ public sealed class InstanceSiteNumberPortTests
         Assert.Empty(handler.Requests);
     }
 
-    /// <summary>
-    /// The identifier the library holds is what the instance is asked about, and the number it
-    /// answers is the site's own. This is the path every studio held under a provider's code takes.
-    /// </summary>
     [Fact]
     public async Task AUuidTheInstanceNamesASiteForIsAnsweredWithItsNumber()
     {
@@ -60,10 +43,7 @@ public sealed class InstanceSiteNumberPortTests
         Assert.Contains(StudioUuid, Assert.Single(handler.Targets), StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The instance answering no site is carried across as that and not as a failure. It states an
-    /// absence, which is something established about the studio.
-    /// </summary>
+    // An instance answering no site states an absence about the studio, not a failure.
     [Fact]
     public async Task AUuidTheInstanceNamesNoSiteForIsAnsweredAsThat()
     {
@@ -77,11 +57,8 @@ public sealed class InstanceSiteNumberPortTests
         Assert.True(resolved.WasReached);
     }
 
-    /// <summary>
-    /// A read that arrived at nothing stays on its own side of the answer. Counted as a site the
-    /// instance names none for, it would move a studio into the column of sites this run has
-    /// established something about.
-    /// </summary>
+    // A read that never arrived must stay apart from a site the instance names none for. Merged,
+    // it would record the studio as settled.
     [Fact]
     public async Task AReadThatWasRefusedIsHeldApartFromASiteTheInstanceNamesNoneFor()
     {
@@ -95,11 +72,8 @@ public sealed class InstanceSiteNumberPortTests
         Assert.NotEqual(WhisparrSiteNumber.NamesNone, resolved);
     }
 
-    /// <summary>
-    /// An entry carrying no number of its own names no site to address, and is not a read that
-    /// failed. Answered as not reached, a studio the instance has already settled would be asked
-    /// about again on every run.
-    /// </summary>
+    // An entry carrying no number names no site to address. Answered as not reached, a studio the
+    // instance has already settled would be asked about again on every run.
     [Fact]
     public async Task AnEntryCarryingNoNumberIsAnsweredAsNamingNoSite()
     {

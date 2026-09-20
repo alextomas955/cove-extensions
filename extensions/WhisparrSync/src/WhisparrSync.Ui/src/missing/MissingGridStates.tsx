@@ -1,22 +1,19 @@
 /**
  * The sentence the grid states when it cannot show cards, and the one it states above them.
  *
- * The reason is taken once and rendered once. A notice repeated on forty cards consumes a quarter of
- * every card and teaches the reader to skip it, which is why `RefusalNotice` takes a count of the
- * controls it covers rather than being mounted per card.
+ * The reason is rendered once rather than on every card, so `RefusalNotice` takes a count of the
+ * controls it covers instead of being mounted per card.
  */
 import { ACTION_REFRESH } from "../common/ui/copy";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { describeGridState, type MissingGridStateKind } from "./missingStatesLogic";
 
-/** The escapes and the retry an empty grid can offer. */
 export interface MissingGridStateActions {
   readonly onRefresh: (() => void) | null;
   readonly onClearFilters: (() => void) | null;
   readonly onClearSearch: (() => void) | null;
 }
 
-/** The escape labels, which the empty states are the only surface to render. */
 const CLEAR_FILTERS = "Clear filters";
 const CLEAR_SEARCH = "Clear search";
 

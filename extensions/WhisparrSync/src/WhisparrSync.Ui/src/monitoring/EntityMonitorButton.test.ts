@@ -1,24 +1,15 @@
 // @vitest-environment jsdom
-/**
- * What the control paints at each stage of its own read, what a press opens, and what a choice sends.
- *
- * A DOM is needed because the properties under test are about the rendered element rather than about
- * a value a helper returns: a mark drawn before the read answers is a wrong-generation colour on
- * screen, a failed read painted as unmonitored is a wrong answer dressed as an answer, and a body
- * carrying an identifier is a request the server is obliged to ignore.
- *
- * The shared primitives, the host's authenticated fetch and its POST helper all stand in, because each resolves
- * only inside a consuming bundle.
- */
+// The properties under test are about the rendered element, so a DOM is needed. The shared
+// primitives, the host's authenticated fetch and its POST helper all stand in, because each
+// resolves only inside a consuming bundle.
 import { test, expect, vi, afterEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 
 import { press, render as renderRoot } from "../common/lib/testRender";
 
 vi.mock("@cove-extensions/ui-shared", () => ({
-  // The real primitive draws an SVG, so the stand-in draws one too. A stand-in rendering nothing
-  // would make every "no mark yet" assertion below agree with the stand-in instead of with what the
-  // read surface actually paints while it reads.
+  // The real primitive draws an SVG, so the stand-in draws one too. One rendering nothing would
+  // make every "no mark yet" assertion below agree with the stand-in rather than with the code.
   Spinner: () => createElement("svg", { "data-stand-in": "spinner" }),
   // The real builder, because the route the control asks for is one of the things under test.
   extensionApi: (extensionId: string) => (route: string) => `/extensions/${extensionId}/${route}`,
@@ -32,9 +23,8 @@ interface Sent {
 
 const sent: Sent[] = [];
 
-// Each answer is a function called at request time rather than a promise created ahead of one. A
-// promise that settles before anything reads it is reported as unhandled, whatever the code under
-// test then does with it.
+// Each answer is a function called at request time, not a promise created ahead of one. A promise
+// that settles before anything reads it is reported as unhandled.
 type Answer = () => Promise<unknown>;
 let readAnswer: Answer = () => Promise.resolve(null);
 let actionAnswer: Answer = () => Promise.resolve({});
@@ -61,10 +51,8 @@ vi.mock("@cove-extensions/ui-shared/postAction", () => ({
   },
 }));
 
-/**
- * The host dialog resolves only inside a running Cove, so it stands in here. The stand-in draws the
- * two buttons the real one draws, because what a press of each sends is the property under test.
- */
+// The host dialog resolves only inside a running Cove. The stand-in draws the same two buttons,
+// because what a press of each sends is under test.
 vi.mock("./hostComponents", () => ({
   ConfirmDialog: ({
     title,
@@ -103,13 +91,9 @@ const {
   WHISPARR_NOT_MONITORED,
 } = await import("../common/ui/copy");
 
-/**
- * Whether `element` carries `cls` as a WHOLE class.
- *
- * A substring check reports an absent class as present: the host's own action-row string already
- * carries `hover:border-accent`, so a substring test for the monitored border passes on the
- * unmonitored control too.
- */
+// Whole-class match. A substring check reports an absent class as present: the host's action-row
+// string already carries `hover:border-accent`, so a substring test for the monitored border
+// passes on the unmonitored control too.
 function hasClass(element: Element | null, cls: string): boolean {
   return element?.classList.contains(cls) === true;
 }
@@ -137,28 +121,25 @@ async function render(node: ReactNode) {
     container,
     button: container.querySelector("button"),
     marks: () => container.querySelector("button")?.querySelectorAll("svg").length ?? 0,
-    // Queried from the document, because the menu is portaled out of the host page's own hero: that
-    // container clips its overflow, so a panel left in the flow there would be cut off.
+    // Queried from the document: the menu is portaled out of the host page's hero, which clips its
+    // overflow. The dialog is portaled for the same reason.
     menu: () => document.body.querySelector('[role="menu"]'),
     rows: () => [...document.body.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]')],
-    // Portaled for the reason the menu is, so it is queried from the document too.
     dialog: () => document.body.querySelector('[role="dialog"]'),
   };
 }
 
-/** Presses the confirmation's own confirm button, which is named for the row that opened it. */
 async function confirm(): Promise<void> {
   const dialog = document.body.querySelector('[role="dialog"]');
   await press(dialog?.querySelectorAll("button")[0]);
 }
 
-/** Presses the confirmation's way out. */
 async function cancelConfirmation(): Promise<void> {
   const dialog = document.body.querySelector('[role="dialog"]');
   await press(dialog?.querySelectorAll("button")[1]);
 }
 
-/** A read that never settles, which is the frame under test. */
+// A read that never settles, which is the frame under test.
 const NEVER: Answer = () =>
   new Promise(() => {
     // intentionally never resolved
@@ -189,14 +170,14 @@ test("the monitored state is a border and a tick, and no accent fill on the cont
 
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
 
-  // The mark and the tick: the state lives on the border plus the tick, never on the mark, which is
-  // a filled two-tone disc that cannot inherit a colour.
+  // The state lives on the border plus the tick, never on the mark: a filled two-tone disc cannot
+  // inherit a colour.
   expect(rendered.marks()).toBe(2);
   expect(hasClass(rendered.button, "border-accent")).toBe(true);
   expect(rendered.button?.getAttribute("aria-label")).toBe(WHISPARR_MONITORED);
 
-  // Neither accent background is on the button. The tint that lifts the border is a layer behind the
-  // mark, which is what keeps a two-tone disc off a solid accent field.
+  // The tint that lifts the border is a layer behind the mark, which keeps a two-tone disc off a
+  // solid accent field.
   expect(hasClass(rendered.button, "bg-accent")).toBe(false);
   expect(hasClass(rendered.button, "bg-accent/10")).toBe(false);
   const tint = rendered.container.querySelector("span.bg-accent\\/10");
@@ -232,12 +213,9 @@ test("the read names the mounted entity and asks for its monitoring", async () =
   expect(sent[0].method).toBe("GET");
 });
 
-/**
- * The host passes its whole entity object, which also carries the library's own identity rows. The
- * identifier the instance is asked about is re-resolved on the server, so a browser naming one would
- * be telling a third party which record it holds. Asserted over everything that left rather than
- * over one forbidden name, so a field nobody thought to forbid fails here too.
- */
+// The host passes its whole entity object, which carries the library's own identity rows. Asserted
+// over everything that left rather than over one forbidden name, so a field nobody thought to
+// forbid fails here too.
 test("nothing but the Cove id off the host object reaches the instance", async () => {
   readAnswer = () => Promise.resolve(view({}));
 
@@ -295,8 +273,8 @@ test("choosing a scope posts it, with no identifier of any kind, and reads the s
   ]);
   expect((JSON.parse(posted[0].body ?? "{}") as { scope: string }).scope).toBe("futureScenes");
 
-  // Exactly one re-read: the mount read, then one more after the action settled. What the entity now
-  // is comes from the instance, never from what the browser asked for.
+  // The mount read, then one more after the action settled: what the entity now is comes from the
+  // instance, never from what the browser asked for.
   expect(sent.filter((call) => call.method === "GET")).toHaveLength(2);
 });
 
@@ -347,11 +325,9 @@ test("each verb this build serves posts its own route rather than the monitor on
     (row.getAttribute("title") ?? "").startsWith(MENU_UNMONITOR),
   );
 
-  // A scope change on something already monitored is a different verb from monitoring it, so the
-  // two must not share a route: posting the monitor route here would re-add an entity the instance
-  // already holds.
-  // The POSTs alone. Each action is followed by a read back, so the last call recorded is a GET
-  // whichever route the action used.
+  // A scope change on a monitored entity must not share the monitor route: posting that route here
+  // would re-add an entity the instance already holds. The POSTs alone, because each action is
+  // followed by a read back and the last call recorded is always a GET.
   const posted = () => sent.filter((call) => call.method === "POST").map((call) => call.path);
 
   expect(scope?.disabled).toBe(false);
@@ -366,10 +342,9 @@ test("each verb this build serves posts its own route rather than the monitor on
   expect(posted()).toHaveLength(2);
 });
 
-/** A generation holding the capability the reflect-owned row is gated on. */
+// A generation holding the capability the reflect-owned row is gated on.
 const REFLECTING = ["monitorStudio", "reflectOwnedFiles"];
 
-/** The reflect-owned row of an open menu, which this build does serve a route for. */
 async function pressReflectOwned(rendered: Awaited<ReturnType<typeof render>>) {
   await press(rendered.button);
   const reflect = rendered
@@ -377,17 +352,16 @@ async function pressReflectOwned(rendered: Awaited<ReturnType<typeof render>>) {
     .find((row) => (row.getAttribute("title") ?? "").startsWith(ACTION_REFLECT_OWNED));
   expect(reflect?.disabled).toBe(false);
   await press(reflect);
-  // Queried from the document for the reason the menu is: the hero clips its children, so the
-  // notice leaves that container too and is not reachable from the control's own subtree.
+  // Queried from the document for the reason the menu is: the notice leaves the clipping hero too
+  // and is not reachable from the control's own subtree.
   return document.body.querySelector('[role="status"]');
 }
 
-/** How many times `sentence` is written anywhere in the document. */
 function occurrencesOf(sentence: string): number {
   return document.body.textContent.split(sentence).length - 1;
 }
 
-/** The element the trigger sits in, which is the subtree inside the host's clipping hero. */
+// The subtree inside the host's clipping hero.
 function wrapperOf(rendered: Awaited<ReturnType<typeof render>>): Element {
   const wrapper = rendered.button?.parentElement ?? null;
   expect(wrapper).not.toBeNull();
@@ -440,8 +414,8 @@ test("a failure notice is anchored to the control, on the menu's own placement",
   const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
   const notice = (await pressReflectOwned(rendered)) as HTMLElement | null;
 
-  // The menu is still open, so the two share one placed container rather than each carrying the
-  // same rectangle: two elements placed at one rectangle is what made the notice cover the menu.
+  // The menu is still open, so the two share one placed container. Two elements each carrying the
+  // same rectangle is what made the notice cover the menu.
   const menu = rendered.menu() as HTMLElement;
   expect(menu).not.toBeNull();
   const container = menu.parentElement!;
@@ -450,11 +424,8 @@ test("a failure notice is anchored to the control, on the menu's own placement",
   expect(notice?.style.top).toBe("");
 });
 
-/**
- * jsdom reports every element rectangle as zeroes, so no geometric assertion is available and none
- * may be written: one would pass on any layout at all. What stands in for it is the document order
- * the paint follows from, which compareDocumentPosition reports directly.
- */
+// jsdom reports every element rectangle as zeroes, so a geometric assertion would pass on any
+// layout. Document order stands in for it.
 test("with the menu open the notice follows the menu and is not inside it", async () => {
   readAnswer = () => Promise.resolve(view({ monitored: true, capabilities: REFLECTING }));
   actionAnswer = () => Promise.reject(new Error("nothing answered"));
@@ -466,10 +437,9 @@ test("with the menu open the notice follows the menu and is not inside it", asyn
   expect(notice).not.toBeNull();
   expect(menu).not.toBeNull();
 
-  // The two assertions that tell this shape apart from the one that covered the menu. Both elements
-  // were children of the body before, each carrying the same rectangle, so sharing a parent and
-  // following in document order were already true of the covering shape and guard nothing on their
-  // own.
+  // The two assertions that tell this shape apart from the one that covered the menu. Sharing a
+  // parent and following in document order were both already true of the covering shape, so they
+  // guard nothing on their own.
   expect(notice.parentElement).not.toBe(document.body);
   expect(notice.classList.contains("fixed")).toBe(false);
 
@@ -552,12 +522,8 @@ test("a press refused for no quality profile states that beneath the control", a
   expect(rendered.button?.disabled).toBe(false);
 });
 
-/**
- * The page-load half of the same discarded sentence.
- *
- * The menu is available, so nothing is stated in the control's own name, and the reason the read
- * carried would otherwise reach nobody.
- */
+// The menu is available, so nothing is stated in the control's own name and the reason the read
+// carried would otherwise reach nobody.
 test("a read answering that the instance declined states that beneath the control", async () => {
   readAnswer = () => Promise.resolve(view({ refusal: "instanceRefused" }));
 

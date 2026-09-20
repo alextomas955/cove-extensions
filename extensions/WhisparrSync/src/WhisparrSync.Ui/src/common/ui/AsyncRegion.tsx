@@ -1,8 +1,8 @@
 /**
  * A read surface's four slots, chosen by the pure derivation beside it.
  *
- * A surface that can never answer renders nothing at all: an empty state on a surface with no
- * possible answer reads as a factual zero, which is a confident report the product cannot support.
+ * A surface that can never answer renders nothing, because an empty state there would read as a
+ * factual zero.
  */
 import type { ReactNode } from "react";
 import { Spinner } from "@cove-extensions/ui-shared";
@@ -13,19 +13,15 @@ export function AsyncRegion({
   state,
   available = true,
   outageNotice,
-  // Defaulted here rather than inside the branch, so an OMITTED slot takes the spinner while a slot
-  // passed as null renders nothing. A coalesce in the branch treats the two the same, and a caller
-  // asking for nothing then gets a spinner with no error anywhere.
+  // Defaulted here, not in the branch, so an omitted slot takes the spinner and an explicit null
+  // renders nothing. A coalesce in the branch would give a caller asking for nothing a spinner.
   reading = <Spinner />,
   content,
   empty,
   failed,
 }: {
   state: AsyncRegionState;
-  /**
-   * Whether this surface can answer at all. `false` omits it from the DOM; a caller reaching a
-   * capability gap passes it rather than substituting an empty state.
-   */
+  /** `false` omits the surface from the DOM. A caller with no capability passes it. */
   available?: boolean;
   /** Rendered above kept content when a read failed behind it. */
   outageNotice?: ReactNode;

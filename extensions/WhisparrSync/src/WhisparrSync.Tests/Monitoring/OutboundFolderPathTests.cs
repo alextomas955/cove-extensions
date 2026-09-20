@@ -3,24 +3,13 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// The folder this product hands an instance, driven through the whole chain in process.
-/// </summary>
-/// <remarks>
-/// A Cove root spelled for one operating system reaches a container that has no such drive. Handing
-/// the library's own spelling over produces a legitimately empty listing and a run reporting a clean
-/// zero, which is a failure nothing in the product could see.
-/// <para>
-/// Asserted on the folder the importable request actually carried, rather than on what a seam was
-/// handed: the query is composed below the level a call site can see.
-/// </para>
-/// </remarks>
+// Handing the library's own root spelling to a container that has no such drive produces an empty
+// listing and a run reporting a clean zero, which no other assertion would catch.
 public sealed class OutboundFolderPathTests
 {
-    /// <summary>The library root as Cove has it, on a machine the instance does not share.</summary>
+    // The same content under Cove's root and under the container's root.
     private const string CoveRoot = "G:/Downloads/P";
 
-    /// <summary>The same content as the container sees it.</summary>
     private const string InstanceRoot = "/data";
 
     private const string Folder = CoveRoot + "/Blue Harbor";
@@ -31,9 +20,6 @@ public sealed class OutboundFolderPathTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// The folder the importable request carries is the instance's own path, not the library's.
-    /// </summary>
     [Fact]
     public async Task TheImportableRequestCarriesTheInstancesOwnPath()
     {
@@ -48,7 +34,6 @@ public sealed class OutboundFolderPathTests
         Assert.DoesNotContain("Downloads", importable, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>The instance is asked what it holds at the candidate before it is handed a folder.</summary>
     [Fact]
     public async Task TheInstanceIsAskedAboutTheCandidateBeforeItIsHandedAFolder()
     {
@@ -64,14 +49,8 @@ public sealed class OutboundFolderPathTests
         Assert.True(listing > probe);
     }
 
-    /// <summary>
-    /// A folder whose root agrees on nothing reaches the listing not at all.
-    /// </summary>
-    /// <remarks>
-    /// The instance answers an empty directory, which is exactly what a real container answers for a
-    /// path it has no counterpart for. Without the agreement the run would hand that folder over and
-    /// report a clean zero.
-    /// </remarks>
+    // The instance answers an empty directory, which is what a real container answers for a path it
+    // has no counterpart for.
     [Fact]
     public async Task AFolderWhoseRootAgreesOnNothingNeverReachesTheListing()
     {
@@ -85,8 +64,8 @@ public sealed class OutboundFolderPathTests
     private static async Task<(MonitorHost Host, RecordingJobProgress Progress)> RunAsync(
         bool probeHoldsTheSample = true)
     {
-        // The listing is composed from the file the library really seeded, so the probe is answered
-        // about the path the product really asked about rather than one the case guessed.
+        // The listing is composed from the file the library seeded, so the probe is answered about
+        // the path the product asked about rather than one this fixture guessed.
         var empty = """{"parent":"/data/","directories":[],"files":[]}""";
         var listing = new[] { empty };
 

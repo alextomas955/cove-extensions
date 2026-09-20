@@ -5,14 +5,9 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-/// <summary>
-/// A notification port that commits the production secret-position write before it answers the
-/// registration, which is what a delivery arriving mid-registration does.
-/// </summary>
-/// <remarks>
-/// The competing write is the real one rather than a stand-in, so what it lands on is exactly what a
-/// delivery lands on: the connection record the registration handler read before its outbound call.
-/// </remarks>
+// Commits the production secret-position write before it answers the registration, which is what a
+// delivery arriving mid-registration does. The competing write is the real one, so it lands on the
+// same connection record a delivery lands on.
 internal sealed class DeliveringNotificationPort(
     OptionsStore options, OptionsWriteGate gate, CallbackSecretPosition position)
     : IWhisparrNotificationPort
@@ -36,7 +31,6 @@ internal sealed class DeliveringNotificationPort(
         => throw new NotSupportedException();
 }
 
-/// <summary>A secret port answering with one secret it never has to mint.</summary>
 internal sealed class MintedSecretPort : ICallbackSecretPort
 {
     private const string Secret = "9c1f6b2e4a8d0357";

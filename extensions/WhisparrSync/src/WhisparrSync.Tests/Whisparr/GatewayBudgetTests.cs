@@ -7,18 +7,8 @@ using V2Api = Whisparr2.Net.Api;
 
 namespace WhisparrSync.Tests.Whisparr;
 
-/// <summary>
-/// How long a call through v2's gateway is allowed to take.
-/// </summary>
-/// <remarks>
-/// A read of everything an instance holds waits on the instance building all of it, which a per-item
-/// budget cannot cover. The cases below drive the budget rather than reading it back: a client whose
-/// timeout never reached it answers a slow instance the same way whatever the target asked for.
-/// <para>
-/// The budgets here are milliseconds so a case finishes. What is under test is that the number the
-/// target names is the one the request is bounded by, not the size of either shipped number.
-/// </para>
-/// </remarks>
+// The budgets here are milliseconds so a case finishes. What is under test is that the number the
+// target names is the one the request is bounded by, not the size of either shipped number.
 public sealed class GatewayBudgetTests
 {
     private const string SomeKey = "0123456789abcdef0123456789abcdef";
@@ -38,7 +28,6 @@ public sealed class GatewayBudgetTests
             () => ReadThroughAsync(gateway, ShorterThanTheSlowAnswer));
     }
 
-    /// <summary>The same answer, the same instance, and only the budget different.</summary>
     [Fact]
     public async Task TheSameAnswerIsWaitedForWhereTheTargetAsksForLonger()
     {
@@ -49,20 +38,12 @@ public sealed class GatewayBudgetTests
         Assert.Equal(HttpStatusCode.OK, answered.StatusCode);
     }
 
-    /// <summary>A read of everything the instance holds is the one given the longer budget.</summary>
     [Fact]
     public void AReadOfEverythingHeldIsBudgetedAboveAPerItemCall()
         => Assert.True(WhisparrClient.LibraryReadTimeout > WhisparrClient.RequestTimeout);
 
-    /// <summary>
-    /// The read that asks which sites the instance holds is made against the longer budget.
-    /// </summary>
-    /// <remarks>
-    /// Driving the real timeout would mean a case that waits out the per-item budget. What is
-    /// recorded instead is the budget each registration was built with, which is the value the
-    /// request is bounded by: a client built at the per-item budget gives up on this instance at
-    /// fifteen seconds whatever the call site meant.
-    /// </remarks>
+    // Driving the real timeout would mean waiting out the per-item budget, so the case records the
+    // budget each registration was built with, which is the value the request is bounded by.
     [Fact]
     public async Task AskingWhichSitesAreHeldIsBudgetedForAReadOfEverythingHeld()
     {
@@ -84,16 +65,9 @@ public sealed class GatewayBudgetTests
         Assert.DoesNotContain(WhisparrClient.RequestTimeout, builtWith);
     }
 
-    /// <summary>
-    /// Reading whether one site is held is made against the longer budget too.
-    /// </summary>
-    /// <remarks>
-    /// Narrowing the read by the site's own number bounds how much comes back, not how long it
-    /// takes: this generation builds its whole set before filtering, so a few kilobytes about one
-    /// site arrive no sooner than the whole list does. On an instance holding enough sites that
-    /// answer exceeds <see cref="WhisparrClient.RequestTimeout"/>, so budgeting it as a per-item
-    /// call gives up on every site in the library and the site pass registers and moves nothing.
-    /// </remarks>
+    // Narrowing the read by the site's own number bounds how much comes back, not how long it takes:
+    // this generation builds its whole set before filtering, so one site arrives no sooner than the
+    // whole list does.
     [Fact]
     public async Task ReadingWhetherOneSiteIsHeldIsBudgetedForAReadOfEverythingHeld()
     {

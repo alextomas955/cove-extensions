@@ -4,19 +4,9 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Connection;
 
-/// <summary>
-/// The external facts the decision table rests on, pinned.
-/// </summary>
-/// <remarks>
-/// Every expected value below was TRANSCRIBED BY HAND from a response an instance produced, and each
-/// names the build it came from. An expectation computed from the document it checks would agree with
-/// that document whatever either said; these go red when a build changes, which is the whole reason
-/// they exist. The fixture ledger they were taken from is local-only and unversioned, so a fact this
-/// code depends on has to live here to survive.
-/// <para>
-/// The captured documents are INPUTS. Nothing here reads an expectation out of one.
-/// </para>
-/// </remarks>
+// Every expected value here was transcribed by hand from a response a live instance produced, and
+// each names the build it came from. The captured documents are inputs; no expectation is read out
+// of one. The fixture ledger they came from is local-only and unversioned, so the facts live here.
 public sealed class WhisparrStatusPinTests
 {
     // Transcribed by hand from the two builds this extension was measured against.
@@ -39,10 +29,8 @@ public sealed class WhisparrStatusPinTests
         Assert.True(document.StudioCountPresent, $"studioCount is absent on {V3Build}");
     }
 
-    /// <summary>
-    /// Taken on the parsed SHAPE, never on a status code. A status-only probe already recorded four
-    /// v2 documents that do not exist, so a status is not evidence about this generation.
-    /// </summary>
+    // Read from the parsed shape, never from a status code. A status-only probe recorded four v2
+    // documents that do not exist, so a status is not evidence about this generation.
     [Fact]
     public void V2_ReportsItsVersionAndBranchAndNoneOfTheFourCountFields()
     {
@@ -53,10 +41,8 @@ public sealed class WhisparrStatusPinTests
         Assert.True(document.NoCountFieldsPresent, $"a count field is present on {V2Build}");
     }
 
-    /// <summary>
-    /// <c>appName</c> reads the same on both, so it discriminates nothing about the generation. It is
-    /// exactly right for telling Whisparr from not-Whisparr, and useless for anything else.
-    /// </summary>
+    // appName reads the same on both builds. It tells Whisparr from not-Whisparr and says nothing
+    // about the generation.
     [Fact]
     public void AppName_ReadsTheSameOnBothBuilds_AndSoDiscriminatesNothing()
     {
@@ -68,11 +54,6 @@ public sealed class WhisparrStatusPinTests
         Assert.Equal(v3.AppName, v2.AppName);
     }
 
-    /// <summary>
-    /// The generation each captured document detects as, and whether its two corroborating readings
-    /// agree with that. Both builds corroborate; a build where they did not would be the build gap
-    /// the detector exists to report.
-    /// </summary>
     [Fact]
     public void EachCapturedDocumentDetectsItsOwnGenerationAndCorroboratesIt()
     {
@@ -85,12 +66,8 @@ public sealed class WhisparrStatusPinTests
         Assert.True(v2.Corroborated, $"branch and count fields do not corroborate v2 on {V2Build}");
     }
 
-    /// <summary>
-    /// The two content types the classifier's steps 2 and 3 turn on, transcribed rather than
-    /// re-measured here: a good key answers with a JSON media type and a turned-down key answers with
-    /// no content type at all, on BOTH builds. The second is why status is tested first, and this
-    /// asserts the classifier agrees with the shape that made that ordering necessary.
-    /// </summary>
+    // On both builds a good key answers with a JSON media type and a rejected key answers with no
+    // content type at all. The second is why the classifier tests status before content type.
     [Fact]
     public void TheTwoMeasuredContentTypes_ClassifyAsTheyDidWhenMeasured()
     {
@@ -99,17 +76,15 @@ public sealed class WhisparrStatusPinTests
             ConnectionFailureClassifier.IsJsonMediaType("application/json; charset=utf-8"),
             $"the good-key content type measured on {V3Build} and {V2Build} is not read as JSON");
 
-        // Turned-down key, both builds: 401 with an EMPTY content type and no body.
+        // Rejected key, both builds: 401 with an empty content type and no body.
         Assert.Equal(
             Contracts.ConnectionFailureKind.KeyRejected,
             ConnectionFailureClassifier.Classify(
                 ConnectionObservation.Answered(401, string.Empty, WhisparrStatusDocument.Parse(string.Empty))));
     }
 
-    /// <summary>
-    /// An unknown path at the site root answers <c>200 text/html</c> on both builds. That is why
-    /// "answered as a web page" is a content-type test: nothing about the status says so.
-    /// </summary>
+    // An unknown path at the site root answers 200 text/html on both builds, so a web page is
+    // detected on the content type. The status says nothing.
     [Fact]
     public void AnUnknownRootPath_AnswersAsAWebPage_AndIsRefusedOnItsContentType()
     {

@@ -3,30 +3,18 @@ using WhisparrSync.Providers;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-/// <summary>
-/// A metadata provider answering a configured number per scene identifier, recording every call in
-/// order and refusing one it was not configured for.
-/// </summary>
-/// <remarks>
-/// A double answering a number for anything would let a pass that asked about the wrong scene pass,
-/// so an identifier this was not given an answer for throws rather than answering null. Null is an
-/// answer here and is configured explicitly: it is the provider naming no number for a scene it does
-/// know about.
-/// <para>
-/// It carries the capability set of a real provider rather than a set assembled per case, so a case
-/// cannot ask for a combination no provider has.
-/// </para>
-/// <para>
-/// Every other member of the seam throws. Nothing on this path reads a catalogue page, and a member
-/// that answered an empty one would let a pass reaching the wrong seam look like one that found
-/// nothing.
-/// </para>
-/// </remarks>
+// An identifier this was not given an answer for throws rather than answering null, so a pass that
+// asked about the wrong scene cannot pass. Null is an answer here and is configured explicitly: it
+// is the provider naming no number for a scene it does know about.
+// The capability set is a real provider's rather than one assembled per case, so a case cannot ask
+// for a combination no provider has.
+// Every other member of the seam throws. Nothing on this path reads a catalogue page, and a member
+// that answered an empty one would let a pass reaching the wrong seam look like one that found
+// nothing.
 internal sealed class RecordingProviderCatalogue : IProviderCatalogue, IResolvesNumericSceneId
 {
     private readonly Dictionary<string, int?> _numbers;
 
-    /// <summary>A provider answering <paramref name="numbers"/>.</summary>
     internal RecordingProviderCatalogue(IReadOnlyDictionary<string, int?> numbers)
     {
         ArgumentNullException.ThrowIfNull(numbers);
@@ -34,18 +22,12 @@ internal sealed class RecordingProviderCatalogue : IProviderCatalogue, IResolves
         Capabilities = ProviderCapabilities.ForThePornDb(this);
     }
 
-    /// <summary>Every scene identifier this was asked to resolve, in order.</summary>
     public List<string> Resolved { get; } = [];
 
-    /// <summary>What a resolution raises, or null where it reaches the provider.</summary>
-    /// <remarks>
-    /// Set for a case whose subject is a provider that stopped answering part way through a site.
-    /// The call is still recorded, because what the pass asked about is the fact under test.
-    /// <para>
-    /// A factory rather than an instance, so a case can also stop the run at the moment the read is
-    /// made and raise the shape that stop arrives in.
-    /// </para>
-    /// </remarks>
+    // Set for a case whose subject is a provider that stopped answering part way through a site. The
+    // call is still recorded, because what the pass asked about is the fact under test. A factory
+    // rather than an instance, so a case can also stop the run at the moment the read is made and
+    // raise the shape that stop arrives in.
     public Func<Exception>? Unreachable { get; set; }
 
     public ProviderCapabilitySet Capabilities { get; }

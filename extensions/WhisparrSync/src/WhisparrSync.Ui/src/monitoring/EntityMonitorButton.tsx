@@ -1,14 +1,12 @@
 /**
  * The Whisparr control in a detail page's own action row, and the menu it opens.
  *
- * The host spreads its slot context as top-level props, so the props of each exported component are
- * exactly what that context carries. Only the Cove id is declared and only the Cove id is read: the
- * identifier the instance is given is re-resolved on the server from the library's own identity row,
- * and sending one from the browser is what the product forbids outright.
+ * The host spreads its slot context as top-level props, so each exported component's props are
+ * exactly what that context carries. Only the Cove id is declared and read: the identifier the
+ * instance is given is re-resolved on the server.
  *
- * The host's `Studio` and `Performer` types cannot be generated into this bundle's wire types, which
- * are emitted from this extension's own registrations, so these two prop shapes are hand-declared at
- * their narrowest and their field names are pinned in a test against the host source.
+ * The host's `Studio` and `Performer` types cannot be generated into this bundle's wire types, so
+ * these two prop shapes are hand-declared and pinned in a test against the host source.
  */
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -39,21 +37,17 @@ import { WhisparrMark } from "./WhisparrMark";
 import { useMonitoring } from "./useMonitoring";
 
 /**
- * Cove's own action-row button styling, copied verbatim from the host.
+ * Cove's own action-row button styling, copied verbatim from the host because it cannot be imported
+ * across repositories. Every class in it is one the host's source writes, so the host emits it.
  *
- * The host exports it so extensions match its rounding, size and border, and it cannot be imported
- * across repositories. Every class in it is one the host's own source writes, which is what makes it
- * a class the host actually emits.
- *
- * `border-border` is held out of it because the host's stylesheet declares that class twice: the
- * utility `border-color` rule, and a later rule setting the `border` shorthand. At equal specificity
- * the later one wins and its shorthand resets the colour, so `border-accent` alongside it computes
- * grey rather than the accent. The monitored state therefore carries `border-accent` in its place.
+ * `border-border` is held out. The host's stylesheet declares that class twice, and the later rule
+ * sets the `border` shorthand, which resets the colour. `border-accent` alongside it would compute
+ * grey, so the monitored state carries `border-accent` in its place.
  */
 const HERO_ACTION_BUTTON_CLASS =
   "inline-flex h-10 w-10 items-center justify-center rounded-lg border bg-card transition-colors hover:border-accent hover:text-foreground disabled:cursor-not-allowed";
 
-/** What that route is sent. A kind expressing no scope sends none rather than a default. */
+// An item expressing no scope sends none rather than a default.
 function bodyFor(item: MonitorMenuItem): unknown {
   return { scope: item.item === "scope" ? item.scope : null };
 }
@@ -81,14 +75,13 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
   const name = monitored ? WHISPARR_MONITORED : WHISPARR_NOT_MONITORED;
   const region = deriveAsyncRegionState(state.read);
 
-  // Anything on its way, whether the action itself or the read that follows it, so no second gesture
-  // starts before the first has settled.
+  // The action or the read that follows it, so no second gesture starts before the first settles.
   const inFlight = state.acting || (state.read.reading && view !== null);
   const menu = view === null ? null : monitorMenu(view, inFlight);
 
-  // A reason disables and an absent reason enables, so the control cannot be dimmed with nothing to
-  // hear. A read that failed reports that it failed: falling back to the unmonitored look would be a
-  // confident report of a fact nobody established.
+  // A reason disables and an absent reason enables, so the control cannot be dimmed with nothing
+  // to hear. A failed read says so rather than falling back to the unmonitored look, which would
+  // report a fact nobody established.
   const unavailable =
     region.status === "failed"
       ? MONITORING_COULD_NOT_BE_READ
@@ -98,14 +91,13 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
           ? null
           : (menu?.reason ?? MONITORING_COULD_NOT_BE_READ);
 
-  // With no visible label the accessible name is the only name the control has, so it leads and the
-  // reason follows it, and the hover text is that same string.
+  // With no visible label the accessible name is the only name the control has, so it leads and
+  // the reason follows it. The hover text is that same string.
   const spoken = unavailable === null ? name : `${name}, ${unavailable}`;
 
-  // A press refusal outranks the view's own, and a failed read contributes none: the control already
-  // says the read failed, and a refusal sentence beside it would be two answers about one instance.
-  // Nothing is filtered here - the rule for which refusal speaks where lives in `controlNotice`
-  // alone, so there is one place to get it wrong rather than two.
+  // A press refusal outranks the view's own, and a failed read contributes none: the control
+  // already says the read failed. The rule for which refusal speaks where lives in `controlNotice`
+  // alone, so nothing is filtered here.
   const outcome = controlNotice({
     failed: state.actionFailed,
     refusal: state.actionRefusal ?? (region.status === "failed" ? null : (view?.refusal ?? null)),
@@ -142,19 +134,17 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
       >
         <AsyncRegion
           state={region}
-          // Until the read answers, the bordered shell alone. The mark is full colour and names the
-          // connected generation by that colour, so painting one before the read would be a chance
-          // of showing the wrong product. A failed read draws no mark for the same reason, and says
-          // so through the control's own name rather than through a mark it would have to guess.
+          // The bordered shell alone until the read answers. The mark names the connected
+          // generation by its colour, so painting one before the read could show the wrong product.
+          // A failed read draws no mark for the same reason and says so through the control's name.
           reading={null}
           empty={null}
           failed={null}
           content={
             <>
               {monitored ? (
-                // The state lives on the border and the tick. The mark is a filled two-tone disc, so
-                // it can neither invert on a fill nor dim; a tint behind it lifts the border's one
-                // pixel without competing with the mark's own colour.
+                // The mark is a filled two-tone disc, so it can neither invert on a fill nor dim. A
+                // tint behind it lifts the border without competing with the mark's own colour.
                 <span className="absolute inset-0 rounded-lg bg-accent/10" />
               ) : null}
               <WhisparrMark generation={view?.generation} className="relative h-5 w-5" />
@@ -185,11 +175,10 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
           label={name}
           triggerRef={triggerRef}
           // Inside the menu's own container, so it sits below the rows it reports on rather than
-          // over them: the two used to take the same rectangle from one anchor at the same z-index.
+          // over them.
           notice={outcome}
-          // The menu stays open while the action runs. Every item disables until the state has been
-          // read back, so what the reader sees next is what the instance answered rather than the
-          // menu they pressed disappearing before it changed.
+          // The menu stays open while the action runs and every item disables until the state has
+          // been read back, so what the reader sees next is what the instance answered.
           onSelect={(item) => {
             const route = routeFor(item, monitored);
             if (route === null) return;
@@ -213,7 +202,7 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
             <ConfirmDialog
               open
               // Red where the action cannot be undone and accent where it can, rather than the
-              // host's default of always red. The same predicate the message reads.
+              // host's default of always red.
               destructive={allScenesIsAOneWayDoor(view?.generation ?? null)}
               title={confirming.item.label}
               confirmLabel={confirming.item.label}
@@ -231,10 +220,10 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
 
       {outcome === null || openMenu !== null
         ? null
-        : // Beneath the control rather than in place of it: the control still reports what the
-          // entity is, and this reports what the last gesture did. Portaled for the reason the menu
-          // is - the host's hero clips its children, and `z-50` does not escape that. With the menu
-          // open the menu's own container holds it instead, so the two do not stack on one another.
+        : // Beneath the control rather than in place of it: the control reports what the entity is
+          // and this reports what the last gesture did. Portaled for the reason the menu is, since
+          // `z-50` does not escape the clipping hero. With the menu open its container holds this
+          // instead, so the two do not stack on one another.
           createPortal(
             <p
               role="status"

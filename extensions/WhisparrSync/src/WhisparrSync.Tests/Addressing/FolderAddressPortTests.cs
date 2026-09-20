@@ -9,15 +9,9 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Addressing;
 
-/// <summary>
-/// What one folder the library names becomes on the connected instance, and what one library root
-/// costs however many folders sit under it.
-/// </summary>
-/// <remarks>
-/// Driven over doubles for the library side and a recording transport for the instance side, so the
-/// probe count and the paths asked about are read off the requests that left rather than off a call
-/// log a double kept.
-/// </remarks>
+// Driven over doubles for the library side and a recording transport for the instance side, so
+// the probe count and the paths asked about are read off the requests that left rather than off a
+// call log a double kept.
 public sealed class FolderAddressPortTests
 {
     private const string CoveRoot = "G:/Downloads/P";
@@ -30,19 +24,17 @@ public sealed class FolderAddressPortTests
 
     private const string Key = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
-    /// <summary>The instance's own listing of the directory holding the sample file.</summary>
+    // The size matches SampleSize. A different one stops the candidate resolving.
     private const string HoldingTheSample = """
         {"parent":"/data/","directories":[],
          "files":[{"path":"/data/Blue Harbor/scene.mp4","name":"scene.mp4","size":41,"type":"file"}]}
         """;
 
-    /// <summary>The same directory, holding a file of another length.</summary>
     private const string HoldingAnotherLength = """
         {"parent":"/data/","directories":[],
          "files":[{"path":"/data/Blue Harbor/scene.mp4","name":"scene.mp4","size":42,"type":"file"}]}
         """;
 
-    /// <summary>A directory of that name and no file in it.</summary>
     private const string HoldingADirectory = """
         {"parent":"/data/","directories":[{"path":"/data/Blue Harbor/scene.mp4","name":"scene.mp4"}],
          "files":[]}
@@ -63,10 +55,6 @@ public sealed class FolderAddressPortTests
         Assert.Equal(CoveRoot, addressed.CoveRoot);
     }
 
-    /// <summary>
-    /// A candidate the instance reports a directory at does not resolve, so no folder under that root
-    /// is addressed.
-    /// </summary>
     [Fact]
     public async Task ACandidateTheInstanceReportsADirectoryAtDoesNotResolve()
     {
@@ -89,15 +77,9 @@ public sealed class FolderAddressPortTests
         Assert.Equal(FolderAgreementRefusal.NothingResolved, addressed.Refusal);
     }
 
-    /// <summary>
-    /// A run over many folders under one root reads one sample file and probes its candidates once,
-    /// whatever the folder count.
-    /// </summary>
-    /// <remarks>
-    /// One probe per candidate: the rebuild under the instance's declared root, and the library's own
-    /// spelling. What a run costs grows with the roots an operator configured, never with the folders
-    /// under them.
-    /// </remarks>
+    // Two probes, one per candidate: the rebuild under the instance's declared root, and the
+    // library's own spelling. What a run costs grows with the roots an operator configured, never
+    // with the folders under them.
     [Fact]
     public async Task ManyFoldersUnderOneRootCostOneSampleFileAndOneRoundOfProbes()
     {
@@ -118,9 +100,6 @@ public sealed class FolderAddressPortTests
             2, handler.Targets.Count(sent => sent.Contains("filesystem", StringComparison.Ordinal)));
     }
 
-    /// <summary>
-    /// A root holding no file answers its own reason, and nothing is asked of the instance.
-    /// </summary>
     [Fact]
     public async Task ARootHoldingNoFileAsksTheInstanceNothing()
     {
@@ -134,9 +113,6 @@ public sealed class FolderAddressPortTests
             handler.Targets, sent => sent.Contains("filesystem", StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// A folder under no configured library root is addressed by nothing, and nothing is asked.
-    /// </summary>
     [Fact]
     public async Task AFolderUnderNoLibraryRootIsAddressedByNothing()
     {
@@ -148,10 +124,7 @@ public sealed class FolderAddressPortTests
         Assert.Empty(handler.Requests);
     }
 
-    /// <summary>
-    /// An answer that is not the instance's own listing shape is a probe that could not be read,
-    /// which is not the same as nothing having resolved.
-    /// </summary>
+    // A probe that could not be read is not the same as nothing having resolved.
     [Fact]
     public async Task AnAnswerOfAnotherShapeIsAProbeThatCouldNotBeRead()
     {
@@ -172,14 +145,9 @@ public sealed class FolderAddressPortTests
         Assert.Equal(FolderAgreementRefusal.InstanceDeclaresNoRoot, addressed.Refusal);
     }
 
-    /// <summary>
-    /// Where configured library roots nest, the folder is addressed under the most specific of them.
-    /// </summary>
-    /// <remarks>
-    /// The tail is taken below the root, so the shallower root produces a tail carrying the very
-    /// segment the instance's own root already holds, and the rebuilt candidate then names a path
-    /// neither system has.
-    /// </remarks>
+    // The tail is taken below the root, so the shallower root produces a tail carrying the segment
+    // the instance's own root already holds, and the rebuilt candidate then names a path neither
+    // system has.
     [Fact]
     public async Task AFolderUnderTwoNestedLibraryRootsIsAddressedUnderTheMoreSpecificOne()
     {
@@ -212,10 +180,6 @@ public sealed class FolderAddressPortTests
             Key,
             (IWhisparrInstanceFilesystemReading)TestWhisparrClient.Over(handler));
 
-    /// <summary>
-    /// The port over one instance answering <paramref name="listing"/> to every filesystem read and
-    /// declaring <paramref name="declaredRoots"/> as its own.
-    /// </summary>
     private static (IFolderAddressPort Port, BodyRecordingHandler Handler) Over(
         string listing,
         string[] declaredRoots,
@@ -240,7 +204,6 @@ public sealed class FolderAddressPortTests
             handler);
     }
 
-    /// <summary>The sample-file source, counting how often a root was asked about.</summary>
     private sealed class CountingSampleFiles(SampleFile? answer) : ISampleFilePort
     {
         public int Reads { get; private set; }
@@ -252,11 +215,8 @@ public sealed class FolderAddressPortTests
         }
     }
 
-    /// <summary>The host's configured library paths, as this product reads them.</summary>
-    /// <remarks>
-    /// Only the roots are supplied. Every other member raises, so a case reaching one fails rather
-    /// than reading a value nobody configured.
-    /// </remarks>
+    // Only the roots are supplied. Every other member raises, so a test reaching one fails rather
+    // than reading a value nobody configured.
     private sealed class StubLibraryRoots(IReadOnlyList<string>? roots = null) : ICoveLibraryPort
     {
         public IReadOnlyList<string> LibraryRoots { get; } = roots ?? [CoveRoot];
@@ -291,7 +251,6 @@ public sealed class FolderAddressPortTests
             => throw new NotSupportedException();
     }
 
-    /// <summary>The roots the instance declares, with no request behind them.</summary>
     private sealed class StubInstanceRoots(IReadOnlyList<string> roots) : IReportedRootPort
     {
         public int Reads { get; private set; }

@@ -4,29 +4,13 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Library;
 
-/// <summary>
-/// Which identifier each scene card is known by, read from a real relational library.
-/// </summary>
-/// <remarks>
-/// The namespace rule is the subject as much as the identifiers are. A row written under another
-/// spelling of the same source names an identified scene, and a read comparing endpoint spellings as
-/// strings would answer that an identified video carries none.
-/// <para>
-/// The conflicting case is the other half. A video whose matching rows name different scenes is
-/// answered for by nothing, because which of them an outbound request would name depends on row
-/// order.
-/// </para>
-/// </remarks>
 public sealed class LibraryCardIdentityPortTests
 {
-    /// <summary>The standard spelling of the source v3 identifies against.</summary>
-    /// <remarks>
-    /// A different spelling from the one <see cref="MonitorHost.StoredEndpoint"/> stores, and
-    /// deliberately: the two name one source under the host's own rule.
-    /// </remarks>
+    // A different spelling from the one MonitorHost.StoredEndpoint stores, on purpose. The two
+    // name one source under the host's own rule.
     private const string StandardStashDbAddress = "https://stashdb.org/graphql";
 
-    /// <summary>A spelling belonging to the OTHER generation's namespace.</summary>
+    // A spelling belonging to the other generation's namespace.
     private const string OtherNamespaceEndpoint = "theporndb.net/graphql";
 
     private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
@@ -34,7 +18,6 @@ public sealed class LibraryCardIdentityPortTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>A video carrying one matching row is known by that row's scene.</summary>
     [Fact]
     public async Task AVideoCarryingOneMatchingRowIsKnownByIt()
     {
@@ -47,13 +30,8 @@ public sealed class LibraryCardIdentityPortTests
             await ResolveAsync(host, videoId));
     }
 
-    /// <summary>
-    /// A row written under a different spelling of the same source IS answered.
-    /// </summary>
-    /// <remarks>
-    /// The host's own same-source rule decides it. Comparing the two as strings would leave a card
-    /// silent for a reason that is not about the connected instance.
-    /// </remarks>
+    // The host's own same-source rule decides this. Comparing the endpoint spellings as strings
+    // would leave a card silent for a reason that is not about the connected instance.
     [Fact]
     public async Task ASpellingOfTheSameSourceIsAnsweredRatherThanComparedAsAString()
     {
@@ -66,7 +44,6 @@ public sealed class LibraryCardIdentityPortTests
             await ResolveAsync(host, videoId));
     }
 
-    /// <summary>A video whose rows all name another source is known by nothing.</summary>
     [Fact]
     public async Task AVideoWhoseRowsNameAnotherSourceIsKnownByNothing()
     {
@@ -77,7 +54,6 @@ public sealed class LibraryCardIdentityPortTests
         Assert.Empty(await ResolveAsync(host, videoId));
     }
 
-    /// <summary>A video carrying no identity row at all is known by nothing.</summary>
     [Fact]
     public async Task AVideoCarryingNoRowIsKnownByNothing()
     {
@@ -88,13 +64,8 @@ public sealed class LibraryCardIdentityPortTests
         Assert.Empty(await ResolveAsync(host, videoId));
     }
 
-    /// <summary>
-    /// A video carrying several matching rows that name different scenes is known by nothing.
-    /// </summary>
-    /// <remarks>
-    /// Both rows match the source, so a read picking the first would offer whichever the database
-    /// happened to return, and a card would then report a status about a scene nobody chose.
-    /// </remarks>
+    // Both rows match the source, so a read picking the first would take whichever the database
+    // returned, and a card would report a status about a scene nobody chose.
     [Fact]
     public async Task AVideoNamingTwoDifferentScenesInOneNamespaceIsKnownByNothing()
     {
@@ -106,13 +77,8 @@ public sealed class LibraryCardIdentityPortTests
         Assert.Empty(await ResolveAsync(host, videoId));
     }
 
-    /// <summary>
-    /// One page's answer names only the videos it asked about, in the order it asked.
-    /// </summary>
-    /// <remarks>
-    /// The filter is the point. A read that materialized the library's own identity rows would answer
-    /// the same identifiers and grow with the library.
-    /// </remarks>
+    // A read that materialized the library's own identity rows would answer the same identifiers
+    // and grow with the library.
     [Fact]
     public async Task OnlyTheRequestedVideosAreAnsweredForAndInTheRequestedOrder()
     {

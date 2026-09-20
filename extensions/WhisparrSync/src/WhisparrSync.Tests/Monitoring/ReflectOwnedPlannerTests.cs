@@ -6,21 +6,11 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// The one decision that decides whether a user's files get duplicated, and what a folder's parsed
-/// rows become on the way to the instance.
-/// </summary>
-/// <remarks>
-/// Pure module, no doubles: the hard-link setting arrives as the media-management answer each build
-/// returned, the rows as the shape the parse route answers, and the run is driven through delegates
-/// that record what they were handed. Nothing here reads a status.
-/// </remarks>
 public sealed class ReflectOwnedPlannerTests
 {
     private const string V3MediaManagementFixture = "whisparr-v3-3.3.8.1097-media-management.json";
     private const string V2MediaManagementFixture = "whisparr-v2-2.2.0.231-media-management.json";
 
-    /// <summary>A parsed row v3 matched to a scene it holds.</summary>
     private const string V3MatchedRow = """
         {"id":1,"path":"/config/library/Vixen/scene.mp4","relativePath":"Vixen/scene.mp4",
          "folderName":"Vixen","name":"scene","size":10,
@@ -30,10 +20,8 @@ public sealed class ReflectOwnedPlannerTests
          "customFormats":[],"customFormatScore":0,"indexerFlags":0,"rejections":[]}
         """;
 
-    /// <summary>
-    /// A row the parse could not match, exactly as measured: a permanent rejection and NO matched
-    /// member at all, rather than a null one.
-    /// </summary>
+    // A row the parse could not match, as measured: a permanent rejection, and no matched member
+    // at all rather than a null one.
     private const string V3UnmatchedRow = """
         {"id":2,"path":"/config/library/Vixen/unknown.mp4","relativePath":"Vixen/unknown.mp4",
          "folderName":"Vixen","name":"unknown","size":10,"movieFileId":0,"releaseGroup":"",
@@ -43,7 +31,6 @@ public sealed class ReflectOwnedPlannerTests
          "rejections":[{"reason":"Unknown Movie","type":"permanent"}]}
         """;
 
-    /// <summary>A parsed row v2 matched to a series and its episodes.</summary>
     private const string V2MatchedRow = """
         {"id":1,"path":"/config/library/Vixen/scene.mp4","relativePath":"Vixen/scene.mp4",
          "folderName":"Vixen","name":"scene","size":10,
@@ -62,10 +49,8 @@ public sealed class ReflectOwnedPlannerTests
          "rejections":[{"reason":"Unknown Series","type":"permanent"}]}
         """;
 
-    /// <summary>
-    /// A row of the captured shape: a file in the inbox, matched to a site registered under another
-    /// declared root. This is the arrangement measured to copy the bytes in full.
-    /// </summary>
+    // A file in the inbox matched to a site registered under another declared root. This is the
+    // arrangement measured to copy the bytes in full.
     private const string InboxRowMatchedToRootA = """
         {"path":"/library/inbox/Tushy - 2015-05-04 - Big Butt 1080p WEBDL.mp4",
          "relativePath":"Tushy - 2015-05-04 - Big Butt 1080p WEBDL.mp4","folderName":"inbox","size":72246,
@@ -75,7 +60,6 @@ public sealed class ReflectOwnedPlannerTests
          "languages":[{"id":1,"name":"English"}],"indexerFlags":0,"downloadId":null,"rejections":[]}
         """;
 
-    /// <summary>A second inbox row, so a folder can leave more than one file out.</summary>
     private const string SecondInboxRowMatchedToRootA = """
         {"path":"/library/inbox/Tushy - 2015-05-11 - Second 1080p WEBDL.mp4",
          "relativePath":"Tushy - 2015-05-11 - Second 1080p WEBDL.mp4","folderName":"inbox","size":72246,
@@ -85,7 +69,6 @@ public sealed class ReflectOwnedPlannerTests
          "languages":[{"id":1,"name":"English"}],"indexerFlags":0,"downloadId":null,"rejections":[]}
         """;
 
-    /// <summary>The same site, matched to a file already under the root it sits at.</summary>
     private const string RootARowMatchedToRootA = """
         {"path":"/library/rootA/Tushy/scene.mp4","relativePath":"scene.mp4","folderName":"Tushy","size":72246,
          "series":{"id":2,"title":"Tushy","path":"/library/rootA/Tushy"},
@@ -94,16 +77,13 @@ public sealed class ReflectOwnedPlannerTests
          "languages":[{"id":1,"name":"English"}],"indexerFlags":0,"downloadId":null,"rejections":[]}
         """;
 
-    /// <summary>
-    /// The roots the measured instance declares. They nest, which is why the most specific one has to
-    /// answer for a path: taking the first would see one root where there are three.
-    /// </summary>
+    // The roots the measured instance declares. They nest, so the most specific one has to answer
+    // for a path; taking the first would see one root where there are three.
     private static readonly string[] DeclaredRoots = ["/library", "/library/rootA", "/library/rootB"];
 
     private static readonly WhisparrGeneration[] Generations =
         [WhisparrGeneration.V3, WhisparrGeneration.V2];
 
-    /// <summary>With the setting on, the answer both builds return as shipped, the planner acts.</summary>
     [Fact]
     public void HardLinksOnAnswersActOnBothGenerations()
     {
@@ -116,10 +96,6 @@ public sealed class ReflectOwnedPlannerTests
         }
     }
 
-    /// <summary>
-    /// With the setting off the planner skips, names the reason, and the reason is the SAME value on
-    /// both generations: neither offers an import mode that would not duplicate the data.
-    /// </summary>
     [Fact]
     public void HardLinksOffAnswersSkippedWithTheSameReasonOnBothGenerations()
     {
@@ -139,14 +115,8 @@ public sealed class ReflectOwnedPlannerTests
             reasons.Select(decision => decision.Reason));
     }
 
-    /// <summary>
-    /// A setting that is absent, null, of the wrong type, or inside a body that is not the settings
-    /// object at all answers skipped and never act.
-    /// </summary>
-    /// <remarks>
-    /// Stricter than the measured default on purpose. Acting on a setting nobody read is how every
-    /// matched file gets copied in full with no error.
-    /// </remarks>
+    // Stricter than the measured default. Acting on a setting nobody read copies every matched file
+    // in full with no error.
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -166,15 +136,9 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal(ReflectOwnedSkipReason.HardLinkSettingUnreadable, decision.Reason);
     }
 
-    /// <summary>
-    /// A row carrying a permanent rejection and no matched member is left out of the command rather
-    /// than sent with a fabricated match, on both generations.
-    /// </summary>
-    /// <remarks>
-    /// The exclusion is on member ABSENCE. The unmatched row is asserted to carry no matched member
-    /// at all before it is handed in, because a null check would read a row with a null member the
-    /// same way and that is not the shape the parse route answers.
-    /// </remarks>
+    // The exclusion keys on member absence. The unmatched rows are asserted to carry no matched
+    // member at all, because a null check would read a row with a null member the same way and that
+    // is not the shape the parse route answers.
     [Fact]
     public void ARowWithAPermanentRejectionAndNoMatchedMemberIsExcluded()
     {
@@ -194,7 +158,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.DoesNotContain("unknown.mp4", v2.ToJsonString(), StringComparison.Ordinal);
     }
 
-    /// <summary>A folder whose parse answers no rows, or only rows nothing matched, composes no command.</summary>
     [Theory]
     [InlineData("[]")]
     [InlineData(null)]
@@ -212,10 +175,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Null(Entries(WhisparrGeneration.V2, $"[{V2UnmatchedRow}]"));
     }
 
-    /// <summary>
-    /// The quality and the languages in every entry are the row's own, byte for byte, and a row
-    /// carrying neither is excluded rather than given one.
-    /// </summary>
     [Fact]
     public void QualityAndLanguagesComeFromTheRowsAndAreNeverFabricated()
     {
@@ -235,10 +194,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Null(Entries(WhisparrGeneration.V3, $"[{withoutLanguages.ToJsonString()}]"));
     }
 
-    /// <summary>
-    /// Each generation's file entry is spelled as its own interface spells it, transcribed from the
-    /// two bundles: v3 names one scene, v2 names a series and its episodes.
-    /// </summary>
     [Fact]
     public void TheFileEntryIsSpelledPerGenerationAsEachInterfaceSpellsIt()
     {
@@ -267,7 +222,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.DoesNotContain("movieId", v2.ToJsonString(), StringComparison.Ordinal);
     }
 
-    /// <summary>A matched series with no episode named is no match: nothing could be attached.</summary>
     [Fact]
     public void AnOlderGenerationRowNamingNoEpisodeIsExcluded()
     {
@@ -277,10 +231,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Null(Entries(WhisparrGeneration.V2, $"[{row.ToJsonString()}]"));
     }
 
-    /// <summary>
-    /// The command is the manual import in the mode that links when it can, and the mode that moves
-    /// the file is not composable.
-    /// </summary>
     [Fact]
     public void TheCommandIsAManualImportInCopyModeAndNeverInMoveMode()
     {
@@ -295,14 +245,8 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal("copy", ReflectOwnedPlanner.ImportMode);
     }
 
-    /// <summary>
-    /// A file under one declared root whose site sits under another reaches no command at all.
-    /// </summary>
-    /// <remarks>
-    /// The import mode that links copies the whole file when the two are not on one filesystem, with
-    /// no error and no distinct outcome. Asserted over the serialized command, because what an
-    /// instance acts on is the body.
-    /// </remarks>
+    // The import mode that links copies the whole file when the two are not on one filesystem, with
+    // no error and no distinct outcome.
     [Fact]
     public void AFileWhoseSiteSitsUnderAnotherDeclaredRootReachesNoCommand()
     {
@@ -313,9 +257,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal(1, planned.LeftUnderAnotherRoot);
     }
 
-    /// <summary>
-    /// A folder holding both kinds sends the same-root entries and only those.
-    /// </summary>
     [Fact]
     public void AFolderMixingBothKindsSendsOnlyTheEntriesWhoseSiteSharesTheirRoot()
     {
@@ -331,10 +272,8 @@ public sealed class ReflectOwnedPlannerTests
         Assert.DoesNotContain("/library/inbox", command, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// An instance declaring no root sends every entry: there is no comparison to make, and refusing
-    /// on an unknown would stop every import on an instance whose roots could not be read.
-    /// </summary>
+    // Refusing on an unknown root would stop every import on an instance whose roots could not be
+    // read.
     [Fact]
     public void AnInstanceDeclaringNoRootSendsEveryEntry()
     {
@@ -345,10 +284,7 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal(0, planned.LeftUnderAnotherRoot);
     }
 
-    /// <summary>
-    /// A row whose matched site carries no path of its own is sent: the destination is unknown rather
-    /// than known to be elsewhere.
-    /// </summary>
+    // A site with no path of its own leaves the destination unknown, not known to be elsewhere.
     [Fact]
     public void ARowWhoseSiteCarriesNoPathIsSent()
     {
@@ -362,10 +298,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal(0, planned.LeftUnderAnotherRoot);
     }
 
-    /// <summary>
-    /// A row naming no file of its own is excluded on absence, the way an unmatched row is, and is
-    /// not counted as a file left under another root.
-    /// </summary>
     [Fact]
     public void ARowNamingNoFileIsExcludedAndIsNotCountedAsLeftUnderAnotherRoot()
     {
@@ -379,14 +311,8 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal(0, planned.LeftUnderAnotherRoot);
     }
 
-    /// <summary>
-    /// A folder whose every row was left under another root is neither attached nor refused, and the
-    /// run carries the count of what it left out.
-    /// </summary>
-    /// <remarks>
-    /// The instance declined nothing and was never asked, so counting the folder as refused would
-    /// say it answered. The count is what keeps the run's line from reading as a clean pass.
-    /// </remarks>
+    // The instance declined nothing and was never asked, so counting the folder as refused would
+    // say it answered.
     [Fact]
     public async Task ARunLeavingEveryRowUnderAnotherRootCountsThemAndAttachesNothing()
     {
@@ -412,9 +338,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal(0, run.FoldersRefused);
     }
 
-    /// <summary>
-    /// A token already cancelled classifies the run as cancelled, reads nothing and attaches nothing.
-    /// </summary>
     [Fact]
     public async Task APreCancelledTokenClassifiesTheRunAsCancelledAndNotFailed()
     {
@@ -446,10 +369,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal(0, attaches);
     }
 
-    /// <summary>
-    /// A run cancelled part-way classifies as cancelled and the folder already attached stays
-    /// attached: there is no rollback and none is wanted.
-    /// </summary>
     [Fact]
     public async Task ARunCancelledPartWayKeepsWhatWasAlreadyAttached()
     {
@@ -475,10 +394,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Single(attached);
     }
 
-    /// <summary>
-    /// Each folder's rows are read once and handed into exactly one attach, and nothing from one
-    /// folder reaches the next one's command.
-    /// </summary>
     [Fact]
     public async Task EachFolderIsReadOnceAndHandedIntoOneCommandAndNothingCarriesAcross()
     {
@@ -502,8 +417,7 @@ public sealed class ReflectOwnedPlannerTests
             },
             TestContext.Current.CancellationToken);
 
-        // The read is per folder, so reads are counted through the attach delegate's inputs below
-        // and the run's own counts.
+        // The read is per folder, so reads are counted from the attach delegate's inputs.
         read.AddRange(attached.Select(files => ((JsonObject)files[0]!)["path"]!.GetValue<string>()));
 
         Assert.Equal(ReflectOwnedRunOutcome.Completed, run.Outcome);
@@ -516,10 +430,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.All(attached, files => Assert.Single(files));
     }
 
-    /// <summary>
-    /// A folder under a root whose agreement does not resolve reaches the listing not at all, and is
-    /// counted apart from a folder the instance declined.
-    /// </summary>
     [Fact]
     public async Task AFolderThatCannotBeAddressedIsNeverReadAndIsCountedOnItsOwn()
     {
@@ -544,9 +454,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal(0, run.FoldersAttached);
     }
 
-    /// <summary>
-    /// Two folders under one library root produce one refusal line, naming the paths tried under it.
-    /// </summary>
     [Fact]
     public async Task ARunReportsOneRefusalPerLibraryRootRatherThanPerFolder()
     {
@@ -565,9 +472,6 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal(["/data/Vixen"], only.Tried);
     }
 
-    /// <summary>
-    /// The path the listing is asked for is the instance's own, never the library's.
-    /// </summary>
     [Fact]
     public async Task TheListingIsAskedForThePathTheAddressAnswered()
     {
@@ -594,21 +498,16 @@ public sealed class ReflectOwnedPlannerTests
         Assert.Equal(["/data/Vixen"], read);
     }
 
-    /// <summary>Every folder is handed to the listing as the library spells it.</summary>
-    /// <remarks>
-    /// The cases this stands in for are about the loop rather than about the addressing, so they run
-    /// over an instance whose spelling is the library's own.
-    /// </remarks>
+    // The cases using this are about the loop rather than the addressing, so the instance spells a
+    // folder the way the library does.
     private static Task<AddressedFolder> OnTheInstance(string folder, CancellationToken _)
         => Task.FromResult(new AddressedFolder(folder, null, "/config/library", []));
 
-    /// <summary>One library root that established nothing, with the path it tried.</summary>
     private static AddressedFolder Unaddressable { get; } = new(
         null, FolderAgreementRefusal.NothingResolved, "G:/Downloads/P", ["/data/Vixen"]);
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>The entries one folder's rows become on an instance declaring no root.</summary>
     private static JsonArray? Entries(WhisparrGeneration generation, string? rows)
         => ReflectOwnedPlanner.Files(generation, rows, []).Entries;
 

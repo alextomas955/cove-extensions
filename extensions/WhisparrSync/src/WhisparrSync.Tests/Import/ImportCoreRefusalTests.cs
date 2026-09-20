@@ -6,10 +6,6 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// What the ingest does with each of the three resolutions: which reach the host, which reach the
-/// stored aggregate, and which write nothing at all.
-/// </summary>
 public sealed class ImportCoreRefusalTests
 {
     private const string WhisparrRoot = "/whisparr-media";
@@ -49,7 +45,6 @@ public sealed class ImportCoreRefusalTests
             Assert.Single(entry.NewestPaths).Cause);
     }
 
-    /// <summary>A root's own success clears its line and leaves another root's alone.</summary>
     [Fact]
     public async Task ASuccessfulImportClearsThatRootsLine()
     {
@@ -67,11 +62,8 @@ public sealed class ImportCoreRefusalTests
             Assert.Single((await ingest.StoredAsync()).ImportRefusals).Root);
     }
 
-    /// <summary>A delivery that told the aggregate nothing new does not write the blob.</summary>
-    /// <remarks>
-    /// A delivery arrives per file, so a save on every one would rewrite the whole blob per file. Its
-    /// control is the first delivery, which does write.
-    /// </remarks>
+    // A delivery arrives per file, so a save on every one would rewrite the whole blob per file. Its
+    // control is the first delivery, which does write.
     [Fact]
     public async Task AnAggregateThatDidNotChangeIsNotWrittenBack()
     {
@@ -86,11 +78,8 @@ public sealed class ImportCoreRefusalTests
         Assert.Equal(afterFirst, ingest.Store.SetCallCount);
     }
 
-    /// <summary>A success for a root that has no line adds none, and writes only the health.</summary>
-    /// <remarks>
-    /// One write, not none: an import records that the channel worked. What it must not do is put a
-    /// line under a root whose delivery succeeded.
-    /// </remarks>
+    // One write, not none: an import records that the channel worked. What it must not do is put a line
+    // under a root whose delivery succeeded.
     [Fact]
     public async Task ASuccessForARootWithNoLineAddsNoLineAndWritesOnlyTheHealth()
     {
@@ -103,14 +92,9 @@ public sealed class ImportCoreRefusalTests
         Assert.Equal(1, ingest.Store.SetCallCount);
     }
 
-    /// <summary>
-    /// An import service this extension's container could not produce blames no Whisparr root.
-    /// </summary>
-    /// <remarks>
-    /// Nothing about that state is a root the user misconfigured, and a line under one sends them to
-    /// a folder where there is nothing to change. Asserted on the stored aggregate, because the
-    /// outcome value alone says nothing about what the user is shown.
-    /// </remarks>
+    // Nothing about that state is a root the user misconfigured, and a line under one sends them to a
+    // folder where there is nothing to change. Asserted on the stored aggregate, because the outcome
+    // value alone says nothing about what the user is shown.
     [Fact]
     public async Task ADeliveryWhoseHostImportServiceIsAbsentCountsAgainstNoRoot()
     {
@@ -123,11 +107,8 @@ public sealed class ImportCoreRefusalTests
         Assert.Equal(0, ingest.Store.SetCallCount);
     }
 
-    /// <summary>A file the host was asked for and declined IS counted against the reporting root.</summary>
-    /// <remarks>
-    /// The discriminating control for the test above: the path the host declined came from that
-    /// root, and it is the one thing the user can go and look at.
-    /// </remarks>
+    // The control for the test above: the path the host declined came from that root, and it is the one
+    // thing the user can go and look at.
     [Fact]
     public async Task ADeliveryTheHostRefusedIsCountedAgainstTheReportingRoot()
     {
@@ -143,14 +124,9 @@ public sealed class ImportCoreRefusalTests
         Assert.Equal(ReportedPath, entry.NewestPaths[0].Path);
     }
 
-    /// <summary>
-    /// A host import the port contained is answered as a refusal, whichever exception the host raised.
-    /// </summary>
-    /// <remarks>
-    /// The fake answers here as the port answers, because the containment is the port's. What this
-    /// pins is the half above it: nothing escapes the ingest, and the delivery gets a named outcome
-    /// rather than a propagating failure.
-    /// </remarks>
+    // The fake answers here as the port answers, because the containment is the port's. What this pins
+    // is the half above it: nothing escapes the ingest, and the delivery gets a named outcome rather
+    // than a propagating failure.
     [Theory]
     [InlineData(typeof(FileNotFoundException))]
     [InlineData(typeof(InvalidOperationException))]
@@ -166,7 +142,6 @@ public sealed class ImportCoreRefusalTests
         Assert.Equal(("/data/scene.mp4", (int?)null), Assert.Single(ingest.Library.Imported));
     }
 
-    /// <summary>A reported path under none of the instance's own roots is counted with no root.</summary>
     [Fact]
     public async Task APathUnderNoReportingRootIsCountedUnderTheStatedPlaceholder()
     {
@@ -182,10 +157,6 @@ public sealed class ImportCoreRefusalTests
             Assert.Single((await ingest.StoredAsync()).ImportRefusals).Root);
     }
 
-    /// <summary>
-    /// A host with no library path is the host's own misconfiguration, so no Whisparr root is blamed
-    /// for it.
-    /// </summary>
     [Fact]
     public async Task AHostDeclaringNoLibraryPathBlamesNoWhisparrRoot()
     {
@@ -197,7 +168,6 @@ public sealed class ImportCoreRefusalTests
         Assert.Equal(0, ingest.Store.SetCallCount);
     }
 
-    /// <summary>One ingest wired over fakes, with the store it wrote through readable afterwards.</summary>
     private sealed class Ingest(bool hostImportReached = true, IReadOnlyList<string>? libraryRoots = null)
     {
         public FakeStore Store { get; } = new();
