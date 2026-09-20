@@ -1,7 +1,10 @@
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
@@ -16,6 +19,35 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapMissingCardEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        // The configure tier for the same reason as the bulk route: one scene is not a lesser act
+        // than a selection of them. Which scene a request touches is a route segment, so a caller
+        // cannot name one in a body the route would otherwise have to refuse.
+        endpoints.MapPost(MissingSceneMonitorRoute,
+            (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             IServiceScopeFactory scopes, CancellationToken ct)
+                => MonitorMissingSceneAsync(
+                    kind, coveId, providerSceneId, principal, options, credentials, client, scopes,
+                    _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The configure tier for two reasons rather than one: the route aims this extension's stored
+        // credential at a third party AND it spends the reader's indexer traffic and disk. It is the
+        // most consequential route this surface mounts, and it must not sit at a tier a caller who
+        // cannot configure the extension can reach.
+        endpoints.MapPost(MissingSceneSearchRoute,
+            (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             CancellationToken ct)
+                => SearchMissingSceneAsync(
+                    kind, coveId, providerSceneId, principal, options, credentials, client, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
     /// <summary>The longest provider identifier this product will put in an outbound body.</summary>
     /// <remarks>
     /// The identifier is the one value on this surface a caller names, so it is bounded before it

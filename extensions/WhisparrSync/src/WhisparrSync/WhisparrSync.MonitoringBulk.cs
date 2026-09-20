@@ -1,8 +1,11 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
@@ -19,6 +22,24 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapMonitoringBulkEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        // The same tier again: one gesture aiming this extension's stored credential at a third party
+        // for every entity in a selection is not a lesser act than doing it for one.
+        endpoints.MapPost(BulkMonitorRoute,
+            (MonitorBulkRequest request, ICurrentPrincipalAccessor principal, IJobService jobs,
+             IServiceScopeFactory scopes)
+                => BulkMonitorEnqueue(request, principal, jobs, scopes))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapGet(JobStatusRoute,
+            (string jobId, ICurrentPrincipalAccessor principal, IJobService jobs)
+                => BulkJobStatusOf(jobId, principal, jobs))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
     /// <summary>
     /// How many Cove ids one bulk request may carry.
     /// </summary>

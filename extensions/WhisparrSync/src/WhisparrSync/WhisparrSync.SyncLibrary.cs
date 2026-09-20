@@ -3,8 +3,11 @@ using System.Globalization;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Addressing;
 using WhisparrSync.Connection;
@@ -24,6 +27,44 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapSyncLibraryEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        // The configure tier because it aims this extension's stored credential at a third party and
+        // reads the whole library to do it. It names nothing at all: what is counted is the reader's
+        // own library, so a caller can compose no set of its own here.
+        endpoints.MapPost(SyncPreviewRoute,
+            (ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             CancellationToken ct)
+                => EnqueueSyncPreviewAsync(
+                    principal, jobs, scopes, options, credentials, client, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The same tier for the read half, which answers what the count above left. Not a lesser
+        // tier than the start: it reports how much of the reader's library a third party holds, and
+        // that is the same fact whichever route answered it.
+        endpoints.MapGet(SyncPreviewRoute,
+            (ICurrentPrincipalAccessor principal, IJobService jobs, SyncPreviewCache counts,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             CancellationToken ct)
+                => ReadSyncPreviewAsync(
+                    principal, jobs, counts, options, credentials, client, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The same tier as the count, and for a stronger reason: this one writes into a third
+        // party's catalogue on behalf of the whole library.
+        endpoints.MapPost(SyncRunRoute,
+            (SyncRunRequest? request, ICurrentPrincipalAccessor principal, IJobService jobs,
+             IServiceScopeFactory scopes, OptionsStore options, ICredentialPort credentials,
+             IWhisparrClient client, CancellationToken ct)
+                => EnqueueSyncRunAsync(
+                    request, principal, jobs, scopes, options, credentials, client, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
     /// <summary>The job id one library sync run is minted onto.</summary>
     /// <remarks>
     /// Declared beside the routes rather than on the run, because the count route derives whether a
