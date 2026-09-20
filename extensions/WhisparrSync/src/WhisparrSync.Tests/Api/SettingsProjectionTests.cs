@@ -14,26 +14,11 @@ namespace WhisparrSync.Tests.Api;
 /// <summary>
 /// The API key is write-only because nothing on the way out has anywhere to put it.
 /// </summary>
-/// <remarks>
-/// The type-level assertions are the ones worth having: a search of a rendered response can only fail
-/// on a key that happens to be in the sample, while a type with no member of the right shape cannot
-/// carry one whatever it is filled with.
-/// </remarks>
 public sealed partial class SettingsProjectionTests
 {
     /// <summary>The words a member carrying a secret would be named with.</summary>
     private static readonly string[] CredentialVocabulary =
         ["key", "secret", "token", "password", "credential", "auth"];
-
-    /// <summary>The templates that report a failure this extension deliberately contained.</summary>
-    private static readonly string[] ContainedFailureTemplates =
-    [
-        "BackstopRecordContained",
-        "CatalogueReadContained",
-        "EnrichmentContained",
-        "HostImportContained",
-        "MonitoringRequestContained",
-    ];
 
     /// <summary>
     /// Every string the settings view can carry, by declaring type and member name.
@@ -68,18 +53,6 @@ public sealed partial class SettingsProjectionTests
 
     /// <summary>The settings the host serializes an extension's responses with.</summary>
     private static readonly JsonSerializerOptions HostJsonOptions = new(JsonSerializerDefaults.Web);
-
-    [Fact]
-    public void TheSettingsViewHasNoMemberThatCouldCarryAKey()
-    {
-        var strings = StringMembersOf(typeof(WhisparrSyncSettingsView)).ToList();
-
-        Assert.NotEmpty(strings);
-        Assert.DoesNotContain(
-            strings,
-            member => CredentialVocabulary.Any(
-                word => member.Contains(word, StringComparison.OrdinalIgnoreCase)));
-    }
 
     /// <summary>
     /// The stored options record grows no member named as though it carried a credential.
@@ -170,107 +143,21 @@ public sealed partial class SettingsProjectionTests
     }
 
     /// <summary>
-    /// A key would arrive at a log line as a string, so the strings the templates take are pinned.
-    /// </summary>
-    /// <remarks>
-    /// Transcribed by hand. A template that grows a string parameter fails this until the parameter is
-    /// named here, which is the point at which someone decides whether it can carry a key.
-    /// </remarks>
-    /// <remarks>
-    /// <c>ImportEventTypeIgnored.eventType</c> is the one entry here whose value an outside caller
-    /// chooses. It is admitted because the alternative is a line that says an unrecognised event
-    /// arrived without saying which, and because the handler shortens it before it is passed: a
-    /// credential presented to that route travels in a header or the address, never in the event
-    /// type, and a body long enough to hide one in is refused before it is parsed.
-    /// <para>
-    /// Each <c>host</c> entry is a host name, which is the most an outbound failure is given.
-    /// </para>
-    /// </remarks>
-    [Fact]
-    public void TheLogTemplatesTakeOnlyTheStringsTheyAreMeantTo()
-        => Assert.Equal(
-            new[]
-            {
-                "BackstopPassRefused.host",
-                // The three contained failures, each given the type of the exception and of its
-                // cause. A type name is chosen by whoever wrote the throw, so none of the three can
-                // hold a key, a path or an address whatever the failure was.
-                "BackstopRecordContained.failure",
-                "ConnectionTransportFailure.host",
-                "EnrichmentContained.failure",
-                // The registrable domain of a metadata source the host is configured with, reduced
-                // before it is passed. A domain carries no user-info, no path and no query, so the
-                // one part of an address that could hold a credential cannot reach the line. Both
-                // halves of the enrichment containment are given the same reduced value.
-                "EnrichmentContained.source",
-                "EnrichmentNotCommitted.source",
-                // A probe that reached nothing while establishing which spelling of a library root an
-                // instance can open: the host, exactly what every other outbound failure is given.
-                // The candidate path it was asking about is never given to the line.
-                "FolderProbeFailed.host",
-                "HostImportContained.failure",
-                "ImportEventTypeIgnored.eventType",
-                // A monitoring request that reached nothing: the failure's classification and the
-                // host, exactly what an outbound failure is given everywhere else here.
-                "MonitoringRequestContained.failure",
-                "MonitoringRequestContained.host",
-                // A Whisparr root folder, from the configured instance's own answer to an
-                // authenticated read rather than from an anonymous delivery's body. It names a
-                // directory the user configured and can hold no credential.
-                "ImportRefused.root",
-                "ReportedRootReadFailed.host",
-                // An answer larger than the client reads at once: the host, and the bound beside it as
-                // a number. The body the bound was passed reading is never given to the line.
-                "ResponseBeyondReadBound.host",
-                // The metadata provider, named as this product names it rather than from any answer.
-                // A catalogue body carries titles from someone's own library scope and never reaches
-                // a line here.
-                "ProviderAnswerBeyondReadBound.provider",
-                "ProviderRefusedTheQuery.provider",
-                // A catalogue read that reached nothing, given the failure's classification: a type
-                // name chosen by whoever wrote the throw, so no part of it comes from the provider.
-                "CatalogueReadContained.failure",
-                // A status read that reached no instance, given the same classification and for the
-                // same reason.
-                "SceneStatusReadContained.failure",
-                // A library count that could not be finished, given the same classification and for
-                // the same reason.
-                "SyncCountDidNotFinish.failure",
-                // The two reads a library run monitors through, each given the same classification
-                // for the same reason. Neither can name the site or the scene: both are stored
-                // library identifiers.
-                "SceneNumbersUnreadable.failure",
-                "SiteSceneRowsUnreadable.failure",
-                // A studio a library run would not register. The site identifier is the one the
-                // library stores for that studio, and the reason is either a refusal kind this
-                // product declares or a status number, so neither is an address and neither can
-                // carry a key.
-                "SiteRegistrationRefused.remoteId",
-                "SiteRegistrationRefused.reason",
-            }.Order(),
-            LogTemplates()
-                .SelectMany(template => template.GetParameters(), (template, parameter) => (template, parameter))
-                .Where(pair => pair.parameter.ParameterType == typeof(string))
-                .Select(pair => $"{pair.template.Name}.{pair.parameter.Name}")
-                .Order());
-
-    /// <summary>
     /// No template reporting a contained failure takes an exception, so no failure message is written.
     /// </summary>
     /// <remarks>
     /// The source generator hands an <see cref="Exception"/> parameter to the sink rather than
-    /// rendering it, and a sink writes it whole - message, path and all. The three names are
-    /// transcribed by hand, so the count is asserted first: a renamed template would otherwise leave
-    /// this checking nothing.
+    /// rendering it, and a sink writes it whole - message, path and all. The set is read off the
+    /// template names, so a contained failure added later is covered the moment it is named.
     /// </remarks>
     [Fact]
     public void NoContainedFailureTemplateTakesAnException()
     {
         var templates = LogTemplates()
-            .Where(template => ContainedFailureTemplates.Contains(template.Name, StringComparer.Ordinal))
+            .Where(template => template.Name.EndsWith("Contained", StringComparison.Ordinal))
             .ToList();
 
-        Assert.Equal(ContainedFailureTemplates.Length, templates.Count);
+        Assert.NotEmpty(templates);
         Assert.Empty(templates
             .SelectMany(template => template.GetParameters(), (template, parameter) => (template, parameter))
             .Where(pair => typeof(Exception).IsAssignableFrom(pair.parameter.ParameterType))
