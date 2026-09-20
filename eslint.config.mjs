@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { defineConfig } from "eslint/config";
 import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
@@ -46,7 +47,7 @@ const uiTsconfigProjects = JSON.parse(
   .extensions.filter((entry) => entry.uiPath)
   .map((entry) => `${entry.uiPath}/tsconfig.json`);
 
-export default tseslint.config(
+export default defineConfig(
   {
     ignores: [
       // Generated from the committed wire document; a program input, not lint's subject.
