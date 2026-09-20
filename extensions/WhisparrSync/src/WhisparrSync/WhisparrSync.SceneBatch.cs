@@ -1,8 +1,11 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
@@ -16,6 +19,19 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapSceneBatchEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        // The same tier again: one gesture aiming this extension's stored credential at a third
+        // party for every scene in a selection is not a lesser act than doing it for one. The reach
+        // is what the body names, and the verb it names decides which bound applies.
+        endpoints.MapPost(SceneBatchRoute,
+            (SceneBatchRequest request, ICurrentPrincipalAccessor principal, IJobService jobs,
+             IServiceScopeFactory scopes)
+                => EnqueueSceneBatch(request, principal, jobs, scopes))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
     /// <summary>Enqueues one verb over a whole selection of scenes.</summary>
     /// <remarks>
     /// The gate is re-checked here, in the first statement, because the host's own permission filter

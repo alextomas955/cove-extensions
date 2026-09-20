@@ -1,8 +1,11 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
@@ -16,6 +19,23 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapAddAllMissingEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        // The configure tier, and the reach decision is this route's own. Its reach is one Cove
+        // entity's own catalogue, named by the route segment, so it is neither a whole-library verb
+        // nor a body-named one. The tier is the configure tier because the route aims this
+        // extension's stored credential at a third party AND creates items in the reader's own
+        // Whisparr, which is not something a caller who cannot configure the extension may do.
+        endpoints.MapPost(AddAllMissingRoute,
+            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
+             IJobService jobs, IServiceScopeFactory scopes, CancellationToken ct)
+                => AddAllMissingEntityAsync(
+                    kind, coveId, principal, options, credentials, client, identities, jobs, scopes, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
     /// <summary>
     /// Offers the connected instance every scene the library holds under one entity that its own
     /// catalogue does not, in the background.
