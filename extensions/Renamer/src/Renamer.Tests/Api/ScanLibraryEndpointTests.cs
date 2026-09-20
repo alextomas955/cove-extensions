@@ -382,10 +382,13 @@ public sealed class ScanLibraryEndpointTests
 
             Assert.Equal(n, loaded.Count);
             int expectedChunks = (n + CoveRenamerDataPort.LoadChunkSize - 1) / CoveRenamerDataPort.LoadChunkSize;
-            // One heavy query per chunk — far fewer than N. (EF may split an Include into a bounded,
-            // constant number of reader commands per query; assert the per-id blow-up is gone, i.e.
-            // the reader count is on the order of chunks, never N.)
-            Assert.True(interceptor.ReaderCount <= expectedChunks * 4,
+            // A bounded number of queries per chunk — far fewer than N. The video query is a split
+            // query, so EF issues one reader for the roots and one for each collection it includes
+            // (files, their captions, performers, tags). That count is bounded by the query's shape
+            // and not by the population, which is the property under test: the reader count is on
+            // the order of chunks, never N.
+            const int readersPerChunk = 5;
+            Assert.True(interceptor.ReaderCount <= expectedChunks * readersPerChunk,
                 $"expected ~{expectedChunks} chunk queries, got {interceptor.ReaderCount} readers for {n} ids");
             Assert.True(interceptor.ReaderCount < n,
                 $"batch load must issue fewer than N={n} reader queries; got {interceptor.ReaderCount}");

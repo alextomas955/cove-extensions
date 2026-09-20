@@ -217,34 +217,43 @@ public class CoveRenamerDataPort : IRenamerDataPort
     // Each query's ancestor Include hop count is bound to MaxParentDepth and guarded by
     // StudioDepthLockstepTests: add or drop a ".ThenInclude(s => s!.Parent)" here without matching the
     // constant and that test fails.
+
+    // AsSplitQuery on every one of them: each query includes sibling collections (files, performers,
+    // tags), and a single-statement join returns their product per entity. One row per file times one
+    // per performer times one per tag is a row count that grows with the library even though the
+    // entity count does not.
     private IQueryable<Video> VideoQuery() => _db.Set<Video>()
         .AsNoTracking()
         .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
         .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
         .Include(x => x.Files).ThenInclude(f => f.Captions)
         .Include(x => x.VideoPerformers).ThenInclude(vp => vp.Performer)
-        .Include(x => x.VideoTags).ThenInclude(vt => vt.Tag);
+        .Include(x => x.VideoTags).ThenInclude(vt => vt.Tag)
+        .AsSplitQuery();
 
     private IQueryable<Image> ImageQuery() => _db.Set<Image>()
         .AsNoTracking()
         .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
         .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
         .Include(x => x.ImagePerformers).ThenInclude(ip => ip.Performer)
-        .Include(x => x.ImageTags).ThenInclude(it => it.Tag);
+        .Include(x => x.ImageTags).ThenInclude(it => it.Tag)
+        .AsSplitQuery();
 
     private IQueryable<Audio> AudioQuery() => _db.Set<Audio>()
         .AsNoTracking()
         .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
         .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
         .Include(x => x.AudioPerformers).ThenInclude(ap => ap.Performer)
-        .Include(x => x.AudioTags).ThenInclude(at => at.Tag);
+        .Include(x => x.AudioTags).ThenInclude(at => at.Tag)
+        .AsSplitQuery();
 
     private IQueryable<TextDocument> TextQuery() => _db.Set<TextDocument>()
         .AsNoTracking()
         .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
         .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
         .Include(x => x.TextPerformers).ThenInclude(tp => tp.Performer)
-        .Include(x => x.TextTags).ThenInclude(tt => tt.Tag);
+        .Include(x => x.TextTags).ThenInclude(tt => tt.Tag)
+        .AsSplitQuery();
 
     private static RenamerEntity MapVideoEntity(Video v) => new(
         v.Id, RenamerFileKind.Video, v.Title, v.Code, v.Studio?.Name, v.Date, v.Organized,
