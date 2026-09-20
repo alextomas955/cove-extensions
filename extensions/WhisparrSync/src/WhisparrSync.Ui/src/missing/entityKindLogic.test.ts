@@ -1,11 +1,3 @@
-/**
- * Which kind of page the tab reads itself as being on.
- *
- * One component serves three page types and the host tells it nothing about which, so the address is
- * the only evidence. A route this does not recognise must answer null: guessing would read one
- * entity's catalogue on another entity's page, which is a wrong answer nothing on screen would
- * contradict.
- */
 import { describe, expect, it } from "vitest";
 
 import { readEntityKind } from "./entityKindLogic";
@@ -28,10 +20,6 @@ describe("readEntityKind", () => {
     expect(readEntityKind("/")).toBeNull();
   });
 
-  /**
-   * A segment naming a kind is not an entity page unless an id follows it. The host's own list
-   * pages carry the same word and address no entity.
-   */
   it("answers null for a list page carrying the same word", () => {
     expect(readEntityKind("/studios")).toBeNull();
     expect(readEntityKind("/performers")).toBeNull();

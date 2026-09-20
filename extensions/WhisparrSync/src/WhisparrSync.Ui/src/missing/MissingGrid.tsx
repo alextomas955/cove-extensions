@@ -42,7 +42,7 @@ export interface MissingGridCards {
   /** A selection is in progress, so every card shows its control rather than only the hovered one. */
   readonly selecting: boolean;
   readonly onToggleSelect: MultiSelectToggleHandler<string>;
-  /** What each card's own verbs are doing, keyed as the provider issued the scene identifier. */
+  /** Keyed as the provider issued the scene identifier. */
   readonly actions: Readonly<Record<string, CardActionState>>;
   readonly onMonitor: (providerSceneId: string) => void;
   readonly onSearch: (providerSceneId: string) => void;
@@ -76,7 +76,7 @@ export function MissingGrid({
       <MissingGridStates
         kind={kind}
         sentence={fillNames(emptyStateFor(kind), surroundings.provider, surroundings.entityName)}
-        // One notice for the whole page, never one per card, and none at all where it covers nothing.
+        // One notice for the whole page, never one per card.
         affectedControls={state?.replacesTheGrid === false ? Math.max(1, cards.length) : 1}
         actions={{
           onRefresh: surroundings.onRefresh,
@@ -86,8 +86,8 @@ export function MissingGrid({
       />
     );
 
-  // A surface with no possible answer is omitted rather than given an empty state, an empty state
-  // there reading as a factual zero.
+  // A surface with no possible answer is omitted rather than given an empty state, which would
+  // read as a factual zero.
   const canAnswer = kind === null || !NEVER_ANSWERS.includes(kind);
   const replacesTheGrid = state?.replacesTheGrid === true;
   // The region carries the reason in its own empty, failed or outage slot wherever it has one; the
@@ -101,8 +101,8 @@ export function MissingGrid({
       <AsyncRegion
         available={canAnswer}
         state={deriveAsyncRegionState(
-          // A page that answered with no card is an EMPTY answer rather than content, so the reason
-          // is stated instead of an empty grid being drawn.
+          // A page that answered with no card is an empty answer rather than content, so the
+          // reason is stated instead of an empty grid being drawn.
           { ...read, hasContent: read.hasContent && cards.length > 0 },
         )}
         outageNotice={kind === "readIsStale" ? stated : null}

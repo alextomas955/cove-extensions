@@ -4,25 +4,19 @@
  * Hand-built because neither the host's detail-tab URL hook nor its router location module is
  * exported to extensions.
  *
- * More than one component mounts this hook: the toolbar writes the search, the ordering and the
- * facets, the pager writes the page, and the tab shell reads the result and refetches.
- * `history.replaceState` fires no `popstate` and this hook dispatches no host location event, so a
- * write would otherwise reach only the instance that made it and picking a facet would change the
- * address and nothing else. The subscriber set below is what carries one write to every reader.
+ * More than one component mounts this hook. `history.replaceState` fires no `popstate` and this
+ * hook dispatches no host location event, so a write would otherwise reach only the instance that
+ * made it. The subscriber set below carries one write to every reader.
  */
 import { useCallback, useEffect, useState } from "react";
 
 import { readMissingView, writeMissingView, type MissingView } from "./missingUrlLogic";
 
-/** The host event fired when its own router changes the address. */
+// The host event fired when its own router changes the address.
 const HOST_LOCATION_CHANGE = "cove-locationchange";
 
-/**
- * Every mounted instance's setter.
- *
- * Module scope, because spanning component instances is the point. It holds callbacks and never a
- * view, so nothing accumulates and an unmounted component leaves nothing behind.
- */
+// Module scope, because spanning component instances is the point. It holds callbacks and never a
+// view, so an unmounted component leaves nothing behind.
 const subscribers = new Set<(view: MissingView) => void>();
 
 function notify(view: MissingView): void {

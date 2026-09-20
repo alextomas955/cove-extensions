@@ -7,27 +7,14 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Library;
 
-/// <summary>
-/// What each card on a page reads as, and how many requests a page of them costs.
-/// </summary>
-/// <remarks>
-/// The two facts a badge acts on differently are the point: an entity the instance holds no entry
-/// for, and one nothing could be established about. A port collapsing them would draw a state for a
-/// card nothing answered for.
-/// <para>
-/// The cost claim is asserted rather than the answers alone, because every value here is also
-/// derivable from a shape that reads the instance's whole catalogue.
-/// </para>
-/// </remarks>
+// The request counts are asserted beside the answers because every answer here is also derivable
+// from a shape that reads the instance's whole catalogue.
 public sealed class LibraryStatusPortTests
 {
     private const string ForeignId = "5ee16943-0da6-4ee4-94c1-54172e3d0b7e";
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// A card the library names no identifier for costs no request and carries no reading.
-    /// </summary>
     [Fact]
     public async Task AnUnresolvedIdentityIsNoReadingAndNoRequest()
     {
@@ -40,10 +27,7 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(0, reading.Calls);
     }
 
-    /// <summary>
-    /// An instance holding no entry answers an absence, which is a different fact from an entry it
-    /// holds and does not monitor.
-    /// </summary>
+    // An instance holding no entry is a different fact from an entry it holds and does not monitor.
     [Fact]
     public async Task AnAbsentEntityIsNotPresentAndNotMonitored()
     {
@@ -54,7 +38,6 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, false, false), rows[0].Reading);
     }
 
-    /// <summary>An entity the instance holds and monitors answers both.</summary>
     [Fact]
     public async Task AHeldAndMonitoredEntityIsPresentAndMonitored()
     {
@@ -65,7 +48,6 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, true, true), rows[0].Reading);
     }
 
-    /// <summary>An entity the instance holds and does not monitor answers presence alone.</summary>
     [Fact]
     public async Task AHeldAndUnmonitoredEntityIsPresentAndNotMonitored()
     {
@@ -76,10 +58,8 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, true, false), rows[0].Reading);
     }
 
-    /// <summary>
-    /// An answer nothing could be established from carries both as unestablished, so the badge draws
-    /// the unknown state rather than one of the four a reader would act on.
-    /// </summary>
+    // Both members stay unestablished, so the badge draws the unknown state rather than one of the
+    // four a reader would act on.
     [Fact]
     public async Task AnUnreadableAnswerEstablishesNeither()
     {
@@ -90,7 +70,6 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, null, null), rows[0].Reading);
     }
 
-    /// <summary>A dropped connection is contained per card and leaves the rest of the page alone.</summary>
     [Fact]
     public async Task AConnectionThatDroppedIsOneUnestablishedCardAndNoMore()
     {
@@ -102,10 +81,7 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, true, true), rows[1].Reading);
     }
 
-    /// <summary>
-    /// Nothing grows with the library: a page costs at most one request per card it was given, in the
-    /// order it was given them.
-    /// </summary>
+    // Nothing grows with the library. A page costs at most one request per card it was given.
     [Fact]
     public async Task APageCostsAtMostOneRequestPerRequestedCard()
     {
@@ -118,14 +94,8 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(requested, rows.Select(row => row.CoveId));
     }
 
-    /// <summary>
-    /// A page of scenes costs one exclusion read for the whole set and one status read per
-    /// identifier.
-    /// </summary>
-    /// <remarks>
-    /// The exclusion read comes first, because exclusion is tested before a state is derived. A read
-    /// per card would put a second request against a third party on every card of the page.
-    /// </remarks>
+    // The exclusion read comes first, because exclusion is tested before a state is derived. One
+    // read per card would put a second request against a third party on every card of the page.
     [Fact]
     public async Task APageOfScenesCostsOneExclusionReadAndOneStatusReadPerIdentifier()
     {
@@ -138,7 +108,6 @@ public sealed class LibraryStatusPortTests
         Assert.Equal([1, 2, 3], readings.Keys.Order());
     }
 
-    /// <summary>A scene the instance holds and monitors reads as both.</summary>
     [Fact]
     public async Task AHeldAndMonitoredSceneIsPresentAndMonitored()
     {
@@ -149,14 +118,8 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, true, true), readings[1]);
     }
 
-    /// <summary>
-    /// An instance answering an empty list holds no entry, which is a different fact from an entry it
-    /// holds and does not monitor.
-    /// </summary>
-    /// <remarks>
-    /// The same answer establishes that it holds no file: an instance holding no entry has nothing to
-    /// hold a file for, so the absence is answered rather than assumed.
-    /// </remarks>
+    // An empty list means the instance holds no entry. It also establishes that no file is held,
+    // because an instance holding no entry has nothing to hold a file for.
     [Fact]
     public async Task AnEmptyListIsAnAbsenceAndEstablishesNoFlag()
     {
@@ -167,7 +130,6 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, false, null, false), readings[1]);
     }
 
-    /// <summary>A scene the instance holds a file for carries that beside its monitored flag.</summary>
     [Fact]
     public async Task AHeldSceneWithAFileReadsAsInLibrary()
     {
@@ -178,13 +140,8 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, true, true, true), readings[1]);
     }
 
-    /// <summary>
-    /// A held scene whose answer carries no usable file flag establishes nothing about a file.
-    /// </summary>
-    /// <remarks>
-    /// Reported apart from a scene answered as having none. Reading an absent flag as false would
-    /// count the scene among the ones the instance holds nothing for, on a fact nothing answered.
-    /// </remarks>
+    // Reading an absent file flag as false would count the scene among the ones the instance holds
+    // no file for, on a fact nothing answered.
     [Fact]
     public async Task AHeldSceneWithNoFileFlagEstablishesNothingAboutAFile()
     {
@@ -195,7 +152,6 @@ public sealed class LibraryStatusPortTests
         Assert.Null(readings[1].InLibrary);
     }
 
-    /// <summary>An answer nothing could be read from establishes neither member.</summary>
     [Fact]
     public async Task AnUnreadableSceneAnswerEstablishesNeither()
     {
@@ -206,13 +162,8 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, null, null), readings[1]);
     }
 
-    /// <summary>
-    /// An excluded scene reads as excluded even where the instance holds no entry for it.
-    /// </summary>
-    /// <remarks>
-    /// The two facts arrive from different reads, and the badge tests exclusion first. Folding them
-    /// would report the scene as one the instance was never offered.
-    /// </remarks>
+    // Exclusion and presence arrive from different reads and the badge tests exclusion first.
+    // Folding them would report the scene as one the instance was never offered.
     [Fact]
     public async Task AnExcludedSceneCarriesTheExclusionBesideAnAbsence()
     {
@@ -224,14 +175,8 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(true, false, null, false), readings[1]);
     }
 
-    /// <summary>
-    /// A generation registering no exclusion role sends no exclusion read and excludes nothing.
-    /// </summary>
-    /// <remarks>
-    /// Obtained by absence rather than by asking which generation is connected. A member answering an
-    /// empty set would report every scene as one the instance's user has not excluded, which is a
-    /// fact no instance answered.
-    /// </remarks>
+    // A role answering an empty set would report every scene as one the user has not excluded,
+    // which is a fact no instance answered.
     [Fact]
     public async Task AGenerationHoldingNoExclusionRoleAsksNothingAndExcludesNothing()
     {
@@ -243,7 +188,6 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, true, true), readings[1]);
     }
 
-    /// <summary>A dropped connection is contained per scene and leaves the rest of the page alone.</summary>
     [Fact]
     public async Task AConnectionThatDroppedIsOneUnestablishedSceneAndNoMore()
     {
@@ -256,15 +200,8 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, true, true), readings[2]);
     }
 
-    /// <summary>
-    /// A read that outlived the client's own timeout is contained per card, the way a dropped
-    /// connection is.
-    /// </summary>
-    /// <remarks>
-    /// This is the common failure for a page of sequential reads: an instance that accepts the
-    /// connection and then hangs. It reaches the port as a cancellation nobody asked for, and
-    /// escaping it would answer the whole page with a failure the route declares no result for.
-    /// </remarks>
+    // An instance that accepts the connection and then hangs reaches the port as a cancellation
+    // nobody asked for. Letting it escape would fail the whole page.
     [Fact]
     public async Task AReadThatOutlivedTheClientsTimeoutIsOneUnestablishedCardAndNoMore()
     {
@@ -277,7 +214,6 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, true, true), rows[1].Reading);
     }
 
-    /// <summary>The same for a scene, which is the path a page of forty reads takes.</summary>
     [Fact]
     public async Task AReadThatOutlivedTheClientsTimeoutIsOneUnestablishedSceneAndNoMore()
     {
@@ -293,10 +229,8 @@ public sealed class LibraryStatusPortTests
         Assert.Equal(new LibraryCardReading(false, true, true), readings[2]);
     }
 
-    /// <summary>
-    /// A shutdown is not a verdict about the instance, so it leaves the port rather than being
-    /// recorded as a card nothing could be established about.
-    /// </summary>
+    // A shutdown is not a verdict about the instance, so it leaves the port rather than reading as
+    // a card nothing could be established about.
     [Fact]
     public async Task AShutdownLeavesThePortRatherThanReadingAsAnUnestablishedCard()
     {
@@ -315,7 +249,6 @@ public sealed class LibraryStatusPortTests
                     stopping.Token));
     }
 
-    /// <summary>The same for a scene.</summary>
     [Fact]
     public async Task AShutdownLeavesTheScenePathRatherThanReadingAsAnUnestablishedScene()
     {
@@ -337,36 +270,28 @@ public sealed class LibraryStatusPortTests
 
     private static string Monitored => """{"id":7,"monitored":true}""";
 
-    /// <summary>The per-scene route answers a list, of one row where the instance holds the scene.</summary>
+    // The per-scene route answers a list, of one row where the instance holds the scene.
     private static string HeldAndMonitored => """[{"id":9,"monitored":true}]""";
 
     private static string HeldWithAFile => """[{"id":9,"monitored":true,"hasFile":true}]""";
 
-    /// <summary>The identifier the scene named by <paramref name="coveId"/> is known by.</summary>
     private static string SceneIdentifier(int coveId) => $"scene-{coveId}";
 
     private static IReadOnlyList<LibraryCardIdentity> SceneIdentities(params int[] coveIds)
         => [.. coveIds.Select(coveId => new LibraryCardIdentity(coveId, SceneIdentifier(coveId)))];
 
-    /// <summary>The generation registers no exclusion role at all.</summary>
+    // V2 registers no exclusion role at all.
     private static Capability<IWhisparrSceneExclusionReading> NoExclusionRole
         => GenerationCapabilities.For(WhisparrGeneration.V2)
             .Obtain<IWhisparrSceneExclusionReading>();
 
-    /// <summary>Every entity is named by one identifier.</summary>
+    // Every entity is named by one identifier.
     private static IEntityIdentityPort Resolving => new FakeIdentities(IdentityResolution.At(ForeignId));
 
-    /// <summary>No entity is named at all, which is a library holding no usable link.</summary>
+    // No entity is named at all, a library holding no usable link.
     private static IEntityIdentityPort Nothing => new FakeIdentities(IdentityResolution.Unmatched);
 
-    /// <summary>
-    /// A card whose read was contained leaves one line naming the failure and the host.
-    /// </summary>
-    /// <remarks>
-    /// A page of badges that quietly drew nothing is otherwise the one surface where a press costs a
-    /// read per card and leaves no trace at all. One line per contained card, which is what the
-    /// per-entity path already writes and is bounded by the body the route accepts.
-    /// </remarks>
+    // One line per contained card. The count is bounded by the page size the route accepts.
     [Fact]
     public async Task AContainedCardLeavesOneLineNamingTheFailureAndTheHost()
     {
@@ -380,7 +305,6 @@ public sealed class LibraryStatusPortTests
         Assert.Contains(Instance.Host, recorded.ContainedLines[0], StringComparison.Ordinal);
     }
 
-    /// <summary>Two contained cards leave two lines, and a card that answered leaves none.</summary>
     [Fact]
     public async Task ACardThatAnsweredLeavesNoLine()
     {
@@ -392,7 +316,6 @@ public sealed class LibraryStatusPortTests
         Assert.Empty(recorded.ContainedLines);
     }
 
-    /// <summary>The scene path writes the same line for the same reason.</summary>
     [Fact]
     public async Task AContainedSceneLeavesOneLineNamingTheFailureAndTheHost()
     {
@@ -406,7 +329,7 @@ public sealed class LibraryStatusPortTests
         Assert.Contains(Instance.Host, recorded.ContainedLines[0], StringComparison.Ordinal);
     }
 
-    /// <summary>The instance every case reads from. Its host is what a contained line names.</summary>
+    // The instance every case reads from. Its host is what a contained line names.
     private static Uri Instance => new("http://whisparr.invalid");
 
     private static string ApiKey => "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
@@ -425,7 +348,6 @@ public sealed class LibraryStatusPortTests
                 coveIds,
                 TestCt)).Rows;
 
-    /// <summary>The exclusion role, answering <paramref name="excluded"/> and counting its reads.</summary>
     private static Capability<IWhisparrSceneExclusionReading> Excluding(
         RecordingSceneReading reading, params string[] excluded)
     {
@@ -454,13 +376,8 @@ public sealed class LibraryStatusPortTests
             => Task.FromResult(answer);
     }
 
-    /// <summary>
-    /// One answer for every scene, with the two reads the scene path issues counted apart.
-    /// </summary>
-    /// <remarks>
-    /// Both roles on one recorder, so the counts a case asserts come from the same object and cannot
-    /// describe two seams that were never used together.
-    /// </remarks>
+    // Both scene roles sit on one recorder, so the counts a case asserts come from the same object
+    // and cannot describe two seams that were never used together.
     private sealed class RecordingSceneReading(
         int status, string body, int? throwOnCall = null, Func<Exception>? failure = null)
         : IWhisparrSceneStatusReading, IWhisparrSceneExclusionReading
@@ -522,7 +439,7 @@ public sealed class LibraryStatusPortTests
                     + "row's own identifier.");
     }
 
-    /// <summary>Keeps the contained-request lines, by event id, as a sink would write them.</summary>
+    // Keeps the contained-request lines, by event id, as a sink would write them.
     private sealed class RecordingLogger : ILogger
     {
         private const int ContainedRequestEventId = 2117;
@@ -552,7 +469,6 @@ public sealed class LibraryStatusPortTests
         }
     }
 
-    /// <summary>One answer for every card, and a count of how many were asked for.</summary>
     private sealed class RecordingEntityReading(
         int status, string body, int? throwOnCall = null, Func<Exception>? failure = null)
     {

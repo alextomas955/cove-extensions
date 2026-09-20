@@ -3,69 +3,45 @@ using WhisparrSync.Import;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-/// <summary>The host library, faked, recording the ARGUMENTS it was called with.</summary>
-/// <remarks>
-/// Arguments and not counts: a fake that recorded only how often it was called would pass a test of
-/// "the file the extension verified reaches the host" whatever path was handed over. The one count
-/// kept is the enrichment call's, because "at most once per scene" is a claim about the count.
-/// </remarks>
-/// <param name="reached">
-/// Whether this extension's container could produce the host's import service at all. False is the
-/// host's own configuration, which is a different answer from a file the host declined.
-/// </param>
-/// <param name="roots">The host's configured library paths.</param>
+// Arguments and not counts: a fake that recorded only how often it was called would pass a test of
+// "the file the extension verified reaches the host" whatever path was handed over. The one count
+// kept is the enrichment call's, because "at most once per scene" is a claim about the count.
+// A false reached is this extension's container not producing the host's import service at all,
+// which is a different answer from a file the host declined.
 internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots) : ICoveLibraryPort
 {
-    /// <summary>The paths handed to the host's import, with the item each was attached to.</summary>
     public List<(string Path, int? VideoId)> Imported { get; } = [];
 
-    /// <summary>The identity rows written, newest last.</summary>
     public List<(int VideoId, string Endpoint, string RemoteId)> Stamped { get; } = [];
 
-    /// <summary>Every enrichment call, in order.</summary>
     public List<(int VideoId, string Endpoint, string RemoteId)> Enriched { get; } = [];
 
-    /// <summary>The identity rows the library already holds before any delivery.</summary>
     public List<(int VideoId, string Endpoint, string RemoteId)> ExistingIdentities { get; } = [];
 
-    /// <summary>The file rows the library already holds, keyed by path.</summary>
     public Dictionary<string, HeldFile> Held { get; } = [];
 
-    /// <summary>Every path the live dedupe read asked about, in order.</summary>
-    /// <remarks>
-    /// The count is the claim here: the answer is derived per delivery, so a delivery that skipped
-    /// the read would be working from something remembered.
-    /// </remarks>
+    // The count is the claim here: the answer is derived per delivery, so a delivery that skipped the
+    // read would be working from something remembered.
     public List<string> Probed { get; } = [];
 
-    /// <summary>The metadata sources the host is configured with.</summary>
     public List<string> ConfiguredEndpoints { get; } = [];
 
-    /// <summary>Every follow-up scan started, with the paths each was asked to cover.</summary>
     public List<IReadOnlyList<string>> Scans { get; } = [];
 
-    /// <summary>Whether the host's scan service can be reached for a follow-up.</summary>
     public bool FollowUpScanIsReachable { get; set; } = true;
 
-    /// <summary>Raised by <see cref="EnrichAsync"/> instead of returning, when set.</summary>
     public Exception? EnrichmentFailure { get; set; }
 
-    /// <summary>Whether a second video carries whatever identifier is resolved.</summary>
     public bool IdentityIsAmbiguous { get; set; }
 
-    /// <summary>The item the host's import attaches a new file to.</summary>
     public int ImportedVideoId { get; set; } = 1;
 
     public IReadOnlyList<string> LibraryRoots => roots;
 
     public IReadOnlyList<string> ConfiguredMetadataEndpoints => ConfiguredEndpoints;
 
-    /// <summary>The exception the host's own import raises, which the real port contains.</summary>
-    /// <remarks>
-    /// Answered here the way the port answers it, never raised: the containment lives in the port,
-    /// and a fake that raised would be standing in for the host rather than for the seam. What the
-    /// real port does with each of these is proven against a real port and a raising scan service.
-    /// </remarks>
+    // Answered here the way the port answers it, never raised: the containment lives in the port, and
+    // a fake that raised would be standing in for the host rather than for the seam.
     public Exception? ImportFailure { get; set; }
 
     public Task<LibraryImport> ImportVideoAsync(string path, int? videoId, CancellationToken ct)
@@ -85,10 +61,8 @@ internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots
             new LibraryImport(LibraryImportOutcome.Registered, videoId ?? ImportedVideoId));
     }
 
-    /// <summary>Every detach asked for, with the path each one kept.</summary>
     public List<(int VideoId, string KeptPath)> Detached { get; } = [];
 
-    /// <summary>How many rows a detach reports having cleared.</summary>
     public int DetachedRowCount { get; set; } = 1;
 
     public Task<int> DetachSupersededFilesAsync(int videoId, string keptPath, CancellationToken ct)

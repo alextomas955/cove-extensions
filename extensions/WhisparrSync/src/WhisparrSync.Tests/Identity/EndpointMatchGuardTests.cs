@@ -2,25 +2,12 @@ using WhisparrSync.Identity;
 
 namespace WhisparrSync.Tests.Identity;
 
-/// <summary>
-/// The host's endpoint rule, pinned.
-/// </summary>
-/// <remarks>
-/// Every expectation below was TRANSCRIBED BY HAND from the host's own two private methods, never
-/// produced by calling the transcription this file checks. An expectation computed from the module
-/// under test agrees with that module whatever either says; these go red when the two disagree,
-/// which is the only reason the file exists.
-/// <para>
-/// Several pins record a behaviour that is surprising on its own terms — a multi-label public suffix
-/// reduced to two labels, a two-label <c>www</c> host left whole, two blanks matching. They are
-/// pinned as the host's answer, not as a preference.
-/// </para>
-/// </remarks>
+// Every expectation below was transcribed by hand from the host's own two private methods, never
+// produced by calling the transcription this file checks. Some record behaviour that is surprising
+// on its own terms; they are pinned as the host's answer, not as a preference.
 public sealed class EndpointMatchGuardTests
 {
-    /// <summary>
-    /// The pair the host documents for one provider, in the host's own spelling.
-    /// </summary>
+    // The pair the host documents for one provider, in the host's own spelling.
     [Fact]
     public void TheHostsOwnWorkedPairIsOneSource()
     {
@@ -74,11 +61,9 @@ public sealed class EndpointMatchGuardTests
         Assert.Equal("stashdb.org", EndpointMatchGuard.RegistrableDomain("https://stashdb.org"));
     }
 
-    /// <summary>
-    /// The host's comment beside the rule says a leading <c>www.</c> is dropped. No step in the code
-    /// drops one: a three-label <c>www</c> host loses it to the two-label reduction, and a two-label
-    /// one keeps it. Both are pinned so a transcription written from the comment goes red.
-    /// </summary>
+    // The host's comment beside the rule says a leading www. is dropped. No step in the code drops
+    // one: a three-label www host loses it to the two-label reduction, and a two-label one keeps
+    // it. Both are pinned so a transcription written from the comment goes red.
     [Fact]
     public void AThreeLabelWwwHostLosesItsLeadingLabelAndATwoLabelOneDoesNot()
     {
@@ -86,11 +71,8 @@ public sealed class EndpointMatchGuardTests
         Assert.Equal("www.cc", EndpointMatchGuard.RegistrableDomain("https://www.cc"));
     }
 
-    /// <summary>
-    /// The host treats a multi-label public suffix as two labels and says so. The consequence is that
-    /// two unrelated sites under one such suffix read as one source; that is the host's answer, and
-    /// this transcription has to give the same one.
-    /// </summary>
+    // The host treats a multi-label public suffix as two labels, so two unrelated sites under one
+    // such suffix read as one source.
     [Fact]
     public void AMultiLabelPublicSuffixIsTreatedAsTwoLabels()
     {
@@ -113,11 +95,9 @@ public sealed class EndpointMatchGuardTests
         Assert.Equal("", EndpointMatchGuard.RegistrableDomain("   "));
     }
 
-    /// <summary>
-    /// The domain arm requires the first endpoint to have a registrable domain, so a blank matches
-    /// nothing there — including another blank. The host still answers true for two blanks, on the
-    /// normalisation arm above it, and that composite answer is what a caller sees.
-    /// </summary>
+    // The domain arm requires the first endpoint to have a registrable domain, so a blank matches
+    // nothing there, including another blank. The host still answers true for two blanks on the
+    // normalisation arm above it, and that composite answer is what a caller sees.
     [Fact]
     public void TwoBlanksMatchOnTheNormalisationArmAndNotOnTheDomainArm()
     {

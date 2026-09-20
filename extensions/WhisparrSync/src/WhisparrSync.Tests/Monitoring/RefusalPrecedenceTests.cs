@@ -6,31 +6,15 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// Which single reason a user reads when more than one holds at once.
-/// </summary>
-/// <remarks>
-/// The whole table is enumerated rather than sampled. More than one reason holding is ordinary: an
-/// entity with no metadata link, on v2, with nothing configured has all three, and
-/// the case nobody writes a test for is the one where the answer is decided by evaluation order
-/// instead of by a decision.
-/// <para>
-/// The expected kind per row is written out by hand. A table computed from the function it checks
-/// agrees with it whatever the order is.
-/// </para>
-/// </remarks>
+// The whole table is enumerated rather than sampled, and the expected kind per row is written out
+// by hand. A table computed from the function it checks agrees with it whatever the order is.
 public sealed class RefusalPrecedenceTests
 {
-    /// <summary>
-    /// All eight combinations of the three reasons, each with the one kind it must answer.
-    /// </summary>
-    /// <remarks>
-    /// The identity slot carries the narrowest identity kind, which is the one MON-3 names. The other
-    /// identity kinds ride the same slot and are covered separately.
-    /// </remarks>
+    // The identity slot carries the narrowest identity kind. The other identity kinds ride the same
+    // slot and are covered separately.
     public static TheoryData<bool, bool, bool, MonitorRefusalKind> EveryCombination => new()
     {
-        // no connection, generation gap, no metadata link -> the one kind
+        // no connection, generation gap, no metadata link, then the one kind answered
         { false, false, false, MonitorRefusalKind.None },
         { false, false, true, MonitorRefusalKind.NoIdentityInThisNamespace },
         { false, true, false, MonitorRefusalKind.CapabilityAbsentOnThisGeneration },
@@ -41,7 +25,6 @@ public sealed class RefusalPrecedenceTests
         { true, true, true, MonitorRefusalKind.NotConfigured },
     };
 
-    /// <summary>Every combination answers exactly one kind, and it is the transcribed one.</summary>
     [Theory]
     [MemberData(nameof(EveryCombination))]
     public void EveryCombinationOfTheThreeReasonsAnswersExactlyOneTranscribedKind(
@@ -57,13 +40,8 @@ public sealed class RefusalPrecedenceTests
         Assert.Equal(expected, answered);
     }
 
-    /// <summary>
-    /// Whichever identity kind the library produced rides the third slot unchanged.
-    /// </summary>
-    /// <remarks>
-    /// The precedence chooses BETWEEN the three reasons and never narrows one of them. An identity
-    /// kind rewritten on the way through would collapse two different sentences into one.
-    /// </remarks>
+    // The precedence chooses between the three reasons and never narrows one of them. An identity
+    // kind rewritten on the way through would collapse two different sentences into one.
     [Theory]
     [InlineData(MonitorRefusalKind.NoIdentityInThisNamespace)]
     [InlineData(MonitorRefusalKind.SeveralIdentitiesInThisNamespace)]
@@ -78,9 +56,6 @@ public sealed class RefusalPrecedenceTests
                 IdentityRefusal: identity)));
     }
 
-    /// <summary>
-    /// An earlier reason wins over EVERY identity kind, not only over the narrowest one.
-    /// </summary>
     [Theory]
     [InlineData(MonitorRefusalKind.NoIdentityInThisNamespace)]
     [InlineData(MonitorRefusalKind.SeveralIdentitiesInThisNamespace)]
@@ -94,18 +69,9 @@ public sealed class RefusalPrecedenceTests
                 IdentityRefusal: identity)));
     }
 
-    /// <summary>
-    /// Every kind the enum declares is produced by some case this product can reach.
-    /// </summary>
-    /// <remarks>
-    /// Iterates the enum rather than a literal list, so a kind added later fails here until something
-    /// produces it. A kind nothing can produce is a dead value that a surface still has to carry a
-    /// sentence for.
-    /// <para>
-    /// The producing set is built by CALLING the real deciders rather than by naming their outputs. A
-    /// list of names would agree with itself after a decider stopped answering one of them.
-    /// </para>
-    /// </remarks>
+    // Iterates the enum rather than a literal list, so a kind added later fails here until something
+    // produces it. The producing set is built by calling the real deciders: a list of names would
+    // agree with itself after a decider stopped answering one of them.
     [Fact]
     public async Task EveryDeclaredRefusalKindIsProducedBySomeReachableCase()
     {
@@ -123,15 +89,9 @@ public sealed class RefusalPrecedenceTests
         }
     }
 
-    /// <summary>
-    /// Three simultaneous reasons produce one kind on the wire, and it is the precedence's own.
-    /// </summary>
-    /// <remarks>
-    /// Driven through the mapped route, so what is asserted is that the handler's own short-circuit
-    /// order agrees with the stated precedence rather than that the pure function is self-consistent.
-    /// A performer on v2 with nothing configured and no identity row holds all
-    /// three reasons at once.
-    /// </remarks>
+    // Driven through the mapped route, so what is asserted is the handler's own short-circuit order
+    // rather than the pure function being self-consistent. A performer on v2 with nothing configured
+    // and no identity row holds all three reasons at once.
     [Fact]
     public async Task AllThreeReasonsAtOnceAnswerTheKindThePrecedenceNames()
     {
@@ -151,14 +111,8 @@ public sealed class RefusalPrecedenceTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// A generation gap and no metadata link together answer the gap, at the route.
-    /// </summary>
-    /// <remarks>
-    /// A connection IS configured here, so the pair under test is the second and third reasons. The
-    /// v2 holds no performer role, so the gap is a real one rather than a set built
-    /// holding nothing.
-    /// </remarks>
+    // A connection is configured here, so the pair under test is the second and third reasons. v2
+    // holds no performer role, so the gap is a real one rather than a set built holding nothing.
     [Fact]
     public async Task AGenerationGapAndNoMetadataLinkTogetherAnswerTheGapAtTheRoute()
     {
@@ -172,14 +126,8 @@ public sealed class RefusalPrecedenceTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// No metadata link alone answers the metadata link, at the route.
-    /// </summary>
-    /// <remarks>
-    /// The narrowest reason, and the only one reachable once the two above are ruled out. Paired with
-    /// the two cases above it, this is what makes those two about the ORDER rather than about the
-    /// third reason never being answered at all.
-    /// </remarks>
+    // The narrowest reason, and the only one reachable once the two above are ruled out. Without
+    // this case those two would pass with the third reason never answered at all.
     [Fact]
     public async Task NoMetadataLinkAloneAnswersTheMetadataLinkAtTheRoute()
     {
@@ -192,7 +140,6 @@ public sealed class RefusalPrecedenceTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>No reason holding leaves the entity monitorable, at the route.</summary>
     [Fact]
     public async Task NoReasonHoldingLeavesTheEntityMonitorable()
     {
@@ -206,14 +153,8 @@ public sealed class RefusalPrecedenceTests
         Assert.True(view.Monitored);
     }
 
-    /// <summary>Every kind some decider in this product actually answers with.</summary>
-    /// <remarks>
-    /// Each entry is the return of a real call. The three reasons come from the precedence, the two
-    /// composition stops from the add-defaults decision, and the instance's own decline from the
-    /// write classifier.
-    /// </remarks>
-    // The one kind no pure decider answers: it is read off the transport, so the only honest way to
-    // reach it is to drive an answer past the bound through the client itself.
+    // No pure decider answers this kind. It is read off the transport, so reaching it means driving
+    // an answer past the read bound through the client.
     private static async Task<MonitorRefusalKind> TheKindAnAnswerPastTheReadBoundProducesAsync()
     {
         var handler = BodyRecordingHandler.AnsweringPastTheReadBound();
@@ -229,8 +170,8 @@ public sealed class RefusalPrecedenceTests
         return MonitoringProjector.Classify(answered).Refusal;
     }
 
-    // The function stating this one is private to the API, so the honest producer is a route reading
-    // an entity the instance does not hold.
+    // The function stating this one is private to the API, so it is produced by a route reading an
+    // entity the instance does not hold.
     private static async Task<MonitorRefusalKind> TheKindAnEntityTheInstanceDoesNotHoldProducesAsync()
     {
         await using var host = await MonitorHost.CreateAsync();
@@ -264,6 +205,7 @@ public sealed class RefusalPrecedenceTests
                 new AddressedFolder(null, FolderAgreementRefusal.NothingResolved, coveRoot, [])),
             TestContext.Current.CancellationToken)).Refusal;
 
+    // Each entry is the return of a real call rather than a named kind.
     private static IEnumerable<MonitorRefusalKind> Reachable()
     {
         foreach (var identity in new[]

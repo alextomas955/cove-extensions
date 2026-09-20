@@ -1,16 +1,11 @@
 /**
  * What the catalogue tab keeps in the page URL, and how it is read and written.
  *
- * Pure and relative-import-free, so a derivation runs with no environment and holds nothing between
- * calls. The subscription that reads and writes the address bar lives beside this module.
+ * The subscription that reads and writes the address bar lives beside this module.
  */
 
-/**
- * The query keys this tab owns.
- *
- * Prefixed because the host's own tab switch deletes every key in its managed list on every tab
- * change, including the change into this tab, so a plain name is erased on arrival.
- */
+// Prefixed because the host's own tab switch deletes every key in its managed list on every tab
+// change, including the change into this tab, so a plain name is erased on arrival.
 export const MISSING_URL_KEYS = {
   q: "wsmQ",
   page: "wsmPage",
@@ -22,7 +17,7 @@ export const MISSING_URL_KEYS = {
 export interface MissingView {
   /** The title search, or an empty string for none. */
   readonly q: string;
-  /** The page being looked at, counted from one. */
+  /** Counted from one. */
   readonly page: number;
   /**
    * One opaque ordering value the provider issued, or null for the provider's own order.
@@ -32,7 +27,7 @@ export interface MissingView {
    * one of them.
    */
   readonly sort: string | null;
-  /** The facet selections, keyed by the keys the provider issued.  */
+  /** Keyed by the facet keys the provider issued. */
   readonly filters: Readonly<Record<string, string>>;
 }
 
@@ -73,12 +68,8 @@ function set(params: URLSearchParams, key: string, value: string | null): void {
   params.set(key, value);
 }
 
-/**
- * A page number, or the first page.
- *
- * A value that is not a whole number above zero reads as the first page rather than as a failure: a
- * shared link is edited by hand and a broken one should show the catalogue, not an error.
- */
+// A value that is not a whole number above zero reads as the first page rather than as a failure.
+// A shared link is edited by hand, and a broken one should show the catalogue.
 function readPage(raw: string | null): number {
   const parsed = Number(raw);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_MISSING_VIEW.page;
@@ -88,12 +79,8 @@ function emptyToNull(raw: string | null): string | null {
   return raw === null || raw === "" ? null : raw;
 }
 
-/**
- * The facet selections one key carries.
- *
- * Each pair is its own encoded segment, so a provider value carrying the separators survives the
- * round trip.
- */
+// Each pair is its own encoded segment, so a provider value carrying the separators survives the
+// round trip.
 function readFilters(raw: string | null): Readonly<Record<string, string>> {
   if (raw === null || raw === "") {
     return {};

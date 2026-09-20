@@ -12,19 +12,6 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Missing;
 
-/// <summary>
-/// That what the browser puts in the address reaches the provider's own request.
-/// </summary>
-/// <remarks>
-/// Asserted against the COMPOSED provider request rather than the handler's own arguments. A route
-/// that binds every value and then drops it passes an argument-level assertion and answers an
-/// unfiltered page that looks entirely correct.
-/// <para>
-/// The filter encoding is the one the surface writes. A key and value that serialise one way in the
-/// browser and parse another way here fail silently, so both directions are driven from the one
-/// declaration.
-/// </para>
-/// </remarks>
 public sealed class MissingQueryBindingTests
 {
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
@@ -45,10 +32,6 @@ public sealed class MissingQueryBindingTests
         Assert.Equal("TITLE", Composed(catalogue).Sort);
     }
 
-    /// <summary>
-    /// The title search narrows the whole catalogue rather than the page that loaded, which is what
-    /// keeps the count line beside it truthful.
-    /// </summary>
     [Fact]
     public async Task TheTitleSearchReachesTheComposedProviderRequest()
     {
@@ -65,10 +48,6 @@ public sealed class MissingQueryBindingTests
         Assert.Equal("mia", Composed(catalogue).Filters["performer"]);
     }
 
-    /// <summary>
-    /// The form the surface writes is the form this reads. Each pair is its own percent-encoded
-    /// segment, so a provider value carrying either separator survives.
-    /// </summary>
     [Theory]
     [InlineData("year", "2024")]
     [InlineData("studio", "a,b")]
@@ -99,7 +78,6 @@ public sealed class MissingQueryBindingTests
         Assert.Equal("2024", Composed(catalogue).Filters["year"]);
     }
 
-    /// <summary>The toolbar can only offer a menu the answer carries.</summary>
     [Fact]
     public async Task TheAnswerCarriesTheMenusTheCatalogueFilledAndTheSortsItOffers()
     {
@@ -128,10 +106,6 @@ public sealed class MissingQueryBindingTests
         Assert.Empty(view.Facets);
     }
 
-    /// <summary>
-    /// A page size above the bound is refused rather than clamped. Clamped silently the answer would
-    /// describe a different page from the one asked for.
-    /// </summary>
     [Theory]
     [InlineData(41)]
     [InlineData(1000)]
@@ -170,10 +144,6 @@ public sealed class MissingQueryBindingTests
         Assert.IsType<BadRequest>(answered.Result);
     }
 
-    /// <summary>
-    /// The typed fragment reaches the source, and the values it matched come back for the menu to
-    /// offer.
-    /// </summary>
     [Fact]
     public async Task AFacetFragmentReachesTheSourceThroughTheRoute()
     {
@@ -197,10 +167,6 @@ public sealed class MissingQueryBindingTests
         Assert.Equal("ana", Assert.Single(catalogue.Fragments));
     }
 
-    /// <summary>
-    /// A fragment below the bound is answered without asking the source. One character matches most
-    /// of a list, so the request buys nothing and the menu keeps narrowing what it holds.
-    /// </summary>
     [Theory]
     [InlineData("a")]
     [InlineData(" ")]
@@ -224,7 +190,6 @@ public sealed class MissingQueryBindingTests
         Assert.Empty(catalogue.Fragments);
     }
 
-    /// <summary>A caller who may not read the library is refused before anything is asked.</summary>
     [Fact]
     public async Task AFacetLookupIsRefusedWithoutTheReadPermission()
     {
@@ -309,7 +274,6 @@ public sealed class MissingQueryBindingTests
 
         public List<string> Fragments { get; } = [];
 
-        /// <summary>Every scene this was asked to resolve to a number, in order.</summary>
         public List<string> Resolutions { get; } = [];
 
         public IReadOnlyList<ProviderFacetMenu> Menus { get; init; } = [];

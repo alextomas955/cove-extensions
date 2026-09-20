@@ -8,14 +8,6 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Providers;
 
-/// <summary>
-/// The rule every shipped catalogue answers to: a read that did not arrive carries no page.
-/// </summary>
-/// <remarks>
-/// A catalogue added here later belongs in <see cref="Shipped"/>, and the last case reports one that
-/// is not. Each provider answered an empty page for a failure independently of the other, so the
-/// rule is stated once over all of them rather than case by case.
-/// </remarks>
 public sealed class ProviderFailureAnswerTests
 {
     private const string StashDbSpelling = "https://stashdb.org/graphql";
@@ -43,10 +35,8 @@ public sealed class ProviderFailureAnswerTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// A refused credential answers no page, whichever provider is configured. An empty page here
-    /// is a catalogue listing nothing, which the surface states as a reader owning everything.
-    /// </summary>
+    // No page rather than an empty one. The surface reads an empty page as a catalogue that listed
+    // nothing.
     [Theory]
     [MemberData(nameof(ShippedCatalogues))]
     public async Task NoShippedCatalogueAnswersAPageWhereTheProviderRefused(string provider)
@@ -59,11 +49,8 @@ public sealed class ProviderFailureAnswerTests
         Assert.Null(answer.Page);
     }
 
-    /// <summary>Every catalogue the extension ships is covered by the rule above.</summary>
-    /// <remarks>
-    /// A catalogue is a type that reads over a client of its own, which is what separates one from
-    /// the selector that stands in front of them and holds none.
-    /// </remarks>
+    // A catalogue is a type that reads over an HttpClient of its own. The selector in front of them
+    // holds none, which is how the filter below excludes it.
     [Fact]
     public void EveryShippedCatalogueIsNamedHere()
     {
@@ -98,8 +85,7 @@ public sealed class ProviderFailureAnswerTests
                 ApiKey = SomeKey,
                 Name = endpoint,
 
-                // Zero paces nothing, so these cases do not wait on a limiter to settle a question
-                // about an answer.
+                // Zero paces nothing, so no case waits on the limiter.
                 MaxRequestsPerMinute = 0,
             });
 

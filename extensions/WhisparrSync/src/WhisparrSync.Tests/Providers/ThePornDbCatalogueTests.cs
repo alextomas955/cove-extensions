@@ -13,17 +13,10 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Providers;
 
-/// <summary>
-/// What this catalogue puts on the wire, and what it makes of pages the provider really served.
-/// </summary>
-/// <remarks>
-/// Every page here is a recording of a live read. The provider's paging metadata is what the client
-/// depends on, and a document written to suit the client would have agreed with whatever it did.
-/// <para>
-/// The provider refuses a malformed request with a status outside the success range and a body
-/// naming the field, so the cases covering a refusal answer both.
-/// </para>
-/// </remarks>
+// Every page here is a recording of a live read. The client depends on the provider's paging
+// metadata, and a document written to suit the client would agree with whatever it did.
+// ThePornDB refuses a malformed request with a status outside the success range and a body naming
+// the field, so the refusal cases answer both.
 public sealed class ThePornDbCatalogueTests
 {
     private const string PageFixture = "theporndb-2026-09-scenes-page.json";
@@ -38,11 +31,6 @@ public sealed class ThePornDbCatalogueTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// Each recording states when it was taken and which revision of the provider's own document it
-    /// was taken against. That revision moved twice while this work was being planned, so a fixture
-    /// replaced by a hand-written document is reported here rather than passing quietly.
-    /// </summary>
     [Theory]
     [InlineData(VersionFixture)]
     [InlineData(PageFixture)]
@@ -60,10 +48,7 @@ public sealed class ThePornDbCatalogueTests
             StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The version the tests read is the one the provider's own document carried, not one copied
-    /// into a plan. It moved from v3.24.738 through v3.24.744 to what was recorded here.
-    /// </summary>
+    // The provider's document revision moves often, so every page has to come from the same one.
     [Fact]
     public void TheRecordedPagesWereTakenAgainstTheRecordedDocumentRevision()
     {
@@ -81,10 +66,8 @@ public sealed class ThePornDbCatalogueTests
         }
     }
 
-    /// <summary>
-    /// A page larger than the provider's own is refused with a status outside the success range, so
-    /// asking for one reads as a catalogue that could not be reached at all.
-    /// </summary>
+    // ThePornDB refuses a page larger than its own maximum, which reads as a catalogue that could
+    // not be reached.
     [Fact]
     public async Task NoComposedRequestAsksForMoreThanTheProvidersLargestPage()
     {
@@ -97,10 +80,8 @@ public sealed class ThePornDbCatalogueTests
         Assert.DoesNotContain("per_page=500", handler.Targets[0], StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The scene route refuses the identifier Cove stores, so one read converts it. A uuid reaching
-    /// the scene route is a permanently unreachable catalogue rather than an error a reader sees.
-    /// </summary>
+    // ThePornDB's scene route refuses the uuid Cove stores, so one read converts it to a number.
+    // A uuid reaching that route is an unreachable catalogue rather than an error a reader sees.
     [Fact]
     public async Task AStudioUuidIsResolvedOnceAndTheSceneRouteCarriesTheNumericIdentifier()
     {
@@ -114,10 +95,6 @@ public sealed class ThePornDbCatalogueTests
         Assert.DoesNotContain(StudioUuid, handler.Targets[1], StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The ordering reported as in force is the one a read under no named ordering really
-    /// sends, so a surface cannot name an order the provider did not apply.
-    /// </summary>
     [Fact]
     public async Task TheReportedDefaultOrderingIsTheOneAnUnnamedReadSends()
     {
@@ -130,10 +107,8 @@ public sealed class ThePornDbCatalogueTests
         Assert.Contains(catalogue.Sorts, offered => offered.Value == catalogue.DefaultSort);
     }
 
-    /// <summary>
-    /// The provider serves no more than its ceiling and clamps a page past the last one, so a size
-    /// at the ceiling is a floor and the pager is fed the provider's own last page.
-    /// </summary>
+    // ThePornDB serves no more than its ceiling and clamps a page past the last one, so a size at
+    // the ceiling is a floor.
     [Fact]
     public async Task AtTheCeilingTheSizeIsAFloorAndTheLastPageIsTheProvidersOwn()
     {
@@ -149,7 +124,6 @@ public sealed class ThePornDbCatalogueTests
         Assert.Equal(served["meta"]!["to"]!.GetValue<int>(), page.RangeTo);
     }
 
-    /// <summary>A catalogue below the ceiling reports an exact size and is not marked as a floor.</summary>
     [Fact]
     public async Task BelowTheCeilingTheSizeIsExact()
     {
@@ -163,12 +137,8 @@ public sealed class ThePornDbCatalogueTests
         Assert.NotEqual(page.Scenes.Count, page.CatalogueSize);
     }
 
-    /// <summary>
-    /// A page carrying fewer rows than it asked for is not the end of the catalogue here. The row
-    /// count is dropped to the number a short page was once measured at while the metadata stays
-    /// exactly as the provider served it, so what is exercised is the client's rule rather than a
-    /// page the provider never served.
-    /// </summary>
+    // The rows are cut to a count a short page was measured at while the metadata stays as the
+    // provider served it, so the client's rule is what is exercised.
     [Fact]
     public async Task APageShorterThanItsOwnRangeIsNotReadAsTheEndOfTheCatalogue()
     {
@@ -211,10 +181,6 @@ public sealed class ThePornDbCatalogueTests
         Assert.NotNull(page.Scenes[0].CoverUrl);
     }
 
-    /// <summary>
-    /// A refused request carries the provider's own message. Read as a page it would be a catalogue
-    /// listing nothing, which is a wrong answer a reader would read as right.
-    /// </summary>
     [Fact]
     public async Task ARefusalIsNotReadAsAnEmptyCatalogue()
     {
@@ -225,15 +191,9 @@ public sealed class ThePornDbCatalogueTests
         Assert.Null(await catalogue.ReadCatalogueSizeAsync(TagPage(), TestCt));
     }
 
-    /// <summary>
-    /// A credential the provider refuses answers no page at all. Read as an empty page it is a
-    /// catalogue listing nothing, which the surface states as a reader owning everything.
-    /// </summary>
-    /// <remarks>
-    /// The single request is the second half of the claim: a refusal is the provider's own answer,
-    /// so a second attempt collects the same refusal and writes the same line again. A tag carries
-    /// the numeric identifier the scene route takes, so the page costs one read and no scope read.
-    /// </remarks>
+    // No page rather than an empty one. The surface reads an empty page as a catalogue that listed
+    // nothing. A tag already carries the number the scene route takes, so the page costs one read
+    // and the request count means something.
     [Fact]
     public async Task AReadPageOverARefusedCredentialAnswersNoPageAndIsSentOnce()
     {
@@ -245,10 +205,7 @@ public sealed class ThePornDbCatalogueTests
         Assert.Single(handler.Requests);
     }
 
-    /// <summary>
-    /// The provider states a refusal as a <c>message</c> member, which it serves inside a success
-    /// status as well as outside one, and that is no page either.
-    /// </summary>
+    // ThePornDB serves its message member inside a success status as well as outside one.
     [Fact]
     public async Task AReadPageOverARefusalInsideASuccessStatusAnswersNoPageAndIsSentOnce()
     {
@@ -261,13 +218,7 @@ public sealed class ThePornDbCatalogueTests
         Assert.Single(handler.Requests);
     }
 
-    /// <summary>
-    /// A rate limit and a gateway failure are passing, so each takes the second attempt.
-    /// </summary>
-    /// <remarks>
-    /// The request count is the whole claim, and it is counted at the transport rather than
-    /// inferred from the answer, which is no page either way.
-    /// </remarks>
+    // A rate limit and a gateway failure are passing, so each takes a second attempt.
     [Theory]
     [InlineData(HttpStatusCode.TooManyRequests)]
     [InlineData(HttpStatusCode.RequestTimeout)]
@@ -283,7 +234,6 @@ public sealed class ThePornDbCatalogueTests
         Assert.Equal(2, handler.Requests.Count);
     }
 
-    /// <summary>A status the provider stated about the request itself is sent once.</summary>
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized)]
     [InlineData(HttpStatusCode.Forbidden)]
@@ -298,7 +248,6 @@ public sealed class ThePornDbCatalogueTests
         Assert.Single(handler.Requests);
     }
 
-    /// <summary>A connection that drops part way through the body answers no page.</summary>
     [Fact]
     public async Task AReadPageOverADroppedConnectionAnswersNoPage()
     {
@@ -308,7 +257,6 @@ public sealed class ThePornDbCatalogueTests
         Assert.Null((await catalogue.ReadPageAsync(TagPage(), TestCt)).Page);
     }
 
-    /// <summary>An answer past the read bound answers no page.</summary>
     [Fact]
     public async Task AReadPageOverAnAnswerPastTheReadBoundAnswersNoPage()
     {
@@ -317,15 +265,10 @@ public sealed class ThePornDbCatalogueTests
         Assert.Null((await catalogue.ReadPageAsync(TagPage(), TestCt)).Page);
     }
 
-    /// <summary>
-    /// The catalogue is read from the provider's API address while ownership is matched on the
-    /// spelling the host is configured with. Keyed on the API address instead, an ownership match
-    /// would find no stored row and every scene the library holds would read as missing.
-    /// </summary>
-    /// <remarks>
-    /// The registrable-domain comparison does not separate the two addresses, so what is asserted is
-    /// the value the identity carries rather than that the comparison would have refused it.
-    /// </remarks>
+    // The catalogue is read from the API address while ownership is matched on the configured
+    // spelling. Keyed on the API address, an ownership match would find no stored row and every
+    // scene in the library would read as missing. The registrable-domain comparison does not
+    // separate the two addresses, so the assertion is on the value the identity carries.
     [Fact]
     public async Task TheApiAddressNeverStandsInForTheIdentitySpelling()
     {
@@ -342,10 +285,7 @@ public sealed class ThePornDbCatalogueTests
         Assert.StartsWith("/scenes", handler.Targets[0], StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The credential travels in the request's own header and never in the address. A query string
-    /// is written to a proxy log and to a browser history; a header is not.
-    /// </summary>
+    // A query string reaches a proxy log and a browser history. A header does not.
     [Fact]
     public async Task TheCredentialTravelsInTheHeaderAndNeverInTheAddress()
     {
@@ -357,10 +297,7 @@ public sealed class ThePornDbCatalogueTests
         Assert.DoesNotContain("api_key=", handler.Targets[0], StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// A tag has no route carrying an identifier segment, so the identifier is the numeric one the
-    /// scene route reads out of the parameter's own key.
-    /// </summary>
+    // A tag has no route with an identifier segment, so its number travels in the parameter key.
     [Fact]
     public async Task ATagCatalogueCarriesTheProvidersNumericIdentifier()
     {
@@ -372,10 +309,7 @@ public sealed class ThePornDbCatalogueTests
         Assert.Contains("tags%5B70%5D=70", handler.Targets[0], StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A tag page is offered no menu and costs no request. The only menu this provider fills is
-    /// tags, which on a tag page would narrow a tag to itself.
-    /// </summary>
+    // The only menu this provider fills is tags, which on a tag page would narrow a tag to itself.
     [Fact]
     public async Task ATagPageIsOfferedNoMenu()
     {
@@ -385,7 +319,6 @@ public sealed class ThePornDbCatalogueTests
         Assert.Empty(handler.Requests);
     }
 
-    /// <summary>A studio page is offered the tags menu, filled by asking the provider.</summary>
     [Fact]
     public async Task AStudioPageIsOfferedTheTagsMenu()
     {
@@ -400,10 +333,6 @@ public sealed class ThePornDbCatalogueTests
         Assert.StartsWith("/tags", handler.Targets[0], StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A tags menu the provider reports more values for than it served carries the reported total,
-    /// so a surface can say how much of the list it holds.
-    /// </summary>
     [Fact]
     public async Task ATagsMenuCarriesTheTotalTheProviderReported()
     {
@@ -416,10 +345,7 @@ public sealed class ThePornDbCatalogueTests
         Assert.Equal(400, menu.ReportedValueCount);
     }
 
-    /// <summary>
-    /// The year menu carries every year between the two edges of the entity's own catalogue, newest
-    /// first, and each value is the year the provider's own parameter takes.
-    /// </summary>
+    // The years span the two edges of the entity's own catalogue, so both edges are read.
     [Fact]
     public async Task AYearMenuCarriesEveryYearTheCatalogueSpans()
     {
@@ -443,10 +369,7 @@ public sealed class ThePornDbCatalogueTests
             target => Assert.Contains("per_page=1", target, StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// An edge that answers no year leaves the menu out. A year list is only meaningful over a
-    /// catalogue whose extent was read, and a half-read extent would offer years at a guess.
-    /// </summary>
+    // A half-read extent would offer years at a guess.
     [Theory]
     [InlineData(NoScenes)]
     [InlineData("""{"data":[{"id":"a","date":"0001-01-01"}],"meta":{"total":1}}""")]
@@ -459,10 +382,8 @@ public sealed class ThePornDbCatalogueTests
         Assert.DoesNotContain(menus, menu => menu.Key == ThePornDbCatalogue.YearKey);
     }
 
-    /// <summary>
-    /// A typed fragment reaches the provider's own search parameter, so a value the menu was never
-    /// handed is found.
-    /// </summary>
+    // The fragment reaches the provider's own search parameter, so a value the menu never carried
+    // is still found.
     [Fact]
     public async Task ATagFragmentReachesTheProvidersOwnSearchParameter()
     {
@@ -481,10 +402,7 @@ public sealed class ThePornDbCatalogueTests
         Assert.DoesNotContain("per_page=", handler.Targets[0], StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A search that matched nothing is a measurement, and is held apart from a read that answered
-    /// nothing. Reported as the same thing, a failed read would state that a value does not exist.
-    /// </summary>
+    // Reported as the same answer, a failed read would state that a value does not exist.
     [Fact]
     public async Task AMatchOfNothingAndAReadThatAnsweredNothingAreDifferentAnswers()
     {
@@ -501,10 +419,7 @@ public sealed class ThePornDbCatalogueTests
         Assert.True(unread.IsSearchable);
     }
 
-    /// <summary>
-    /// The year menu is derived from the catalogue's own two date edges rather than from a value
-    /// list, so it answers that it cannot be searched and costs no request.
-    /// </summary>
+    // The year menu is derived from the catalogue's two date edges, not from a value list.
     [Fact]
     public async Task TheYearMenuAnswersThatItCannotBeSearched()
     {
@@ -518,10 +433,6 @@ public sealed class ThePornDbCatalogueTests
         Assert.Empty(handler.Requests);
     }
 
-    /// <summary>
-    /// A page carrying more rows than one lookup returns is cut to the bound, and the provider's own
-    /// total still states how many match.
-    /// </summary>
     [Fact]
     public async Task ASearchCarriesAtMostOneBoundedSetOfValues()
     {
@@ -539,7 +450,6 @@ public sealed class ThePornDbCatalogueTests
         Assert.Equal(34, answer.ReportedValueCount);
     }
 
-    /// <summary>The year the surface chose reaches the provider, so it narrows the catalogue.</summary>
     [Fact]
     public async Task TheYearReachesTheProvidersOwnParameter()
     {
@@ -557,10 +467,8 @@ public sealed class ThePornDbCatalogueTests
         Assert.DoesNotContain("year=", plain.Targets[0], StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// One registration of the seam. A second, whichever provider it named, would be shadowed rather
-    /// than failing, so it would be dead wiring a reader takes for the live path.
-    /// </summary>
+    // A second registration would be shadowed rather than failing, leaving dead wiring a reader
+    // takes for the live path.
     [Fact]
     public void TheSeamIsRegisteredExactlyOnce()
     {
@@ -572,14 +480,8 @@ public sealed class ThePornDbCatalogueTests
             services, registration => registration.ServiceType == typeof(IProviderCatalogue));
     }
 
-    /// <summary>
-    /// The whole composed request against the live service, on a machine that holds a credential
-    /// for it. Every other case here answers from a recording, so this is the only one that reports
-    /// a parameter the provider stopped accepting.
-    /// </summary>
-    /// <remarks>
-    /// Skipped where no credential is present, which is every machine but a maintainer's.
-    /// </remarks>
+    // Every other case answers from a recording, so this is the only one that reports a parameter
+    // the provider stopped accepting. It is skipped where no credential is present.
     [Fact]
     public async Task ALiveStudioPageArrivesWhereACredentialIsPresent()
     {
@@ -601,17 +503,14 @@ public sealed class ThePornDbCatalogueTests
         Assert.All(page.Scenes, scene => Assert.NotEmpty(scene.Title));
     }
 
-    /// <summary>One page of the tags route, in the shape the provider serves it.</summary>
     private const string TagsMenuAnswer = """{"data":[{"id":70,"name":"Anal"}],"meta":{"total":1}}""";
 
-    /// <summary>A tags page the provider reports far more values for than it served.</summary>
+    // A tags page the provider reports far more values for than it served.
     private const string BoundedTagsMenuAnswer =
         """{"data":[{"id":70,"name":"Anal"},{"id":71,"name":"Solo"}],"meta":{"total":400}}""";
 
-    /// <summary>A scenes page listing nothing.</summary>
     private const string NoScenes = """{"data":[],"meta":{"total":0}}""";
 
-    /// <summary>One row of the scenes route, carrying the release date the edge read looks at.</summary>
     private static string SceneDated(string date)
         => $$$"""
             {"data":[{"id":"a-scene","title":"A scene","date":"{{{date}}}"}],"meta":{"total":1}}
@@ -627,7 +526,6 @@ public sealed class ThePornDbCatalogueTests
             .DeepClone()
             .ToJsonString();
 
-    /// <summary>The number the recorded site read carried, as the provider issued it.</summary>
     private static int RecordedSiteNumber()
         => JsonNode.Parse(ProbeFixtures.Read(LookupFixture))!["cases"]!["siteByUuid"]!["response"]!
             ["data"]!["id"]!.GetValue<int>();
@@ -663,22 +561,15 @@ public sealed class ThePornDbCatalogueTests
                 ApiKey = key,
                 Name = "ThePornDB",
 
-                // Zero paces nothing, so these cases do not wait on a limiter to settle a question
-                // about a composed request.
+                // Zero paces nothing, so no case waits on the limiter.
                 MaxRequestsPerMinute = 0,
             });
 
         return config;
     }
 
-    /// <summary>
-    /// The scene route answers one row for the uuid Cove stores, and that row carries this
-    /// provider's own number. One read converts one to the other.
-    /// </summary>
-    /// <remarks>
-    /// The row is the committed page's own, which carries both identifiers as the provider served
-    /// them, wrapped the way the single-scene route wraps one row.
-    /// </remarks>
+    // The row comes from the recorded page, which carries both identifiers as the provider served
+    // them, wrapped the way the single-scene route wraps one row.
     [Fact]
     public async Task AStoredSceneIdentifierResolvesToTheProvidersOwnNumber()
     {
@@ -695,10 +586,7 @@ public sealed class ThePornDbCatalogueTests
         Assert.EndsWith($"/scenes/{storedId}", handler.Requests[0].Path, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// An answer carrying no number of its own resolves to nothing. Zero would be a number the
-    /// v2 would then look a row up by.
-    /// </summary>
+    // Zero would be a number v2 then looks a row up by.
     [Fact]
     public async Task AnAnswerCarryingNoNumberResolvesToNothing()
     {
@@ -710,14 +598,7 @@ public sealed class ThePornDbCatalogueTests
         Assert.Null(await catalogue.ResolveNumericSceneIdAsync(storedId, TestCt));
     }
 
-    /// <summary>
-    /// The site route answers one row for the uuid Cove stores, and that row carries this provider's
-    /// own number. One read converts one to the other.
-    /// </summary>
-    /// <remarks>
-    /// The row is a recording of a live read, so the number asserted is the number the provider
-    /// really issued rather than one written to suit the client.
-    /// </remarks>
+    // The row is a recording, so the number asserted is the one the provider really issued.
     [Fact]
     public async Task AStoredSiteIdentifierResolvesToTheProvidersOwnNumber()
     {
@@ -732,10 +613,7 @@ public sealed class ThePornDbCatalogueTests
         Assert.EndsWith($"/sites/{StudioUuid}", handler.Requests[0].Path, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The provider stating it names no such site is its own answer, and a second attempt would only
-    /// collect it again.
-    /// </summary>
+    // Naming no such site is the provider's own answer, so a second attempt collects it again.
     [Fact]
     public async Task ASiteTheProviderNamesNoneForIsStatedAsThat()
     {
@@ -747,11 +625,8 @@ public sealed class ThePornDbCatalogueTests
         Assert.Single(handler.Requests);
     }
 
-    /// <summary>
-    /// A read that never arrived establishes nothing about the site, so it is a different answer
-    /// from the provider naming none. Counted together, a site nothing is known about would be
-    /// reported as one the provider has no number for.
-    /// </summary>
+    // Counted together, a site nothing is known about would be reported as one the provider has no
+    // number for.
     [Theory]
     [InlineData(HttpStatusCode.ServiceUnavailable)]
     [InlineData(HttpStatusCode.TooManyRequests)]
@@ -767,7 +642,6 @@ public sealed class ThePornDbCatalogueTests
         Assert.False(resolved.WasReached);
     }
 
-    /// <summary>A connection that drops part way through the body reached no answer either.</summary>
     [Fact]
     public async Task AConnectionThatFailsResolvesToAReadThatNeverArrived()
     {
@@ -779,10 +653,7 @@ public sealed class ThePornDbCatalogueTests
             await catalogue.ResolveNumericSiteIdAsync(StudioUuid, TestCt));
     }
 
-    /// <summary>
-    /// A rate limiter is not the provider answering about the site, so the read is issued again and
-    /// the second answer is the one that settles it.
-    /// </summary>
+    // A rate limiter is not the provider answering about the site.
     [Fact]
     public async Task ARateLimitedReadIsIssuedAgainAndTheSecondAnswerSettlesIt()
     {
@@ -796,7 +667,6 @@ public sealed class ThePornDbCatalogueTests
         Assert.Equal(2, handler.Requests.Count);
     }
 
-    /// <summary>A rate limiter on every attempt still establishes nothing about the site.</summary>
     [Fact]
     public async Task ARateLimitedReadOnEveryAttemptIsStillAReadThatNeverArrived()
     {
@@ -808,10 +678,7 @@ public sealed class ThePornDbCatalogueTests
         Assert.Equal(2, handler.Requests.Count);
     }
 
-    /// <summary>
-    /// A success carrying no number this generation can address a row by establishes nothing about
-    /// the site. Zero is no identifier on this provider, so it is not a number to carry across.
-    /// </summary>
+    // Zero is no identifier on this provider, so it is not a number to carry across.
     [Theory]
     [InlineData("{}")]
     [InlineData("{\"data\":{}}")]
@@ -825,16 +692,11 @@ public sealed class ThePornDbCatalogueTests
             await catalogue.ResolveNumericSiteIdAsync(StudioUuid, TestCt));
     }
 
-    /// <summary>One row of the scenes route, wrapped the way the single-scene route wraps it.</summary>
     private static string SingleScene(JsonNode row)
         => new JsonObject { ["data"] = row.DeepClone() }.ToJsonString();
 
-    /// <summary>This source names no address for a scene, so a card from it is not a link.</summary>
-    /// <remarks>
-    /// The identifier this product reads and carries is the API's own, and nothing measured says it
-    /// addresses a page on the provider's site. A composed address that answered 404 would be worse
-    /// than no link at all.
-    /// </remarks>
+    // The identifier this product carries is the API's own, and nothing measured says it addresses
+    // a page on the provider's site. A composed address answering 404 is worse than no link.
     [Fact]
     public void NoSceneIsGivenAnAddress()
     {
@@ -866,8 +728,8 @@ public sealed class ThePornDbCatalogueTests
         return (catalogue, handler);
     }
 
-    // A page the provider really served. The answer carries none where nothing arrived, so a case
-    // about what a page projects states that a page arrived before reading one.
+    // The answer carries no page where nothing arrived, so a case about projection states that a
+    // page arrived before reading one.
     private static async Task<ProviderCataloguePage> PageFrom(
         ThePornDbCatalogue catalogue, ProviderCatalogueRequest request, CancellationToken ct)
     {

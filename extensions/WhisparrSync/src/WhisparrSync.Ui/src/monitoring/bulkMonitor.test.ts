@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
-/**
- * What the selection bar's handler offers, what leaving without choosing sends, and what a choice
- * puts in the body.
- *
- * A DOM is needed because the overlay is mounted imperatively into the document rather than returned
- * as a value: the properties under test are which rows a reader is actually offered and what
- * pressing one sends. The real mounter is used rather than a stand-in for the same reason.
- */
+// The overlay is mounted imperatively into the document rather than returned as a value, so a DOM
+// and the real mounter are both needed.
 import { test, expect, vi, afterEach } from "vitest";
 import { act } from "react";
 
@@ -18,10 +12,8 @@ vi.mock("@cove-extensions/ui-shared", () => ({
   extensionApi: (extensionId: string) => (route: string) => `/extensions/${extensionId}/${route}`,
 }));
 
-/**
- * The host dialog resolves only inside a running Cove, so it stands in here. The stand-in draws the
- * two buttons the real one draws, because what a press of each sends is the property under test.
- */
+// The host dialog resolves only inside a running Cove. The stand-in draws the same two buttons,
+// because what a press of each sends is under test.
 vi.mock("./hostComponents", async () => {
   const { createElement } = await import("react");
   return {
@@ -58,9 +50,8 @@ interface Sent {
 
 const sent: Sent[] = [];
 
-// An answer is a function called at request time rather than a promise created ahead of one. A
-// promise that settles before anything reads it is reported as unhandled, whatever the code under
-// test then does with it.
+// An answer is a function called at request time, not a promise created ahead of one. A promise
+// that settles before anything reads it is reported as unhandled.
 let readAnswer: () => Promise<unknown> = () => Promise.resolve(null);
 
 class FakeApiError extends Error {
@@ -80,8 +71,7 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   },
 }));
 
-// Called at request time for the reason the read answer is: a rejected promise created ahead of the
-// call it belongs to is reported as unhandled whatever the code under test then does with it.
+// Called at request time for the reason the read answer is.
 let postAnswer: () => Promise<unknown> = () => Promise.resolve({ jobId: "job-1" });
 
 vi.mock("@cove-extensions/ui-shared/postAction", () => ({
@@ -150,12 +140,8 @@ async function press(label: string): Promise<void> {
   await pressControl(button);
 }
 
-/**
- * Starts the handler and waits for its overlay to be on screen.
- *
- * The handler's own promise is returned WRAPPED. An async function returning it bare would await it,
- * and it does not settle until the overlay is answered.
- */
+// The handler's promise is returned wrapped. Returned bare, this async function would await it,
+// and it does not settle until the overlay is answered.
 async function open(
   entityType: string,
   entityIds: number[],
@@ -177,10 +163,10 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-/** What the route answers a selection larger than its bound, body and all. */
+// What the route answers a selection larger than its bound, body and all.
 const OVER_THE_BOUND = '{"code":"TOO_MANY_IDS","max":1000}';
 
-/** What this generation puts in the body of a refusal: its own words, at length. */
+// A refusal body carrying the instance's own words, which must not reach the reader.
 const A_REFUSAL_CARRYING_THE_INSTANCES_WORDS =
   '{"code":"SOMETHING_ELSE","message":"System.InvalidOperationException: at Whisparr.Api.V3"}';
 
@@ -213,8 +199,7 @@ test("the chosen verb and scope reach the body", async () => {
   answering(viewOf());
 
   const { running } = await open("studios", [7, 8]);
-  // The confirmation names the chosen row on its own confirm button, so the same label is pressed
-  // twice: once to choose the row, once to stand by it.
+  // The confirm button carries the chosen row's label, so the same label is pressed twice.
   await press(SCOPE_ALL_SCENES);
   await press(SCOPE_ALL_SCENES);
   await running;
@@ -245,10 +230,8 @@ test("unmonitoring sends its own verb and no scope", async () => {
   });
 });
 
-/**
- * Requests bind case-insensitively while responses are camelCase, so the casing is read from the
- * server per direction. The expected keys are hand-written from the C# record.
- */
+// Requests bind case-insensitively while responses are camelCase. The expected keys are
+// hand-written from the C# record.
 test("the posted body's keys are PascalCase", async () => {
   answering(viewOf());
 
@@ -286,11 +269,9 @@ test("a verb absent from the held list is not offered", async () => {
   expect(sent.filter((call) => call.method === "POST")).toEqual([]);
 });
 
-/**
- * Add all missing and reflect owned reach no bulk verb, so the overlay offers neither even where the
- * connected generation holds every capability behind them. The search reaches one, and reads last
- * because it is the only row here that downloads.
- */
+// Add all missing and reflect owned reach no bulk verb, so the overlay offers neither even with
+// every capability held. The search reaches one, and reads last because it is the only row here
+// that downloads.
 test("offers the search row last and neither of the other two secondary actions", async () => {
   answering(viewOf());
 

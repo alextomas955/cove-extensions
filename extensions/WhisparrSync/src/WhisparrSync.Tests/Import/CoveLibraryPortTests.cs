@@ -9,13 +9,8 @@ using WhisparrSync.Import;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// The port's reads, its one write, and the read that stands in for the missing unique constraint.
-/// </summary>
-/// <remarks>
-/// Over a real relational context rather than the non-relational provider, so the host's own indexes,
-/// transactions and per-principal query filters are the real ones.
-/// </remarks>
+// Over a real relational context rather than the non-relational provider, so the host's own
+// indexes, transactions and per-principal query filters are the real ones.
 public sealed class CoveLibraryPortTests
 {
     private const string ConfiguredEndpoint = "https://stashdb.org/graphql";
@@ -32,15 +27,10 @@ public sealed class CoveLibraryPortTests
         Assert.Null(await library.Port.HeldFileAtAsync("/data/unknown.mp4", Ct));
     }
 
-    /// <summary>
-    /// A row this extension itself detached still reads as a row, over a real relational context.
-    /// </summary>
-    /// <remarks>
-    /// The detached state is produced by the product's own write rather than seeded, so what is read
-    /// back is the database state a user reaches under the Replace behaviour. Answering null here
-    /// would send the redelivery of that path to the host's import with no item to attach it to,
-    /// which is the one input that import answers by throwing.
-    /// </remarks>
+    // The detached state is produced by the product's own write rather than seeded, so what is read
+    // back is the database state a user reaches under the Replace behaviour. Answering null here would
+    // send the redelivery of that path to the host's import with no item to attach it to, which is the
+    // one input that import answers by throwing.
     [Fact]
     public async Task AFileRowThisExtensionDetachedIsStillReadAsHeldByTheLibrary()
     {
@@ -58,15 +48,9 @@ public sealed class CoveLibraryPortTests
         Assert.Null(await library.Port.HeldFileAtAsync("/data/unknown.mp4", Ct));
     }
 
-    /// <summary>
-    /// Each exception the host's own import raises is answered rather than propagated, and reported
-    /// exactly once.
-    /// </summary>
-    /// <remarks>
-    /// The scan service is a double, because this extension does not reference the assembly the real
-    /// one lives in. That the real host raises these is proven where the real host runs, in the
-    /// containerized end-to-end spec.
-    /// </remarks>
+    // The scan service is a double, because this extension does not reference the assembly the real one
+    // lives in. That the real host raises these is proven where the real host runs, in the containerized
+    // end-to-end spec.
     [Theory]
     [InlineData(typeof(FileNotFoundException))]
     [InlineData(typeof(InvalidOperationException))]
@@ -83,18 +67,11 @@ public sealed class CoveLibraryPortTests
         Assert.Single(log.ContainedHostImportLines);
     }
 
-    /// <summary>
-    /// The one line a contained host import emits carries no part of the path the failure names.
-    /// </summary>
-    /// <remarks>
-    /// <see cref="FileNotFoundException"/> is one of the two the host's import raises, and its message
-    /// quotes the file it could not find. The message here is composed by the runtime from the file
-    /// name, so the value the assertion searches for is not one this test wrote into it.
-    /// <para>
-    /// The line is read as a sink writes it - the rendered message together with the exception the
-    /// logger was handed - because a sink writes both.
-    /// </para>
-    /// </remarks>
+    // FileNotFoundException is one of the two the host's import raises, and its message quotes the file
+    // it could not find. The message is composed by the runtime from the file name, so the value the
+    // assertion searches for is not one this test wrote into it.
+    // The line is read as a sink writes it - the rendered message together with the exception the logger
+    // was handed - because a sink writes both.
     [Fact]
     public async Task AContainedHostImportIsLoggedWithoutThePathTheFailureNames()
     {
@@ -110,11 +87,8 @@ public sealed class CoveLibraryPortTests
         Assert.DoesNotContain(path, line, StringComparison.Ordinal);
     }
 
-    /// <summary>An exception the host raises that this product does not know about still propagates.</summary>
-    /// <remarks>
-    /// The discriminating control for the containment above: without it, a catch of every exception
-    /// would satisfy the same assertions while hiding a defect.
-    /// </remarks>
+    // The control for the containment above: without it, a catch of every exception would satisfy the
+    // same assertions while hiding a defect.
     [Fact]
     public async Task AnExceptionTheHostImportIsNotKnownToRaiseIsNotContained()
     {
@@ -125,10 +99,8 @@ public sealed class CoveLibraryPortTests
             () => library.Port.ImportVideoAsync("/data/scene.mp4", null, Ct));
     }
 
-    /// <summary>
-    /// The stored spelling and the queried one differ, which is the whole reason the read goes
-    /// through the endpoint rule rather than through string equality.
-    /// </summary>
+    // The stored spelling and the queried one differ, which is why the read goes through the endpoint
+    // rule rather than through string equality.
     [Fact]
     public async Task AnIdentifierStoredUnderAnotherSpellingOfTheSourceStillResolves()
     {
@@ -154,7 +126,6 @@ public sealed class CoveLibraryPortTests
         Assert.False(resolution.Ambiguous);
     }
 
-    /// <summary>A library holding no identity rows at all answers unmatched and writes nothing.</summary>
     [Fact]
     public async Task ALibraryWithNoIdentityRowsAnswersUnmatchedForEveryVideoAndWritesNothing()
     {
@@ -169,10 +140,8 @@ public sealed class CoveLibraryPortTests
         Assert.Equal(0, await library.IdentityRowCountAsync());
     }
 
-    /// <summary>
-    /// Two reads of one match, each derived live, with nothing written between them. What makes this
-    /// checkable is the row count either side: a read that cached its answer would have to store it.
-    /// </summary>
+    // The row count either side is what makes this checkable: a read that cached its answer would have
+    // to store it.
     [Fact]
     public async Task TwoReadsOfOneMatchAgreeAndNeitherWritesAnything()
     {
@@ -204,10 +173,8 @@ public sealed class CoveLibraryPortTests
         Assert.Null(resolution.VideoId);
     }
 
-    /// <summary>
-    /// Two videos sharing a title, a date and a file name, carrying different identifiers. Nothing on
-    /// the match path may notice any of the three.
-    /// </summary>
+    // The two videos share a title, a date and a file name and differ only by identifier. Nothing on
+    // the match path may notice any of the three.
     [Fact]
     public async Task TwoVideosWithIdenticalTitlesAndDifferentIdentifiersDoNotMatchEachOther()
     {
@@ -240,10 +207,8 @@ public sealed class CoveLibraryPortTests
         Assert.Equal(RemoteId, row.RemoteId);
     }
 
-    /// <summary>
-    /// The database has no unique constraint on the video-and-endpoint pair, so this read is the only
-    /// thing between one source and two rows.
-    /// </summary>
+    // The database has no unique constraint on the video-and-endpoint pair, so this read is the only
+    // thing between one source and two rows.
     [Fact]
     public async Task StampingUnderTwoSpellingsOfOneSourceLeavesExactlyOneRowUntouched()
     {
@@ -278,10 +243,6 @@ public sealed class CoveLibraryPortTests
         Assert.Equal([ConfiguredEndpoint], library.Port.ConfiguredMetadataEndpoints);
     }
 
-    /// <summary>
-    /// An import service the container could not produce is its own outcome, not the one a declined
-    /// file gets.
-    /// </summary>
     [Fact]
     public async Task AnAbsentScanServiceReportsTheHostImportAsUnavailableAndRegistersNothing()
     {
@@ -293,7 +254,6 @@ public sealed class CoveLibraryPortTests
         Assert.Null(imported.VideoId);
     }
 
-    /// <summary>An absent metadata service is an enrichment that did not happen, never a throw.</summary>
     [Fact]
     public async Task AnAbsentMetadataServiceEnrichesNothingAndDoesNotThrow()
     {
@@ -303,11 +263,8 @@ public sealed class CoveLibraryPortTests
         Assert.False(await library.Port.EnrichAsync(videoId, ConfiguredEndpoint, RemoteId, Ct));
     }
 
-    /// <summary>A source that applied a record and a library that took it is the answered case.</summary>
-    /// <remarks>
-    /// The positive control for the case below: without it, a refusal to commit could equally mean the
-    /// merge is never reached at all.
-    /// </remarks>
+    // The positive control for the case below: without it, a refusal to commit could equally mean the
+    // merge is never reached at all.
     [Fact]
     public async Task AMergedRecordThatWasSavedIsAnsweredAsApplied()
     {
@@ -320,14 +277,9 @@ public sealed class CoveLibraryPortTests
         Assert.Equal("the source's title", await library.TitleOfAsync(videoId));
     }
 
-    /// <summary>
-    /// A save that failed after the merge answered is raised as its own failure, not as the source's.
-    /// </summary>
-    /// <remarks>
-    /// Both halves of the call otherwise reach the caller as one broad catch, which can then only name
-    /// the source — and here the source applied its record. The record is applied and the connection
-    /// dropped inside the merge, so there is a real change to commit and no library to commit it to.
-    /// </remarks>
+    // Both halves of the call otherwise reach the caller as one broad catch, which can then only name
+    // the source, and here the source applied its record. The record is applied and the connection
+    // dropped inside the merge, so there is a real change to commit and no library to commit it to.
     [Fact]
     public async Task ASaveThatFailedAfterTheMergeIsRaisedAsAnUncommittedEnrichment()
     {
@@ -348,7 +300,6 @@ public sealed class CoveLibraryPortTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    /// <summary>A host scan service whose video import raises, standing in for the real one.</summary>
     private sealed class RaisingScanService(Exception raised) : IScanService
     {
         public string StartScan(ScanOperationOptions? options = null) => throw new NotSupportedException();
@@ -369,14 +320,8 @@ public sealed class CoveLibraryPortTests
             => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// A metadata source that applies a record and leaves the save to the caller, as the host's own
-    /// does.
-    /// </summary>
-    /// <remarks>
-    /// The host's merge mutates the entity it is handed and saves nothing, so what a test does inside
-    /// <paramref name="apply"/> lands in exactly the window the port then has to commit.
-    /// </remarks>
+    // The host's merge mutates the entity it is handed and saves nothing, so what a test does inside
+    // apply lands in exactly the window the port then has to commit.
     private sealed class MergingMetadataServer(Action<Video> apply) : IMetadataServerService
     {
         public Task<bool> MergeVideoAsync(
@@ -391,7 +336,6 @@ public sealed class CoveLibraryPortTests
         }
     }
 
-    /// <summary>Keeps the contained-host-import lines, by event id, as a sink would write them.</summary>
     private sealed class RecordingLogger : ILogger
     {
         private const int ContainedHostImportEventId = 2111;
@@ -419,7 +363,6 @@ public sealed class CoveLibraryPortTests
         }
     }
 
-    /// <summary>One real relational library, with the port wired over its context.</summary>
     private sealed class LibraryFixture : IAsyncDisposable
     {
         private DbContext _db = null!;
@@ -452,24 +395,18 @@ public sealed class CoveLibraryPortTests
             return fixture;
         }
 
-        /// <summary>Rebuilds the port over the same library with <paramref name="metadata"/>.</summary>
-        /// <remarks>
-        /// A metadata double that has to reach back into this fixture cannot be constructed before it,
-        /// so it is supplied afterwards rather than the fixture being built in two halves.
-        /// </remarks>
+        // A metadata double that has to reach back into this fixture cannot be constructed before it, so it
+        // is supplied afterwards rather than the fixture being built in two halves.
         public void Reconfigure(IMetadataServerService? metadata)
             => Port = new CoveLibraryPort(_db, _scan, metadata, _config, _log);
 
-        /// <summary>Drops the library's connection, so the next save cannot be committed.</summary>
         public void DropTheConnection() => _connection.Close();
 
         public async Task<string?> TitleOfAsync(int videoId)
             => (await _db.Set<Video>().AsNoTracking().FirstAsync(video => video.Id == videoId, Ct)).Title;
 
-        /// <summary>
-        /// Seeds one video with one file. The file's stored path is left for the host's own save to
-        /// compute from the folder, so the fixture does not supply the value a read then checks.
-        /// </summary>
+        // The file's stored path is left for the host's own save to compute from the folder, so the fixture
+        // does not supply the value a read then checks.
         public async Task<int> SeedVideoWithFileAsync(
             string path, string? title = null, DateOnly? date = null)
         {
@@ -488,7 +425,6 @@ public sealed class CoveLibraryPortTests
             return video.Id;
         }
 
-        /// <summary>Gives <paramref name="videoId"/> a second file, so a detach has one to supersede.</summary>
         public async Task AttachFileAsync(int videoId, string path)
         {
             _db.Add(new VideoFile
@@ -520,7 +456,6 @@ public sealed class CoveLibraryPortTests
 
         private static string Directory(string path) => path[..path.LastIndexOf('/')];
 
-        /// <summary>The folder row for <paramref name="path"/>, created once. Its path is unique.</summary>
         private async Task<Folder> FolderAsync(string path)
         {
             var existing = await _db.Set<Folder>().FirstOrDefaultAsync(folder => folder.Path == path, Ct);

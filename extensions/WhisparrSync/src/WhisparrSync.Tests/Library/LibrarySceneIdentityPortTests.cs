@@ -3,25 +3,12 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Library;
 
-/// <summary>
-/// Which identifiers the whole library is known by, and how many of its scenes carry none, read from
-/// a real relational library.
-/// </summary>
-/// <remarks>
-/// The namespace rule is the subject as much as the identifiers are. A row written under another
-/// spelling of the same source names an identified scene, and a read comparing endpoint spellings as
-/// strings would count that scene among the ones Whisparr cannot be told about.
-/// <para>
-/// The two members have to agree about what an identified scene is. A count derived independently of
-/// the stream would answer a different number from the stream a run then walks.
-/// </para>
-/// </remarks>
 public sealed class LibrarySceneIdentityPortTests
 {
-    /// <summary>A different spelling from the stored one, naming the same source.</summary>
+    // A different spelling from the stored one, naming the same source.
     private const string StandardStashDbAddress = "https://stashdb.org/graphql";
 
-    /// <summary>A spelling belonging to the OTHER generation's namespace.</summary>
+    // A spelling belonging to the other generation's namespace.
     private const string OtherNamespaceEndpoint = "theporndb.net/graphql";
 
     private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
@@ -30,11 +17,6 @@ public sealed class LibrarySceneIdentityPortTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>Every identified scene is answered, whichever entity it sits under.</summary>
-    /// <remarks>
-    /// The whole library and not one entity's part of it, which is what makes this read the sync's
-    /// own rather than the catalogue surface's.
-    /// </remarks>
     [Fact]
     public async Task EveryIdentifiedSceneInTheLibraryIsAnsweredWhicheverEntityItSitsUnder()
     {
@@ -47,7 +29,6 @@ public sealed class LibrarySceneIdentityPortTests
         Assert.Equal([FirstScene, SecondScene], await IdentitiesAsync(host));
     }
 
-    /// <summary>A row under a different spelling of the same source IS answered.</summary>
     [Fact]
     public async Task ASpellingOfTheSameSourceIsAnsweredRatherThanComparedAsAString()
     {
@@ -58,7 +39,6 @@ public sealed class LibrarySceneIdentityPortTests
         Assert.Equal([FirstScene], await IdentitiesAsync(host));
     }
 
-    /// <summary>A row naming the other generation's source is answered by nothing.</summary>
     [Fact]
     public async Task ASceneIdentifiedOnlyInTheOtherNamespaceIsNotAnswered()
     {
@@ -69,7 +49,6 @@ public sealed class LibrarySceneIdentityPortTests
         Assert.Empty(await IdentitiesAsync(host));
     }
 
-    /// <summary>A scene carrying no identity row at all is counted as one that cannot be told about.</summary>
     [Fact]
     public async Task ASceneCarryingNoRowIsCountedAsUnidentified()
     {
@@ -81,14 +60,8 @@ public sealed class LibrarySceneIdentityPortTests
         Assert.Equal(1, await UnidentifiedAsync(host));
     }
 
-    /// <summary>
-    /// A scene identified only in the other namespace is counted as unidentified too.
-    /// </summary>
-    /// <remarks>
-    /// It carries an identifier, and not one the connected instance names entries by, so it is
-    /// exactly as unregistrable as one carrying none. Counting it as identified would leave a figure
-    /// the reader could not reconcile with the two counts beside it.
-    /// </remarks>
+    // The identifier it carries is not one the connected instance names entries by, so it is as
+    // unregistrable as a scene carrying none.
     [Fact]
     public async Task ASceneIdentifiedOnlyInTheOtherNamespaceIsCountedAsUnidentified()
     {
@@ -99,13 +72,8 @@ public sealed class LibrarySceneIdentityPortTests
         Assert.Equal(1, await UnidentifiedAsync(host));
     }
 
-    /// <summary>
-    /// A scene carrying two spellings of one source is counted as identified once.
-    /// </summary>
-    /// <remarks>
-    /// The pair is two rows in the database and one identified scene under the host's own rule, so a
-    /// count that read the rows would report fewer unidentified scenes than there are.
-    /// </remarks>
+    // The pair is two rows in the database and one identified scene under the host's own rule. A
+    // count that read the rows would report fewer unidentified scenes than there are.
     [Fact]
     public async Task ASceneCarryingTwoSpellingsOfOneSourceIsCountedIdentifiedOnce()
     {
@@ -119,13 +87,8 @@ public sealed class LibrarySceneIdentityPortTests
         Assert.Equal(1, await UnidentifiedAsync(host));
     }
 
-    /// <summary>
-    /// A library where nothing is identified answers no identifier and counts every scene.
-    /// </summary>
-    /// <remarks>
-    /// The pairing is the claim: the count and the stream are two members and a reader adds their
-    /// answers together, so a library at one extreme has to be reported consistently by both.
-    /// </remarks>
+    // The count and the stream are separate members and a reader adds their answers together, so
+    // both are checked on the same library.
     [Fact]
     public async Task ALibraryWithNothingIdentifiedAnswersNoIdentifierAndCountsEveryScene()
     {
@@ -138,7 +101,6 @@ public sealed class LibrarySceneIdentityPortTests
         Assert.Equal(2, await UnidentifiedAsync(host));
     }
 
-    /// <summary>Two scenes under one entity are both answered.</summary>
     [Fact]
     public async Task SeveralIdentifiedScenesUnderOneEntityAreAllAnswered()
     {

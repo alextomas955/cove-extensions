@@ -2,19 +2,11 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Whisparr;
 
-/// <summary>
-/// That two registrations cannot be inside the find-then-write pair at the same time.
-/// </summary>
-/// <remarks>
-/// This is the property the duplicate depended on. Measured against a real Whisparr v3: two
-/// registrations issued without awaiting between them both found no entry under this product's name,
-/// both created one, and the instance refused neither - leaving two webhooks delivering every import
-/// event. The sequential control left the count unchanged, so serialising the pair is the whole fix.
-/// <para>
-/// Asserted on the interleaving rather than on a call count: two calls that both created is also
-/// "two calls", so a count cannot tell the defect from the fix.
-/// </para>
-/// </remarks>
+// Measured against a real Whisparr v3: two registrations issued without awaiting between them
+// both found no entry under this product's name, both created one, and the instance refused
+// neither, leaving two webhooks delivering every import event.
+// Asserted on the interleaving rather than on a call count, because two calls that both created
+// is also two calls.
 public sealed class RegistrationGateTests
 {
     private static readonly TimeSpan Budget = TimeSpan.FromSeconds(10);

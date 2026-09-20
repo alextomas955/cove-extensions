@@ -21,14 +21,10 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Invariants;
 
-/// <summary>The safety invariants this product declares, and the trait that names one.</summary>
-/// <remarks>
-/// Transcribed from the requirement rather than gathered from the tests. A list gathered from the
-/// tests would agree with them however many were deleted.
-/// </remarks>
+// Transcribed from the requirement rather than gathered from the tests. A list gathered from the
+// tests would agree with them however many were deleted.
 internal static class SafetyInvariant
 {
-    /// <summary>The trait naming which invariant a test is about.</summary>
     public const string Trait = "Invariant";
 
     public const string OneInboundPath = "one inbound path";
@@ -45,7 +41,6 @@ internal static class SafetyInvariant
 
     public const string NothingGrowsWithTheLibrary = "nothing stored or returned grows with the library";
 
-    /// <summary>Every invariant this product declares.</summary>
     public static string[] All =>
     [
         OneInboundPath,
@@ -58,12 +53,9 @@ internal static class SafetyInvariant
     ];
 }
 
-/// <summary>Every member of the outbound seam, and the class of work each one does.</summary>
-/// <remarks>
-/// Transcribed by hand. A member added to the seam is absent here until someone writes it down, and
-/// <see cref="SafetyInvariantTests.TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall"/> is
-/// what refuses the omission.
-/// </remarks>
+// Every member of the outbound seam and the class of work each does, transcribed by hand. A member
+// added to the seam is absent here until someone writes it down, and
+// TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall refuses the omission.
 internal static class OutboundSeam
 {
     public static IReadOnlyDictionary<string, WhisparrVerbClass> VerbClassByMember { get; } =
@@ -116,13 +108,9 @@ internal static class OutboundSeam
             [nameof(IWhisparrInstanceFilesystemReading.ReadInstanceFolderAsync)] = WhisparrVerbClass.Read,
         };
 
-    /// <summary>Every interface an outbound request of this product can be expressed through.</summary>
-    /// <remarks>
-    /// Transcribed by hand for the same reason the table above is: a seam interface added later and
-    /// left out of this list is what fails
-    /// <see cref="SafetyInvariantTests.TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall"/>,
-    /// rather than being covered by an assertion nobody wrote.
-    /// </remarks>
+    // Transcribed by hand for the same reason the table above is: a seam interface added later and
+    // left out of this list fails TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall rather
+    // than being covered by an assertion nobody wrote.
     public static IReadOnlyList<Type> SeamInterfaces { get; } =
     [
         typeof(IWhisparrClient),
@@ -140,36 +128,25 @@ internal static class OutboundSeam
         typeof(IWhisparrInstanceFilesystemReading),
     ];
 
-    /// <summary>The members doing <paramref name="verbClass"/>'s class of work, in name order.</summary>
     public static IEnumerable<string> MembersOf(WhisparrVerbClass verbClass)
         => VerbClassByMember
             .Where(member => member.Value == verbClass)
             .Select(member => member.Key)
             .Order();
 
-    /// <summary>Every seam interface declaring a member named <paramref name="member"/>.</summary>
     public static IEnumerable<Type> SeamsDeclaring(string member)
         => SeamInterfaces.Where(seam => seam
             .GetMethods()
             .Any(method => string.Equals(method.Name, member, StringComparison.Ordinal)));
 }
 
-/// <summary>
-/// The safety invariants that are reachable by driving this product, proven over doubles that record
-/// the arguments of every request.
-/// </summary>
-/// <remarks>
-/// The invariants concerning a capability this product does not hold are in
-/// <see cref="AbsentCapabilityTests"/>, and are asserted as absence rather than as behaviour.
-/// </remarks>
+// The safety invariants reachable by driving this product, over doubles that record the arguments
+// of every request. The invariants about a capability this product does not hold are in
+// AbsentCapabilityTests, asserted as absence.
 public sealed class SafetyInvariantTests
 {
-    /// <summary>
-    /// The one route this extension mounts that answers a caller holding no Cove permission.
-    /// </summary>
-    /// <remarks>
-    /// Written out as a single value rather than a list, so a SECOND anonymous route fails here.
-    /// </remarks>
+    // The one route this extension mounts that answers a caller holding no Cove permission. A
+    // single value rather than a list, so a second anonymous route fails here.
     private const string InboundRoute = "/api/extensions/com.alextomas955.whisparrsync/callback";
 
     [Fact]
@@ -220,15 +197,10 @@ public sealed class SafetyInvariantTests
         await app.StopAsync(TestCt);
     }
 
-    /// <summary>
-    /// The transcribed table names every member of every seam interface, and nothing else.
-    /// </summary>
-    /// <remarks>
-    /// One assertion over a declared union rather than one per interface, so a seam interface added
-    /// and left out of <see cref="OutboundSeam.SeamInterfaces"/> fails the count below instead of
-    /// slipping past an assertion that was never written for it. No name is duplicated across the
-    /// union on purpose: two interfaces declaring one name would fail here too.
-    /// </remarks>
+    // One assertion over a declared union rather than one per interface, so a seam interface added
+    // and left out of OutboundSeam.SeamInterfaces fails the count below instead of slipping past an
+    // assertion nobody wrote for it. No name is duplicated across the union, so two interfaces
+    // declaring one name fail here too.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public void TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall()
@@ -244,14 +216,8 @@ public sealed class SafetyInvariantTests
                 .ToList());
     }
 
-    /// <summary>
-    /// Every acting and grabbing member is sent once, and each of those two classes has members.
-    /// </summary>
-    /// <remarks>
-    /// The retry table's silence about both classes, stated as the answer a caller actually gets. A
-    /// reader of the table infers the default; this reads it back through
-    /// <see cref="WhisparrRetryPolicy.AttemptsFor"/>, which is what a request goes through.
-    /// </remarks>
+    // The retry table says nothing about either class, so the default is read back through
+    // WhisparrRetryPolicy.AttemptsFor, which is what a request goes through.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NoAutoRetriedGrab)]
     public void EveryActingAndGrabbingMemberIsSentOnceAndNeverRetried()
@@ -278,26 +244,12 @@ public sealed class SafetyInvariantTests
                 WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor(member.Value)));
     }
 
-    /// <summary>
-    /// Every add this product can compose carries every acquisition-suppressing spelling its own
-    /// resource declares, each present as a member and each false, over every generation, entity kind
-    /// and scope the registered capabilities allow.
-    /// </summary>
-    /// <remarks>
-    /// The case list is DERIVED from the per-generation capability table rather than transcribed.
-    /// Everywhere else here a transcribed list is the stronger source, because it disagrees with the
-    /// code as soon as the code changes and someone has to reconcile the two. The failure this one
-    /// has to catch runs the other way: a generation-and-kind combination that becomes registered
-    /// and is never covered. A transcribed list would go on agreeing with itself while that
-    /// combination composed whatever it liked, so the enumeration reads the same table the product
-    /// acts through and a registration with no case fails the suite.
-    /// <para>
-    /// Presence is asserted apart from the value, because an absent member and a false one read the
-    /// same off a value and the instance's default for the absent case is not this product's to
-    /// rely on. What each case actually holds is asserted case by case in the body group; this
-    /// states the claim and the derivation.
-    /// </para>
-    /// </remarks>
+    // The case list is derived from the per-generation capability table rather than transcribed.
+    // The failure to catch is a generation-and-kind combination that becomes registered and is
+    // never covered, and a transcribed list would go on agreeing with itself while that combination
+    // composed whatever it liked. Presence is asserted apart from the value, because an absent
+    // member and a false one read the same off a value and the instance's default for the absent
+    // case is not this product's to rely on.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryAddIsNonGrabbing)]
     public void EveryAddThisProductCanComposeSuppressesAcquisitionWhereItsResourceDeclaresIt()
@@ -324,15 +276,8 @@ public sealed class SafetyInvariantTests
             generation => Assert.NotNull(ComposedAdds.On(generation)));
     }
 
-    /// <summary>
-    /// The only path whose composed body can name a grabbing command is the one reached through the
-    /// separately obtained grabbing role, and no monitoring path reaches that role's member.
-    /// </summary>
-    /// <remarks>
-    /// The behavioural half: every body a monitor, unmonitor, scope change or add composes is
-    /// searched as serialised text for each transcribed grabbing command name. The type-level half is
-    /// the assertion below it, which says the seam declares exactly one member that can grab.
-    /// </remarks>
+    // Every body a monitor, unmonitor, scope change or add composes is searched as serialised text
+    // for each transcribed grabbing command name.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
     public void NoBodyOffAMonitoringPathCanNameAGrabbingCommand()
@@ -346,31 +291,17 @@ public sealed class SafetyInvariantTests
                 ComposedAdds.GrabbingCommandNames,
                 name => Assert.DoesNotContain(name, body.ToJsonString(), StringComparison.Ordinal)));
 
-        // The member that CAN name one is declared on that role alone, so no monitoring call site
+        // The member that can name one is declared on that role alone, so no monitoring call site
         // holds an implementation to reach it through.
         Assert.Equal(
             [typeof(IWhisparrSearchGrabbing)],
             OutboundSeam.SeamsDeclaring(nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)));
     }
 
-    /// <summary>
-    /// Two members of the whole outbound seam can make an instance download, each declared on a role
-    /// of its own that a caller obtains by name.
-    /// </summary>
-    /// <remarks>
-    /// The type-level half of the guarantee: a call site that never obtains one of those roles cannot
-    /// express the request, whatever it intended. What a composed body says is asserted above.
-    /// <para>
-    /// The guarantee is not that nothing can grab. Two named gestures reach one grabbing member
-    /// each - one over an entity's whole monitored catalogue, one over a single scene - and nothing
-    /// else does. The behavioural half, that every other mounted verb reaches none, is driven over
-    /// the mounted route set in the body group.
-    /// </para>
-    /// <para>
-    /// Each grabbing role declares exactly one member, so neither can grow a second verb without
-    /// this failing.
-    /// </para>
-    /// </remarks>
+    // A call site that never obtains one of these two roles cannot express a download, whatever it
+    // intended. The guarantee is not that nothing can grab: two named gestures reach one grabbing
+    // member each, one over an entity's whole monitored catalogue and one over a single scene. Each
+    // role declares exactly one member, so neither can grow a second verb without this failing.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
     public void TwoSeamMembersGrabAndEachIsDeclaredOnAGrabbingRoleOfItsOwn()
@@ -393,13 +324,8 @@ public sealed class SafetyInvariantTests
         Assert.Single(typeof(IWhisparrSceneSearchGrabbing).GetMethods());
     }
 
-    /// <summary>
-    /// The filesystem seam declares one member and it reads.
-    /// </summary>
-    /// <remarks>
-    /// The structural half of the invariant: whatever a caller intended, there is no member here that
-    /// moves, renames, deletes, opens or writes.
-    /// </remarks>
+    // Whatever a caller intended, the filesystem seam declares no member that moves, renames,
+    // deletes, opens or writes.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public void TheFilesystemSeamDeclaresOnlyTheProbe()
@@ -409,13 +335,8 @@ public sealed class SafetyInvariantTests
             typeof(IImportPathPort).GetMethods().Select(method => method.Name));
     }
 
-    /// <summary>
-    /// A success, each refusal branch and a backstop pass leave only read-class calls behind.
-    /// </summary>
-    /// <remarks>
-    /// The backstop's own reading is asserted first: a pass that walked nowhere would leave an empty
-    /// log, and an empty log satisfies every emptiness assertion below it.
-    /// </remarks>
+    // The backstop's own reading is asserted first: a pass that walked nowhere would leave an empty
+    // log, and an empty log satisfies every emptiness assertion below it.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public async Task AWholeIngestAndABackstopPassLeaveOnlyReadClassCallsBehind()
@@ -463,13 +384,8 @@ public sealed class SafetyInvariantTests
             ingest.Paths.Operations.Select(operation => operation.Operation).Distinct());
     }
 
-    /// <summary>
-    /// An ingest in which every candidate was refused still sends only read-class calls.
-    /// </summary>
-    /// <remarks>
-    /// The refusals are asserted by cause rather than counted, so a run in which the core answered
-    /// the same refusal to everything is not read as three branches.
-    /// </remarks>
+    // The refusals are asserted by cause rather than counted, so a run in which the core answered
+    // the same refusal to everything is not read as three branches.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public async Task AnIngestThatRegisteredNothingStillSendsOnlyReadClassCalls()
@@ -493,9 +409,6 @@ public sealed class SafetyInvariantTests
             ingest.Paths.Operations.Select(operation => operation.Operation).Distinct());
     }
 
-    /// <summary>
-    /// Only the read class is listed in the retry table, and a class nobody listed gets one attempt.
-    /// </summary>
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NoAutoRetriedGrab)]
     public void OnlyTheReadClassIsRetriedAndAnUnlistedClassGetsOneAttempt()
@@ -509,10 +422,6 @@ public sealed class SafetyInvariantTests
             WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor(UnlistedVerbClass));
     }
 
-    /// <summary>
-    /// Replaying one delivery asks the filesystem seam for nothing but a probe either time, and the
-    /// second delivery creates neither an item nor an identity row.
-    /// </summary>
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public async Task ReplayingOneDeliveryMutatesNoPathAndCreatesNothingTheSecondTime()
@@ -541,16 +450,11 @@ public sealed class SafetyInvariantTests
         Assert.True(ingest.Paths.Operations.Count > probesAfterTheFirst);
     }
 
-    /// <summary>
-    /// Neither pass a library run makes registers through anything but a non-grabbing add.
-    /// </summary>
-    /// <remarks>
-    /// The pass set is asserted exactly, so a third pass added later reaches this rather than
-    /// travelling under an enumeration written for two. Each pass's own body is composed here and
-    /// read for its generation's suppressing flags and for every grabbing command name, because a
-    /// run reaching a whole library is the one gesture whose acquisition cost would be the size of
-    /// the library.
-    /// </remarks>
+    // The pass set is asserted exactly, so a third pass added later reaches this rather than
+    // travelling under an enumeration written for two. Each pass's own body is composed here and
+    // read for its generation's suppressing flags and for every grabbing command name, because a
+    // run reaching a whole library is the one gesture whose acquisition cost would be the size of
+    // the library.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryAddIsNonGrabbing)]
     public void NeitherPassALibraryRunMakesRegistersThroughAnythingButANonGrabbingAdd()
@@ -582,20 +486,12 @@ public sealed class SafetyInvariantTests
             });
     }
 
-    /// <summary>
-    /// Offering one library a second time composes the same request for each identifier and
-    /// registers nothing, because the instance answers the second offer as one it already holds.
-    /// </summary>
-    /// <remarks>
-    /// Two halves, and each is needed. The composition is compared as text so a re-run is proved to
-    /// send what the first run sent rather than a second variant of it; the run is then driven twice
-    /// against an instance that answers a repeated offer with its own already-held document, so what
-    /// the counts report is the classification the shipped code makes of a real answer.
-    /// <para>
-    /// The already-held count is the load-bearing one. A second offer counted as registered would be
-    /// a duplicate this product created and then reported as work.
-    /// </para>
-    /// </remarks>
+    // The composition is compared as text so a re-run is proved to send what the first run sent
+    // rather than a second variant of it. The run is then driven twice against an instance that
+    // answers a repeated offer with its own already-held document, so the counts report the
+    // classification the shipped code makes of a real answer. The already-held count is the
+    // load-bearing one: a second offer counted as registered would be a duplicate this product
+    // created and then reported as work.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryMutationIsOriginTagged)]
     public async Task OfferingTheSameLibraryTwiceComposesTheSameRequestAndRegistersNothingAgain()
@@ -636,20 +532,10 @@ public sealed class SafetyInvariantTests
         Assert.Equal([.. OfferedLibrary, .. OfferedLibrary], offered);
     }
 
-    /// <summary>
-    /// Nothing a count answers with and nothing either run reports carries a member whose size
-    /// depends on the library.
-    /// </summary>
-    /// <remarks>
-    /// Asserted on the declared shapes rather than on what one run put in them, which is the
-    /// stronger claim: a run observed at one library size says nothing about the next one. Every one
-    /// of these travels to a reader whole, and a library reaches millions of files.
-    /// <para>
-    /// A member bounded by something other than the library is allowed only by naming it below with
-    /// its bound. The rule is that nothing grows with the library, and a collection is the shape that
-    /// usually would.
-    /// </para>
-    /// </remarks>
+    // Asserted on the declared shapes rather than on what one run put in them: a run observed at
+    // one library size says nothing about the next one. Every one of these travels to a reader
+    // whole, and a library reaches millions of files. A member bounded by something other than the
+    // library is allowed only by naming it below with its bound.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
     public void NeitherTheCountAnswerNorEitherRunsResultCarriesAMemberThatGrowsWithTheLibrary()
@@ -675,35 +561,25 @@ public sealed class SafetyInvariantTests
                 Assert.Empty(unbounded);
             });
 
-    /// <summary>
-    /// The collection members allowed above, each bounded by something other than the library.
-    /// </summary>
-    /// <remarks>
-    /// The library roots hold one entry per root an operator configured by hand, each named once, and
-    /// they carry root names only: never an entry, a folder or a file. A member added here has to
-    /// state its own bound the same way.
-    /// </remarks>
+    // The library roots hold one entry per root an operator configured by hand, each named once,
+    // and carry root names only: never an entry, a folder or a file. A member added here has to
+    // state its own bound the same way.
     private static readonly HashSet<string> BoundedBySomethingOtherThanTheLibrary =
         new(StringComparer.Ordinal)
         {
             $"{nameof(SyncLibraryRun)}.{nameof(SyncLibraryRun.RootsLeftBehind)}",
         };
 
-    /// <summary>A scene the library holds, and two more, for the run driven over three.</summary>
     private const string SyncScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
 
-    /// <inheritdoc cref="SyncScene"/>
     private const string SecondSyncScene = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-    /// <inheritdoc cref="SyncScene"/>
     private const string ThirdSyncScene = "7b1e4d90-2c3a-4f81-95d6-0a8b7c6e5f43";
 
-    /// <summary>The library both runs walk, in the order the stream yields it.</summary>
+    // The library both runs walk, in the order the stream yields it.
     private static readonly string[] OfferedLibrary = [SyncScene, SecondSyncScene, ThirdSyncScene];
 
-    /// <summary>
-    /// <see cref="OfferedLibrary"/>, streamed the way the run's own identifier port hands it over.
-    /// </summary>
+    // Streamed the way the run's own identifier port hands it over.
     private static async IAsyncEnumerable<string> Streamed(
         [EnumeratorCancellation] CancellationToken ct)
     {
@@ -715,28 +591,23 @@ public sealed class SafetyInvariantTests
         }
     }
 
-    /// <summary>The instance-side values a registering body is composed with.</summary>
     private static AddDefaults SyncDefaults => new(4, "/config/library");
 
-    /// <summary>The same, for the generation that refuses a profile the other one accepts.</summary>
+    // v2 refuses the quality profile v3 accepts, so its defaults name a different one.
     private static AddDefaults SyncV2Defaults => new(1, "/config/library");
 
-    /// <summary>What one instance answered a scene it took, and one it already held.</summary>
+    // What one instance answered a scene it took, and one it already held.
     private static WhisparrResponse SceneAccepted
         => RecordingWhisparrClient.Json(
             201, ProbeFixtures.Read("whisparr-v3-3.3.8.1097-scene-add-accepted.json"));
 
-    /// <inheritdoc cref="SceneAccepted"/>
     private static WhisparrResponse SceneAlreadyHeld
         => RecordingWhisparrClient.Json(
             400, ProbeFixtures.Read("whisparr-v3-3.3.8.1097-scene-add-already-held.json"));
 
-    /// <summary>The body each pass registers an entry through, with the flags its resource declares.</summary>
-    /// <remarks>
-    /// The v2 identifiers are the ones that generation's own lookup was measured answering, because
-    /// its add is composed from the number the lookup returned rather than from the one the library
-    /// holds.
-    /// </remarks>
+    // The v2 identifiers are the ones that generation's own lookup was measured answering, because
+    // its add is composed from the number the lookup returned rather than from the one the library
+    // holds.
     private static IReadOnlyList<(JsonObject Body, IReadOnlyList<string> Suppression)>
         RegisteringBodies() =>
         [
@@ -746,39 +617,34 @@ public sealed class SafetyInvariantTests
                 ComposedAdds.V2Suppression),
         ];
 
-    /// <summary>A class the retry table does not list.</summary>
-    /// <remarks>
-    /// Cast from a value the enum does not declare, which is what a class added without a table entry
-    /// behaves as.
-    /// </remarks>
+    // A class the retry table does not list, cast from a value the enum does not declare. That is
+    // how a class added without a table entry behaves.
     private const WhisparrVerbClass UnlistedVerbClass = (WhisparrVerbClass)(-1);
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>The whole ingest path, wired over doubles, with one recorder at the outbound seam.</summary>
-    /// <remarks>
-    /// The reported-root read, the ingest core and the backstop pass are the shipped types rather than
-    /// stand-ins, so every request any of them makes leaves through the one recorded client.
-    /// </remarks>
+    // The whole ingest path over doubles, with one recorder at the outbound seam. The reported-root
+    // read, the ingest core and the backstop pass are the shipped types rather than stand-ins, so
+    // every request any of them makes leaves through the one recorded client.
     private sealed class Ingest
     {
         public const string ApiKey = "5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f";
         public const string RemoteId = "e1a5c0d2-0000-4000-8000-000000000008";
         public const int HeldVideoId = 1;
 
-        /// <summary>A reported file present under exactly one host library root.</summary>
+        // A reported file present under exactly one host library root.
         public const string ReportedPath = WhisparrRoot + "/scene.mp4";
 
-        /// <summary>Where the guard resolves <see cref="ReportedPath"/> to.</summary>
+        // Where the guard resolves ReportedPath to.
         public const string VerifiedPath = FirstLibraryRoot + "/scene.mp4";
 
-        /// <summary>A reported file the instance declares no root for.</summary>
+        // A reported file the instance declares no root for.
         public const string PathUnderNoReportedRoot = "/elsewhere/scene.mp4";
 
-        /// <summary>A reported file no candidate for which is on disk.</summary>
+        // A reported file no candidate for which is on disk.
         public const string PathOnNoDisk = WhisparrRoot + "/absent.mp4";
 
-        /// <summary>A reported file present under both host library roots.</summary>
+        // A reported file present under both host library roots.
         public const string PathUnderTwoLibraryRoots = WhisparrRoot + "/twice.mp4";
 
         public static readonly Uri BaseAddress = new(Address + "/");
@@ -854,7 +720,7 @@ public sealed class SafetyInvariantTests
                     WhisparrGeneration.V3, "Download", reportedPath, FileSize, remoteId),
                 TestCt);
 
-        /// <summary>The one gate every write in a case goes through, as the container has it.</summary>
+        // The one gate every write in a case goes through, as the container has it.
         public OptionsWriteGate Gate { get; } = new();
 
         public Task<BackstopPassResult> BackstopAsync()
@@ -870,7 +736,7 @@ public sealed class SafetyInvariantTests
                     NullLogger.Instance)
                 .RunAsync(TestCt);
 
-        /// <summary>One page holding one import record, naming a file below the reporting root.</summary>
+        // One page holding one import record, naming a file below the reporting root.
         private static WhisparrResponse HistoryNaming(string tail)
             => RecordingWhisparrClient.Json(
                 200,
@@ -897,19 +763,10 @@ public sealed class SafetyInvariantTests
                 NullLogger.Instance);
     }
 
-    /// <summary>
-    /// Nothing under the catalogue derivation can reach the host's stored-value surface at all.
-    /// </summary>
-    /// <remarks>
-    /// The host serialises every stored value on one bulk route, so one oversized value breaks the
-    /// whole settings page and survives a reinstall. A type that cannot obtain the store cannot write
-    /// a page, a catalogue or a library into it, which is a stronger claim than one about the sizes
-    /// it happens to write today.
-    /// <para>
-    /// The settings blob is written by the options slice, which is not in this set and is bounded by
-    /// its own record rather than by anything the library holds.
-    /// </para>
-    /// </remarks>
+    // The host serialises every stored value on one bulk route, so one oversized value breaks the
+    // whole settings page and survives a reinstall. A type that cannot obtain the store cannot
+    // write a page, a catalogue or a library into it. The settings blob is written by the options
+    // slice, which is not in this set and is bounded by its own record.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
     public void NoTypeUnderTheDerivationCanReachTheStoredValueSurface()
@@ -932,18 +789,11 @@ public sealed class SafetyInvariantTests
         Assert.Empty(holders);
     }
 
-    /// <summary>
-    /// Every collection a catalogue route answers with is one that was written down.
-    /// </summary>
-    /// <remarks>
-    /// Transcribed, so a collection member added without a decision about what bounds it fails here.
-    /// What each is bounded by is asserted by driving the derivation below: a declared type says
-    /// nothing about the count an implementation puts in it.
-    /// <para>
-    /// The facet menus are the one member not bounded by the page. They are bounded by the provider's
-    /// own declared menu size, and are read once for the tab rather than per card.
-    /// </para>
-    /// </remarks>
+    // Transcribed, so a collection member added without a decision about what bounds it fails here.
+    // What each is bounded by is asserted by driving the derivation below: a declared type says
+    // nothing about the count an implementation puts in it. The facet menus are the one member not
+    // bounded by the page. They are bounded by the provider's own declared menu size and are read
+    // once for the tab rather than per card.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
     public void EveryCollectionACatalogueRouteAnswersWithWasWrittenDown()
@@ -957,13 +807,8 @@ public sealed class SafetyInvariantTests
                 .Order()
                 .ToList());
 
-    /// <summary>
-    /// A page carries at most the number of cards it asked for, and fewer once rows were removed.
-    /// </summary>
-    /// <remarks>
-    /// The page is never topped back up. Fetching more to fill a gap is unbounded where a reader owns
-    /// most of an entity, which is the shape this asserts the derivation does not have.
-    /// </remarks>
+    // The page is never topped back up. Fetching more to fill a gap is unbounded where a reader
+    // owns most of an entity, which is the shape this asserts the derivation does not have.
     [Theory]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
     [InlineData(0, 0, 40)]
@@ -987,13 +832,8 @@ public sealed class SafetyInvariantTests
         Assert.True(view.Cards.Count <= view.PerPage);
     }
 
-    /// <summary>
-    /// The exclusion list is read once for the whole derivation, and never once per card.
-    /// </summary>
-    /// <remarks>
-    /// The instance narrows that route by no parameter, so a read per card would transfer the whole
-    /// list forty times to answer forty questions one read already answered.
-    /// </remarks>
+    // The instance narrows that route by no parameter, so a read per card would transfer the whole
+    // list once per card to answer questions one read already answered.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
     public async Task TheExclusionListIsReadOncePerDerivationAndNeverOncePerCard()
@@ -1009,10 +849,6 @@ public sealed class SafetyInvariantTests
         Assert.Equal(40, asked.Count);
     }
 
-    /// <summary>
-    /// A page's status costs one entity probe plus at most one read per card, and never a read whose
-    /// answer grows with what the instance holds.
-    /// </summary>
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
     public async Task AStatusCostsAtMostOneReadPerCardAndNeverOnePerLibraryRow()
@@ -1029,11 +865,8 @@ public sealed class SafetyInvariantTests
             $"{statusReading.SceneReads} per-scene reads were spent on {view.Cards.Count} cards.");
     }
 
-    /// <summary>Whether <paramref name="type"/> can obtain <paramref name="reached"/> at all.</summary>
-    /// <remarks>
-    /// Fields and constructor parameters alike, so a type taking one and not storing it still counts:
-    /// it can still hand it on.
-    /// </remarks>
+    // Fields and constructor parameters alike, so a type taking one and not storing it still
+    // counts: it can still hand it on.
     private static bool CanReach(Type type, Type reached)
         => type.GetFields(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public
                 | BindingFlags.NonPublic)
@@ -1083,7 +916,6 @@ public sealed class SafetyInvariantTests
             TestContext.Current.CancellationToken);
     }
 
-    /// <summary>An exclusion role counting how often it was asked and about how many scenes.</summary>
     private sealed class RecordingExclusionReading(string[] excluded) : IWhisparrSceneExclusionReading
     {
         public int Calls { get; private set; }
@@ -1109,17 +941,12 @@ public sealed class SafetyInvariantTests
                     + "identifier.");
     }
 
-    /// <summary>The filesystem seam, faked, recording every operation it was asked for.</summary>
-    /// <remarks>
-    /// The operation is recorded by its member name beside the path, so what the log answers is which
-    /// operations a path was subjected to rather than how many times it was touched.
-    /// </remarks>
+    // The operation is recorded by its member name beside the path, so the log answers which
+    // operations a path was subjected to rather than how many times it was touched.
     private sealed class RecordingPathPort : IImportPathPort
     {
-        /// <summary>The size of every file this port can find, keyed by path.</summary>
         public Dictionary<string, long> Present { get; } = [];
 
-        /// <summary>Every operation asked of this port, with the path it named.</summary>
         public List<(string Operation, string Path)> Operations { get; } = [];
 
         public ProbedPath Probe(string path)

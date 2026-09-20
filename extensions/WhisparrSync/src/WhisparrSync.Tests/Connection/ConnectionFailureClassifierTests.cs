@@ -4,11 +4,6 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Connection;
 
-/// <summary>
-/// The four refusals are what the product promises never to collapse, and three of them are
-/// indistinguishable under the wrong test. These drive every step of the decision table, and one of
-/// them fails if the table is reordered.
-/// </summary>
 public sealed class ConnectionFailureClassifierTests
 {
     private const string JsonContentType = "application/json; charset=utf-8";
@@ -28,12 +23,8 @@ public sealed class ConnectionFailureClassifierTests
             ConnectionFailureKind.Unreachable,
             ConnectionFailureClassifier.Classify(ConnectionObservation.TransportFailed(failure)));
 
-    /// <summary>
-    /// The ordering assertion. Both generations answer a turned-down key with <c>401</c> and an EMPTY
-    /// content-type, so a table that tested content type before status would read this exact input as
-    /// an answer from something that is not the API. This test goes red under that reordering and
-    /// under no other change.
-    /// </summary>
+    // Both Whisparr generations answer a rejected key with 401 and an empty content-type, so a
+    // table that tested content type before status would read this input as not the API.
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -50,11 +41,8 @@ public sealed class ConnectionFailureClassifierTests
             ConnectionFailureClassifier.Classify(
                 ConnectionObservation.Answered(403, contentType: null, document: null)));
 
-    /// <summary>
-    /// A wrong address answers <c>200 text/html</c>, so this cannot be reached by a status test. An
-    /// empty content-type on a non-401 lands here too, which is the measured shape of a 404 under
-    /// <c>/api/v3</c>.
-    /// </summary>
+    // A wrong address answers 200 text/html, so a status test cannot reach this. An empty
+    // content-type on a non-401 lands here too, the measured shape of a 404 under /api/v3.
     [Theory]
     [InlineData(200, "text/html")]
     [InlineData(200, "text/html; charset=utf-8")]
@@ -87,10 +75,8 @@ public sealed class ConnectionFailureClassifierTests
             ConnectionFailureClassifier.Classify(
                 ConnectionObservation.Answered(200, JsonContentType, WhisparrStatusDocument.Parse(body))));
 
-    /// <summary>
-    /// A problem document parses and is JSON, so it survives steps 3 and 4's first half, and is then
-    /// refused for the version it does not have. That is the right answer for it.
-    /// </summary>
+    // A problem document is valid JSON, so it passes the media type and parse steps and is refused
+    // only for the version it does not carry.
     [Fact]
     public void Step4_AProblemDocument_ParsesAndThenFailsOnTheAbsentVersion()
     {
@@ -114,10 +100,7 @@ public sealed class ConnectionFailureClassifierTests
             ConnectionFailureKind.VersionNotManaged,
             ConnectionFailureClassifier.Classify(Answered(Document("5.0.0.1", "master", appName))));
 
-    /// <summary>
-    /// A negative test, so it cannot mis-refuse a real Whisparr. Case-insensitive because the
-    /// comparison must not turn on a spelling this code never measured.
-    /// </summary>
+    // Case-insensitive, so the comparison does not turn on a spelling this code never measured.
     [Theory]
     [InlineData("Whisparr")]
     [InlineData("whisparr")]
@@ -136,11 +119,8 @@ public sealed class ConnectionFailureClassifierTests
             ConnectionFailureKind.VersionNotManaged,
             ConnectionFailureClassifier.Classify(Answered(Document(version, "eros", "Whisparr"))));
 
-    /// <summary>
-    /// The branch is the same on both rows on purpose: the classifier reads the version major and
-    /// nothing else, and a corroborating reading that disagrees is the detector's finding to report
-    /// rather than a reason to refuse.
-    /// </summary>
+    // Both rows carry the same branch because the classifier reads the version major and nothing
+    // else. A disagreeing branch is the detector's finding, not a reason to refuse.
     [Theory]
     [InlineData("3.3.8.1097")]
     [InlineData("2.2.0.231")]
@@ -149,10 +129,8 @@ public sealed class ConnectionFailureClassifierTests
             ConnectionFailureKind.Connected,
             ConnectionFailureClassifier.Classify(Answered(Document(version, "eros", "Whisparr"))));
 
-    /// <summary>
-    /// The measured content types, including the form with no space after the semicolon, which a
-    /// comparison against the raw header string would miss.
-    /// </summary>
+    // The measured content types, including the form with no space after the semicolon, which a
+    // comparison against the raw header string would miss.
     [Theory]
     [InlineData("application/json", true)]
     [InlineData("application/json; charset=utf-8", true)]
@@ -168,7 +146,6 @@ public sealed class ConnectionFailureClassifierTests
     public void AMediaTypeIsJudgedOnItsMediaTypeAlone(string? contentType, bool isJson)
         => Assert.Equal(isJson, ConnectionFailureClassifier.IsJsonMediaType(contentType));
 
-    /// <summary>Every kind the table can produce is produced by some input.</summary>
     [Fact]
     public void EveryKindIsReachable()
     {

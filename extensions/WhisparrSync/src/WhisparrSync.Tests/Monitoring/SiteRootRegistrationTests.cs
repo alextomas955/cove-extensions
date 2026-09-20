@@ -10,32 +10,24 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// Which root a site is registered at, driven through the whole site pass in process.
-/// </summary>
-/// <remarks>
-/// Every case declares two library roots and two instance roots, and the instance's FIRST declared
-/// root is never the one the studio's files sit under. A composition that fell back to the instance's
-/// own first answer would therefore be visible rather than coincidentally right.
-/// <para>
-/// Asserted on the body the instance received, not on the values a seam was handed: the add body is
-/// composed below the level a call site can see.
-/// </para>
-/// </remarks>
+// Every case declares two library roots and two instance roots, and the instance's first declared
+// root is never the one the studio's files sit under. A composition that fell back to the instance's
+// own first answer is therefore visible rather than coincidentally right.
+//
+// Asserted on the body the instance received, not on the values a seam was handed: the add body is
+// composed below the level a call site can see.
 public sealed class SiteRootRegistrationTests
 {
-    /// <summary>The namespace v2 identifies a site in.</summary>
+    // The namespace v2 identifies a site in.
     private const string V2Endpoint = "https://theporndb.net/graphql";
 
     private const string SiteRemoteId = "a30bc641-6afe-4c80-9c73-ecb68104a68d";
 
-    /// <summary>The number the metadata source names that site by.</summary>
     private const int SiteNumber = 3372;
 
-    /// <summary>The library root the instance lists first, holding none of the studio's files.</summary>
+    // The library root the instance lists first, holding none of the studio's files.
     private const string FirstCoveRoot = "G:/Downloads/P";
 
-    /// <summary>The library root the studio's own files sit under.</summary>
     private const string SecondCoveRoot = "I:/Downloads/P";
 
     private const string FirstInstanceRoot = "/g-downloads-p/videos";
@@ -44,17 +36,13 @@ public sealed class SiteRootRegistrationTests
 
     private const string Folder = SecondCoveRoot + "/Exploited College Girls";
 
-    /// <summary>The profile the instance offers first, which is not the lowest numbered.</summary>
+    // The profile the instance offers first, which is not the lowest numbered.
     private const int OfferedProfileId = 4;
 
     private const long SampleSize = 41;
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// The add carries the instance root the studio's own files' library root agrees with, and not
-    /// the root the instance declared first.
-    /// </summary>
     [Fact]
     public async Task TheAddCarriesTheRootTheStudiosOwnFilesSitUnder()
     {
@@ -67,14 +55,8 @@ public sealed class SiteRootRegistrationTests
         Assert.NotEqual(FirstInstanceRoot, body["rootFolderPath"]!.GetValue<string>());
     }
 
-    /// <summary>
-    /// The profile beside it is still the one the instance offered first, unchanged.
-    /// </summary>
-    /// <remarks>
-    /// The root is a property of the studio and the profile is a property of the run. Nothing about a
-    /// studio makes a different profile right, so choosing the root per studio must not drag the
-    /// profile along with it.
-    /// </remarks>
+    // The root is a property of the studio and the profile is a property of the run, so choosing the
+    // root per studio must not drag the profile along with it.
     [Fact]
     public async Task TheProfileBesideItIsStillTheOneTheInstanceOfferedFirst()
     {
@@ -86,14 +68,9 @@ public sealed class SiteRootRegistrationTests
         Assert.Equal(OfferedProfileId, body["qualityProfileId"]!.GetValue<int>());
     }
 
-    /// <summary>
-    /// A studio whose library root the instance agrees no spelling for has nothing sent for it at all.
-    /// </summary>
-    /// <remarks>
-    /// The instance answers an empty directory at every candidate, which is what a real container
-    /// answers for a path it has no counterpart for. Registering anyway would put the site at a root
-    /// holding none of its files, which is the defect this pass exists to remove.
-    /// </remarks>
+    // The instance answers an empty directory at every candidate, which is what a real container
+    // answers for a path it has no counterpart for. Registering anyway would put the site at a root
+    // holding none of its files.
     [Fact]
     public async Task AStudioWhoseRootAgreedOnNothingHasNoAddSentForIt()
     {
@@ -108,13 +85,10 @@ public sealed class SiteRootRegistrationTests
             "0 sites registered", Assert.Single(progress.Summaries), StringComparison.Ordinal);
     }
 
-    /// <summary>A studio no root was agreed for is still read on the instance.</summary>
-    /// <remarks>
-    /// The read is what decides whether the site is already there, and a site already there has its
-    /// scenes marked whatever root it sits at. A probe that cannot be answered refuses the same way
-    /// for every site in the run, so stopping before the read would leave a whole run's scenes
-    /// unflagged over a folder mapping.
-    /// </remarks>
+    // The read is what decides whether the site is already there, and a site already there has its
+    // scenes marked whatever root it sits at. A probe that cannot be answered refuses the same way
+    // for every site in the run, so stopping before the read would leave a whole run's scenes
+    // unflagged over a folder mapping.
     [Fact]
     public async Task AStudioWhoseRootAgreedOnNothingIsStillReadOnTheInstance()
     {
@@ -131,14 +105,9 @@ public sealed class SiteRootRegistrationTests
             StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The reason that studio carries is its own library root, not the instance offering no root.
-    /// </summary>
-    /// <remarks>
-    /// The two send a reader to different places. The instance's root list is perfectly good here,
-    /// so a reader sent to check it would find nothing wrong; what is unsettled is which of those
-    /// roots holds this studio's files.
-    /// </remarks>
+    // The two reasons send a reader to different places. The instance's root list is good here, so a
+    // reader sent to check it would find nothing wrong; what is unsettled is which of those roots
+    // holds this studio's files.
     [Fact]
     public async Task TheReasonNamesThisEntitysOwnRootRatherThanTheInstancesList()
     {
@@ -156,21 +125,14 @@ public sealed class SiteRootRegistrationTests
         Assert.Equal(SecondCoveRoot, composed.Root.CoveRoot);
     }
 
-    /// <summary>The one add the instance received.</summary>
     private static (HttpMethod Method, string Path, string Body) SingleAdd(MonitorHost host)
         => Assert.Single(
             host.Bytes!.Requests,
             sent => sent.Method == HttpMethod.Post
                 && sent.Path.EndsWith("/series", StringComparison.Ordinal));
 
-    /// <summary>
-    /// One site pass over one studio holding one file under the second library root.
-    /// </summary>
-    /// <remarks>
-    /// The listing the probe reads is composed from the file the library really seeded, so the
-    /// instance is asked about the path the product really asked about rather than one this case
-    /// guessed at.
-    /// </remarks>
+    // The listing the probe reads is composed from the file the library seeded, so the instance is
+    // asked about the path the product asked about rather than one this fixture guessed.
     private static async Task<(MonitorHost Host, RecordingJobProgress Progress)> RunAsync(
         bool instanceHoldsTheSample = true)
     {

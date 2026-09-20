@@ -1,21 +1,17 @@
 /**
- * A control that may be disabled, and that always says why when it is.
+ * A control that may be disabled, and that says why when it is.
  *
- * `Button` carries no `title` and no `aria-*` prop, so the accessible name is composed here instead:
- * the control's own name comes first, then the reason, and a button with no `aria-label` takes its
- * accessible name from its contents in order. The reason is off-screen rather than inline, so forty
- * controls sharing one reason do not each repeat it - a screen states a shared reason once, through
+ * The host's `Button` carries no `title` and no `aria-*` prop, so the accessible name is composed
+ * from its contents: the name first, then the reason. The reason is off-screen, so many controls
+ * sharing one reason do not each draw it. A screen states a shared reason once, through
  * `RefusalNotice`.
- *
- * A wrapper rather than an addition to `Button`: the shared primitives file is consumed by every
- * extension, and this system belongs to this one.
  */
 import { Button } from "@cove-extensions/ui-shared";
 
 import { OFF_SCREEN } from "./offScreen";
 
 type DisabledControlProps = {
-  /** What the control is called. Always announced first, and drawn on screen. */
+  /** Announced first, and drawn on screen. */
   name: string;
   onClick: () => void;
   variant?: "primary" | "ghost";
@@ -31,11 +27,9 @@ type DisabledControlProps = {
 );
 
 /**
- * {@link DisabledControl} for a caller that holds the reason and the availability as one value.
- *
- * A reason disables and an absent reason enables, so the pair cannot be set to a disabled control
- * with nothing to hear - the same invariant the prop union above carries, expressed for a caller
- * computing "why not" rather than "whether".
+ * {@link DisabledControl} for a caller that holds the reason and the availability as one value. A
+ * reason disables and an absent reason enables, so a disabled control with no reason cannot be
+ * expressed.
  */
 export function OptionallyDisabled({
   name,

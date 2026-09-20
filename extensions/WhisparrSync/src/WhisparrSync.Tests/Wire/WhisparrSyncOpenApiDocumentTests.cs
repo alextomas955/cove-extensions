@@ -10,30 +10,16 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Wire;
 
-/// <summary>
-/// Emits Whisparr Sync's wire document from its shipped registration and fails when it differs from
-/// the committed copy. The endpoints are mounted in a real in-process host, though the emit sends no
-/// request.
-/// </summary>
-/// <remarks>
-/// The facts below are read from the committed document rather than from the C# source, and the
-/// inherited emit is what makes that sound: it fails when the committed copy differs from what the
-/// registrations produce, so a hand edit cannot satisfy these and a drift cannot hide behind them.
-/// </remarks>
+// The facts below are read from the committed wire document rather than from the C# source. The
+// inherited emit is what makes that sound: it fails when the committed copy differs from what the
+// shipped registrations produce, so a hand edit of the document cannot satisfy these cases.
 public sealed class WhisparrSyncOpenApiDocumentTests : ExtensionOpenApiDocumentTests
 {
-    /// <summary>
-    /// The tag every route states for itself.
-    /// </summary>
-    /// <remarks>
-    /// Transcribed rather than read from the registration, which declares it privately. An
-    /// unstated tag is INFERRED from the entry assembly, which during an emit is the test runner, so
-    /// a route that stopped stating one would move the committed document the day that runner
-    /// changes. Comparing against this name is what reports that.
-    /// </remarks>
+    // Transcribed rather than read from the registration, which declares it privately. An unstated
+    // tag is inferred from the entry assembly, which during an emit is the test runner, so a route
+    // that stopped stating one would move the committed document the day that runner changes.
     private const string WireTag = "WhisparrSync";
 
-    /// <summary>The enums whose wire spelling this extension serves.</summary>
     private static readonly Type[] WireEnums =
     [
         typeof(MonitorScope),

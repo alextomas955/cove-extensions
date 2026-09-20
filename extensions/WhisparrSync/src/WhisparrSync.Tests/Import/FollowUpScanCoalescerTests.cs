@@ -8,14 +8,9 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// Every import covered by a follow-up scan, without one exclusive library scan per imported file.
-/// </summary>
-/// <remarks>
-/// The assertions are over the PATHS each scan was asked to cover, not over how many scans ran: a
-/// coalescer that started one scan over one path would satisfy a count and cover nine files with
-/// nothing.
-/// </remarks>
+// The assertions are over the paths each scan was asked to cover, not over how many scans ran: a
+// coalescer that started one scan over one path would satisfy a count and cover nine files with
+// nothing.
 public sealed class FollowUpScanCoalescerTests
 {
     private const string WhisparrRoot = "/whisparr-media";
@@ -43,7 +38,7 @@ public sealed class FollowUpScanCoalescerTests
         Assert.Equal(expected.Order(), Assert.Single(ingest.Library.Scans).Order());
     }
 
-    /// <summary>The discriminating control: a scan covers a path only because an import put it there.</summary>
+    // The control: a scan covers a path only because an import put it there.
     [Fact]
     public async Task AnIngestThatRegisteredNothingStartsNoScan()
     {
@@ -59,15 +54,9 @@ public sealed class FollowUpScanCoalescerTests
         Assert.Empty(ingest.Library.Scans);
     }
 
-    /// <summary>
-    /// A delivery the library already holds a file for is still covered by a follow-up, and is still
-    /// not counted as an import.
-    /// </summary>
-    /// <remarks>
-    /// The cover is what closes the gap where a delivery registered the file with the host and was
-    /// interrupted before it could note the path, which would otherwise leave that item with no
-    /// asset-generation pass for good.
-    /// </remarks>
+    // The cover closes the gap where a delivery registered the file with the host and was interrupted
+    // before it could note the path, which would otherwise leave that item with no asset-generation
+    // pass for good.
     [Fact]
     public async Task ADeliveryForAPathTheLibraryAlreadyHoldsIsStillCoveredByAScan()
     {
@@ -98,11 +87,8 @@ public sealed class FollowUpScanCoalescerTests
         Assert.Single(ingest.Library.Scans);
     }
 
-    /// <summary>
-    /// A further import restarts the quiet period, and the ceiling is what stops that going on for
-    /// ever: a burst that never falls quiet is still bounded in both what it holds and how long it
-    /// waits.
-    /// </summary>
+    // A further import restarts the quiet period, and the ceiling is what bounds a burst that never
+    // falls quiet, in both what it holds and how long it waits.
     [Fact]
     public void ABatchReachingItsCeilingIsStartedWithoutWaitingToFallQuiet()
     {
@@ -123,10 +109,8 @@ public sealed class FollowUpScanCoalescerTests
         Assert.Single(library.Scans);
     }
 
-    /// <summary>
-    /// A path noted after a flush has begun is in the next batch rather than in none: the take and
-    /// the note cannot interleave, so no import is left uncovered by arriving as a window closed.
-    /// </summary>
+    // The take and the note cannot interleave, so no import is left uncovered by arriving as a window
+    // closed.
     [Fact]
     public void APathNotedAfterAFlushIsCoveredByTheNextOne()
     {
@@ -160,7 +144,6 @@ public sealed class FollowUpScanCoalescerTests
         Assert.Equal(1, log.Drops);
     }
 
-    /// <summary>Nothing to drop is nothing to report.</summary>
     [Fact]
     public void AShutdownWithNothingPendingReportsNoDrop()
     {
@@ -170,15 +153,11 @@ public sealed class FollowUpScanCoalescerTests
         Assert.Equal(0, log.Drops);
     }
 
-    /// <summary>
-    /// The pending batch never reaches the store, so the one blob the host's bulk data route serves
-    /// whole is the same size after a burst as after a single import.
-    /// </summary>
-    /// <remarks>
-    /// Compared against the blob after the FIRST import rather than against the one before it: an
-    /// import records that the channel worked, which is a fixed-size instant. What must not grow with
-    /// the burst is everything else.
-    /// </remarks>
+    // The pending batch never reaches the store, so the one blob the host's bulk data route serves
+    // whole is the same size after a burst as after a single import.
+    // Compared against the blob after the first import rather than against the one before it: an import
+    // records that the channel worked, which is a fixed-size instant. What must not grow with the burst
+    // is everything else.
     [Fact]
     public async Task ABurstOfImportsLeavesTheStoredBlobByteIdenticalToOneImports()
     {
@@ -200,7 +179,6 @@ public sealed class FollowUpScanCoalescerTests
         Assert.Equal(afterOne, await ingest.Store.GetAllAsync(TestContext.Current.CancellationToken));
     }
 
-    /// <summary>A batch with nowhere to go is reported rather than swallowed.</summary>
     [Fact]
     public void ABatchTheHostsScanServiceCannotTakeIsReportedOnce()
     {
@@ -215,7 +193,6 @@ public sealed class FollowUpScanCoalescerTests
         Assert.Equal(1, log.Unavailable);
     }
 
-    /// <summary>One ingest over fakes, with a clock a test moves and the scan seam recorded.</summary>
     private sealed class Ingest
     {
         public FakeStore Store { get; } = new();
@@ -235,7 +212,6 @@ public sealed class FollowUpScanCoalescerTests
                 new WhisparrSyncOptions { CallbackHost = "http://cove:5073" },
                 TestContext.Current.CancellationToken);
 
-        /// <summary>Delivers one scene, answering with the path the guard verified and the outcome.</summary>
         public async Task<(string Path, ImportOutcome Outcome)> DeliverAsync(int scene)
         {
             var reported = string.Create(CultureInfo.InvariantCulture, $"{WhisparrRoot}/{scene}.mp4");
@@ -245,7 +221,6 @@ public sealed class FollowUpScanCoalescerTests
             return (verified, await IngestAsync(reported));
         }
 
-        /// <summary>Delivers one scene whose file is under no library root at all.</summary>
         public Task<ImportOutcome> DeliverMissingAsync() => IngestAsync(WhisparrRoot + "/absent.mp4");
 
         private Task<ImportOutcome> IngestAsync(string reportedPath)
@@ -281,7 +256,7 @@ public sealed class FollowUpScanCoalescerTests
                 : new ProbedPath(false, null);
     }
 
-    /// <summary>A clock a test moves by hand. No timers: nothing here waits on one.</summary>
+    // A clock a test moves by hand. Nothing here waits on a timer.
     private sealed class MovableClock(DateTimeOffset start) : TimeProvider
     {
         private DateTimeOffset _now = start;
@@ -291,7 +266,6 @@ public sealed class FollowUpScanCoalescerTests
         public void Advance(TimeSpan by) => _now += by;
     }
 
-    /// <summary>Counts the two follow-up lines, by their event ids.</summary>
     private sealed class CountingLogger : ILogger
     {
         private const int BatchDroppedEventId = 2109;

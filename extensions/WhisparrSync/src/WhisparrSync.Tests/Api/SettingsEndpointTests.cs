@@ -9,13 +9,8 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace WhisparrSync.Tests.Api;
 
-/// <summary>
-/// The settings read and write, driven through the handlers the routes call.
-/// </summary>
-/// <remarks>
-/// Every case starts from a store and a credential port of its own, so a test that writes cannot
-/// change what another one reads.
-/// </remarks>
+// Every case starts from a store and a credential port of its own, so a case that writes cannot
+// change what another one reads.
 public sealed class SettingsEndpointTests
 {
     private const string StoredKey = "3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f";
@@ -44,10 +39,8 @@ public sealed class SettingsEndpointTests
         Assert.Equal(writesBefore, store.SetCallCount);
     }
 
-    /// <summary>
-    /// The never-verified state and a verified-then-failed state are different answers, so the page can
-    /// say which one it is holding.
-    /// </summary>
+    // Never verified and verified-then-failed are different answers, so the page can say which it
+    // is holding.
     [Fact]
     public async Task AGenerationNeverTestedReportsNoVerifiedInstantRatherThanAnOldOne()
     {
@@ -93,9 +86,6 @@ public sealed class SettingsEndpointTests
         Assert.Null(view.V3.LastReachableAtUtc);
     }
 
-    /// <summary>
-    /// A trailing separator and letter case do not move an address, so neither discards the reading.
-    /// </summary>
     [Theory]
     [InlineData(StoredAddress)]
     [InlineData(StoredAddress + "/")]
@@ -202,15 +192,9 @@ public sealed class SettingsEndpointTests
             write => write.Generation == WhisparrGeneration.V3 && write.Kind != CredentialWriteKind.Keep);
     }
 
-    /// <summary>
-    /// A writer that commits while the registration is in flight keeps its value, in the stored blob
-    /// and in the answer the page is given.
-    /// </summary>
-    /// <remarks>
-    /// The competing writer is the production secret-position write, which is what a delivery arriving
-    /// during a registration performs, and it lands on the very connection record this handler read
-    /// before its outbound call.
-    /// </remarks>
+    // The competing writer is the production secret-position write, which a delivery arriving
+    // during a registration performs. It lands on the connection record this handler read before
+    // its outbound call.
     [Fact]
     public async Task ARegistrationKeepsAWriteCommittedWhileItWasInFlight()
     {
@@ -234,14 +218,9 @@ public sealed class SettingsEndpointTests
         Assert.Equal(CallbackSecretPosition.Address, view.LastEventSecretPosition);
     }
 
-    /// <summary>
-    /// A save changes what the next manifest read on the same instance registers.
-    /// </summary>
-    /// <remarks>
-    /// The refresh path: the field the manifest reads is filled at load, so without a write here a
-    /// generation switched through the page would keep the surfaces of the one before it until the
-    /// extension was loaded again.
-    /// </remarks>
+    // The field the manifest reads is filled at load, so without a refresh on save a generation
+    // switched through the page keeps the surfaces of the one before it until the extension loads
+    // again.
     [Fact]
     public async Task ASaveChangesWhatTheNextManifestReadRegistersOnTheSameInstance()
     {
@@ -262,11 +241,9 @@ public sealed class SettingsEndpointTests
         Assert.Contains("studio-card-footer", afterV2);
     }
 
-    /// <summary>Every slot the extension's manifest registers right now.</summary>
     private static IReadOnlyList<string> SlotsOf(global::WhisparrSync.WhisparrSync extension)
         => [.. extension.GetUIManifest().Slots.Select(slot => slot.Slot)];
 
-    /// <summary>Saves one generation through the handler the settings route calls.</summary>
     private static async Task SaveOnAsync(
         global::WhisparrSync.WhisparrSync extension,
         OptionsStore options,

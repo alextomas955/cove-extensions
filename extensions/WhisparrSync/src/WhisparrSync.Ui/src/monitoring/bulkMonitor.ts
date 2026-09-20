@@ -2,21 +2,9 @@
  * The action handler behind the studios and performers selection bars: it asks which monitoring
  * gesture to carry out, then hands the whole selection to one background job.
  *
- * The choice is an imperatively mounted overlay rather than the browser's own confirm dialog. A
- * confirm answers yes or no, and this needs a verb and a scope; a bulk handler owns no React tree,
- * which is exactly what the imperative mounter was written for. Leaving without choosing is the
- * cancelled result, so the host issues no request and shows no toast.
- *
- * Whisparr's own studio selection bar offers only edit, tags and delete, and puts bulk monitoring
- * inside a tri-state "no change" form. This is the one place this product deliberately does not
- * mimic it: there is no verb menu to mimic, and a tri-state form fits one-off verbs badly. Do not
- * "fix" this toward Whisparr.
- *
- * What the connected generation can do is read for ONE of the selected entities before the overlay
- * opens, because a handler has no mounted store to read it from. That read answers a fact about the
- * connection, not about that entity. A read that fails states that nothing could be offered rather
- * than guessing: a guessed set would put a verb in front of the reader the instance cannot honour,
- * and the refusal would read as a fault in the product.
+ * The choice is an imperatively mounted overlay because a bulk handler owns no React tree and a
+ * browser confirm answers only yes or no. Leaving without choosing is the cancelled result, so the
+ * host issues no request and shows no toast.
  */
 import { createElement } from "react";
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
@@ -41,13 +29,8 @@ import {
 } from "./monitorMenuLogic";
 import { presentOverlay } from "@cove-extensions/ui-shared/overlay";
 
-/**
- * Which entity kind each selection type names.
- *
- * The host's selection bar normalizes only the two media plurals, so a studio or performer selection
- * arrives PLURAL. The read route names one entity and takes the singular, so the two spellings meet
- * here and nowhere else.
- */
+// The host's selection bar normalizes only the two media plurals, so a studio or performer
+// selection arrives plural. The read route takes the singular, so the two spellings meet here.
 const ENTITY_KIND_BEHIND_SELECTION_TYPE: Record<string, WhisparrEntityKind | undefined> = {
   studios: "studio",
   performers: "performer",
@@ -62,8 +45,8 @@ export async function monitorSelected(
     return { cancelled: true };
   }
 
-  // One of the selected entities, because what the connected generation can do is a fact about the
-  // connection rather than about that entity.
+  // Read for one of the selected entities: what the connected generation can do is a fact about
+  // the connection rather than about that entity.
   const offer = await offeredFor(kind, payload.entityIds[0]);
 
   const chosen = await presentOverlay<BulkMonitorAction>((finish) =>
@@ -86,8 +69,7 @@ export async function monitorSelected(
 
   try {
     // PascalCase, matching the C# request record. Requests bind case-insensitively while responses
-    // are camelCase, so the casing is read from the server per direction rather than assumed to be
-    // one.
+    // are camelCase, so the casing is read from the server per direction.
     await postAction(api("entities/bulk-monitor"), {
       EntityType: payload.entityType,
       Verb: chosen.verb,
@@ -104,14 +86,8 @@ export async function monitorSelected(
   return {};
 }
 
-/**
- * What the reader must stand by before <code>action</code> is sent, or null where it is sent
- * straight away.
- *
- * Two of the rows spend something the reader cannot take back. The wider scope marks a whole back
- * catalogue wanted, and the search asks Whisparr to go and take in what these entities lack, which
- * is the only row here that downloads.
- */
+// Only the two rows that spend something the reader cannot take back are confirmed: the wider
+// scope marks a whole back catalogue wanted, and the search downloads.
 function confirmationFor(
   action: BulkMonitorAction,
   offer: BulkMonitorOffer,
@@ -124,12 +100,8 @@ function confirmationFor(
   return action.verb === "searchAllMonitored" ? searchAllMonitoredConfirmation(selected) : null;
 }
 
-/**
- * Whether the reader stood by a choice that cannot be taken back.
- *
- * A second imperative overlay after the first has resolved, rather than a dialog inside the chooser:
- * this handler owns no React tree to render one into.
- */
+// A second imperative overlay after the first has resolved, rather than a dialog inside the
+// chooser: this handler owns no React tree to render one into.
 async function confirmed(action: BulkMonitorAction, message: string): Promise<boolean> {
   const answer = await presentOverlay<BulkMonitorAction>((finish) =>
     createElement(ConfirmDialog, {
@@ -149,20 +121,14 @@ async function confirmed(action: BulkMonitorAction, message: string): Promise<bo
   return answer !== null;
 }
 
-/**
- * The sentence one refused gesture is stated in.
- *
- * Chosen on the code the answer names rather than on any of its text. This generation answers a
- * refusal with a body carrying a full stack trace, so the body is read for its code and for nothing
- * else, and what the reader sees comes from the copy module.
- */
+// The instance answers a refusal with a body carrying a full stack trace, so the body is read for
+// its code alone and the reader sees a sentence from the copy module.
 function refusalSentenceFor(refusal: unknown): string {
   return refusal instanceof ApiError && codeNamedIn(refusal.body) === "TOO_MANY_IDS"
     ? BULK_SELECTION_IS_OVER_THE_BOUND
     : RUN_WAS_NOT_STARTED;
 }
 
-/** The code one refusal answer names, or null where it named none that could be read. */
 function codeNamedIn(answer: string): string | null {
   try {
     const named: unknown = JSON.parse(answer);
@@ -176,12 +142,8 @@ function codeNamedIn(answer: string): string | null {
   }
 }
 
-/**
- * Shows one sentence over the selection, with a way out and nothing to choose between.
- *
- * The same overlay the offer path reaches when it has nothing to offer, rather than a second surface
- * saying the same kind of thing in a different place.
- */
+// Shows one sentence over the selection, with a way out and nothing to choose between. The same
+// overlay the offer path reaches when it has nothing to offer.
 async function stated(reason: string, count: number): Promise<void> {
   await presentOverlay<BulkMonitorAction>((finish) =>
     createElement(BulkMonitorChoice, { actions: [], count, reason, onChoose: finish }),

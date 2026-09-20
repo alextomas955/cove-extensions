@@ -1,9 +1,6 @@
 /**
  * The choice the entity selection bars open: one row per monitoring action the connected instance
  * can carry out over the whole selection, and a way out that sends nothing.
- *
- * Its own copy on the shared shell, so this surface and the scene batch each name their own rows
- * without either widening its props for the other.
  */
 import { BULK_CANCEL, BULK_CLOSE } from "../common/ui/copy";
 import { ChoiceOverlay, type RowIcon } from "../common/ui/ChoiceOverlay";
@@ -16,9 +13,7 @@ export function BulkMonitorChoice({
   reason,
   onChoose,
 }: {
-  /** The actions offered, in the order they read. Empty when there is nothing to offer. */
   actions: readonly BulkMonitorAction[];
-  /** How many entities the selection holds. */
   count: number;
   /** The one sentence saying why nothing is offered, or null when something is. */
   reason: string | null;

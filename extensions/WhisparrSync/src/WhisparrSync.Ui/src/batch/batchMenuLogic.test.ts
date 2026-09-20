@@ -1,9 +1,3 @@
-/**
- * Which rows the batch overlay offers, and in which order.
- *
- * The ORDER is the property under test rather than the membership: a set comparison passes a
- * re-sorted menu, and the order is what says which row is safest and which one spends.
- */
 import { test, expect } from "vitest";
 
 import * as copy from "../common/ui/copy";

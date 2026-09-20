@@ -9,15 +9,6 @@ using WhisparrSync.Providers;
 
 namespace WhisparrSync.Tests.Missing;
 
-/// <summary>
-/// That every service the catalogue routes reach is actually registered, and at the lifetime its
-/// job needs.
-/// </summary>
-/// <remarks>
-/// Resolved rather than read off the registration. A registration asserted by reading the file
-/// agrees with whatever that file says, and the failure this catches is a service the container
-/// cannot build at the first request in a browser.
-/// </remarks>
 public sealed class MissingContainerResolutionTests : IAsyncLifetime
 {
     private DbContext _db = null!;
@@ -46,10 +37,8 @@ public sealed class MissingContainerResolutionTests : IAsyncLifetime
         Assert.NotNull(scope.ServiceProvider.GetRequiredService(service));
     }
 
-    /// <summary>
-    /// Pacing has to hold across concurrent requests, so the limiter outlives a request scope. Held
-    /// per scope each request would spend a full allowance of its own.
-    /// </summary>
+    // Pacing has to hold across concurrent requests. Held per scope, each request would spend a
+    // full allowance of its own.
     [Fact]
     public void ThePacerIsOneInstanceAcrossScopes()
     {
@@ -62,16 +51,6 @@ public sealed class MissingContainerResolutionTests : IAsyncLifetime
             second.ServiceProvider.GetRequiredService<ProviderPacer>());
     }
 
-    /// <summary>
-    /// The catalogue is never shared between scopes, so it reads the host's configuration for the
-    /// request it is serving rather than for the one that first built it.
-    /// </summary>
-    /// <remarks>
-    /// A typed client is registered transient, so two resolutions within one scope are two instances
-    /// as well. What matters for correctness is that neither is shared ACROSS scopes; holding one
-    /// instance per scope is not a property the typed-client registration offers, and the pacer,
-    /// which is the piece that genuinely must be shared, is asserted separately.
-    /// </remarks>
     [Fact]
     public void TheCatalogueIsNeverSharedBetweenScopes()
     {
@@ -84,9 +63,6 @@ public sealed class MissingContainerResolutionTests : IAsyncLifetime
             second.ServiceProvider.GetRequiredService<IProviderCatalogue>());
     }
 
-    /// <summary>
-    /// The provider's client is its own, so its address and timeout are not the instance client's.
-    /// </summary>
     [Fact]
     public void TheProviderHoldsItsOwnTypedClient()
     {
@@ -98,9 +74,8 @@ public sealed class MissingContainerResolutionTests : IAsyncLifetime
         Assert.NotNull(factory.CreateClient(nameof(StashDbCatalogue)));
     }
 
-    // The services from outside this slice that it takes, and nothing else. The point is that the
-    // slice's OWN registrations are complete, so a dependency it draws from the host or from another
-    // slice is supplied plainly here rather than through that slice's registration.
+    // Only the services this slice takes from outside it, so the test proves the slice's own
+    // registrations are complete rather than another slice's.
     private ServiceProvider BuildProvider()
     {
         var services = new ServiceCollection();

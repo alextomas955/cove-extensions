@@ -5,22 +5,12 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Jobs;
 
-/// <summary>
-/// That monitoring a whole selection starts the same reflect-owned work monitoring one entity
-/// starts, inside the one job and reading the instance's own setting once.
-/// </summary>
-/// <remarks>
-/// The click enqueues a run so the request does not wait for an entity's folder set; a selection is
-/// already inside a run, so it acts inline. Those are two callers of one statement rather than two
-/// behaviours, and what is asserted here is the recorded outbound calls each produces.
-/// </remarks>
 public sealed class BulkReflectOwnedTests
 {
     private const string LinksIntoPlace = """{"copyUsingHardlinks":true}""";
 
     private const string CopiesInstead = """{"copyUsingHardlinks":false}""";
 
-    /// <summary>One folder's parse answer, with everything an attach has to be composed from.</summary>
     private const string Attachable = """
         [{"path":"/library/one/scene.mp4","folderName":"one",
           "quality":{"quality":{"id":7}},"languages":[{"id":1}],"movie":{"id":31}}]
@@ -40,10 +30,7 @@ public sealed class BulkReflectOwnedTests
         Assert.Equal(seeded.Folders, FoldersRead(host));
     }
 
-    /// <summary>
-    /// One gesture is one run. Enqueuing from the shared statement of the verb instead would make a
-    /// thousand-entity selection a thousand background runs.
-    /// </summary>
+    // Enqueuing per entity instead would make a thousand-entity selection a thousand runs.
     [Fact]
     public async Task AThreeStudioSelectionProducesExactlyOneEnqueue()
     {
@@ -57,10 +44,7 @@ public sealed class BulkReflectOwnedTests
         Assert.Single(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// The hard-link setting belongs to the instance rather than to an entity, so a selection reads
-    /// it once however many entities it carries.
-    /// </summary>
+    // The hard-link setting belongs to the Whisparr instance, not to an entity.
     [Fact]
     public async Task TheHardLinkSettingIsReadOnceForTheWholeSelection()
     {
@@ -76,10 +60,8 @@ public sealed class BulkReflectOwnedTests
             call => call.Verb == nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync));
     }
 
-    /// <summary>
-    /// A skipped link step is a condition of a step the reader did not name, so the verb they did
-    /// name still reports as applied.
-    /// </summary>
+    // A skipped link step is a condition of a step the caller did not ask for, so the monitor the
+    // caller did ask for still reports as applied.
     [Fact]
     public async Task WithTheSettingOffNothingIsLinkedAndEveryUnitStillReportsItsMonitor()
     {
@@ -131,10 +113,7 @@ public sealed class BulkReflectOwnedTests
                 or nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync));
     }
 
-    /// <summary>
-    /// A stopped run keeps what it already linked and reaches no entity after the stop. The files it
-    /// put in place are on the instance and there is nothing to undo.
-    /// </summary>
+    // Files already linked are on the instance and there is nothing to undo.
     [Fact]
     public async Task AStoppedSelectionKeepsWhatItLinkedAndReachesNoLaterEntity()
     {
@@ -172,7 +151,6 @@ public sealed class BulkReflectOwnedTests
         Assert.Equal((1d, "3 applied, 0 refused. 3 linked, 0 refused."), Assert.Single(progress.Reports));
     }
 
-    /// <summary>A skipped link reads as its own condition rather than as a refused monitor.</summary>
     [Fact]
     public async Task ASkippedLinkStepIsNamedInTheSummaryRatherThanCountedAsARefusal()
     {
@@ -202,7 +180,6 @@ public sealed class BulkReflectOwnedTests
         Assert.Equal((1d, "2 applied, 0 refused."), Assert.Single(progress.Reports));
     }
 
-    /// <summary>One host whose instance links into place and offers one attachable row per folder.</summary>
     private static async Task<MonitorHost> LinkingHost(string setting = LinksIntoPlace)
     {
         var host = await MonitorHost.CreateAsync();
@@ -216,7 +193,6 @@ public sealed class BulkReflectOwnedTests
         return host;
     }
 
-    /// <summary>Seeds <paramref name="count"/> identified studios, one file each in its own folder.</summary>
     private static async Task<(int[] Ids, string[] Folders)> SeedAsync(MonitorHost host, int count)
     {
         var ids = new List<int>(count);
@@ -235,7 +211,6 @@ public sealed class BulkReflectOwnedTests
         return ([.. ids], [.. folders]);
     }
 
-    /// <summary>Every folder the link step read, in the order it read them.</summary>
     private static string[] FoldersRead(MonitorHost host)
         => [.. host.Client.Acting
             .Where(call => call.Verb == nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync))
@@ -251,7 +226,6 @@ public sealed class BulkReflectOwnedTests
         {"entityType":"studios","verb":"{{verb}}","scope":"futureScenes","entityIds":[{{string.Join(',', ids)}}]}
         """;
 
-    /// <summary>A progress that stops the run as one named unit starts, keeping what it recorded.</summary>
     private sealed class StoppingWhenUnitStarts(
         RecordingJobProgress kept, string stopAt, CancellationTokenSource stopping) : IJobProgress
     {

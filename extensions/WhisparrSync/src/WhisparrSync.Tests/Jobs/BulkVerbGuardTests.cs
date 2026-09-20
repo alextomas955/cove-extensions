@@ -6,20 +6,13 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Jobs;
 
-/// <summary>
-/// What the bulk route does with a body that names no verb, and whether the emitted wire document
-/// and the server agree about which members a caller must supply.
-/// </summary>
-/// <remarks>
-/// The bodies are raw strings rather than serialized records, because the defect is about a member
-/// that is ABSENT: a serialized record always carries every member it declares, so a case built from
-/// one could never send the body a browser can.
-/// </remarks>
+// The bodies are raw strings rather than serialized records. A serialized record always carries
+// every member it declares, so it cannot send a body that leaves one out.
 public sealed class BulkVerbGuardTests
 {
     private const string Studios = "studios";
 
-    /// <summary>The bound the route declares, which an over-cap case has to exceed.</summary>
+    // Mirrors the selection cap the bulk route declares.
     private const int Cap = 1000;
 
     [Fact]
@@ -36,9 +29,7 @@ public sealed class BulkVerbGuardTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// A member spelled out as null is the same request as one left out, because both bind to null.
-    /// </summary>
+    // A member spelled out as null binds the same as one left out.
     [Fact]
     public async Task ABodyNamingANullVerbIsRefusedTheSameWay()
     {
@@ -53,10 +44,8 @@ public sealed class BulkVerbGuardTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// The control the two refusals above need: without it a refused enqueue could equally mean the
-    /// route stopped accepting anything.
-    /// </summary>
+    // The control for the two refusals above. Without it a refused enqueue could equally mean the
+    // route stopped accepting anything.
     [Fact]
     public async Task ABodyNamingAVerbThisProductServesIsStillEnqueued()
     {
@@ -82,14 +71,8 @@ public sealed class BulkVerbGuardTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// The verb decides what the request IS, so a body naming none is refused without the size of the
-    /// selection mattering.
-    /// </summary>
-    /// <remarks>
-    /// Answering the cap first would report the wrong problem: a caller told to split a selection
-    /// would send two halves, each still naming no verb.
-    /// </remarks>
+    // The missing verb is answered before the cap. A caller told to split a selection would send
+    // two halves, each still naming no verb.
     [Fact]
     public async Task AnOverCapBodyNamingNoVerbIsRefusedForTheVerbRatherThanForTheCap()
     {
@@ -105,16 +88,9 @@ public sealed class BulkVerbGuardTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// Every member the emitted document lists as mandatory that the server refuses the absence of,
-    /// derived by leaving each one out in turn.
-    /// </summary>
-    /// <remarks>
-    /// The emit lists every positional member of a request record, whatever its nullability, so the
-    /// list is not by itself a statement about what the server enforces. What is asserted is the
-    /// agreement per member: each member the server refuses the absence of is one the document names,
-    /// and the one member the server accepts the absence of is named with the reason it is legal.
-    /// </remarks>
+    // The emitted document lists every positional member of a request record whatever its
+    // nullability, so the list alone says nothing about what the server enforces. What is asserted
+    // is the agreement per member, member by member.
     [Fact]
     public async Task TheDocumentAndTheServerAgreeAboutWhichMembersMayNotBeLeftOut()
     {
@@ -133,10 +109,8 @@ public sealed class BulkVerbGuardTests
         Assert.Equal(["entityType", "verb", "entityIds"], refused);
     }
 
-    /// <summary>
-    /// The one member the server accepts the absence of, and why: null means take the stored default
-    /// rather than take an unnamed one, and a verb that expresses no scope names none.
-    /// </summary>
+    // Scope is the one member the server accepts the absence of. A null scope means the stored
+    // default.
     [Fact]
     public async Task AnAbsentScopeIsAcceptedBecauseNullNamesTheStoredDefault()
     {
@@ -148,7 +122,6 @@ public sealed class BulkVerbGuardTests
         Assert.Contains("scope", MandatoryInDocument());
     }
 
-    /// <summary>The members the committed document lists as mandatory for one bulk body.</summary>
     private static IReadOnlyList<string> MandatoryInDocument()
     {
         using var document = JsonDocument.Parse(File.ReadAllText(WireDocument.Path()));
@@ -165,7 +138,6 @@ public sealed class BulkVerbGuardTests
         ];
     }
 
-    /// <summary>One whole bulk body with <paramref name="member"/> left out of it.</summary>
     private static string BodyWithout(string member)
     {
         var members = new List<string>

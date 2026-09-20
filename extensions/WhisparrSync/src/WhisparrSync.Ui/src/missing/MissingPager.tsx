@@ -1,15 +1,13 @@
 /**
  * The page control beneath the grid, drawn by the host's own pagination component.
  *
- * The host computes its page count as `ceil(totalCount / perPage)` and repairs an out-of-range page
- * through `onFilterChange`, so it is fed the size of the set the provider will actually serve. A
- * provider that reports a total past its last servable page would otherwise offer pages that
- * silently repeat the last one.
+ * The host computes its page count as `ceil(totalCount / perPage)`, so it is fed the size of the
+ * set the provider will actually serve. A provider that reports a total past its last servable page
+ * would otherwise offer pages that silently repeat the last one.
  */
 import { DetailListPagination } from "./hostComponents";
 import { clampToReachable, pagerTotalFor } from "./missingPageLogic";
 
-/** What the tab calls its own pager, for a reader navigating by landmark. */
 const PAGER_LABEL = "Missing scenes pages";
 
 export function MissingPager({

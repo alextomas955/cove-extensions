@@ -6,28 +6,17 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// What every one-entity route answers a kind segment that names no entity kind.
-/// </summary>
-/// <remarks>
-/// The route set is enumerated from the emitted wire document rather than transcribed, so a route
-/// mounted later is covered here without an edit. A hand-written array would keep passing while the
-/// new route answered whatever it liked.
-/// <para>
-/// Every assertion is on the STATUS of a raw response. Reading the answer as the contract it
-/// declares would throw on an unhandled failure, and a throwing test is not the same evidence as a
-/// bad request.
-/// </para>
-/// </remarks>
+// The route set is enumerated from the emitted wire document rather than transcribed, so a route
+// mounted later is covered without an edit. Every assertion is on the status of a raw response:
+// reading the answer as its declared contract would throw, and a throw is not the same evidence as
+// a bad request.
 public sealed class RouteInputGuardTests
 {
-    /// <summary>
-    /// An integer inside no member of the kind enum. It parses, which is the whole defect: a parse
-    /// that succeeds is not the same as a value the arms downstream can act on.
-    /// </summary>
+    // An integer inside no member of the kind enum. It parses, which is the defect: a parse that
+    // succeeds is not the same as a value the arms downstream can act on.
     private const string UndefinedKind = "7";
 
-    /// <summary>What each route is sent, since two of them bind a body and the rest take none.</summary>
+    // Two of the routes bind a body and the rest take none, so every route is sent this.
     private const string ScopeBody = """{"scope":"futureScenes"}""";
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
@@ -46,10 +35,6 @@ public sealed class RouteInputGuardTests
         }
     }
 
-    /// <summary>
-    /// Every route the shipped document declares a kind segment on answers a bad request for a kind
-    /// that names nothing, rather than raising into a handler whose declared results hold no failure.
-    /// </summary>
     [Theory]
     [MemberData(nameof(KindTakingRoutes))]
     public async Task AKindNamingNoMemberIsARefusedRequestOnEveryRoute(string method, string template)
@@ -62,10 +47,7 @@ public sealed class RouteInputGuardTests
         Assert.Equal(HttpStatusCode.BadRequest, answered.StatusCode);
     }
 
-    /// <summary>
-    /// The enumeration covers the routes this build actually mounts, so a document that answered an
-    /// empty set could not read as a pass.
-    /// </summary>
+    // A document that answered an empty set would otherwise read as a pass.
     [Fact]
     public void EveryMountedEntityRouteIsEnumerated()
     {
@@ -101,10 +83,8 @@ public sealed class RouteInputGuardTests
             templates);
     }
 
-    /// <summary>
-    /// A kind the enum does declare still reaches its own arm, so the guard is proven to be refusing
-    /// the undefined value rather than everything.
-    /// </summary>
+    // A kind the enum declares still reaches its own arm, so the guard refuses the undefined value
+    // rather than everything.
     [Fact]
     public async Task AKindTheEnumDeclaresStillReachesItsOwnArm()
     {
@@ -120,10 +100,7 @@ public sealed class RouteInputGuardTests
         Assert.Equal(HttpStatusCode.OK, answered.StatusCode);
     }
 
-    /// <summary>
-    /// The read route answers the refusal rather than a body naming the kind it was given. What the
-    /// review recorded it doing was echoing the numeric kind straight back out.
-    /// </summary>
+    // Regression: the read route echoed the numeric kind straight back out.
     [Fact]
     public async Task TheReadRouteAnswersNoBodyCarryingTheKindItWasGiven()
     {
