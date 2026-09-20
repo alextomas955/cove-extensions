@@ -9,6 +9,17 @@ using Renamer.Planner;
 
 namespace Renamer;
 
+// One rename run's fixed settings, carried whole from the entry point down to the chunk body. The
+// three methods below take it instead of repeating its fields, which they had grown to nine
+// arguments of. A null FreeSpaceProbe measures the real volume.
+internal sealed record RenameRun(
+    RenamerFileKind Kind,
+    int TotalEntities,
+    string OperationId,
+    RenamerOptions Options,
+    Func<string, long>? FreeSpaceProbe = null,
+    int ChunkEntities = Renamer.RenameChunkEntities);
+
 /// <summary>
 /// The selected-item rename path: the "Rename selected" action's job body. It splits the selection
 /// into chunks, plans and executes each one through <see cref="RenamerExecutor"/>, and journals what
@@ -83,9 +94,9 @@ public sealed partial class Renamer
             return Task.FromResult(chunk);
         }
 
-        await RunRenameChunksAsync(
-            kind, NextChunk, ids.Length, Guid.NewGuid().ToString("N"),
-            options, freeSpaceProbe ?? AvailableFreeSpace, RenameChunkEntities, progress, ct);
+        var run = new RenameRun(
+            kind, ids.Length, Guid.NewGuid().ToString("N"), options, freeSpaceProbe);
+        await RunRenameChunksAsync(run, NextChunk, progress, ct);
     }
 
     // Renames every entity of one kind, walking its ids a page at a time through the same chunk the
@@ -95,9 +106,7 @@ public sealed partial class Renamer
     // skip a page nor repeat one. A cancellation between chunks leaves earlier chunks done and
     // undoable.
     internal Task<string?> RunRenamerKindAsync(
-        RenamerFileKind kind, int totalEntities, string operationId, RenamerOptions options,
-        AllowedIds allowedIds, IJobProgress progress, CancellationToken ct,
-        Func<string, long>? freeSpaceProbe = null, int chunkEntities = RenameChunkEntities)
+        RenameRun run, AllowedIds allowedIds, IJobProgress progress, CancellationToken ct)
     {
         int after = 0;
 
@@ -116,18 +125,18 @@ public sealed partial class Renamer
         // shorter than chunkEntities still implies an empty queue and an exhausted kind.
         async Task<IReadOnlyList<int>> NextPageAsync(CancellationToken token)
         {
-            var allowed = new List<int>(chunkEntities);
-            while (allowed.Count < chunkEntities && carried.Count > 0)
+            var allowed = new List<int>(run.ChunkEntities);
+            while (allowed.Count < run.ChunkEntities && carried.Count > 0)
             {
                 allowed.Add(carried.Dequeue());
             }
 
-            while (allowed.Count < chunkEntities)
+            while (allowed.Count < run.ChunkEntities)
             {
                 var page = await RunAsSystem.RunInSystemScopeAsync(
                     ScopeFactory,
                     services => new CoveRenamerDataPort(services.GetRequiredService<DbContext>(), _coveConfig)
-                        .LoadEntityIdPageAsync(kind, after, chunkEntities, token));
+                        .LoadEntityIdPageAsync(run.Kind, after, run.ChunkEntities, token));
 
                 if (page.Count == 0)
                 {
@@ -136,9 +145,9 @@ public sealed partial class Renamer
 
                 after = page[^1];
 
-                foreach (int id in await allowedIds(kind, page, token))
+                foreach (int id in await allowedIds(run.Kind, page, token))
                 {
-                    if (allowed.Count < chunkEntities)
+                    if (allowed.Count < run.ChunkEntities)
                     {
                         allowed.Add(id);
                     }
@@ -152,30 +161,27 @@ public sealed partial class Renamer
             return allowed;
         }
 
-        return RunRenameChunksAsync(
-            kind, NextPageAsync, totalEntities, operationId, options,
-            freeSpaceProbe ?? AvailableFreeSpace, chunkEntities, progress, ct);
+        return RunRenameChunksAsync(run, NextPageAsync, progress, ct);
     }
 
     // Drives nextChunk to exhaustion through the shared chunk body, tallies what the chunks did and
     // reports the run's final 1.0 with what happened. Returns the free-space shortfall that stopped
     // the run, or null when it ran to the end.
     private async Task<string?> RunRenameChunksAsync(
-        RenamerFileKind kind,
+        RenameRun run,
         Func<CancellationToken, Task<IReadOnlyList<int>>> nextChunk,
-        int totalEntities,
-        string operationId,
-        RenamerOptions options,
-        Func<string, long> freeSpaceProbe,
-        int chunkEntities,
         IJobProgress progress,
         CancellationToken ct)
     {
+        // Resolved once for the run: an absent probe reads the real volume, and the chunk body must
+        // not have to decide that per chunk.
+        var freeSpaceProbe = run.FreeSpaceProbe ?? AvailableFreeSpace;
+
         // Hoisted once for the whole run: the studio-id, tag-name and exact-path dictionaries and the
         // pre-parsed source-path regex set, so the resolver never re-walks or re-compiles them per
         // entity. An invalid user regex is caught at this build step and skipped with a log, so it can
         // never throw mid-match.
-        var lookups = BuildLookups(options);
+        var lookups = BuildLookups(run.Options);
 
         // The journal gets its own scope, and therefore its own DbContext, for the whole run: every
         // parallel worker of every chunk shares it because it mints each row's sequence number, and a
@@ -201,8 +207,8 @@ public sealed partial class Renamer
             }
 
             var outcome = await RunRenameChunkAsync(
-                chunk, kind, options, lookups, operationId, journal, freeSpaceProbe,
-                new ChunkSliceProgress(progress, entitiesDone, chunk.Count, totalEntities), ct);
+                run, chunk, lookups, journal, freeSpaceProbe,
+                new ChunkSliceProgress(progress, entitiesDone, chunk.Count, run.TotalEntities), ct);
 
             renamed += outcome.Renamed;
             skipped += outcome.Skipped;
@@ -216,7 +222,7 @@ public sealed partial class Renamer
                 break;
             }
 
-            if (chunk.Count < chunkEntities)
+            if (chunk.Count < run.ChunkEntities)
             {
                 break;
             }
@@ -252,21 +258,20 @@ public sealed partial class Renamer
     // opens its own scope and resolves its own DbContext: a DbContext is not thread-safe and Cove
     // disables EF's thread-safety checks, so a shared one corrupts silently.
     private async Task<ChunkOutcome> RunRenameChunkAsync(
+        RenameRun run,
         IReadOnlyList<int> ids,
-        RenamerFileKind kind,
-        RenamerOptions options,
         RouteLookups lookups,
-        string operationId,
         CoveRevertJournal journal,
         Func<string, long> freeSpaceProbe,
         IJobProgress progress,
         CancellationToken ct)
     {
+
         // A fresh run id per chunk, and the operation id constant across the run. An undo acts on the
         // operation, so however many batches a run opens, the user has one action to reverse.
         var runId = Guid.NewGuid().ToString("N");
 
-        LogBatchStarted(runId, kind, ids.Count);
+        LogBatchStarted(runId, run.Kind, ids.Count);
 
         // Planning reads only. It is sequential for deterministic preview ordering, it mutates nothing
         // the workers race, and it writes nothing at all, so a chunk refused below leaves the database
@@ -275,7 +280,7 @@ public sealed partial class Renamer
 
         // Planning reports no percentage of its own until the loop starts, so trace it to the log —
         // otherwise a large chunk sits at its opening percentage with no signal that it is still planning.
-        LogPlanningStarted(runId, kind, ids.Count);
+        LogPlanningStarted(runId, run.Kind, ids.Count);
 
         // One elevated span for the whole planning pass, not one per entity: the background principal is
         // anonymous, and an unelevated read returns zero rows with no error.
@@ -290,7 +295,7 @@ public sealed partial class Renamer
             // id order, so the preview order and the units it produces do not depend on what the
             // database returned first. An id naming an entity the load did not return vanished between
             // the id list and this read, and contributes nothing.
-            var loaded = await port.LoadEntitiesAsync(kind, ids, ct);
+            var loaded = await port.LoadEntitiesAsync(run.Kind, ids, ct);
             var byId = new Dictionary<int, RenamerEntity>(loaded.Count);
             foreach (var entity in loaded)
             {
@@ -305,7 +310,7 @@ public sealed partial class Renamer
                 int actingThisItem = 0;
                 if (byId.TryGetValue(id, out var entity))
                 {
-                    var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
+                    var plan = await planner.PlanLoadedEntity(entity, run.Options, lookups, ct);
 
                     // File sizes for the free-space sum live on the loaded entity's files, not on the
                     // plan item, so they are read off the entity the plan was built from.
@@ -382,7 +387,7 @@ public sealed partial class Renamer
         // a volume would not fit. Same-volume moves are excluded from the sum by the guard. This runs
         // before any batch is opened, so a refused chunk opens no journal batch.
         var shortfall = FreeSpaceGuard.Shortfall(
-            acting.Select(u => u.Move), options.FreeSpaceHeadroomBytes, freeSpaceProbe);
+            acting.Select(u => u.Move), run.Options.FreeSpaceHeadroomBytes, freeSpaceProbe);
         if (shortfall.Count > 0)
         {
             string detail = string.Join("; ",
@@ -421,7 +426,7 @@ public sealed partial class Renamer
         });
 
         // Now, and only now, open exactly one batch: the chunk produced acting work and it fits.
-        await journal.BeginBatchAsync(runId, operationId, kind, DateTime.UtcNow, ct);
+        await journal.BeginBatchAsync(runId, run.OperationId, run.Kind, DateTime.UtcNow, ct);
 
         // Marks the planning/execution boundary in the log: the percentage now advances per completed
         // file, so a later stall is legible as "stuck partway through {Acting}", not as silence.
@@ -447,13 +452,13 @@ public sealed partial class Renamer
             // Cross-volume only: re-check free space just before the copy, so a concurrent scanner that
             // shrank the destination since planning skips this item gracefully rather than filling the
             // disk. Same-volume moves consume ~no space and are excluded by the guard.
-            var inFlight = FreeSpaceGuard.Shortfall([unit.Move], options.FreeSpaceHeadroomBytes, freeSpaceProbe);
+            var inFlight = FreeSpaceGuard.Shortfall([unit.Move], run.Options.FreeSpaceHeadroomBytes, freeSpaceProbe);
             if (inFlight.Count > 0)
             {
                 Interlocked.Increment(ref totalSkipped);
                 // A free-space refusal is neither a lock nor a collision, so it carries the dedicated
                 // SkipNoSpace status and log output attributes a disk-full skip correctly.
-                LogItemSkipped(runId, kind, unit.EntityId, RenamerStatus.SkipNoSpace,
+                LogItemSkipped(runId, run.Kind, unit.EntityId, RenamerStatus.SkipNoSpace,
                     "skipped: destination volume dropped below free-space headroom in flight");
                 Interlocked.Increment(ref done);
                 ReportProgress((double)Volatile.Read(ref done) / totalUnits);
@@ -470,7 +475,7 @@ public sealed partial class Renamer
             bool crossVolume = !VolumeClassifier.SameVolume(unit.Move.OldFullPath, unit.Move.NewFullPath);
             long sizeMb = unit.Move.SizeBytes / (1024 * 1024);
             int doneNow = Volatile.Read(ref done);
-            LogItemStarting(runId, doneNow, totalUnits, kind, unit.EntityId,
+            LogItemStarting(runId, doneNow, totalUnits, run.Kind, unit.EntityId,
                 crossVolume, sizeMb, unit.Move.OldFullPath);
 
             var result = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
@@ -478,9 +483,9 @@ public sealed partial class Renamer
                 var db = services.GetRequiredService<DbContext>();
                 var exec = new RenamerExecutor(
                     new CoveRenamerDataPort(db, _coveConfig), EventBus, journal, runId, new DiskMover());
-                return exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token);
+                return exec.ExecuteAsync(unit.Plan, run.Options, folderIdByPath, token);
             });
-            LogBatchItem(runId, kind, unit.EntityId, result);
+            LogBatchItem(runId, run.Kind, unit.EntityId, result);
 
             // Thread-safe tally: a racing `+=` would lose increments under parallel workers.
             Interlocked.Add(ref totalRenamed, result.Renamed.Count);
@@ -511,10 +516,10 @@ public sealed partial class Renamer
             // guard, since same-drive moves are instant metadata renames. A value <= 0 means unbounded and
             // maps to Parallel's -1 sentinel. Each cross-volume (source,destination) pair is bounded by
             // the configured per-pair concurrency.
-            int sameVolumeDegree = options.SameVolumeConcurrency > 0 ? options.SameVolumeConcurrency : -1;
+            int sameVolumeDegree = run.Options.SameVolumeConcurrency > 0 ? run.Options.SameVolumeConcurrency : -1;
             int degree = pair == FreeSpaceGuard.SameVolumePair
                 ? sameVolumeDegree
-                : options.CrossVolumeConcurrency;
+                : run.Options.CrossVolumeConcurrency;
             await Parallel.ForEachAsync(pairUnits,
                 new ParallelOptions { MaxDegreeOfParallelism = degree, CancellationToken = ct },
                 RunUnitAsync);

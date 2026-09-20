@@ -220,8 +220,8 @@ public sealed partial class Renamer
             // one the host keeps: KindSliceProgress drops a kind's closing 1.0, so a kind that refused
             // would otherwise reach the user as nothing at all.
             string? shortfall = await RunRenamerKindAsync(
-                kind, count, operationId, options, allowedIds,
-                new KindSliceProgress(progress, planned, count, total), ct, freeSpaceProbe);
+                new RenameRun(kind, count, operationId, options, freeSpaceProbe), allowedIds,
+                new KindSliceProgress(progress, planned, count, total), ct);
             if (shortfall is not null)
             {
                 refused.Add(kind);
