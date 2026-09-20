@@ -146,6 +146,21 @@ export function summaryCounts(summary: {
   return { willChange, attention, noChange, scanned: willChange + attention + noChange };
 }
 
+/** How many rows the scan counted in the segment `filter` selects. */
+export function bucketTotal(counts: DryRunCounts | null, filter: DryRunFilter): number {
+  if (counts === null) return 0;
+  switch (filter) {
+    case "will-change":
+      return counts.willChange;
+    case "attention":
+      return counts.attention;
+    case "no-change":
+      return counts.noChange;
+    default:
+      return counts.scanned;
+  }
+}
+
 /**
  * Cove's asset detail-route segment for each scan kind. Enumerated (not `kind.toLowerCase()`) so an
  * unexpected kind falls through to `null` rather than fabricating a wrong URL — the href is derived

@@ -6,6 +6,7 @@ import {
   classifyItem,
   bucketWireValue,
   summaryCounts,
+  bucketTotal,
   assetHref,
   clampProgress,
   progressPercent,
@@ -129,6 +130,15 @@ test("summaryCounts partitions the aggregate's status counts into three buckets 
   });
   assert.deepEqual(counts, { willChange: 7, attention: 16, noChange: 5, scanned: 28 });
   assert.equal(counts.willChange + counts.attention + counts.noChange, counts.scanned);
+});
+
+test("bucketTotal answers each segment from the aggregate, and zero without one", () => {
+  const counts = { willChange: 7, attention: 16, noChange: 5, scanned: 28 };
+  assert.equal(bucketTotal(counts, "all"), 28);
+  assert.equal(bucketTotal(counts, "will-change"), 7);
+  assert.equal(bucketTotal(counts, "attention"), 16);
+  assert.equal(bucketTotal(counts, "no-change"), 5);
+  assert.equal(bucketTotal(null, "will-change"), 0);
 });
 
 test("summaryCounts over an empty status list returns all zeros", () => {

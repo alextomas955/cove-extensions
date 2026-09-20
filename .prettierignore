@@ -34,3 +34,7 @@
 
 # Generated from that document.
 **/src/wire/
+
+# A local tool cache whose own `.gitignore` is `*`, and that nested file is one this pass does not
+# read. Left out, a stray cache makes every file under it a formatting failure.
+**/.mypy_cache/

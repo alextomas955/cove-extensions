@@ -95,8 +95,9 @@ public sealed class AuthorizedPagingTests
                     authz, caller, kind, Permissions.VideosWrite, pageIds, token);
 
             await ext.RunRenamerKindAsync(
-                RenamerFileKind.Video, count, "op", options, allowedIds,
-                new FakeJobProgress(), default, chunkEntities: chunkEntities);
+                new global::Renamer.RenameRun(
+                    RenamerFileKind.Video, count, "op", options, ChunkEntities: chunkEntities),
+                allowedIds, new FakeJobProgress(), default);
 
             return authz;
         }

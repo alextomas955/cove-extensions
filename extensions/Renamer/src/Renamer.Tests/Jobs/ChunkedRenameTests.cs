@@ -87,8 +87,9 @@ public sealed class ChunkedRenameTests
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerKindAsync(
-                RenamerFileKind.Video, entities, "op", options, AllowAll, progress,
-                default, chunkEntities: 2);
+                new global::Renamer.RenameRun(
+                    RenamerFileKind.Video, entities, "op", options, ChunkEntities: 2),
+                AllowAll, progress, default);
 
             for (int i = 0; i < entities; i++)
             {
@@ -134,8 +135,9 @@ public sealed class ChunkedRenameTests
             // over every batch in the table rather than over this run's, so repeating it per chunk
             // re-reads the same rows to delete nothing.
             await ext.RunRenamerKindAsync(
-                RenamerFileKind.Video, entities, "op", options, AllowAll, progress,
-                default, chunkEntities: 2);
+                new global::Renamer.RenameRun(
+                    RenamerFileKind.Video, entities, "op", options, ChunkEntities: 2),
+                AllowAll, progress, default);
 
             await using var readDb = shared.NewContext();
             Assert.Equal(3, await readDb.Set<RevertBatchEntity>().AsNoTracking().CountAsync());
@@ -181,8 +183,9 @@ public sealed class ChunkedRenameTests
             var progress = new CancelAtProgress(cts, 0.5);
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ext.RunRenamerKindAsync(
-                RenamerFileKind.Video, entities, "op", options, AllowAll, progress,
-                cts.Token, chunkEntities: 2));
+                new global::Renamer.RenameRun(
+                    RenamerFileKind.Video, entities, "op", options, ChunkEntities: 2),
+                AllowAll, progress, cts.Token));
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film 0.mkv")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film 1.mkv")));
@@ -226,8 +229,8 @@ public sealed class ChunkedRenameTests
             var ext = await BuildAsync(shared, options);
 
             await ext.RunRenamerKindAsync(
-                RenamerFileKind.Video, 2, "op", options, AllowAll,
-                new FakeJobProgress(), default, chunkEntities: 1);
+                new global::Renamer.RenameRun(RenamerFileKind.Video, 2, "op", options, ChunkEntities: 1),
+                AllowAll, new FakeJobProgress(), default);
 
             // The second chunk is planned after the first one has already taken "Twin.mkv", so it
             // suffixes rather than clobbering it, and neither source is left behind.
@@ -267,8 +270,8 @@ public sealed class ChunkedRenameTests
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerKindAsync(
-                RenamerFileKind.Video, 2, "op", options, AllowAll, progress,
-                default, chunkEntities: 1);
+                new global::Renamer.RenameRun(RenamerFileKind.Video, 2, "op", options, ChunkEntities: 1),
+                AllowAll, progress, default);
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "sub", "raw.mkv")), "a contested source must not move");
             Assert.False(File.Exists(Path.Combine(dir.Root, "sub", "First.mkv")));
@@ -341,8 +344,8 @@ public sealed class ChunkedRenameTests
             long Probe(string vol) => vol.Length > 0 && vol[0] == drive.Root[0] ? 1L : 1L << 40;
 
             await ext.RunRenamerKindAsync(
-                RenamerFileKind.Video, 2, "op", options, AllowAll, progress,
-                default, Probe, chunkEntities: 1);
+                new global::Renamer.RenameRun(RenamerFileKind.Video, 2, "op", options, Probe, ChunkEntities: 1),
+                AllowAll, progress, default);
 
             Assert.True(File.Exists(Path.Combine(keepDir, "Kept.mkv")), "the first chunk must stay renamed");
             Assert.True(File.Exists(Path.Combine(moveDir, "raw-move.mkv")), "a refused chunk must not move");
