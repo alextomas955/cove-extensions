@@ -4,8 +4,6 @@ using WhisparrSync.Scene;
 namespace WhisparrSync.Whisparr;
 
 /// <summary>A capability the connected generation does not hold.</summary>
-/// <param name="Capability">The capability that was asked for.</param>
-/// <param name="Generation">The generation it was refused on.</param>
 public sealed record CapabilityRefusal(WhisparrCapability Capability, WhisparrGeneration Generation);
 
 /// <summary>A role obtained from a capability set, or the refusal standing in its place.</summary>
@@ -13,7 +11,6 @@ public sealed record CapabilityRefusal(WhisparrCapability Capability, WhisparrGe
 /// There is no third answer, and no way to reach the role without also stating what happens when it
 /// is absent.
 /// </remarks>
-/// <typeparam name="TRole">The role asked for.</typeparam>
 public sealed class Capability<TRole>
     where TRole : class
 {
@@ -44,7 +41,7 @@ public sealed class Capability<TRole>
 /// </remarks>
 public sealed class WhisparrCapabilitySet
 {
-    // Every role this product declares, whatever any generation holds: an absent role still needs a
+    // Every role declared here, whatever any generation holds: an absent role still needs a
     // capability to be refused under.
     private static readonly Dictionary<Type, WhisparrCapability> CapabilityByRole = new()
     {
@@ -73,9 +70,8 @@ public sealed class WhisparrCapabilitySet
         Generation = generation;
         _roles = roles;
 
-        // What the generation can honour, not what this set happened to be built with. Read off the
-        // registrations it would report whichever roles a caller supplied, so a set built for a read
-        // would tell a browser the generation cannot do what it can.
+        // What the generation can honour, not what this set was built with: read off the
+        // registrations, a set built for a read would report the generation as less capable.
         Held = GenerationCapabilities.CapabilitiesOf(generation);
     }
 
@@ -88,11 +84,10 @@ public sealed class WhisparrCapabilitySet
     /// <summary>
     /// The role <typeparamref name="TRole"/>, or the refusal standing in its place.
     /// </summary>
-    /// <typeparam name="TRole">The role asked for.</typeparam>
     /// <exception cref="InvalidOperationException">
-    /// <typeparamref name="TRole"/> is not one of this product's roles, or it is one this generation
-    /// holds and this set was built without the source that implements it. Neither says anything
-    /// about a generation, so neither is expressible as a refusal.
+    /// <typeparamref name="TRole"/> is not one of these roles, or it is one this generation holds
+    /// and this set was built without the source that implements it. Neither is a generation gap, so
+    /// neither is expressible as a refusal.
     /// </exception>
     public Capability<TRole> Obtain<TRole>()
         where TRole : class
@@ -109,9 +104,8 @@ public sealed class WhisparrCapabilitySet
             return new Capability<TRole>((TRole)role, null);
         }
 
-        // A capability the generation HOLDS, asked of a set built without the source implementing it,
-        // is a construction fault. Answered as a refusal it would be indistinguishable from a real
-        // generation gap, which is the silent-bug class the capability split exists to remove.
+        // A capability the generation holds, asked of a set built without the source implementing
+        // it, is a construction fault. As a refusal it would read as a real generation gap.
         if (Held.Contains(capability))
         {
             throw new InvalidOperationException(
@@ -130,17 +124,15 @@ public sealed class WhisparrCapabilitySet
 /// </remarks>
 public static class GenerationCapabilities
 {
-    // Declaration order, so the list a browser reads is stable. A capability is written down here
-    // only once some generation has an implementation to register for it: registered ahead of one it
-    // would report a capability whose only possible answer is a fault.
+    // Declaration order, so the list a browser reads is stable. A capability is listed only once
+    // some generation has an implementation to register for it.
     //
-    // No site-registration entry here: on this generation presence is a scene add and a site arrives
-    // as a side effect of one, so it has no implementation to register.
+    // No site-registration entry on v3: presence there is a scene add and a site arrives as a side
+    // effect of one.
     //
-    // The filesystem read is one of the two entries both generations hold. Each generated client
-    // declares the route, and v2 was measured answering it at 2.2.0.231: a real
-    // directory answered its children, and a path with no counterpart on the instance answered an
-    // empty listing rather than a failure.
+    // Both generations hold the filesystem read. Each generated client declares the route, and v2
+    // was measured answering it at 2.2.0.231, an unknown path giving an empty listing rather than a
+    // failure.
     private static readonly WhisparrCapability[] V3Capabilities =
     [
         WhisparrCapability.OutOfBandCallbackSecret,
@@ -157,36 +149,20 @@ public static class GenerationCapabilities
         WhisparrCapability.ReadInstanceFilesystem,
     ];
 
-    /// <inheritdoc cref="V3Capabilities"/>
-    /// <remarks>
-    /// No performer entry: this generation answers a not-found on every performer route and addresses
-    /// one only as a studio's own catalogue, so a caller obtains no role and has to state what happens
-    /// instead. No missing-scene entry either: no route on this generation adds a catalogue item at
-    /// all, and its catalogue arrives only by re-reading its own metadata source. No scene-status
-    /// entry: this generation answers a not-found on every per-scene route, so no retry can establish
-    /// a status and a card states that rather than offering a gesture that cannot change it. No
-    /// scene-exclusion entry for the same reason: a generation keeping no scene records keeps no
-    /// scene exclusions, and this generation answers a not-found on the exclusion route too. No
-    /// per-scene search entry either, for the same reason: a generation holding no scene has none to
-    /// be searched for, and the entity search it does hold covers everything the entity monitors. No
-    /// scene-exclusion write entry, because it keeps no scene exclusions to write to. It does hold
-    /// a site-registration entry, which v3 does not: here a site is the unit of
-    /// presence, and there a site arrives as a side effect of a scene add.
-    /// <para>
-    /// It also holds the per-scene monitor entry and the site-row read. This generation does hold a
-    /// row per scene, under a site and named by the number the metadata provider issued, so both
-    /// have an implementation to register. Measured on 2026-09-10 against
-    /// <c>whisparr:v2-2.2.0-release.231</c>: for the site whose own number is 5999, 412 of 412 rows
-    /// carried a number equal to a ThePornDB <c>_id</c> for that site, and the route setting the
-    /// flag on named rows answered 202 and left exactly those rows monitored. What is absent is a
-    /// per-scene route addressing a scene without its site, not the flag itself.
-    /// </para>
-    /// <para>
-    /// It holds the held-site read, which v3 does not: this generation answers presence for a site
-    /// through its own list and by no other route, so asking about many sites at once is one request
-    /// here and nothing v3 has an implementation for.
-    /// </para>
-    /// </remarks>
+    // v2 has no performer entry: it answers a not-found on every performer route and addresses a
+    // performer only as a studio's catalogue. No missing-scene entry: no v2 route adds a catalogue
+    // item, and its catalogue arrives only by re-reading its own metadata source. No scene-status,
+    // scene-exclusion read, per-scene search or scene-exclusion write entry: v2 answers a not-found
+    // on every per-scene route and keeps no scene exclusions.
+    //
+    // v2 holds the site-registration entry, which v3 does not: a site is v2's unit of presence.
+    //
+    // v2 holds the per-scene monitor entry and the site-row read: it does keep a row per scene,
+    // under a site and named by the number the metadata provider issued. What it lacks is a
+    // per-scene route addressing a scene without its site, not the monitored flag itself.
+    //
+    // v2 holds the held-site read, which v3 does not: v2 answers presence for a site through its own
+    // list and by no other route, so many sites are one request there.
     private static readonly WhisparrCapability[] V2Capabilities =
     [
         WhisparrCapability.OutOfBandCallbackSecret,
@@ -217,12 +193,8 @@ public static class GenerationCapabilities
         return new WhisparrCapabilitySet(generation, RolesFor(generation, roles));
     }
 
-    /// <summary>The capabilities <paramref name="generation"/> can honour, in declaration order.</summary>
-    /// <remarks>
-    /// The authoritative table. What a set was BUILT with is a fact about the caller, so reading a
-    /// generation's capabilities off its registrations would answer differently depending on which
-    /// route asked.
-    /// </remarks>
+    // The authoritative table, in declaration order. What a set was built with is a fact about the
+    // caller, so reading capabilities off its registrations would answer differently per route.
     internal static IReadOnlyList<WhisparrCapability> CapabilitiesOf(WhisparrGeneration generation)
         => generation switch
         {
@@ -231,14 +203,10 @@ public static class GenerationCapabilities
             _ => [],
         };
 
-    // Both generations can carry a secret off the address, by fields neither shares with the other:
-    // a list-of-headers field on one, a user-and-password pair on the other. The implementation is
-    // therefore per generation, and a generation whose schema declared neither would hold no role at
-    // all rather than one that refused once it was called.
-    //
-    // The acting roles are registered per generation AND per entity kind for the same reason: the
-    // kind one generation cannot address at all is an absent registration rather than a check inside
-    // a role that claims to cover it.
+    // Both generations can carry a secret off the address, through fields they do not share: a
+    // list-of-headers field on v3, a user-and-password pair on v2. The acting roles are registered
+    // per generation and per entity kind, so a kind a generation cannot address is an absent
+    // registration rather than a check inside a role.
     private static Dictionary<WhisparrCapability, object> RolesFor(
         WhisparrGeneration generation, WhisparrRoleSet? roles)
     {
@@ -264,8 +232,7 @@ public static class GenerationCapabilities
 
                 break;
 
-            // No performer registration in either table. Whisparr v2 addresses no performer
-            // at all, so a caller obtains no role and has to state what happens instead.
+            // No performer registration: Whisparr v2 addresses no performer at all.
             case WhisparrGeneration.V2:
                 registered[WhisparrCapability.OutOfBandCallbackSecret] = new V2BasicAuthSecretRegistration();
                 if (roles is not null)
@@ -290,42 +257,9 @@ public static class GenerationCapabilities
     }
 }
 
-/// <summary>The role implementations one capability set acts through.</summary>
-/// <remarks>
-/// Constructed only where a capability set is built and registered in no container, so no consumer
-/// holds a property bag handing out roles it never asked for.
-/// <para>
-/// A role joins this record with its implementation, never ahead of it, which is the same rule the
-/// per-generation capability table follows. A member declared here that nothing implements would be
-/// a promise the type could not keep.
-/// </para>
-/// </remarks>
-/// <param name="StudioActing">Monitors a studio.</param>
-/// <param name="PerformerActing">Monitors a performer.</param>
-/// <param name="MissingSceneActing">Registers scenes an instance's catalogue does not hold.</param>
-/// <param name="ReflectOwnedActing">Tells an instance where files the library already holds are.</param>
-/// <param name="SearchGrabbing">
-/// Asks an instance to look for what it monitors and does not hold. The one role here that can make
-/// an instance download, obtained by name and by nothing else.
-/// </param>
-/// <param name="SceneStatusReading">Reads what an instance holds for one catalogue scene.</param>
-/// <param name="SceneExclusionReading">Reads which of a set of scenes the instance's user excluded.</param>
-/// <param name="SceneSearchGrabbing">
-/// Asks an instance to look for one scene it holds. The second role here that can make an instance
-/// download, obtained by name and by nothing else.
-/// </param>
-/// <param name="SceneMonitorActing">Monitors one scene the instance already holds.</param>
-/// <param name="SceneExclusionActing">Excludes one scene, and takes that exclusion back off.</param>
-/// <param name="SiteRegistrationActing">
-/// Registers a site the instance does not hold, monitoring nothing.
-/// </param>
-/// <param name="SiteSceneReading">
-/// Reads which of a set of scenes one site the instance holds has a row for.
-/// </param>
-/// <param name="HeldSiteReading">Reads which of a set of sites the instance holds.</param>
-/// <param name="InstanceFilesystemReading">
-/// Reads what the instance holds at a path on its own filesystem.
-/// </param>
+// The role implementations one capability set acts through. Constructed only where a capability set
+// is built and registered in no container, so no consumer holds a property bag handing out roles it
+// never asked for. A role joins this record with its implementation, never ahead of it.
 internal sealed record WhisparrRoleSet(
     IWhisparrStudioActing StudioActing,
     IWhisparrPerformerActing PerformerActing,
@@ -342,13 +276,8 @@ internal sealed record WhisparrRoleSet(
     IWhisparrHeldSiteReading HeldSiteReading,
     IWhisparrInstanceFilesystemReading InstanceFilesystemReading)
 {
-    /// <summary>The roles <paramref name="client"/> implements.</summary>
-    /// <exception cref="InvalidOperationException">
-    /// <paramref name="client"/> implements one of the acting roles this record declares and not
-    /// every one of them. The acting roles are implemented on the one type holding this product's
-    /// HTTP client, so a client that does not is a registration fault rather than a capability a
-    /// generation lacks.
-    /// </exception>
+    // The acting roles are implemented on the one type holding the HTTP client, so a client
+    // implementing only some of them is a registration fault, not a capability a generation lacks.
     internal static WhisparrRoleSet From(IWhisparrClient client)
     {
         ArgumentNullException.ThrowIfNull(client);

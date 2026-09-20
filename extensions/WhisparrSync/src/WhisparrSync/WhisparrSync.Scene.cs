@@ -23,8 +23,7 @@ public sealed partial class WhisparrSync
     private void MapSceneEndpoints(IEndpointRouteBuilder endpoints)
     {
         // The read tier, not the configure one: the route names one scene as a path segment and
-        // composes no write, so a caller who may see the library may read what Whisparr holds for a
-        // scene in it.
+        // composes no write.
         endpoints.MapGet(SceneDetailRoute,
             (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
              ICredentialPort credentials, IWhisparrClient client,
@@ -34,11 +33,9 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
-        // The configure tier for each of the five: one gesture aiming this extension's stored
-        // credential at a third party, creating or removing items in the reader's own Whisparr, is
-        // not something a caller who cannot configure the extension may do. Which scene a request
-        // touches is a path segment, so a caller cannot name one in a body the route would otherwise
-        // have to refuse.
+        // The configure tier for each of the five: each aims the stored credential at a third party
+        // and creates or removes items in the reader's own Whisparr. Which scene a request touches
+        // is a path segment, so a caller cannot name one in a body.
         endpoints.MapPost(SceneAddRoute,
             (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
              ICredentialPort credentials, IWhisparrClient client,
@@ -85,10 +82,8 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
-        // The configure tier for two reasons rather than one: the route aims this extension's stored
-        // credential at a third party AND it spends the reader's indexer traffic and disk. It is the
-        // most consequential route this surface mounts, and it must not sit at a tier a caller who
-        // cannot configure the extension can reach.
+        // The configure tier for two reasons: the route aims the stored credential at a third party
+        // and it spends the reader's indexer traffic and disk.
         endpoints.MapPost(SceneSearchRoute,
             (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
              ICredentialPort credentials, IWhisparrClient client,
@@ -99,24 +94,10 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
 
-    /// <summary>What the connected instance holds for one scene the library names.</summary>
-    /// <remarks>
-    /// Reads and changes nothing, and reaches no metadata provider: the identifier the scene is
-    /// known by is the library's own stored row.
-    /// <para>
-    /// The identity is resolved before anything leaves, so a video the library names no single
-    /// identifier for costs no request.
-    /// </para>
-    /// <para>
-    /// Nothing is cached. Every read happens on every open, so what the tab states is what the
-    /// instance holds at that moment.
-    /// </para>
-    /// <para>
-    /// The exclusion list is read as well as the scene, because the state vocabulary tests exclusion
-    /// ahead of everything else: an unread list would let an excluded scene read as monitored, so a
-    /// list that answered nothing refuses the whole read.
-    /// </para>
-    /// </remarks>
+    // Nothing is cached, so what the tab states is what the instance held at that moment.
+    // The exclusion list is read as well as the scene, because the state vocabulary tests exclusion
+    // first: an unread list would let an excluded scene read as monitored, so a list that answered
+    // nothing refuses the whole read.
     internal static async Task<Results<Ok<SceneDetailView>, BadRequest, ForbiddenCode>>
         SceneDetailAsync(
             int coveId,
@@ -156,8 +137,6 @@ public sealed partial class WhisparrSync
                 NothingWasSent(SceneRefusalKind.NoIdentityInThisNamespace));
         }
 
-        // A generation registering no per-scene read has no implementation to hand over, so there is
-        // nothing to compose and nothing was sent.
         if (target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
                 .Match<IWhisparrSceneStatusReading?>(held => held, _ => null) is not { } reading
             || target.Capabilities.Obtain<IWhisparrSceneExclusionReading>()
@@ -186,8 +165,7 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(NothingWasSent(SceneRefusalKind.DidNotReachWhisparr));
         }
 
-        // A profile read that answers nothing is not a failed tab: the scene's own facts stand, and
-        // the two the profile carries are reported as unestablished.
+        // A profile read that answers nothing is not a failed tab: the scene's own facts stand.
         var profiles = await ContainedAsync(
             () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, ct),
             target,
@@ -199,16 +177,8 @@ public sealed partial class WhisparrSync
                 answered, profiles, excluded: excluded.ExclusionId is not null));
     }
 
-    /// <summary>Adds one scene the connected instance does not hold.</summary>
-    /// <remarks>
-    /// Composes v3's scene add, whose acquisition-suppressing flag is set from the
-    /// one constant every non-grabbing body reads. The instance is asked to look for nothing.
-    /// <para>
-    /// The instance's own row is read first, so a scene it already holds is answered rather than
-    /// added a second time, and both values an add cannot be composed without are read off the
-    /// instance before anything is sent.
-    /// </para>
-    /// </remarks>
+    // Composes v3's scene add with the acquisition-suppressing flag set, so the instance is asked
+    // to look for nothing.
     internal static async Task<Results<Ok<SceneActionResult>, BadRequest, ForbiddenCode>>
         AddSceneAsync(
             int coveId,
@@ -239,12 +209,9 @@ public sealed partial class WhisparrSync
                 .ConfigureAwait(false));
     }
 
-    /// <summary>Adds one scene, with the caller's own tier already established.</summary>
-    /// <remarks>
-    /// Reached by the route once it has checked the tier, and by a batch run which carries no
-    /// principal of its own. With <paramref name="known"/> supplied the instance is not resolved
-    /// again, so a selection costs one stored read rather than one per scene.
-    /// </remarks>
+    // Reached by the route once it has checked the tier, and by a batch run that carries no
+    // principal of its own. With known supplied the instance is not resolved again, so a selection
+    // costs one stored read rather than one per scene.
     private static async Task<SceneActionResult> AddSceneResolvedAsync(
         int coveId,
         MonitoringTarget? known,
@@ -287,17 +254,16 @@ public sealed partial class WhisparrSync
         }
 
         // The indexer list is not read and no verb is refused for it: an absent indexer is the
-        // instance's own business, and these two are the settings that stop an add before anything
-        // is sent.
+        // instance's own business.
         var defaults = AddDefaultsProjector.From(profiles.Body, roots.Body);
         if (defaults.Defaults is not { } runWide)
         {
             return ActionRefused(SceneRefusalFor(defaults.Refusal));
         }
 
-        // Counted over this scene's own files rather than its studio's. The count runs as System for
-        // the reason every other route-side count does: a per-principal filter would report a video
-        // that holds a file as holding none, and the add would go to the wrong root with no error.
+        // Counted over this scene's own files rather than its studio's, and as System: a
+        // per-principal filter would report a video that holds a file as holding none, and the add
+        // would go to the wrong root with no error.
         var composed = await EntityRootThrough(scopes, target, FilesOfVideo(coveId))(runWide, ct)
             .ConfigureAwait(false);
         if (composed.Defaults is not { } composeWith)
@@ -315,11 +281,7 @@ public sealed partial class WhisparrSync
         return Classified(added);
     }
 
-    /// <summary>Asks the connected instance to want one scene it holds.</summary>
-    /// <remarks>
-    /// Sets the monitored flag and nothing else. The instance is asked to look for nothing now: what
-    /// a monitored scene takes later is the instance's own schedule.
-    /// </remarks>
+    // Sets the monitored flag and nothing else. The instance is asked to look for nothing now.
     internal static async Task<Results<Ok<SceneActionResult>, BadRequest, ForbiddenCode>>
         MonitorSceneAsync(
             int coveId,
@@ -349,10 +311,7 @@ public sealed partial class WhisparrSync
                 .ConfigureAwait(false));
     }
 
-    /// <summary>Asks the connected instance to stop wanting one scene it holds.</summary>
-    /// <remarks>
-    /// Governs what the instance takes from here on and retracts nothing already downloaded.
-    /// </remarks>
+    // Governs what the instance takes from here on and retracts nothing already downloaded.
     internal static async Task<Results<Ok<SceneActionResult>, BadRequest, ForbiddenCode>>
         UnmonitorSceneAsync(
             int coveId,
@@ -382,14 +341,9 @@ public sealed partial class WhisparrSync
                 .ConfigureAwait(false));
     }
 
-    /// <summary>Puts one scene on the connected instance's own exclusion list.</summary>
-    /// <remarks>
-    /// A scene the list already names is answered as taken rather than refused, because one control
-    /// carries both labels and the label a reader sees has to agree with the instance.
-    /// <para>
-    /// Governs what a later catalogue addition takes and retracts nothing already downloaded.
-    /// </para>
-    /// </remarks>
+    // A scene the list already names is answered as taken rather than refused, because one control
+    // carries both labels and the label a reader sees has to agree with the instance.
+    // Governs what a later catalogue addition takes and retracts nothing already downloaded.
     internal static async Task<Results<Ok<SceneActionResult>, BadRequest, ForbiddenCode>>
         ExcludeSceneAsync(
             int coveId,
@@ -419,7 +373,6 @@ public sealed partial class WhisparrSync
                 .ConfigureAwait(false));
     }
 
-    /// <inheritdoc cref="AddSceneResolvedAsync"/>
     private static async Task<SceneActionResult> ExcludeSceneResolvedAsync(
         int coveId,
         MonitoringTarget? known,
@@ -455,12 +408,8 @@ public sealed partial class WhisparrSync
         return Classified(excluded);
     }
 
-    /// <summary>Takes one scene back off the connected instance's own exclusion list.</summary>
-    /// <remarks>
-    /// The removing route addresses the exclusion by the exclusion row's own identifier, so the list
-    /// is read first. A list naming no exclusion for the scene is the instance stating an absence,
-    /// and nothing is sent.
-    /// </remarks>
+    // The exclusion is addressed by the exclusion row's own identifier, so the list is read first.
+    // A list naming no exclusion for the scene is the instance stating an absence.
     internal static async Task<Results<Ok<SceneActionResult>, BadRequest, ForbiddenCode>>
         RemoveSceneExclusionAsync(
             int coveId,
@@ -510,17 +459,9 @@ public sealed partial class WhisparrSync
         return TypedResults.Ok(Classified(removed));
     }
 
-    /// <summary>Asks the connected instance to look for one scene it holds and monitors.</summary>
-    /// <remarks>
-    /// The one verb on this surface that can make an instance download. The read decides whether it
-    /// is sent at all: a scene the instance holds no entry for, or holds and is not monitoring, would
-    /// have nothing found for it, so each answers its own refusal and sends nothing.
-    /// <para>
-    /// What the answer claims is that the instance holds the command, read back off the instance by
-    /// the command's own identifier. One read and no loop: nothing here waits for a download, reads a
-    /// queue, or says a release was taken.
-    /// </para>
-    /// </remarks>
+    // The one verb on this surface that can make an instance download.
+    // The answer claims only that the instance holds the command, read back by the command's own
+    // identifier. Nothing here waits for a download, reads a queue, or says a release was taken.
     internal static async Task<Results<Ok<SceneActionResult>, BadRequest, ForbiddenCode>>
         SearchSceneNowAsync(
             int coveId,
@@ -550,7 +491,6 @@ public sealed partial class WhisparrSync
                 .ConfigureAwait(false));
     }
 
-    /// <inheritdoc cref="AddSceneResolvedAsync"/>
     private static async Task<SceneActionResult> SearchSceneResolvedAsync(
         int coveId,
         MonitoringTarget? known,
@@ -618,32 +558,23 @@ public sealed partial class WhisparrSync
             : ActionRefused(SceneRefusalKind.InstanceRefused);
     }
 
-    /// <summary>The instance and the identifier to name on it, once both are resolved.</summary>
     private sealed record SceneVerbTarget(MonitoringTarget Target, string RemoteId);
 
-    /// <summary>What a scene verb needs before it can act, once the read has answered.</summary>
     private sealed record SceneGround<TActing>(
         SceneVerbTarget Resolved, TActing Acting, SceneOnInstance Row);
 
-    /// <summary>What either exclusion half needs before it can act.</summary>
     private sealed record SceneExclusionGround(
         SceneVerbTarget Resolved, IWhisparrSceneExclusionActing Acting, SceneExclusionLookup Held);
 
-    /// <summary>An answer claiming nothing about the instance, and the reason it claims nothing.</summary>
     private static SceneDetailView NothingWasSent(SceneRefusalKind refusal)
         => new(refusal, false, null, null, null, null, null, false);
 
-    /// <summary>A verb that did not take, and the reason it did not.</summary>
     private static SceneActionResult ActionRefused(SceneRefusalKind refusal) => new(refusal, false);
 
-    /// <summary>A verb that took, claiming nothing beyond that.</summary>
     private static SceneActionResult Took() => new(SceneRefusalKind.None, false);
 
-    /// <summary>What the instance's own answer to a non-grabbing verb reads back as.</summary>
-    /// <remarks>
-    /// A null answer is a request that produced none. What the instance then holds is read by the
-    /// browser's own re-read rather than claimed here.
-    /// </remarks>
+    // A null answer is a request that produced none. What the instance then holds is read by the
+    // browser's own re-read rather than claimed here.
     private static SceneActionResult Classified(WhisparrResponse? answered)
     {
         if (answered is null)
@@ -656,7 +587,6 @@ public sealed partial class WhisparrSync
             : ActionRefused(SceneRefusalKind.InstanceRefused);
     }
 
-    /// <summary>The scene surface's own vocabulary for a value an add could not be composed without.</summary>
     private static SceneRefusalKind SceneRefusalFor(MonitorRefusalKind refusal)
         => refusal switch
         {
@@ -668,12 +598,8 @@ public sealed partial class WhisparrSync
             _ => SceneRefusalKind.InstanceRefused,
         };
 
-    /// <summary>The instance to act against and the scene's identifier on it, or the refusal.</summary>
-    /// <remarks>
-    /// The identity is resolved server-side off the library's own stored row, so no scene identifier
-    /// a browser supplied reaches a request, and it is bounded here because this is the last point
-    /// before one could.
-    /// </remarks>
+    // The identity is resolved server-side off the library's own stored row, so no scene identifier
+    // a browser supplied reaches a request. It is bounded here, the last point before one could.
     private static async Task<(SceneVerbTarget? Resolved, SceneRefusalKind Refusal)>
         ResolveSceneVerbTargetAsync(
             int coveId,
@@ -703,11 +629,8 @@ public sealed partial class WhisparrSync
         return (new SceneVerbTarget(target, remoteId), SceneRefusalKind.None);
     }
 
-    /// <summary>The instance's own row for the scene, or the refusal a verb stops at.</summary>
-    /// <remarks>
-    /// A row the read established nothing about is held apart from an absence: the first claims
-    /// nothing about the instance and the second is the instance reporting that it holds no entry.
-    /// </remarks>
+    // A row the read established nothing about is held apart from an absence: the first claims
+    // nothing about the instance, the second is the instance reporting that it holds no entry.
     private static async Task<(SceneOnInstance? Row, SceneRefusalKind Refusal)> ReadSceneRowAsync(
         IWhisparrSceneStatusReading reading,
         SceneVerbTarget resolved,
@@ -731,11 +654,8 @@ public sealed partial class WhisparrSync
             : (row, SceneRefusalKind.None);
     }
 
-    /// <summary>Sets the monitored flag on one scene the instance already holds.</summary>
-    /// <remarks>
-    /// The read decides whether the verb is sent at all: a scene the instance holds no entry for has
-    /// no instance-side identifier for the field-scoped patch to name.
-    /// </remarks>
+    // The read decides whether the verb is sent at all: a scene the instance holds no entry for
+    // has no instance-side identifier for the field-scoped patch to name.
     private static async Task<SceneActionResult> SetSceneMonitoringResolvedAsync(
         bool monitored,
         int coveId,
@@ -775,14 +695,9 @@ public sealed partial class WhisparrSync
         return Classified(flipped);
     }
 
-    /// <summary>
-    /// What a verb acting on one scene the instance holds needs, or the refusal it stops at.
-    /// </summary>
-    /// <remarks>
-    /// The order is the one the whole surface shares: the instance, then the identity, then the
-    /// roles, then the instance's own row. A generation registering either role none has nothing to
-    /// compose, so no request is made and the answer names the absence rather than the instance.
-    /// </remarks>
+    // The order the whole surface shares: the instance, then the identity, then the roles, then
+    // the instance's own row. A generation registering either role none has nothing to compose, so
+    // no request is made and the answer names the absence rather than the instance.
     private static async Task<(SceneGround<TActing>? Ground, SceneRefusalKind Refusal)>
         GroundSceneVerbAsync<TActing>(
             int coveId,
@@ -818,18 +733,8 @@ public sealed partial class WhisparrSync
             : (new SceneGround<TActing>(resolved, acting, row), SceneRefusalKind.None);
     }
 
-    /// <summary>
-    /// What either exclusion half needs, or the refusal it stops at.
-    /// </summary>
-    /// <remarks>
-    /// The list is read before either half acts. The removing route addresses the exclusion row's
-    /// own identifier, and the excluding half answers a scene the list already names as taken, so
-    /// both need what the list says before anything is sent.
-    /// <para>
-    /// No scene read happens here. An exclusion governs what a later catalogue addition takes, and
-    /// whether the instance holds the scene now does not bear on that.
-    /// </para>
-    /// </remarks>
+    // No scene read happens here. An exclusion governs what a later catalogue addition takes, and
+    // whether the instance holds the scene now does not bear on that.
     private static async Task<(SceneExclusionGround? Ground, SceneRefusalKind Refusal)>
         GroundExclusionVerbAsync(
             int coveId,
@@ -863,11 +768,8 @@ public sealed partial class WhisparrSync
             : (null, SceneRefusalKind.DidNotReachWhisparr);
     }
 
-    /// <summary>What the instance's exclusion list says about the scene.</summary>
-    /// <remarks>
-    /// Contained the way every other request off this surface is: a read that raised produced no
-    /// whole answer, which is not the same as a list naming no exclusion.
-    /// </remarks>
+    // Contained the way every other request off this surface is: a read that raised produced no
+    // whole answer, which is not the same as a list naming no exclusion.
     private static async Task<SceneExclusionLookup> FindExclusionAsync(
         IWhisparrSceneExclusionReading reading,
         SceneVerbTarget resolved,

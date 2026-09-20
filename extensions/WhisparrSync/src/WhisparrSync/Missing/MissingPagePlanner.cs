@@ -5,18 +5,9 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Missing;
 
-/// <summary>What one page of a catalogue is asked for, as the surface asked for it.</summary>
-/// <param name="Kind">Which kind of entity the catalogue is for.</param>
-/// <param name="CoveId">The entity in the library's own namespace.</param>
-/// <param name="Page">Which page to read, counted from one.</param>
-/// <param name="PerPage">How many scenes a page is read in.</param>
-/// <param name="Sort">One opaque provider-issued ordering, or null for the provider's own.</param>
-/// <param name="TitleSearch">A title search over the whole catalogue, or null for none.</param>
-/// <param name="Filters">Facet selections, keyed by the keys the provider itself issued.</param>
-/// <param name="MenusAlreadyHeld">
-/// The caller already carries the facet menus, so they are not read again. A menu read is one
-/// provider call per menu and the menus do not change between pages.
-/// </param>
+// Page is counted from one. Sort, TitleSearch and the filter keys and values are opaque strings the
+// provider itself issued. MenusAlreadyHeld skips the facet menu read, which costs one provider call
+// per menu and answers the same between pages.
 internal sealed record MissingPageRequest(
     WhisparrEntityKind Kind,
     int CoveId,
@@ -27,26 +18,9 @@ internal sealed record MissingPageRequest(
     IReadOnlyDictionary<string, string> Filters,
     bool MenusAlreadyHeld);
 
-/// <summary>What one facet-value lookup is asked for.</summary>
-/// <param name="Kind">Which kind of entity the catalogue is for.</param>
-/// <param name="CoveId">The entity in the library's own namespace.</param>
-/// <param name="FacetKey">The opaque key the provider itself issued for the facet.</param>
-/// <param name="Fragment">What the reader typed.</param>
 internal sealed record MissingFacetSearchRequest(
     WhisparrEntityKind Kind, int CoveId, string FacetKey, string Fragment);
 
-/// <summary>Where a page's connection and provider come from.</summary>
-/// <param name="BaseAddress">The connected instance's address, or null where none is connected.</param>
-/// <param name="ApiKey">The connected instance's credential.</param>
-/// <param name="Generation">Which generation is connected.</param>
-/// <param name="Provider">The resolved metadata provider, or null where the host names none.</param>
-/// <param name="StatusReading">
-/// The role that reads a scene's status, or null where the connected generation holds none.
-/// </param>
-/// <param name="ExclusionReading">
-/// The role that reads which scenes the user excluded, or null where the connected generation holds
-/// none. A generation keeping no scene records keeps no exclusions, so nothing is subtracted.
-/// </param>
 internal sealed record MissingPageContext(
     Uri? BaseAddress,
     string ApiKey,
@@ -55,35 +29,17 @@ internal sealed record MissingPageContext(
     IWhisparrSceneStatusReading? StatusReading,
     IWhisparrSceneExclusionReading? ExclusionReading);
 
-/// <summary>
-/// Derives one page of what a provider lists and the library does not hold.
-/// </summary>
-/// <remarks>
-/// The one place the subtraction exists. Two implementations of what is missing would disagree, and
-/// the disagreement is invisible until something acts on the wrong set.
-/// <para>
-/// Delegate-driven and performing no I/O of its own, so a page read and a bulk run drive the same
-/// derivation rather than two that can diverge.
-/// </para>
-/// <para>
-/// A page is never topped back up. Forty scenes arrive, the owned ones leave, and what remains is
-/// what renders. Fetching more to fill the gap is unbounded where a reader owns most of an entity,
-/// so the range the count line states stays the provider's own rather than the card count.
-/// </para>
-/// </remarks>
+// A page is never topped back up: the provider's scenes arrive, the owned ones leave, and what
+// remains is what renders. Fetching more to fill the gap is unbounded where a reader owns most of
+// an entity, so the range the count line states stays the provider's own rather than the card
+// count.
 internal sealed class MissingPagePlanner(
     MissingIdentityResolver identities,
     IProviderCatalogue catalogue,
     IOwnedScenePort owned)
 {
-    /// <summary>The metadata source a page is read from, as a sentence names it.</summary>
     internal string ProviderName => catalogue.Capabilities.Provider;
 
-    /// <summary>The page <paramref name="request"/> names.</summary>
-    /// <remarks>
-    /// <paramref name="log"/> is passed rather than held, because the one line this writes is the
-    /// containment of a read that failed and the caller already owns the containment of its own.
-    /// </remarks>
     internal async Task<MissingPageView> PlanAsync(
         MissingPageRequest request, MissingPageContext context, ILogger log, CancellationToken ct)
     {
@@ -100,7 +56,7 @@ internal sealed class MissingPagePlanner(
             .ConfigureAwait(false);
 
         // A lookup that did not reach the source states nothing about which entity it holds, so it
-        // is the same refusal a read that answered nothing states, and a Refresh is offered for it.
+        // refuses as unreachable rather than as no identifier.
         if (identity.ProviderEntityId is not { Length: > 0 } providerEntityId)
         {
             return Refused(
@@ -110,8 +66,8 @@ internal sealed class MissingPagePlanner(
                     : MissingRefusalKind.ProviderUnreachable);
         }
 
-        // Every value the surface sent travels unchanged. The ordering and each filter value are
-        // strings the provider itself issued, so nothing here interprets one.
+        // Every value the surface sent travels unchanged: the ordering and each filter value are
+        // strings the provider itself issued.
         var catalogueRequest = new ProviderCatalogueRequest(
             request.Kind,
             providerEntityId,
@@ -123,8 +79,7 @@ internal sealed class MissingPagePlanner(
 
         var answer = await catalogue.ReadPageAsync(catalogueRequest, ct).ConfigureAwait(false);
 
-        // A read that answered nothing says nothing about the catalogue, so no instance is asked
-        // about scenes that were never read.
+        // No instance is asked about scenes that were never read.
         if (answer.Page is not { } page)
         {
             return Refused(request, MissingRefusalKind.ProviderUnreachable);
@@ -137,8 +92,7 @@ internal sealed class MissingPagePlanner(
 
         var kept = page.Scenes.Where(scene => !held.Contains(scene.ProviderSceneId)).ToArray();
 
-        // An excluded scene has left the missing set, so it is removed before any status is read and
-        // no card is ever composed for it. The page is not topped back up to replace it.
+        // An excluded scene has left the missing set, so it is removed before any status is read.
         var excluded = await ReadExcludedAsync(context, kept, ct).ConfigureAwait(false);
         var remaining = excluded.Count == 0
             ? kept
@@ -171,15 +125,8 @@ internal sealed class MissingPagePlanner(
             ProviderName);
     }
 
-    /// <summary>
-    /// How many scenes the provider lists for the entity <paramref name="request"/> names, or null
-    /// where that could not be answered.
-    /// </summary>
-    /// <remarks>
-    /// The catalogue's own size, which is the figure the count line states, and never the number
-    /// missing. Null and zero are different answers: zero is a catalogue listing nothing, and null
-    /// claims nothing at all.
-    /// </remarks>
+    // The catalogue's own size, never the number missing. Null and zero are different answers: zero
+    // is a catalogue listing nothing, and null claims nothing at all.
     internal async Task<MissingCountView> CountAsync(
         MissingPageRequest request, MissingPageContext context, CancellationToken ct)
     {
@@ -216,11 +163,6 @@ internal sealed class MissingPagePlanner(
         return new MissingCountView(size);
     }
 
-    /// <summary>The values of one facet that match what a reader typed.</summary>
-    /// <remarks>
-    /// A read, and only of the metadata source: nothing here asks the connected instance anything,
-    /// because what a source lists is not a fact the instance holds.
-    /// </remarks>
     internal async Task<MissingFacetSearchView> SearchFacetValuesAsync(
         MissingFacetSearchRequest request, WhisparrGeneration generation, CancellationToken ct)
     {
@@ -230,8 +172,8 @@ internal sealed class MissingPagePlanner(
             .ResolveAsync(request.Kind, request.CoveId, generation, ct)
             .ConfigureAwait(false);
 
-        // No identifier is no catalogue to search, which is not a source that lists no matching
-        // value. Answered as no answer, so nothing states an absence the source never reported.
+        // No identifier is no catalogue to search, not a source that lists no matching value, so
+        // nothing states an absence the source never reported.
         if (identity.ProviderEntityId is not { Length: > 0 } providerEntityId)
         {
             return NoFacetValues(MissingFacetSearchOutcome.NoAnswer);
@@ -255,11 +197,7 @@ internal sealed class MissingPagePlanner(
                 MissingFacetSearchOutcome.Matched);
     }
 
-    /// <summary>No values, and why there are none.</summary>
-    /// <remarks>
-    /// The count is zero rather than a figure, because nothing was measured. A surface reading this
-    /// states the outcome and never draws an empty list under it.
-    /// </remarks>
+    // The count is zero rather than a figure, because nothing was measured.
     internal static MissingFacetSearchView NoFacetValues(MissingFacetSearchOutcome outcome)
         => new([], 0, outcome);
 
@@ -273,7 +211,7 @@ internal sealed class MissingPagePlanner(
             CancellationToken ct)
     {
         // A generation holding no scene-status role keeps no per-scene record at all, so no retry
-        // could establish one and the surface says so rather than offering a gesture.
+        // could establish one.
         if (context.StatusReading is null)
         {
             return (Unknown(remaining), false, true);
@@ -300,8 +238,8 @@ internal sealed class MissingPagePlanner(
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
         {
-            // An instance that was not reached says nothing about the catalogue, which was read. The
-            // page renders in full and states that no status was read, which a retry may change.
+            // An instance that was not reached says nothing about the catalogue, which was read, so
+            // the page renders in full and states that no status was read.
             WhisparrSyncLog.SceneStatusReadContained(log, WhisparrSyncLog.Classify(failure));
             return (Unknown(remaining), false, false);
         }
@@ -311,8 +249,7 @@ internal sealed class MissingPagePlanner(
         return (states, read, false);
     }
 
-    // A generation holding no exclusion role keeps no scene exclusions, so there is nothing to
-    // subtract and no request is issued to find that out.
+    // A generation holding no exclusion role keeps no scene exclusions, so no request is issued.
     private static async Task<IReadOnlySet<string>> ReadExcludedAsync(
         MissingPageContext context, ProviderScene[] kept, CancellationToken ct)
     {
@@ -370,9 +307,7 @@ internal sealed class MissingPagePlanner(
             [.. menu.Values.Select(value => new MissingFacetValue(value.Value, value.Label))],
             menu.ReportedValueCount);
 
-    // A refused page states its reason and carries no scenes. The range is empty rather than a
-    // provider range, because no provider was asked, and no ordering is in force because nothing
-    // was read.
+    // The range is empty and no ordering is in force, because no provider was asked.
     private MissingPageView Refused(MissingPageRequest request, MissingRefusalKind refusal)
         => new(
             [],

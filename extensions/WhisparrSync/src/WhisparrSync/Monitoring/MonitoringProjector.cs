@@ -5,67 +5,28 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 
-/// <summary>What an instance's answer about one entity means.</summary>
-/// <remarks>
-/// Whether the instance holds the entity at all is read from the status, and the monitored flag from
-/// the body. A refused add is classified from the status alone and the instance's own words are not
-/// read at all: this generation answers a refused add with a body carrying a full .NET stack trace,
-/// and a field nothing reads cannot reach a user or a log line.
-/// <para>
-/// A refusal is never inferred from a success either. This generation answers an add it did not
-/// understand with a created status and an echo showing the field dropped, so the evidence a monitor
-/// took effect is the state a later read reports rather than the status of the write.
-/// </para>
-/// </remarks>
+// Presence is read from the status and the monitored flag from the body. A refused add is
+// classified from the status alone: the refusal body carries a full .NET stack trace, and a field
+// nothing reads cannot reach a user or a log line.
+//
+// A refusal is never inferred from a success. An add the instance did not understand answers a
+// created status and an echo with the field dropped, so the evidence a monitor took effect is what
+// a later read reports, not the status of the write.
 internal static class MonitoringProjector
 {
-    /// <summary>Which of the reasons an entity may not be monitorable were observed.</summary>
-    /// <remarks>
-    /// The identity slot carries a kind rather than a flag, because the library can fail to name an
-    /// entity in more than one way and each is a different sentence.
-    /// </remarks>
-    /// <param name="NoConnectionConfigured">No instance is configured at all.</param>
-    /// <param name="CapabilityAbsentOnThisGeneration">
-    /// The connected generation holds no capability that could honour this.
-    /// </param>
-    /// <param name="IdentityRefusal">
-    /// Why the library names no single entity in this generation's namespace, or
-    /// <see cref="MonitorRefusalKind.None"/>.
-    /// </param>
     internal readonly record struct MonitorReasons(
         bool NoConnectionConfigured,
         bool CapabilityAbsentOnThisGeneration,
         MonitorRefusalKind IdentityRefusal);
 
-    /// <summary>The one refusal to answer when more than one reason holds.</summary>
-    /// <remarks>
-    /// More than one reason holds often: an entity with no metadata link, on v2,
-    /// with nothing configured, has all three. A user reads ONE sentence, so which reason wins is a
-    /// decision rather than an accident of the order the reads happen in, and it is stated here and
-    /// nowhere else.
-    /// <para>
-    /// The order, and why each reason sits where it does:
-    /// </para>
-    /// <para>
-    /// 1. Nothing configured. Nothing else is knowable: with no instance there is no generation, so
-    /// the generation gap cannot even be evaluated, and whether the entity's metadata link matches is
-    /// undecided. Naming the metadata link when the real problem is that no instance is configured
-    /// sends the reader to the wrong screen.
-    /// </para>
-    /// <para>
-    /// 2. The generation gap. The connected generation cannot honour this at all, so whether the
-    /// entity carries a matching identifier makes no difference to the answer.
-    /// </para>
-    /// <para>
-    /// 3. The metadata link. The narrowest reason, and the only one the reader can act on from the
-    /// page in front of them, because both detail pages already show the provider link chips.
-    /// </para>
-    /// <para>
-    /// A reason the caller has not observed is passed as none. That is safe BECAUSE of this order: a
-    /// later reason goes unobserved only when an earlier one already holds, and an earlier one wins
-    /// either way.
-    /// </para>
-    /// </remarks>
+    // Several reasons hold at once often, and a user reads one sentence, so the precedence is
+    // decided here and nowhere else. Nothing configured first: with no instance there is no
+    // generation to compare and no screen the metadata link would send the reader to. Then the
+    // generation gap, which no identifier changes. Then the metadata link, the narrowest reason and
+    // the only one actionable from the entity's own page.
+    //
+    // A reason the caller has not observed is passed as none, which is safe under this order: a
+    // later reason goes unobserved only when an earlier one already holds.
     internal static MonitorRefusalKind FirstRefusal(MonitorReasons reasons)
         => reasons switch
         {
@@ -75,24 +36,17 @@ internal static class MonitoringProjector
             _ => reasons.IdentityRefusal,
         };
 
-    /// <summary>Whether the instance holds the entity that was read.</summary>
     internal enum EntityReading
     {
-        /// <summary>The instance holds it, and the body is its own record of it.</summary>
         Held,
 
-        /// <summary>The instance does not hold it. Not a refusal.</summary>
         NotHeld,
 
-        /// <summary>The instance answered something else.</summary>
         Refused,
     }
 
-    /// <summary>The capability a monitor of <paramref name="kind"/> is honoured through.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="kind"/> is not a kind this product expresses. A kind resolving to a default
-    /// capability would report the wrong generation gap.
-    /// </exception>
+    // Throws on an unexpressed kind: a kind resolving to a default capability would report the
+    // wrong generation gap.
     internal static WhisparrCapability CapabilityFor(WhisparrEntityKind kind)
         => kind switch
         {
@@ -102,21 +56,11 @@ internal static class MonitoringProjector
                 nameof(kind), kind, "This is not an entity kind this product expresses."),
         };
 
-    /// <summary>What an entity answer says, and which refusal to state where it refuses.</summary>
-    /// <param name="Reading">Whether the instance holds the entity.</param>
-    /// <param name="Refusal">
-    /// Which refusal a reader is told, or <see cref="MonitorRefusalKind.None"/> on anything but a
-    /// refusal.
-    /// </param>
     internal readonly record struct EntityAnswer(EntityReading Reading, MonitorRefusalKind Refusal);
 
-    /// <summary>What <paramref name="answered"/> says about whether the entity is held.</summary>
-    /// <remarks>
-    /// A refusal the answering seam established wins over the status. On v2 a site nothing could be
-    /// numbered for is refused before any request leaves, so the answer carries no status about the
-    /// entity at all, and reading one would report the wrong reason to a reader who can act on the
-    /// right one.
-    /// </remarks>
+    // A refusal the answering seam established wins over the status. On v2 a site nothing could be
+    // numbered for is refused before any request leaves, so the answer carries no status about the
+    // entity and reading one would report the wrong reason.
     internal static EntityAnswer Classify(WhisparrResponse answered)
     {
         ArgumentNullException.ThrowIfNull(answered);
@@ -140,25 +84,12 @@ internal static class MonitoringProjector
                 : MonitorRefusalKind.None);
     }
 
-    /// <summary>What one classified entity answer says about presence and the monitored flag.</summary>
-    /// <param name="Present">
-    /// Whether the instance holds an entry for the entity, or null where the answer established
-    /// neither.
-    /// </param>
-    /// <param name="Monitored">The flag, or null where the answer established neither.</param>
+    // Null in either member means the answer established neither.
     internal readonly record struct EntityPresence(bool? Present, bool? Monitored);
 
-    /// <summary>
-    /// What <paramref name="reading"/> over <paramref name="body"/> says about presence and the flag.
-    /// </summary>
-    /// <remarks>
-    /// The one arm turning a classification into these two values. The single-entity read and the
-    /// card batch both go through it, so they cannot disagree about the same instance answer.
-    /// <para>
-    /// Not held answers a false flag rather than a null one: the instance was asked and holds no
-    /// entry, so nothing about the entity is monitored and that is established rather than unknown.
-    /// </para>
-    /// </remarks>
+    // The single-entity read and the card batch both go through here, so they cannot disagree about
+    // the same instance answer. Not held answers a false flag, not a null one: the instance was
+    // asked and holds no entry, which is established rather than unknown.
     internal static EntityPresence PresenceOf(EntityReading reading, string? body)
         => reading switch
         {
@@ -167,12 +98,7 @@ internal static class MonitoringProjector
             _ => new EntityPresence(null, null),
         };
 
-    /// <summary>Whether the write <paramref name="answered"/> answered was accepted.</summary>
-    /// <remarks>
-    /// A refusal the answering seam established wins, for the reason <see cref="Classify"/> states:
-    /// on v2 an add carries a site number, so a site nothing could be numbered for refused before
-    /// any write left and there is no status of its own.
-    /// </remarks>
+    // A refusal the answering seam established wins, for the reason Classify states.
     internal static MonitorRefusalKind Accepted(WhisparrResponse answered)
     {
         ArgumentNullException.ThrowIfNull(answered);
@@ -182,37 +108,24 @@ internal static class MonitoringProjector
             : answered.Refusal;
     }
 
-    /// <summary>Whether the write status <paramref name="statusCode"/> was accepted.</summary>
-    /// <remarks>
-    /// For a caller holding a status and no answer. A conflict is never read as "it already exists":
-    /// the entity is read before the add, so a conflict here is the instance declining, and the one
-    /// measured cause of it is a value the add was composed without.
-    /// </remarks>
+    // A conflict is never read as "it already exists": the entity is read before the add, so a
+    // conflict here is the instance declining, and the one measured cause is a value the add was
+    // composed without.
     internal static MonitorRefusalKind AcceptedStatus(int statusCode)
         => statusCode is >= 200 and < 300
             ? MonitorRefusalKind.None
             : MonitorRefusalKind.InstanceRefused;
 
-    /// <summary>Whether the entity <paramref name="body"/> describes is monitored.</summary>
-    /// <remarks>
-    /// Absent or unreadable reads as not monitored. This answers a browser that paints a state, so an
-    /// unreadable answer must read as the state that claims less rather than more.
-    /// </remarks>
+    // Absent or unreadable reads as not monitored: this paints a state in a browser, so an
+    // unreadable answer claims less rather than more.
     internal static bool MonitoredIn(string? body)
         => AsObject(body) is { } entity
             && entity["monitored"] is JsonValue flag
             && flag.TryGetValue<bool>(out var monitored)
             && monitored;
 
-    /// <summary>
-    /// The instance's own identifier for the entity <paramref name="body"/> describes, or null when
-    /// it names none.
-    /// </summary>
-    /// <remarks>
-    /// This is the instance-side row id, which is the only identifier the editor resource takes. It
-    /// exists only for an entity the instance already holds, so an absent one is what a caller must
-    /// refuse on rather than substitute a value for.
-    /// </remarks>
+    // The instance-side row id, the only identifier the editor resource takes. It exists only for
+    // an entity the instance holds, so a caller refuses on an absent one rather than substituting.
     internal static int? EntityIdIn(string? body)
         => AsObject(body) is { } entity
             && entity["id"] is JsonValue named
@@ -221,15 +134,8 @@ internal static class MonitoringProjector
                 ? entityId
                 : null;
 
-    /// <summary>
-    /// The instance root the entity <paramref name="body"/> describes is registered at, or null
-    /// where it names none.
-    /// </summary>
-    /// <remarks>
-    /// Null is what a caller must leave alone rather than act on. An entity whose answer names no
-    /// root says nothing about where the instance has it, and correcting a root read from nothing
-    /// would be a guess written to a live instance.
-    /// </remarks>
+    // Null means the answer named no root, which says nothing about where the instance has the
+    // entity. A caller leaves it alone rather than correcting a root read from nothing.
     internal static string? RootFolderPathIn(string? body)
         => AsObject(body) is { } entity
             && entity["rootFolderPath"] is JsonValue named
@@ -238,15 +144,9 @@ internal static class MonitoringProjector
                 ? root
                 : null;
 
-    /// <summary>
-    /// How many files the instance reports for the entity <paramref name="body"/> describes, or
-    /// null where the answer states none either way.
-    /// </summary>
-    /// <remarks>
-    /// Null is DISTINCT from zero. Zero is the instance stating it has linked no file to the entity,
-    /// which a caller acts on by asking for the catalogue to be read again; null says the answer
-    /// carried no count and a caller must send nothing on it.
-    /// </remarks>
+    // Null is distinct from zero. Zero is the instance stating it has linked no file, which a
+    // caller acts on by asking for the catalogue to be read again; null is no count at all, which a
+    // caller sends nothing on.
     internal static int? FileCountIn(string? body)
         => AsObject(body) is { } entity
             && entity["statistics"] is JsonObject statistics
@@ -256,31 +156,13 @@ internal static class MonitoringProjector
                 ? files
                 : null;
 
-    /// <summary>
-    /// Which scope the entity <paramref name="body"/> describes is monitored at, or null where the
-    /// product cannot say.
-    /// </summary>
-    /// <remarks>
-    /// The date gate's PRESENCE is the whole reading. Its value is never read, never compared
-    /// against a clock and never reported: what a scope covers on either side of that date is the
-    /// instance's to decide, and this product states nothing about it.
-    /// <para>
-    /// Null is not a scope. It says the product does not know which one is in force, so a caller
-    /// painting a state must paint none rather than fall back to a default.
-    /// </para>
-    /// <para>
-    /// Only v3's studio read is read at all. The gate exists on that one resource
-    /// and on no other, so a performer expresses no scope, and v2's own read was
-    /// never measured carrying one. Both answer null, as does an unmonitored entity, which has no
-    /// scope in force to report.
-    /// </para>
-    /// <para>
-    /// The absent gate is what the wider scope looks like on this generation, so an absent member
-    /// answers <see cref="MonitorScope.AllScenes"/> rather than null. That reading is licensed by
-    /// the transcribed read in <c>MonitorBodyPinTests</c>, which is where a re-measurement goes red
-    /// if the generation starts answering the member some other way.
-    /// </para>
-    /// </remarks>
+    // The date gate's presence is the whole reading. Its value is never read and never compared
+    // against a clock: what a scope covers on either side of that date is the instance's to decide.
+    // An absent gate is the wider scope on this generation, which MonitorBodyPinTests transcribes.
+    //
+    // Null is not a scope. It says which one is in force is unknown, so a caller paints no state
+    // rather than a default. The gate exists on v3's studio resource only, so a performer, v2 and
+    // an unmonitored entity all answer null.
     internal static MonitorScope? ScopeIn(
         WhisparrEntityKind kind, WhisparrGeneration generation, bool monitored, string? body)
     {
@@ -295,7 +177,6 @@ internal static class MonitoringProjector
         return entity["afterDate"] is null ? MonitorScope.AllScenes : MonitorScope.FutureScenes;
     }
 
-    /// <summary><paramref name="body"/> as an object, or null when it is not one.</summary>
     internal static JsonObject? AsObject(string? body)
     {
         if (string.IsNullOrWhiteSpace(body))

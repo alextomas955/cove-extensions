@@ -23,10 +23,9 @@ public sealed partial class WhisparrSync
 {
     private void MapCallbackEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // The ONE route of this extension that answers a caller holding no Cove permission, and it
-        // says so with the SDK's own convention rather than by declaring nothing. An endpoint
-        // declaring no convention also admits an anonymous caller, but silently and with a host
-        // warning, which is an access tier nothing states.
+        // The one route of this extension that answers a caller holding no Cove permission, declared
+        // with the SDK's own convention. An endpoint declaring no convention also admits an anonymous
+        // caller, but silently and with a host warning.
         endpoints.MapPost(CallbackRoute,
             (HttpContext http, IServiceScopeFactory scopes, CancellationToken ct)
                 => CallbackAsync(http, scopes, _log, ct))
@@ -52,35 +51,23 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
 
-    /// <summary>Receives one callback from Whisparr and answers whether it was this product's.</summary>
-    /// <remarks>
-    /// Authenticated by a secret this product minted, not by a Cove permission, because the caller is
-    /// another application rather than a Cove user. The secret is accepted from either position: a
-    /// registration this product made carries it out of band, and an address a user pasted by hand has
-    /// nowhere else to put one.
-    /// <para>
-    /// Runs as System. The caller carries no principal, and Cove's per-principal query filters answer
-    /// an Anonymous reader with zero rows and no error, which would report the stored secret as absent
-    /// and refuse every delivery.
-    /// </para>
-    /// <para>
-    /// The body is read ONCE and only after the secret matches, so an unauthenticated delivery
-    /// reaches no allocation, no filesystem probe and no host call. It is bounded by this
-    /// extension's own cap rather than the framework's, which Cove configures nowhere and which
-    /// defaults far above anything an instance sends.
-    /// </para>
-    /// <para>
-    /// The answer names no path and does not say whether a file was found. The caller is anonymous,
-    /// and an answer that varied with what is on disk would make this route a filesystem probe.
-    /// </para>
-    /// <para>
-    /// Neither generation signs a delivery, so the secret is the whole of the authentication here. On
-    /// a Cove whose own authentication is disabled, nothing else stands in front of this route: the
-    /// host answers an unauthenticated in-network caller on privileged reads, issues no authentication
-    /// challenge, and consults no proxy or trusted-host allow-list. Nothing here may imply a host-side
-    /// failsafe.
-    /// </para>
-    /// </remarks>
+    // Authenticated by a secret this product minted, not by a Cove permission: the caller is another
+    // application rather than a Cove user. The secret is accepted from either position, because an
+    // address a user pasted by hand has nowhere but the query to carry one.
+    //
+    // Runs as System. The caller carries no principal, and Cove's per-principal query filters answer
+    // an Anonymous reader with zero rows and no error, which would report the stored secret as absent
+    // and refuse every delivery.
+    //
+    // The body is read once and only after the secret matches, so an unauthenticated delivery reaches
+    // no allocation, no filesystem probe and no host call.
+    //
+    // The answer names no path and does not say whether a file was found. The caller is anonymous,
+    // and an answer that varied with what is on disk would make this route a filesystem probe.
+    //
+    // Neither generation signs a delivery, so the secret is the whole of the authentication. On a
+    // Cove whose own authentication is disabled nothing else stands in front of this route: the host
+    // issues no authentication challenge and consults no proxy or trusted-host allow-list.
     internal static async Task<Results<Ok<ImportAcknowledgement>, BadRequest, UnauthorizedHttpResult>> CallbackAsync(
         HttpContext http,
         IServiceScopeFactory scopes,
@@ -144,9 +131,8 @@ public sealed partial class WhisparrSync
                 return ImportEventOutcome.Ignored;
             }
 
-            // An act-list event carrying no readable path never reaches the core, and is recorded as
-            // its own refusal rather than as an ignore: this product handles the event and did not
-            // understand the body, which is a different fact from not handling the event.
+            // Recorded as a refusal rather than an ignore: this product handles the event and could
+            // not read the body, which is a different fact from not handling the event.
             if (reading.Candidate is not { } candidate)
             {
                 WhisparrSyncLog.ImportRefused(
@@ -166,19 +152,11 @@ public sealed partial class WhisparrSync
         return TypedResults.Ok(new ImportAcknowledgement(position, outcome));
     }
 
-    /// <summary>
-    /// The request body as a JSON object, or null when it is too long, unparseable, or not an object.
-    /// </summary>
-    /// <remarks>
-    /// Read once, into a buffer one byte longer than the cap, so a body past the cap is detected
-    /// without being materialised. A declared length over the cap is refused before the stream is
-    /// touched at all, and an undeclared one is caught by the buffer.
-    /// <para>
-    /// Parsed as a node rather than bound to a record. One generation publishes no contract, so what
-    /// a body IS gets established by parsing it, and a record would assume a shape the other
-    /// generation does not send.
-    /// </para>
-    /// </remarks>
+    // Read into a buffer one byte longer than the cap, so a body past the cap is detected without
+    // being materialised. A declared length over the cap is refused before the stream is touched.
+    //
+    // Parsed as a node rather than bound to a record: one generation publishes no contract, and a
+    // record would assume a shape the other generation does not send.
     private static async Task<JsonObject?> ReadBoundedBodyAsync(HttpRequest request, CancellationToken ct)
     {
         if (request.ContentLength is > MaxCallbackBodyBytes)
@@ -205,23 +183,12 @@ public sealed partial class WhisparrSync
         }
     }
 
-    /// <summary>
-    /// How long a delivery this product sent for may be.
-    /// </summary>
-    /// <remarks>
-    /// This extension's own bound, not the framework's: Cove configures no maximum request body
-    /// size, so the framework default applies and is orders of magnitude above anything an instance
-    /// sends. The committed payload captures are the evidence for the scale.
-    /// </remarks>
+    // This extension's own bound, not the framework's: Cove configures no maximum request body size,
+    // so the framework default applies and is far above anything an instance sends.
     internal const int MaxCallbackBodyBytes = 64 * 1024;
 
-    /// <summary>
-    /// Records an event type this product does not act on, once per distinct type.
-    /// </summary>
-    /// <remarks>
-    /// Once per type rather than once per delivery: several of the triggers a registration subscribes
-    /// to fire per file, and a line each would bury the one that named a type nobody expected.
-    /// </remarks>
+    // Once per distinct type rather than once per delivery: several of the triggers a registration
+    // subscribes to fire per file.
     private static void NoteIgnoredEventType(ILogger log, WhisparrGeneration generation, string? eventType)
     {
         if (eventType is null)
@@ -229,8 +196,8 @@ public sealed partial class WhisparrSync
             return;
         }
 
-        // Shortened before it reaches either the set or the log. The value is a string an
-        // authenticated caller chose, and both a log sink and this set are durable.
+        // Shortened before it reaches the set or the log: the value is caller-chosen, and both the
+        // set and a log sink are durable.
         var named = eventType.Length <= EventTypeChars ? eventType : eventType[..EventTypeChars];
 
         if (IgnoredEventTypes.Count >= IgnoredEventTypeCeiling
@@ -242,38 +209,24 @@ public sealed partial class WhisparrSync
         WhisparrSyncLog.ImportEventTypeIgnored(log, generation, named);
     }
 
-    /// <summary>How much of a caller-supplied event type is recorded.</summary>
-    /// <remarks>
-    /// Long enough for every event type either generation declares, short enough that no single
-    /// delivery can write a page of caller-chosen text into the host's log.
-    /// </remarks>
+    // Long enough for every event type either generation declares, short enough that no single
+    // delivery can write a page of caller-chosen text into the host's log.
     private const int EventTypeChars = 64;
 
-    /// <summary>How many distinct ignored event types are remembered.</summary>
-    /// <remarks>
-    /// The set exists so each type is reported once, and its size is what a caller would otherwise
-    /// control: the event types the two generations declare are a fixed handful, but the string
-    /// arrives in a request body. Past the ceiling the repeats simply stop being reported.
-    /// </remarks>
+    // Without a ceiling a caller sets the size of the set: the event types the two generations
+    // declare are a fixed handful, but the string arrives in a request body. Past the ceiling the
+    // repeats stop being reported.
     private const int IgnoredEventTypeCeiling = 64;
 
-    /// <summary>The ignored event types already reported, so each is reported once.</summary>
-    /// <remarks>
-    /// Concurrent because deliveries arrive in parallel and the whole value of the set is that
-    /// exactly one of them logs.
-    /// </remarks>
+    // Concurrent: deliveries arrive in parallel and exactly one of them must log.
     private static readonly ConcurrentDictionary<string, bool> IgnoredEventTypes = new(StringComparer.Ordinal);
 
-    /// <summary>Registers this product's callback in the connected instance, in place.</summary>
-    /// <remarks>
-    /// The answer reports what a re-read of the instance's notification list FOUND, not what the write
-    /// answered. A write being accepted says the request was well formed; it does not say the
-    /// notification now points anywhere.
-    /// <para>
-    /// An edited address contributes only its scheme, host, port and path prefix, and it is stored so
-    /// the edit survives a refresh. The route and the secret are always this product's own.
-    /// </para>
-    /// </remarks>
+    // The answer reports what a re-read of the instance's notification list found, not what the write
+    // answered. An accepted write says the request was well formed; it does not say the notification
+    // points anywhere.
+    //
+    // An edited address contributes only its scheme, host, port and path prefix. The route and the
+    // secret are always this product's own.
     internal static async Task<Results<Ok<CallbackView>, ForbiddenCode>> RegisterCallbackAsync(
         RegisterCallbackRequest request,
         HttpContext http,
@@ -335,10 +288,9 @@ public sealed partial class WhisparrSync
                 token),
             ct).ConfigureAwait(false);
 
-        // The status is folded onto the connection the gate loads, and the answer is projected from
-        // what the gate persisted. The registration is an outbound round trip, which is the longest
-        // window another writer of this same record has to commit inside - and the secret-position
-        // write is one such writer, on every delivery.
+        // Folded onto the connection the gate reloads, not onto the copy read before the call. The
+        // registration is an outbound round trip, the longest window another writer of this record
+        // has to commit in, and the secret-position write is one such writer on every delivery.
         var persisted = await gate.MutateAsync(
             options,
             fresh => fresh.WithConnectionFor(
@@ -352,17 +304,12 @@ public sealed partial class WhisparrSync
             ProjectCallback(persisted, extensionId, secret, host, null, outcome.Refusal));
     }
 
-    /// <summary>Reads the callback as it stands, without asking the instance anything.</summary>
-    /// <remarks>
-    /// The status is the one a registration attempt recorded, so a generation nothing has checked
-    /// answers that it has not been checked rather than borrowing the other generation's answer. It is
-    /// deliberately not re-derived by contacting Whisparr: opening the page would then make an
-    /// outbound request whose failure is indistinguishable from an absent registration.
-    /// <para>
-    /// The secret is minted on the first read that needs one, which is what lets an address be shown
-    /// before any registration exists.
-    /// </para>
-    /// </remarks>
+    // The status is the one a registration attempt recorded, per generation, and is not re-derived
+    // by contacting Whisparr: opening the page would then make an outbound request whose failure is
+    // indistinguishable from an absent registration.
+    //
+    // The secret is minted on the first read that needs one, so an address can be shown before any
+    // registration exists.
     internal static async Task<Results<Ok<CallbackView>, ForbiddenCode>> ReadCallbackStatusAsync(
         HttpContext http,
         ICurrentPrincipalAccessor principal,
@@ -416,30 +363,21 @@ public sealed partial class WhisparrSync
             refusal);
     }
 
-    /// <summary>Whether <paramref name="generation"/> can carry a secret off the address it registers.</summary>
     private static bool TravelsOutOfBand(WhisparrGeneration generation)
         => GenerationCapabilities.For(generation)
             .Obtain<IOutOfBandSecretRegistration>()
             .Match(_ => true, _ => false);
 
-    /// <summary>The scheme, host, port and path prefix this request arrived on.</summary>
-    /// <remarks>
-    /// The default the address is built on before a user has corrected one. It is the host the BROWSER
-    /// reached Cove at, which is not necessarily one Whisparr can reach — which is exactly why the
-    /// address is editable.
-    /// </remarks>
+    // The host the browser reached Cove at, which Whisparr cannot necessarily reach. That is why the
+    // address is editable.
     private static string RequestHostOf(HttpContext http)
         => string.Create(
             CultureInfo.InvariantCulture,
             $"{http.Request.Scheme}://{http.Request.Host}{http.Request.PathBase}").TrimEnd('/');
 
-    // The transition is the whole content of the reading: the note about the less private form is
-    // shown while it reads Address and clears when it reads OutOfBand.
-    //
-    // The generation selects which connection carries it, and it is the generation the delivery was
-    // read as rather than the one the settings page has selected: the reading is the page's tell that
-    // an instance is registered AND delivering, so recorded against another instance it says that
-    // about one which has not delivered.
+    // Recorded against the generation the delivery was read as, not the one the settings page has
+    // selected: the reading is the page's evidence that an instance is registered and delivering, so
+    // against another connection it would claim that of an instance which has not delivered.
     internal static Task RecordSecretPositionAsync(
         OptionsStore options,
         OptionsWriteGate gate,

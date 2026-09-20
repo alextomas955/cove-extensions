@@ -8,8 +8,6 @@ using WhisparrSync.Contracts;
 namespace WhisparrSync.Connection;
 
 /// <summary>A secret one inbound request presented, and where it carried it.</summary>
-/// <param name="Value">The secret as presented.</param>
-/// <param name="Position">Where the request carried it.</param>
 public sealed record PresentedCallbackSecret(string Value, CallbackSecretPosition Position);
 
 /// <summary>
@@ -17,36 +15,27 @@ public sealed record PresentedCallbackSecret(string Value, CallbackSecretPositio
 /// </summary>
 /// <remarks>
 /// The random source is the cryptographic one. A general-purpose generator is seeded from the clock
-/// and its whole sequence is recoverable from any one output, which makes every deployment's secret
-/// derivable from any deployment's.
+/// and its whole sequence is recoverable from any one output.
 /// </remarks>
 public static class CallbackSecret
 {
-    /// <summary>How many random bytes a minted secret is drawn from.</summary>
     internal const int EntropyBytes = 32;
 
     /// <summary>The custom header this product's own callbacks are recognised by.</summary>
-    /// <remarks>
-    /// Declared here, on the inbound side that reads it, so the registration that sets it and the
-    /// route that accepts it cannot name two different headers.
-    /// </remarks>
     public const string CustomHeaderName = "X-Cove-Whisparr-Sync-Secret";
 
     /// <summary>The user name a Basic-auth registration carries beside the secret.</summary>
     /// <remarks>
-    /// Fixed rather than configurable: it identifies the registration and carries no authority. The
-    /// secret is the password half, which is the half a Whisparr connection stores under a
-    /// <c>password</c> privacy.
+    /// Fixed, and it carries no authority. The secret is the password half, which is the half a
+    /// Whisparr connection stores under a <c>password</c> privacy.
     /// </remarks>
     public const string BasicAuthUser = "cove-whisparr-sync";
 
-    /// <summary>The scheme a Basic-auth presentation uses.</summary>
     private const string BasicScheme = "Basic ";
 
     /// <summary>A fresh secret, drawn from the cryptographic random source.</summary>
     /// <remarks>
-    /// Base64url so the value survives a query string, a header value and a copy-paste unchanged, with
-    /// nothing to escape in any of the three.
+    /// Base64url, so the value needs no escaping in a query string, a header value or a copy-paste.
     /// </remarks>
     public static string Mint()
     {
@@ -57,8 +46,8 @@ public static class CallbackSecret
 
     /// <summary>Whether <paramref name="presented"/> is <paramref name="stored"/>.</summary>
     /// <remarks>
-    /// Compared over fixed-width digests rather than over the strings, so neither the comparison time
-    /// nor an early length check tells a caller how much of a guess was right.
+    /// Compared over fixed-width digests, so neither the comparison time nor a length check tells a
+    /// caller how much of a guess was right.
     /// </remarks>
     public static bool Matches(string? stored, string? presented)
     {
@@ -78,18 +67,10 @@ public static class CallbackSecret
     /// The secret an inbound request presented, or null when it presented none.
     /// </summary>
     /// <remarks>
-    /// Every position a registration this product makes can use is accepted, and so is the address:
-    /// a one-click registration strips the secret from the address and carries it out of band, while
-    /// an address a user pasted by hand has nowhere else to put one.
-    /// <para>
-    /// An out-of-band position wins over the address when a request carries both, so a delivery from
-    /// a registration this product made is never classified by a query string an intermediary could
-    /// have appended.
-    /// </para>
+    /// The custom header, Basic auth and the address are all accepted, because a hand-pasted address
+    /// has nowhere but the query string to carry a secret. An out-of-band position wins when a request
+    /// carries both, so a delivery is never classified by a query string an intermediary appended.
     /// </remarks>
-    /// <param name="customHeader">The value of <see cref="CustomHeaderName"/>, if any.</param>
-    /// <param name="authorization">The <c>Authorization</c> header, if any.</param>
-    /// <param name="inAddress">The secret query parameter, if any.</param>
     public static PresentedCallbackSecret? PresentedIn(
         string? customHeader, string? authorization, string? inAddress)
     {
@@ -108,14 +89,8 @@ public static class CallbackSecret
             : new PresentedCallbackSecret(inAddress, CallbackSecretPosition.Address);
     }
 
-    /// <summary>
-    /// The password half of a Basic-auth header, or null when there is none to read.
-    /// </summary>
-    /// <remarks>
-    /// The password rather than the whole credential, because the user name identifies the
-    /// registration and the secret is what is checked. Split on the FIRST colon: a password may
-    /// contain one and a user name may not.
-    /// </remarks>
+    // The secret is the password half. Split on the first colon: a password may contain one and a
+    // user name may not.
     private static string? BasicAuthPasswordIn(string? authorization)
     {
         if (authorization is null
@@ -148,8 +123,7 @@ public static class CallbackSecret
 /// <summary>Reads and mints the one callback secret this extension holds.</summary>
 /// <remarks>
 /// The secret lives beside the API key, in a table this extension owns, rather than in the options
-/// blob: Cove's bulk extension-data route returns an extension's stored values whole, and a secret
-/// that authenticates an anonymous route is exactly what must not travel that way.
+/// blob: Cove's bulk extension-data route returns an extension's stored values whole.
 /// </remarks>
 public interface ICallbackSecretPort
 {
@@ -158,13 +132,12 @@ public interface ICallbackSecretPort
 
     /// <summary>The stored secret, minting and storing one when none is held.</summary>
     /// <remarks>
-    /// Returns the secret that is stored after the call, which is the one already there when a
-    /// concurrent caller won the insert.
+    /// Returns the secret stored after the call, which is the one already there when a concurrent
+    /// caller won the insert.
     /// </remarks>
     Task<string> EnsureAsync(DateTimeOffset nowUtc, CancellationToken ct);
 }
 
-/// <inheritdoc cref="ICallbackSecretPort"/>
 internal sealed class CallbackSecretPort(DbContext db, ILogger log) : ICallbackSecretPort
 {
     public async Task<string?> ReadAsync(CancellationToken ct)
@@ -198,8 +171,8 @@ internal sealed class CallbackSecretPort(DbContext db, ILogger log) : ICallbackS
         catch (DbUpdateException)
         {
             // The name is the primary key, so a concurrent mint loses this insert rather than
-            // producing a second secret. Whichever row is there is the one every later request is
-            // authenticated against, so it is the answer.
+            // producing a second secret. The row that is there is the one later requests are
+            // authenticated against.
             WhisparrSyncLog.ConcurrentMintLostToAnExistingRow(log);
             db.ChangeTracker.Clear();
             return await ReadAsync(ct).ConfigureAwait(false)

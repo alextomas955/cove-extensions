@@ -10,20 +10,19 @@ public interface IConnectionTestRunner
 {
     /// <summary>Tests an address and key that were supplied with the request.</summary>
     /// <remarks>
-    /// Describes the address that was in the field. It records no version reading, because the instance
-    /// it reached may be one the user is only considering rather than the one that is stored.
+    /// Records no version reading: the instance it reached may be one the user is only considering
+    /// rather than the stored one.
     /// </remarks>
     Task<ConnectionTestView> TestTransientAsync(string? address, string? apiKey, CancellationToken ct);
 
     /// <summary>Tests the stored connection of the generation the settings currently select.</summary>
     /// <remarks>
-    /// The only path that records a version reading, and only on a success: this is the one call that
-    /// knows the instance it reached is the stored one.
+    /// The only path that records a version reading, and only on a success, because it is the one
+    /// call that knows the instance it reached is the stored one.
     /// </remarks>
     Task<ConnectionTestView> TestStoredAsync(CancellationToken ct);
 }
 
-/// <inheritdoc cref="IConnectionTestRunner"/>
 internal sealed class ConnectionTestRunner(
     IWhisparrConnectionTester tester,
     OptionsStore options,
@@ -42,9 +41,8 @@ internal sealed class ConnectionTestRunner(
 
         var reachableAt = clock.GetUtcNow();
 
-        // Reachability is recorded only when the address tested is the one that is stored, and the
-        // comparison is against the address the gate loads: a settings save committed while the probe
-        // was in flight may have moved it.
+        // Compared against the address the gate loads, not the one read earlier: a settings save
+        // committed while the probe was in flight may have moved it.
         await gate.MutateAsync(
             options,
             stored => stored.ConnectionFor(stored.SelectedGeneration) is { } connection
@@ -60,16 +58,15 @@ internal sealed class ConnectionTestRunner(
     {
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
 
-        // A generation nothing has configured stands in as a connection with a blank address, which the
-        // read below refuses by naming the address — the same answer, without a second null arm.
+        // A generation nothing has configured stands in as a connection with a blank address, which
+        // the read below refuses by naming the address.
         var connection = stored.ConnectionFor(stored.SelectedGeneration)
             ?? new WhisparrSyncGenerationConnection();
         var apiKey = await credentials
             .ReadAsync(stored.SelectedGeneration, ct)
             .ConfigureAwait(false);
 
-        // The refusal is decided here rather than by handing an empty pair to the tester, so an
-        // unconfigured connection reaches nothing that could make a request.
+        // Refused here, so an unconfigured connection reaches nothing that could make a request.
         if (!ConnectionTester.TryReadConnection(connection.Address, apiKey, out var baseAddress, out var missing))
         {
             return ConnectionTestView.NotConfigured(missing, baseAddress?.ToString());
@@ -85,9 +82,8 @@ internal sealed class ConnectionTestRunner(
         var generation = stored.SelectedGeneration;
         var connected = view.Kind == ConnectionFailureKind.Connected;
 
-        // The reading is applied to the connection the gate loads, not to the one read before the
-        // probe: another writer may have committed to the same record while the instance was being
-        // asked, and only what this call learned is this call's to replace.
+        // Applied to the connection the gate loads, not the one read before the probe: another writer
+        // may have committed to the same record while the instance was being asked.
         await gate.MutateAsync(
             options,
             fresh => fresh.WithConnectionFor(
@@ -107,11 +103,7 @@ internal sealed class ConnectionTestRunner(
                 : current with { LastReachableAtUtc = now };
     }
 
-    /// <summary>Whether something at the address answered, whatever it answered with.</summary>
-    /// <remarks>
-    /// A rejected key counts: the instance was reached. Only the two kinds that describe an address
-    /// nothing was asked of, or that asked and got nothing, do not.
-    /// </remarks>
+    // A rejected key counts as an answer: the instance was reached.
     private static bool InstanceAnswered(ConnectionFailureKind kind)
         => kind is not (ConnectionFailureKind.NotConfigured or ConnectionFailureKind.Unreachable);
 }

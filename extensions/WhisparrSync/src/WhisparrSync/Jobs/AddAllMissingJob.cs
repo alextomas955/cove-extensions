@@ -7,20 +7,12 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Jobs;
 
-/// <summary>Which entity one enqueued registration run is about, as the host's map held it.</summary>
-/// <param name="Kind">The entity kind, or null where the map named none this product expresses.</param>
-/// <param name="CoveId">The Cove id, or zero where the map carried none that could be read.</param>
+/// <summary>Which entity one enqueued registration run is about.</summary>
+/// <remarks>A null kind or a zero id means the parameter map carried none that could be read.</remarks>
 public sealed record AddAllMissingBatch(WhisparrEntityKind? Kind, int CoveId);
 
-/// <summary>What one registration run needs from the connected instance, already aimed at it.</summary>
-/// <remarks>
-/// Resolved when the run STARTS rather than when it was asked for. The profile and the root each
-/// registration carries are the instance's to change at any time, and a run enqueued minutes ago
-/// must not create catalogue items under values read before that.
-/// </remarks>
-/// <param name="Generation">Whose namespace the library's own scene identifiers are read under.</param>
-/// <param name="Register">Offers one scene, answering whatever the instance said.</param>
-/// <param name="RefreshCatalogue">Asks the instance to re-read the entity's own catalogue.</param>
+// Resolved when the run starts, not when it was enqueued: the instance can change the profile and
+// the root at any time.
 internal sealed record AddAllMissingAiming(
     WhisparrGeneration Generation,
     Func<string, CancellationToken, Task<WhisparrResponse?>> Register,
@@ -30,19 +22,13 @@ internal sealed record AddAllMissingAiming(
 /// The add-all-missing job's id, its (de)serialization onto the host's string-only parameter map,
 /// and the scene loop one entity's run goes through.
 /// </summary>
-/// <remarks>
-/// <see cref="Decode"/> is total: it is read inside the host's job runner, where a throw is a
-/// faulted job rather than a handled answer, so a run nobody can read is a clean no-op.
-/// </remarks>
 public static class AddAllMissingJob
 {
-    /// <summary>The job id this extension's own type prefix is minted onto.</summary>
     public const string JobId = "add-all-missing";
 
     private const string KindKey = "kind";
     private const string CoveIdKey = "coveId";
 
-    /// <summary>Encodes one entity's run onto the host's parameter map.</summary>
     public static Dictionary<string, string> Encode(WhisparrEntityKind kind, int coveId)
         => new(StringComparer.Ordinal)
         {
@@ -52,9 +38,9 @@ public static class AddAllMissingJob
 
     /// <summary>Reads one entity's run back off the host's parameter map.</summary>
     /// <remarks>
-    /// Never throws. A null map, a missing key, a blank value and a kind this product does not
-    /// express all answer no kind rather than the first one declared, and a run that defaulted to a
-    /// kind would create catalogue items under an entity nobody named.
+    /// Never throws; it runs inside the host's job runner, where a throw faults the job. An
+    /// unreadable kind answers null rather than the first kind declared, so a run never registers
+    /// under an entity nobody named.
     /// </remarks>
     public static AddAllMissingBatch Decode(IReadOnlyDictionary<string, string>? parameters)
     {
@@ -76,27 +62,8 @@ public static class AddAllMissingJob
         return new AddAllMissingBatch(kind, coveId);
     }
 
-    /// <summary>
-    /// Offers each of the entity's own scene identifiers to the instance through
-    /// <paramref name="aiming"/>, inside ONE scope elevated to System.
-    /// </summary>
-    /// <remarks>
-    /// The run carries no principal of its own, and Cove's per-principal query filters answer an
-    /// anonymous reader with zero rows and no error, which on this path would report an entity that
-    /// holds scenes as holding none and register nothing at all.
-    /// <para>
-    /// A run that cannot be aimed, or that names no entity, reports as a run with nothing to
-    /// register. It has not been refused by the instance and there is nothing for a reader to retry;
-    /// what it could not read is already a line in the host's log.
-    /// </para>
-    /// </remarks>
-    /// <param name="batch">Which entity the run is about.</param>
-    /// <param name="scopes">The scope factory the extension was handed at initialization.</param>
-    /// <param name="aiming">
-    /// What the run needs from the connected instance, over the run's own elevated services, or null
-    /// where it must not act.
-    /// </param>
-    /// <param name="ct">Cancelled when the host stops the job.</param>
+    // Runs as System: the job carries no principal, and Cove's per-principal filters answer an
+    // anonymous reader with zero rows and no error, so an entity holding scenes would read as empty.
     internal static Task<AddAllMissingRun> RunAsync(
         AddAllMissingBatch batch,
         IServiceScopeFactory scopes,
@@ -124,12 +91,7 @@ public static class AddAllMissingJob
         });
     }
 
-    /// <summary>The one line the host's job list shows for <paramref name="run"/>.</summary>
-    /// <remarks>
-    /// Counts rather than a list of scenes. A sentence naming each one would grow with the entity.
-    /// An already-held scene is stated apart from a refused one, because they are different facts:
-    /// one is the catalogue already being complete and the other is the instance declining.
-    /// </remarks>
+    // Counts, never a list of scenes: the sentence must not grow with the entity.
     internal static string SummaryOf(AddAllMissingRun run)
     {
         ArgumentNullException.ThrowIfNull(run);
@@ -146,7 +108,6 @@ public static class AddAllMissingJob
             $"{run.Registered} registered, {run.AlreadyHeld} already held, {run.Refused} refused{ending}.");
     }
 
-    /// <summary>A run that reached no identifier, because it was never aimed at an entity.</summary>
     private static AddAllMissingRun Untaken { get; } =
         new(AddAllMissingRunOutcome.NothingToRegister, 0, 0, 0);
 

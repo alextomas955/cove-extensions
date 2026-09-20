@@ -1,28 +1,17 @@
 namespace WhisparrSync.Missing;
 
-/// <summary>How facet selections travel between the browser and this product.</summary>
-/// <remarks>
-/// One encoding, declared here and mirrored by the surface's own URL module. A key and value that
-/// serialise one way in the browser and parse another way here answer an unfiltered page that looks
-/// correct, so the form is pinned by a test on both sides rather than described in prose.
-/// <para>
-/// Each pair is its own percent-encoded segment, so a provider value carrying either separator
-/// survives the round trip.
-/// </para>
-/// </remarks>
+// The encoding is mirrored by the surface's own URL module and pinned by a test on both sides. A
+// key or value that serialises one way in the browser and parses another way here answers an
+// unfiltered page that looks correct. Each pair is its own percent-encoded segment, so a value
+// carrying either separator survives the round trip.
 internal static class MissingFilterForm
 {
-    /// <summary>The separator between one selection and the next.</summary>
     internal const char PairSeparator = ',';
 
-    /// <summary>The separator between a key and its value.</summary>
     internal const char KeySeparator = ':';
 
-    /// <summary>The selections <paramref name="raw"/> carries.</summary>
-    /// <remarks>
-    /// A malformed segment is skipped rather than refused. A shared link is edited by hand, and a
-    /// broken one should narrow by what it does say instead of answering an error.
-    /// </remarks>
+    // A malformed segment is skipped rather than refused: a hand-edited link narrows by what it
+    // does say instead of answering an error.
     internal static IReadOnlyDictionary<string, string> Read(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
@@ -50,10 +39,7 @@ internal static class MissingFilterForm
         return filters;
     }
 
-    /// <summary>How <paramref name="filters"/> is written, in the surface's own order.</summary>
-    /// <remarks>
-    /// Sorted by key, so one selection produces one address however the map was built up.
-    /// </remarks>
+    // Sorted by key, so one selection produces one address however the map was built up.
     internal static string Write(IReadOnlyDictionary<string, string> filters)
     {
         ArgumentNullException.ThrowIfNull(filters);

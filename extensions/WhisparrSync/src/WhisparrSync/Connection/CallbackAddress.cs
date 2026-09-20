@@ -7,13 +7,9 @@ namespace WhisparrSync.Connection;
 /// is allowed to change.
 /// </summary>
 /// <remarks>
-/// Pure: no store, no clock, no request. Everything it needs arrives as an argument, so the merge rule
-/// is decidable without a host.
-/// <para>
-/// Only the part of an edit up to where this extension's own route begins is honoured — scheme, host,
-/// port and path prefix. A Cove behind a reverse proxy on a subpath cannot produce a working callback
-/// under a scheme-host-port-only reading, and that failure presents as Whisparr's fault.
-/// </para>
+/// An edit is honoured up to where this extension's own route begins: scheme, host, port and path
+/// prefix. A Cove behind a reverse proxy on a subpath needs the path prefix to produce a working
+/// callback.
 /// </remarks>
 public static class CallbackAddress
 {
@@ -33,12 +29,8 @@ public static class CallbackAddress
     /// and path prefix, with this extension's own route and any secret removed.
     /// </summary>
     /// <remarks>
-    /// Applying this to its own output returns the same value, so an address that is saved and
-    /// reloaded does not drift.
-    /// <para>
-    /// An address that is not an absolute http or https URL yields the empty host, which falls back to
-    /// the request host rather than registering something no instance can reach.
-    /// </para>
+    /// Idempotent, so a saved and reloaded address does not drift. An address that is not an absolute
+    /// http or https URL yields the empty string, which callers fall back from to the request host.
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="extensionId"/> is empty or whitespace.</exception>
     public static string HostPartOf(string? editedAddress, string extensionId)
@@ -51,8 +43,7 @@ public static class CallbackAddress
             return "";
         }
 
-        // GetLeftPart omits a port that is the scheme's default, so http://host:80 and http://host
-        // reduce to one spelling and a saved value stops depending on how it was typed.
+        // GetLeftPart omits a default port, so http://host:80 and http://host reduce to one spelling.
         var authority = parsed.GetLeftPart(UriPartial.Authority);
         var path = parsed.AbsolutePath;
         if (path.EndsWith(route, StringComparison.OrdinalIgnoreCase))
@@ -68,8 +59,8 @@ public static class CallbackAddress
     /// request arrived on.
     /// </summary>
     /// <remarks>
-    /// A stored host is used even when it equals the request host. What storing it buys is that a
-    /// later request arriving on a different host does not silently move the address.
+    /// A stored host always wins, so a later request arriving on a different host does not silently
+    /// move the address.
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="requestHost"/> is empty or whitespace.</exception>
     public static string ResolveHost(string? storedCallbackHost, string requestHost)
@@ -82,8 +73,8 @@ public static class CallbackAddress
 
     /// <summary>The address to register, which carries no secret.</summary>
     /// <remarks>
-    /// The secret travels out of band wherever the connected generation can carry it. A query string
-    /// is written to the access log of every proxy and load balancer on the delivery path.
+    /// The secret travels out of band wherever the connected generation can carry it, because a query
+    /// string is written to the access log of every proxy on the delivery path.
     /// </remarks>
     /// <exception cref="ArgumentException">
     /// <paramref name="callbackHost"/> or <paramref name="extensionId"/> is empty or whitespace.

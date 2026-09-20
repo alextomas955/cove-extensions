@@ -6,23 +6,11 @@ using WhisparrSync.Options;
 
 namespace WhisparrSync.Addressing;
 
-/// <summary>Where this product's outbound path addressing is registered.</summary>
-/// <remarks>
-/// Held apart from the extension's own registration site so the slice owns its wiring. The
-/// composition root calls this and nothing about the slice is written there.
-/// </remarks>
 internal static class AddressingServiceRegistration
 {
-    /// <summary>Registers the sample-file source, the address port and the held agreements.</summary>
-    /// <remarks>
-    /// The cache is a singleton: a run reads many folders under one root, and a reading held per
-    /// scope would be a reading established per request. The two ports are scoped, because both
-    /// reach the per-request database context or the per-request stored options.
-    /// <para>
-    /// The logger arrives as an argument rather than from the container, so the slice writes to this
-    /// extension's own logger the way every other service it composes does.
-    /// </para>
-    /// </remarks>
+    // The cache is a singleton so one reading serves every folder under a root; a scoped cache
+    // would re-establish per request. The two ports are scoped because they reach the per-request
+    // database context and stored options.
     internal static IServiceCollection AddFolderAddressing(
         this IServiceCollection services, ILogger log)
     {

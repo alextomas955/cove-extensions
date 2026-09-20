@@ -22,10 +22,8 @@ public sealed partial class WhisparrSync
 {
     private void MapReflectOwnedEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // The same tier as the monitor route, and for the reason that route's own remark gives: it
-        // aims this extension's stored credential at a third party. Its reach is the one Cove entity
-        // the route segment names, so it is neither a whole-library read nor a body-named
-        // no-content call, and neither lesser tier expresses it.
+        // The monitor route's tier: it aims the stored credential at a third party, and its reach
+        // is the one entity the route segment names, which no lesser tier expresses.
         endpoints.MapPost(ReflectOwnedRoute,
             (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
              ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
@@ -36,31 +34,12 @@ public sealed partial class WhisparrSync
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
 
-    /// <summary>
-    /// Asks the connected instance to link the files the library already holds for one entity into
-    /// place, in the background.
-    /// </summary>
-    /// <remarks>
-    /// Takes no body at all. Which entity is named by the route, and nothing about the outbound
-    /// request is a value a caller could supply: the folders are read from the library and the
-    /// identity that admits the entity at all is read from its own stored rows.
-    /// <para>
-    /// The order is the monitor route's own. Identity first, so an entity the connected generation
-    /// cannot name is refused before anything is sent — even though the run itself names folders
-    /// rather than the entity, acting for an entity this product could not identify would be acting
-    /// on a link the library does not hold.
-    /// </para>
-    /// <para>
-    /// The hard-link setting is read before anything else leaves, and a skip is ANSWERED rather than
-    /// enqueued: with that setting off the instance has no mode that links, so every matched file
-    /// would be copied in full. The reader is told at the control instead, and the run is read again
-    /// when it starts, because the setting is the instance's to change in between.
-    /// </para>
-    /// <para>
-    /// Enqueued rather than awaited, so a caller cannot hold a request thread for the length of an
-    /// entity's folder set.
-    /// </para>
-    /// </remarks>
+    // The route takes no body: the entity comes from the route, the folders from the library, and
+    // the identity from stored rows, so a caller supplies nothing the outbound request carries.
+    // The hard-link setting is read before anything leaves, and a skip is answered rather than
+    // enqueued, because with that setting off every matched file would be copied in full.
+    // Enqueued rather than awaited, so a caller does not hold a request thread for the length of
+    // an entity's folder set.
     internal async Task<Results<Ok<ReflectOwnedEnqueued>, Accepted<ReflectOwnedEnqueued>, BadRequest, ForbiddenCode>>
         ReflectOwnedEntityAsync(
             string kind,
@@ -118,13 +97,8 @@ public sealed partial class WhisparrSync
             => new(null, null, refusal);
     }
 
-    /// <summary>Starts one entity's reflect-owned run in the background.</summary>
-    /// <remarks>
-    /// Enqueued EXCLUSIVE. Two entities can hold files in one folder — a video carries a studio and
-    /// its performers at once — so overlapping runs would issue overlapping attaches for the same
-    /// directory. What exclusivity costs when that does not happen is that the runs go one after the
-    /// other, against a third party this product should not be issuing parallel work to anyway.
-    /// </remarks>
+    // Exclusive: two entities can hold files in one folder, since a video carries a studio and its
+    // performers at once, so overlapping runs would issue overlapping attaches for one directory.
     private string EnqueueReflectOwned(
         IJobService jobs, IServiceScopeFactory scopes, WhisparrEntityKind kind, int coveId)
     {
@@ -137,12 +111,8 @@ public sealed partial class WhisparrSync
             exclusive: true);
     }
 
-    /// <summary>Runs one enqueued reflect-owned pass.</summary>
-    /// <remarks>
-    /// Everything the run acts through is resolved when it STARTS. A cancellation is rethrown after
-    /// the summary is written, so the host classifies the run as cancelled rather than completed
-    /// while the reader is still told what it managed to link.
-    /// </remarks>
+    // Everything the run acts through is resolved when the run starts, because the hard-link
+    // setting is the instance's to change between the route's read and the run.
     private async Task RunReflectOwnedAsync(
         IReadOnlyDictionary<string, string> parameters,
         IServiceScopeFactory scopes,
@@ -156,12 +126,13 @@ public sealed partial class WhisparrSync
             .ConfigureAwait(false);
 
         // The host's progress carries no summary field, so the run's one line rides the final
-        // report's sub-task.
+        // report's sub-task. Cancellation is rethrown after that write, so the host classifies the
+        // run as cancelled and the reader still sees what it managed to link.
         progress.Report(1d, ReflectOwnedJob.SummaryOf(run));
         ct.ThrowIfCancellationRequested();
 
-        // Nothing this product could not resolve names a skip reason. A reader sent to the instance's
-        // hard-link setting because no connection was configured would be sent to a value nobody read.
+        // A target or role that could not be resolved names no skip reason: pointing the reader at
+        // the instance's hard-link setting would name a value nobody read.
         async Task<ReflectOwnedAim> AimAsync(IServiceProvider services, CancellationToken runCt)
         {
             if (await ResolveTargetAsync(
@@ -187,12 +158,8 @@ public sealed partial class WhisparrSync
         }
     }
 
-    /// <summary>What a reflect-owned run needs from <paramref name="target"/>, already aimed at it.</summary>
-    /// <remarks>
-    /// The ONE statement of the work, reached by the entity's own enqueued run and by a selection's
-    /// per-entity step alike. Two statements of one gesture is how a selection comes to behave
-    /// differently from a click.
-    /// </remarks>
+    // The one statement of the work, reached by the entity's own run and by a selection's
+    // per-entity step alike, so a selection cannot behave differently from a click.
     private ReflectOwnedAiming AimedAt(
         MonitoringTarget target, IWhisparrReflectOwnedActing acting, IFolderAddressPort addressing)
         => new(
@@ -216,14 +183,9 @@ public sealed partial class WhisparrSync
                 is { } attached
                 && MonitoringProjector.Accepted(attached) == MonitorRefusalKind.None);
 
-    /// <summary>
-    /// How a run turns a folder the library names into the path <paramref name="target"/> can open.
-    /// </summary>
-    /// <remarks>
-    /// Where the connected generation holds no filesystem role, every folder answers that the instance
-    /// cannot be asked. The run then states that rather than handing over a path nobody checked, which
-    /// on a mismatched root reads back as a clean pass over an empty folder.
-    /// </remarks>
+    // Where the connected generation holds no filesystem role, every folder answers that the
+    // instance cannot be asked. Handing over an unchecked path instead would read back, on a
+    // mismatched root, as a clean pass over an empty folder.
     private static Func<string, CancellationToken, Task<AddressedFolder>> AddressingThrough(
         MonitoringTarget target, IFolderAddressPort addressing)
     {
@@ -243,27 +205,16 @@ public sealed partial class WhisparrSync
         return (folder, addressCt) => addressing.AddressAsync(aimed, folder, addressCt);
     }
 
-    /// <summary>
-    /// The role that answers what <paramref name="target"/> holds at a path of its own, or null where
-    /// the connected generation holds none.
-    /// </summary>
     private static IWhisparrInstanceFilesystemReading? FilesystemReadingOn(MonitoringTarget target)
         => target.Capabilities.Obtain<IWhisparrInstanceFilesystemReading>()
             .Match<IWhisparrInstanceFilesystemReading?>(filesystem => filesystem, _ => null);
 
-    /// <summary>
-    /// The role that links owned files into place on <paramref name="target"/>, or null where the
-    /// connected generation holds none.
-    /// </summary>
     private static IWhisparrReflectOwnedActing? ReflectOwnedActingOn(MonitoringTarget target)
         => target.Capabilities.Obtain<IWhisparrReflectOwnedActing>()
             .Match<IWhisparrReflectOwnedActing?>(acting => acting, _ => null);
 
-    /// <summary>Whether <paramref name="target"/> links a file into place rather than copying it.</summary>
-    /// <remarks>
-    /// Read on the route AND again when the run starts. The two are minutes apart, and the value
-    /// decides whether every matched file is linked or duplicated in full.
-    /// </remarks>
+    // Read on the route and again when the run starts. The two are minutes apart, and the value
+    // decides whether every matched file is linked or duplicated in full.
     private async Task<ReflectOwnedDecision> ReflectOwnedDecisionAsync(
         MonitoringTarget target, IWhisparrReflectOwnedActing acting, CancellationToken ct)
     {

@@ -6,9 +6,9 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
-    // The endpoint reference and the mapped route MUST be the same literal, so derive both from one
-    // base. Instance members because Id comes from extension.json: reading a route before the host has
-    // applied the manifest throws instead of mounting the endpoints under the wrong id.
+    // Both the endpoint reference and the mapped route come from one base so they cannot drift.
+    // Instance members because Id comes from extension.json: reading a route before the host applies
+    // the manifest throws instead of mounting the endpoints under the wrong id.
     private string RouteBase => "/api/extensions/" + Id;
     private string HostConfigurationRoute => RouteBase + "/host-configuration";
     private string ConnectionTestRoute => RouteBase + "/connection/test";
@@ -55,13 +55,11 @@ public sealed partial class WhisparrSync
     private string CallbackRegisterRoute => CallbackRoute + "/register";
     private string CallbackStatusRoute => CallbackRoute + "/status";
 
-    /// <summary>
-    /// Registers every endpoint, each DECLARING the gate its own handler re-checks.
-    /// </summary>
+    /// <summary>Registers every endpoint, each declaring the gate its own handler re-checks.</summary>
     /// <remarks>
-    /// The declaration is what the host reads and audits; the in-handler check stays because the
-    /// host's <c>[RequiresPermission]</c> filter is MVC-only and inert on a minimal-API endpoint, so
-    /// the declaration alone enforces nothing on a host predating policy enforcement.
+    /// The host reads and audits the declaration. The in-handler check stays because the host's
+    /// <c>[RequiresPermission]</c> filter is MVC-only and inert on a minimal-API endpoint, so on a
+    /// host predating policy enforcement the declaration enforces nothing.
     /// </remarks>
     public override void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
@@ -83,28 +81,16 @@ public sealed partial class WhisparrSync
         MapCallbackEndpoints(endpoints);
     }
 
-    /// <summary>The tag every route of this extension carries in the emitted wire document.</summary>
-    /// <remarks>
-    /// Stated rather than inferred. The inferred tag comes from the handler's declaring type, and
-    /// falls back to the ENTRY assembly for a handler that captures nothing — which is whichever
-    /// process emitted the document, so an inferred tag moves the committed document the day the test
-    /// runner changes.
-    /// </remarks>
+    // Stated, not inferred: an inferred tag falls back to the entry assembly for a handler that
+    // captures nothing, so it would change with the process that emits the wire document.
     private const string WireTag = "WhisparrSync";
 
-    /// <summary>The gates this extension's routes declare, and the ones their handlers re-check.</summary>
-    /// <remarks>
-    /// ONE array per tier, read by both, because the divergence is what would go unnoticed: an
-    /// endpoint advertising one gate to the host while enforcing another still passes every test that
-    /// drives the handler directly.
-    /// </remarks>
+    // One array per tier, read by both the route declaration and the handler check. An endpoint that
+    // advertises one gate and enforces another still passes every test that drives the handler.
     private static readonly string[] ReadPermissions = [Permissions.VideosRead];
 
-    /// <inheritdoc cref="ReadPermissions"/>
-    /// <remarks>
-    /// The configure tier. No default Viewer or Member role holds it, which is what keeps the
-    /// connection test out of reach of a caller who could otherwise aim it at an internal address.
-    /// </remarks>
+    // No default Viewer or Member role holds the configure tier, which keeps the connection test out
+    // of reach of a caller who could aim it at an internal address.
     private static readonly string[] ConfigurePermissions = [Permissions.ExtensionsConfigure];
 
     private static bool HasReadPermission(ICurrentPrincipalAccessor principal)
