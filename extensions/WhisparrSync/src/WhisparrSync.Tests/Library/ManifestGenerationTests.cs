@@ -105,17 +105,17 @@ public sealed class ManifestGenerationTests
     [Fact]
     public async Task TheTwoManifestsDifferInTheVideosViewSurfacesAndInNothingElse()
     {
-        var newer = await SurfacesForAsync(WhisparrGeneration.V3);
-        var older = await SurfacesForAsync(WhisparrGeneration.V2);
+        var v3 = await SurfacesForAsync(WhisparrGeneration.V3);
+        var v2 = await SurfacesForAsync(WhisparrGeneration.V2);
 
-        Assert.Equal(VideosViewSlots.Order(), newer.Slots.Except(older.Slots).Order());
-        Assert.Empty(older.Slots.Except(newer.Slots));
+        Assert.Equal(VideosViewSlots.Order(), v3.Slots.Except(v2.Slots).Order());
+        Assert.Empty(v2.Slots.Except(v3.Slots));
 
-        Assert.Equal(VideosViewTabs.Order(), newer.Tabs.Except(older.Tabs).Order());
-        Assert.Empty(older.Tabs.Except(newer.Tabs));
+        Assert.Equal(VideosViewTabs.Order(), v3.Tabs.Except(v2.Tabs).Order());
+        Assert.Empty(v2.Tabs.Except(v3.Tabs));
 
-        Assert.Equal(VideosViewActions.Order(), newer.Actions.Except(older.Actions).Order());
-        Assert.Empty(older.Actions.Except(newer.Actions));
+        Assert.Equal(VideosViewActions.Order(), v3.Actions.Except(v2.Actions).Order());
+        Assert.Empty(v2.Actions.Except(v3.Actions));
     }
 
     /// <summary>
@@ -125,11 +125,11 @@ public sealed class ManifestGenerationTests
     [Fact]
     public async Task AGenerationNeverStoredRegistersEverySurface()
     {
-        var newer = await SlotsForAsync(WhisparrGeneration.V3);
+        var v3 = await SlotsForAsync(WhisparrGeneration.V3);
 
         var slots = await SlotsOfAsync(new FakeStore());
 
-        Assert.Equal(newer.Order(), slots.Order());
+        Assert.Equal(v3.Order(), slots.Order());
     }
 
     /// <summary>
@@ -166,8 +166,7 @@ public sealed class ManifestGenerationTests
     /// A stored blob the model cannot bind establishes no generation, rather than the default one.
     /// </summary>
     /// <remarks>
-    /// The load answers such a blob with manufactured defaults, and the default names the newer
-    /// generation. Publishing that would register every v3 surface on an instance the
+    /// The load answers such a blob with manufactured defaults, and the default names v3. Publishing that would register every v3 surface on an instance the
     /// blob names as v2, with full confidence and on a value no user configured.
     /// <para>
     /// Observed through the callback the extension's own store factory hands in, which is the only

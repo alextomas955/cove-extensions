@@ -471,7 +471,7 @@ public sealed class NonGrabbingBodyTests
         // The filter is on the verb class rather than on the registration, so a grabbing capability a
         // generation holds contributes no case to a list of bodies asserted non-grabbing. Which
         // generations hold each one is written out, because the two differ: the entity search is
-        // registered on both and the per-scene search on the newer alone.
+        // registered on both and the per-scene search on v3 alone.
         Assert.All(
             ComposedAdds.Generations,
             generation => Assert.Contains(
@@ -489,9 +489,9 @@ public sealed class NonGrabbingBodyTests
     /// No add carries an acquisition-suppressing spelling its own resource does not declare.
     /// </summary>
     /// <remarks>
-    /// The three resources an add can name declare three different spellings, and the older
-    /// generation declares two more. A body carrying one its resource does not declare is composed
-    /// for a schema other than the one it is being sent to: the instance discards it, so this product
+    /// The three resources an add can name declare three different spellings, and v2 declares two
+    /// more. A body carrying one its resource does not declare is composed for a schema other than
+    /// the one it is being sent to: the instance discards it, so this product
     /// would be reading a suppression it never applied.
     /// </remarks>
     [Fact]

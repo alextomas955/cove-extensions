@@ -657,8 +657,8 @@ public sealed partial class WhisparrSync
 
     /// <summary>How one offered scene is marked wanted, or null where nothing marks one.</summary>
     /// <remarks>
-    /// Null unless the reader asked and the generation registers a per-scene monitor, so the older
-    /// generation obtains none and monitors nothing rather than being refused once it is called.
+    /// Null unless the reader asked and the generation registers a per-scene monitor, so v2 obtains
+    /// none and monitors nothing rather than being refused once it is called.
     /// <para>
     /// One request at a time throughout. The instance's own command queue is the shared resource, so
     /// there is no parallel loop here and no second request in flight.

@@ -131,9 +131,9 @@ public sealed class ScopeInForceTests
     /// answer to a question the product could not read.
     /// </summary>
     /// <remarks>
-    /// Marking a whole back catalogue wanted spends indexer traffic and disk, and on the newer
-    /// generation narrowing the scope again does not undo it. So the expensive scope is the one
-    /// answer no absence of information may produce.
+    /// Marking a whole back catalogue wanted spends indexer traffic and disk, and on v3 narrowing
+    /// the scope again does not undo it. So the expensive scope is the one answer no absence of
+    /// information may produce.
     /// </remarks>
     [Fact]
     public void NothingTheProductCouldNotReadIsAnsweredWithTheWiderScope()

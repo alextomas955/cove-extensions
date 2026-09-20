@@ -151,10 +151,10 @@ internal static class ReflectOwnedPlanner
     /// <summary>The media-management member both generations report the setting under.</summary>
     internal const string HardLinkSetting = "copyUsingHardlinks";
 
-    /// <summary>The member the newer generation names the scene a row matched under.</summary>
+    /// <summary>The member v3 names the scene a row matched under.</summary>
     private const string V3MatchedMember = "movie";
 
-    /// <summary>The member the older generation names the series a row matched under.</summary>
+    /// <summary>The member v2 names the series a row matched under.</summary>
     private const string V2MatchedMember = "series";
 
     /// <summary>Whether to act on what the media-management read answered.</summary>
@@ -394,8 +394,8 @@ internal static class ReflectOwnedPlanner
                 ? text
                 : null;
 
-    // Both spellings are transcribed from the interface bundle each build ships. The newer names one
-    // scene; the older names a series and the episodes matched inside it.
+    // Both spellings are transcribed from the interface bundle each build ships. v3 names one scene;
+    // v2 names a series and the episodes matched inside it.
     private static JsonObject? Entry(WhisparrGeneration generation, JsonObject row)
     {
         if (row["quality"] is not JsonObject quality

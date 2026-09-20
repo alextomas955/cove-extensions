@@ -63,8 +63,8 @@ public sealed class V2BodyProjectorTests
     /// Both of this generation's suppression spellings are present as members and both are false.
     /// </summary>
     /// <remarks>
-    /// Presence is asserted apart from the value, and v2's pair is not v3's:
-    /// a rule stated in the newer spellings leaves every body here unguarded.
+    /// Presence is asserted apart from the value, and v2's pair is not v3's: a rule stated in v3's
+    /// spellings leaves every body here unguarded.
     /// </remarks>
     [Theory]
     [InlineData(MonitorScope.FutureScenes)]
