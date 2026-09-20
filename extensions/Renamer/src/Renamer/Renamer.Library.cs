@@ -205,9 +205,8 @@ public sealed partial class Renamer
         int planned = 0;
 
         // One click, one operation, however many kinds it spans. Each kind opens its own batches,
-        // since a journal row carries no kind, but the operation is what /undo acts on. The journal
-        // cap is measured over that operation, so a run too large to journal drops all of itself.
-        var budget = new OperationJournalBudget(Guid.NewGuid().ToString("N"));
+        // since a journal row carries no kind, but the operation is what /undo acts on.
+        var operationId = Guid.NewGuid().ToString("N");
 
         var refused = new List<RenamerFileKind>();
         foreach (var (kind, count) in countByKind)
@@ -221,7 +220,7 @@ public sealed partial class Renamer
             // one the host keeps: KindSliceProgress drops a kind's closing 1.0, so a kind that refused
             // would otherwise reach the user as nothing at all.
             string? shortfall = await RunRenamerKindAsync(
-                kind, count, budget, options, allowedIds,
+                kind, count, operationId, options, allowedIds,
                 new KindSliceProgress(progress, planned, count, total), ct, freeSpaceProbe);
             if (shortfall is not null)
             {

@@ -125,11 +125,6 @@ public sealed partial class Renamer
     private partial void LogJournalBlobMigrated(int rows);
 
     [LoggerMessage(
-        EventId = 1055, Level = LogLevel.Information,
-        Message = "[Renamer] batch {RunId}: {Files} file(s) exceeds the {Cap}-file undo cap — this batch is not undoable")]
-    private partial void LogBatchNotJournalled(string runId, int files, int cap);
-
-    [LoggerMessage(
         EventId = 1066, Level = LogLevel.Warning,
         Message = "[Renamer] could not convert the stored options to stable entity ids; the settings page may stay unreadable until the next load retries")]
     private partial void LogOptionsMigrationFailed(Exception ex);

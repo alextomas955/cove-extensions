@@ -138,7 +138,6 @@ function summary(): ScanSummaryView {
       crossVolumeBytes: 0,
       volumePairs: [],
       confirmLevel: "light",
-      undoable: true,
       inFlightPathOverflowCount: 0,
     },
     volumePairsTruncated: false,

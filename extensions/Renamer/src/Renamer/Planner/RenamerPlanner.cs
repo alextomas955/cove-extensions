@@ -37,27 +37,11 @@ public sealed class RenamerPlanner
     // over-long destination is a preview skip and never a move-time crash.
     public async Task<RenamerPlan> PlanAsync(
         RenamerFileKind kind, int entityId, RenamerOptions options, RouteLookups lookups, CancellationToken ct)
-        => (await PlanWithEntityAsync(kind, entityId, options, lookups, ct)).Plan;
-
-    // Non-routing overload.
-    public Task<PlanResult> PlanWithEntityAsync(
-        RenamerFileKind kind, int entityId, RenamerOptions options, CancellationToken ct)
-        => PlanWithEntityAsync(kind, entityId, options, EmptyLookups, ct);
-
-    // Plans and also surfaces the entity it loaded. The batch runner needs each file's SizeBytes for
-    // the cross-drive free-space sum, and those sizes live on the loaded entity rather than on the
-    // plan items, so handing the entity back saves a second expensive multi-Include load per id.
-    // PlanResult.Entity is null exactly when the id is not found.
-    public async Task<PlanResult> PlanWithEntityAsync(
-        RenamerFileKind kind, int entityId, RenamerOptions options, RouteLookups lookups, CancellationToken ct)
     {
         var entity = await _port.LoadEntityAsync(kind, entityId, ct);
-        if (entity is null)
-        {
-            return new PlanResult(new RenamerPlan(entityId, kind, Array.Empty<RenamerPlanItem>()), null);
-        }
-
-        return new PlanResult(await PlanLoadedEntity(entity, options, lookups, ct), entity);
+        return entity is null
+            ? new RenamerPlan(entityId, kind, Array.Empty<RenamerPlanItem>())
+            : await PlanLoadedEntity(entity, options, lookups, ct);
     }
 
     // Plans an already-loaded entity, performing no DB load of its own. That is the seam a batch
@@ -400,6 +384,3 @@ public sealed class RenamerPlanner
         return new RenamerPlanItem(file.FileId, oldFullPath, oldFullPath, status, file.Basename, file.ParentFolderPath, reason);
     }
 }
-
-// The dry-run plan plus the entity it was computed from; the entity is null when the id was not found.
-public readonly record struct PlanResult(RenamerPlan Plan, RenamerEntity? Entity);

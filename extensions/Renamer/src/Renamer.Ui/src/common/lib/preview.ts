@@ -109,24 +109,12 @@ function buildBlastLines(summary?: PreviewSummary): string[] {
 }
 
 /**
- * The reversibility sentence that closes the call-to-action. `undoable` comes from the server, which
- * knows its own row cap; a batch over that cap is not recorded at all, so promising an undo here
- * would be a promise nothing can keep.
- */
-function undoNotice(undoable: boolean): string {
-  return undoable
-    ? `You can undo this afterwards.`
-    : `This batch is too large to record an undo — it cannot be reversed. ` +
-        `Cancel and use the dry run if you have not checked the new names yet.`;
-}
-
-/**
  * The blast-radius call-to-action, scaled by `ConfirmLevel`: Heavy is the strongest cross-drive
  * warning, Standard a plainer cross-drive notice, Light the original reassuring line.
  * Single source shared by both rename confirm surfaces.
  */
-function confirmCallToAction(level: ConfirmLevel, undoable: boolean): string {
-  const reversibility = undoNotice(undoable);
+function confirmCallToAction(level: ConfirmLevel): string {
+  const reversibility = `You can undo this afterwards.`;
   return level === "heavy"
     ? `This is a LARGE cross-drive move — files will be COPIED across drives, which can take a while. ` +
         `Click OK only if you are sure; Cancel to stop. ${reversibility}`
@@ -244,11 +232,9 @@ export function buildConfirmSummary(
 
   // The call-to-action scales with the blast radius. A Heavy cross-drive move (many files / many
   // bytes / several volumes) gets the strongest wording; Standard is a plainer cross-drive notice;
-  // Light (same-drive only, or no summary) keeps the original reassuring line. Absent a summary the
-  // batch is assumed undoable — that is the pre-summary behaviour, and a selection small enough to
-  // reach this path without one is far under the cap.
+  // Light (same-drive only, or no summary) keeps the original reassuring line.
   const level: ConfirmLevel = summary?.confirmLevel ?? "light";
-  const callToAction = confirmCallToAction(level, summary?.undoable ?? true);
+  const callToAction = confirmCallToAction(level);
 
   const text =
     `${header}\n\n` +

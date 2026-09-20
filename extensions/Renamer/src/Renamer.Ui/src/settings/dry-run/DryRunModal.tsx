@@ -647,15 +647,6 @@ export function DryRunModal({
         </div>
       ) : null}
 
-      {/* Stated before the button that starts the run, not after it: the server has already decided
-          this batch is too large to journal, so undo will not be offered once it has finished. */}
-      {summary && !summary.blastRadius.undoable && counts && counts.willChange > 0 ? (
-        <p className="mt-6 text-sm text-secondary">
-          This rename is too large to record an undo — it cannot be reversed. The rows above are the
-          check that matters.
-        </p>
-      ) : null}
-
       {/* The rename reads the saved settings, while this scan previewed whatever was on screen when
           it opened. Starting a rename from rows that describe different settings runs an operation
           nobody previewed — a kind excluded in these rows is renamed anyway. The panel-level button

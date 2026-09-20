@@ -18,7 +18,6 @@ public sealed class FakeRevertJournal : IRevertJournal
     private readonly ConcurrentDictionary<(string RunId, long Seq), bool> _retired = new();
     private readonly ConcurrentQueue<DateTime> _purgeCalls = new();
     private long _lastSeq;
-    private bool _suppressed;
 
     /// <summary>Every appended row, in append order, whether or not it has since been retired.</summary>
     public IReadOnlyList<RevertRow> Rows => [.. _appended];
@@ -52,40 +51,10 @@ public sealed class FakeRevertJournal : IRevertJournal
             throw AppendThrow;
         }
 
-        if (Volatile.Read(ref _suppressed))
-        {
-            return Task.CompletedTask;
-        }
-
         _appended.Enqueue(row with { Seq = Interlocked.Increment(ref _lastSeq) });
         if (_batches.TryGetValue(row.RunId, out var batch))
         {
             batch.CountAppended();
-        }
-
-        return Task.CompletedTask;
-    }
-
-    public Task SuppressAsync(string operationId, CancellationToken ct = default)
-    {
-        Volatile.Write(ref _suppressed, true);
-
-        var dropped = BatchesOf(operationId);
-        foreach (var runId in dropped)
-        {
-            _batches.TryRemove(runId, out _);
-        }
-
-        var kept = _appended.Where(r => !dropped.Contains(r.RunId)).ToList();
-        _appended.Clear();
-        foreach (var row in kept)
-        {
-            _appended.Enqueue(row);
-        }
-
-        foreach (var key in _retired.Keys.Where(k => dropped.Contains(k.RunId)).ToList())
-        {
-            _retired.TryRemove(key, out _);
         }
 
         return Task.CompletedTask;

@@ -84,7 +84,7 @@ public sealed partial class Renamer
         }
 
         await RunRenameChunksAsync(
-            kind, NextChunk, ids.Length, new OperationJournalBudget(Guid.NewGuid().ToString("N")),
+            kind, NextChunk, ids.Length, Guid.NewGuid().ToString("N"),
             options, freeSpaceProbe ?? AvailableFreeSpace, RenameChunkEntities, progress, ct);
     }
 
@@ -95,7 +95,7 @@ public sealed partial class Renamer
     // skip a page nor repeat one. A cancellation between chunks leaves earlier chunks done and
     // undoable.
     internal Task<string?> RunRenamerKindAsync(
-        RenamerFileKind kind, int totalEntities, OperationJournalBudget budget, RenamerOptions options,
+        RenamerFileKind kind, int totalEntities, string operationId, RenamerOptions options,
         AllowedIds allowedIds, IJobProgress progress, CancellationToken ct,
         Func<string, long>? freeSpaceProbe = null, int chunkEntities = RenameChunkEntities)
     {
@@ -153,7 +153,7 @@ public sealed partial class Renamer
         }
 
         return RunRenameChunksAsync(
-            kind, NextPageAsync, totalEntities, budget, options,
+            kind, NextPageAsync, totalEntities, operationId, options,
             freeSpaceProbe ?? AvailableFreeSpace, chunkEntities, progress, ct);
     }
 
@@ -164,7 +164,7 @@ public sealed partial class Renamer
         RenamerFileKind kind,
         Func<CancellationToken, Task<IReadOnlyList<int>>> nextChunk,
         int totalEntities,
-        OperationJournalBudget budget,
+        string operationId,
         RenamerOptions options,
         Func<string, long> freeSpaceProbe,
         int chunkEntities,
@@ -183,7 +183,7 @@ public sealed partial class Renamer
         // elevation because its two tables are extension-owned and carry none of CoveContext's
         // per-principal query filters.
         await using var journalScope = ScopeFactory.CreateAsyncScope();
-        using var journal = new CoveRevertJournal(journalScope.ServiceProvider.GetRequiredService<DbContext>());
+        await using var journal = new CoveRevertJournal(journalScope.ServiceProvider.GetRequiredService<DbContext>());
 
         int renamed = 0, skipped = 0, failed = 0, contested = 0, entitiesDone = 0;
         string? shortfall = null;
@@ -201,7 +201,7 @@ public sealed partial class Renamer
             }
 
             var outcome = await RunRenameChunkAsync(
-                chunk, kind, options, lookups, budget, journal, freeSpaceProbe,
+                chunk, kind, options, lookups, operationId, journal, freeSpaceProbe,
                 new ChunkSliceProgress(progress, entitiesDone, chunk.Count, totalEntities), ct);
 
             renamed += outcome.Renamed;
@@ -256,8 +256,8 @@ public sealed partial class Renamer
         RenamerFileKind kind,
         RenamerOptions options,
         RouteLookups lookups,
-        OperationJournalBudget budget,
-        IRevertJournal journal,
+        string operationId,
+        CoveRevertJournal journal,
         Func<string, long> freeSpaceProbe,
         IJobProgress progress,
         CancellationToken ct)
@@ -285,31 +285,47 @@ public sealed partial class Renamer
             var port = new CoveRenamerDataPort(readDb, _coveConfig);
             var planner = new RenamerPlanner(port);
 
+            // The chunk's entities in one bounded set of round-trips, the same shape the library scan
+            // uses, rather than one entity-graph load per id. The walk below still follows the caller's
+            // id order, so the preview order and the units it produces do not depend on what the
+            // database returned first. An id naming an entity the load did not return vanished between
+            // the id list and this read, and contributes nothing.
+            var loaded = await port.LoadEntitiesAsync(kind, ids, ct);
+            var byId = new Dictionary<int, RenamerEntity>(loaded.Count);
+            foreach (var entity in loaded)
+            {
+                byId[entity.EntityId] = entity;
+            }
+
             int planIndex = 0;
             foreach (var id in ids)
             {
                 ct.ThrowIfCancellationRequested();
-                var (plan, entity) = await planner.PlanWithEntityAsync(kind, id, options, lookups, ct);
-
-                // File sizes for the free-space sum live on the loaded entity's files, not on the plan
-                // item, so they are read off the entity the planner just loaded.
-                var sizeByFileId = entity?.Files.ToDictionary(f => f.FileId, f => f.SizeBytes) ?? [];
 
                 int actingThisItem = 0;
-                foreach (var item in plan.Items)
+                if (byId.TryGetValue(id, out var entity))
                 {
-                    if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
-                    {
-                        continue;
-                    }
+                    var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
 
-                    actingThisItem++;
-                    long size = sizeByFileId.GetValueOrDefault(item.FileId);
-                    // Each worker is handed a single-file plan so the executor acts on exactly this file;
-                    // the parent entity id rides the unit for logging.
-                    var unitPlan = new RenamerPlan(plan.EntityId, plan.Kind, [item]);
-                    planned.Add(new BatchUnit(plan.EntityId, unitPlan,
-                        (item.OldFullPath, item.NewFullPath, size)));
+                    // File sizes for the free-space sum live on the loaded entity's files, not on the
+                    // plan item, so they are read off the entity the plan was built from.
+                    var sizeByFileId = entity.Files.ToDictionary(f => f.FileId, f => f.SizeBytes);
+
+                    foreach (var item in plan.Items)
+                    {
+                        if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
+                        {
+                            continue;
+                        }
+
+                        actingThisItem++;
+                        long size = sizeByFileId.GetValueOrDefault(item.FileId);
+                        // Each worker is handed a single-file plan so the executor acts on exactly this
+                        // file; the parent entity id rides the unit for logging.
+                        var unitPlan = new RenamerPlan(plan.EntityId, plan.Kind, [item]);
+                        planned.Add(new BatchUnit(plan.EntityId, unitPlan,
+                            (item.OldFullPath, item.NewFullPath, size)));
+                    }
                 }
 
                 LogItemPlanned(runId, ++planIndex, ids.Count, id, actingThisItem);
@@ -404,9 +420,8 @@ public sealed partial class Renamer
             }
         });
 
-        // Now, and only now, open exactly one batch: the chunk produced acting work and it fits. The cap
-        // is measured in files, so it takes acting.Count and not the entity count.
-        await OpenOrSuppressBatchAsync(journal, runId, budget, kind, acting.Count, DateTime.UtcNow, ct);
+        // Now, and only now, open exactly one batch: the chunk produced acting work and it fits.
+        await journal.BeginBatchAsync(runId, operationId, kind, DateTime.UtcNow, ct);
 
         // Marks the planning/execution boundary in the log: the percentage now advances per completed
         // file, so a later stall is legible as "stuck partway through {Acting}", not as silence.
@@ -515,42 +530,6 @@ public sealed partial class Renamer
         contestedFiles > 0
             ? $" {contestedFiles} file(s) refused: more than one record names the same file."
             : "";
-
-    // Opens the run's journal batch, or suppresses journalling for the whole operation once its
-    // running acting-file total passes the row cap. Suppressing takes the operation out rather than
-    // recording part of it: a partly-journalled rename reads exactly like a whole one, and the undo
-    // after it is quietly partial. A whole-library run over the cap is not undoable at all, which the
-    // log states once per chunk that meets the latch.
-    //
-    // The manual run and the per-edit auto-renamer both decide it here, so a rename's undoability
-    // never depends on which path performed it.
-    internal async Task OpenOrSuppressBatchAsync(
-        IRevertJournal journal,
-        string runId,
-        OperationJournalBudget budget,
-        RenamerFileKind kind,
-        int actingFiles,
-        DateTime nowUtc,
-        CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(journal);
-        ArgumentNullException.ThrowIfNull(budget);
-
-        int operationTotal = budget.Add(actingFiles);
-
-        if (budget.Suppressed || IRevertJournal.ExceedsCap(operationTotal))
-        {
-            budget.Suppress();
-            // Latches this journal instance and deletes what the operation already wrote. A run spanning
-            // several kinds opens a journal per kind, so a later kind's instance has to be latched too.
-            // The delete is scoped to the operation, so every other action's undo survives.
-            await journal.SuppressAsync(budget.OperationId, ct);
-            LogBatchNotJournalled(runId, operationTotal, IRevertJournal.MaxJournalledFiles);
-            return;
-        }
-
-        await journal.BeginBatchAsync(runId, budget.OperationId, kind, nowUtc, ct);
-    }
 
     /// <summary>
     /// Records one planned entity's per-file outcomes to the host log: a line per renamed/moved file

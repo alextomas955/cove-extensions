@@ -31,7 +31,7 @@ public sealed partial class Renamer
 
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-        using var journal = new CoveRevertJournal(db);
+        await using var journal = new CoveRevertJournal(db);
 
         // A library nobody renames keeps its last batch replayable past the retention window, and the
         // panel already refuses that batch on the same constant. A restore the panel calls expired

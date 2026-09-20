@@ -551,7 +551,7 @@ public sealed partial class Renamer
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
 
-        using var journal = new CoveRevertJournal(db);
+        await using var journal = new CoveRevertJournal(db);
 
         // The read /undo names its target with, which is what makes the line this endpoint feeds
         // describe the work the button will do. Two reads that merely agreed today drifted the moment a

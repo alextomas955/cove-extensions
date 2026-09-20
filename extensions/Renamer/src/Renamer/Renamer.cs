@@ -253,7 +253,7 @@ public sealed partial class Renamer : FullExtensionBase
         int moved = await RunAsSystem.RunAsSystemAsync(scope.ServiceProvider, async () =>
         {
             var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-            using var journal = new CoveRevertJournal(db);
+            await using var journal = new CoveRevertJournal(db);
             return await JournalBlobMigration.RunAsync(Store, journal, DateTime.UtcNow, ct);
         });
 
@@ -310,25 +310,6 @@ public sealed partial class Renamer : FullExtensionBase
     // destination-folder map are released with each chunk, so a whole-library run costs what one full
     // selection costs.
     internal const int RenameChunkEntities = MaxEntityIdsPerRequest;
-
-    // The acting files one operation has offered the journal, and the latch its cap trips. The cap
-    // bounds a user action, not a chunk: measured per chunk, a whole-library run would never reach it
-    // and the undo it protects would be the partial record the cap exists to refuse. Once tripped it
-    // stays tripped for the operation, so a later chunk cannot journal the tail of a run whose head
-    // was dropped.
-    internal sealed class OperationJournalBudget(string operationId)
-    {
-        private int _actingFiles;
-
-        public string OperationId { get; } = operationId;
-
-        public bool Suppressed { get; private set; }
-
-        // Returns the operation's running total.
-        public int Add(int actingFiles) => _actingFiles += actingFiles;
-
-        public void Suppress() => Suppressed = true;
-    }
 
     // Bounds a single source-path regex match so a catastrophic-backtracking pattern is interrupted
     // and cannot hang the batch. Small because this is a short per-entity string test.

@@ -118,7 +118,6 @@ public sealed class ScanAggregator
                     CrossVolumeBytes: crossBytes,
                     VolumePairs: pairs,
                     ConfirmLevel: BatchPreview.ClassifyConfirm(crossCount, crossBytes, untruncated),
-                    Undoable: !IRevertJournal.ExceedsCap(tally.ActingFiles),
                     InFlightPathOverflowCount: tally.InFlightPathOverflowFiles);
 
                 return new ScanKindSummary(

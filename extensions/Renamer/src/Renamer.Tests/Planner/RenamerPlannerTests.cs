@@ -119,7 +119,7 @@ public sealed class RenamerPlannerTests
         var opts = new RenamerOptions { FilenameTemplate = "$title" };
 
         var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, default);
-        var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, default)).Plan;
+        var viaLoad = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         Assert.Equal(viaLoad.EntityId, loaded.EntityId);
         Assert.Equal(viaLoad.Kind, loaded.Kind);
@@ -152,7 +152,7 @@ public sealed class RenamerPlannerTests
         var opts = new RenamerOptions { FilenameTemplate = "$title", OnlyOrganized = true };
 
         var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, default);
-        var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, default)).Plan;
+        var viaLoad = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         Assert.Equal(RenamerStatus.SkipGated, Assert.Single(loaded.Items).Status);
         Assert.Equal(viaLoad.Items, loaded.Items);

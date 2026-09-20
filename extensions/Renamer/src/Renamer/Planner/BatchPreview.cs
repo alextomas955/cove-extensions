@@ -26,9 +26,7 @@ public sealed record VolumePairDelta(string From, string To, int Count, long Byt
 
 // The whole-batch blast-radius summary the preview surfaces alongside the per-item plan. Every member
 // is a scalar or a per-volume-pair tally, so nothing here grows with the library. CrossVolumeBytes
-// excludes same-volume moves, which consume no extra space. Undoable says whether the batch will be
-// journalled and so can be reversed, and is false past IRevertJournal.MaxJournalledFiles; it is carried
-// on the preview because the user has to learn it before the rename runs.
+// excludes same-volume moves, which consume no extra space.
 // InFlightPathOverflowCount is a count and never the paths: a batch reaches library size, and the
 // offending rows carry their own flag on the page that serves them.
 public sealed record PreviewSummary(
@@ -38,7 +36,6 @@ public sealed record PreviewSummary(
     long CrossVolumeBytes,
     IReadOnlyList<VolumePairDelta> VolumePairs,
     ConfirmLevel ConfirmLevel,
-    bool Undoable,
     int InFlightPathOverflowCount);
 
 // Pure whole-batch blast-radius aggregate over a planned item set - the preview's counterpart to
@@ -106,7 +103,6 @@ public static class BatchPreview
 
         return new PreviewSummary(
             totalCount, sameCount, crossCount, crossBytes, volumePairs, level,
-            Undoable: !IRevertJournal.ExceedsCap(totalCount),
             InFlightPathOverflowCount: inFlightOverflowCount);
     }
 

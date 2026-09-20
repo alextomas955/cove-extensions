@@ -8,7 +8,6 @@ using Renamer.Options;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 
-using OperationJournalBudget = Renamer.Renamer.OperationJournalBudget;
 
 namespace Renamer.Tests.Jobs;
 
@@ -96,7 +95,7 @@ public sealed class AuthorizedPagingTests
                     authz, caller, kind, Permissions.VideosWrite, pageIds, token);
 
             await ext.RunRenamerKindAsync(
-                RenamerFileKind.Video, count, new OperationJournalBudget("op"), options, allowedIds,
+                RenamerFileKind.Video, count, "op", options, allowedIds,
                 new FakeJobProgress(), default, chunkEntities: chunkEntities);
 
             return authz;
