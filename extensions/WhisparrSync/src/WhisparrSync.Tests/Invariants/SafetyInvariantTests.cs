@@ -1060,9 +1060,7 @@ public sealed class SafetyInvariantTests
             new MissingIdentityResolver(
                 new StubEntityIdentities("an-entity"), catalogue, new StubEntityNames()),
             catalogue,
-            new StubOwnedScenes(owned),
-            new SceneStatusPort(),
-            new SceneExclusionPort());
+            new StubOwnedScenes(owned));
 
         return planner.PlanAsync(
             new MissingPageRequest(

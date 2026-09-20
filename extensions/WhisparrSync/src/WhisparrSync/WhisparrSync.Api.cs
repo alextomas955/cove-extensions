@@ -255,7 +255,7 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(LibraryStatusRoute,
             (string kind, LibraryStatusRequest request, ICurrentPrincipalAccessor principal,
              OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
-             ILibraryStatusPort cards, ILibraryCardIdentityPort sceneCards, CancellationToken ct)
+             LibraryStatusPort cards, ILibraryCardIdentityPort sceneCards, CancellationToken ct)
                 => ReadLibraryStatusAsync(
                     kind, request, principal, options, credentials, client, cards, sceneCards, ct))
             .WithTags(WireTag)

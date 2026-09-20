@@ -194,9 +194,7 @@ public sealed class MissingAbstentionTests
                 catalogue,
                 new StubEntityNames(new EntityName("Brazzers", []))),
             catalogue,
-            new StubOwnedScenes(),
-            new SceneStatusPort(),
-            new SceneExclusionPort())
+            new StubOwnedScenes())
             .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
 
         Assert.Equal(MissingRefusalKind.ProviderUnreachable, view.Refusal);
@@ -219,9 +217,7 @@ public sealed class MissingAbstentionTests
                 catalogue,
                 new StubEntityNames(new EntityName("Brazzers", []))),
             catalogue,
-            new StubOwnedScenes(),
-            new SceneStatusPort(),
-            new SceneExclusionPort())
+            new StubOwnedScenes())
             .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
 
         Assert.Equal(MissingRefusalKind.NoProviderIdForEntity, view.Refusal);
@@ -243,9 +239,7 @@ public sealed class MissingAbstentionTests
             new MissingIdentityResolver(
                 new StubEntityIdentities("an-entity"), catalogue, new StubEntityNames()),
             catalogue,
-            owned,
-            new SceneStatusPort(),
-            new SceneExclusionPort())
+            owned)
             .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
 
         // The derivation is delegate-driven and performs no I/O of its own, so the only writes it
@@ -291,9 +285,7 @@ public sealed class MissingAbstentionTests
             new MissingIdentityResolver(
                 new StubEntityIdentities("an-entity"), catalogue, new StubEntityNames()),
             catalogue,
-            new StubOwnedScenes(),
-            new SceneStatusPort(),
-            new SceneExclusionPort());
+            new StubOwnedScenes());
     }
 
     private static List<ProviderScene> ScenesNamed(params string[] ids)

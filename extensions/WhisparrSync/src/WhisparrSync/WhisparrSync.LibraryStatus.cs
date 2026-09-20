@@ -34,7 +34,7 @@ public sealed partial class WhisparrSync
             OptionsStore options,
             ICredentialPort credentials,
             IWhisparrClient client,
-            ILibraryStatusPort cards,
+            LibraryStatusPort cards,
             ILibraryCardIdentityPort sceneCards,
             CancellationToken ct)
     {
@@ -96,7 +96,7 @@ public sealed partial class WhisparrSync
     /// </remarks>
     private static async Task<(IReadOnlyList<LibraryStatusRow>? Rows, bool AnyReadDropped)>
         ReadEntityCardsAsync(
-            ILibraryStatusPort cards,
+            LibraryStatusPort cards,
             WhisparrEntityKind entityKind,
             MonitoringTarget target,
             IReadOnlyList<int> coveIds,
@@ -118,7 +118,7 @@ public sealed partial class WhisparrSync
     /// </remarks>
     private static async Task<(IReadOnlyList<LibraryStatusRow>? Rows, bool AnyReadDropped)>
         ReadSceneCardsAsync(
-            ILibraryStatusPort cards,
+            LibraryStatusPort cards,
             ILibraryCardIdentityPort sceneCards,
             MonitoringTarget target,
             IReadOnlyList<int> coveIds,
