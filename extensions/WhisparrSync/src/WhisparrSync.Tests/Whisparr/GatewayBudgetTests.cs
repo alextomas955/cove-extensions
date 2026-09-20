@@ -8,7 +8,7 @@ using V2Api = Whisparr2.Net.Api;
 namespace WhisparrSync.Tests.Whisparr;
 
 /// <summary>
-/// How long a call through the older generation's gateway is allowed to take.
+/// How long a call through v2's gateway is allowed to take.
 /// </summary>
 /// <remarks>
 /// A read of everything an instance holds waits on the instance building all of it, which a per-item

@@ -1,5 +1,5 @@
-// Whether a callback secret can travel out of band on the older Whisparr generation, which has no
-// custom-header field for one.
+// Whether a callback secret can travel out of band on Whisparr v2, which has no custom-header
+// field for one.
 //
 // Two INDEPENDENT questions, and the answer to the pair is what decides the fallback. Either one
 // answering no settles it, so both are recorded whatever they say:

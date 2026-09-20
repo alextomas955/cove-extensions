@@ -364,12 +364,12 @@ public sealed class MonitorBodyPinTests
     public void BothGenerationsOfferTheSameThreeImportModesAndNoInPlaceOne()
     {
         var expected = new[] { "chooseImportMode", "move", "copy" };
-        var newer = Keys(V3ImportModesFixture, "key");
-        var older = Keys(V2ImportModesFixture, "key");
+        var v3 = Keys(V3ImportModesFixture, "key");
+        var v2 = Keys(V2ImportModesFixture, "key");
 
-        Assert.Equal(expected, newer);
-        Assert.Equal(expected, older);
-        Assert.Equal(newer, older);
+        Assert.Equal(expected, v3);
+        Assert.Equal(expected, v2);
+        Assert.Equal(v3, v2);
 
         // The first is a placeholder the interface renders unselectable, so two are reachable.
         Assert.True(Array(V3ImportModesFixture)[0]!["disabled"]!.GetValue<bool>());
@@ -503,28 +503,28 @@ public sealed class MonitorBodyPinTests
     [Fact]
     public void TheCommandPayloadsSplitBetweenAnArrayAndAScalar()
     {
-        var newer = Array(V3CommandsFixture)
+        var v3 = Array(V3CommandsFixture)
             .ToDictionary(
                 entry => ((JsonObject)entry!)["name"]!.GetValue<string>(),
                 entry => (JsonObject)entry!,
                 StringComparer.Ordinal);
-        var older = Array(V2CommandsFixture)
+        var v2 = Array(V2CommandsFixture)
             .ToDictionary(
                 entry => ((JsonObject)entry!)["name"]!.GetValue<string>(),
                 entry => (JsonObject)entry!,
                 StringComparer.Ordinal);
 
-        Assert.Equal(["PerformersSearch", "RefreshStudios", "StudiosSearch"], newer.Keys.Order());
-        Assert.Equal(["RefreshSeries", "SeriesSearch"], older.Keys.Order());
+        Assert.Equal(["PerformersSearch", "RefreshStudios", "StudiosSearch"], v3.Keys.Order());
+        Assert.Equal(["RefreshSeries", "SeriesSearch"], v2.Keys.Order());
 
-        Assert.IsType<JsonArray>(newer["StudiosSearch"]["studioIds"]);
-        Assert.IsType<JsonArray>(newer["RefreshStudios"]["studioIds"]);
-        Assert.IsType<JsonArray>(newer["PerformersSearch"]["performerIds"]);
+        Assert.IsType<JsonArray>(v3["StudiosSearch"]["studioIds"]);
+        Assert.IsType<JsonArray>(v3["RefreshStudios"]["studioIds"]);
+        Assert.IsType<JsonArray>(v3["PerformersSearch"]["performerIds"]);
 
-        Assert.Null(older["SeriesSearch"]["seriesId"] as JsonArray);
-        Assert.Equal(1, older["SeriesSearch"]["seriesId"]!.GetValue<int>());
-        Assert.Null(older["RefreshSeries"]["seriesId"] as JsonArray);
-        Assert.Equal(1, older["RefreshSeries"]["seriesId"]!.GetValue<int>());
+        Assert.Null(v2["SeriesSearch"]["seriesId"] as JsonArray);
+        Assert.Equal(1, v2["SeriesSearch"]["seriesId"]!.GetValue<int>());
+        Assert.Null(v2["RefreshSeries"]["seriesId"] as JsonArray);
+        Assert.Equal(1, v2["RefreshSeries"]["seriesId"]!.GetValue<int>());
     }
 
     /// <summary>

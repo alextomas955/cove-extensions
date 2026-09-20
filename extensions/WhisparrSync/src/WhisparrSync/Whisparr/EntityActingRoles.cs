@@ -326,7 +326,7 @@ public interface IWhisparrHeldSiteReading
 /// <summary>Reads what an instance holds at a path on its own filesystem.</summary>
 /// <remarks>
 /// A read role, so nothing declared here changes an instance. Both generations register it: each
-/// serves the route, and the older one was measured answering it.
+/// serves the route, and v2 was measured answering it.
 /// <para>
 /// Narrow in the same way the other roles are: the member names no route, no verb and no query key.
 /// The directory reaches the instance as a query value and can never change which route is issued.

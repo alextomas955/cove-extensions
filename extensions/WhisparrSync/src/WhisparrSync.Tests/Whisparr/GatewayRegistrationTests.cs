@@ -70,32 +70,32 @@ public sealed class GatewayRegistrationTests
     public async Task AKeyChangedAgainstTheSameAddressAsksForAnotherHandlerOnBothGenerations()
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "{}");
-        var askedForByTheOlder = 0;
-        var askedForByTheNewer = 0;
-        using var older = new Whisparr2Gateway(() =>
+        var askedForByV2 = 0;
+        var askedForByV3 = 0;
+        using var v2Gateway = new Whisparr2Gateway(() =>
         {
-            askedForByTheOlder++;
+            askedForByV2++;
             return handler;
         });
-        using var newer = new Whisparr3Gateway(() =>
+        using var v3Gateway = new Whisparr3Gateway(() =>
         {
-            askedForByTheNewer++;
+            askedForByV3++;
             return handler;
         });
 
-        await ReadThroughAsync(older, SomeAddress, SomeKey);
-        var olderAfterFirst = askedForByTheOlder;
-        await ReadThroughAsync(older, SomeAddress, OtherKey);
+        await ReadThroughAsync(v2Gateway, SomeAddress, SomeKey);
+        var v2AfterFirst = askedForByV2;
+        await ReadThroughAsync(v2Gateway, SomeAddress, OtherKey);
 
-        await ReadThroughAsync(newer, SomeAddress, SomeKey);
-        var newerAfterFirst = askedForByTheNewer;
-        await ReadThroughAsync(newer, SomeAddress, OtherKey);
+        await ReadThroughAsync(v3Gateway, SomeAddress, SomeKey);
+        var v3AfterFirst = askedForByV3;
+        await ReadThroughAsync(v3Gateway, SomeAddress, OtherKey);
 
         Assert.True(
-            askedForByTheOlder > olderAfterFirst,
+            askedForByV2 > v2AfterFirst,
             "v2 reused a registration bound to the key that was replaced");
         Assert.True(
-            askedForByTheNewer > newerAfterFirst,
+            askedForByV3 > v3AfterFirst,
             "v3 reused a registration bound to the key that was replaced");
     }
 

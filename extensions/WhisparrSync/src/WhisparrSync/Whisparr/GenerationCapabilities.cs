@@ -138,7 +138,7 @@ public static class GenerationCapabilities
     // as a side effect of one, so it has no implementation to register.
     //
     // The filesystem read is one of the two entries both generations hold. Each generated client
-    // declares the route, and the older generation was measured answering it at 2.2.0.231: a real
+    // declares the route, and v2 was measured answering it at 2.2.0.231: a real
     // directory answered its children, and a path with no counterpart on the instance answered an
     // empty listing rather than a failure.
     private static readonly WhisparrCapability[] V3Capabilities =

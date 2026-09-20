@@ -33,7 +33,7 @@ public sealed class NotificationPinTests
     /// The Webhook settings fields each build declares, in the order it declared them.
     /// </summary>
     /// <remarks>
-    /// Transcribed by hand. The absence of <c>headers</c> on the older build is the finding: a list of
+    /// Transcribed by hand. The absence of <c>headers</c> on the v2 build is the finding: a list of
     /// the fields that exist does not say that one is missing, and the missing one is why the two
     /// generations carry a secret differently.
     /// </remarks>
@@ -52,7 +52,7 @@ public sealed class NotificationPinTests
     /// flag that build declared for it.
     /// </summary>
     [Fact]
-    public void TheHeadersFieldIsPresentOnTheNewerBuildAndAbsentOnTheOlder()
+    public void TheHeadersFieldIsPresentOnTheV3BuildAndAbsentOnTheV2One()
     {
         var declared = DeclaredField(V3SchemaFixture, V3HeaderSecretRegistration.HeadersField);
 
@@ -65,7 +65,7 @@ public sealed class NotificationPinTests
     }
 
     /// <summary>
-    /// The older build's carrier pair, with the privacies it declared, on both builds.
+    /// The v2 build's carrier pair, with the privacies it declared, on both builds.
     /// </summary>
     /// <remarks>
     /// Present on both, which is why the choice of carrier is about which one DELIVERS rather than

@@ -586,8 +586,7 @@ public sealed partial class WhisparrSync
     /// <summary>
     /// The surfaces the host mounts: one dedicated settings tab, one control in each of the studio
     /// and performer pages' own action rows, one catalogue tab per entity page type, one scene tab
-    /// on the video detail page, and one bulk action per selection bar, the scene one on the newer
-    /// generation alone.
+    /// on the video detail page, and one bulk action per selection bar, the scene one on v3 alone.
     /// </summary>
     /// <remarks>
     /// Page layout, so the host renders the panel full-width with no card chrome and this extension
@@ -616,8 +615,8 @@ public sealed partial class WhisparrSync
     /// The studio and performer bulk actions stay registered on both generations: an action's
     /// PRESENCE is a manifest fact and a verb's AVAILABILITY is a runtime one, enforced in the
     /// handler and again at the route. The scene selection action departs from that principle and is
-    /// registered on v3 alone, because no verb it offers reaches anything on the
-    /// older one. The reader on v2 therefore meets a studio or performer selection
+    /// registered on v3 alone, because no verb it offers reaches anything on v2. The reader on v2
+    /// therefore meets a studio or performer selection
     /// that offers a Whisparr button explaining itself, and a scene selection that offers no button
     /// at all.
     /// </para>
@@ -638,9 +637,9 @@ public sealed partial class WhisparrSync
             .AddSlot("studio-detail-actions", componentName: "WhisparrStudioActions", order: 100)
             .AddSlot("performer-detail-actions", componentName: "WhisparrPerformerActions", order: 100)
 
-            // Both unconditional. A studio monitors as a series matched by ThePornDB on the older
-            // generation too, and MonitorStudio is in both capability tables, so the studio surfaces
-            // work whichever generation is connected.
+            // Both unconditional. A studio monitors as a series matched by ThePornDB on v2 too, and
+            // MonitorStudio is in both capability tables, so the studio surfaces work whichever
+            // generation is connected.
             .AddSlot("studios-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
             .AddSlot("studio-card-footer", componentName: "WhisparrStudioCardBadge", order: 100)
             .AddSlot("studios-list-row", componentName: "WhisparrStudioLibraryRow", order: 100)

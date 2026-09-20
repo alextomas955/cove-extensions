@@ -392,8 +392,8 @@ public sealed class WhisparrSyncOptionsTests
     /// </summary>
     /// <remarks>
     /// Choosing the narrow scope wrongly costs one more gesture. Choosing the wide one wrongly marks
-    /// a whole back catalogue wanted, which spends indexer traffic and disk, and on the newer
-    /// generation narrowing the scope again does not undo it.
+    /// a whole back catalogue wanted, which spends indexer traffic and disk, and on v3 narrowing the
+    /// scope again does not undo it.
     /// </remarks>
     [Theory]
     [InlineData("\"somethingElse\"")]
