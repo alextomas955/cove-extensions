@@ -18,7 +18,7 @@ export const WHISPARR_SYNC_EXTENSION = resolveExtensionPaths(import.meta.url, {
 // this extension starts a Whisparr, and a fixture on the shared `test` would be loaded by every
 // extension's specs whether or not they have one.
 export const test = baseTest.extend({
-  extension: [WHISPARR_SYNC_EXTENSION, { option: true }],
+  extension: [WHISPARR_SYNC_EXTENSION, { scope: "worker", option: true }],
   ...whisparrFixtures(),
 });
 
