@@ -11,8 +11,8 @@ namespace WhisparrSync.Monitoring;
 /// <remarks>
 /// Pure but for <see cref="MovedSiteRoot"/>, which changes the resource it is handed and says why.
 /// Every flag that suppresses acquisition is set here, from ONE local, so an edit cannot set one
-/// spelling and miss the other. v2's pair is not v3's: a rule stated in the
-/// newer spellings leaves every body composed here unguarded.
+/// spelling and miss the other. v2's pair is not v3's: a rule stated in v3's
+/// spellings leaves every body composed here unguarded.
 /// <para>
 /// This generation addresses a studio as a series and its catalogue as years, which is why the wire
 /// field names below read the way they do. A wire field name is not user-facing wording, and no

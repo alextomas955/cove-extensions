@@ -107,15 +107,15 @@ public sealed class SecondaryVerbTests
     }
 
     /// <summary>
-    /// The catalogue refresh names an id ARRAY on v3 and a single SCALAR id on the
-    /// older one, and neither spelling reaches the other generation.
+    /// The catalogue refresh names an id ARRAY on v3 and a single SCALAR id on v2, and neither
+    /// spelling reaches the other generation.
     /// </summary>
     /// <remarks>
     /// The split is real and silent: a cross-lineage payload is answered as created and does nothing
     /// at all, so what is asserted is the composed body rather than any status.
     /// </remarks>
     [Fact]
-    public void TheRefreshCommandComposesAnArrayOnTheNewerGenerationAndAScalarOnTheOlder()
+    public void TheRefreshCommandComposesAnArrayOnV3AndAScalarOnV2()
     {
         var studio = V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Studio, 1);
         var performer = V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Performer, 1);
@@ -381,13 +381,13 @@ public sealed class SecondaryVerbTests
 
         Assert.All(handler.Requests, request => Assert.Equal("/api/v3/command", request.Path));
 
-        var newer = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[0].Body));
-        Assert.Equal("StudiosSearch", newer["name"]!.GetValue<string>());
-        Assert.Equal([4], Assert.IsType<JsonArray>(newer["studioIds"]).Select(id => id!.GetValue<int>()));
+        var v3 = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[0].Body));
+        Assert.Equal("StudiosSearch", v3["name"]!.GetValue<string>());
+        Assert.Equal([4], Assert.IsType<JsonArray>(v3["studioIds"]).Select(id => id!.GetValue<int>()));
 
-        var older = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[1].Body));
-        Assert.Equal("SeriesSearch", older["name"]!.GetValue<string>());
-        Assert.Equal(3, older["seriesId"]!.GetValue<int>());
+        var v2 = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[1].Body));
+        Assert.Equal("SeriesSearch", v2["name"]!.GetValue<string>());
+        Assert.Equal(3, v2["seriesId"]!.GetValue<int>());
 
         // A lineage this product does not manage composes nothing rather than defaulting to either
         // generation's shape.
