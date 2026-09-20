@@ -2,16 +2,12 @@
  * The action handler behind the videos selection bar: it asks what to do with the selected scenes,
  * then hands the whole selection to one background run.
  *
- * The choice is an imperatively mounted overlay rather than the browser's own confirm dialog. A
- * confirm answers yes or no, and this needs one of five verbs in an order the reader can rely on;
- * a selection-bar handler owns no React tree, which is what the imperative mounter was written for.
+ * The choice is an imperatively mounted overlay because a selection-bar handler owns no React tree,
+ * and a confirm dialog answers yes or no where this needs one of five verbs.
  *
- * Nothing is read before the overlay opens. The rows are the same five whenever this handler can be
- * reached at all, because the action reaches the manifest on v3 alone.
- *
- * Leaving without choosing, and every refusal, answer the cancelled result. That is what makes the
- * host suppress its own toast, and the host never clears the selection, so a refused gesture leaves
- * the reader with the selection they made and one sentence saying what happened to it.
+ * Leaving without choosing, and every refusal, answer the cancelled result. That makes the host
+ * suppress its own toast. The host never clears the selection, so a refused gesture leaves the
+ * reader with the selection they made.
  */
 import { createElement } from "react";
 import type { ActionPayload, HandlerResult } from "@cove-extensions/ui-shared";
@@ -28,13 +24,9 @@ import {
 import { BATCH_MENU_ROWS, type BatchMenuRow } from "./batchMenuLogic";
 import { WhisparrBatchChooser } from "./WhisparrBatchChooser";
 
-/**
- * The selection type this handler answers to.
- *
- * The host's selection bar normalizes only the two media plurals, so a studio or performer selection
- * arrives PLURAL while a video selection arrives SINGULAR. The route names the same singular, so the
- * two spellings meet here and nowhere else.
- */
+// The host's selection bar normalizes only the two media plurals, so a studio or performer
+// selection arrives plural while a video selection arrives singular. The route names the same
+// singular.
 const VIDEOS_SELECTION_TYPE = "video";
 
 export async function sceneBatchSelected(
@@ -60,8 +52,7 @@ export async function sceneBatchSelected(
 
   try {
     // PascalCase, matching the C# request record. Requests bind case-insensitively while responses
-    // are camelCase, so the casing is read from the server per direction rather than assumed to be
-    // one.
+    // are camelCase, so the casing is read from the server per direction.
     await postAction(api("scenes/batch"), {
       EntityType: payload.entityType,
       Verb: chosen.verb,
@@ -77,13 +68,8 @@ export async function sceneBatchSelected(
   return {};
 }
 
-/**
- * The sentence one refused gesture is stated in.
- *
- * Chosen on the code the answer names rather than on any of its text. This generation answers a
- * refusal with a body carrying a full stack trace, so the body is read for its code and for nothing
- * else, and each bound names the limit that actually applied rather than a general one.
- */
+// Chosen on the code the answer names, never on its text: a refusal body can carry a full stack
+// trace.
 function refusalSentenceFor(refusal: unknown): string {
   if (!(refusal instanceof ApiError)) return RUN_WAS_NOT_STARTED;
 
@@ -97,7 +83,6 @@ function refusalSentenceFor(refusal: unknown): string {
   }
 }
 
-/** The code one refusal answer names, or null where it named none that could be read. */
 function codeNamedIn(answer: string): string | null {
   try {
     const named: unknown = JSON.parse(answer);
@@ -111,12 +96,7 @@ function codeNamedIn(answer: string): string | null {
   }
 }
 
-/**
- * Shows one sentence over the selection, with a way out and nothing to choose between.
- *
- * The same overlay the reader just answered, reopened, rather than a second surface saying the same
- * kind of thing in a different place.
- */
+// Reopens the same overlay with no rows, so the refusal is stated where the choice was made.
 async function stated(reason: string, count: number): Promise<void> {
   await presentOverlay<BatchMenuRow>((finish) =>
     createElement(WhisparrBatchChooser, { rows: [], count, reason, onChoose: finish }),

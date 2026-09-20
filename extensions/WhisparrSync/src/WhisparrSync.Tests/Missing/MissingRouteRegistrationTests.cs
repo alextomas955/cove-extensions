@@ -8,29 +8,12 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Missing;
 
-/// <summary>
-/// What the catalogue tab is registered as, and which tier each of its routes declares.
-/// </summary>
-/// <remarks>
-/// The host resolves a tab's <c>componentName</c> to the bundle's own component map by exact string
-/// and renders nothing, with no error, when they differ. It also substitutes only <c>{entityId}</c>
-/// into a count endpoint, so a registration whose baked kind disagrees with its own page type asks
-/// one page's badge about another kind and reports nothing wrong.
-/// <para>
-/// Both sides of each pair are read from the tier that owns them. A literal restated here would
-/// agree with whichever side it was copied from and stop reporting the other.
-/// </para>
-/// </remarks>
+// The host matches a tab's componentName against the bundle's component map by exact string and
+// renders nothing, with no error, when they differ. It substitutes only {entityId} into a count
+// endpoint, so a registration whose baked kind disagrees with its page type asks about another kind
+// and reports nothing wrong.
 public sealed class MissingRouteRegistrationTests
 {
-    /// <summary>
-    /// The entity page types the catalogue tab is registered on, which are the host's own literals.
-    /// </summary>
-    /// <remarks>
-    /// Also what selects the catalogue tab out of the manifest. The video detail page carries a tab
-    /// of its own with no catalogue behind it, and it is covered where the manifest's two
-    /// generations are compared.
-    /// </remarks>
     private static readonly string[] PageTypes = ["studio", "performer", "tag"];
 
     [Fact]
@@ -45,9 +28,6 @@ public sealed class MissingRouteRegistrationTests
         Assert.All(tabs, tab => Assert.False(string.IsNullOrWhiteSpace(tab.ComponentName)));
     }
 
-    /// <summary>
-    /// Each count endpoint bakes its own registration's kind, and leaves the host its placeholder.
-    /// </summary>
     [Fact]
     public void EachCountEndpointBakesItsOwnPageTypeAndKeepsTheHostsPlaceholder()
     {
@@ -69,7 +49,6 @@ public sealed class MissingRouteRegistrationTests
         }
     }
 
-    /// <summary>Each catalogue route is mounted once, at the tier its reach expresses.</summary>
     [Fact]
     public async Task EachCatalogueRouteIsMountedOnceAtTheTierItsReachExpresses()
     {
@@ -117,9 +96,6 @@ public sealed class MissingRouteRegistrationTests
         await app.StopAsync(TestContext.Current.CancellationToken);
     }
 
-    /// <summary>
-    /// Which scene a per-scene route touches is a path segment, so no body can name one.
-    /// </summary>
     [Fact]
     public async Task ThePerSceneRoutesNameTheirSceneInThePath()
     {

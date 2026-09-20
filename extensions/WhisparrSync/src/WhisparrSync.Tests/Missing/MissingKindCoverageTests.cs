@@ -6,18 +6,6 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Missing;
 
-/// <summary>
-/// Every entity kind reaches the same derivation, and each resolves its identifier the same way.
-/// </summary>
-/// <remarks>
-/// Driven per kind rather than once with a kind argument, so a kind served by an arm nobody wrote
-/// fails here rather than answering the refusal a studio with no identifier answers.
-/// <para>
-/// The instance publishes no tag entity, so the tag case additionally asserts that no entity probe
-/// is spent. A read that widened into a catalogue enumeration to have something to ask would answer
-/// the same states at a cost that grows with what the instance holds.
-/// </para>
-/// </remarks>
 public sealed class MissingKindCoverageTests
 {
     private const string SomeKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
@@ -30,7 +18,6 @@ public sealed class MissingKindCoverageTests
     public static TheoryData<WhisparrEntityKind> EveryKind =>
         [WhisparrEntityKind.Studio, WhisparrEntityKind.Performer, WhisparrEntityKind.Tag];
 
-    /// <summary>An entity the library already identifies reaches the catalogue and gets cards.</summary>
     [Theory]
     [MemberData(nameof(EveryKind))]
     public async Task AnIdentifiedEntityOfEveryKindAnswersWithCards(WhisparrEntityKind kind)
@@ -49,10 +36,6 @@ public sealed class MissingKindCoverageTests
         Assert.Empty(names.Reads);
     }
 
-    /// <summary>
-    /// An entity the library holds no identifier for reaches the provider's exact-name lookup, with
-    /// the name and aliases the library holds.
-    /// </summary>
     [Theory]
     [MemberData(nameof(EveryKind))]
     public async Task AnEntityWithNoStoredIdentifierReachesTheNameLookup(WhisparrEntityKind kind)
@@ -73,9 +56,6 @@ public sealed class MissingKindCoverageTests
         Assert.Equal(["Vixen Media"], looked.Aliases);
     }
 
-    /// <summary>
-    /// An entity neither step identifies says so and asks the provider for no catalogue at all.
-    /// </summary>
     [Theory]
     [MemberData(nameof(EveryKind))]
     public async Task AnUnresolvableEntityRefusesAndReadsNoCatalogue(WhisparrEntityKind kind)
@@ -90,10 +70,6 @@ public sealed class MissingKindCoverageTests
         Assert.Equal(0, catalogue.PageReads);
     }
 
-    /// <summary>
-    /// An ambiguous name lookup counts as no identifier, because choosing between two exact matches
-    /// would leave the answer to match order.
-    /// </summary>
     [Theory]
     [MemberData(nameof(EveryKind))]
     public async Task TwoExactMatchesCountAsNoIdentifier(WhisparrEntityKind kind)
@@ -109,9 +85,7 @@ public sealed class MissingKindCoverageTests
         Assert.Equal(0, catalogue.PageReads);
     }
 
-    /// <summary>
-    /// A studio and a performer are probed once for the whole page; a tag has no entity to probe.
-    /// </summary>
+    // The instance publishes no tag entity, so a tag has nothing to probe.
     [Theory]
     [InlineData(WhisparrEntityKind.Studio, 1)]
     [InlineData(WhisparrEntityKind.Performer, 1)]

@@ -11,16 +11,9 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// The inbound route's own defences: the secret is compared before a byte of the body is read, the
-/// read is bounded by this extension's own cap, and an answer discloses nothing about the
-/// filesystem.
-/// </summary>
-/// <remarks>
-/// This is the one route Cove admits without a permission, so every assertion here is about what a
-/// caller who has not authenticated can reach. The recording core is what makes that answerable: a
-/// path that reaches no call on it reached the ingest not at all.
-/// </remarks>
+// This is the one route Cove admits without a permission, so every assertion here is about what a
+// caller who has not authenticated can reach. A path that reaches no call on the recording core
+// reached the ingest not at all.
 public sealed class CallbackBodyTests
 {
     private const string StoredSecret = "the-stored-secret";
@@ -54,14 +47,9 @@ public sealed class CallbackBodyTests
         Assert.Empty(core.Ingested);
     }
 
-    /// <summary>
-    /// Two wrong-secret deliveries at once are both refused, and neither reaches the ingest.
-    /// </summary>
-    /// <remarks>
-    /// Concurrently rather than in sequence: the secret is read per request through a shared scope
-    /// factory, and a check that admitted one of two racing callers would pass a sequential test
-    /// unchanged.
-    /// </remarks>
+    // Concurrently rather than in sequence: the secret is read per request through a shared scope
+    // factory, and a check that admitted one of two racing callers would pass a sequential test
+    // unchanged.
     [Fact]
     public async Task TwoConcurrentWrongSecretDeliveriesAreBothRefusedAndNeitherReachesTheIngest()
     {
@@ -79,12 +67,9 @@ public sealed class CallbackBodyTests
         Assert.Empty(core.Ingested);
     }
 
-    /// <summary>A body longer than the cap is refused without being materialised.</summary>
-    /// <remarks>
-    /// The bound is asserted on how much was READ, not on the answer: a handler that read the whole
-    /// stream and then measured it would answer the same and have already paid the cost this cap
-    /// exists to avoid.
-    /// </remarks>
+    // The bound is asserted on how much was read, not on the answer: a handler that read the whole
+    // stream and then measured it would answer the same and have already paid the cost this cap exists
+    // to avoid.
     [Fact]
     public async Task ABodyPastTheCapIsRefusedWithoutBeingMaterialised()
     {
@@ -105,7 +90,6 @@ public sealed class CallbackBodyTests
         Assert.Empty(core.Ingested);
     }
 
-    /// <summary>A declared length past the cap is refused before the stream is touched at all.</summary>
     [Fact]
     public async Task ADeclaredLengthPastTheCapIsRefusedBeforeTheStreamIsTouched()
     {
@@ -138,11 +122,8 @@ public sealed class CallbackBodyTests
         Assert.Empty(core.Ingested);
     }
 
-    /// <summary>A delivery from an agent this product does not manage is refused.</summary>
-    /// <remarks>
-    /// Where in a body to read is decided by the generation, so a delivery whose generation cannot
-    /// be read has no defined reading and is refused rather than guessed at.
-    /// </remarks>
+    // Where in a body to read is decided by the generation, so a delivery whose generation cannot be
+    // read has no defined reading and is refused rather than guessed at.
     [Fact]
     public async Task ADeliveryFromAnUnrecognisedAgentIsRefused()
     {
@@ -155,14 +136,8 @@ public sealed class CallbackBodyTests
         Assert.Empty(core.Ingested);
     }
 
-    /// <summary>
-    /// An authenticated import delivery reaches the ingest, and the answer names no path.
-    /// </summary>
-    /// <remarks>
-    /// The positive control for every refusal above: without it each 401 and 400 could equally mean
-    /// the handler refuses everything. The answer is asserted to disclose nothing about the
-    /// filesystem, which is what keeps this route from being a probe of it.
-    /// </remarks>
+    // The positive control for every refusal above: without it each 401 and 400 could equally mean the
+    // handler refuses everything. The answer is asserted to disclose nothing about the filesystem.
     [Fact]
     public async Task AnAuthenticatedImportDeliveryReachesTheIngestAndTheAnswerNamesNoPath()
     {
@@ -181,7 +156,6 @@ public sealed class CallbackBodyTests
         Assert.Equal(3102, ingested.ReportedSize);
     }
 
-    /// <summary>An event this product does not act on is answered without reaching the ingest.</summary>
     [Fact]
     public async Task AnEventTypeThisProductDoesNotActOnReachesNoIngest()
     {
@@ -196,15 +170,10 @@ public sealed class CallbackBodyTests
         Assert.Empty(core.Ingested);
     }
 
-    /// <summary>
-    /// A delivery read as one generation records its secret position on THAT generation's connection.
-    /// </summary>
-    /// <remarks>
-    /// The generation is read off the delivery's own user-agent while the settings page has the other
-    /// one selected, which is the ordinary state of a user who is moving between instances. The
-    /// selected generation's connection is asserted untouched, because a write that landed on it would
-    /// tell the page an instance is delivering that has not.
-    /// </remarks>
+    // The generation is read off the delivery's own user-agent while the settings page has the other
+    // one selected, which is the ordinary state of a user moving between instances. The selected
+    // generation's connection is asserted untouched, because a write landing on it would tell the page
+    // an instance is delivering that has not.
     [Fact]
     public async Task ADeliveryFromTheGenerationThatIsNotSelectedRecordsItsPositionOnItsOwnConnection()
     {
@@ -224,13 +193,8 @@ public sealed class CallbackBodyTests
         Assert.Null(stored.V3?.LastCallbackSecretPosition);
     }
 
-    /// <summary>
-    /// A delivery for a generation with no stored connection records nothing and is still answered.
-    /// </summary>
-    /// <remarks>
-    /// There is nothing to record a position on, and refusing the delivery over that would drop an
-    /// import for the sake of a reading the settings page only shows.
-    /// </remarks>
+    // There is nothing to record a position on, and refusing the delivery over that would drop an
+    // import for the sake of a reading the settings page only shows.
     [Fact]
     public async Task ADeliveryForAGenerationWithNoStoredConnectionRecordsNothingAndIsStillAnswered()
     {
@@ -258,7 +222,6 @@ public sealed class CallbackBodyTests
     private static byte[] CapturedV2()
         => Encoding.UTF8.GetBytes(ProbeFixtures.Read("whisparr-v2-2.2.0.231-webhook-import.json"));
 
-    /// <summary>A store holding a connection per generation, with one of them selected.</summary>
     private static async Task<OptionsStore> SeededAsync(
         WhisparrGeneration selected, bool storeV2Connection)
     {
@@ -285,7 +248,6 @@ public sealed class CallbackBodyTests
             http, services.GetRequiredService<IServiceScopeFactory>(), NullLogger.Instance, TestCt);
     }
 
-    /// <summary>The services the handler resolves, and nothing it does not.</summary>
     private static ServiceProvider Container(RecordingImportCore core, OptionsStore? options = null)
         => new ServiceCollection()
             .AddScoped<ICallbackSecretPort>(_ => new StoredSecretPort())
@@ -324,11 +286,8 @@ public sealed class CallbackBodyTests
     private static T ValueOf<T>(IResult result)
         => Assert.IsType<T>(Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
 
-    /// <summary>A body that reports whether, and how far, it was read.</summary>
-    /// <remarks>
-    /// The ordering assertion cannot be made on the handler's answer: a handler that read the body
-    /// and then compared the secret answers a wrong secret exactly as this one does.
-    /// </remarks>
+    // The ordering assertion cannot be made on the handler's answer: a handler that read the body and
+    // then compared the secret answers a wrong secret exactly as this one does.
     private sealed class WatchedStream(byte[] contents) : Stream
     {
         private int _position;
@@ -380,7 +339,6 @@ public sealed class CallbackBodyTests
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
-    /// <summary>The one secret every request in this file is authenticated against.</summary>
     private sealed class StoredSecretPort : ICallbackSecretPort
     {
         public Task<string?> ReadAsync(CancellationToken ct) => Task.FromResult<string?>(StoredSecret);
@@ -389,14 +347,8 @@ public sealed class CallbackBodyTests
             => Task.FromResult(StoredSecret);
     }
 
-    /// <summary>
-    /// Records the candidates the ingest was asked for, so a path that reached it is visible and a
-    /// path that did not is provable.
-    /// </summary>
-    /// <remarks>
-    /// The arguments are recorded rather than a count: a count answers whether the ingest ran, and
-    /// the question a refusal has to answer is what it would have been asked to do.
-    /// </remarks>
+    // The arguments are recorded rather than a count: a count answers whether the ingest ran, and the
+    // question a refusal has to answer is what it would have been asked to do.
     private sealed class RecordingImportCore : IImportCore
     {
         public List<ImportCandidate> Ingested { get; } = [];

@@ -9,14 +9,8 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Addressing;
 
-/// <summary>
-/// What a stored mapping does to the candidates one library root is asked about, and what it does
-/// not do: the instance's answer still decides.
-/// </summary>
-/// <remarks>
-/// The instance's answers are supplied by a recording transport, so what the port asked about is read
-/// off the requests that left rather than off a call log a double kept.
-/// </remarks>
+// The instance's answers are supplied by a recording transport, so what the port asked about is
+// read off the requests that left rather than off a call log a double kept.
 public sealed class FolderAgreementMappingTests
 {
     private const string CoveRoot = "G:/Downloads/P";
@@ -29,30 +23,26 @@ public sealed class FolderAgreementMappingTests
 
     private static readonly Uri Address = new("http://whisparr:6969");
 
-    /// <summary>The mapped directory, holding the sample file at the length the library holds.</summary>
+    // The size matches SampleSize. A different one stops the candidate resolving.
     private const string HoldingTheSample = """
         {"parent":"/mnt/media/","directories":[],
          "files":[{"path":"/mnt/media/Blue Harbor/scene.mp4","name":"scene.mp4","size":41,"type":"file"}]}
         """;
 
-    /// <summary>The same directory, holding a file of another length.</summary>
     private const string HoldingAnotherLength = """
         {"parent":"/mnt/media/","directories":[],
          "files":[{"path":"/mnt/media/Blue Harbor/scene.mp4","name":"scene.mp4","size":42,"type":"file"}]}
         """;
 
-    /// <summary>A second mapped directory, holding the sample file at the library's length.</summary>
     private const string SecondMappingHoldingTheSample = """
         {"parent":"/srv/media/","directories":[],
          "files":[{"path":"/srv/media/Blue Harbor/scene.mp4","name":"scene.mp4","size":41,"type":"file"}]}
         """;
 
-    /// <summary>A directory the instance lists nothing in.</summary>
     private const string HoldingNothing = """
         {"parent":"/mnt/media/","directories":[],"files":[]}
         """;
 
-    /// <summary>The declared root's own directory, holding the sample file.</summary>
     private const string DeclaredRootHoldingTheSample = """
         {"parent":"/data/","directories":[],
          "files":[{"path":"/data/Blue Harbor/scene.mp4","name":"scene.mp4","size":41,"type":"file"}]}
@@ -60,9 +50,6 @@ public sealed class FolderAgreementMappingTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// One candidate is built under a mapped root, and it is the mapping's own spelling.
-    /// </summary>
     [Fact]
     public async Task AMappedRootIsAskedAboutOnePathUnderTheMapping()
     {
@@ -75,14 +62,8 @@ public sealed class FolderAgreementMappingTests
         Assert.Equal(["/mnt/media/Blue Harbor/scene.mp4"], addressed.Tried);
     }
 
-    /// <summary>
-    /// The roots the instance declares are not read at all for a root that has a mapping.
-    /// </summary>
-    /// <remarks>
-    /// An operator who states where a root is has settled it. Joining the two lists would reintroduce
-    /// the ambiguity the mapping was supplied to remove, and would leave the operator's own answer
-    /// competing with the guess it replaced.
-    /// </remarks>
+    // An operator who states where a root is has settled it. Joining the two lists would
+    // reintroduce the ambiguity the mapping was supplied to remove.
     [Fact]
     public async Task AMappedRootReadsTheRootsTheInstanceDeclaresNotAtAll()
     {
@@ -93,10 +74,6 @@ public sealed class FolderAgreementMappingTests
         Assert.Equal(0, declared.Reads);
     }
 
-    /// <summary>
-    /// A mapping the instance reports no file under resolves to nothing, exactly as an unmapped root
-    /// would.
-    /// </summary>
     [Fact]
     public async Task AMappingTheInstanceHoldsNothingUnderResolvesToNothing()
     {
@@ -109,11 +86,8 @@ public sealed class FolderAgreementMappingTests
         Assert.Equal(["/mnt/media/Blue Harbor/scene.mp4"], addressed.Tried);
     }
 
-    /// <summary>A mapping whose candidate carries a file of a different size resolves to nothing.</summary>
-    /// <remarks>
-    /// The size is what tells one filesystem from another holding a file of the same name, which is
-    /// the deployment a mapping is most likely to be typed wrongly into.
-    /// </remarks>
+    // The size is what tells one filesystem from another holding a file of the same name, which is
+    // the deployment a mapping is most likely to be typed wrongly into.
     [Fact]
     public async Task AMappingHoldingAFileOfAnotherLengthResolvesToNothing()
     {
@@ -124,11 +98,8 @@ public sealed class FolderAgreementMappingTests
         Assert.Equal(FolderAgreementRefusal.NothingResolved, addressed.Refusal);
     }
 
-    /// <summary>Removing a mapping returns the root to the declared roots on the next reading.</summary>
-    /// <remarks>
-    /// Both readings share one cache, which is what the host registers. A reading established under
-    /// the mapping must not answer the reading taken after it was removed.
-    /// </remarks>
+    // Both readings share one cache, which is what the host registers. Without the shared cache
+    // the test would pass whether or not the removal invalidated the earlier reading.
     [Fact]
     public async Task RemovingAMappingReturnsTheRootToTheDeclaredRootsOnTheNextReading()
     {
@@ -151,7 +122,6 @@ public sealed class FolderAgreementMappingTests
         Assert.Equal(1, declared.Reads);
     }
 
-    /// <summary>Changing a mapping asks about the new path on the next reading.</summary>
     [Fact]
     public async Task ChangingAMappingAsksAboutTheNewPathOnTheNextReading()
     {
@@ -174,11 +144,8 @@ public sealed class FolderAgreementMappingTests
         Assert.Equal(["/srv/media/Blue Harbor/scene.mp4"], addressed.Tried);
     }
 
-    /// <summary>A reading established against one instance is not reused for another.</summary>
-    /// <remarks>
-    /// An operator who stores a different connection address is pointing this extension at a
-    /// filesystem the previous instance's reading says nothing about.
-    /// </remarks>
+    // A different connection address points this extension at a filesystem the previous instance's
+    // reading says nothing about.
     [Fact]
     public async Task AReadingIsNotReusedOnceTheStoredInstanceAddressIsAnotherOne()
     {
@@ -202,15 +169,8 @@ public sealed class FolderAgreementMappingTests
         Assert.Equal(1, Probes(second));
     }
 
-    /// <summary>
-    /// A reading established against one URL base is not reused for a sibling base under the same
-    /// authority.
-    /// </summary>
-    /// <remarks>
-    /// Two Whisparrs behind one reverse proxy differ by their base path alone. A reading kept for the
-    /// authority would answer the second instance with the first one's filesystem spelling, and the
-    /// run would report nothing refused against a path the second instance has no counterpart for.
-    /// </remarks>
+    // Two Whisparrs behind one reverse proxy differ by their base path alone. A reading kept for
+    // the authority would answer the second instance with the first one's filesystem spelling.
     [Fact]
     public async Task AReadingIsNotReusedOnceTheStoredInstanceAddressIsAnotherUrlBase()
     {
@@ -236,7 +196,6 @@ public sealed class FolderAgreementMappingTests
         Assert.Equal(1, Probes(second));
     }
 
-    /// <summary>An address stored with a trailing separator meets the entry established without one.</summary>
     [Fact]
     public async Task AnAddressStoredWithATrailingSeparatorMeetsTheEntryEstablishedWithoutOne()
     {
@@ -258,11 +217,8 @@ public sealed class FolderAgreementMappingTests
         Assert.Equal(1, Probes(handler));
     }
 
-    /// <summary>A path a save resolved is in force on the next reading, unprobed.</summary>
-    /// <remarks>
-    /// The save stores the spelling the probe answered to, so the reading it held has to be stamped
-    /// with that spelling rather than with the one that was typed.
-    /// </remarks>
+    // The save stores the spelling the probe answered to, not the one that was typed, so the
+    // reading it held is stamped with the resolved spelling.
     [Fact]
     public async Task APathASaveResolvedAnswersTheNextReadingWithNoSecondProbe()
     {
@@ -282,15 +238,9 @@ public sealed class FolderAgreementMappingTests
         Assert.Equal(1, Probes(handler));
     }
 
-    /// <summary>
-    /// Two folders under one root with a stored path in force establish that root once.
-    /// </summary>
-    /// <remarks>
-    /// What a run costs grows with the roots an operator configured, never with the folders under
-    /// them. Reading the store before the cache is asked must put neither a probe nor a store read on
-    /// each folder: a load deserialises the whole blob every time, so only the port's own memoisation
-    /// keeps a run over a million folders to one.
-    /// </remarks>
+    // What a run costs grows with the roots an operator configured, never with the folders under
+    // them. A load deserialises the whole blob every time, so the store read is counted as well as
+    // the probe.
     [Fact]
     public async Task TwoFoldersUnderOneRootWithAStoredPathAreProbedForOnce()
     {
@@ -323,10 +273,6 @@ public sealed class FolderAgreementMappingTests
             Key,
             (IWhisparrInstanceFilesystemReading)TestWhisparrClient.Over(handler));
 
-    /// <summary>
-    /// The port over one store and one declared-root source, sharing <paramref name="cache"/> where
-    /// a case takes two readings and needs the second to meet what the first held.
-    /// </summary>
     private static FolderAddressPort Port(
         OptionsStore options, IReportedRootPort declared, FolderAgreementCache? cache = null)
         => new FolderAddressPort(
@@ -337,7 +283,6 @@ public sealed class FolderAgreementMappingTests
             cache ?? new FolderAgreementCache(TimeProvider.System),
             NullLogger.Instance);
 
-    /// <summary>A store holding <paramref name="mapping"/> for <see cref="CoveRoot"/>.</summary>
     private static async Task<OptionsStore> StoringAsync(string? mapping)
     {
         var options = new OptionsStore(new FakeStore());
@@ -353,14 +298,9 @@ public sealed class FolderAgreementMappingTests
                 : [new OutboundRootMapping { CoveRoot = CoveRoot, InstanceRoot = mapping }],
         };
 
-    /// <summary>How many filesystem reads left over <paramref name="handler"/>.</summary>
     private static int Probes(BodyRecordingHandler handler)
         => handler.Targets.Count(sent => sent.Contains("filesystem", StringComparison.Ordinal));
 
-    /// <summary>
-    /// The port over a store mapping <see cref="CoveRoot"/> to <paramref name="mapping"/>, with the
-    /// instance answering <paramref name="listing"/> to every filesystem read.
-    /// </summary>
     private static async Task<(FolderAddressPort Port, BodyRecordingHandler Handler,
         CountingInstanceRoots Declared)> OverMappingAsync(string listing, string mapping)
     {
@@ -378,14 +318,12 @@ public sealed class FolderAgreementMappingTests
         return (Port(options, declared), handler, declared);
     }
 
-    /// <summary>The one file a root establishes its agreement from, with no database behind it.</summary>
     private sealed class StubSampleFiles(SampleFile? answer) : ISampleFilePort
     {
         public Task<SampleFile?> ReadSampleFileAsync(string coveRoot, CancellationToken ct)
             => Task.FromResult(answer);
     }
 
-    /// <summary>The roots the instance declares, counting how often they were asked for.</summary>
     private sealed class CountingInstanceRoots(IReadOnlyList<string> roots) : IReportedRootPort
     {
         public int Reads { get; private set; }

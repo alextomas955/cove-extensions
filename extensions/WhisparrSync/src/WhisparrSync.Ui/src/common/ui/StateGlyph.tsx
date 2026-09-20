@@ -1,19 +1,15 @@
 /**
- * The one place a vocabulary icon key becomes a drawn glyph.
+ * The one place a vocabulary icon key becomes a drawn glyph. Every surface resolves a state here,
+ * so one state has one shape.
  *
- * Every surface that shows a state resolves it here, so the mark on a card, the mark in a list and
- * the mark on the row above them are the same shape. Two records of glyphs is how they stop being.
- *
- * The mark is hidden from assistive technology because the label beside it already carries the
- * meaning. It is what distinguishes two states that share a tint on screen.
+ * The mark is hidden from assistive technology because the label beside it carries the meaning.
  */
 import { Ban, Bookmark, Circle, CircleDashed, CircleHelp, Download } from "lucide-react";
 
-// `CircleHelp` is the name that exists on both sides of the externalized boundary, which
-// `CircleQuestionMark` is not: lucide-react is a host import-map external, so a name must exist in
-// the module the host serves as well as in the version resolved for typechecking. A named import
-// the host module lacks is a load-time error that takes the whole bundle down, and every surface of
-// this extension with it. A build and a typecheck cannot see that.
+// lucide-react is a host import-map external, so a name must exist in the module the host serves
+// as well as in the version resolved for typechecking. `CircleHelp` does, `CircleQuestionMark`
+// does not. A named import the host module lacks takes the whole bundle down at load time, and a
+// build and a typecheck cannot see it.
 const GLYPH: Record<string, typeof Bookmark> = {
   bookmark: Bookmark,
   circle: Circle,
@@ -23,7 +19,7 @@ const GLYPH: Record<string, typeof Bookmark> = {
   download: Download,
 };
 
-/** Which marks are drawn filled, so the state that leads the axis reads heavier than the rest. */
+/** Drawn filled, so the state that leads the axis reads heavier than the rest. */
 const FILLED = new Set(["bookmark"]);
 
 export function StateGlyph({
@@ -31,11 +27,10 @@ export function StateGlyph({
   className = "h-3.5 w-3.5",
 }: {
   iconKey: string;
-  /** The size, and a colour where the surface does not want the one it inherits. */
   className?: string;
 }) {
-  // A key with no glyph draws the plain circle rather than nothing: a chip with a label and no mark
-  // is a state distinguished by its tint alone, which is the one thing the mark is there to prevent.
+  // A key with no glyph draws the plain circle, not nothing. A chip with no mark leaves the state
+  // distinguished by its tint alone.
   const Icon = GLYPH[iconKey] ?? Circle;
   return (
     <Icon

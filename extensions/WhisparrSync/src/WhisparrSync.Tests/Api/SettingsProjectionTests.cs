@@ -11,58 +11,33 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace WhisparrSync.Tests.Api;
 
-/// <summary>
-/// The API key is write-only because nothing on the way out has anywhere to put it.
-/// </summary>
+// The API key is write-only: these cases fix that nothing on the way out has anywhere to put it.
 public sealed partial class SettingsProjectionTests
 {
-    /// <summary>The words a member carrying a secret would be named with.</summary>
     private static readonly string[] CredentialVocabulary =
         ["key", "secret", "token", "password", "credential", "auth"];
 
-    /// <summary>
-    /// Every string the settings view can carry, by declaring type and member name.
-    /// </summary>
-    /// <remarks>
-    /// Transcribed by hand. A member added to the view fails this until it is named here, which is
-    /// what makes the list a decision rather than a description.
-    /// </remarks>
+    // Transcribed by hand, so a string member added to the view fails until it is named here.
     private static readonly string[] StringsTheViewMayCarry =
     [
         "WhisparrSyncGenerationSettingsView.Address",
         "WhisparrSyncGenerationSettingsView.RecordedVersion",
     ];
 
-    /// <summary>
-    /// Every member of the stored options record whose NAME reads like a credential, none of which
-    /// carries one.
-    /// </summary>
-    /// <remarks>
-    /// Transcribed by hand. A member added to the record whose name matches the vocabulary above
-    /// fails this until it is named here, which is the point at which someone decides whether the
-    /// blob the bulk data route serves whole has grown a secret.
-    /// <para>
-    /// <c>LastCallbackSecretPosition</c> is an enum naming WHERE an inbound delivery carried its
-    /// secret. The secret itself, and the API key, live in a table this record has no member for.
-    /// </para>
-    /// </remarks>
+    // Members of the stored options record whose name reads like a credential, none of which
+    // carries one. LastCallbackSecretPosition is an enum naming where an inbound delivery carried
+    // its secret; the secret and the API key live in a table this record has no member for.
     private static readonly string[] OptionsMembersNamedLikeACredential =
     [
         "WhisparrSyncGenerationConnection.LastCallbackSecretPosition",
     ];
 
-    /// <summary>The settings the host serializes an extension's responses with.</summary>
+    // The settings the host serializes an extension's responses with.
     private static readonly JsonSerializerOptions HostJsonOptions = new(JsonSerializerDefaults.Web);
 
-    /// <summary>
-    /// The stored options record grows no member named as though it carried a credential.
-    /// </summary>
-    /// <remarks>
-    /// The blob the bulk extension-data route serves is this record, whole, and that route answered
-    /// an unauthenticated in-network caller on a Cove booted with authentication off. A search of a
-    /// serialized sample can only fail on a credential that happens to be in the sample, so the
-    /// members are read off the types instead.
-    /// </remarks>
+    // The bulk extension-data route serves this record whole, and it answers an unauthenticated
+    // in-network caller on a Cove booted with authentication off. A search of a serialized sample
+    // could only fail on a credential the sample happened to hold, so members are read off the type.
     [Fact]
     public void TheStoredOptionsRecordGrowsNoMemberNamedLikeACredential()
     {
@@ -112,8 +87,8 @@ public sealed partial class SettingsProjectionTests
         var body = JsonSerializer.Serialize(
             Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(read)).Value, HostJsonOptions);
 
-        // The discriminating control: the response DID describe the connection the key belongs to, so
-        // its silence about the key is about the key rather than about an empty answer.
+        // The control: the response does describe the connection the key belongs to, so its silence
+        // about the key is not just an empty answer.
         Assert.Contains("http://whisparr-v3:6969", body, StringComparison.Ordinal);
         Assert.Contains("\"keyIsSet\":true", body, StringComparison.Ordinal);
         Assert.DoesNotContain(key, body, StringComparison.OrdinalIgnoreCase);
@@ -142,14 +117,8 @@ public sealed partial class SettingsProjectionTests
             "these log parameters are named as though they carry a credential: " + string.Join(", ", named));
     }
 
-    /// <summary>
-    /// No template reporting a contained failure takes an exception, so no failure message is written.
-    /// </summary>
-    /// <remarks>
-    /// The source generator hands an <see cref="Exception"/> parameter to the sink rather than
-    /// rendering it, and a sink writes it whole - message, path and all. The set is read off the
-    /// template names, so a contained failure added later is covered the moment it is named.
-    /// </remarks>
+    // The source generator hands an Exception parameter to the sink rather than rendering it, and a
+    // sink writes it whole, message and path included.
     [Fact]
     public void NoContainedFailureTemplateTakesAnException()
     {
@@ -177,7 +146,6 @@ public sealed partial class SettingsProjectionTests
         Assert.Empty(placeholders);
     }
 
-    /// <summary>Every source-generated log method this extension declares.</summary>
     private static IEnumerable<MethodInfo> LogTemplates()
         => typeof(global::WhisparrSync.WhisparrSync).Assembly
             .GetTypes()
@@ -189,13 +157,8 @@ public sealed partial class SettingsProjectionTests
     private static string MessageOf(MethodInfo template)
         => template.GetCustomAttribute<LoggerMessageAttribute>()?.Message ?? "";
 
-    /// <summary>
-    /// Every string a type can carry, by declaring type and member name, walking the whole graph.
-    /// </summary>
-    /// <remarks>
-    /// A member of a type this walk cannot read fails outright rather than being skipped: a member it
-    /// cannot read is a member it cannot say is free of a key.
-    /// </remarks>
+    // A member of a type this walk cannot read fails outright rather than being skipped: a member
+    // it cannot read is a member it cannot say is free of a key.
     private static IEnumerable<string> StringMembersOf(Type type)
     {
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
@@ -228,14 +191,8 @@ public sealed partial class SettingsProjectionTests
         }
     }
 
-    /// <summary>
-    /// Every member name a type can reach, by declaring type and member name, walking the whole
-    /// graph including the element type of any collection.
-    /// </summary>
-    /// <remarks>
-    /// Unlike the string walk above this reads names rather than types, so a credential parked in a
-    /// number, a collection or a nested record is still named here.
-    /// </remarks>
+    // Reads names rather than types, so a credential parked in a number, a collection or a nested
+    // record is still named here.
     private static IEnumerable<string> MemberNamesOf(Type type, HashSet<Type> seen)
     {
         if (!seen.Add(type))
@@ -255,10 +212,6 @@ public sealed partial class SettingsProjectionTests
         }
     }
 
-    /// <summary>
-    /// The types declared by this extension that <paramref name="type"/> leads to, unwrapping a
-    /// nullable and the element type of a collection.
-    /// </summary>
     private static IEnumerable<Type> OwnTypesWithin(Type type)
     {
         var bare = Nullable.GetUnderlyingType(type) ?? type;

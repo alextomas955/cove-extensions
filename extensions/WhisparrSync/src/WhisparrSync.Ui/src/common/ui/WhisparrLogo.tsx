@@ -1,15 +1,13 @@
 /**
  * Whisparr's mark as a monochrome silhouette, knocked out through an SVG mask so the shape takes
- * `currentColor` from whatever draws it.
- *
- * The two-tone disc in `monitoring/WhisparrMark.tsx` cannot inherit a colour, so it cannot carry a
- * state. This one can, which is why a control whose only signal is its own colour draws this one.
+ * `currentColor` from whatever draws it. The two-tone disc in `monitoring/WhisparrMark.tsx` cannot
+ * inherit a colour, so it cannot carry a state.
  *
  * The mask id comes from `useId`, because two instances sharing one id would have the second
  * overwrite the first's mask in the document.
  *
- * Inline rather than an asset: an asset needs a URL this bundle cannot rely on. No stylesheet ships
- * with it either, a bundle's CSS being page-global in this host.
+ * It is inline because an asset needs a URL this bundle cannot rely on, and because a bundle's CSS
+ * is page-global in this host.
  */
 import { useId } from "react";
 

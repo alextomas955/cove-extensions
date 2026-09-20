@@ -4,11 +4,6 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Connection;
 
-/// <summary>
-/// The detector decides on the version major alone, and reports what the branch and the count fields
-/// say separately. A build whose corroborating readings contradict its own version is the build gap
-/// the product must distinguish from a generation gap, so it is reported and never resolved.
-/// </summary>
 public sealed class GenerationDetectorTests
 {
     [Theory]
@@ -19,10 +14,8 @@ public sealed class GenerationDetectorTests
     public void AManagedMajor_DecidesTheGeneration(string version, WhisparrGeneration expected)
         => Assert.Equal(expected, GenerationDetector.Detect(Document(version, "eros", counts: true)).Generation);
 
-    /// <summary>
-    /// A major this product does not manage yields no generation. The detector never picks the
-    /// nearest one it does have: an adapter chosen by guess would report a library it never read.
-    /// </summary>
+    // The detector never falls back to the nearest managed major. An adapter chosen by guess would
+    // report a library it never read.
     [Theory]
     [InlineData("1.0.0.1")]
     [InlineData("4.0.0.1")]
@@ -38,7 +31,6 @@ public sealed class GenerationDetectorTests
         Assert.Null(reading.Corroborated);
     }
 
-    /// <summary>The version found travels on the reading, which is what lets a refusal name it.</summary>
     [Fact]
     public void TheVersionFoundIsCarriedVerbatim()
         => Assert.Equal("9.9.9.9999", GenerationDetector.Detect(Document("9.9.9.9999", "eros", true)).Version);
@@ -63,11 +55,8 @@ public sealed class GenerationDetectorTests
     public void V2_CorroboratesOnItsBranchAndTheAbsenceOfTheCountFields()
         => Assert.True(GenerationDetector.Detect(Document("2.2.0.231", "v2", counts: false)).Corroborated);
 
-    /// <summary>
-    /// The build-gap reading. Each row is a document whose branch or count fields contradict its own
-    /// version major. The generation is still decided, because the version major is the decision, and
-    /// the disagreement is REPORTED rather than allowed to overturn it or to be averaged away.
-    /// </summary>
+    // Each row's branch or count fields contradict its own version major. The version major still
+    // decides the generation, and the disagreement is reported rather than overturning it.
     [Theory]
     [InlineData("3.3.8.1097", "v2", true, WhisparrGeneration.V3)]
     [InlineData("3.3.8.1097", "eros", false, WhisparrGeneration.V3)]
@@ -85,7 +74,7 @@ public sealed class GenerationDetectorTests
         Assert.False(reading.Corroborated, "a contradicting document was reported as corroborated");
     }
 
-    /// <summary>Both readings travel on the result, so a caller can say WHICH one disagreed.</summary>
+    // Both readings travel on the result, so a caller can name which one disagreed.
     [Fact]
     public void TheCorroboratingReadingsThemselvesAreCarried()
     {

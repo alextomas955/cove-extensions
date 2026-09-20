@@ -1,19 +1,14 @@
 // @vitest-environment jsdom
-/**
- * That a reason shared by several controls is stated once on the screen, and that a screen with no
- * affected control has no notice element at all.
- *
- * Absence is asserted as ELEMENT NOT PRESENT rather than as element empty: an empty notice still
- * occupies the screen and still reads as a constraint in force.
- *
- * The shared primitives stand in, because their `react` import resolves only inside a consuming bundle.
- */
+// Absence is asserted as no element rather than as an empty one, because an empty notice still
+// reads as a constraint in force.
 import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 
 import { render } from "../lib/testRender";
 import { CAP_UNAVAILABLE_ON_THIS_GENERATION } from "./copy";
 
+// The shared primitives stand in because their `react` import resolves only inside a consuming
+// bundle.
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
   return {
@@ -32,7 +27,7 @@ const { DisabledControl } = await import("./DisabledControl");
 
 const REASON = CAP_UNAVAILABLE_ON_THIS_GENERATION;
 
-/** A screen holding `count` controls that all share one reason. */
+// A screen holding `count` controls that all share one reason.
 function screenWith(count: number) {
   const names = Array.from({ length: count }, (_, i) => `Control ${String(i + 1)}`);
   return createElement(

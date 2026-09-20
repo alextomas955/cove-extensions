@@ -8,20 +8,11 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Whisparr;
 
-/// <summary>
-/// Whisparr v2's site and per-scene seams: the three site paths and what each sends, the row read,
-/// the composed monitor body, and the per-scene surface that is still refused there.
-/// </summary>
-/// <remarks>
-/// Asserted on parsed bodies and served answers rather than on source text. A text assertion passes
-/// on a body carrying a member the instance discards, and this generation discards the other one's
-/// spellings without saying so.
-/// <para>
-/// The identifiers are the ones the measurement recorded against
-/// <c>whisparr:v2-2.2.0-release.231</c>: the site's own number is 5999 and a scene there is named by
-/// the number the metadata provider issued.
-/// </para>
-/// </remarks>
+// Asserted on parsed bodies and served answers rather than on source text. A text assertion
+// passes on a body carrying a member the instance discards, and this generation discards the other
+// one's spellings without saying so.
+// The identifiers are the ones measured against whisparr:v2-2.2.0-release.231: the site's own
+// number is 5999 and a scene there is named by the number the metadata provider issued.
 public sealed class V2SceneRowTests
 {
     private const int SiteId = 5999;
@@ -40,23 +31,19 @@ public sealed class V2SceneRowTests
 
     private const string ApiKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
-    /// <summary>A second site the instance holds, and one it holds no row for.</summary>
     private const int SecondSiteNumber = 5998;
 
     private const int UnheldSiteNumber = 4242;
 
-    /// <summary>A stored studio identifier of the shape the metadata source mints.</summary>
+    // A stored studio identifier of the shape the metadata source mints.
     private const string StoredSiteId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
     private static readonly AddDefaults Defaults = new(1, "/config/library");
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>Registering a site is one create carrying the number, and no search.</summary>
-    /// <remarks>
-    /// The instance's own search proxy answers a server failure after a hundred seconds for studios
-    /// the metadata source knows, so a site path that took it could never register them.
-    /// </remarks>
+    // The instance's own search proxy answers a server failure after a hundred seconds for studios
+    // the metadata source knows, so a site path that took it could never register them.
     [Fact]
     public async Task RegisteringASiteSendsOneCreateCarryingTheNumberAndNothingElse()
     {
@@ -73,7 +60,6 @@ public sealed class V2SceneRowTests
         Assert.Equal(SiteId, Sent(sent.Body)["tvdbId"]!.GetValue<int>());
     }
 
-    /// <summary>The held read is one list narrowed to the number, and carries the matched row.</summary>
     [Fact]
     public async Task TheHeldReadNarrowsToTheNumberAndCarriesTheMatchedRow()
     {
@@ -97,7 +83,6 @@ public sealed class V2SceneRowTests
         Assert.DoesNotContain("Tushy Raw", read.Body, StringComparison.Ordinal);
     }
 
-    /// <summary>A site the list holds no row for reads as not held, which is not a refusal.</summary>
     [Fact]
     public async Task ASiteTheListHoldsNoRowForReadsAsNotHeld()
     {
@@ -112,7 +97,6 @@ public sealed class V2SceneRowTests
         Assert.Single(handler.Requests);
     }
 
-    /// <summary>Monitoring a studio is one create carrying the number and the scope.</summary>
     [Fact]
     public async Task MonitoringAStudioSendsOneCreateCarryingTheNumberAndTheScope()
     {
@@ -137,11 +121,8 @@ public sealed class V2SceneRowTests
         Assert.DoesNotContain(StoredSiteId, sent.Body, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>A site the source names none for is the no-identity refusal, and sends nothing.</summary>
-    /// <remarks>
-    /// The reader can act on that: the identity the library holds is the thing to fix. Reporting the
-    /// instance as the party that refused sends them to audit one that was never asked.
-    /// </remarks>
+    // The identity the library holds is the thing to fix. Reporting the instance as the party that
+    // refused sends a reader to audit one that was never asked.
     [Fact]
     public async Task ASiteTheSourceNamesNoneForRefusesWithNoIdentityAndSendsNothing()
     {
@@ -158,11 +139,8 @@ public sealed class V2SceneRowTests
         Assert.Empty(handler.Requests);
     }
 
-    /// <summary>A source that was not reached is a different refusal, and sends nothing.</summary>
-    /// <remarks>
-    /// It establishes nothing about the site, so reporting it as one the source names none for would
-    /// send a reader to fix an identity that may be correct.
-    /// </remarks>
+    // A read that was not reached establishes nothing about the site, so reporting it as one the
+    // source names none for would send a reader to fix an identity that may be correct.
     [Fact]
     public async Task ASourceThatWasNotReachedRefusesWithADifferentReasonAndSendsNothing()
     {
@@ -180,11 +158,8 @@ public sealed class V2SceneRowTests
         Assert.Empty(handler.Requests);
     }
 
-    /// <summary>A stored identifier that is already a number reaches the instance unaided.</summary>
-    /// <remarks>
-    /// The port is given no answer for it, so only its own short-circuit can produce a number and a
-    /// metadata read would answer that the source names no site.
-    /// </remarks>
+    // The port is given no answer for this identifier, so only its own short-circuit can produce a
+    // number. A metadata read would answer that the source names no site.
     [Fact]
     public async Task ANumericStoredIdentifierReachesTheInstanceWithNoMetadataRead()
     {
@@ -197,12 +172,8 @@ public sealed class V2SceneRowTests
         Assert.Equal(SiteId, Sent(Assert.Single(handler.Requests).Body)["tvdbId"]!.GetValue<int>());
     }
 
-    /// <summary>Neither add body names the site, and neither carries a slug.</summary>
-    /// <remarks>
-    /// The instance refuses an add carrying no title and discards the value of the one it is given,
-    /// resolving the site's real title and its slug from the number alone. The shipped document is
-    /// what is asserted, because what the instance receives is what this is about.
-    /// </remarks>
+    // The instance refuses an add carrying no title and discards the value of the one it is given,
+    // resolving the site's real title and its slug from the number alone.
     [Fact]
     public async Task NeitherAddBodyCarriesASlugAndEachTitleIsNonEmpty()
     {
@@ -230,11 +201,8 @@ public sealed class V2SceneRowTests
             });
     }
 
-    /// <summary>The held-site read answers only the numbers it was asked about, in one request.</summary>
-    /// <remarks>
-    /// One request whatever the batch holds. The instance narrows its own list by one number at a
-    /// time, so a narrowed read would cost one round trip per studio in the library.
-    /// </remarks>
+    // One request whatever the batch holds. The instance narrows its own list by one number at a
+    // time, so a narrowed read would cost one round trip per studio in the library.
     [Fact]
     public async Task TheHeldSiteReadAnswersOnlyTheNumbersItWasAskedAbout()
     {
@@ -248,7 +216,6 @@ public sealed class V2SceneRowTests
         Assert.Single(handler.Requests);
     }
 
-    /// <summary>A number the instance holds no row for is absent from the answer.</summary>
     [Fact]
     public async Task ANumberTheInstanceHoldsNoSiteRowForIsAbsentFromTheAnswer()
     {
@@ -261,7 +228,6 @@ public sealed class V2SceneRowTests
         Assert.Equal([SiteId], held);
     }
 
-    /// <summary>An empty input asks nothing.</summary>
     [Fact]
     public async Task AnEmptySiteInputSendsNoRequestAtAll()
     {
@@ -275,11 +241,8 @@ public sealed class V2SceneRowTests
         Assert.Empty(handler.Requests);
     }
 
-    /// <summary>An answer the read could not read raises, and answers no empty set.</summary>
-    /// <remarks>
-    /// An empty set would report every site it asked about as one the instance holds none of, which
-    /// is the opposite of the truth and would register the whole library a second time.
-    /// </remarks>
+    // An empty set would report every site it asked about as one the instance holds none of, which
+    // is the opposite of the truth and would register the whole library a second time.
     [Theory]
     [InlineData(HttpStatusCode.InternalServerError, "")]
     [InlineData(HttpStatusCode.OK, "{}")]
@@ -294,9 +257,8 @@ public sealed class V2SceneRowTests
                 Address, ApiKey, [SiteId], TestCt));
     }
 
-    /// <summary>
-    /// The instance's own site list, holding more rows than any case here asks about.
-    /// </summary>
+    // Holds more rows than any case asks about, so a read answering the whole list rather than the
+    // asked-about subset fails the count assertions.
     private static string ASiteList()
     {
         var rows = new JsonArray
@@ -317,11 +279,8 @@ public sealed class V2SceneRowTests
     private static JsonObject Sent(string body)
         => Assert.IsType<JsonObject>(JsonNode.Parse(body));
 
-    /// <summary>The composed body carries the instance's own row id and the flag, and nothing else.</summary>
-    /// <remarks>
-    /// The generated resource declares exactly these two members, so the whole member set is what is
-    /// asserted: a body gaining one, or losing the flag, is what reddens this.
-    /// </remarks>
+    // The generated resource declares exactly these two members, so the whole member set is
+    // asserted rather than the two members alone.
     [Fact]
     public void TheComposedMonitorBodyCarriesTheRowIdAndTheFlagAndNothingElse()
     {
@@ -332,7 +291,6 @@ public sealed class V2SceneRowTests
         Assert.True(body["monitored"]!.GetValue<bool>());
     }
 
-    /// <summary>The flag travels false as itself rather than as the member's absence.</summary>
     [Fact]
     public void TheFlagIsCarriedWhenItIsFalseToo()
     {
@@ -342,9 +300,6 @@ public sealed class V2SceneRowTests
         Assert.False(body["monitored"]!.GetValue<bool>());
     }
 
-    /// <summary>
-    /// The row read answers only the numbers it was asked about, whatever the site's list holds.
-    /// </summary>
     [Fact]
     public async Task TheRowReadAnswersOnlyTheNumbersItWasAskedAbout()
     {
@@ -360,13 +315,7 @@ public sealed class V2SceneRowTests
         Assert.Single(handler.Requests);
     }
 
-    /// <summary>
-    /// A number the site's list does not carry is absent from the answer rather than present with a
-    /// zero.
-    /// </summary>
-    /// <remarks>
-    /// A zero would be a row id a caller would then set the flag on, which is a row nobody named.
-    /// </remarks>
+    // A zero would be a row id a caller would then set the flag on, which is a row nobody named.
     [Fact]
     public async Task ANumberTheListDoesNotCarryIsAbsentRatherThanZero()
     {
@@ -380,13 +329,8 @@ public sealed class V2SceneRowTests
         Assert.DoesNotContain(UnlistedSceneNumber, rows.Keys);
     }
 
-    /// <summary>
-    /// An answer the read could not read raises, and answers no empty map.
-    /// </summary>
-    /// <remarks>
-    /// An empty map would report every scene it asked about as one the instance holds no row for,
-    /// which is the opposite of the truth.
-    /// </remarks>
+    // An empty map would report every scene it asked about as one the instance holds no row for,
+    // which is the opposite of the truth.
     [Theory]
     [InlineData(HttpStatusCode.NotFound, "")]
     [InlineData(HttpStatusCode.OK, "{}")]
@@ -399,7 +343,6 @@ public sealed class V2SceneRowTests
                 Address, ApiKey, SiteId, [FirstSceneNumber], TestCt));
     }
 
-    /// <summary>An empty input asks nothing.</summary>
     [Fact]
     public async Task AnEmptyInputSendsNoRequestAtAll()
     {
@@ -412,14 +355,8 @@ public sealed class V2SceneRowTests
         Assert.Empty(handler.Requests);
     }
 
-    /// <summary>
-    /// The per-scene surface still refuses on this generation, and sends nothing.
-    /// </summary>
-    /// <remarks>
-    /// The widening gave this generation a per-scene monitor role. It did not thereby give a reader
-    /// a control that cannot work: the verb needs the per-scene status read as well, and this
-    /// generation registers none, so the surface answers the absent capability before any request.
-    /// </remarks>
+    // The monitor verb needs the per-scene status read as well, and this generation registers none,
+    // so the surface answers the absent capability before any request.
     [Fact]
     public async Task TheSceneSurfaceStillRefusesTheMonitorVerbOnThisGeneration()
     {
@@ -436,13 +373,8 @@ public sealed class V2SceneRowTests
         Assert.Empty(host.Client.SceneStatuses);
     }
 
-    /// <summary>
-    /// One site's own row list, holding more rows than any case here asks about.
-    /// </summary>
-    /// <remarks>
-    /// Larger than the questions asked of it, so a read that answered the whole list rather than the
-    /// asked-about subset is what the count assertions catch.
-    /// </remarks>
+    // Holds more rows than any case asks about, so a read answering the whole list rather than the
+    // asked-about subset fails the count assertions.
     private static string ASiteListing()
     {
         var rows = new JsonArray

@@ -7,35 +7,22 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Connection;
 
-/// <summary>
-/// The callback address's merge rule, its two forms, and the secret the second of them carries.
-/// </summary>
-/// <remarks>
-/// The merge is the part of an edited address a user is allowed to change. Reading it as scheme, host
-/// and port only would make a Cove behind a reverse proxy on a subpath unable to produce a working
-/// callback, and the failure presents as Whisparr's.
-/// </remarks>
 public sealed class CallbackAddressTests
 {
     private const string ExtensionId = "com.alextomas955.whisparrsync";
 
-    /// <summary>
-    /// The id the merge is exercised against is the SHIPPED one.
-    /// </summary>
-    /// <remarks>
-    /// Without this the rest of the file would agree with whatever literal it declares, including one
-    /// that names no route this extension mounts.
-    /// </remarks>
+    // Without this the rest of the file would agree with any id literal, including one that names
+    // no route this extension mounts.
     [Fact]
     public void TheIdTheseTestsUseIsTheOneTheExtensionShips()
         => Assert.Equal(ExtensionId, WhisparrSyncFixture.Manifest.Id);
 
     [Theory]
-    // Scheme, host and port survive; the extension's own route and any secret are removed.
     [InlineData("http://cove:5073", "http://cove:5073")]
     [InlineData("https://media.example.com", "https://media.example.com")]
     [InlineData("http://cove:5073/", "http://cove:5073")]
-    // The path prefix is the fourth part, which a scheme-host-port reading would drop.
+    // The path prefix survives, so a Cove behind a reverse proxy on a subpath still produces a
+    // working callback. A scheme-host-port reading would drop it.
     [InlineData("https://media.example.com/cove", "https://media.example.com/cove")]
     [InlineData("https://media.example.com/cove/", "https://media.example.com/cove")]
     [InlineData(
@@ -47,16 +34,12 @@ public sealed class CallbackAddressTests
     [InlineData(
         "http://host.docker.internal:5073/api/extensions/com.alextomas955.whisparrsync/callback?s=abc",
         "http://host.docker.internal:5073")]
-    // A port that is the scheme's default reduces to one spelling, so a saved value stops depending
-    // on how it was typed.
+    // A default port for the scheme reduces to one spelling, so a saved value does not depend on
+    // how it was typed.
     [InlineData("http://cove:80/cove", "http://cove/cove")]
     public void TheMergeTakesSchemeHostPortAndPathPrefix(string edited, string expected)
         => Assert.Equal(expected, CallbackAddress.HostPartOf(edited, ExtensionId));
 
-    /// <summary>
-    /// Applying the merge to its own output returns the same value, so a saved-then-reloaded address
-    /// does not drift.
-    /// </summary>
     [Theory]
     [InlineData("http://cove:5073")]
     [InlineData("https://media.example.com/cove/")]
@@ -68,7 +51,6 @@ public sealed class CallbackAddressTests
         Assert.Equal(once, CallbackAddress.HostPartOf(once, ExtensionId));
     }
 
-    /// <summary>Both address forms read back to the host they were built from.</summary>
     [Theory]
     [InlineData("http://cove:5073")]
     [InlineData("https://media.example.com/cove")]
@@ -87,13 +69,8 @@ public sealed class CallbackAddressTests
     public void AnEmptyOrWhitespaceStoredHostFallsBackToTheRequestHost(string? stored)
         => Assert.Equal("http://cove:5073", CallbackAddress.ResolveHost(stored, "http://cove:5073"));
 
-    /// <summary>
-    /// A stored host equal to the request host is still the stored one.
-    /// </summary>
-    /// <remarks>
-    /// What storing it buys is exactly this: a later request arriving on a different host does not
-    /// move the address. A rule that skipped the store when the two agreed would lose that.
-    /// </remarks>
+    // Storing the host is what keeps a later request on a different host from moving the address.
+    // A rule that skipped the store when stored and request host agreed would lose that.
     [Fact]
     public void AStoredHostIsUsedEvenWhenItEqualsTheHostItWasStoredFrom()
     {
@@ -113,13 +90,8 @@ public sealed class CallbackAddressTests
     public void AnAddressThatIsNotAnAbsoluteHttpUrlYieldsNoHost(string edited)
         => Assert.Equal("", CallbackAddress.HostPartOf(edited, ExtensionId));
 
-    /// <summary>
-    /// The registered form carries no secret and the copyable one does.
-    /// </summary>
-    /// <remarks>
-    /// The difference is the whole point of having two forms: a query string is written to the access
-    /// log of every proxy on the delivery path, and a pasted address has nowhere else to put one.
-    /// </remarks>
+    // Two forms exist because a query string is written to the access log of every proxy on the
+    // delivery path, and a pasted address has nowhere else to carry the secret.
     [Fact]
     public void TheRegisteredFormCarriesNoSecretAndTheCopyableFormDoes()
     {
@@ -140,14 +112,8 @@ public sealed class CallbackAddressTests
             "/api/extensions/com.alextomas955.whisparrsync/callback",
             CallbackAddress.RouteFor(ExtensionId));
 
-    /// <summary>
-    /// A minted secret is 256 bits of it, and two mints differ.
-    /// </summary>
-    /// <remarks>
-    /// Distinctness is not randomness — it would hold for a counter too. What it rules out is a
-    /// constant, and the width is asserted beside it because a cryptographic source drawn one byte at
-    /// a time is no better than the width it was asked for.
-    /// </remarks>
+    // Distinctness only rules out a constant; a counter would pass it too. The width is asserted
+    // beside it because a random source is no better than the width it was asked for.
     [Fact]
     public void AMintedSecretCarriesTheFullWidthAndTwoMintsDiffer()
     {
@@ -175,15 +141,9 @@ public sealed class CallbackAddressTests
         Assert.False(CallbackSecret.Matches("", ""));
     }
 
-    /// <summary>
-    /// The comparison is the constant-time one, and not an equality.
-    /// </summary>
-    /// <remarks>
-    /// Timing is not measurable in a unit test, so what is asserted is the routine the compiled method
-    /// calls. The IL is scanned for metadata tokens that resolve to a method, which OVER-approximates
-    /// the call set — so the presence assertion is weak on its own and the absence of a string equality
-    /// beside it is what makes a rewrite to <c>==</c> fail here.
-    /// </remarks>
+    // Timing is not measurable in a unit test, so this asserts the routine the compiled method
+    // calls. The IL scan over-approximates the call set, so the presence assertion is weak on its
+    // own. The absence of a string equality beside it is what makes a rewrite to == fail here.
     [Fact]
     public void TheSecretComparisonIsTheConstantTimeOneRatherThanAnEquality()
     {
@@ -197,14 +157,8 @@ public sealed class CallbackAddressTests
         Assert.DoesNotContain("String.Equals", callees);
     }
 
-    /// <summary>
-    /// Every position a registration this product makes can use is read, and so is the address.
-    /// </summary>
-    /// <remarks>
-    /// The two generations carry the secret differently — a custom header on one, Basic auth on the
-    /// other — and the route that receives both deliveries has to read both without knowing which
-    /// instance sent one.
-    /// </remarks>
+    // The two Whisparr generations carry the secret differently, a custom header on one and Basic
+    // auth on the other. The callback route reads both without knowing which instance sent one.
     [Fact]
     public void TheSecretIsReadFromEveryPositionAndAnOutOfBandOneWins()
     {
@@ -223,8 +177,8 @@ public sealed class CallbackAddressTests
             new PresentedCallbackSecret("in-basic-auth", CallbackSecretPosition.OutOfBand),
             CallbackSecret.PresentedIn(null, BasicAuth(CallbackSecret.BasicAuthUser, "in-basic-auth"), null));
 
-        // A delivery from a registration this product made is never classified by a query string an
-        // intermediary could have appended.
+        // An out-of-band secret wins, so a query string an intermediary appended never classifies
+        // the delivery.
         Assert.Equal(
             new PresentedCallbackSecret("in-a-header", CallbackSecretPosition.OutOfBand),
             CallbackSecret.PresentedIn("in-a-header", null, "in-the-address"));
@@ -234,12 +188,8 @@ public sealed class CallbackAddressTests
                 null, BasicAuth(CallbackSecret.BasicAuthUser, "in-basic-auth"), "in-the-address"));
     }
 
-    /// <summary>
-    /// The secret is the PASSWORD half, and an authorization header that carries none is not one.
-    /// </summary>
-    /// <remarks>
-    /// Split on the FIRST colon, because a secret may contain one and a user name may not.
-    /// </remarks>
+    // The secret is the password half, split on the first colon, because a secret may contain a
+    // colon and a user name may not.
     [Theory]
     [InlineData("Bearer something", null)]
     [InlineData("Basic not-base64!!", null)]
@@ -276,7 +226,7 @@ public sealed class CallbackAddressTests
         => "Basic " + Convert.ToBase64String(
             System.Text.Encoding.UTF8.GetBytes($"{user}:{password}"));
 
-    /// <summary>Every method token in <paramref name="method"/>'s IL, as <c>Type.Member</c>.</summary>
+    // Every method token in the IL, as Type.Member.
     private static HashSet<string> CalleeNames(MethodInfo method)
     {
         var il = method.GetMethodBody()?.GetILAsByteArray()

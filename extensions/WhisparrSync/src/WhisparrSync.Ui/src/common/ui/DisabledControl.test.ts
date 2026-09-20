@@ -1,22 +1,14 @@
 // @vitest-environment jsdom
-/**
- * That the name-then-reason rule lands on the element, not merely on a string.
- *
- * A DOM is needed because a pure test could assert what a helper returns and still miss the seam: a
- * reason that never reaches the rendered button is a dimmed control with nothing to hear. A button
- * carrying no `aria-label` takes its accessible name from its contents in document order, so the
- * element's text content in order IS the accessible name being asserted here.
- *
- * The shared primitives stand in, because their `react` import resolves only inside a consuming bundle; the
- * stand-in for `Button` reproduces the real element - a `<button>` carrying `disabled` and its
- * children - which is what the accessible name is read from.
- */
+// A button with no aria-label takes its accessible name from its contents in document order, so
+// the element's text content in order is the accessible name asserted here.
 import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 
 import { render } from "../lib/testRender";
 import { CAP_UNAVAILABLE_ON_THIS_GENERATION } from "./copy";
 
+// The shared primitives stand in because their `react` import resolves only inside a consuming
+// bundle. The stand-in keeps a real `<button>` with `disabled` and its children.
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
   return {
@@ -34,7 +26,7 @@ const { DisabledControl, OptionallyDisabled } = await import("./DisabledControl"
 const NAME = "Monitor";
 const REASON = CAP_UNAVAILABLE_ON_THIS_GENERATION;
 
-/** What a sighted reader is shown: the element's text in order, minus the off-screen carriers. */
+// The element's text in order, minus the off-screen carriers.
 function visibleText(element: Element): string {
   return [...element.childNodes]
     .map((node) => {
@@ -83,7 +75,6 @@ test("the reason reaches assistive technology as text, not only as a pointer att
     }),
   );
 
-  // A title alone is pointer-only. The assertion is that a text node carries it as well.
   const carriesText = [...view.container.querySelectorAll("span")].some(
     (span) => span.textContent === REASON,
   );

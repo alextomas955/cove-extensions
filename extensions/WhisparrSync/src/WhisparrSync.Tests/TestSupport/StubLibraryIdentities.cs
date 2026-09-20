@@ -4,16 +4,10 @@ using WhisparrSync.Library;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-/// <summary>A library answering the same identifiers on every enumeration.</summary>
-/// <remarks>
-/// Enumerable more than once on purpose: a run walks a stream to count and again to offer, and a
-/// source that answered nothing the second time would report a library it never touched.
-/// <para>
-/// A count this stub was not given throws with the reason rather than answering zero. A run under
-/// test that reaches one is reaching a member it has no business reaching, and a zero would let that
-/// pass.
-/// </para>
-/// </remarks>
+// Enumerable more than once on purpose: a run walks a stream to count and again to offer, and a
+// source that answered nothing the second time would report a library it never touched.
+// A count this stub was not given throws rather than answering zero, so a run that reaches a member
+// it has no business reaching fails instead of passing.
 internal sealed class StubLibraryIdentities : ILibrarySceneIdentityPort
 {
     private readonly IReadOnlyList<string> _scenes;
@@ -33,12 +27,10 @@ internal sealed class StubLibraryIdentities : ILibrarySceneIdentityPort
         _unidentifiedSites = unidentifiedSites;
     }
 
-    /// <summary>A library holding <paramref name="scenes"/> and no studio.</summary>
     public static StubLibraryIdentities OfScenes(
         IReadOnlyList<string> scenes, int? unidentified = null)
         => new(scenes, [], unidentified, null);
 
-    /// <summary>A library holding <paramref name="sites"/> and no scene.</summary>
     public static StubLibraryIdentities OfSites(
         IReadOnlyList<LibrarySiteIdentity> sites, int? unidentified = null)
         => new([], sites, null, unidentified);

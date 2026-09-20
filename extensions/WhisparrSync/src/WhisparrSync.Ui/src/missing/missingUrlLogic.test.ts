@@ -8,13 +8,9 @@ import {
   type MissingView,
 } from "./missingUrlLogic";
 
-/**
- * The keys the host deletes from the address on every tab change, including the change into this
- * tab.
- *
- * Transcribed by hand from `LIST_URL_MANAGED_KEYS` in the host's own list URL hook. A list read from
- * the host at test time would agree with whatever it says and stop reporting a collision.
- */
+// The keys the host deletes from the address on every tab change. Transcribed by hand from
+// `LIST_URL_MANAGED_KEYS` in the host's own list URL hook; a list read from the host at test time
+// would agree with whatever it says and stop reporting a collision.
 const LIST_URL_MANAGED_KEYS = [
   "q",
   "page",

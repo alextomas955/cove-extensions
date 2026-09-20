@@ -4,39 +4,21 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Whisparr;
 
-/// <summary>
-/// The wire facts the registration rests on, each transcribed by hand from what a NAMED build
-/// actually answered.
-/// </summary>
-/// <remarks>
-/// Whisparr v2 publishes no API contract, so nothing about it may be generated and every
-/// fact is a hand-written expectation naming the build it came from. A pin computed from the module
-/// it checks agrees with itself forever and reports nothing.
-/// <para>
-/// No assertion about v2 is written against an HTTP status code. That generation's
-/// statuses are not a contract it publishes, and a status-only reading of it has already misreported
-/// once in this project: four documents were recorded as existing that do not.
-/// </para>
-/// </remarks>
+// Whisparr v2 publishes no API contract, so every fact here is transcribed by hand from what a
+// named build answered. A pin computed from the module it checks agrees with itself forever.
+// No assertion about v2 rests on an HTTP status code, because its statuses are not a published
+// contract and reading one has already misreported in this project.
 public sealed class NotificationPinTests
 {
-    /// <summary>The build each fixture was captured from, named in the file it is read from.</summary>
     private const string V3Build = "3.3.8.1097";
 
-    /// <inheritdoc cref="V3Build"/>
     private const string V2Build = "2.2.0.231";
 
     private const string V3SchemaFixture = "whisparr-v3-3.3.8.1097-notification-schema-webhook.json";
     private const string V2SchemaFixture = "whisparr-v2-2.2.0.231-notification-schema-webhook.json";
 
-    /// <summary>
-    /// The Webhook settings fields each build declares, in the order it declared them.
-    /// </summary>
-    /// <remarks>
-    /// Transcribed by hand. The absence of <c>headers</c> on the v2 build is the finding: a list of
-    /// the fields that exist does not say that one is missing, and the missing one is why the two
-    /// generations carry a secret differently.
-    /// </remarks>
+    // The expected lists are transcribed by hand, in the order each build declared its fields. The
+    // absence of headers on the v2 build is why the two generations carry a secret differently.
     [Theory]
     [InlineData(V3Build, V3SchemaFixture, "url method username password headers")]
     [InlineData(V2Build, V2SchemaFixture, "url method username password")]
@@ -47,10 +29,6 @@ public sealed class NotificationPinTests
         Assert.Equal(expected, string.Join(' ', DeclaredFieldNames(fixtureFileName)));
     }
 
-    /// <summary>
-    /// The carrier field is present on one build and absent on the other, with the type and advanced
-    /// flag that build declared for it.
-    /// </summary>
     [Fact]
     public void TheHeadersFieldIsPresentOnTheV3BuildAndAbsentOnTheV2One()
     {
@@ -64,13 +42,8 @@ public sealed class NotificationPinTests
         Assert.Null(DeclaredField(V2SchemaFixture, V3HeaderSecretRegistration.HeadersField));
     }
 
-    /// <summary>
-    /// The v2 build's carrier pair, with the privacies it declared, on both builds.
-    /// </summary>
-    /// <remarks>
-    /// Present on both, which is why the choice of carrier is about which one DELIVERS rather than
-    /// which one saves.
-    /// </remarks>
+    // The user and password pair is declared on both builds, so the choice of carrier is about
+    // which one delivers rather than which one saves.
     [Theory]
     [InlineData(V3SchemaFixture)]
     [InlineData(V2SchemaFixture)]
@@ -87,12 +60,8 @@ public sealed class NotificationPinTests
         Assert.Equal("password", password.Value.GetProperty("privacy").GetString());
     }
 
-    /// <summary>The implementation identifiers each build declared, which the port ECHOES.</summary>
-    /// <remarks>
-    /// Pinned here so the echo is checked against something, and NOT written into the port: the probe
-    /// that measured the registration never recorded these values because it echoed them too, so a
-    /// literal in production code would be an unverified assumption.
-    /// </remarks>
+    // Pinned here rather than in the port. The probe that measured the registration echoed these
+    // values, so a literal in production code would be an unverified assumption.
     [Theory]
     [InlineData(V3SchemaFixture)]
     [InlineData(V2SchemaFixture)]
@@ -108,14 +77,8 @@ public sealed class NotificationPinTests
             document.RootElement.GetProperty("implementation").GetString());
     }
 
-    /// <summary>
-    /// The trigger-flag asymmetry, transcribed as the counts each build produced.
-    /// </summary>
-    /// <remarks>
-    /// One list shared across both silently under-subscribes on whichever build carries a trigger the
-    /// other does not, which is why the port reads the flags off the schema entry rather than writing
-    /// them down.
-    /// </remarks>
+    // One trigger list shared across both builds under-subscribes on whichever carries a trigger
+    // the other does not, so the port reads the flags off the schema entry.
     [Fact]
     public void TheTriggerFlagsDifferByTheCountsEachBuildDeclared()
     {
@@ -139,15 +102,9 @@ public sealed class NotificationPinTests
             v2.Except(v3, StringComparer.Ordinal).Order(StringComparer.Ordinal));
     }
 
-    /// <summary>
-    /// What a duplicate-name refusal names, on BOTH builds, transcribed from the refusals themselves.
-    /// </summary>
-    /// <remarks>
-    /// The two builds' refusal entries carry different key sets and different orderings for the same
-    /// refusal, so the branch reads these two members and nothing else. Written as a comparison of the
-    /// production constants against hand-transcribed values, because that is the only form in which a
-    /// pin can disagree with the code it checks.
-    /// </remarks>
+    // Both builds' refusal entries carry different key sets and orderings for the same refusal, so
+    // the branch reads these two members and nothing else. The expected values are transcribed from
+    // the refusals themselves, which is the only form in which a pin can disagree with the code.
     [Fact]
     public void ADuplicateNameRefusalNamesThePropertyAndErrorCodeBothBuildsReported()
     {
@@ -155,24 +112,14 @@ public sealed class NotificationPinTests
         Assert.Equal("PredicateValidator", NotificationPort.DuplicateNameErrorCode);
     }
 
-    /// <summary>
-    /// The value the method field was set to when deliveries arrived, on both builds.
-    /// </summary>
-    /// <remarks>
-    /// What the number names is not established. What is established is that deliveries arrived with
-    /// it set to this, which is the claim the port rests on.
-    /// </remarks>
+    // What the number names is not established. What is established is that deliveries arrived on
+    // both builds with the method field set to this.
     [Fact]
     public void TheMethodFieldValueDeliveriesArrivedUnderIsPinned()
         => Assert.Equal(1, NotificationPort.PostMethod);
 
-    /// <summary>
-    /// A request that changes the instance is issued once.
-    /// </summary>
-    /// <remarks>
-    /// The policy table is what decides this, so a class granted retries by a table edit fails here
-    /// rather than silently re-issuing a write whose answer did not arrive.
-    /// </remarks>
+    // The retry policy table decides this, so a class granted retries by a table edit fails here
+    // rather than silently re-issuing a write whose answer did not arrive.
     [Fact]
     public void AConfigureRequestIsNeverReIssued()
     {

@@ -3,29 +3,27 @@ import { describe, expect, it } from "vitest";
 import { COUNT_IS_THE_CATALOGUE_SIZE, countLine, selectionCount } from "../common/ui/copy";
 import { catalogueSizeLabel, ceilingIsDisclosed, countLineParts } from "./missingCountLogic";
 
-/**
- * Provider responses recorded against the live services on 2026-09-06, transcribed rather than
- * invented. The ceiling case cannot be produced by hand: it needs a set larger than the ten thousand
- * rows ThePornDB will serve.
- */
+// Provider responses recorded against the live services, transcribed rather than invented. The
+// ceiling case cannot be produced by hand: it needs a set larger than the ten thousand rows
+// ThePornDB will serve.
 const RECORDED = {
-  /** ThePornDB, tag 70, forty a page: the reported total is a floor and page 251 re-serves page 250. */
+  // ThePornDB, tag 70, forty a page: the reported total is a floor and page 251 re-serves page 250.
   thePornDbAtTheCeiling: {
     rangeFrom: 1,
     rangeTo: 40,
     catalogueSize: 10000,
     sizeIsLowerBound: true,
   },
-  /** ThePornDB, site 92, forty a page: 272 scenes, below the ceiling, so the total is exact. */
+  // ThePornDB, site 92, forty a page: 272 scenes, below the ceiling, so the total is exact.
   thePornDbBelowTheCeiling: {
     rangeFrom: 1,
     rangeTo: 40,
     catalogueSize: 272,
     sizeIsLowerBound: false,
   },
-  /** ThePornDB, site 92 filtered to 2017: one scene in the whole set. */
+  // ThePornDB, site 92 filtered to 2017: one scene in the whole set.
   oneScene: { rangeFrom: 1, rangeTo: 1, catalogueSize: 1, sizeIsLowerBound: false },
-  /** ThePornDB, site 92, the page past the last: no rows and a null `from`. */
+  // ThePornDB, site 92, the page past the last: no rows and a null `from`.
   noScenes: { rangeFrom: 0, rangeTo: 0, catalogueSize: 0, sizeIsLowerBound: false },
 } as const;
 
@@ -96,11 +94,8 @@ describe("what the figure counts is said once", () => {
     expect(COUNT_IS_THE_CATALOGUE_SIZE).toContain("{provider}");
   });
 
-  /**
-   * The sentence renders on its own, under a toolbar that states the range. A
-   * sentence written to continue from a range reads as a fragment once the range is not in front of
-   * it, which no check on the range itself would see.
-   */
+  // The sentence renders on its own, under a toolbar that states the range. A sentence written to
+  // continue from a range would read as a fragment here.
   it("stands as a sentence with no range in front of it", () => {
     const label = catalogueSizeLabel("StashDB", "this studio");
 

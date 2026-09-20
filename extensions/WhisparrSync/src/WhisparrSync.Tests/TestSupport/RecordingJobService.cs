@@ -3,27 +3,16 @@ using Cove.Core.Interfaces;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-/// <summary>One enqueue this service was asked for, with its arguments.</summary>
-/// <param name="Type">The job type, which carries the owning extension's prefix.</param>
-/// <param name="Description">The line the host's Job Drawer shows.</param>
-/// <param name="Exclusive">Whether it was asked to run one at a time.</param>
-/// <param name="Work">The delegate the host would run.</param>
 public sealed record EnqueuedJob(
     string Type, string Description, bool Exclusive, Func<IJobProgress, CancellationToken, Task> Work);
 
-/// <summary>
-/// A host job service that records what it was asked to enqueue rather than running it.
-/// </summary>
-/// <remarks>
-/// The work is kept rather than started, so a case can assert that a request was REFUSED before
-/// anything was enqueued, and a case that wants the batch itself runs the delegate by hand.
-/// </remarks>
+// Keeps the work rather than starting it, so a case can assert a request was refused before
+// anything was enqueued, and a case that wants the batch runs the delegate by hand.
 internal sealed class RecordingJobService : IJobService
 {
     private readonly Dictionary<string, JobInfo> _jobs = new(StringComparer.Ordinal);
     private int _minted;
 
-    /// <summary>Every enqueue this service was asked for, in order.</summary>
     public List<EnqueuedJob> Enqueued { get; } = [];
 
     public string Enqueue(
@@ -38,7 +27,7 @@ internal sealed class RecordingJobService : IJobService
         return jobId;
     }
 
-    /// <summary>Records a job of any type, so a status read can be driven for a foreign one.</summary>
+    // Records a job of any type, so a status read can be driven for a foreign one.
     public JobInfo Holding(string jobId, string type)
     {
         var job = new JobInfo(
@@ -47,7 +36,6 @@ internal sealed class RecordingJobService : IJobService
         return job;
     }
 
-    /// <summary>Runs the most recently enqueued job's own work.</summary>
     public Task RunLastAsync(IJobProgress progress, CancellationToken ct)
         => Enqueued[^1].Work(progress, ct);
 

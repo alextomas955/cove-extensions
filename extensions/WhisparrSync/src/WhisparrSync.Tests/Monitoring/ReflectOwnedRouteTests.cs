@@ -8,26 +8,17 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// The reflect-owned verb over the path a user reaches: the mounted route, the decision taken from
-/// the instance's own setting, and the background run turning monitoring on starts by itself.
-/// </summary>
-/// <remarks>
-/// Driven through the shipped registration rather than by calling the handler. A handler called
-/// directly agrees with a route mounted at the wrong pattern, bound to a body the browser cannot
-/// send, or reachable by a caller the declaration excludes.
-/// </remarks>
+// Driven through the shipped registration rather than by calling the handler. A handler called
+// directly agrees with a route mounted at the wrong pattern, bound to a body the browser cannot
+// send, or reachable by a caller the declaration excludes.
 public sealed class ReflectOwnedRouteTests
 {
     private const string LinksIntoPlace = """{"copyUsingHardlinks":true}""";
 
     private const string CopiesInstead = """{"copyUsingHardlinks":false}""";
 
-    /// <summary>One folder's parse answer, carrying everything the attach needs to be composed.</summary>
-    /// <remarks>
-    /// A row missing either the quality or the languages member is excluded rather than filled in,
-    /// so a fixture without both would make every attach assertion below vacuous.
-    /// </remarks>
+    // A row missing either the quality or the languages member is excluded rather than filled in,
+    // so a fixture without both would make every attach assertion below vacuous.
     private const string AttachableRow = """
         [{"path":"/library/vixen/2026/scene.mp4","folderName":"2026",
           "quality":{"quality":{"id":7}},"languages":[{"id":1}],"movie":{"id":31}}]
@@ -74,13 +65,8 @@ public sealed class ReflectOwnedRouteTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// A setting nobody could read is skipped too, under its own reason.
-    /// </summary>
-    /// <remarks>
-    /// Stricter than the default both builds ship with, deliberately: acting on a setting nobody read
-    /// is how a full copy of every matched file happens in silence.
-    /// </remarks>
+    // Stricter than the default both builds ship with. Acting on a setting nobody read copies every
+    // matched file in full with no error.
     [Fact]
     public async Task AnUnreadableSettingSkipsUnderItsOwnReason()
     {
@@ -123,10 +109,8 @@ public sealed class ReflectOwnedRouteTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// The route aims this extension's stored credential at a third party, so a caller who cannot
-    /// configure the extension is out of reach of it.
-    /// </summary>
+    // The route aims this extension's stored credential at a third party, so a caller who cannot
+    // configure the extension is out of reach of it.
     [Fact]
     public async Task ACallerHoldingOnlyReadIsRefused()
     {
@@ -139,9 +123,6 @@ public sealed class ReflectOwnedRouteTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// Turning monitoring on starts the run by itself, and the click does not wait on it.
-    /// </summary>
     [Fact]
     public async Task MonitoringAnEntityEnqueuesExactlyOneReflectOwnedRunAndReadsNoFolderInTheRequest()
     {
@@ -170,9 +151,6 @@ public sealed class ReflectOwnedRouteTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// A selection does not become one background run per entity: the bulk path is not this route.
-    /// </summary>
     [Fact]
     public async Task ABulkMonitorEnqueuesItsOwnBatchAndNoRunPerEntity()
     {
@@ -190,9 +168,6 @@ public sealed class ReflectOwnedRouteTests
             job => job.Type.EndsWith(ReflectOwnedJob.JobId, StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// Running the enqueued job reads each of the entity's folders once and attaches each one's rows.
-    /// </summary>
     [Fact]
     public async Task TheEnqueuedRunReadsEachFolderOnceAndAttachesWhatItParsed()
     {
@@ -222,9 +197,6 @@ public sealed class ReflectOwnedRouteTests
         Assert.Contains(progress.Reports, report => report.SubTask is not null);
     }
 
-    /// <summary>
-    /// An entity holding no files is a completed run that attached nothing, never a refusal.
-    /// </summary>
     [Fact]
     public async Task AnEntityWithNoFilesRunsToCompletionAndAttachesNothing()
     {
@@ -245,15 +217,8 @@ public sealed class ReflectOwnedRouteTests
         Assert.Contains(progress.Reports, report => report.SubTask is not null);
     }
 
-    /// <summary>
-    /// A folder whose listing the run could not read is counted as refused, and is told apart from a
-    /// folder holding nothing importable.
-    /// </summary>
-    /// <remarks>
-    /// The two answers reach the same place through the same seam. Counting the refused folder as
-    /// nothing importable leaves the run's own line reporting a clean pass over a folder it never
-    /// read, and this listing is the one read in the verb whose answer size grows with the folder.
-    /// </remarks>
+    // Both answers reach the same place through the same seam. Counting the refused folder as
+    // nothing importable would report a clean pass over a folder the run never read.
     [Fact]
     public async Task AFolderWhoseListingWasRefusedIsCountedAsRefusedRatherThanAsEmpty()
     {
@@ -275,13 +240,8 @@ public sealed class ReflectOwnedRouteTests
             nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync), host.Client.Verbs);
     }
 
-    /// <summary>
-    /// A folder the instance listed nothing importable in is neither attached nor refused.
-    /// </summary>
-    /// <remarks>
-    /// The control for the case above. Without it, counting every unattached folder as refused
-    /// would pass the assertion there and report every empty folder as a failure.
-    /// </remarks>
+    // The control for the case above. Without it, counting every unattached folder as refused would
+    // pass that assertion and report every empty folder as a failure.
     [Fact]
     public async Task AFolderHoldingNothingImportableIsCountedAsNeitherAttachedNorRefused()
     {

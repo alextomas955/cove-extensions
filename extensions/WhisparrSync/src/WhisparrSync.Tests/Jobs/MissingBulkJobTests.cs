@@ -7,14 +7,8 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Jobs;
 
-/// <summary>
-/// What a bulk marking run carries across the host's parameter map, what it reports, and the
-/// principal its reads run under.
-/// </summary>
-/// <remarks>
-/// The decode cases are the ones the host can really produce. It hands a job whatever map was stored
-/// with it, and a decode that threw inside the runner would be a faulted job rather than an answer.
-/// </remarks>
+// The decode cases are the maps the host can really hand a job. A decode that threw inside the
+// runner would be a faulted job rather than an answer.
 public sealed class MissingBulkJobTests
 {
     private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
@@ -33,13 +27,8 @@ public sealed class MissingBulkJobTests
         Assert.Equal([FirstScene, SecondScene], decoded.ProviderSceneIds);
     }
 
-    /// <summary>
-    /// A map nothing can be read out of answers no kind rather than the first one declared.
-    /// </summary>
-    /// <remarks>
-    /// A run that defaulted to a kind would mark scenes under an entity nobody named. Each shape the
-    /// host can hand over is driven on its own, so one covering case cannot stand for the rest.
-    /// </remarks>
+    // A run that defaulted to a kind would mark scenes under an entity nobody named. Each map shape
+    // the host can hand over is driven on its own.
     [Fact]
     public void AMapNothingCanBeReadOutOfNamesNoKind()
     {
@@ -66,7 +55,6 @@ public sealed class MissingBulkJobTests
                 .Kind);
     }
 
-    /// <summary>An identifier list nothing can be read out of answers no identifiers.</summary>
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -83,12 +71,9 @@ public sealed class MissingBulkJobTests
                     ["providerSceneIds"] = raw,
                 }).ProviderSceneIds);
 
-    /// <summary>The run record reports counts and lists nothing.</summary>
-    /// <remarks>
-    /// A member holding identifiers would grow with the selection, and the one line a reader sees is
-    /// a sentence rather than a list. Read off the declared members rather than off an instance, so a
-    /// collection member added later fails here whatever a run happened to put in it.
-    /// </remarks>
+    // A member holding identifiers would grow with the selection. The declared members are read
+    // rather than an instance, so a collection member added later fails here whatever a run put in
+    // it.
     [Fact]
     public void TheRunRecordReportsThreeCountsAndListsNothing()
     {
@@ -105,12 +90,9 @@ public sealed class MissingBulkJobTests
                 && member.PropertyType.IsAssignableTo(typeof(System.Collections.IEnumerable)));
     }
 
-    /// <summary>The run's own reads happen as System.</summary>
-    /// <remarks>
-    /// A background run carries no principal of its own, and Cove's per-principal query filters
-    /// answer an anonymous reader with zero rows and no error. The principal is read inside the run's
-    /// own body, which is the only place the elevation can be observed.
-    /// </remarks>
+    // A background run carries no principal of its own, and Cove's per-principal query filters
+    // answer an anonymous reader with zero rows and no error. The principal is read inside the run's
+    // own body, the only place the elevation can be observed.
     [Fact]
     public async Task TheRunElevatesItsOwnScopeToSystem()
     {

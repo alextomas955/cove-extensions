@@ -1,14 +1,5 @@
-/**
- * The properties of the bundle's user-facing copy that no reviewer catches reliably by eye: the
- * words no sentence may use, the sentence that must be declared once, and what each formatted line
- * reads at the sizes that change its wording.
- *
- * Every expectation below is transcribed by hand from the spec. One computed from the module it
- * checks agrees with itself forever and reports nothing.
- *
- * Whether a sentence reaches the page is a property of a rendered surface, so it is asserted in the
- * component suite that draws it rather than in a list here.
- */
+// Every expectation below is transcribed by hand from the spec. One computed from the module it
+// checks would agree with itself and report nothing.
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,16 +11,12 @@ import { describeRefusal, REFUSAL_KINDS } from "./refusalLogic";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(HERE, "../..");
 
-/**
- * Whisparr's two generations carry different entity models. The split is an implementation fact and
- * must never reach a user's eyes, so none of these words may appear in shipped copy.
- */
+// Whisparr's two generations carry different entity models. That split must not reach a user, so
+// none of these words may appear in shipped copy.
 const MODEL_SPLIT_VOCABULARY = ["movie", "series", "episode", "season"];
 
-/**
- * Phrasings the spec forbids outright: they either name a generic failure where the product owes a
- * specific one, or they advise changing which product version is installed.
- */
+// Phrasings the spec forbids outright. They name a generic failure where the product owes a
+// specific one, or advise changing which version is installed.
 const FORBIDDEN_ANYWHERE = [
   "unsupported",
   "not supported",
@@ -42,12 +29,9 @@ const FORBIDDEN_ANYWHERE = [
   "older version",
 ];
 
-/**
- * Phrasings that point the reader at a setting. Forbidden for a capability the connected generation
- * lacks, where changing a setting would not enable it and the advice sends the reader somewhere that
- * cannot help. Deliberately NOT applied to every constant: the spec's own affordance for the
- * not-configured kind is to name the setting and where to set it.
- */
+// Phrasings that point the reader at a setting. Forbidden only for a capability the connected
+// generation lacks, where no setting would enable it. The not-configured kind's own affordance is
+// to name the setting, so it is not checked against this list.
 const FORBIDDEN_IN_A_CAPABILITY_GAP = [
   "setting",
   "settings",
@@ -57,18 +41,16 @@ const FORBIDDEN_IN_A_CAPABILITY_GAP = [
   "preferences",
 ];
 
-/**
- * The kind whose sentence is the surface's to write, because the spec's affordance for it is to name
- * the surface's own setting. Every other kind carries a specified sentence.
- */
+// The kind whose sentence the surface writes, because its affordance is to name the surface's own
+// setting. Every other kind carries a specified sentence.
 const SENTENCE_SUPPLIED_BY_THE_SURFACE = ["notConfigured"];
 
-/** Every string constant `copy.ts` exports, by name. The sentence-building functions are skipped. */
+// Every string constant `copy.ts` exports. The sentence-building functions are skipped.
 const CONSTANTS: [string, string][] = Object.entries(copy).flatMap(([name, value]) =>
   typeof value === "string" ? [[name, value] as [string, string]] : [],
 );
 
-/** Every `.ts`/`.tsx` under `src/`, excluding this file. */
+// Every `.ts` and `.tsx` under `src/`, excluding this file.
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
@@ -92,7 +74,7 @@ function contains(sentence: string, phrase: string): boolean {
 
 describe("the version-gap sentence is single-sourced", () => {
   it("is declared exactly once across the shipped bundle", () => {
-    // A test's own hand-transcribed pin is an expectation, not a second declaration, so the count is
+    // A test's own transcribed pin is an expectation, not a second declaration, so the count is
     // taken over shipped source only.
     const declarations = sourceFiles(SRC)
       .filter((file) => !/\.test\.tsx?$/.test(file))
@@ -107,10 +89,8 @@ describe("the version-gap sentence is single-sourced", () => {
 });
 
 describe("neither metadata source is named in the bundle", () => {
-  /**
-   * Which source answers follows the connected generation, so a name written here is a name that is
-   * wrong on the other generation. The answered page carries it.
-   */
+  // Which source answers follows the connected generation, so a name written into the bundle is
+  // wrong on the other generation.
   const SOURCE_NAMES = ["StashDB", "ThePornDB"];
 
   it("writes neither name into shipped source", () => {
@@ -205,10 +185,7 @@ describe("the whole-catalogue confirmation names the figure and what it is not",
 });
 
 describe("a folder Whisparr could not be shown to hold names what was asked", () => {
-  /**
-   * The prompt exists to be acted on, and the only thing a reader can act on is a path. A composer
-   * that dropped one would read as a complete sentence and send the reader nowhere.
-   */
+  // A composer that dropped the path would still read as a complete sentence.
   it("names the folder the prompt is about", () => {
     expect(copy.folderAgreementRootSentence("/media")).toContain("/media");
   });
@@ -238,7 +215,7 @@ describe("a facet with nothing picked names what its menu covers", () => {
 
 describe("the selection count reads at zero, one and many", () => {
   it("names the number and nothing that has to agree with it", () => {
-    // No noun after the number, which is the host selection bar's own wording, so there is no plural
+    // No noun after the number, matching the host selection bar's wording, so there is no plural
     // form to disagree with the count.
     expect(copy.selectionCount(0)).toBe("0 selected");
     expect(copy.selectionCount(1)).toBe("1 selected");
@@ -271,13 +248,13 @@ describe("the confirmation names what the choice covers and what it costs", () =
     expect(message).toContain("40 entities.");
     expect(message).toContain(copy.SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK);
 
-    // The scope's own consequences are not restated here. The search writes no flag at all.
+    // The search writes no flag, so the scope's consequences must not appear.
     expect(message).not.toContain(copy.ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
   });
 });
 
 describe("the bound the over-the-bound sentence names is the server's own", () => {
-  /** The route that declares it, read as text: the bound is a C# constant with no wire spelling. */
+  // Read as text: the bound is a C# constant with no wire spelling.
   const ROUTES = path.resolve(SRC, "../../WhisparrSync/WhisparrSync.Api.cs");
 
   it("names the number the route refuses above", () => {
@@ -291,8 +268,8 @@ describe("the bound the over-the-bound sentence names is the server's own", () =
   });
 
   it("names the lower number the route refuses the search verb above", () => {
-    // Its own pin rather than a second read of the first. The sentence above names one limit and
-    // cannot describe this one, so reusing it for the search row is what this catches.
+    // Its own pin, not a second read of the first. This catches the search row reusing the other
+    // sentence, which names a different limit.
     const declared = /MaxSceneSearchIdsPerRequest\s*=\s*(\d+)/.exec(readFileSync(ROUTES, "utf8"));
 
     expect(declared, "the route declares no MaxSceneSearchIdsPerRequest").not.toBeNull();
@@ -303,18 +280,11 @@ describe("the bound the over-the-bound sentence names is the server's own", () =
   });
 });
 
-/**
- * Every sentence the sync section renders, by the answer it got when each was walked against what a
- * run does on the connection it is stated to.
- *
- * A run registers the scenes a reader owns, or the studios their library covers, and where the
- * monitor choice is on it marks scenes either way. So a sentence naming a scene where studios are
- * what gets registered is one defect this accounts for, and a sentence saying a studio is monitored
- * is the other. A `SYNC_` constant in none of the three lists reddens the suite below, which is what
- * makes a new sentence get the same walk.
- */
+// Every sentence the sync section renders, grouped by whether it names what a run registers.
+// A run registers scenes or studios, and the monitor choice marks scenes either way. A `SYNC_`
+// constant in none of the three lists reddens the suite below.
 const RENDERED_BY_THE_SYNC_SECTION = {
-  /** Names what the run registers, so it has one declaration per noun: the scene one, then the studio one. */
+  // One declaration per noun: the scene one, then the studio one.
   pairedByWhatTheRunRegisters: [
     ["SYNC_REGISTERS_THE_SCENES_YOU_OWN", "SYNC_REGISTERS_THE_STUDIOS_YOU_OWN"],
     ["SYNC_SKIPPED_CANNOT_BE_REGISTERED", "SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED"],
@@ -324,13 +294,13 @@ const RENDERED_BY_THE_SYNC_SECTION = {
     ["SYNC_OFFERS_ONE_SCENE", "SYNC_OFFERS_ONE_SITE"],
   ],
 
-  /** Names what monitoring reaches, which is a scene whatever the run registers. */
+  // Names what monitoring reaches, which is a scene whatever the run registers.
   namesWhatMonitoringReaches: [
     "MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF",
     "SYNC_SITE_ALSO_MONITORS_THE_SCENES_ON_THEM",
   ],
 
-  /** Names neither noun, so one declaration serves whatever the run registers. */
+  // Names neither noun, so one declaration serves whatever the run registers.
   namesNeitherNoun: [
     "SYNC_COUNT",
     "SYNC_NOT_YET_IN_WHISPARR",

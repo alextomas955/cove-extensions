@@ -8,18 +8,6 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Missing;
 
-/// <summary>
-/// What one page's exclusion read costs, what it composes, and what it keeps.
-/// </summary>
-/// <remarks>
-/// The cost and the retention are the claims. Every answer here is also derivable from a shape that
-/// holds the whole response, so the composed request, the request count and what survives the call
-/// are asserted rather than the returned set alone.
-/// <para>
-/// The recorded rows are real answers from the instance the fixture names, so a member read under a
-/// name that instance does not use fails here.
-/// </para>
-/// </remarks>
 public sealed class SceneExclusionPortTests
 {
     private const string FixtureName = "whisparr-v3-3.4.0.1387-exclusions.json";
@@ -29,7 +17,6 @@ public sealed class SceneExclusionPortTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>The recording states the build and the day it came from.</summary>
     [Fact]
     public void TheFixtureStatesItsOwnProvenance()
     {
@@ -39,15 +26,8 @@ public sealed class SceneExclusionPortTests
         Assert.Equal("Whisparr 3.4.0.1387", fixture.GetProperty("recordedAgainst").GetString());
     }
 
-    /// <summary>
-    /// The instance narrows this route by no parameter, so the request composes none.
-    /// </summary>
-    /// <remarks>
-    /// Asserted on the request that was sent, not on the source. The three narrowing spellings the
-    /// fixture records were each measured against the instance: a filter key and a bare foreign id
-    /// answer the whole list under a success, and a foreign id as a further segment is a not-found.
-    /// An ignored parameter answering a success is indistinguishable from one that narrowed.
-    /// </remarks>
+    // The instance narrows this route by no parameter. A filter key and a bare foreign id each
+    // answer the whole list under a success, and a foreign id as a further segment is a not-found.
     [Fact]
     public async Task TheComposedRequestCarriesNoQueryStringAtAll()
     {
@@ -62,7 +42,6 @@ public sealed class SceneExclusionPortTests
         Assert.DoesNotContain("?", target, StringComparison.Ordinal);
     }
 
-    /// <summary>The measured shapes that made a narrowed read impossible are recorded, not assumed.</summary>
     [Fact]
     public void NoNarrowingSpellingTheFixtureRecordsNarrowedAnything()
     {
@@ -76,9 +55,6 @@ public sealed class SceneExclusionPortTests
         Assert.Equal(404, attempts.GetProperty("foreignIdAsSegment").GetProperty("status").GetInt32());
     }
 
-    /// <summary>
-    /// The answer is bounded by the page and never by the response, whatever the response holds.
-    /// </summary>
     [Fact]
     public async Task TheAnswerIsBoundedByThePageAndNotByTheResponse()
     {
@@ -97,9 +73,6 @@ public sealed class SceneExclusionPortTests
         Assert.Equal([.. page.Order()], [.. excluded.Order()]);
     }
 
-    /// <summary>
-    /// A page identifier the response does not name is not excluded, however large the response is.
-    /// </summary>
     [Fact]
     public async Task AnIdentifierTheResponseDoesNotNameIsNotExcluded()
     {
@@ -115,16 +88,6 @@ public sealed class SceneExclusionPortTests
         Assert.Equal([.. named.Order()], [.. excluded.Order()]);
     }
 
-    /// <summary>
-    /// Nothing derived from the response survives the call: every identifier the answer carries is
-    /// the caller's own string instance, not one parsed out of the response.
-    /// </summary>
-    /// <remarks>
-    /// Reference identity rather than value equality, because the two are indistinguishable by value
-    /// and only one of them proves that no parsed row outlives the read. A source assertion that no
-    /// field holds a collection would agree with itself whatever the method allocated, so the
-    /// declared-field check below is the second half of the claim and not the whole of it.
-    /// </remarks>
     [Fact]
     public async Task EveryIdentifierTheAnswerCarriesIsTheCallersOwnInstance()
     {
@@ -143,13 +106,6 @@ public sealed class SceneExclusionPortTests
             named => Assert.Contains(page, asked => ReferenceEquals(asked, named)));
     }
 
-    /// <summary>
-    /// The outbound client holds no field a response-sized collection could survive in.
-    /// </summary>
-    /// <remarks>
-    /// The answer is returned rather than stored, so the only other place a parsed response could
-    /// outlive the call is a field on the one type that reads it.
-    /// </remarks>
     [Fact]
     public void TheOutboundClientDeclaresNoFieldACollectionCouldSurviveIn()
         => Assert.Empty(
@@ -158,7 +114,6 @@ public sealed class SceneExclusionPortTests
                 .Where(field => typeof(System.Collections.IEnumerable).IsAssignableFrom(field.FieldType))
                 .Select(field => field.Name));
 
-    /// <summary>One request per page derivation, whatever the page holds.</summary>
     [Fact]
     public async Task ThePortSpendsOneRequestPerPageAndNeverOnePerCard()
     {
@@ -172,7 +127,6 @@ public sealed class SceneExclusionPortTests
         Assert.Equal(page, reading.AskedAbout[0]);
     }
 
-    /// <summary>An empty page asks the instance nothing.</summary>
     [Fact]
     public async Task AnEmptyPageIssuesNoRequestAtAll()
     {
@@ -185,7 +139,6 @@ public sealed class SceneExclusionPortTests
         Assert.Equal(0, reading.Calls);
     }
 
-    /// <summary>An answer that did not arrive excludes nothing rather than everything.</summary>
     [Theory]
     [InlineData(HttpStatusCode.NotFound)]
     [InlineData(HttpStatusCode.InternalServerError)]
@@ -202,7 +155,6 @@ public sealed class SceneExclusionPortTests
         Assert.Empty(excluded);
     }
 
-    /// <summary>A body this could not read excludes nothing rather than failing the page.</summary>
     [Fact]
     public async Task ABodyThatIsNotTheExpectedShapeExcludesNothing()
     {

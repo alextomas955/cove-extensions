@@ -16,31 +16,13 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace WhisparrSync.Tests.Api;
 
-/// <summary>
-/// Security-critical: the host's <c>[RequiresPermission]</c> filter is MVC-only and does NOTHING for a
-/// minimal-API extension endpoint, so each handler enforces its gate itself through
-/// <see cref="ICurrentPrincipalAccessor"/>.
-/// </summary>
-/// <remarks>
-/// Two halves that answer different questions. The first walks the mounted route table and asserts
-/// every endpoint DECLARES a gate, which is what a route added later without one fails. The rest drive
-/// each handler with a principal that lacks the gate and assert both the 403 and — the part that
-/// matters — that the recording collaborators were never called, so the deny path did nothing rather
-/// than merely answered.
-/// <para>
-/// Each deny path is paired with a caller who does hold the gate. Without that control a 403 could
-/// equally mean the handler is broken for everyone.
-/// </para>
-/// </remarks>
+// The host's [RequiresPermission] filter is MVC-only and does nothing for a minimal-API extension
+// endpoint, so each handler enforces its gate itself through ICurrentPrincipalAccessor. Each deny
+// case is paired with a caller who holds the gate, because a 403 alone could mean the handler is
+// broken for everyone.
 public sealed class EndpointPermissionTests
 {
-    /// <summary>
-    /// Every route this extension mounts, transcribed by hand from its own registration.
-    /// </summary>
-    /// <remarks>
-    /// Written out rather than derived, so a route added or removed has to be stated here too. A set
-    /// computed from the registration would agree with it whatever it says.
-    /// </remarks>
+    // Transcribed by hand. A set computed from the registration would agree with it whatever it says.
     private static readonly string[] MountedRoutes =
     [
         "GET /api/extensions/com.alextomas955.whisparrsync/addressing/folder-mappings",
@@ -83,13 +65,8 @@ public sealed class EndpointPermissionTests
         "PUT /api/extensions/com.alextomas955.whisparrsync/settings",
     ];
 
-    /// <summary>
-    /// The one route this extension mounts that answers a caller holding no Cove permission.
-    /// </summary>
-    /// <remarks>
-    /// Written out as a single value rather than a list, so a SECOND anonymous route is a failure
-    /// here rather than an entry someone adds beside this one.
-    /// </remarks>
+    // The one route that answers a caller holding no Cove permission. A single value rather than a
+    // list, so a second anonymous route fails here instead of being added beside this one.
     private const string AnonymousRoute = "POST /api/extensions/com.alextomas955.whisparrsync/callback";
 
     [Fact]
@@ -103,9 +80,9 @@ public sealed class EndpointPermissionTests
         await using var app = builder.Build();
         WhisparrSyncFixture.Create().MapEndpoints(app);
 
-        // MANDATORY. A WebApplication's route registrations are not folded into the DI
-        // EndpointDataSource until routing middleware is built at start, so without this the data
-        // source is empty and every assertion below holds over nothing.
+        // Route registrations are not folded into the DI EndpointDataSource until routing
+        // middleware is built at start. Without this the data source is empty and every assertion
+        // below holds over nothing.
         await app.StartAsync(TestContext.Current.CancellationToken);
 
         var routes = app.Services
@@ -116,9 +93,8 @@ public sealed class EndpointPermissionTests
         Assert.NotEmpty(routes);
         Assert.Equal(MountedRoutes.Order(), routes.Select(Describe).Order());
 
-        // A route declaring NEITHER convention is the failure. An endpoint that simply declares
-        // nothing is admitted anonymously too, so "no permission metadata" alone cannot be the rule
-        // once one route is deliberately anonymous — the anonymous one has to SAY so.
+        // A route declaring neither convention is the failure. The host admits an endpoint that
+        // declares nothing anonymously, so the deliberately anonymous route has to say so.
         var undeclared = routes
             .Where(route =>
                 route.Metadata.GetMetadata<CovePermissionRequirementMetadata>() is null
@@ -135,14 +111,8 @@ public sealed class EndpointPermissionTests
         await app.StopAsync(TestContext.Current.CancellationToken);
     }
 
-    /// <summary>
-    /// Exactly one mounted route is anonymous, and it is the callback.
-    /// </summary>
-    /// <remarks>
-    /// The previous assertion accepts the anonymous declaration as a tier, which on its own would let
-    /// a second anonymous route in unremarked. This is what stops that: the anonymous set is compared
-    /// against one transcribed route, so an addition fails here and has to be argued for.
-    /// </remarks>
+    // The tier assertion above accepts an anonymous declaration, so a second anonymous route would
+    // pass it. Comparing the anonymous set against one transcribed route is what catches that.
     [Fact]
     public async Task ExactlyOneMountedRouteIsAnonymousAndItIsTheCallback()
     {
@@ -170,9 +140,8 @@ public sealed class EndpointPermissionTests
 
         Assert.Equal([AnonymousRoute], anonymous);
 
-        // The conventions are mutually exclusive and the host rejects conflicting metadata, so the
-        // anonymous route carrying a permission requirement too would not be a stricter route — it
-        // would be a registration the host refuses.
+        // The conventions are mutually exclusive. An anonymous route also carrying a permission
+        // requirement is not stricter, it is a registration the host refuses.
         var callback = routes.Single(route => Describe(route) == AnonymousRoute);
         Assert.Null(callback.Metadata.GetMetadata<CovePermissionRequirementMetadata>());
 
@@ -222,17 +191,9 @@ public sealed class EndpointPermissionTests
         Assert.NotEmpty(store.GetKeys);
     }
 
-    /// <summary>
-    /// Each scene write refuses a caller holding the read tier and reaches nothing at all.
-    /// </summary>
-    /// <remarks>
-    /// One case per mounted route rather than one over all five, so a handler whose own re-check was
-    /// dropped while its declaration stayed is named by the failure.
-    /// <para>
-    /// The caller holds the read tier, which is the tier the scene's own read sits at, so a pass
-    /// here is about the configure gate and not about holding no permission at all.
-    /// </para>
-    /// </remarks>
+    // The refused caller holds the read tier, the tier the scene read sits at, so a pass here is
+    // about the configure gate and not about holding no permission at all. One case per route, so
+    // the failure names the handler whose own re-check was dropped.
     [Theory]
     [InlineData("add")]
     [InlineData("monitor")]
@@ -343,9 +304,6 @@ public sealed class EndpointPermissionTests
             write => write.Generation == WhisparrGeneration.V3 && write.ApiKey == "a-key");
     }
 
-    /// <summary>
-    /// A principal that is null rather than anonymous is a different arm of the same gate.
-    /// </summary>
     [Fact]
     public void ACallerWithNoPrincipalAtAllIsRefused()
     {
@@ -354,7 +312,6 @@ public sealed class EndpointPermissionTests
         Assert.Equal(403, StatusOf(extension.HostConfiguration(FakePrincipalAccessor.NullPrincipal())));
     }
 
-    /// <summary>The scene write <paramref name="verb"/> names, driven at its own handler.</summary>
     private static async Task<IResult> SceneWriteAsync(
         string verb,
         ICurrentPrincipalAccessor principal,
@@ -387,7 +344,6 @@ public sealed class EndpointPermissionTests
             _ => throw new ArgumentOutOfRangeException(nameof(verb)),
         };
 
-    /// <summary>A scope factory whose use is a failure, because the gate refuses before it.</summary>
     private sealed class UnreachableScopes : IServiceScopeFactory
     {
         public IServiceScope CreateScope()
@@ -400,7 +356,6 @@ public sealed class EndpointPermissionTests
     private static FakePrincipalAccessor Configure()
         => FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure);
 
-    /// <summary>An identity source recording every card a caller asked it to resolve.</summary>
     private sealed class RecordingCardIdentities : ILibraryCardIdentityPort
     {
         public List<int> Resolved { get; } = [];

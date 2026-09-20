@@ -6,18 +6,9 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Whisparr;
 
-/// <summary>
-/// What a registration actually SENDS, and what it reports, driven through the one outbound seam.
-/// </summary>
-/// <remarks>
-/// The arguments are asserted rather than the call counts: a count says a request was made, and the
-/// question idempotency has to answer is which request. An update against the found identifier and a
-/// second create are both "one call".
-/// <para>
-/// The read-back is the other half. An acceptance status says a request was well formed; every case
-/// here that reports success does so because a re-read of the list found the address that was sent.
-/// </para>
-/// </remarks>
+// The arguments are asserted rather than the call counts, because an update against the found
+// identifier and a second create are both one call. An acceptance status says only that a request
+// was well formed, so success is reported where a re-read of the list found the address sent.
 public sealed class RegistrationIdempotencyTests
 {
     private static readonly Uri Instance = new("http://whisparr-v3:6969/");
@@ -42,7 +33,6 @@ public sealed class RegistrationIdempotencyTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>An instance holding no registration is CREATED against, after the list was read.</summary>
     [Fact]
     public async Task AFirstRegistrationReadsTheListAndThenCreates()
     {
@@ -66,10 +56,6 @@ public sealed class RegistrationIdempotencyTests
             client.Notifications.Select(call => call.Verb));
     }
 
-    /// <summary>
-    /// An instance already holding one is UPDATED against the identifier the list gave, never created
-    /// a second time.
-    /// </summary>
     [Fact]
     public async Task ASecondRegistrationUpdatesTheFoundEntryRatherThanCreatingASecond()
     {
@@ -94,10 +80,7 @@ public sealed class RegistrationIdempotencyTests
         Assert.Equal(MovedAddress, UrlFieldOf(update.Body!));
     }
 
-    /// <summary>
-    /// The uniqueness check the instance already enforces is not reimplemented: the list is read once
-    /// to find the entry, and once more to read the result back.
-    /// </summary>
+    // The instance enforces uniqueness itself, so this code does not reimplement the check.
     [Fact]
     public async Task TheListIsReadToFindAndToReadBackAndForNothingElse()
     {
@@ -112,13 +95,8 @@ public sealed class RegistrationIdempotencyTests
             client.Notifications.Count(call => call.Verb == nameof(IWhisparrClient.ListNotificationsAsync)));
     }
 
-    /// <summary>
-    /// The update is built by spreading the LISTED entry, so a member that build carries and this one
-    /// does not survives the write.
-    /// </summary>
-    /// <remarks>
-    /// Constructing a fresh body would drop it silently, which is what makes an update a replacement.
-    /// </remarks>
+    // The update spreads the listed entry. An update is a replacement, so a fresh body would
+    // silently drop a member the connected build carries and this code does not know about.
     [Fact]
     public async Task TheUpdateKeepsMembersOfTheListedEntryThisCodeDoesNotKnowAbout()
     {
@@ -138,13 +116,8 @@ public sealed class RegistrationIdempotencyTests
         Assert.Equal(MovedAddress, UrlFieldOf(update));
     }
 
-    /// <summary>
-    /// A write the instance accepted whose effect the list does not show reports NOT registered.
-    /// </summary>
-    /// <remarks>
-    /// This is the case the whole read-back exists for. The write answers 202 and the notification
-    /// still points somewhere else.
-    /// </remarks>
+    // The case the read-back exists for: the write answers 202 and the notification still points
+    // somewhere else.
     [Fact]
     public async Task AnAcceptedWriteWhoseEffectTheListDoesNotShowIsNotReportedAsRegistered()
     {
@@ -162,13 +135,8 @@ public sealed class RegistrationIdempotencyTests
         Assert.Equal(Address, outcome.StoredAddress);
     }
 
-    /// <summary>
-    /// A duplicate-name refusal is read off the named property and the error code.
-    /// </summary>
-    /// <remarks>
-    /// The refusal entry is given the OTHER generation's key set and ordering, so a branch on the
-    /// entry's shape would miss it.
-    /// </remarks>
+    // The refusal entry here is given the other generation's key set and ordering, so a branch on
+    // the entry's shape would miss it.
     [Fact]
     public async Task ADuplicateNameRefusalIsReadOffThePropertyAndErrorCode()
     {
@@ -192,10 +160,6 @@ public sealed class RegistrationIdempotencyTests
             outcome.Refusal);
     }
 
-    /// <summary>
-    /// The carrier fields go in for the generation that was connected, and the registered address
-    /// carries no secret.
-    /// </summary>
     [Theory]
     [InlineData(WhisparrGeneration.V3, "headers")]
     [InlineData(WhisparrGeneration.V2, "username password")]
@@ -219,9 +183,6 @@ public sealed class RegistrationIdempotencyTests
         Assert.Contains(Secret, body.ToJsonString(), StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The trigger flags are read off the schema entry, and the self-raised ones are left off.
-    /// </summary>
     [Fact]
     public async Task TheTriggerFlagsComeFromTheSchemaEntryWithTheSelfRaisedOnesOff()
     {
@@ -240,7 +201,6 @@ public sealed class RegistrationIdempotencyTests
         Assert.False(body.ContainsKey("supportsOnDownload"));
     }
 
-    /// <summary>The identifiers are echoed from the schema rather than written as literals.</summary>
     [Fact]
     public async Task TheImplementationIdentifiersAreEchoedFromTheSchema()
     {
@@ -266,7 +226,6 @@ public sealed class RegistrationIdempotencyTests
         Assert.Equal("Cove Whisparr Sync", body["name"]!.GetValue<string>());
     }
 
-    /// <summary>An instance holding nothing under this name reads as not registered, not unknown.</summary>
     [Fact]
     public async Task AnInstanceHoldingNoRegistrationReadsAsNotRegistered()
     {

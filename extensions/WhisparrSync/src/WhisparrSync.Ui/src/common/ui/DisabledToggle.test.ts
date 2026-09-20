@@ -1,13 +1,7 @@
 // @vitest-environment jsdom
-/**
- * That an unavailable switch does nothing when pressed, and that its reason is part of what names
- * it.
- *
- * The real `Toggle` renders here rather than a stand-in: whether a press does nothing rests on the
- * attribute the primitive sets, and a stand-in reproducing that attribute would assert the test's
- * own markup instead. A `<button>` is a labelable element, so the wrapping label's text in order is
- * the switch's accessible name.
- */
+// The real `Toggle` renders here, not a stand-in: whether a press does nothing rests on the
+// attribute the primitive sets. A `<button>` is a labelable element, so the wrapping label's text
+// in order is the switch's accessible name.
 import { test, expect } from "vitest";
 import { createElement } from "react";
 
@@ -19,7 +13,7 @@ const LABEL = "Monitor";
 const REASON = CAP_UNAVAILABLE_ON_THIS_GENERATION;
 const HELPER = "Marking a scene wanted downloads nothing by itself.";
 
-/** What a sighted reader is shown: the element's text in order, minus the off-screen carriers. */
+// The element's text in order, minus the off-screen carriers.
 function visibleText(element: Element): string {
   return [...element.childNodes]
     .map((node) => {

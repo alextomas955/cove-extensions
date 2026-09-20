@@ -10,25 +10,17 @@ using WhisparrSync.Import;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// That a background read of the host's own library really runs elevated - and the two limits on how
-/// far this tier can carry that claim.
-/// </summary>
-/// <remarks>
-/// The host registers its per-principal authorization filters ONLY on the PostgreSQL provider,
-/// because the filter's last arm calls a database function that exists only there. So a relational
-/// SQLite context carries no filter to bypass, and a read of one succeeds identically whether or not
-/// the elevation happened. The first test below pins that, so no later reader mistakes a SQLite green
-/// for this proof.
-/// <para>
-/// What the remaining tests observe is the SQL the real provider generates for the same read: which
-/// values the filter binds under a real, non-null, under-privileged principal, and which it binds
-/// inside the elevation. That the resulting predicate then excludes every row is READ OFF that SQL
-/// rather than observed as a row count, because observing the count needs a live PostgreSQL and this
-/// suite has none. An absent principal is never used as the control: it bypasses the filters exactly
-/// as System does.
-/// </para>
-/// </remarks>
+// The host registers its per-principal authorization filters only on the PostgreSQL provider,
+// because the filter's last arm calls a database function that exists only there. So a relational
+// SQLite context carries no filter to bypass, and a read of one succeeds identically whether or not
+// the elevation happened. The first test below pins that, so no later reader mistakes a SQLite
+// green for this proof.
+// What the remaining tests observe is the SQL the real provider generates for the same read: which
+// values the filter binds under a real, non-null, under-privileged principal, and which it binds
+// inside the elevation. That the resulting predicate then excludes every row is read off that SQL
+// rather than observed as a row count, because observing the count needs a live PostgreSQL and this
+// suite has none. An absent principal is never used as the control: it bypasses the filters exactly
+// as System does.
 public sealed class SystemPrincipalTests
 {
     private const string BypassParameter = "@ef_filter__AuthorizationFiltersBypassed2";
@@ -36,10 +28,8 @@ public sealed class SystemPrincipalTests
     private const string Endpoint = "https://stashdb.org/graphql";
     private const string RemoteId = "e1a5c0d2-0000-4000-8000-000000000002";
 
-    /// <summary>
-    /// The control that CANNOT hold on SQLite, asserted as not holding. A relational context there
-    /// answers the same read identically for an under-privileged principal and for System.
-    /// </summary>
+    // The control that cannot hold on SQLite, asserted as not holding. A relational context there
+    // answers the same read identically for an under-privileged principal and for System.
     [Fact]
     public async Task ARelationalSqliteContextCarriesNoAuthorizationFilterAndAnswersEveryPrincipalAlike()
     {
@@ -58,11 +48,6 @@ public sealed class SystemPrincipalTests
         Assert.NotNull((await port.ResolveByRemoteIdAsync(Endpoint, RemoteId, Ct)).VideoId);
     }
 
-    /// <summary>
-    /// On the provider the host actually runs, the same read carries a filter whose bound values
-    /// differ by principal: denied for the under-privileged one, bypassed inside the elevation, and
-    /// denied again once the body has returned.
-    /// </summary>
     [Fact]
     public async Task OnTheHostsOwnProviderTheReadIsDeniedUnderAnUnderPrivilegedPrincipalAndBypassedUnderSystem()
     {
@@ -85,10 +70,6 @@ public sealed class SystemPrincipalTests
         Assert.Contains($"{BypassParameter}='False'", afterwards, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The elevation is put back even when the body throws, so a failed background read cannot leave a
-    /// request path running as System.
-    /// </summary>
     [Fact]
     public async Task ThePrincipalIsPutBackWhenTheElevatedBodyThrows()
     {
@@ -104,16 +85,11 @@ public sealed class SystemPrincipalTests
         Assert.Equal(PrincipalKind.Anonymous, principals.Current!.Kind);
     }
 
-    /// <summary>
-    /// Present, non-null, and carrying no read permission for the entity kind the identity row hangs
-    /// off. Nothing here may substitute an absent principal.
-    /// </summary>
+    // Present, non-null, and carrying no read permission for the entity kind the identity row hangs
+    // off. Nothing here may substitute an absent principal.
     private static CovePrincipal UnderPrivileged() => CovePrincipal.Anonymous();
 
-    /// <summary>
-    /// The SQL the port's identity read starts from, with the bound filter values in its header. The
-    /// model is the host's own, built for PostgreSQL; no connection is opened.
-    /// </summary>
+    // The model is the host's own, built for PostgreSQL. No connection is opened.
     private static string IdentityReadSql(CoveContext db)
         => db.Set<VideoRemoteId>().Where(row => row.RemoteId == RemoteId).ToQueryString();
 

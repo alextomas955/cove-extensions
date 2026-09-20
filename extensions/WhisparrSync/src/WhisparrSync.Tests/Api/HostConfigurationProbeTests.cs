@@ -10,15 +10,8 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace WhisparrSync.Tests.Api;
 
-/// <summary>
-/// What the probe reports about the host services this extension's container may or may not be able
-/// to produce, and that neither of them is required for the extension to load.
-/// </summary>
-/// <remarks>
-/// The container an extension really runs in is built by the host and cannot be reproduced here, so
-/// what this suite fixes is what the reading MEANS and that a container offering neither service
-/// still loads. What the live container answers is the containerized spec's subject.
-/// </remarks>
+// The container an extension runs in is built by the host and cannot be reproduced here, so these
+// cases fix what the reading means, not what the live container answers.
 public sealed class HostConfigurationProbeTests
 {
     [Fact]
@@ -34,13 +27,8 @@ public sealed class HostConfigurationProbeTests
         Assert.False(probe.MetadataServerServiceResolved);
     }
 
-    /// <summary>A container that does offer both reports both, from the same reading.</summary>
-    /// <remarks>
-    /// The discriminating control for the case above: without it both members could equally be fixed
-    /// at false and every assertion on them would agree with that forever. The doubles stand in for
-    /// the host's registrations, so what is fixed is the reading rather than whether Cove's own
-    /// services resolve.
-    /// </remarks>
+    // The control for the case above. Without it both members could be fixed at false and every
+    // assertion on them would still pass.
     [Fact]
     public async Task AContainerOfferingBothHostServicesReportsBoth()
     {
@@ -56,13 +44,9 @@ public sealed class HostConfigurationProbeTests
         Assert.True(probe.MetadataServerServiceResolved);
     }
 
-    /// <summary>A registration present but unproducible reads as unobtainable rather than throwing.</summary>
-    /// <remarks>
-    /// The shape the host's own container can produce: it copies a descriptor across without
-    /// necessarily copying everything the type needs, so the entry exists and resolving it throws. An
-    /// extension that let that escape its load-time reading would be disabled by the host instead of
-    /// reporting it.
-    /// </remarks>
+    // The host's container copies a descriptor across without everything the type needs, so an
+    // entry can exist and throw on resolve. An extension that let that escape its load-time
+    // reading would be disabled by the host instead of reporting it.
     [Fact]
     public async Task AHostServiceThatCannotBeProducedReadsAsUnobtainable()
     {
@@ -76,10 +60,8 @@ public sealed class HostConfigurationProbeTests
         Assert.False(ProbeOf(extension).ScanServiceResolved);
     }
 
-    /// <summary>
-    /// A container built the way the host builds an extension's, so a scoped resolve taken off its
-    /// root throws here exactly as it would there.
-    /// </summary>
+    // Built the way the host builds an extension's container, so a scoped resolve taken off the
+    // root throws here as it would there.
     private static ServiceProvider Container(IServiceCollection services)
         => services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
 
@@ -89,7 +71,6 @@ public sealed class HostConfigurationProbeTests
                 Unwrap(extension.HostConfiguration(
                     FakePrincipalAccessor.WithPermissions(Permissions.VideosRead)))).Value);
 
-    /// <summary>Resolvable, and nothing here calls a member of it.</summary>
     private sealed class UnusedScanService : IScanService
     {
         public string StartScan(ScanOperationOptions? options = null) => throw new NotSupportedException();
@@ -110,7 +91,6 @@ public sealed class HostConfigurationProbeTests
             => throw new NotSupportedException();
     }
 
-    /// <inheritdoc cref="UnusedScanService"/>
     private sealed class UnusedMetadataServerService : IMetadataServerService
     {
         public Task<bool> MergeVideoAsync(

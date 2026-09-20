@@ -10,17 +10,9 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Providers;
 
-/// <summary>
-/// What this catalogue puts on the wire, and what it makes of a page the provider really served.
-/// </summary>
-/// <remarks>
-/// The page is a recording of one live read rather than a document written to suit the projector, so
-/// a field this product reads under a name the provider does not use fails here.
-/// <para>
-/// The provider answers an authentication failure with 200 and an <c>errors</c> member, so the cases
-/// covering a refusal answer a success status deliberately.
-/// </para>
-/// </remarks>
+// The page is a recording of one live read, not a document written to suit the projector.
+// StashDB answers an authentication failure with 200 and an errors member, so the refusal cases
+// answer a success status on purpose.
 public sealed class StashDbCatalogueTests
 {
     private const string FixtureName = "stashdb-2026-09-scene-page.json";
@@ -30,11 +22,6 @@ public sealed class StashDbCatalogueTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// The recording states when it was taken and what it was taken against. A fixture replaced with
-    /// a hand-written document loses both, and this is what reports that rather than passing quietly
-    /// on an invented page.
-    /// </summary>
     [Fact]
     public void TheFixtureStatesItsOwnProvenance()
     {
@@ -55,10 +42,7 @@ public sealed class StashDbCatalogueTests
         Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
     }
 
-    /// <summary>
-    /// The credential travels in the provider's own header and never in the address. A query string
-    /// is written to a proxy log and to a browser history; a header is not.
-    /// </summary>
+    // A query string reaches a proxy log and a browser history. A header does not.
     [Fact]
     public async Task TheCredentialTravelsInTheHeaderAndNeverInTheAddress()
     {
@@ -81,8 +65,7 @@ public sealed class StashDbCatalogueTests
         Assert.All(page.Scenes, scene => Assert.NotEmpty(scene.ProviderSceneId));
         Assert.All(page.Scenes, scene => Assert.NotEmpty(scene.Title));
 
-        // Read off the recording rather than restated, so this stays a claim about what the provider
-        // served rather than about a number typed here.
+        // Read off the recording, so the claim stays about what the provider served.
         var served = RecordedScenes();
         Assert.Equal(served[0].GetProperty("id").GetString(), page.Scenes[0].ProviderSceneId);
         Assert.Equal(served[0].GetProperty("title").GetString(), page.Scenes[0].Title);
@@ -98,10 +81,7 @@ public sealed class StashDbCatalogueTests
         Assert.Equal(served[0].GetProperty("tags").GetArrayLength(), page.Scenes[0].Tags.Count);
     }
 
-    /// <summary>
-    /// The size is the provider's own count. Taken from the served array's length it would report a
-    /// forty-scene catalogue for every studio, and the count line above the grid would state it.
-    /// </summary>
+    // Taken from the served array's length the size would read as forty scenes for every studio.
     [Fact]
     public async Task TheCatalogueSizeIsTheProvidersCountAndNotThePagesLength()
     {
@@ -117,7 +97,7 @@ public sealed class StashDbCatalogueTests
         Assert.NotEqual(page.Scenes.Count, page.CatalogueSize);
     }
 
-    /// <summary>A page shorter than the count is the end of a catalogue, not a truncated read.</summary>
+    // A page shorter than the count is the end of a catalogue, not a truncated read.
     [Fact]
     public async Task ACountLargerThanTheServedArrayStillAnswersTheCount()
     {
@@ -131,10 +111,6 @@ public sealed class StashDbCatalogueTests
         Assert.False(page.SizeIsLowerBound);
     }
 
-    /// <summary>
-    /// The provider refuses a credential inside a success status. Read on the status alone this is a
-    /// catalogue that is simply empty, which is a wrong answer a reader would read as right.
-    /// </summary>
     [Fact]
     public async Task ARefusalInsideASuccessStatusIsNotReadAsAnEmptyCatalogue()
     {
@@ -144,14 +120,8 @@ public sealed class StashDbCatalogueTests
         Assert.Null(await catalogue.ReadCatalogueSizeAsync(StudioPage(), TestCt));
     }
 
-    /// <summary>
-    /// A credential the provider refuses answers no page at all. Read as an empty page it is a
-    /// catalogue listing nothing, which the surface states as a reader owning everything.
-    /// </summary>
-    /// <remarks>
-    /// The single request is the second half of the claim: a refusal is the provider's own answer,
-    /// so a second attempt collects the same refusal and writes the same line again.
-    /// </remarks>
+    // No page rather than an empty one. The surface reads an empty page as a catalogue that listed
+    // nothing. A refusal is the provider's own answer, so a second attempt collects the same one.
     [Fact]
     public async Task AReadPageOverARefusedCredentialAnswersNoPageAndIsSentOnce()
     {
@@ -163,10 +133,6 @@ public sealed class StashDbCatalogueTests
         Assert.Single(handler.Requests);
     }
 
-    /// <summary>
-    /// The provider states an expired key as an <c>errors</c> member inside a success status, and
-    /// that is no page either.
-    /// </summary>
     [Fact]
     public async Task AReadPageOverARefusalInsideASuccessStatusAnswersNoPageAndIsSentOnce()
     {
@@ -179,13 +145,7 @@ public sealed class StashDbCatalogueTests
         Assert.Single(handler.Requests);
     }
 
-    /// <summary>
-    /// A rate limit and a gateway failure are passing, so each takes the second attempt.
-    /// </summary>
-    /// <remarks>
-    /// The request count is the whole claim, and it is counted at the transport rather than
-    /// inferred from the answer, which is no page either way.
-    /// </remarks>
+    // A rate limit and a gateway failure are passing, so each takes a second attempt.
     [Theory]
     [InlineData(HttpStatusCode.TooManyRequests)]
     [InlineData(HttpStatusCode.RequestTimeout)]
@@ -201,7 +161,6 @@ public sealed class StashDbCatalogueTests
         Assert.Equal(2, handler.Requests.Count);
     }
 
-    /// <summary>A status the provider stated about the request itself is sent once.</summary>
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized)]
     [InlineData(HttpStatusCode.Forbidden)]
@@ -216,7 +175,6 @@ public sealed class StashDbCatalogueTests
         Assert.Single(handler.Requests);
     }
 
-    /// <summary>A connection that drops part way through the body answers no page.</summary>
     [Fact]
     public async Task AReadPageOverADroppedConnectionAnswersNoPage()
     {
@@ -226,7 +184,6 @@ public sealed class StashDbCatalogueTests
         Assert.Null((await catalogue.ReadPageAsync(StudioPage(), TestCt)).Page);
     }
 
-    /// <summary>An answer past the read bound answers no page.</summary>
     [Fact]
     public async Task AReadPageOverAnAnswerPastTheReadBoundAnswersNoPage()
     {
@@ -235,7 +192,6 @@ public sealed class StashDbCatalogueTests
         Assert.Null((await catalogue.ReadPageAsync(StudioPage(), TestCt)).Page);
     }
 
-    /// <summary>Null and zero are different answers, and only one of them claims anything.</summary>
     [Fact]
     public async Task AnUnreadCountIsNullAndAnEmptyCatalogueIsZero()
     {
@@ -244,11 +200,8 @@ public sealed class StashDbCatalogueTests
         Assert.Equal(0, await empty.ReadCatalogueSizeAsync(StudioPage(), TestCt));
     }
 
-    /// <summary>
-    /// A studio reads its own scenes, and itself with every descendant where the host's own
-    /// sub-studio toggle is on. The provider attributes a parent studio's scenes to its children, so
-    /// the direct spelling answers nothing at all on a network.
-    /// </summary>
+    // StashDB attributes a parent studio's scenes to its children, so on a network the direct
+    // spelling answers nothing.
     [Fact]
     public void TheSubStudioToggleChoosesBetweenTheTwoStudioSpellings()
     {
@@ -268,7 +221,7 @@ public sealed class StashDbCatalogueTests
         Assert.Null(withChildren["studios"]);
     }
 
-    /// <summary>Both are non-null on the provider's own input, so both are always sent.</summary>
+    // Both are non-null on the provider's own input type, so both are always sent.
     [Fact]
     public void TheSortAndTheDirectionAreAlwaysSent()
     {
@@ -278,10 +231,6 @@ public sealed class StashDbCatalogueTests
         Assert.Equal("DESC", scope["direction"]!.GetValue<string>());
     }
 
-    /// <summary>
-    /// The ordering reported as in force is the one an unnamed read really sends, so a surface
-    /// cannot name an order the provider did not apply.
-    /// </summary>
     [Fact]
     public void TheReportedDefaultOrderingIsTheOneAnUnnamedReadSends()
     {
@@ -294,10 +243,8 @@ public sealed class StashDbCatalogueTests
         Assert.Contains(catalogue.Sorts, offered => offered.Value == catalogue.DefaultSort);
     }
 
-    /// <summary>
-    /// The title search reaches the provider, so it narrows the whole catalogue rather than the page
-    /// that happened to load.
-    /// </summary>
+    // Composed into the provider's query, a search narrows the whole catalogue rather than the page
+    // that happened to load. The same holds for the facet cases below.
     [Fact]
     public void ATitleSearchIsComposedIntoTheProvidersOwnQuery()
     {
@@ -306,10 +253,6 @@ public sealed class StashDbCatalogueTests
         Assert.Equal("pool", scope["title"]!.GetValue<string>());
     }
 
-    /// <summary>
-    /// A facet selection reaches the provider's own query, so the value narrows the whole catalogue
-    /// rather than the page that happened to load.
-    /// </summary>
     [Fact]
     public void AFacetSelectionIsComposedIntoTheProvidersOwnQuery()
     {
@@ -326,10 +269,7 @@ public sealed class StashDbCatalogueTests
         Assert.Null(StashDbCatalogue.ScopeFor(StudioPage())[StashDbCatalogue.PerformerFacetKey]);
     }
 
-    /// <summary>
-    /// A chosen sub-studio replaces the studio scope. Added beside it the selection would widen what
-    /// is read rather than narrowing it.
-    /// </summary>
+    // Added beside the studio scope rather than replacing it, the selection would widen the read.
     [Fact]
     public void AChosenSubStudioReplacesTheStudioScope()
     {
@@ -346,10 +286,6 @@ public sealed class StashDbCatalogueTests
             "a-child", chosen[StashDbCatalogue.SubStudioFacetKey]!["value"]![0]!.GetValue<string>());
     }
 
-    /// <summary>
-    /// The ordering is one opaque value the provider issued, and both halves of it reach the
-    /// provider's own two fields.
-    /// </summary>
     [Fact]
     public void AChosenOrderingReachesBothOfTheProvidersFields()
     {
@@ -359,7 +295,6 @@ public sealed class StashDbCatalogueTests
         Assert.Equal("ASC", scope["direction"]!.GetValue<string>());
     }
 
-    /// <summary>An ordering this type did not issue is not taken apart into halves it may not carry.</summary>
     [Fact]
     public void AnOrderingTheProviderDidNotIssueFallsBackToTheDefault()
     {
@@ -369,10 +304,7 @@ public sealed class StashDbCatalogueTests
         Assert.Equal("DESC", scope["direction"]!.GetValue<string>());
     }
 
-    /// <summary>
-    /// Each menu costs one request and carries at most one page of values. Read whole, a network's
-    /// performer list runs to thousands.
-    /// </summary>
+    // A network's performer list runs to thousands, so a menu carries at most one page.
     [Fact]
     public async Task EachFacetMenuIsOneRequestAndAtMostOnePageOfValues()
     {
@@ -389,15 +321,11 @@ public sealed class StashDbCatalogueTests
             menus, menu => Assert.True(menu.Values.Count <= StashDbCatalogue.FacetPageSize));
         Assert.All(menus, menu => Assert.True(menu.ReportedValueCount > menu.Values.Count));
 
-        // The counts the recorded responses themselves report, against 25 values each.
+        // The counts the recorded responses report, against 25 values each.
         Assert.Equal([48, 2941], menus.Select(menu => menu.ReportedValueCount));
         Assert.All(menus, menu => Assert.Equal(StashDbCatalogue.FacetPageSize, menu.Values.Count));
     }
 
-    /// <summary>
-    /// A menu the provider reports no more values of than it served reports its own value count, so
-    /// nothing states a bound over a whole menu.
-    /// </summary>
     [Fact]
     public async Task AMenuTheProviderReportsNoMoreOfCarriesItsOwnValueCount()
     {
@@ -411,10 +339,8 @@ public sealed class StashDbCatalogueTests
         Assert.Equal(menu.Values.Count, menu.ReportedValueCount);
     }
 
-    /// <summary>
-    /// No menu offers a year. This provider's scene query carries one date criterion with no
-    /// inclusive bound, so a year is not expressible on it and no control for one is drawn.
-    /// </summary>
+    // StashDB's scene query carries one date criterion with no inclusive bound, so a year is not
+    // expressible and no control for one is drawn.
     [Theory]
     [InlineData(WhisparrEntityKind.Studio)]
     [InlineData(WhisparrEntityKind.Performer)]
@@ -432,10 +358,8 @@ public sealed class StashDbCatalogueTests
                 || menu.Label.Contains("year", StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>
-    /// A tag page is offered no menu. A tag's own performers and studios are not listable, and a tag
-    /// menu there would narrow a tag to itself.
-    /// </summary>
+    // A tag's own performers and studios are not listable, and a tag menu there would narrow a tag
+    // to itself.
     [Fact]
     public async Task ATagPageIsOfferedNoMenu()
     {
@@ -445,10 +369,8 @@ public sealed class StashDbCatalogueTests
         Assert.Empty(handler.Requests);
     }
 
-    /// <summary>
-    /// A typed fragment travels as the provider's own name criterion, on the query the menu is
-    /// filled from, so a value the menu was never handed is found.
-    /// </summary>
+    // The fragment travels on the query the menu is filled from, so a value the menu never carried
+    // is still found.
     [Fact]
     public async Task AFragmentTravelsAsTheProvidersOwnNameCriterion()
     {
@@ -465,15 +387,12 @@ public sealed class StashDbCatalogueTests
         Assert.Equal("ana", input["name"]!.GetValue<string>());
         Assert.Equal(StashDbCatalogue.FacetPageSize, input["per_page"]!.GetValue<int>());
 
-        // The provider was measured ignoring its alias criterion entirely, so a filter sent under
-        // that name would be dropped in silence.
+        // StashDB was measured ignoring its alias criterion, so a filter sent under that name is
+        // dropped in silence.
         Assert.Null(input["alias"]);
     }
 
-    /// <summary>
-    /// A search that matched nothing is a measurement, and is held apart from a read that answered
-    /// nothing. Reported as the same thing, a failed read would state that a value does not exist.
-    /// </summary>
+    // Reported as the same answer, a failed read would state that a value does not exist.
     [Fact]
     public async Task AMatchOfNothingAndAReadThatAnsweredNothingAreDifferentAnswers()
     {
@@ -492,10 +411,6 @@ public sealed class StashDbCatalogueTests
         Assert.True(unread.IsSearchable);
     }
 
-    /// <summary>
-    /// A facet this entity's page is offered no menu of is not searchable, and costs no request. A
-    /// tag page carries no tag menu, so searching one there would narrow a set nobody is looking at.
-    /// </summary>
     [Theory]
     [InlineData(WhisparrEntityKind.Tag, StashDbCatalogue.TagFacetKey)]
     [InlineData(WhisparrEntityKind.Performer, StashDbCatalogue.PerformerFacetKey)]
@@ -533,8 +448,8 @@ public sealed class StashDbCatalogueTests
             .GetProperty("scenes")
             .EnumerateArray()];
 
-    // The recorded body as the provider served it: the fixture wraps the response with its own
-    // provenance, and the client is answered the response half alone.
+    // The fixture wraps the response with its own provenance, so the client is answered the
+    // response half alone.
     private static string RecordedPage()
     {
         var response = JsonNode.Parse(ProbeFixtures.Read(FixtureName))!["response"]!;
@@ -554,11 +469,8 @@ public sealed class StashDbCatalogueTests
             titleSearch,
             filters ?? new Dictionary<string, string>());
 
-    /// <summary>Where a card sends a reader, which is the site rather than the API.</summary>
-    /// <remarks>
-    /// Measured 2026-09-09: a real identifier under this path redirected to the sign-in page
-    /// carrying the same path back, so the route resolves and only the sign-in was missing.
-    /// </remarks>
+    // Measured 2026-09-09: a real identifier under this path redirected to the sign-in page
+    // carrying the same path back, so the route resolves.
     [Fact]
     public void ASceneIsAddressedOnTheSiteRatherThanWhereTheCatalogueIsRead()
     {
@@ -569,10 +481,6 @@ public sealed class StashDbCatalogueTests
             catalogue.SceneAddress("3ac7838f-0e3f-4f19-9d2b-7c1a5b9e2f10"));
     }
 
-    /// <summary>
-    /// The identifier is a path segment and the provider issued it, so it travels escaped and
-    /// cannot reach past the path it is placed in.
-    /// </summary>
     [Fact]
     public void AnIdentifierCannotWidenThePathItIsPlacedIn()
     {
@@ -608,8 +516,7 @@ public sealed class StashDbCatalogueTests
                 ApiKey = SomeKey,
                 Name = "stashdb",
 
-                // Zero paces nothing, so these cases do not wait on a limiter to settle a question
-                // about a composed request.
+                // Zero paces nothing, so no case waits on the limiter.
                 MaxRequestsPerMinute = 0,
             });
 
@@ -623,8 +530,8 @@ public sealed class StashDbCatalogueTests
         return (catalogue, handler);
     }
 
-    // A page the provider really served. The answer carries none where nothing arrived, so a case
-    // about what a page projects states that a page arrived before reading one.
+    // The answer carries no page where nothing arrived, so a case about projection states that a
+    // page arrived before reading one.
     private static async Task<ProviderCataloguePage> PageFrom(
         StashDbCatalogue catalogue, ProviderCatalogueRequest request, CancellationToken ct)
     {

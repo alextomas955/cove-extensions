@@ -9,19 +9,6 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Missing;
 
-/// <summary>
-/// The three ways this surface can fail to answer, and what each leaves on screen.
-/// </summary>
-/// <remarks>
-/// Two of the three keep the whole catalogue and state one reason above it, because the provider
-/// answered and its answer is still the truth. Only a provider that answered nothing replaces the
-/// grid.
-/// <para>
-/// The distinction between the two status abstentions is the requirement: one is permanent and one
-/// clears, and a reader offered a retry for the permanent one would be offered a gesture that
-/// cannot change the answer.
-/// </para>
-/// </remarks>
 public sealed class MissingAbstentionTests
 {
     private const string SomeKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
@@ -31,10 +18,6 @@ public sealed class MissingAbstentionTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// Whisparr v2 keeps no per-scene records, so the gap is permanent and the whole
-    /// catalogue still renders.
-    /// </summary>
     [Fact]
     public async Task AGenerationKeepingNoSceneRecordsIsAPermanentAbsenceOverAFullPage()
     {
@@ -59,10 +42,6 @@ public sealed class MissingAbstentionTests
             view.Cards, card => Assert.Equal(MissingSceneState.StatusUnknown, card.State));
     }
 
-    /// <summary>
-    /// A connected instance that did not answer is a transient gap: the catalogue still renders and
-    /// a retry may clear it.
-    /// </summary>
     [Fact]
     public async Task AnInstanceThatDidNotAnswerIsATransientAbsenceOverAFullPage()
     {
@@ -81,10 +60,6 @@ public sealed class MissingAbstentionTests
             view.Cards, card => Assert.Equal(MissingSceneState.StatusUnknown, card.State));
     }
 
-    /// <summary>
-    /// An instance answering nothing useful for any card is the same transient gap, without a
-    /// failure to catch.
-    /// </summary>
     [Fact]
     public async Task AnInstanceAnsweringNoUsableStatusIsAlsoTransient()
     {
@@ -101,10 +76,6 @@ public sealed class MissingAbstentionTests
         Assert.Equal(MissingRefusalKind.WhisparrStatusNotRead, view.Refusal);
     }
 
-    /// <summary>
-    /// The two status abstentions are never the same value, because a reader acts on them
-    /// differently.
-    /// </summary>
     [Fact]
     public async Task ThePermanentAndTheTransientAbsenceAreDifferentAnswers()
     {
@@ -134,14 +105,6 @@ public sealed class MissingAbstentionTests
         Assert.Equal(permanent.Cards.Count, transient.Cards.Count);
     }
 
-    /// <summary>
-    /// A provider that answered nothing is not turned into an empty catalogue by the derivation.
-    /// </summary>
-    /// <remarks>
-    /// The grid is replaced and <see cref="MissingRefusalKind.ProviderUnreachable"/> is stated. A
-    /// derivation that read the failure as a page would answer a page listing nothing, which reads
-    /// as a catalogue with nothing missing.
-    /// </remarks>
     [Fact]
     public async Task AProviderThatAnsweredNothingIsNeverReadAsAnEmptyCatalogue()
     {
@@ -153,10 +116,6 @@ public sealed class MissingAbstentionTests
         Assert.Equal(0, view.CatalogueSize);
     }
 
-    /// <summary>
-    /// The status containment is narrower than the provider one: an instance failure keeps the
-    /// grid, a provider failure does not.
-    /// </summary>
     [Fact]
     public async Task AnInstanceFailureIsContainedAndAProviderFailureIsNot()
     {
@@ -175,14 +134,6 @@ public sealed class MissingAbstentionTests
         Assert.Equal(MissingRefusalKind.ProviderUnreachable, replaced.Refusal);
     }
 
-    /// <summary>
-    /// A source that refused the name lookup is not an entity the source has no id for.
-    /// </summary>
-    /// <remarks>
-    /// The name lookup runs before any page is read, so it is the first place a refused credential
-    /// can be turned into a settled fact about the library. The two refusals are asserted apart
-    /// because only one of them offers a Refresh.
-    /// </remarks>
     [Fact]
     public async Task ASourceThatRefusedTheNameLookupIsNeverReadAsAnEntityItHasNoIdFor()
     {
@@ -202,10 +153,6 @@ public sealed class MissingAbstentionTests
         Assert.Empty(view.Cards);
     }
 
-    /// <summary>
-    /// A source that answered and names no such entity is still the entity refusal, so the two are
-    /// told apart by what happened rather than by both landing on the same value.
-    /// </summary>
     [Fact]
     public async Task ASourceThatNamesNoSuchEntityIsStillTheEntityRefusal()
     {
@@ -224,11 +171,6 @@ public sealed class MissingAbstentionTests
         Assert.Empty(view.Cards);
     }
 
-    /// <summary>Nothing under the derivation writes a per-scene value anywhere.</summary>
-    /// <remarks>
-    /// Permanent hiding is the instance's own exclusion and nothing else, so this product stores no
-    /// hidden-scene list, no dismissed-scene key and no per-scene row of its own.
-    /// </remarks>
     [Fact]
     public async Task NoPartOfTheDerivationWritesAPerSceneValue()
     {
@@ -291,11 +233,8 @@ public sealed class MissingAbstentionTests
     private static List<ProviderScene> ScenesNamed(params string[] ids)
         => [.. ids.Select(id => new ProviderScene(id, id, null, null, null, null, [], []))];
 
-    /// <summary>The shipped StashDB catalogue over a transport that refuses the credential.</summary>
-    /// <remarks>
-    /// The shipped type rather than a stub of it. A stub that reports a failure the shipped
-    /// catalogue never reports would leave this whole file asserting the stub.
-    /// </remarks>
+    // The shipped catalogue over a transport that refuses the credential. A stub could report a
+    // failure the shipped catalogue never reports, leaving this file asserting the stub.
     private static StashDbCatalogue RefusingCatalogue()
     {
         var config = new CoveConfiguration();

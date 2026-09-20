@@ -6,17 +6,13 @@ using Whisparr2.Net.Client;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-/// <summary>The JSON a composed v2 request body becomes on the wire.</summary>
-/// <remarks>
-/// Serialised with that generation's generated client's own options, taken from its own registration,
-/// so what a test asserts on is what the instance would receive. Options restated here would agree
-/// with the test and not with the send.
-/// </remarks>
+// Serialised with the v2 generated client's own options, read from its own registration, so a test
+// asserts what the instance would send. Options restated here would agree with the test, not the
+// send.
 internal static class ComposedV2Body
 {
     private static readonly JsonSerializerOptions WireOptions = ReadWireOptions();
 
-    /// <summary>What <paramref name="resource"/> serialises to.</summary>
     public static JsonObject Of<TResource>(TResource resource)
         => JsonNode.Parse(JsonSerializer.Serialize(resource, WireOptions)) as JsonObject
             ?? throw new InvalidOperationException("A composed body serialised to no JSON object.");

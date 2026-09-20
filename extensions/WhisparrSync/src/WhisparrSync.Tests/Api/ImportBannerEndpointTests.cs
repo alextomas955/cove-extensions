@@ -7,28 +7,16 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace WhisparrSync.Tests.Api;
 
-/// <summary>
-/// The banner read: its gate, the projection it answers with, and the spelling that projection
-/// serializes in.
-/// </summary>
-/// <remarks>
-/// The deny path is paired with a caller who does hold the gate. Without that control a 403 could
-/// equally mean the handler is broken for everyone.
-/// </remarks>
+// The banner read sits at the configure tier. The deny case is paired with a caller who holds the
+// tier, because a 403 alone could mean the handler is broken for everyone.
 public sealed class ImportBannerEndpointTests
 {
-    /// <summary>The settings the host serializes an extension's responses with.</summary>
+    // The settings the host serializes an extension's responses with.
     private static readonly JsonSerializerOptions HostJsonOptions = new(JsonSerializerDefaults.Web);
 
-    /// <summary>
-    /// Every spelling <see cref="ImportRefusalCause"/> reaches the wire in, transcribed by hand from
-    /// the enum's own member names.
-    /// </summary>
-    /// <remarks>
-    /// Written out rather than computed from the enum. An expectation derived from the type it checks
-    /// agrees with it whatever the converter does, so it would report nothing on the day the
-    /// declaration moves off the type and an options-level converter outranks it.
-    /// </remarks>
+    // Transcribed by hand. An expectation computed from the enum agrees with it whatever the
+    // converter does, so it would say nothing on the day an options-level converter outranks the
+    // declaration on the type.
     private static readonly (ImportRefusalCause Cause, string Wire)[] CauseSpellings =
     [
         (ImportRefusalCause.NotFoundUnderAnyRoot, "notFoundUnderAnyRoot"),
@@ -67,10 +55,7 @@ public sealed class ImportBannerEndpointTests
                 FakePrincipalAccessor.NullPrincipal(), options, TestCt)));
     }
 
-    /// <summary>
-    /// An aggregate with no entries answers with an empty list, which the surface renders nothing
-    /// for. A null would be a second empty the surface would have to know about.
-    /// </summary>
+    // An empty list, not null: a null would be a second empty the surface has to know about.
     [Fact]
     public async Task AnAggregateWithNoEntriesProjectsAnEmptyList()
     {
@@ -105,13 +90,8 @@ public sealed class ImportBannerEndpointTests
             line => Assert.True(line.NewestPaths.Count <= ImportRootRefusals.NewestPathsKept));
     }
 
-    /// <summary>
-    /// The count reaches the surface as the integer that was stored.
-    /// </summary>
-    /// <remarks>
-    /// A value larger than the paths listed beside it, so a projection deriving the count from the
-    /// list rather than reading it fails here.
-    /// </remarks>
+    // The stored count is larger than the paths listed beside it, so a projection deriving the
+    // count from the list fails here.
     [Fact]
     public async Task TheCountIsTheStoredIntegerRatherThanTheNumberOfPathsListed()
     {
@@ -124,14 +104,8 @@ public sealed class ImportBannerEndpointTests
         Assert.Equal(3, view.Roots[0].NewestPaths.Count);
     }
 
-    /// <summary>
-    /// The line counted under no reporting root survives the projection, keeping its blank key.
-    /// </summary>
-    /// <remarks>
-    /// That key is what a delivery falling under none of the instance's own roots is counted under,
-    /// so dropping it here would lose exactly the misconfiguration this surface exists for. Naming it
-    /// is the surface's job, not this projection's.
-    /// </remarks>
+    // The blank key counts a delivery falling under none of the instance's roots. Dropping it
+    // would lose the misconfiguration this surface exists for.
     [Fact]
     public async Task TheLineCountedUnderNoReportingRootIsProjectedRatherThanDropped()
     {
@@ -185,9 +159,6 @@ public sealed class ImportBannerEndpointTests
             Assert.Single(view.Roots).NewestPaths.Select(path => (path.Path, path.Cause)));
     }
 
-    /// <summary>
-    /// Every cause serializes in the camelCase spelling, against literals written out by hand.
-    /// </summary>
     [Fact]
     public async Task EveryCauseSerializesInTheSpellingTheWireDocumentDeclares()
     {
@@ -207,13 +178,8 @@ public sealed class ImportBannerEndpointTests
         }
     }
 
-    /// <summary>
-    /// The records the backstop could not take reach the surface as the stored scalars.
-    /// </summary>
-    /// <remarks>
-    /// A total larger than every refusal beside it, so a projection deriving the figure from the rows
-    /// it can see rather than reading the stored total fails here.
-    /// </remarks>
+    // The stored total is larger than every refusal beside it, so a projection deriving the figure
+    // from the rows it can see fails here.
     [Fact]
     public async Task TheContainmentReachesTheSurfaceAsTheStoredScalars()
     {
@@ -234,14 +200,8 @@ public sealed class ImportBannerEndpointTests
         Assert.Equal(Contained, view.LastContainedAtUtc);
     }
 
-    /// <summary>
-    /// A pass that could not take a record leaves the surface something to say with no refusal
-    /// recorded at all.
-    /// </summary>
-    /// <remarks>
-    /// The two halves are stored by different writers, and only the refusal half has a root to hang
-    /// on, so a projection keyed on the refusals having entries would answer an empty page here.
-    /// </remarks>
+    // The two halves are stored by different writers, so a projection keyed on the refusals having
+    // entries would answer an empty page here.
     [Fact]
     public async Task ContainmentIsProjectedWithNoRefusalsRecorded()
     {
@@ -261,14 +221,8 @@ public sealed class ImportBannerEndpointTests
         Assert.Equal(3, view.RecordsContained);
     }
 
-    /// <summary>
-    /// The response's property names are camelCase, pinned against the whole serialized body.
-    /// </summary>
-    /// <remarks>
-    /// The stored blob these values come from is PascalCase, so a projection that handed the stored
-    /// type straight to the serializer would still answer with the values a reader wants and in the
-    /// wrong spelling.
-    /// </remarks>
+    // The stored blob these values come from is PascalCase, so a projection handing the stored type
+    // straight to the serializer answers the right values in the wrong spelling.
     [Fact]
     public async Task TheResponseIsAllCamelCase()
     {
@@ -308,7 +262,6 @@ public sealed class ImportBannerEndpointTests
             body);
     }
 
-    /// <summary>The instant a stored containment is recorded at, in these cases.</summary>
     private static readonly DateTimeOffset Contained = new(2026, 8, 31, 9, 0, 0, TimeSpan.Zero);
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
@@ -323,7 +276,6 @@ public sealed class ImportBannerEndpointTests
         => Assert.IsType<ImportBannerView>(
             Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
 
-    /// <summary>One root's line, holding <paramref name="paths"/> paths that all differ.</summary>
     private static ImportRootRefusals RootWith(string root, int count, int paths)
         => new()
         {
@@ -339,15 +291,10 @@ public sealed class ImportBannerEndpointTests
             ],
         };
 
-    /// <summary>
-    /// A store holding <paramref name="refusals"/>, written through the options store the handler
-    /// reads back through.
-    /// </summary>
     private static Task<(FakeStore Store, OptionsStore Options)> StoredAsync(
         params ImportRootRefusals[] refusals)
         => StoredAsync(new WhisparrSyncOptions { ImportRefusals = [.. refusals] });
 
-    /// <summary>A store holding <paramref name="stored"/>, written through that same store.</summary>
     private static async Task<(FakeStore Store, OptionsStore Options)> StoredAsync(
         WhisparrSyncOptions stored)
     {

@@ -2,10 +2,8 @@
  * What the selection bar offers over a page of cards, and what it says when a run is refused before
  * it starts.
  *
- * The invariant this module holds: every action answers a set drawn from the loaded page and from
- * nothing else, so no gesture here can reach the whole result set. That is what keeps a selection
- * from growing with the library, and it is asserted over the answers below rather than over the
- * component that renders them.
+ * Every action answers a set drawn from the loaded page and from nothing else, so no gesture here
+ * can reach the whole result set. That is what keeps a selection from growing with the library.
  */
 import {
   RUN_WAS_NOT_STARTED,
@@ -16,15 +14,13 @@ import {
 /** The three gestures the bar offers. A fourth is not representable. */
 export type SelectionActionKey = "selectAll" | "selectNone" | "invert";
 
-/** One gesture: what it is called, what key sequence runs it, and what it would leave ticked. */
 export interface SelectionAction {
   readonly key: SelectionActionKey;
   readonly label: string;
   /**
-   * The binding id Cove's own list page registers this gesture under.
-   *
-   * Registering the same id resolves through the active preset, so a reader who rebound the gesture
-   * elsewhere in Cove gets their binding here rather than a shadowed default.
+   * The binding id Cove's own list page registers this gesture under. Registering the same id
+   * resolves through the active preset, so a reader who rebound the gesture elsewhere in Cove gets
+   * their binding here.
    */
   readonly shortcutId: string;
   readonly keys: string;
@@ -32,12 +28,10 @@ export interface SelectionAction {
   readonly resulting: readonly string[];
 }
 
-/** What the bar calls each gesture. */
 const SELECT_ALL_LABEL = "Select all";
 const SELECT_NONE_LABEL = "Select none";
 const INVERT_SELECTION_LABEL = "Invert selection";
 
-/** What the bar calls the one thing it does with a selection. */
 export const MONITOR_SELECTION_LABEL = "Monitor";
 
 /** Every card on the loaded page that is not ticked. */
@@ -83,11 +77,10 @@ export function selectionActionsFor(
   ];
 }
 
-/** Why a run this tab started never began. */
 export type SelectionRefusalKind =
   "noInstanceConnected" | "whisparrKeepsNoSceneRecords" | "notStarted";
 
-/** What the last press produced. Carries an outcome and no scene identifiers. */
+/** Carries an outcome and no scene identifiers. */
 export type SelectionOutcome =
   | { readonly kind: "atRest" }
   | { readonly kind: "inFlight" }
@@ -103,14 +96,12 @@ const REFUSAL_LINES: Record<SelectionRefusalKind, string> = {
   notStarted: RUN_WAS_NOT_STARTED,
 };
 
-/** The kinds, so a caller that must cover them all cannot miss one. */
 export const SELECTION_REFUSAL_KINDS: readonly SelectionRefusalKind[] = [
   "noInstanceConnected",
   "whisparrKeepsNoSceneRecords",
   "notStarted",
 ];
 
-/** The sentence `kind` states, read from the one place each is declared. */
 export function selectionRefusalLine(kind: SelectionRefusalKind): string {
   return REFUSAL_LINES[kind];
 }
@@ -124,8 +115,7 @@ export function selectionOutcomeLine(outcome: SelectionOutcome): string | null {
  * What the enqueue answered, as one outcome.
  *
  * The route answers a job id with no refusal, or a refusal with no job id. A body neither can be
- * read out of is the same position as no answer at all, so it reads as not started rather than as
- * a run whose progress is somewhere the reader could look for it.
+ * read out of reads as not started, rather than as a run the reader could go looking for.
  */
 export function selectionOutcomeIn(answer: unknown): SelectionOutcome {
   if (typeof answer !== "object" || answer === null) {

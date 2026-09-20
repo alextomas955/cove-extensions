@@ -9,23 +9,18 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Library;
 
-/// <summary>
-/// The card status route: what it refuses, what it answers, and what it never reaches.
-/// </summary>
-/// <remarks>
-/// Driven through the shipped registration rather than by calling the handler. A handler called
-/// directly agrees with a route mounted at the wrong pattern, bound to a body the browser cannot
-/// send, or reachable by a caller the declaration excludes.
-/// </remarks>
+// Driven through the shipped registration rather than by calling the handler. A handler called
+// directly agrees with a route mounted at the wrong pattern, bound to a body the browser cannot
+// send, or reachable by a caller the declaration excludes.
 public sealed class LibraryStatusRouteTests
 {
-    /// <summary>An identifier a scene is stored under in v3's namespace.</summary>
+    // An identifier a scene is stored under in v3's namespace.
     private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
 
-    /// <summary>The per-scene route answers a list, of one row where the instance holds the scene.</summary>
+    // The per-scene route answers a list, of one row where the instance holds the scene.
     private const string HeldAndMonitored = """[{"id":9,"monitored":true}]""";
 
-    /// <summary>The spelling this library holds v2's identity rows under.</summary>
+    // The spelling this library holds v2's identity rows under.
     private const string V2Endpoint = "theporndb.net/graphql";
 
     private const string V2RemoteId = "5f7c1d90-2a3b-4c6d-8e91-0b2f4a6d8c13";
@@ -43,8 +38,7 @@ public sealed class LibraryStatusRouteTests
         return (await answered.Content.ReadFromJsonAsync<LibraryStatusView>(TestCt))!;
     }
 
-    /// <summary>A body this route cannot express is refused before anything is read.</summary>
-    /// <remarks>An identifier below one names no Cove entity, and an empty body asks nothing.</remarks>
+    // An identifier below one names no Cove entity, and an empty body asks nothing.
     [Fact]
     public async Task ABodyThisRouteCannotExpressIsRefused()
     {
@@ -61,14 +55,8 @@ public sealed class LibraryStatusRouteTests
         Assert.Empty(host.Client.Acting);
     }
 
-    /// <summary>
-    /// A body over what one page answers for is answered as far as the page reaches and says so.
-    /// </summary>
-    /// <remarks>
-    /// Both halves, because a remainder reported on its own holds for a route that answers no page
-    /// whole. No caller has to hold this route's figure: it sends what it has, and the identifiers
-    /// with no row of their own are the ones to ask about again.
-    /// </remarks>
+    // Both halves are asserted, because a remainder reported on its own also holds for a route
+    // that answers no page whole.
     [Fact]
     public async Task ABodyOverOnePageIsAnsweredAsFarAsThePageReaches()
     {
@@ -86,7 +74,6 @@ public sealed class LibraryStatusRouteTests
         Assert.Equal([.. Enumerable.Range(1, 40)], overIt.Rows.Select(row => row.CoveId));
     }
 
-    /// <summary>The answer names the kind it is about, which is what the browser reads it from.</summary>
     [Theory]
     [InlineData("studio", LibraryCardKind.Studio)]
     [InlineData("performer", LibraryCardKind.Performer)]
@@ -100,7 +87,6 @@ public sealed class LibraryStatusRouteTests
         Assert.Equal(kind, answered.Kind);
     }
 
-    /// <summary>A kind segment naming nothing this route answers for is a bad request.</summary>
     [Theory]
     [InlineData("tag")]
     [InlineData("7")]
@@ -114,11 +100,8 @@ public sealed class LibraryStatusRouteTests
         Assert.Equal(HttpStatusCode.BadRequest, answered.StatusCode);
     }
 
-    /// <summary>One row per requested identifier, in the order requested.</summary>
-    /// <remarks>
-    /// The row count is the caller's own. A route answering one row per entity the instance holds
-    /// would grow with the library whatever the caller asked about.
-    /// </remarks>
+    // The row count is the caller's own. A route answering one row per entity the instance holds
+    // would grow with the library whatever the caller asked about.
     [Fact]
     public async Task TheAnswerCarriesOneRowPerRequestedIdInTheOrderRequested()
     {
@@ -131,7 +114,6 @@ public sealed class LibraryStatusRouteTests
         Assert.Equal([second, first], view.Rows.Select(row => row.CoveId));
     }
 
-    /// <summary>A studio the library names no usable identifier for carries no reading at all.</summary>
     [Fact]
     public async Task AStudioWithNoUsableLinkCarriesNoReading()
     {
@@ -143,14 +125,8 @@ public sealed class LibraryStatusRouteTests
         Assert.Null(Assert.Single(view.Rows).Reading);
     }
 
-    /// <summary>
-    /// The video kind answers one row per requested id, and speaks for only the ones the library
-    /// names a scene for.
-    /// </summary>
-    /// <remarks>
-    /// The exclusion read is asked once for the whole set and the status read once per identified
-    /// scene, so an unidentified card costs nothing and carries no reading.
-    /// </remarks>
+    // The exclusion read is asked once for the whole set and the status read once per identified
+    // scene, so an unidentified card costs nothing and carries no reading.
     [Fact]
     public async Task TheVideoKindAnswersOneRowPerRequestedIdAndSpeaksOnlyForTheIdentifiedOnes()
     {
@@ -173,11 +149,8 @@ public sealed class LibraryStatusRouteTests
         Assert.Equal([FirstScene], host.Client.SceneStatuses.Select(call => call.RemoteId));
     }
 
-    /// <summary>A scene the instance's user has excluded reads as excluded and not as absent.</summary>
-    /// <remarks>
-    /// The instance is answering a not-found for the same scene, so this pins the order the two reads
-    /// are folded in.
-    /// </remarks>
+    // The instance answers a not-found for the same scene, so this pins the order the two reads
+    // are folded in.
     [Fact]
     public async Task AnExcludedSceneIsNotReportedAsAnAbsence()
     {
@@ -194,10 +167,6 @@ public sealed class LibraryStatusRouteTests
             new LibraryCardReading(true, false, null, false), Assert.Single(view.Rows).Reading);
     }
 
-    /// <summary>
-    /// A generation reading no per-scene record refuses from the absent registration rather than
-    /// throwing.
-    /// </summary>
     [Fact]
     public async Task AGenerationReadingNoSceneRecordRefusesRatherThanThrows()
     {
@@ -215,7 +184,6 @@ public sealed class LibraryStatusRouteTests
         Assert.Equal(LibraryStatusRefusalKind.WhisparrCannotAnswerForThisKind, view.Refusal);
     }
 
-    /// <summary>Nothing configured is stated once for the page and carries no rows.</summary>
     [Fact]
     public async Task NothingConnectedIsStatedOnceForThePage()
     {
@@ -228,14 +196,8 @@ public sealed class LibraryStatusRouteTests
         Assert.Equal(LibraryStatusRefusalKind.NoInstanceConnected, view.Refusal);
     }
 
-    /// <summary>
-    /// A generation registering no role for a kind refuses from the absent registration rather than
-    /// throwing.
-    /// </summary>
-    /// <remarks>
-    /// The capability table is the evidence. A handler asking which generation is connected would
-    /// answer the same refusal and would go on answering it after the generation gained a role.
-    /// </remarks>
+    // The capability table is the evidence. A handler asking which generation is connected would
+    // answer the same refusal and would go on answering it after the generation gained the role.
     [Fact]
     public async Task AGenerationRegisteringNoRoleForTheKindRefusesRatherThanThrows()
     {
@@ -253,20 +215,10 @@ public sealed class LibraryStatusRouteTests
         Assert.Equal(LibraryStatusRefusalKind.WhisparrCannotAnswerForThisKind, view.Refusal);
     }
 
-    /// <summary>
-    /// A stored identifier the instance resolves to no single entity leaves the page with no reason.
-    /// </summary>
-    /// <remarks>
-    /// Driven by the lookup answer through the shipped client over a byte-level stub, so each case
-    /// runs the real lookup and the real parse. All three answers arrive with a success status: the
-    /// instance was reached and answered every request, so a sentence naming the connection would
-    /// send a reader to audit an instance that did what it was asked.
-    /// <para>
-    /// Which of the three it was is a fact about ONE card, and the card carries it by establishing
-    /// neither member and drawing no badge. The page states nothing, because one sentence for the
-    /// page cannot describe one card out of forty.
-    /// </para>
-    /// </remarks>
+    // Driven by the lookup answer through the shipped client over a byte-level stub, so each case
+    // runs the real lookup and the real parse. All three answers arrive with a success status, so
+    // the page states no reason: the failure is about one card, which carries it by establishing
+    // neither member.
     [Theory]
     [InlineData("[]")]
     [InlineData(
@@ -285,12 +237,8 @@ public sealed class LibraryStatusRouteTests
         Assert.Equal(LibraryStatusRefusalKind.None, view.Refusal);
     }
 
-    /// <summary>A read that left and never came back is what the unreachable reason states.</summary>
-    /// <remarks>
-    /// The instance answers its headers and then stops sending, so the read is contained rather than
-    /// answered. Asserted beside the cases above: a rule that stopped stating the reason for a card
-    /// the instance answered would otherwise pass by never stating it at all.
-    /// </remarks>
+    // The instance answers its headers and then stops sending, so the read is contained rather
+    // than answered. Without this case a rule that never stated a reason would also pass.
     [Fact]
     public async Task AReadThatNeverCameBackIsStatedAsTheUnreachableReason()
     {
@@ -304,7 +252,7 @@ public sealed class LibraryStatusRouteTests
         Assert.Equal(LibraryStatusRefusalKind.InstanceUnreachable, view.Refusal);
     }
 
-    /// <summary>The route sits at the read tier, which is the tier a library viewer already holds.</summary>
+    // The route sits at the read tier, the tier a library viewer already holds.
     [Fact]
     public async Task AReadingCallerIsServedAndACallerHoldingNothingIsRefused()
     {
@@ -323,12 +271,8 @@ public sealed class LibraryStatusRouteTests
         Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
     }
 
-    /// <summary>Reading a status reaches no metadata provider at all.</summary>
-    /// <remarks>
-    /// Driven in a container whose provider throws on every member, so a reach is a failure here
-    /// rather than an answer nobody inspected. The identifier each card is named by is the library's
-    /// own stored row, so there is no lookup to make.
-    /// </remarks>
+    // The provider throws on every member, so a reach fails here rather than answering unnoticed.
+    // Each card is named by the library's own stored row, so there is no lookup to make.
     [Fact]
     public async Task ReadingAStatusReachesNoMetadataProvider()
     {
@@ -341,7 +285,6 @@ public sealed class LibraryStatusRouteTests
         Assert.Equal(LibraryStatusRefusalKind.None, view.Refusal);
     }
 
-    /// <summary>A provider no route on this path may reach.</summary>
     private sealed class ThrowingCatalogue : IProviderCatalogue
     {
         public IReadOnlyList<ProviderSortOption> Sorts => throw Reached();

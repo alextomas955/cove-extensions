@@ -13,18 +13,9 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-/// <summary>
-/// Whatever this extension's endpoint lambdas take as non-body parameters.
-/// </summary>
-/// <remarks>
-/// Registration-time binding only. Minimal-API binding treats an unregistered complex type as a second
-/// body parameter and throws while the route is being mapped, so each of these has to resolve; nothing
-/// here is ever dereferenced, which is what keeps a registration-only host off a real database.
-/// <para>
-/// Declared once because two tests mount the same registration for different reasons, and a second copy
-/// is a second chance for one of them to fall behind a handler that grew a parameter.
-/// </para>
-/// </remarks>
+// Minimal-API binding treats an unregistered complex type as a second body parameter and throws
+// while the route is being mapped, so every non-body parameter type has to resolve here. Nothing is
+// ever dereferenced, which keeps a registration-only host off a real database.
 internal static class BindingServices
 {
     public static IServiceCollection AddWhisparrSyncBindingServices(this IServiceCollection services)

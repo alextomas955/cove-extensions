@@ -11,44 +11,23 @@ using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace WhisparrSync.Tests;
 
-/// <summary>
-/// The half of the worker's lifecycle that needs no host: that it keeps running until its token is
-/// cancelled, that cancelling it ends the task, that the ending classifies as cancelled, and that its
-/// passes never overlap.
-/// </summary>
-/// <remarks>
-/// The host stops the worker by cancelling the token and then blocking on the returned task, so a
-/// worker that ignored the token would hang shutdown, disable and rebuild instead of failing. The
-/// case that a returned-immediately worker could not pass is asserted first.
-/// <para>
-/// The instants are read through the host-configuration projection rather than off a field, so what
-/// is asserted here is the same reading the containerized suite takes.
-/// </para>
-/// </remarks>
 public sealed class BackgroundLifecycleTests
 {
-    /// <summary>The worker's own wake period, transcribed by hand from the floor it is built on.</summary>
     private static readonly TimeSpan WorkerPeriod =
         TimeSpan.FromSeconds(WhisparrSyncOptions.BackstopIntervalFloorSeconds);
 
-    /// <summary>A configured interval no longer than a wake, so every wake is due.</summary>
     private const int EveryWake = WhisparrSyncOptions.BackstopIntervalFloorSeconds;
 
-    /// <summary>A configured interval three wakes long.</summary>
     private const int EveryThirdWake = 3 * WhisparrSyncOptions.BackstopIntervalFloorSeconds;
 
-    /// <summary>The interval a read that failed falls back to, transcribed by hand from the model.</summary>
     private static readonly TimeSpan DefaultInterval =
         TimeSpan.FromSeconds(WhisparrSyncOptions.DefaultBackstopIntervalSeconds);
 
-    /// <summary>How long a signal is waited for before the case fails rather than hangs.</summary>
-    /// <remarks>
-    /// Never reached by a passing run: every wait below is for something the worker does as soon as
-    /// its continuations run, so the budget bounds a broken run instead of pacing a working one.
-    /// </remarks>
+    // Bounds a broken run rather than pacing a working one. Every wait below is for something the
+    // worker does as soon as its continuations run.
     private static readonly TimeSpan SignalBudget = TimeSpan.FromSeconds(10);
 
-    /// <summary>Where the driveable clock starts. Any instant; only the differences are read.</summary>
+    // Any instant; only the differences between instants are read.
     private static readonly DateTimeOffset Start = new(2026, 8, 31, 9, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -63,8 +42,8 @@ public sealed class BackgroundLifecycleTests
         var worker = extension.RunAsync(services, stop.Token);
         await clock.TimerCreatedAsync();
 
-        // Two wakes served rather than a window of real time waited out. The second pass is what says
-        // the worker went back round the loop instead of returning after the first.
+        // Two wakes served rather than a window of real time waited out. The second pass shows the
+        // worker went back round the loop instead of returning after the first.
         clock.Advance(WorkerPeriod);
         await pass.ReturnedAsync(1);
         clock.Advance(WorkerPeriod);
@@ -78,15 +57,10 @@ public sealed class BackgroundLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
-    /// <summary>
-    /// A cancelled worker ends as cancelled rather than as faulted.
-    /// </summary>
-    /// <remarks>
-    /// The distinction is the host's: its catch for the cancellation is conditioned on the token being
-    /// cancelled, and everything else it logs as a fault and does not restart. A worker that swallowed
-    /// the cancellation and returned normally would pass an assertion that only read the task as
-    /// finished, so the status is asserted rather than the completion.
-    /// </remarks>
+    // The host's catch for a cancellation is conditioned on the token being cancelled, and it logs
+    // everything else as a fault and does not restart. A worker that swallowed the cancellation and
+    // returned normally would pass a check that only read the task as finished, so the status is
+    // asserted rather than the completion.
     [Fact]
     public async Task ACancelledWorkerEndsAsCancelledRatherThanFaulted()
     {
@@ -102,13 +76,6 @@ public sealed class BackgroundLifecycleTests
         Assert.False(worker.IsFaulted);
     }
 
-    /// <summary>
-    /// The cancellation is recorded, at or after the start, and the start reading survives it.
-    /// </summary>
-    /// <remarks>
-    /// Both instants together are what tells a stopped worker from one that never ran: a probe
-    /// carrying neither is a worker the host never started at all.
-    /// </remarks>
     [Fact]
     public async Task BothHalvesOfTheLifecycleAreReadableAfterTheStop()
     {
@@ -128,11 +95,8 @@ public sealed class BackgroundLifecycleTests
             $"the worker was recorded as cancelled at {probe.WorkerCancelledAtUtc:O}, before it started at {probe.WorkerStartedAtUtc:O}");
     }
 
-    /// <summary>A worker that never ran reports neither instant.</summary>
-    /// <remarks>
-    /// The discriminating control for the three above: without it each of them could equally be
-    /// reading a value that is set from construction.
-    /// </remarks>
+    // The control for the three cases above: without it each of them could be reading a value that
+    // is set from construction.
     [Fact]
     public void AnExtensionWhoseWorkerNeverRanReportsNeitherInstant()
     {
@@ -142,15 +106,8 @@ public sealed class BackgroundLifecycleTests
         Assert.Null(probe.WorkerCancelledAtUtc);
     }
 
-    /// <summary>
-    /// A wake arriving while a pass is running starts no second pass.
-    /// </summary>
-    /// <remarks>
-    /// The pass under test does not return until it is released, so every wake the clock is driven
-    /// past below arrives mid-pass. The reading is the highest number ever in flight at one instant,
-    /// not the total: a second pass that started and finished between two samples would leave the
-    /// total right and the property broken.
-    /// </remarks>
+    // The pass does not return until it is released, so every wake driven past below arrives
+    // mid-pass.
     [Fact]
     public async Task AWakeArrivingWhileAPassRunsStartsNoSecondPass()
     {
@@ -194,11 +151,8 @@ public sealed class BackgroundLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
-    /// <summary>Wake after wake produces pass after pass, one at a time.</summary>
-    /// <remarks>
-    /// The discriminating control for the test above: without it, a worker whose loop body never ran
-    /// at all would report the same "never more than one in flight".
-    /// </remarks>
+    // The control for the test above: a worker whose loop body never ran at all would report the
+    // same "never more than one in flight".
     [Fact]
     public async Task EachWakeRunsItsOwnPassOnceTheOneBeforeItReturned()
     {
@@ -226,7 +180,6 @@ public sealed class BackgroundLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
-    /// <summary>An interval longer than the wake period skips the wakes in between.</summary>
     [Fact]
     public async Task AnIntervalLongerThanTheWakePeriodSkipsTheWakesBetween()
     {
@@ -257,11 +210,8 @@ public sealed class BackgroundLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
-    /// <summary>A stored interval below the floor is honoured as the floor.</summary>
-    /// <remarks>
-    /// Applied where the value is read rather than where it is saved, so a blob that never passed
-    /// through a save is floored too.
-    /// </remarks>
+    // The floor is applied where the value is read rather than where it is saved, so a blob that
+    // never passed through a save is floored too.
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -271,11 +221,8 @@ public sealed class BackgroundLifecycleTests
             TimeSpan.FromSeconds(WhisparrSyncOptions.BackstopIntervalFloorSeconds),
             new WhisparrSyncOptions { BackstopIntervalSeconds = stored }.BackstopInterval);
 
-    /// <summary>A pass that fails unexpectedly does not take the worker with it.</summary>
-    /// <remarks>
-    /// The host treats anything but a cancellation as a fault and does not restart the worker, so a
-    /// failure let out of the loop body would stop the backstop until the extension is reloaded.
-    /// </remarks>
+    // The host does not restart a faulted worker, so a failure let out of the loop body would stop
+    // the backstop until the extension is reloaded.
     [Fact]
     public async Task APassThatFailsUnexpectedlyLeavesTheWorkerRunning()
     {
@@ -301,13 +248,8 @@ public sealed class BackgroundLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
-    /// <summary>A follow-up that fails unexpectedly does not take the worker with it.</summary>
-    /// <remarks>
-    /// The follow-up opens a scope and resolves the library out of it, so a host whose scan service
-    /// this extension's container cannot produce fails the resolve rather than the enqueue. Two wakes
-    /// are driven and the SECOND one's pass is what is asserted: a worker that ended on the first
-    /// failure would leave the first pass's own record behind and look like a success.
-    /// </remarks>
+    // The follow-up opens a scope and resolves the library out of it, so a host whose scan service
+    // this extension's container cannot produce fails the resolve rather than the enqueue.
     [Fact]
     public async Task AFollowUpThatFailsUnexpectedlyLeavesTheWorkerRunning()
     {
@@ -342,15 +284,8 @@ public sealed class BackgroundLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
-    /// <summary>
-    /// An interval read that fails costs the wakes the default interval covers, not the worker.
-    /// </summary>
-    /// <remarks>
-    /// The read is a live query and the store catches only a bind failure, so a transient database
-    /// failure reaches the loop. What the loop does with it is asserted through the CADENCE that
-    /// follows: a fallback that read as the floor would run a pass on every wake, and one that
-    /// remembered nothing at all would end the worker.
-    /// </remarks>
+    // The read is a live query and the store catches only a bind failure, so a transient database
+    // failure reaches the loop.
     [Fact]
     public async Task AnIntervalReadThatFailsFallsBackToTheDefaultRatherThanEndingTheWorker()
     {
@@ -393,15 +328,8 @@ public sealed class BackgroundLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
-    /// <summary>
-    /// A cancellation arising inside a contained call still ends the worker as cancelled.
-    /// </summary>
-    /// <remarks>
-    /// The host's catch is conditioned on the token being cancelled and it does not restart a worker
-    /// that ended any other way, so a containment that held on to a cancellation would turn a
-    /// shutdown into a fault. The pass is the discriminator: a swallowed cancellation would let the
-    /// loop body run on to it.
-    /// </remarks>
+    // A containment that held on to a cancellation would turn a shutdown into a fault. The pass
+    // count discriminates: a swallowed cancellation would let the loop body run on to it.
     [Fact]
     public async Task ACancellationArisingInsideAContainedCallStillEndsTheWorkerAsCancelled()
     {
@@ -432,20 +360,11 @@ public sealed class BackgroundLifecycleTests
         Assert.NotNull(ProbeOf(extension).WorkerCancelledAtUtc);
     }
 
-    /// <summary>
-    /// A cancellation arising while the worker's token is still live is contained, and the worker
-    /// keeps waking.
-    /// </summary>
-    /// <remarks>
-    /// An outbound read that times out raises <see cref="TaskCanceledException"/>, which derives from
-    /// <see cref="OperationCanceledException"/>. The host's catch for a cancellation is conditioned on
-    /// the token, so a containment that rethrew this one would end the worker through no handler at
-    /// all and stop the backstop until the extension was reloaded.
-    /// <para>
-    /// The token is deliberately left live. A case that cancels it first drives the shutdown path and
-    /// holds whether or not the containment tells the two apart.
-    /// </para>
-    /// </remarks>
+    // An outbound read that times out raises TaskCanceledException, which derives from
+    // OperationCanceledException. The host's catch for a cancellation is conditioned on the token,
+    // so a containment that rethrew this one would end the worker through no handler at all.
+    // The token is left live on purpose: cancelling it first drives the shutdown path and passes
+    // whether or not the containment tells the two apart.
     [Fact]
     public async Task ACancellationArisingWhileTheTokenIsLiveIsContainedRatherThanEndingTheWorker()
     {
@@ -478,11 +397,8 @@ public sealed class BackgroundLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
-    /// <summary>A quiet batch is covered by a wake, whether or not that wake runs a pass.</summary>
-    /// <remarks>
-    /// The follow-up sits before the interval gate, so a live delivery is not left uncovered until
-    /// the next backstop interval comes round.
-    /// </remarks>
+    // The follow-up sits before the interval gate, so a live delivery is not left uncovered until
+    // the next backstop interval comes round.
     [Fact]
     public async Task AQuietBatchIsScannedOnAWakeTheBackstopIntervalSkips()
     {
@@ -512,14 +428,8 @@ public sealed class BackgroundLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
-    /// <summary>
-    /// A batch still pending when the worker is stopped is dropped, and the stop still classifies as
-    /// cancelled.
-    /// </summary>
-    /// <remarks>
-    /// A scan started after shutdown has begun reaches a host that is stopping. The files are on disk
-    /// and Cove's own library scan finds them, so dropping is recoverable where starting is not.
-    /// </remarks>
+    // A scan started after shutdown has begun reaches a host that is stopping. The files are on
+    // disk and Cove's own library scan finds them, so dropping is recoverable where starting is not.
     [Fact]
     public async Task APendingBatchIsDroppedOnTheStopRatherThanScanned()
     {
@@ -548,14 +458,12 @@ public sealed class BackgroundLifecycleTests
         Assert.Empty(library.Scans);
     }
 
-    /// <summary>The services the worker resolves, registered as the extension registers them.</summary>
     private static ServiceProvider WorkerServices()
         => new ServiceCollection()
             .AddSingleton(TimeProvider.System)
             .AddSingleton(new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance))
             .BuildServiceProvider();
 
-    /// <summary>The worker's services, with a driveable clock and a pass a test can watch.</summary>
     private static ServiceProvider WorkerServices(
         TimeProvider clock, IBackstopPass pass, IExtensionStore store)
         => WorkerServices(
@@ -565,11 +473,8 @@ public sealed class BackgroundLifecycleTests
             new FollowUpScanCoalescer(clock, NullLogger.Instance),
             new RecordingLibrary(reached: true, ["/data"]));
 
-    /// <inheritdoc cref="WorkerServices(TimeProvider, IBackstopPass, IExtensionStore)"/>
-    /// <remarks>
-    /// A null library is registered as no library at all, which is what the resolve inside the
-    /// follow-up meets on a host whose scan service this extension's container cannot produce.
-    /// </remarks>
+    // A null library is registered as no library at all, which is what the resolve inside the
+    // follow-up meets on a host whose scan service this extension's container cannot produce.
     private static ServiceProvider WorkerServices(
         TimeProvider clock,
         IBackstopPass pass,
@@ -592,7 +497,6 @@ public sealed class BackgroundLifecycleTests
         return services.BuildServiceProvider();
     }
 
-    /// <summary>A store holding one interval, watchable for the reads the worker makes of it.</summary>
     private static WatchedStore WatchedSeeded(int intervalSeconds)
         => new(SeededStore(intervalSeconds));
 
@@ -616,14 +520,9 @@ public sealed class BackgroundLifecycleTests
     private static T ValueOf<T>(IResult result)
         => Assert.IsType<T>(Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
 
-    /// <summary>
-    /// A store whose reads raise, standing in for the failure an options load does not catch.
-    /// </summary>
-    /// <remarks>
-    /// The failure comes from a factory rather than as a value so that a test can cancel the worker's
-    /// own token as the read fails, which is the only way a cancellation arises INSIDE the read rather
-    /// than beside it.
-    /// </remarks>
+    // The failure comes from a factory rather than as a value so that a test can cancel the
+    // worker's own token as the read fails. That is the only way a cancellation arises inside the
+    // read rather than beside it.
     private sealed class RaisingStore(Func<Exception> raised) : IExtensionStore
     {
         public Task<string?> GetAsync(string key, CancellationToken ct = default)
@@ -638,21 +537,15 @@ public sealed class BackgroundLifecycleTests
             => Task.FromException<Dictionary<string, string>>(raised());
     }
 
-    /// <summary>
-    /// A count of occurrences a test can await one of, rather than waiting out a window of real time.
-    /// </summary>
-    /// <remarks>
-    /// The signal for an occurrence that has not happened yet is made on demand, so a test may await
-    /// the third before the first has happened, and one already recorded answers straight away rather
-    /// than waiting for the next.
-    /// </remarks>
+    // The signal for an occurrence that has not happened yet is made on demand, so a test may await
+    // the third before the first has happened. An occurrence already recorded answers straight away
+    // rather than waiting for the next.
     private sealed class Signals
     {
         private readonly Lock _gate = new();
         private readonly List<TaskCompletionSource> _signals = [];
         private int _count;
 
-        /// <summary>Records one occurrence.</summary>
         public void Reach()
         {
             lock (_gate)
@@ -662,7 +555,6 @@ public sealed class BackgroundLifecycleTests
             }
         }
 
-        /// <summary>Returns once the <paramref name="nth"/> occurrence has been recorded.</summary>
         public Task Reached(int nth)
         {
             lock (_gate)
@@ -683,19 +575,13 @@ public sealed class BackgroundLifecycleTests
         }
     }
 
-    /// <summary>
-    /// A store that signals each read of the options blob, which the loop makes once per wake.
-    /// </summary>
-    /// <remarks>
-    /// The signal is raised as the read begins rather than when it answers, so a store whose reads
-    /// raise is watchable the same way. The follow-up step runs before the read and is awaited inline,
-    /// so a signalled read is also a finished follow-up.
-    /// </remarks>
+    // The signal is raised as the read begins rather than when it answers, so a store whose reads
+    // raise is watchable the same way. The follow-up step runs before the read and is awaited
+    // inline, so a signalled read is also a finished follow-up.
     private sealed class WatchedStore(IExtensionStore inner) : IExtensionStore
     {
         private readonly Signals _reads = new();
 
-        /// <summary>Returns once the worker's <paramref name="nth"/> interval read has begun.</summary>
         public Task ReadAsync(int nth) => _reads.Reached(nth);
 
         public Task<string?> GetAsync(string key, CancellationToken ct = default)
@@ -714,18 +600,9 @@ public sealed class BackgroundLifecycleTests
             => inner.GetAllAsync(ct);
     }
 
-    /// <summary>
-    /// A pass a test starts, watches and releases.
-    /// </summary>
-    /// <remarks>
-    /// It records the highest number of passes in flight at any one instant rather than a total. A
-    /// second pass that began and ended between two readings would leave a total correct and the
-    /// property it stands for broken.
-    /// <para>
-    /// The instant each pass began is read off the driveable clock, so a cadence is asserted as the
-    /// instants the passes ran at rather than as a count taken after a wait.
-    /// </para>
-    /// </remarks>
+    // It records the highest number of passes in flight at any one instant rather than a total. A
+    // second pass that began and ended between two readings would leave a total correct and the
+    // property it stands for broken.
     private sealed class BlockingPass(TimeProvider clock, bool blocking = true) : IBackstopPass
     {
         private readonly TaskCompletionSource _released = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -734,16 +611,12 @@ public sealed class BackgroundLifecycleTests
         private readonly List<DateTimeOffset> _startedAt = [];
         private int _inFlight;
 
-        /// <summary>Whether the pass ends by throwing.</summary>
         public bool Throwing { get; init; }
 
-        /// <summary>How many passes have begun.</summary>
         public int Started => _startedAt.Count;
 
-        /// <summary>The clock instant each pass began at, in order.</summary>
         public List<DateTimeOffset> StartedAt => _startedAt;
 
-        /// <summary>The most that were ever running at one instant.</summary>
         public int MostInFlightAtOnce { get; private set; }
 
         public async Task<BackstopPassResult> RunAsync(CancellationToken ct)
@@ -774,23 +647,15 @@ public sealed class BackgroundLifecycleTests
             }
         }
 
-        /// <summary>Returns once the <paramref name="nth"/> pass has begun.</summary>
         public Task StartedAsync(int nth) => _starts.Reached(nth);
 
-        /// <summary>Returns once the <paramref name="nth"/> pass has returned, however it ended.</summary>
         public Task ReturnedAsync(int nth) => _returns.Reached(nth);
 
-        /// <summary>Lets the pass in flight return.</summary>
         public void Release() => _released.TrySetResult();
     }
 
-    /// <summary>
-    /// A clock a test moves by hand, firing the timers whose due instant it passes.
-    /// </summary>
-    /// <remarks>
-    /// The worker's wake period is far longer than a test may wait for, and a pass gated on a
-    /// configured interval cannot be driven at all without one.
-    /// </remarks>
+    // The worker's wake period is far longer than a test may wait for, and a pass gated on a
+    // configured interval cannot be driven at all without a clock a test moves by hand.
     private sealed class ManualTimeProvider(DateTimeOffset start) : TimeProvider
     {
         private readonly Lock _gate = new();
@@ -798,14 +663,8 @@ public sealed class BackgroundLifecycleTests
         private readonly Signals _created = new();
         private DateTimeOffset _now = start;
 
-        /// <summary>
-        /// Returns once the worker has created its own timer, which is the first instant a wake can
-        /// be delivered at all.
-        /// </summary>
-        /// <remarks>
-        /// A clock advanced before the timer exists moves the instant it is scheduled from, so the
-        /// wake is never delivered and the case waits on a pass that cannot run.
-        /// </remarks>
+        // A clock advanced before the timer exists moves the instant the timer is scheduled from,
+        // so the wake is never delivered and the test waits on a pass that cannot run.
         public Task TimerCreatedAsync() => _created.Reached(1);
 
         public override DateTimeOffset GetUtcNow()
@@ -830,10 +689,7 @@ public sealed class BackgroundLifecycleTests
             return timer;
         }
 
-        /// <summary>Moves the clock on by <paramref name="by"/>, firing whatever falls due.</summary>
-        /// <remarks>
-        /// The callbacks run outside the lock: one of them may schedule a timer of its own.
-        /// </remarks>
+        // The callbacks run outside the lock: one of them may schedule a timer of its own.
         public void Advance(TimeSpan by)
         {
             List<ManualTimer> due;

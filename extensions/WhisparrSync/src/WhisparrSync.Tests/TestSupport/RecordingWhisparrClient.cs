@@ -5,86 +5,47 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-/// <summary>One notification request this client was asked to make, with its arguments.</summary>
-/// <param name="Verb">Which of the notification calls it was.</param>
-/// <param name="BaseAddress">The instance it was aimed at.</param>
-/// <param name="Id">The notification's id on an update, or null on any other call.</param>
-/// <param name="Body">The body sent, or null on a read.</param>
 public sealed record NotificationCall(string Verb, Uri BaseAddress, int? Id, JsonNode? Body);
 
-/// <summary>One history read this client was asked to make, with its arguments.</summary>
-/// <param name="BaseAddress">The instance it was aimed at.</param>
-/// <param name="ApiKey">The key it presented.</param>
-/// <param name="Generation">The lineage whose entity spelling it asked the page for.</param>
-/// <param name="Page">Which page it asked for.</param>
-/// <param name="PageSize">How many records it asked that page to hold.</param>
 public sealed record HistoryCall(
     Uri BaseAddress, string ApiKey, WhisparrGeneration Generation, int Page, int PageSize);
 
-/// <summary>One acting or grabbing request this client was asked to make, with its arguments.</summary>
-/// <remarks>
-/// Every argument a role member can carry has a place here, so nothing a call site supplied is
-/// dropped on the way into the log. An argument the member in question does not take reads as null,
-/// which is a fact about that member rather than a gap.
-/// </remarks>
-/// <param name="Verb">Which member it was.</param>
-/// <param name="BaseAddress">The instance it was aimed at.</param>
-/// <param name="ApiKey">The key it presented.</param>
+// Every argument a role member can carry has a place here, so nothing a call site supplied is
+// dropped on the way into the log. An argument the member in question does not take reads as null,
+// which is a fact about that member rather than a gap.
 public sealed record ActingCall(string Verb, Uri BaseAddress, string ApiKey)
 {
-    /// <summary>The entity kind named, or null where the member names one kind by itself.</summary>
     public WhisparrEntityKind? Kind { get; init; }
 
-    /// <summary>The generation named, or null where the member names none.</summary>
     public WhisparrGeneration? Generation { get; init; }
 
-    /// <summary>The already-resolved identifier supplied, or null where the member takes none.</summary>
     public string? ForeignId { get; init; }
 
-    /// <summary>The instance-side identifier supplied, or null where the member takes none.</summary>
     public int? EntityId { get; init; }
 
-    /// <summary>
-    /// The instance-side identifiers supplied, or null where the member names one entity.
-    /// </summary>
     public IReadOnlyList<int>? EntityIds { get; init; }
 
-    /// <summary>The scope asked for, or null where the member expresses no scope.</summary>
     public MonitorScope? Scope { get; init; }
 
-    /// <summary>The flag asked for, or null on a member that does not set it.</summary>
     public bool? Monitored { get; init; }
 
-    /// <summary>The add defaults supplied, or null on a member that adds nothing.</summary>
     public AddDefaults? Defaults { get; init; }
 
-    /// <summary>The directory named, or null on a member that names none.</summary>
     public string? Folder { get; init; }
 
-    /// <summary>The body sent, or null where there was none.</summary>
     public JsonNode? Body { get; init; }
 }
 
-/// <summary>
-/// A double for every seam interface this product can make a request through, recording the
-/// ARGUMENTS of each one and answering with a response the caller chose.
-/// </summary>
-/// <remarks>
-/// It stands in for the one seam every outbound request leaves through, so a path that reaches no
-/// call here contacted the instance not at all. The arguments are what is recorded rather than a
-/// count: a count answers whether a request was made, and the question a refusal has to answer is
-/// what would have been sent.
-/// <para>
-/// No network and no timing behaviour, so an empty log is a fact about the path under test.
-/// </para>
-/// <para>
-/// It implements the whole outbound surface rather than the read half, so an empty
-/// <see cref="Verbs"/> is evidence about every verb the product can issue and not only about the
-/// ones on the read-and-configure interface. One class rather than a second recorder beside it: two
-/// logs with independent ordering would let an assertion that a path issued nothing be read off a
-/// list that could never have held the call in question.
-/// </para>
-/// </remarks>
+// Stands in for the one seam every outbound request leaves through, so a path that reaches no call
+// here contacted the instance not at all. The arguments are recorded rather than a count: a count
+// answers whether a request was made, and the question a refusal has to answer is what would have
+// been sent. No network and no timing behaviour, so an empty log is a fact about the path under
+// test.
+// It implements the whole outbound surface rather than the read half, so an empty Verbs list is
+// evidence about every verb the product can issue, not only about the ones on the read-and-configure
+// interface. One class rather than a second recorder beside it: two logs with independent
+// ordering would let an assertion that a path issued nothing be read off a list that could never
+// have held the call in question.
 internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     : IWhisparrClient,
         IWhisparrStudioActing,
@@ -104,82 +65,51 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
 {
     private const string JsonContentType = "application/json; charset=utf-8";
 
-    /// <summary>Every status read this client was asked for, in order.</summary>
     public List<(Uri BaseAddress, string ApiKey)> Calls { get; } = [];
 
-    /// <summary>Every scene status read this client was asked for, in order.</summary>
     public List<SceneStatusCall> SceneStatuses { get; } = [];
 
-    /// <summary>The identifiers each exclusion read was asked about, in order.</summary>
     public List<IReadOnlyCollection<string>> ExclusionReads { get; } = [];
 
-    /// <summary>Which identifiers an exclusion read answers as excluded.</summary>
     public HashSet<string> Excluded { get; } = new(StringComparer.Ordinal);
 
-    /// <summary>The identifiers each batched presence read was asked about, in order.</summary>
     public List<IReadOnlyCollection<string>> HeldSceneReads { get; } = [];
 
-    /// <summary>Which identifiers a batched presence read answers as already held.</summary>
     public HashSet<string> HeldScenes { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>The site and the numbers each site-row read was asked about, in order.</summary>
     public List<(int SiteId, IReadOnlyCollection<int> SceneNumbers)> SiteSceneReads { get; } = [];
 
-    /// <summary>The row identifier each scene number on a site is answered under.</summary>
     public Dictionary<int, int> SiteSceneRowIds { get; } = [];
 
-    /// <summary>The numbers each held-site read was asked about, in order.</summary>
     public List<IReadOnlyCollection<int>> HeldSiteReads { get; } = [];
 
-    /// <summary>Which site numbers a batched presence read answers as already held.</summary>
     public HashSet<int> HeldSites { get; } = [];
 
-    /// <summary>The scene each exclusion lookup named, in order.</summary>
     public List<string> ExclusionLookups { get; } = [];
 
-    /// <summary>The exclusion row identifier each scene is answered under.</summary>
     public Dictionary<string, int> ExclusionIdByScene { get; } = new(StringComparer.Ordinal);
 
-    /// <summary>Whether an exclusion lookup reports that it read a whole answer.</summary>
     public bool ExclusionReadCompletes { get; set; } = true;
 
-    /// <summary>
-    /// The verbs that produce no whole answer, whatever is queued for them.
-    /// </summary>
-    /// <remarks>
-    /// The call is recorded first, so a case can state both that the request was made and that
-    /// nothing came back. It is the one answer a queued response cannot express: a status is an
-    /// answer, and this is the absence of one.
-    /// </remarks>
+    // The call is recorded first, so a case can state both that the request was made and that
+    // nothing came back. It is the one answer a queued response cannot express: a status is an
+    // answer, and this is the absence of one.
     public HashSet<string> Unreachable { get; } = new(StringComparer.Ordinal);
 
-    /// <summary>Every notification request this client was asked for, in order.</summary>
     public List<NotificationCall> Notifications { get; } = [];
 
-    /// <summary>Every history read this client was asked for, in order.</summary>
     public List<HistoryCall> Histories { get; } = [];
 
-    /// <summary>Every acting and grabbing request this client was asked for, in order.</summary>
     public List<ActingCall> Acting { get; } = [];
 
-    /// <summary>
-    /// The name of every request this client was asked to make, in order, whichever verb it was.
-    /// </summary>
-    /// <remarks>
-    /// An assertion over this states which verbs a path used rather than which it avoided, so a verb
-    /// added to the seam and then called is a failure rather than an omission from a list.
-    /// </remarks>
+    // An assertion over this states which verbs a path used rather than which it avoided, so a verb
+    // added to the seam and then called is a failure rather than an omission from a list.
     public List<string> Verbs { get; } = [];
 
-    /// <summary>
-    /// What each verb answers with, keyed by verb name.
-    /// </summary>
-    /// <remarks>
-    /// A queue per verb, because a registration reads the list TWICE — once to find, once to read
-    /// back — and the two answers are the point. A verb whose queue runs dry keeps answering with its
-    /// last entry, so a test only has to state the answers that differ, and a paged walk longer than
-    /// the queue keeps reading the last page it was given.
-    /// </remarks>
+    // A queue per verb, because a registration reads the list twice, once to find and once to read
+    // back, and the two answers are the point. A verb whose queue runs dry keeps answering with its
+    // last entry, so a test only has to state the answers that differ, and a paged walk longer than
+    // the queue keeps reading the last page it was given.
     public Dictionary<string, Queue<WhisparrResponse>> NotificationAnswers { get; } = [];
 
     public Task<WhisparrResponse> ReadStatusAsync(Uri baseAddress, string apiKey, CancellationToken ct)
@@ -480,18 +410,15 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         => RecordActing(
             new ActingCall(nameof(SearchSceneAsync), baseAddress, apiKey) { EntityId = sceneId });
 
-    /// <summary>Queues <paramref name="answers"/> as what <paramref name="verb"/> answers with.</summary>
     public RecordingWhisparrClient Answering(string verb, params WhisparrResponse[] answers)
     {
         NotificationAnswers[verb] = new Queue<WhisparrResponse>(answers);
         return this;
     }
 
-    /// <summary>A JSON answer with <paramref name="status"/> and <paramref name="body"/>.</summary>
     public static WhisparrResponse Json(int status, string body)
         => new(status, JsonContentType, body);
 
-    /// <summary>A client answering with the status document <paramref name="fixtureFileName"/> holds.</summary>
     public static RecordingWhisparrClient Reporting(string fixtureFileName)
         => new(new WhisparrResponse(200, JsonContentType, ProbeFixtures.Read(fixtureFileName)));
 
@@ -655,9 +582,6 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     }
 }
 
-/// <summary>One scene status read a recording client was asked for.</summary>
-/// <param name="Kind">The entity kind an entity probe named, or null for a per-scene read.</param>
-/// <param name="ForeignId">The entity an entity probe named, or null for a per-scene read.</param>
-/// <param name="RemoteId">The scene a per-scene read named, or null for an entity probe.</param>
+// Kind and ForeignId are set for an entity probe, RemoteId for a per-scene read.
 internal sealed record SceneStatusCall(
     WhisparrEntityKind? Kind, string? ForeignId, string? RemoteId);

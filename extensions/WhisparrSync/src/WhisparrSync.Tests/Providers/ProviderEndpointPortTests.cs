@@ -5,15 +5,7 @@ using WhisparrSync.Providers;
 
 namespace WhisparrSync.Tests.Providers;
 
-/// <summary>
-/// Which metadata server this product reads a catalogue from, and what it does when the host names
-/// none.
-/// </summary>
-/// <remarks>
-/// The configuration is optional throughout this extension, so every absence here has to reach an
-/// answer rather than a throw: the extension must load on a host that registers no configuration at
-/// all.
-/// </remarks>
+// The host configuration is optional, so the extension must load where none is registered.
 public sealed class ProviderEndpointPortTests
 {
     private const string ConfiguredSpelling = "https://stashdb.org/graphql";
@@ -37,7 +29,6 @@ public sealed class ProviderEndpointPortTests
         Assert.Null(port.Resolve(WhisparrGeneration.V3, new MetadataProviderEndpoints()));
     }
 
-    /// <summary>A server carrying no credential is no server to read with.</summary>
     [Fact]
     public void AMatchedServerWithNoKeyIsARefusal()
     {
@@ -60,10 +51,8 @@ public sealed class ProviderEndpointPortTests
         Assert.Equal(120, resolved.MaxRequestsPerMinute);
     }
 
-    /// <summary>
-    /// Two spellings of one source are one source, by the host's own rule. A match on the string
-    /// alone would answer that a configured provider is absent.
-    /// </summary>
+    // The host treats these spellings as one source, so a plain string match would report a
+    // configured provider as absent.
     [Theory]
     [InlineData("https://theporndb.net/graphql")]
     [InlineData("https://api.theporndb.net/graphql")]
@@ -79,11 +68,8 @@ public sealed class ProviderEndpointPortTests
         Assert.Equal(90, resolved.MaxRequestsPerMinute);
     }
 
-    /// <summary>
-    /// The identity endpoint is the CONFIGURED spelling, which is what the host stamps on a remote id
-    /// row. Ownership is judged on it, so answering the standard address for a host configured at
-    /// another would subtract against a spelling no row carries.
-    /// </summary>
+    // The host stamps the configured spelling on a remote id row, and ownership is judged on it.
+    // Answering the standard address instead would subtract against a spelling no row carries.
     [Fact]
     public void TheIdentityEndpointIsTheConfiguredSpellingRatherThanTheStandardOne()
     {

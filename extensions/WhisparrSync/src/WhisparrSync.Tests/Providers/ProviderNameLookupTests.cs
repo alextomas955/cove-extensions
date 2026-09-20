@@ -10,16 +10,8 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Providers;
 
-/// <summary>
-/// What each provider is asked when an entity carries no stored identifier, and what it makes of the
-/// answer.
-/// </summary>
-/// <remarks>
-/// The library holds no tag identifier at all, so a tag page always takes this path. Every answer
-/// here is a recording of a live call: the two behaviours the lookup depends on, a canonical tag
-/// found only through its aliases and a common name matching several entities exactly, are the
-/// provider's own rather than a document written to produce them.
-/// </remarks>
+// Every answer here is a recording of a live call, not a document written to suit the lookup.
+// The library holds no tag identifier, so a tag page always takes this path.
 public sealed class ProviderNameLookupTests
 {
     private const string StashDbFixture = "stashdb-2026-09-name-lookups.json";
@@ -70,11 +62,8 @@ public sealed class ProviderNameLookupTests
         Assert.False(found.IsAmbiguous);
     }
 
-    /// <summary>
-    /// The alias-aware query is what a tag is asked for. The plain one answers null for a word that
-    /// is an alias of a canonical tag, and reporting no catalogue for a very common tag would be a
-    /// false negative under a name a reader would read as right.
-    /// </summary>
+    // StashDB's plain findTag query answers null for a word that is an alias of a canonical tag,
+    // so only the alias-aware query finds it.
     [Fact]
     public async Task ATagIsAskedForThroughTheAliasAwareQueryOnStashDb()
     {
@@ -89,10 +78,6 @@ public sealed class ProviderNameLookupTests
         Assert.DoesNotContain("findTag(name", handler.Requests[0].Body, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The plain query really does answer null for that word, so the choice of query is what decides
-    /// whether the tag is found at all.
-    /// </summary>
     [Fact]
     public void ThePlainTagQueryAnsweredNothingForTheSameWord()
     {
@@ -117,10 +102,8 @@ public sealed class ProviderNameLookupTests
         Assert.False(found.IsAmbiguous);
     }
 
-    /// <summary>
-    /// Several performers really do carry one name, separated only by the provider's own
-    /// disambiguation. A coin flip between them is a wrong identifier under a name that reads right.
-    /// </summary>
+    // StashDB really does carry several performers under one name, separated only by its own
+    // disambiguation field.
     [Fact]
     public async Task SeveralExactMatchesResolveToNoIdentifierOnStashDb()
     {
@@ -133,7 +116,7 @@ public sealed class ProviderNameLookupTests
         Assert.Null(found.ProviderEntityId);
     }
 
-    /// <summary>The provider's search matches on a substring, so a near match answers nothing.</summary>
+    // StashDB's search matches on a substring, so a near match answers rows that no name matches.
     [Fact]
     public async Task OnlyNearMatchesResolveToNothingOnStashDb()
     {
@@ -146,7 +129,6 @@ public sealed class ProviderNameLookupTests
         Assert.False(found.IsAmbiguous);
     }
 
-    /// <summary>An alias is offered after the entity's own name, and a provider that matches on it answers.</summary>
     [Fact]
     public async Task AnAliasIsTriedAfterTheNameOnStashDb()
     {
@@ -183,10 +165,7 @@ public sealed class ProviderNameLookupTests
         Assert.False(found.IsAmbiguous);
     }
 
-    /// <summary>
-    /// A tag answers the numeric identifier, which is what the scene route reads. There is no route
-    /// carrying a tag's stored identifier at all, so this lookup is the only way a tag is reached.
-    /// </summary>
+    // ThePornDB names a tag by a number, which is what its scene route reads.
     [Fact]
     public async Task ATagResolvesToTheProvidersNumericIdentifierOnThePornDb()
     {
@@ -198,10 +177,8 @@ public sealed class ProviderNameLookupTests
         Assert.Single(handler.Targets);
     }
 
-    /// <summary>
-    /// The search is relevance-ordered and pages at thirty, so an exact name can fall past the first
-    /// page and the walk has to continue to reach it.
-    /// </summary>
+    // ThePornDB's search is relevance-ordered and pages at thirty, so an exact name can fall past
+    // the first page.
     [Fact]
     public async Task AnExactNameOnTheSecondPageIsReachedOnThePornDb()
     {
@@ -216,7 +193,6 @@ public sealed class ProviderNameLookupTests
         Assert.Contains("page=2", handler.Targets[1], StringComparison.Ordinal);
     }
 
-    /// <summary>The walk stops where the provider says its own result ends.</summary>
     [Fact]
     public async Task TheWalkStopsAtTheProvidersLastPageOnThePornDb()
     {
@@ -230,10 +206,7 @@ public sealed class ProviderNameLookupTests
         Assert.Equal(2, handler.Targets.Count);
     }
 
-    /// <summary>
-    /// A long result is walked no further than the stated bound, so the cost of a lookup is bounded
-    /// by the search rather than by how many entities carry a common word.
-    /// </summary>
+    // The bound keeps a lookup's cost off the number of entities carrying a common word.
     [Fact]
     public async Task TheWalkStopsAtItsOwnBoundOnThePornDb()
     {
@@ -269,15 +242,9 @@ public sealed class ProviderNameLookupTests
         Assert.Equal("dcf62cfa-c156-481d-b176-1f061e61546b", found.ProviderEntityId);
     }
 
-    /// <summary>
-    /// A credential the source refuses is not an entity the source has no name for.
-    /// </summary>
-    /// <remarks>
-    /// Read as an absence it becomes a settled fact about the library with no way to retry, and the
-    /// reader is sent to check link chips a working key would have matched. The alias is supplied so
-    /// the single request is the second half of the claim: a walk that carried on would send again
-    /// into the same refusal and could answer the absence at the end of it.
-    /// </remarks>
+    // A refusal read as an absence becomes a settled fact about the library with no way to retry.
+    // The alias is supplied so the single request means something: without one, a walk that carried
+    // on would stop anyway and the count would pass for the wrong reason.
     [Fact]
     public async Task ARefusedCredentialIsNotAnUnnamedEntityOnStashDb()
     {
@@ -292,10 +259,7 @@ public sealed class ProviderNameLookupTests
         Assert.Single(handler.Requests);
     }
 
-    /// <summary>
-    /// The source states an expired key as an <c>errors</c> member inside a success status, and that
-    /// is not an unnamed entity either.
-    /// </summary>
+    // StashDB states an expired key as an errors member inside a 200 response.
     [Fact]
     public async Task ARefusalInsideASuccessStatusIsNotAnUnnamedEntityOnStashDb()
     {
@@ -311,7 +275,6 @@ public sealed class ProviderNameLookupTests
         Assert.Single(handler.Requests);
     }
 
-    /// <summary>A credential this source refuses is not an entity it has no name for either.</summary>
     [Fact]
     public async Task ARefusedCredentialIsNotAnUnnamedEntityOnThePornDb()
     {
@@ -326,10 +289,7 @@ public sealed class ProviderNameLookupTests
         Assert.Single(handler.Targets);
     }
 
-    /// <summary>
-    /// This source states its own refusal as a <c>message</c> member, and that is not an unnamed
-    /// entity either.
-    /// </summary>
+    // ThePornDB states its refusal as a message member inside a 200 response.
     [Fact]
     public async Task ARefusalStatedInTheBodyIsNotAnUnnamedEntityOnThePornDb()
     {
@@ -345,7 +305,6 @@ public sealed class ProviderNameLookupTests
         Assert.Single(handler.Targets);
     }
 
-    /// <summary>An entity the source really has no name for is still an absence, on both sources.</summary>
     [Fact]
     public async Task AnEntityNeitherSourceNamesIsReachedAndUnmatched()
     {
@@ -386,8 +345,7 @@ public sealed class ProviderNameLookupTests
                 ApiKey = SomeKey,
                 Name = "provider",
 
-                // Zero paces nothing, so a case settling a question about a composed request does
-                // not wait on a limiter.
+                // Zero paces nothing, so no case waits on the limiter.
                 MaxRequestsPerMinute = 0,
             });
 

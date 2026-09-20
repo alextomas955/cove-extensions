@@ -11,15 +11,9 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// A redelivery naming a different file for a scene the library already holds: the item it lands on,
-/// what the two upgrade behaviours do with the file it supersedes, and what neither of them touches.
-/// </summary>
-/// <remarks>
-/// The core-level assertions are on the ARGUMENT the host import seam received, not on how often it
-/// was called: passing the existing item's key is the entire difference between a second item and the
-/// same item now holding two files, and a call count cannot see it.
-/// </remarks>
+// The core-level assertions are on the argument the host import seam received, not on how often it
+// was called: passing the existing item's key is the entire difference between a second item and
+// the same item now holding two files, and a call count cannot see it.
 public sealed class UpgradePathTests
 {
     private const string WhisparrRoot = "/whisparr-media";
@@ -37,10 +31,8 @@ public sealed class UpgradePathTests
         Assert.Equal(("/data/upgrade.mp4", (int?)7), Assert.Single(ingest.Library.Imported));
     }
 
-    /// <summary>
-    /// The discriminating control: an identifier naming nothing is imported with no key at all, so
-    /// the key above is there because the identifier resolved and not because one is always passed.
-    /// </summary>
+    // The control: an identifier naming nothing is imported with no key at all, so the key above is
+    // there because the identifier resolved and not because one is always passed.
     [Fact]
     public async Task ARedeliveryWhoseIdentifierNamesNoItemIsImportedAsANewOne()
     {
@@ -51,11 +43,9 @@ public sealed class UpgradePathTests
         Assert.Equal(("/data/first.mp4", (int?)null), Assert.Single(ingest.Library.Imported));
     }
 
-    /// <summary>
-    /// An identifier two items carry reaches no host import at all. The identifier is authenticated
-    /// only by the shared secret the callback checks, so attaching a file to the wrong item on a
-    /// coincidental match would be a write into the library driven by an unsigned value.
-    /// </summary>
+    // The identifier is authenticated only by the shared secret the callback checks, so attaching a
+    // file to the wrong item on a coincidental match would be a write into the library driven by an
+    // unsigned value.
     [Fact]
     public async Task AnIdentifierTwoItemsCarryReachesNoHostImportAndDetachesNothing()
     {
@@ -83,7 +73,6 @@ public sealed class UpgradePathTests
         Assert.Empty(ingest.Library.Detached);
     }
 
-    /// <summary>The default: the new file is attached and nothing else is touched.</summary>
     [Fact]
     public async Task UnderTheDefaultBehaviourTheSupersededRowIsLeftAttached()
     {
@@ -107,7 +96,6 @@ public sealed class UpgradePathTests
         Assert.Equal((7, "/data/upgrade.mp4"), Assert.Single(ingest.Library.Detached));
     }
 
-    /// <summary>A first import is not an upgrade, so the other behaviour detaches nothing there.</summary>
     [Fact]
     public async Task AFirstImportDetachesNothingUnderEitherBehaviour()
     {
@@ -119,14 +107,8 @@ public sealed class UpgradePathTests
         Assert.Empty(ingest.Library.Detached);
     }
 
-    /// <summary>
-    /// A detach clears the row's video key and leaves the row, and the item's own figures are right
-    /// afterwards because the host's save recomputes them.
-    /// </summary>
-    /// <remarks>
-    /// Over a real relational context, so the recomputation under test is the host's own rather than
-    /// a value this test supplied.
-    /// </remarks>
+    // Over a real relational context, so the recomputation under test is the host's own rather than a
+    // value this test supplied.
     [Fact]
     public async Task ADetachLeavesOneFileOnTheItemAndTheDetachedRowStillThereWithNoVideoKey()
     {
@@ -142,7 +124,6 @@ public sealed class UpgradePathTests
         Assert.Equal([("/data/new.mp4", (int?)videoId), ("/data/old.mp4", null)], await library.FilesAsync());
     }
 
-    /// <summary>A detach that finds only the kept row writes nothing.</summary>
     [Fact]
     public async Task ADetachOverAnItemHoldingOnlyTheKeptFileChangesNothing()
     {
@@ -154,7 +135,6 @@ public sealed class UpgradePathTests
         Assert.Equal([("/data/new.mp4", (int?)videoId)], await library.FilesAsync());
     }
 
-    /// <summary>The setting's reader ships with its control: a save applies it and a read returns it.</summary>
     [Fact]
     public void ASavedUpgradeBehaviourIsAppliedAndReadBack()
     {
@@ -169,7 +149,6 @@ public sealed class UpgradePathTests
             SettingsProjector.ToView(stored, v3KeyIsSet: false, v2KeyIsSet: false).UpgradeBehavior);
     }
 
-    /// <summary>A save that omits it leaves the stored value, which the connection form relies on.</summary>
     [Fact]
     public void ASaveThatOmitsTheUpgradeBehaviourLeavesTheStoredOne()
         => Assert.Equal(
@@ -179,10 +158,8 @@ public sealed class UpgradePathTests
                 new WhisparrSyncSettingsSaveRequest(WhisparrGeneration.V3, null, null))
                 .UpgradeBehavior);
 
-    /// <summary>
-    /// Neither behaviour creates a capability to move, rename or delete a file, and this is a
-    /// property of the seam rather than of the code that calls it.
-    /// </summary>
+    // Neither behaviour creates a capability to move, rename or delete a file, and this is a property
+    // of the seam rather than of the code that calls it.
     [Fact]
     public void TheLibrarySeamDeclaresNoMemberThatCouldMoveRenameOrDeleteAFile()
     {
@@ -203,7 +180,6 @@ public sealed class UpgradePathTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    /// <summary>One ingest over fakes, with the import and detach seams recorded.</summary>
     private sealed class Ingest
     {
         public FakeStore Store { get; } = new();
@@ -212,7 +188,6 @@ public sealed class UpgradePathTests
 
         public StubPaths Paths { get; } = new();
 
-        /// <summary>Stores the upgrade behaviour the delivery below is read under.</summary>
         public Task StoreAsync(UpgradeBehavior behaviour)
             => new OptionsStore(Store).SaveAsync(
                 new WhisparrSyncOptions { UpgradeBehavior = behaviour }, Ct);
@@ -257,7 +232,7 @@ public sealed class UpgradePathTests
                 : new ProbedPath(false, null);
     }
 
-    /// <summary>A real relational library, so the host's own save is the one under test.</summary>
+    // A real relational library, so the host's own save is the one under test.
     private sealed class LibraryFixture : IAsyncDisposable
     {
         private DbContext _db = null!;
@@ -283,10 +258,8 @@ public sealed class UpgradePathTests
             return video.Id;
         }
 
-        /// <summary>
-        /// Attaches one more file to an item. The stored path is left for the host's own save to
-        /// compute from the folder, so the fixture does not supply the value a read then checks.
-        /// </summary>
+        // The stored path is left for the host's own save to compute from the folder, so the fixture does
+        // not supply the value a read then checks.
         public async Task AttachFileAsync(int videoId, string path)
         {
             _db.Add(new VideoFile
@@ -298,7 +271,7 @@ public sealed class UpgradePathTests
             await _db.SaveChangesAsync(Ct);
         }
 
-        /// <summary>The item's OWN file-count figure, which the host recomputes on every save.</summary>
+        // The item's own file-count figure, which the host recomputes on every save.
         public async Task<int> FileCountOfAsync(int videoId)
             => (await _db.Set<Video>().AsNoTracking().FirstAsync(video => video.Id == videoId, Ct))
                 .FileCount;

@@ -5,14 +5,6 @@ using WhisparrSync.Missing;
 
 namespace WhisparrSync.Tests.Missing;
 
-/// <summary>
-/// Which of a page's scenes the library already holds, and what that read costs.
-/// </summary>
-/// <remarks>
-/// The cost claim is the point. A subtraction that loaded every owned identifier would pass every
-/// assertion about correctness here and grow with the library, so the parameter bound is asserted
-/// off the generated SQL rather than read out of the source.
-/// </remarks>
 public sealed class OwnedScenePortTests : IAsyncLifetime
 {
     private const string StashDb = "https://stashdb.org/graphql";
@@ -52,10 +44,6 @@ public sealed class OwnedScenePortTests : IAsyncLifetime
         Assert.Equal([HeldScene], owned);
     }
 
-    /// <summary>
-    /// Two spellings of one provider are one source, by the host's own rule. Compared as strings the
-    /// library's own row would read as belonging to someone else.
-    /// </summary>
     [Fact]
     public async Task ARowUnderTheOtherSpellingOfTheSameProviderIsStillOwned()
     {
@@ -66,10 +54,6 @@ public sealed class OwnedScenePortTests : IAsyncLifetime
         Assert.Equal([HeldScene], owned);
     }
 
-    /// <summary>
-    /// Ownership is judged on the connected provider alone. A scene held under the other provider's
-    /// identifier reads as missing, and nothing bridges the two.
-    /// </summary>
     [Fact]
     public async Task ARowUnderTheOtherProvidersEndpointDoesNotMatch()
     {
@@ -80,14 +64,6 @@ public sealed class OwnedScenePortTests : IAsyncLifetime
         Assert.Empty(owned);
     }
 
-    /// <summary>
-    /// The query carries the page's own identifiers and no more, so what one page costs does not grow
-    /// with what the library holds.
-    /// </summary>
-    /// <remarks>
-    /// Read off the generated SQL. Asserted from the source it would agree with whatever the source
-    /// said, which is the failure this case exists to catch.
-    /// </remarks>
     [Fact]
     public void TheQuerysParameterListIsBoundedByThePage()
     {
@@ -106,7 +82,6 @@ public sealed class OwnedScenePortTests : IAsyncLifetime
         Assert.DoesNotContain("scene-40", sql, StringComparison.Ordinal);
     }
 
-    /// <summary>A repeated identifier is asked for once.</summary>
     [Fact]
     public async Task ARepeatedIdentifierDoesNotWidenTheAsk()
     {

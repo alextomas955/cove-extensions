@@ -10,21 +10,13 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Jobs;
 
-/// <summary>
-/// What a scene batch carries across the host's parameter map, what it reports, the principal its
-/// reads run under, and how it ends when the host stops it.
-/// </summary>
-/// <remarks>
-/// The decode cases are the ones the host can really produce. It hands a job whatever map was stored
-/// with it, and a decode that threw inside the runner would be a faulted job rather than an answer,
-/// which is only reachable through that runner.
-/// </remarks>
+// The decode cases are the maps the host can really hand a job. A decode that threw inside the
+// runner would be a faulted job rather than an answer.
 public sealed class SceneBatchJobTests
 {
-    /// <summary>A scene as the provider issues its identifier.</summary>
     private const string SceneId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-    /// <summary>A scene the instance holds no entry for.</summary>
+    // Whisparr answers a scene it holds no entry for with an empty array.
     private const string NoSceneRow = "[]";
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
@@ -39,11 +31,7 @@ public sealed class SceneBatchJobTests
         Assert.Equal([7, 41], decoded.CoveIds);
     }
 
-    /// <summary>A map nothing can be read out of names no verb and no scene.</summary>
-    /// <remarks>
-    /// Each shape the host can hand over is driven on its own, so one covering case cannot stand for
-    /// the rest. None throws: a run nobody can read is a clean no-op.
-    /// </remarks>
+    // A run nobody can read is a clean no-op rather than a throw.
     [Fact]
     public void ANullMapNamesNoVerbAndNoScene()
     {
@@ -63,7 +51,6 @@ public sealed class SceneBatchJobTests
         Assert.Empty(decoded.CoveIds);
     }
 
-    /// <summary>An id list nothing can be read out of names no scene.</summary>
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -79,14 +66,8 @@ public sealed class SceneBatchJobTests
                     ["coveIds"] = raw,
                 }).CoveIds);
 
-    /// <summary>
-    /// A verb this product does not express answers the absent value and never the first member.
-    /// </summary>
-    /// <remarks>
-    /// A run that defaulted to the first member would add scenes on a map nobody could read. The
-    /// control at the end is what makes the four answers above about those maps rather than about the
-    /// reader.
-    /// </remarks>
+    // A run that defaulted to the first enum member would add scenes on a map nobody could read.
+    // The control at the end makes the four answers above about those maps, not about the reader.
     [Fact]
     public void AVerbThisProductDoesNotExpressNamesNoVerbAndNotTheFirstMember()
     {
@@ -99,12 +80,9 @@ public sealed class SceneBatchJobTests
         Assert.Equal(SceneBatchVerb.Exclude, VerbIn("exclude"));
     }
 
-    /// <summary>The run record reports counts and lists nothing.</summary>
-    /// <remarks>
-    /// A member holding identifiers would grow with the selection. Read off the declared members
-    /// rather than off an instance, so a collection member added later fails here whatever a run
-    /// happened to put in it.
-    /// </remarks>
+    // A member holding identifiers would grow with the selection. The declared members are read
+    // rather than an instance, so a collection member added later fails here whatever a run put in
+    // it.
     [Fact]
     public void TheRunRecordReportsThreeCountsAndListsNothing()
     {
@@ -123,12 +101,9 @@ public sealed class SceneBatchJobTests
                 && member.PropertyType.IsAssignableTo(typeof(System.Collections.IEnumerable)));
     }
 
-    /// <summary>The selection is acted on once per scene, keeping each id's first appearance.</summary>
-    /// <remarks>
-    /// A selection can genuinely carry one video twice, and acting twice issues two requests for it.
-    /// The order is asserted as well as the set, because a run reporting in another order cannot be
-    /// matched against the selection a user made.
-    /// </remarks>
+    // A selection can genuinely carry one video twice, and acting twice issues two requests for it.
+    // The order is asserted as well as the set, because a run reporting in another order cannot be
+    // matched against the selection a user made.
     [Fact]
     public async Task TheRunActsOncePerSceneKeepingFirstAppearance()
     {
@@ -147,7 +122,6 @@ public sealed class SceneBatchJobTests
         Assert.Equal(3, run.Applied);
     }
 
-    /// <summary>A selection naming no scene does no work and opens no scope.</summary>
     [Fact]
     public async Task ASelectionNamingNoSceneDoesNoWorkAndOpensNoScope()
     {
@@ -167,13 +141,10 @@ public sealed class SceneBatchJobTests
         Assert.Contains("nothing was done", SceneBatchJob.SummaryOf(run), StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>The run's own reads happen as System, inside one scope for the whole run.</summary>
-    /// <remarks>
-    /// A background run carries no principal of its own, and Cove's per-principal query filters
-    /// answer an anonymous reader with zero rows and no error, which on this path would report every
-    /// scene as carrying no identity. The principal is read inside the run's own body, which is the
-    /// only place the elevation can be observed.
-    /// </remarks>
+    // A background run carries no principal of its own, and Cove's per-principal query filters
+    // answer an anonymous reader with zero rows and no error, which on this path would report every
+    // scene as carrying no identity. The principal is read inside the run's own body, the only
+    // place the elevation can be observed.
     [Fact]
     public async Task TheRunElevatesOneScopeForTheWholeRunToSystem()
     {
@@ -204,13 +175,8 @@ public sealed class SceneBatchJobTests
         Assert.Null(principals.Current);
     }
 
-    /// <summary>
-    /// A run stopped part way ends as cancelled, and what it applied before that is still counted.
-    /// </summary>
-    /// <remarks>
-    /// The host stops a job by cancelling its token, so classifying that as a failure would report a
-    /// shutdown as a fault.
-    /// </remarks>
+    // The host stops a job by cancelling its token, so classifying that as a failure would report a
+    // shutdown as a fault.
     [Fact]
     public async Task ARunStoppedPartWayEndsAsCancelledAndKeepsWhatItApplied()
     {
@@ -240,9 +206,6 @@ public sealed class SceneBatchJobTests
         Assert.Contains("then stopped", SceneBatchJob.SummaryOf(run), StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A scene the instance already holds is counted apart from one it would not take.
-    /// </summary>
     [Fact]
     public async Task ASceneTheInstanceAlreadyHoldsIsCountedApartFromARefusal()
     {
@@ -261,7 +224,6 @@ public sealed class SceneBatchJobTests
         Assert.Equal(1, run.Refused);
     }
 
-    /// <summary>The run's one line reports counts and names no scene.</summary>
     [Fact]
     public async Task TheRunsOneLineReportsCountsAndNamesNoScene()
     {
@@ -279,14 +241,8 @@ public sealed class SceneBatchJobTests
         Assert.DoesNotContain(SceneId, ReportedIn(progress), StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A search over a scene the instance does not hold counts that scene as refused and sends
-    /// nothing.
-    /// </summary>
-    /// <remarks>
-    /// The pre-send refusals the single-scene route takes are what a selection has to keep: a search
-    /// on a scene the instance holds no entry for would find nothing whatever the indexers hold.
-    /// </remarks>
+    // A search on a scene the instance holds no entry for would find nothing whatever the indexers
+    // hold, so the batch keeps the single-scene route's pre-send refusal.
     [Fact]
     public async Task ASearchOverASceneTheInstanceDoesNotHoldCountsItAsRefusedAndSendsNothing()
     {
@@ -314,7 +270,6 @@ public sealed class SceneBatchJobTests
     private static string ReportedIn(RecordingJobProgress progress)
         => string.Join('\n', progress.Reports.Select(report => report.SubTask));
 
-    /// <summary>The verb <paramref name="raw"/> decodes to, or the absent value.</summary>
     private static SceneBatchVerb? VerbIn(string? raw)
     {
         var parameters = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -326,8 +281,6 @@ public sealed class SceneBatchJobTests
         return SceneBatchJob.Decode(parameters).Verb;
     }
 
-    /// <summary>One run over <paramref name="coveIds"/>, with each scene's turn answered by
-    /// <paramref name="act"/>.</summary>
     private static Task<SceneBatchRun> RunOverAsync(
         int[] coveIds,
         Func<int, CancellationToken, Task<SceneRefusalKind>> act,

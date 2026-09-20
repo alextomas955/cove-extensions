@@ -2,13 +2,8 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Addressing;
 
-/// <summary>
-/// The one file a Cove library root is asked to supply, read from a real relational library.
-/// </summary>
-/// <remarks>
-/// One row whatever the root holds. A library reaches millions of files, so a read that materialised
-/// a root's files to pick one would answer correctly and be unusable.
-/// </remarks>
+// One row whatever the root holds. A library reaches millions of files, so a read that materialised
+// a root's files to pick one would answer correctly and be unusable.
 public sealed class SampleFilePortTests
 {
     private const string Root = "/library/vixen";
@@ -39,10 +34,6 @@ public sealed class SampleFilePortTests
         Assert.Null(await host.SampleFiles.ReadSampleFileAsync(Root, TestCt));
     }
 
-    /// <summary>
-    /// The root reaches the query in the spelling the stored path uses, whichever separator it was
-    /// configured with.
-    /// </summary>
     [Theory]
     [InlineData("/library/vixen")]
     [InlineData("\\library\\vixen")]
@@ -59,9 +50,7 @@ public sealed class SampleFilePortTests
         Assert.Equal(seeded, sample.Path);
     }
 
-    /// <summary>
-    /// A root answers the same file every time, so the probes a run takes are repeatable.
-    /// </summary>
+    // The probes a run takes are repeatable only if the same root answers the same file.
     [Fact]
     public async Task ARootHoldingSeveralFilesAnswersTheSameOneEveryTime()
     {
@@ -77,11 +66,8 @@ public sealed class SampleFilePortTests
         Assert.Equal(first.Path, second?.Path);
     }
 
-    /// <summary>A root under another root's name is not that root.</summary>
-    /// <remarks>
-    /// The prefix carries the separator, so a sibling whose name begins with the root's own does not
-    /// answer for it.
-    /// </remarks>
+    // The prefix carries the separator, so a sibling whose name begins with the root's own does not
+    // answer for it.
     [Fact]
     public async Task ASiblingWhoseNameStartsWithTheRootsIsNotUnderIt()
     {

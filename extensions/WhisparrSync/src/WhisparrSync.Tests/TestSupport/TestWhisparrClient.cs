@@ -5,16 +5,10 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-/// <summary>An outbound client whose every request, either generation's, reaches one handler.</summary>
-/// <remarks>
-/// Each generation's requests are composed by a generated client that stands up an <c>HttpClient</c>
-/// of its own, so the handler under test is supplied to all three. A test that supplied it to one
-/// would record part of the requests and assert on that part.
-/// <para>
-/// The bound on one attempt is read off the supplied client for the same reason, so a test that sets
-/// its own is setting it for both.
-/// </para>
-/// </remarks>
+// Each generation's requests are composed by a generated client that stands up an HttpClient of its
+// own, so the handler under test is supplied to all three. A test that supplied it to one would
+// record part of the requests and assert on that part. The bound on one attempt is read off the
+// supplied client for the same reason.
 internal static class TestWhisparrClient
 {
     public static WhisparrClient Over(
@@ -44,19 +38,15 @@ internal static class TestWhisparrClient
     }
 }
 
-/// <summary>The site numbers a client under test resolves a stored identifier through.</summary>
-/// <remarks>
-/// An identifier that already parses as a positive number answers with that number and asks nothing,
-/// which is what the shipped port does. Every other identifier answers that the source names no site
-/// unless a case states otherwise, so a case that forgot to state one fails on the refusal rather
-/// than on a request the double was never given an answer for.
-/// </remarks>
+// An identifier that already parses as a positive number answers with that number and asks nothing,
+// which is what the shipped port does. Every other identifier answers that the source names no site
+// unless a case states otherwise, so a case that forgot to state one fails on the refusal rather
+// than on an unconfigured request.
 internal sealed class TestSiteNumbers : ISiteNumberPort
 {
     private readonly Dictionary<string, WhisparrSiteNumber> _answers =
         new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Every identifier this was asked about, in order.</summary>
     public List<string> Asked { get; } = [];
 
     public static TestSiteNumbers Numbering(string storedSiteId, int number)

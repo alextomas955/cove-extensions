@@ -1,15 +1,9 @@
 /**
  * What the videos selection bar offers over a selection of scenes.
  *
- * The rows are a constant rather than a derivation over what the connected instance can do. This
- * action reaches the manifest on v3 alone, so there is nothing to read before the
- * overlay opens and no row that can turn out not to be offered.
- *
- * The order is the invariant this module holds: safest first, the only row that can download fourth,
- * and the row that changes what Whisparr accepts in future last. Nothing here sorts.
- *
- * Every row is labelled from the menu set rather than from the scene tab's, because the panel above
- * the rows is already headed with the product's name.
+ * The rows are a constant because the action reaches the manifest on v3 alone, so nothing has to be
+ * read before the overlay opens. The order is the invariant: safest first, the only row that can
+ * download fourth, and the row that changes what Whisparr accepts in future last. Nothing sorts.
  */
 import {
   MENU_ADD,
@@ -20,7 +14,6 @@ import {
 } from "../common/ui/copy";
 import type { SceneBatchVerb } from "../wire/api";
 
-/** One row the batch overlay offers, already decided. */
 export interface BatchMenuRow {
   readonly key: string;
   readonly label: string;

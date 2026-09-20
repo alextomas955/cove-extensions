@@ -9,14 +9,8 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Whisparr;
 
-/// <summary>
-/// What leaves for Whisparr when a request is refused, driven through the real client seam.
-/// </summary>
-/// <remarks>
-/// Every case here runs against a double that records the arguments of every request, and each
-/// emptiness assertion is paired with a send taken through the SAME double, so an empty log is
-/// evidence rather than the only thing this test could ever report.
-/// </remarks>
+// Each emptiness assertion is paired with a send taken through the same double, so an empty log
+// is evidence rather than the only thing the case could report.
 public sealed class RefusalBeforeRequestTests
 {
     private const string V3StatusFixture = "whisparr-v3-3.3.8.1097-system-status.json";
@@ -25,15 +19,12 @@ public sealed class RefusalBeforeRequestTests
     private const string V2Address = "http://whisparr-v2:6969";
     private const string StoredKey = "7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c";
 
-    /// <summary>How many deliveries one burst stands for.</summary>
     private const int Burst = 10;
 
     private static readonly DateTimeOffset Midnight = new(2026, 8, 31, 0, 0, 0, TimeSpan.Zero);
 
-    /// <summary>
-    /// The control the emptiness assertions rest on: this recorder reports a send, with the address
-    /// and key that were sent rather than the fact that something was.
-    /// </summary>
+    // The control the other cases rest on: the recorder reports the address and key it sent, not
+    // merely that something was sent.
     [Fact]
     public async Task APathThatDoesSendRecordsTheAddressAndKeyItSent()
     {
@@ -48,16 +39,8 @@ public sealed class RefusalBeforeRequestTests
         Assert.Equal(StoredKey, call.ApiKey);
     }
 
-    /// <summary>
-    /// A capability the connected generation does not hold is refused with nothing sent, and the same
-    /// client is then shown to record a request, so the empty log above is a fact about the refusal.
-    /// </summary>
-    /// <remarks>
-    /// Taken against a real generation gap rather than against a set built holding nothing: no route
-    /// on v2 adds a catalogue item at all, so its set holds no missing-scene role and
-    /// the refusal under test is the one a user actually reaches. What is asserted is the property
-    /// CAP-2 asks for: obtaining a role that is absent produces a refusal and nothing leaves.
-    /// </remarks>
+    // Taken against a real generation gap rather than a set built holding nothing: no route on v2
+    // adds a catalogue item, so its set holds no missing-scene role.
     [Fact]
     public async Task ACapabilityTheSetDoesNotHoldIsRefusedWithNothingSent()
     {
@@ -78,20 +61,9 @@ public sealed class RefusalBeforeRequestTests
         Assert.Single(client.Calls);
     }
 
-    /// <summary>
-    /// The capability vocabulary, and what each generation holds of it.
-    /// </summary>
-    /// <remarks>
-    /// All three sets are written out, so a capability added later fails here rather than passing over
-    /// a case nothing drives, and a generation that begins holding one fails here rather than gaining
-    /// it in silence.
-    /// <para>
-    /// A member held by neither generation is not a gap here. A capability names what a caller can be
-    /// refused under, so it is declared as soon as a role expresses it and held only once some
-    /// generation has an implementation to register; until then it reads as refused, which is what it
-    /// is.
-    /// </para>
-    /// </remarks>
+    // All three sets are written out, so a capability added later fails here rather than passing
+    // over a case nothing drives. A capability held by neither generation is not a gap: it is
+    // declared as soon as a role expresses it and held once a generation can register one.
     [Fact]
     public void TheCapabilityVocabularyAndWhatEachGenerationHoldsAreWrittenDown()
     {
@@ -162,10 +134,6 @@ public sealed class RefusalBeforeRequestTests
         Assert.Equal(missing, view.MissingSetting);
     }
 
-    /// <summary>
-    /// The same refusal on the transient path, whose address and key come from the request rather than
-    /// from what is stored.
-    /// </summary>
     [Fact]
     public async Task ATransientTestOfAnUnconfiguredPairSendsNothing()
     {
@@ -183,14 +151,8 @@ public sealed class RefusalBeforeRequestTests
         Assert.Single(client.Calls);
     }
 
-    /// <summary>
-    /// A burst of deliveries arriving while the instance is unreachable costs one outbound probe.
-    /// </summary>
-    /// <remarks>
-    /// A read that reaches the client re-pays the client's own timeout and retry, and it does so
-    /// inside the inbound request pipeline. Uncached, a burst during an outage is therefore a burst of
-    /// stalls rather than a burst of refusals.
-    /// </remarks>
+    // A read that reaches the client re-pays the client's timeout and retry inside the inbound
+    // request pipeline, so an uncached burst during an outage is a burst of stalls.
     [Fact]
     public async Task ABurstAgainstAnUnreachableInstanceProbesItOnce()
     {
@@ -205,11 +167,6 @@ public sealed class RefusalBeforeRequestTests
         Assert.Equal(1, unreachable.Attempts);
     }
 
-    /// <summary>A burst against an unconfigured connection reaches no request at all.</summary>
-    /// <remarks>
-    /// Paired with a send taken through the SAME double, so the empty log is a fact about the refusal
-    /// rather than the only thing this case could report.
-    /// </remarks>
     [Fact]
     public async Task ABurstAgainstAnUnconfiguredConnectionSendsNothing()
     {
@@ -229,11 +186,8 @@ public sealed class RefusalBeforeRequestTests
         Assert.Single(client.Notifications);
     }
 
-    /// <summary>Once the held reading has run out, the instance is asked again.</summary>
-    /// <remarks>
-    /// The discriminating control for the burst above: without this, that assertion would equally
-    /// pass against a reading held for ever, which is a recovered instance nothing ever notices.
-    /// </remarks>
+    // The control for the burst case above: without this, that assertion would pass against a
+    // reading held for ever, which is a recovered instance nothing notices.
     [Fact]
     public async Task AnUnreachableInstanceIsAskedAgainOnceTheHeldReadingRunsOut()
     {
@@ -251,15 +205,9 @@ public sealed class RefusalBeforeRequestTests
         Assert.Equal(2, unreachable.Attempts);
     }
 
-    /// <summary>
-    /// An instance declaring no root answers an empty list, not the absent one an unreachable
-    /// instance answers.
-    /// </summary>
-    /// <remarks>
-    /// The cross-root guard can be applied to an instance that really declares none, and cannot be
-    /// applied to a list nobody read. Collapsing the two would let an outage read as a settled fact
-    /// about the instance, and an import made on it copies the bytes in full.
-    /// </remarks>
+    // The cross-root guard can be applied to an instance that declares none, and cannot be applied
+    // to a list nobody read. Collapsing the two lets an outage read as a settled fact about the
+    // instance, and an import made on it copies the bytes in full.
     [Fact]
     public async Task AnInstanceDeclaringNoRootIsHeldApartFromOneThatCouldNotBeRead()
     {
@@ -272,13 +220,8 @@ public sealed class RefusalBeforeRequestTests
         Assert.Empty((await roots.ReadAsync(WhisparrGeneration.V3, TestCt))!);
     }
 
-    /// <summary>
-    /// A reading the instance did not give is held for less time than one it did.
-    /// </summary>
-    /// <remarks>
-    /// The trade the two constants make: how long an outage keeps a recovered instance invisible
-    /// against how often a burst re-probes one that is still down.
-    /// </remarks>
+    // The trade the two constants make: how long an outage keeps a recovered instance invisible
+    // against how often a burst re-probes one that is still down.
     [Fact]
     public void AReadingTheInstanceDidNotGiveIsHeldForLessTime()
         => Assert.True(ReportedRootCache.NothingToReadLifetime < ReportedRootCache.Lifetime);
@@ -309,10 +252,8 @@ public sealed class RefusalBeforeRequestTests
             client, options, credentials, new ReportedRootCache(clock), NullLogger.Instance);
     }
 
-    /// <summary>A client whose root-folder read never arrives, counting what it was asked for.</summary>
     private sealed class UnreachableRootFolders(RecordingWhisparrClient inner) : IWhisparrClient
     {
-        /// <summary>How many root-folder reads were attempted against the instance.</summary>
         public int Attempts { get; private set; }
 
         public Task<WhisparrResponse> ReadRootFoldersAsync(
@@ -359,7 +300,6 @@ public sealed class RefusalBeforeRequestTests
             => inner.UpdateNotificationAsync(baseAddress, apiKey, id, body, ct);
     }
 
-    /// <summary>A clock the case moves by hand, so a lifetime is exercised without waiting one.</summary>
     private sealed class MovableClock(DateTimeOffset start) : TimeProvider
     {
         private DateTimeOffset _now = start;

@@ -5,26 +5,18 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// What each generation's real import delivery is read as, run against the bodies those instances
-/// really sent.
-/// </summary>
-/// <remarks>
-/// The two fixtures are INPUTS, taken verbatim from a delivery each build made. Every expected value
-/// below is transcribed by hand from those files rather than read back out of them, because an
-/// expectation computed from the document it checks agrees with it whatever either says.
-/// <para>
-/// The generations carry different key sets for the same event, which is why the reader is told the
-/// generation instead of inferring one from the body: a body's own keys would classify a v2 delivery
-/// as an unrecognised v3 one.
-/// </para>
-/// </remarks>
+// The two fixtures are inputs, taken verbatim from a delivery each build made. Every expected value
+// below is transcribed by hand from those files rather than read back out of them, because an
+// expectation computed from the document it checks agrees with it whatever either says.
+// The generations carry different key sets for the same event, which is why the reader is told the
+// generation instead of inferring one from the body: a body's own keys would classify a v2 delivery
+// as an unrecognised v3 one.
 public sealed class WebhookProjectorTests
 {
     private const string V3Capture = "whisparr-v3-3.3.8.1097-webhook-import.json";
     private const string V2Capture = "whisparr-v2-2.2.0.231-webhook-import.json";
 
-    /// <summary>The event type both generations' import delivery carried, transcribed by hand.</summary>
+    // Transcribed by hand from the import delivery each generation sent.
     private const string DownloadEventType = "Download";
 
     [Fact]
@@ -63,13 +55,8 @@ public sealed class WebhookProjectorTests
         Assert.Equal("4149372", candidate.RemoteId);
     }
 
-    /// <summary>
-    /// A generation's own capture read as the OTHER generation produces no path.
-    /// </summary>
-    /// <remarks>
-    /// The discriminating control for the two cases above: without it, a reader that looked in both
-    /// places would pass them, and the per-generation rule would be untested.
-    /// </remarks>
+    // The control for the two cases above: without it, a reader that looked in both places would pass
+    // them, and the per-generation rule would be untested.
     [Fact]
     public void ACaptureReadAsTheWrongGenerationFindsNoPath()
     {
@@ -81,14 +68,9 @@ public sealed class WebhookProjectorTests
             WebhookProjector.Read(WhisparrGeneration.V3, Captured(V2Capture)).Outcome);
     }
 
-    /// <summary>
-    /// Every event type other than the measured one is ignored, on both generations.
-    /// </summary>
-    /// <remarks>
-    /// Only the import delivery has been captured, so these spellings are not claimed to be the ones
-    /// an instance sends. What is fixed here is the rule that decides them: an event type this
-    /// product has not measured is ignored rather than acted on, whatever it is called.
-    /// </remarks>
+    // Only the import delivery has been captured, so these spellings are not claimed to be the ones an
+    // instance sends. What is fixed here is the rule that decides them: an event type this product has
+    // not measured is ignored rather than acted on, whatever it is called.
     [Theory]
     [InlineData("Grab")]
     [InlineData("Rename")]
@@ -111,13 +93,8 @@ public sealed class WebhookProjectorTests
         }
     }
 
-    /// <summary>
-    /// An act-list event carrying no readable path is a named refusal, never a silent ignore.
-    /// </summary>
-    /// <remarks>
-    /// An event this product handles whose body it did not understand is a different fact from an
-    /// event it does not handle, and reporting them alike would hide the first.
-    /// </remarks>
+    // An event this product handles whose body it did not understand is a different fact from an event
+    // it does not handle, and reporting them alike would hide the first.
     [Fact]
     public void AnActListEventWithNoReadablePathIsItsOwnRefusal()
     {
@@ -145,7 +122,6 @@ public sealed class WebhookProjectorTests
             WebhookProjector.Read(WhisparrGeneration.V3, null).Outcome);
     }
 
-    /// <summary>A body carrying an act-list event and a blank path names no path.</summary>
     [Fact]
     public void ABlankPathIsNoPath()
     {
@@ -157,11 +133,8 @@ public sealed class WebhookProjectorTests
             WebhookProjector.Read(WhisparrGeneration.V3, body).Outcome);
     }
 
-    /// <summary>A delivery carrying an act-list event and no scene identifier still projects.</summary>
-    /// <remarks>
-    /// A scene the instance has not identified has no shared identifier to carry, and the file is
-    /// still one to register. Matching is a later step, and the absence is what tells it so.
-    /// </remarks>
+    // A scene the instance has not identified has no shared identifier to carry, and the file is still
+    // one to register. Matching is a later step, and the absence is what tells it so.
     [Fact]
     public void ADeliveryCarryingNoRemoteIdentifierStillProjects()
     {
@@ -174,12 +147,7 @@ public sealed class WebhookProjectorTests
         Assert.Null(reading.Candidate!.RemoteId);
     }
 
-    /// <summary>
-    /// Which generation sent a delivery, from the user agent an inbound consumer sees first.
-    /// </summary>
-    /// <remarks>
-    /// Both agent strings are transcribed by hand from the deliveries the two builds made.
-    /// </remarks>
+    // Both agent strings are transcribed by hand from the deliveries the two builds made.
     [Theory]
     [InlineData("Whisparr/3.3.8.1097 (alpine 3.23.5)", WhisparrGeneration.V3)]
     [InlineData("Whisparr/2.2.0.231 (alpine 3.23.5)", WhisparrGeneration.V2)]
@@ -195,7 +163,7 @@ public sealed class WebhookProjectorTests
     public void AUserAgentThisProductDoesNotManageNamesNoGeneration(string? userAgent)
         => Assert.Null(WebhookProjector.GenerationOf(userAgent));
 
-    /// <summary>One captured delivery body, freshly parsed so a mutating case cannot affect another.</summary>
+    // Freshly parsed each time, so a mutating case cannot affect another.
     private static JsonObject Captured(string fileName)
         => Assert.IsType<JsonObject>(JsonNode.Parse(ProbeFixtures.Read(fileName)));
 }

@@ -24,44 +24,31 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-/// <summary>One test server over one real relational library, with the outbound seam recorded.</summary>
-/// <remarks>
-/// The routes are the shipped ones, mapped by the shipped extension: a test calling a handler method
-/// directly would agree with a route mounted at the wrong pattern, bound to a body the browser cannot
-/// send, or reachable by a caller the declaration excludes.
-/// <para>
-/// One recorder for the whole outbound surface, so an ordered <see cref="RecordingWhisparrClient.Verbs"/>
-/// list from any case covers every verb this product can issue rather than the ones one seam declares.
-/// </para>
-/// </remarks>
+// The routes are the shipped ones, mapped by the shipped extension: a test calling a handler method
+// directly would agree with a route mounted at the wrong pattern, bound to a body the browser cannot
+// send, or reachable by a caller the declaration excludes.
+// One recorder for the whole outbound surface, so an ordered Verbs list from any case covers every
+// verb this product can issue rather than the ones one seam declares.
 internal sealed class MonitorHost : IAsyncDisposable
 {
-    /// <summary>An identifier a studio is stored under in v3's namespace.</summary>
     public const string StudioRemoteIdValue = "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e";
 
-    /// <summary>A second identifier in the same namespace, held by a performer rather than a studio.</summary>
     public const string PerformerRemoteIdValue = "9f0d6f27-1f3a-4a5f-8b21-6b2d3a5f9c10";
 
-    /// <summary>The spelling the host stores a StashDB identity under, without a scheme.</summary>
-    /// <remarks>
-    /// Deliberately not the standard address this product prefers. The two name one source under the
-    /// host's own rule, and a read comparing them as strings would answer that the entity carries no
-    /// identity.
-    /// </remarks>
+    // Deliberately not the standard address this product prefers. The two name one source under the
+    // host's own rule, and a read comparing them as strings would answer that the entity carries no
+    // identity.
     public const string StoredEndpoint = "stashdb.org/graphql";
 
     public const string StoredAddress = "http://whisparr-v3:6969";
 
     public const string StoredKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
-    /// <summary>The size every file seeded through <see cref="SeedVideoWithFilesAsync"/> carries.</summary>
-    /// <remarks>
-    /// Non-zero, because a folder probe matches a candidate on its size as well as its path and a
-    /// zero would make every case agree with every file.
-    /// </remarks>
+    // Non-zero, because a folder probe matches a candidate on its size as well as its path and a
+    // zero would make every case agree with every file.
     public const long SeededFileSize = 41;
 
-    /// <summary>Profiles as an instance offered them, in the order received and not in id order.</summary>
+    // In the order an instance offers them, which is not id order.
     public const string UnsortedProfiles = """[{"id":4,"name":"Any"},{"id":1,"name":"HD-1080p"}]""";
 
     public const string OneRootFolder = """[{"id":1,"path":"/config/library","accessible":true}]""";
@@ -81,65 +68,47 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     public RecordingWhisparrClient Client { get; private set; } = null!;
 
-    /// <summary>The stored options the routes read and a run writes back through.</summary>
     public OptionsStore Options { get; private set; } = null!;
 
-    /// <summary>The identity source over this host's own library, as the routes resolve it.</summary>
-    /// <remarks>
-    /// Exposed for the kinds this product resolves an identity for but mounts no action route on, so
-    /// a case can read the resolution itself rather than a refusal a route happens to answer.
-    /// </remarks>
+    // Exposed for the kinds this product resolves an identity for but mounts no action route on, so
+    // a case can read the resolution itself rather than a refusal a route happens to answer.
     public IEntityIdentityPort Identities { get; private set; } = null!;
 
-    /// <summary>The folder source over this host's own library, as the routes resolve it.</summary>
     public IEntityFolderPort Folders { get; private set; } = null!;
 
-    /// <summary>Each per-root count taken, named by the library root it was about, in order.</summary>
-    /// <remarks>
-    /// One composition asks about every configured root once, so this is what tells a root composed
-    /// once for a run apart from one composed again for every scene in it.
-    /// </remarks>
+    // One composition asks about every configured root once, so this is what tells a root composed
+    // once for a run apart from one composed again for every scene in it.
     public List<string> RootCounts { get; } = [];
 
-    /// <summary>The sample-file source over this host's own library, as the run resolves it.</summary>
     public ISampleFilePort SampleFiles { get; private set; } = null!;
 
-    /// <summary>The scene-identity source over this host's own library, as the routes resolve it.</summary>
     public IEntitySceneIdentityPort SceneIdentities { get; private set; } = null!;
 
-    /// <summary>The scene-card identity source over this host's own library, as the route resolves it.</summary>
     public ILibraryCardIdentityPort CardIdentities { get; private set; } = null!;
 
-    /// <summary>The library-wide identity read, over the same database.</summary>
     public ILibrarySceneIdentityPort LibraryScenes { get; private set; } = null!;
 
-    /// <summary>The bytes that actually left, or null where this host stands the recorder instead.</summary>
+    // Null where this host stands the recorder instead.
     public BodyRecordingHandler? Bytes { get; private set; }
 
-    /// <summary>The host job service the bulk route enqueues into.</summary>
     public RecordingJobService Jobs { get; } = new();
 
     public HttpClient Http { get; private set; } = null!;
 
-    /// <summary>The id the shipped manifest declares, which every job type is prefixed with.</summary>
+    // Every job type is prefixed with this id.
     public string ExtensionId { get; private set; } = null!;
 
     private string RouteBase { get; set; } = null!;
 
     private string FolderMappingsRoute => RouteBase + "/addressing/folder-mappings";
 
-    /// <summary>One JSON string literal, with the backslashes a Windows path carries escaped.</summary>
+    // Escapes the backslashes a Windows path carries.
     private static string Quoted(string value) => JsonSerializer.Serialize(value);
 
-    /// <summary>
-    /// Creates one host over one real library.
-    /// </summary>
-    /// <remarks>
-    /// With <paramref name="bytes"/> supplied the SHIPPED client is stood over it instead of the
-    /// recorder, so a case can read the request bodies that actually leave rather than the arguments
-    /// a seam was handed. The two are different facts: what a call site supplied is not what the
-    /// client composes from it, and the composed body is what an instance acts on.
-    /// </remarks>
+    // With bytes supplied the shipped client is stood over it instead of the recorder, so a case can
+    // read the request bodies that actually leave rather than the arguments a seam was handed. The
+    // two are different facts: what a call site supplied is not what the client composes from it, and
+    // the composed body is what an instance acts on.
     public static async Task<MonitorHost> CreateAsync(
         FakePrincipalAccessor? principal = null,
         string? apiKey = StoredKey,
@@ -299,15 +268,12 @@ internal sealed class MonitorHost : IAsyncDisposable
     public string RouteFor(string kind, int coveId, string verb)
         => string.Create(CultureInfo.InvariantCulture, $"{RouteBase}/entity/{kind}/{coveId}/{verb}");
 
-    /// <summary>The route one scene's own <paramref name="verb"/> is mounted at.</summary>
     public string SceneRouteFor(int coveId, string verb)
         => string.Create(CultureInfo.InvariantCulture, $"{RouteBase}/scene/{coveId}/{verb}");
 
-    /// <summary>The raw answer to one scene's <paramref name="verb"/> route, which takes no body.</summary>
     public Task<HttpResponseMessage> PostSceneAsync(int coveId, string verb)
         => Http.PostAsync(SceneRouteFor(coveId, verb), content: null, TestCt);
 
-    /// <summary>One scene verb's answer, read as the contract it declares.</summary>
     public async Task<SceneActionResult> SceneActionAsync(int coveId, string verb)
     {
         var answered = await PostSceneAsync(coveId, verb);
@@ -315,7 +281,6 @@ internal sealed class MonitorHost : IAsyncDisposable
         return (await answered.Content.ReadFromJsonAsync<SceneActionResult>(TestCt))!;
     }
 
-    /// <summary>The scene tab's own read, as the contract it declares.</summary>
     public async Task<SceneDetailView> SceneDetailAsync(int coveId)
     {
         var answered = await Http.GetAsync(
@@ -324,11 +289,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         return (await answered.Content.ReadFromJsonAsync<SceneDetailView>(TestCt))!;
     }
 
-    /// <summary>Seeds one studio, with an identity row when an endpoint is named.</summary>
-    /// <remarks>
-    /// The name is made unique per call. The host's own name key is unique, so a second studio seeded
-    /// under one name fails the save rather than the assertion.
-    /// </remarks>
+    // The name is made unique per call. The host's own name key is unique, so a second studio seeded
+    // under one name fails the save rather than the assertion.
     public async Task<int> SeedStudioAsync(string? endpoint, string? remoteId)
     {
         var name = "Studio " + (++_seeded).ToString(CultureInfo.InvariantCulture);
@@ -350,11 +312,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         return studio.Id;
     }
 
-    /// <summary>Adds one more identity row to a studio already seeded.</summary>
-    /// <remarks>
-    /// Exists so a case can hold two rows the host's same-source rule treats as one source, which is
-    /// the shape a first-row pick would resolve silently.
-    /// </remarks>
+    // Exists so a case can hold two rows the host's same-source rule treats as one source, which is
+    // the shape a first-row pick would resolve silently.
     public async Task AddStudioIdentityAsync(int studioId, string endpoint, string remoteId)
     {
         _db.Add(new StudioRemoteId
@@ -366,11 +325,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         await _db.SaveChangesAsync(TestCt);
     }
 
-    /// <summary>Seeds one performer, with an identity row when an endpoint is named.</summary>
-    /// <remarks>
-    /// Seeded through the same context as a studio, so a case can hold both kinds at once and a path
-    /// reading the wrong identity table finds a row rather than nothing.
-    /// </remarks>
+    // Seeded through the same context as a studio, so a case can hold both kinds at once and a path
+    // reading the wrong identity table finds a row rather than nothing.
     public async Task<int> SeedPerformerAsync(string? endpoint, string? remoteId)
     {
         var name = "Performer " + (++_seeded).ToString(CultureInfo.InvariantCulture);
@@ -392,7 +348,6 @@ internal sealed class MonitorHost : IAsyncDisposable
         return performer.Id;
     }
 
-    /// <summary>Seeds one tag, with an identity row when an endpoint is named.</summary>
     public async Task<int> SeedTagAsync(string? endpoint, string? remoteId)
     {
         var name = "Tag " + (++_seeded).ToString(CultureInfo.InvariantCulture);
@@ -408,7 +363,6 @@ internal sealed class MonitorHost : IAsyncDisposable
         return tag.Id;
     }
 
-    /// <summary>Adds one more identity row to a tag already seeded.</summary>
     public async Task AddTagIdentityAsync(int tagId, string endpoint, string remoteId)
     {
         _db.Add(new TagRemoteId
@@ -420,43 +374,28 @@ internal sealed class MonitorHost : IAsyncDisposable
         await _db.SaveChangesAsync(TestCt);
     }
 
-    /// <summary>Seeds one video file the studio <paramref name="studioId"/> names holds.</summary>
-    /// <remarks>
-    /// A folder already seeded at <paramref name="folderPath"/> is reused, so a case can put two of
-    /// one entity's files in a single folder and see whether the folder is answered twice.
-    /// </remarks>
+    // A folder already seeded at the given path is reused, so a case can put two of one entity's
+    // files in a single folder and see whether the folder is answered twice.
     public Task<string> SeedStudioFileAsync(int studioId, string folderPath, long size = 0)
         => SeedVideoFileAsync(folderPath, studioId, null, size);
 
-    /// <summary>Seeds one video file linked to the performer <paramref name="performerId"/> names.</summary>
-    /// <remarks>
-    /// Linked through the join row rather than through the studio column: a performer's files reach
-    /// them by a different table, so a port reading the studio column would answer nothing here.
-    /// </remarks>
+    // Linked through the join row rather than through the studio column: a performer's files reach
+    // them by a different table, so a port reading the studio column would answer nothing here.
     public Task<string> SeedPerformerFileAsync(int performerId, string folderPath, long size = 0)
         => SeedVideoFileAsync(folderPath, null, performerId, size);
 
-    /// <summary>Seeds one scene the studio <paramref name="studioId"/> names holds.</summary>
-    /// <remarks>
-    /// A scene rather than a file: what the registration verb offers an instance is the identifier a
-    /// video carries, and a video carries one whether or not the library holds a file for it.
-    /// </remarks>
+    // A scene rather than a file: what the registration verb offers an instance is the identifier a
+    // video carries, and a video carries one whether or not the library holds a file for it.
     public Task<int> SeedStudioSceneAsync(int studioId, string? endpoint, string? remoteId)
         => SeedSceneAsync(studioId, null, endpoint, remoteId);
 
-    /// <summary>Seeds one scene linked to the performer <paramref name="performerId"/> names.</summary>
-    /// <remarks>
-    /// Linked through the join row rather than through the studio column, so a source reading the
-    /// studio column answers nothing here.
-    /// </remarks>
+    // Linked through the join row rather than through the studio column, so a source reading the
+    // studio column answers nothing here.
     public Task<int> SeedPerformerSceneAsync(int performerId, string? endpoint, string? remoteId)
         => SeedSceneAsync(null, performerId, endpoint, remoteId);
 
-    /// <summary>Adds one more identity row to a scene already seeded.</summary>
-    /// <remarks>
-    /// Exists so a case can hold two rows the host's same-source rule treats as one source, which is
-    /// the shape a database-side distinct on the raw pair cannot collapse.
-    /// </remarks>
+    // Exists so a case can hold two rows the host's same-source rule treats as one source, which is
+    // the shape a database-side distinct on the raw pair cannot collapse.
     public async Task AddSceneIdentityAsync(int videoId, string endpoint, string remoteId)
     {
         _db.Add(new VideoRemoteId
@@ -486,11 +425,8 @@ internal sealed class MonitorHost : IAsyncDisposable
     public Task<EntityMonitoringView> ChangeScopeAsync(string kind, int coveId, string scope)
         => ActRawAsync(kind, coveId, "scope", $$"""{"scope":"{{scope}}"}""");
 
-    /// <summary>Posts <paramref name="body"/> to one entity's <paramref name="verb"/> route.</summary>
-    /// <remarks>
-    /// The raw string is sent rather than a serialized record, so a case can carry members the
-    /// request contract declares nothing for.
-    /// </remarks>
+    // The raw string is sent rather than a serialized record, so a case can carry members the
+    // request contract declares nothing for.
     public async Task<EntityMonitoringView> ActRawAsync(
         string kind, int coveId, string verb, string body)
     {
@@ -500,49 +436,33 @@ internal sealed class MonitorHost : IAsyncDisposable
         return (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
     }
 
-    /// <summary>The raw answer to the bulk route, given <paramref name="body"/> verbatim.</summary>
-    /// <remarks>
-    /// The raw string is sent rather than a serialized record, so a case can carry an id array of any
-    /// length and members the request contract declares nothing for.
-    /// </remarks>
+    // The raw string is sent rather than a serialized record, so a case can carry an id array of any
+    // length and members the request contract declares nothing for.
     public async Task<HttpResponseMessage> PostBulkAsync(string body)
     {
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
         return await Http.PostAsync(RouteBase + "/entities/bulk-monitor", content, TestCt);
     }
 
-    /// <summary>
-    /// The raw answer to the scene batch route, given <paramref name="body"/> verbatim.
-    /// </summary>
-    /// <remarks>
-    /// Sent as given, so a case can name a selection type the route answers for nothing, an absent
-    /// member, and an id array of any length.
-    /// </remarks>
+    // Sent as given, so a case can name a selection type the route answers for nothing, an absent
+    // member, and an id array of any length.
     public async Task<HttpResponseMessage> PostSceneBatchAsync(string body)
     {
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
         return await Http.PostAsync(RouteBase + "/scenes/batch", content, TestCt);
     }
 
-    /// <summary>
-    /// The raw answer to the card status route for <paramref name="kind"/>, given
-    /// <paramref name="body"/> verbatim.
-    /// </summary>
-    /// <remarks>
-    /// Both the kind segment and the body are sent as given, so a case can name a kind the route
-    /// answers for nothing and an id array of any length.
-    /// </remarks>
+    // Both the kind segment and the body are sent as given, so a case can name a kind the route
+    // answers for nothing and an id array of any length.
     public async Task<HttpResponseMessage> PostLibraryStatusAsync(string kind, string body)
     {
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
         return await Http.PostAsync($"{RouteBase}/library/{kind}/status", content, TestCt);
     }
 
-    /// <summary>The raw answer to one entity's reflect-owned route, which takes no body at all.</summary>
     public Task<HttpResponseMessage> ReflectOwnedAsync(string kind, int coveId)
         => Http.PostAsync(RouteFor(kind, coveId, "reflect-owned"), content: null, TestCt);
 
-    /// <summary>The reflect-owned route's answer, read as the contract it declares.</summary>
     public async Task<ReflectOwnedEnqueued> ReflectOwnedViewAsync(string kind, int coveId)
     {
         var answered = await ReflectOwnedAsync(kind, coveId);
@@ -550,11 +470,9 @@ internal sealed class MonitorHost : IAsyncDisposable
         return (await answered.Content.ReadFromJsonAsync<ReflectOwnedEnqueued>(TestCt))!;
     }
 
-    /// <summary>The raw answer to one entity's add-all-missing route, which takes no body at all.</summary>
     public Task<HttpResponseMessage> AddAllMissingAsync(string kind, int coveId)
         => Http.PostAsync(RouteFor(kind, coveId, "add-all-missing"), content: null, TestCt);
 
-    /// <summary>The add-all-missing route's answer, read as the contract it declares.</summary>
     public async Task<AddAllMissingEnqueued> AddAllMissingViewAsync(string kind, int coveId)
     {
         var answered = await AddAllMissingAsync(kind, coveId);
@@ -562,7 +480,6 @@ internal sealed class MonitorHost : IAsyncDisposable
         return (await answered.Content.ReadFromJsonAsync<AddAllMissingEnqueued>(TestCt))!;
     }
 
-    /// <summary>The folder-mapping read, as the contract it declares.</summary>
     public async Task<FolderAgreementView> ReadFolderMappingsAsync()
     {
         var answered = await Http.GetAsync(FolderMappingsRoute, TestCt);
@@ -570,21 +487,16 @@ internal sealed class MonitorHost : IAsyncDisposable
         return (await answered.Content.ReadFromJsonAsync<FolderAgreementView>(TestCt))!;
     }
 
-    /// <summary>The raw answer to the folder-mapping read.</summary>
     public Task<HttpResponseMessage> GetFolderMappingsAsync() => Http.GetAsync(FolderMappingsRoute, TestCt);
 
-    /// <summary>The raw answer to the folder-mapping save, given <paramref name="body"/> verbatim.</summary>
-    /// <remarks>
-    /// The raw string is sent rather than a serialized record, so a case can carry an absent member
-    /// and members the request contract declares nothing for.
-    /// </remarks>
+    // The raw string is sent rather than a serialized record, so a case can carry an absent member
+    // and members the request contract declares nothing for.
     public async Task<HttpResponseMessage> PutFolderMappingAsync(string body)
     {
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
         return await Http.PutAsync(FolderMappingsRoute, content, TestCt);
     }
 
-    /// <summary>One folder-mapping save's answer, read as the contract it declares.</summary>
     public async Task<FolderMappingSaveResult> SaveFolderMappingAsync(string coveRoot, string path)
     {
         var answered = await PutFolderMappingAsync(
@@ -593,26 +505,20 @@ internal sealed class MonitorHost : IAsyncDisposable
         return (await answered.Content.ReadFromJsonAsync<FolderMappingSaveResult>(TestCt))!;
     }
 
-    /// <summary>The raw answer to this extension's own job-status route.</summary>
     public Task<HttpResponseMessage> ReadJobStatusAsync(string jobId)
         => Http.GetAsync(RouteBase + "/job-status/" + jobId, TestCt);
 
-    /// <summary>Runs the batch the last enqueue handed the host, reporting into <paramref name="progress"/>.</summary>
     public Task RunEnqueuedBatchAsync(RecordingJobProgress progress)
         => Jobs.RunLastAsync(progress, TestCt);
 
-    /// <summary><paramref name="answered"/> read as the monitoring contract it declares.</summary>
-    /// <remarks>
-    /// Exists for a case that asserts the status BEFORE the body. The helpers that post and read in
-    /// one call throw on a failure status, which is a throw where the status itself is the subject.
-    /// </remarks>
+    // Exists for a case that asserts the status before the body. The helpers that post and read in
+    // one call throw on a failure status, which is a throw where the status itself is the subject.
     public static async Task<EntityMonitoringView> ReadViewAsync(HttpResponseMessage answered)
     {
         ArgumentNullException.ThrowIfNull(answered);
         return (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
     }
 
-    /// <summary>The raw answer to one entity's <paramref name="verb"/> route.</summary>
     public async Task<HttpResponseMessage> PostRawAsync(
         string kind, int coveId, string verb, string body)
     {
@@ -661,14 +567,8 @@ internal sealed class MonitorHost : IAsyncDisposable
         return video.Id;
     }
 
-    /// <summary>
-    /// Seeds one video the studio <paramref name="studioId"/> names, holding one file in each of
-    /// <paramref name="folderPaths"/>, and answers the video's own id.
-    /// </summary>
-    /// <remarks>
-    /// One video across several folders, which the per-file helpers cannot express: each of those
-    /// seeds a video of its own, so a case about one video's files would be about several.
-    /// </remarks>
+    // One video across several folders, which the per-file helpers cannot express: each of those
+    // seeds a video of its own, so a case about one video's files would be about several.
     public async Task<int> SeedVideoWithFilesAsync(int studioId, params string[] folderPaths)
     {
         ArgumentNullException.ThrowIfNull(folderPaths);
@@ -682,10 +582,6 @@ internal sealed class MonitorHost : IAsyncDisposable
         return videoId;
     }
 
-    /// <summary>
-    /// Seeds one file the video <paramref name="videoId"/> names holds, in
-    /// <paramref name="folderPath"/>, and answers its stored path.
-    /// </summary>
     public async Task<string> SeedSceneFileAsync(int videoId, string folderPath)
     {
         var folder = await FolderAtAsync(folderPath);
@@ -752,7 +648,6 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>The shipped folder port, noting which library root each count was about.</summary>
     private sealed class CountRecordingFolders(IEntityFolderPort held, List<string> counts)
         : IEntityFolderPort
     {
@@ -775,21 +670,16 @@ internal sealed class MonitorHost : IAsyncDisposable
     }
 }
 
-/// <summary>An instance whose spelling of every folder is the library's own.</summary>
-/// <remarks>
-/// For a case whose subject is the folder loop rather than the agreement. It answers every folder
-/// unchanged, which is what a Cove and a Whisparr sharing one mount really agree on.
-/// </remarks>
+// For a case whose subject is the folder loop rather than the agreement. It answers every folder
+// unchanged, which is what a Cove and a Whisparr sharing one mount really agree on.
 internal sealed class PassThroughFolderAddresses : IFolderAddressPort
 {
     public Task<AddressedFolder> AddressAsync(
         FolderAddressTarget target, string folder, CancellationToken ct)
         => Task.FromResult(new AddressedFolder(folder, null, "/config/library", []));
 
-    /// <summary>
-    /// Raises. A case whose subject is a supplied mapping names a library configuration and gets the
-    /// shipped chain, so reaching this one would be a case reading an answer nobody probed for.
-    /// </summary>
+    // Raises: a case whose subject is a supplied mapping names a library configuration and gets the
+    // shipped chain, so reaching this one would be a case reading an answer nobody probed for.
     public Task<AddressedFolder> AddressAsync(
         FolderAddressTarget target, string coveRoot, string supplied, CancellationToken ct)
         => throw new NotSupportedException();
@@ -799,7 +689,6 @@ internal sealed class PassThroughFolderAddresses : IFolderAddressPort
         => Task.FromResult(new AddressedFolder(coveRoot, null, coveRoot, []));
 }
 
-/// <summary>A catalogue that reaches no provider, for a case whose subject is a route's own guard.</summary>
 internal sealed class InertProviderCatalogue : IProviderCatalogue
 {
     public IReadOnlyList<ProviderSortOption> Sorts { get; } = [];
