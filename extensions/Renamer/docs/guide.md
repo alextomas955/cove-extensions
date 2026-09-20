@@ -130,9 +130,8 @@ you have anything to check:
 - **A drive ran out of room**: "Stopped: insufficient free space for Video. Files renamed before each
   stop stay renamed." A whole-library rename works one media kind at a time, so a kind whose
   destination drive filled up stops there while the other kinds, which may be on other drives, carry
-  on. The message names the kinds that stopped. Whether undo still reaches what was renamed depends
-  on the size of the run, not on the stop: a run that renames more than 5,000 files records no undo
-  at all, as it would for any other reason.
+  on. The message names the kinds that stopped. What was renamed before a stop is still recorded, so
+  undo reaches it.
 - **The job reported failure**: "Couldn't rename — [reason]. Nothing was changed; you can try again."
   Cove reported that the work stopped, so nothing was written. Fix the cause it names and run again.
 - **The outcome is unknown**: "Couldn't confirm the rename — [reason]." Renamer stopped watching before
@@ -172,10 +171,6 @@ Know what undo covers:
   started as** — "37 of 500 restored", "463 remaining", and a button offering those 463. Files that
   can never go back are counted separately in the same line, so a partly-undone rename describes
   itself instead of looking finished.
-- A rename of more than **5,000 files** is **not recorded at all**, and both the rename confirmation
-  and the dry-run footer say so before it runs. A whole-library rename usually lands here. It also
-  clears whatever that same run had already recorded, because a rename that large may have moved those
-  files too. Records from other renames are left alone.
 - A file that cannot go back — something else now occupies the old name, the drive is unmounted, the
   file is locked — stays pending, so undoing again after you fix the cause finishes exactly the work
   that is left. One case is final rather than worth retrying: a file that is no longer in your library

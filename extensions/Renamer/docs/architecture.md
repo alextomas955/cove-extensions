@@ -38,10 +38,10 @@ The revert journal lives in two tables the extension owns, created by a migratio
 load. A row records only what reversal needs — the entity, the file, the path it came from, and what
 moved alongside it. The file's current path is not stored, because Cove's database is authoritative
 for it. Rows are read a page at a time, so neither writing nor replaying a batch holds all of it in
-memory. Two things bound the journal: a batch of more than 5,000 files is not recorded at all, and
-the preview says so before the rename runs, so a rename is either fully reversible or plainly not —
-never half-restorable; and a recorded batch expires WHOLE after seven days, which is what keeps the
-table from growing with how much the library is edited. An installation upgrading from the stored
+memory. What bounds the journal is retention: a recorded batch expires WHOLE after seven days, which
+is what keeps the table from growing with how much the library is edited. There is no size at which a
+rename stops being recorded, so every rename is reversible until its window closes. An installation
+upgrading from the stored
 journal has it moved into the table once, on first load, after which both legacy keys are gone.
 
 ## Layer by layer
@@ -170,8 +170,7 @@ Minimal-API endpoints the frontend calls, mounted under
   that was skipped, and a file restored with a companion left behind), a total plus a sample capped at
   a fixed number of entries. The totals are what any sentence states; a sample exists only to name a
   reason. So the response is one fixed size whatever the batch held, and the per-entry detail goes to
-  Cove's log. Nothing here rests on the 5,000-file journal cap: that cap bounds what the journal
-  records, not what this endpoint replies.
+  Cove's log.
 - `GET /last-batch` — a paths-free summary of the most recent rename for the undo panel, totalled over
   every batch that rename opened.
 - `POST /scan-library` — enqueues the whole-library dry run.

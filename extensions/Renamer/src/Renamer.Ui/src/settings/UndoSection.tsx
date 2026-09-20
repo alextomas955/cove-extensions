@@ -109,8 +109,7 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     <div className="rounded-xl border border-border bg-card p-4">
       <h3 className="text-base font-semibold text-foreground">Undo last rename</h3>
       <p className="mb-4 mt-1 text-sm text-secondary">
-        Moves every file in that batch back to its original name. Only the newest rename is kept,
-        and one too large to record is not kept at all.
+        Moves every file in that batch back to its original name. Only the newest rename is kept.
       </p>
 
       {loading ? (

@@ -34,19 +34,10 @@ function summary(overrides: Partial<PreviewSummary> = {}): PreviewSummary {
     crossVolumeBytes: 0,
     volumePairs: [],
     confirmLevel: "light",
-    undoable: true,
     inFlightPathOverflowCount: 0,
     ...overrides,
   };
 }
-
-test("a batch the server will not journal says so, promises no undo, and names the dry run", () => {
-  const { text } = buildConfirmSummary([RENAME_ITEM], summary({ undoable: false }));
-  assert.match(text, /too large to record an undo/);
-  assert.match(text, /cannot be reversed/);
-  assert.match(text, /dry run/);
-  assert.doesNotMatch(text, /You can undo/);
-});
 
 // The figure a user reads before approving a cross-drive move. Every expectation below is the size
 // written out by hand from the byte count beside it, never computed from the module under test.
@@ -82,22 +73,14 @@ ${text}`,
 const CONFIRM_LEVELS: readonly ConfirmLevel[] = ["light", "standard", "heavy"];
 
 for (const level of CONFIRM_LEVELS) {
-  test(`the ${level} call-to-action drops the undo promise when undoable is false`, () => {
-    const undoable = buildConfirmSummary([RENAME_ITEM], summary({ confirmLevel: level }));
-    assert.match(undoable.text, /You can undo this afterwards\./);
-
-    const notUndoable = buildConfirmSummary(
-      [RENAME_ITEM],
-      summary({ confirmLevel: level, undoable: false }),
-    );
-    assert.doesNotMatch(notUndoable.text, /You can undo/);
-    assert.match(notUndoable.text, /too large to record an undo/);
+  test(`the ${level} call-to-action promises the undo every rename now records`, () => {
+    const { text } = buildConfirmSummary([RENAME_ITEM], summary({ confirmLevel: level }));
+    assert.match(text, /You can undo this afterwards\./);
   });
 }
 
-test("a confirm built without a summary still reads as undoable", () => {
-  // The pre-summary call shape. A selection small enough to reach it is far under the row cap, so
-  // assuming the batch is journalled is the honest default rather than a silent warning.
+test("a confirm built without a summary still promises the undo", () => {
+  // The pre-summary call shape.
   const { text, willRenameCount } = buildConfirmSummary([RENAME_ITEM]);
   assert.equal(willRenameCount, 1);
   assert.match(text, /You can undo this afterwards\./);

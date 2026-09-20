@@ -86,9 +86,7 @@ public sealed partial class Renamer
                 // with the executor so its rows land under this batch.
                 var runId = Guid.NewGuid().ToString("N");
                 using var journal = new CoveRevertJournal(db);
-                await OpenOrSuppressBatchAsync(
-                    journal, runId, new OperationJournalBudget(runId), kind, actingFiles,
-                    DateTime.UtcNow, ct);
+                await journal.BeginBatchAsync(runId, runId, kind, DateTime.UtcNow, ct);
 
                 // Claimed before the save that raises the event: the host dispatches fire-and-forget,
                 // so the event can re-enter this handler before ExecuteAsync returns.

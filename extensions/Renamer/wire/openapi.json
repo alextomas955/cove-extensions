@@ -959,7 +959,6 @@
           "crossVolumeBytes",
           "volumePairs",
           "confirmLevel",
-          "undoable",
           "inFlightPathOverflowCount"
         ],
         "type": "object",
@@ -988,9 +987,6 @@
           },
           "confirmLevel": {
             "$ref": "#/components/schemas/ConfirmLevel"
-          },
-          "undoable": {
-            "type": "boolean"
           },
           "inFlightPathOverflowCount": {
             "type": "integer",

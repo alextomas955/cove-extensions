@@ -12,20 +12,6 @@ namespace Renamer.Planner;
 /// </remarks>
 public interface IRevertJournal
 {
-    /// <summary>The hard cap on how many files one batch may journal.</summary>
-    /// <remarks>
-    /// Files, not entities: one entity holds many files, so the request-level entity cap bounds
-    /// nothing here, and a whole-library run takes no id array at all. What it bounds is the undo
-    /// response, which carries one entry per file it could not put back over a library of millions of
-    /// files. It is a refusal: a batch past the cap journals no row and the preview says so before
-    /// the rename runs, so a rename is either fully reversible or plainly not.
-    /// </remarks>
-    const int MaxJournalledFiles = 5000;
-
-    /// <summary>True when a batch of <paramref name="fileCount"/> files is too large to journal.</summary>
-    /// <remarks>The one definition of "over cap", read by both the preview and the batch core.</remarks>
-    static bool ExceedsCap(int fileCount) => fileCount > MaxJournalledFiles;
-
     /// <summary>The batch cursor an operation's first <see cref="ReadNextBatchAsync"/> call passes.</summary>
     /// <remarks>
     /// No real batch's timestamp reaches <see cref="long.MaxValue"/>, so the first call admits every
@@ -58,21 +44,6 @@ public interface IRevertJournal
     /// ignored. It is meaningful only on a row read back, where it is half of that row's identity.
     /// </remarks>
     Task AppendAsync(RevertRow row, CancellationToken ct = default);
-
-    /// <summary>
-    /// Refuses to journal <paramref name="operationId"/>: every later <see cref="AppendAsync"/> on
-    /// this instance does nothing, and whatever that operation already journalled is dropped.
-    /// </summary>
-    /// <remarks>
-    /// The over-cap path, and what makes <see cref="MaxJournalledFiles"/> a refusal. Latching the
-    /// instance is what makes "an over-cap batch writes no row" structural, since one journal is
-    /// shared by every parallel worker of a run and those workers are already in flight. Dropping
-    /// what the operation held is deliberate: a run large enough to be refused can touch any file the
-    /// operation's earlier kinds already moved, so a surviving batch would offer an undo over paths
-    /// the same action has since changed. The drop is scoped to the operation, so one kind going over
-    /// the cap leaves every other user action's undo intact.
-    /// </remarks>
-    Task SuppressAsync(string operationId, CancellationToken ct = default);
 
     /// <summary>
     /// The operation an undo would act on: the newest operation that still has rows to restore, or,

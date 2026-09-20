@@ -133,7 +133,6 @@ public sealed class TransportSmokeTests
             CrossVolumeBytes: 0,
             VolumePairs: [],
             ConfirmLevel: ConfirmLevel.Light,
-            Undoable: true,
             InFlightPathOverflowCount: 0);
 
         return new ScanSummary(

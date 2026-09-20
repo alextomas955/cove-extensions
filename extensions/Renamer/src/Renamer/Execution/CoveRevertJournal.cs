@@ -17,16 +17,15 @@ namespace Renamer.Execution;
 public sealed class CoveRevertJournal : IRevertJournal, IDisposable
 {
     // A read granularity, not a ceiling on what an undo restores: the run pages until a page comes back
-    // empty, so the whole batch comes back however many pages that takes. How large a batch can be at
-    // all is capped by IRevertJournal.MaxJournalledFiles, applied before the batch opens.
+    // empty, so the whole batch comes back however many pages that takes.
     public const int DefaultPageSize = 500;
 
     // The age past which a batch, and every row it still holds, is dropped.
     //
-    // It bounds how many batches the table accumulates, which the per-batch file cap does not reach:
-    // the auto-renamer opens a batch per metadata edit, so the table would still grow with how much the
-    // library is edited. A batch is wholly inside the window or wholly gone, never partly; a sweep that
-    // left half a batch would make a later undo quietly partial.
+    // It is what bounds how much the table accumulates: the auto-renamer opens a batch per metadata
+    // edit, so the table grows with how much the library is edited. A batch is wholly inside the window
+    // or wholly gone, never partly; a sweep that left half a batch would make a later undo quietly
+    // partial.
     public static readonly TimeSpan RetentionWindow = TimeSpan.FromDays(7);
 
     private readonly DbContext _db;
@@ -39,10 +38,6 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
     // Minted here because an auto-numbering column would be provider-specific, and the shipped schema
     // has to run unchanged on every provider this extension is tested against.
     private long _lastSeq;
-
-    // Latched by SuppressAsync. The instance is shared by every parallel worker's executor, so an
-    // over-cap batch writes no row from any of them. Read and written under the write gate.
-    private bool _suppressed;
 
     public CoveRevertJournal(DbContext db) => _db = db;
 
@@ -77,42 +72,11 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         }
     }
 
-    public async Task SuppressAsync(string operationId, CancellationToken ct = default)
-    {
-        await _writes.WaitAsync(ct);
-        try
-        {
-            _suppressed = true;
-
-            // Filtered to the operation, so one over-cap kind does not take the same click's other kinds
-            // or any unrelated auto-rename with it.
-            var batches = _db.Set<RevertBatchEntity>()
-                .Where(b => (b.OperationId == "" ? b.RunId : b.OperationId) == operationId);
-
-            // Set-based statements with no materialized id list: how much the journal holds is unbounded
-            // input, so a delete per batch or per row would grow with the library. Rows go first, while
-            // their batch is still there to correlate against.
-            await _db.Set<RevertRowEntity>()
-                .Where(r => batches.Any(b => b.RunId == r.RunId))
-                .ExecuteDeleteAsync(ct);
-            await batches.ExecuteDeleteAsync(ct);
-        }
-        finally
-        {
-            _writes.Release();
-        }
-    }
-
     public async Task AppendAsync(RevertRow row, CancellationToken ct = default)
     {
         await _writes.WaitAsync(ct);
         try
         {
-            if (_suppressed)
-            {
-                return;
-            }
-
             var entity = new RevertRowEntity
             {
                 RunId = row.RunId,

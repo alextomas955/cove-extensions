@@ -84,7 +84,7 @@ public sealed partial class Renamer
         }
 
         await RunRenameChunksAsync(
-            kind, NextChunk, ids.Length, new OperationJournalBudget(Guid.NewGuid().ToString("N")),
+            kind, NextChunk, ids.Length, Guid.NewGuid().ToString("N"),
             options, freeSpaceProbe ?? AvailableFreeSpace, RenameChunkEntities, progress, ct);
     }
 
@@ -95,7 +95,7 @@ public sealed partial class Renamer
     // skip a page nor repeat one. A cancellation between chunks leaves earlier chunks done and
     // undoable.
     internal Task<string?> RunRenamerKindAsync(
-        RenamerFileKind kind, int totalEntities, OperationJournalBudget budget, RenamerOptions options,
+        RenamerFileKind kind, int totalEntities, string operationId, RenamerOptions options,
         AllowedIds allowedIds, IJobProgress progress, CancellationToken ct,
         Func<string, long>? freeSpaceProbe = null, int chunkEntities = RenameChunkEntities)
     {
@@ -153,7 +153,7 @@ public sealed partial class Renamer
         }
 
         return RunRenameChunksAsync(
-            kind, NextPageAsync, totalEntities, budget, options,
+            kind, NextPageAsync, totalEntities, operationId, options,
             freeSpaceProbe ?? AvailableFreeSpace, chunkEntities, progress, ct);
     }
 
@@ -164,7 +164,7 @@ public sealed partial class Renamer
         RenamerFileKind kind,
         Func<CancellationToken, Task<IReadOnlyList<int>>> nextChunk,
         int totalEntities,
-        OperationJournalBudget budget,
+        string operationId,
         RenamerOptions options,
         Func<string, long> freeSpaceProbe,
         int chunkEntities,
@@ -201,7 +201,7 @@ public sealed partial class Renamer
             }
 
             var outcome = await RunRenameChunkAsync(
-                chunk, kind, options, lookups, budget, journal, freeSpaceProbe,
+                chunk, kind, options, lookups, operationId, journal, freeSpaceProbe,
                 new ChunkSliceProgress(progress, entitiesDone, chunk.Count, totalEntities), ct);
 
             renamed += outcome.Renamed;
@@ -256,8 +256,8 @@ public sealed partial class Renamer
         RenamerFileKind kind,
         RenamerOptions options,
         RouteLookups lookups,
-        OperationJournalBudget budget,
-        IRevertJournal journal,
+        string operationId,
+        CoveRevertJournal journal,
         Func<string, long> freeSpaceProbe,
         IJobProgress progress,
         CancellationToken ct)
@@ -420,9 +420,8 @@ public sealed partial class Renamer
             }
         });
 
-        // Now, and only now, open exactly one batch: the chunk produced acting work and it fits. The cap
-        // is measured in files, so it takes acting.Count and not the entity count.
-        await OpenOrSuppressBatchAsync(journal, runId, budget, kind, acting.Count, DateTime.UtcNow, ct);
+        // Now, and only now, open exactly one batch: the chunk produced acting work and it fits.
+        await journal.BeginBatchAsync(runId, operationId, kind, DateTime.UtcNow, ct);
 
         // Marks the planning/execution boundary in the log: the percentage now advances per completed
         // file, so a later stall is legible as "stuck partway through {Acting}", not as silence.
@@ -531,42 +530,6 @@ public sealed partial class Renamer
         contestedFiles > 0
             ? $" {contestedFiles} file(s) refused: more than one record names the same file."
             : "";
-
-    // Opens the run's journal batch, or suppresses journalling for the whole operation once its
-    // running acting-file total passes the row cap. Suppressing takes the operation out rather than
-    // recording part of it: a partly-journalled rename reads exactly like a whole one, and the undo
-    // after it is quietly partial. A whole-library run over the cap is not undoable at all, which the
-    // log states once per chunk that meets the latch.
-    //
-    // The manual run and the per-edit auto-renamer both decide it here, so a rename's undoability
-    // never depends on which path performed it.
-    internal async Task OpenOrSuppressBatchAsync(
-        IRevertJournal journal,
-        string runId,
-        OperationJournalBudget budget,
-        RenamerFileKind kind,
-        int actingFiles,
-        DateTime nowUtc,
-        CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(journal);
-        ArgumentNullException.ThrowIfNull(budget);
-
-        int operationTotal = budget.Add(actingFiles);
-
-        if (budget.Suppressed || IRevertJournal.ExceedsCap(operationTotal))
-        {
-            budget.Suppress();
-            // Latches this journal instance and deletes what the operation already wrote. A run spanning
-            // several kinds opens a journal per kind, so a later kind's instance has to be latched too.
-            // The delete is scoped to the operation, so every other action's undo survives.
-            await journal.SuppressAsync(budget.OperationId, ct);
-            LogBatchNotJournalled(runId, operationTotal, IRevertJournal.MaxJournalledFiles);
-            return;
-        }
-
-        await journal.BeginBatchAsync(runId, budget.OperationId, kind, nowUtc, ct);
-    }
 
     /// <summary>
     /// Records one planned entity's per-file outcomes to the host log: a line per renamed/moved file
