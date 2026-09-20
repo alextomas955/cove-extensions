@@ -253,7 +253,7 @@ public sealed partial class Renamer : FullExtensionBase
         int moved = await RunAsSystem.RunAsSystemAsync(scope.ServiceProvider, async () =>
         {
             var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-            using var journal = new CoveRevertJournal(db);
+            await using var journal = new CoveRevertJournal(db);
             return await JournalBlobMigration.RunAsync(Store, journal, DateTime.UtcNow, ct);
         });
 

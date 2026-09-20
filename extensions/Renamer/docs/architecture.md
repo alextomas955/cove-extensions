@@ -41,8 +41,17 @@ for it. Rows are read a page at a time, so neither writing nor replaying a batch
 memory. What bounds the journal is retention: a recorded batch expires WHOLE after seven days, which
 is what keeps the table from growing with how much the library is edited. There is no size at which a
 rename stops being recorded, so every rename is reversible until its window closes. An installation
-upgrading from the stored
-journal has it moved into the table once, on first load, after which both legacy keys are gone.
+upgrading from the stored journal has it moved into the table once, on first load, after which both
+legacy keys are gone.
+
+Rows are written in groups rather than one at a time. A save per row costs a database round-trip per
+renamed file, which is several times the cost of the same-volume rename it records, and every worker
+of a parallel run queues behind it; measured against Postgres, grouping the writes takes 100,000 rows
+from about 294 seconds to about 8. What the group costs is the crash window: a host that dies
+mid-rename leaves up to one group of already-renamed files with no journal row, so undo cannot put
+those back. They are renamed correctly and recorded correctly in Cove's own tables, and only their
+reversal is lost. A read on the journal that is writing answers over the group it still holds, so the
+panel never describes a rename as smaller than it is.
 
 ## Layer by layer
 

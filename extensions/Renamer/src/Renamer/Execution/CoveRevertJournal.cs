@@ -14,7 +14,7 @@ namespace Renamer.Execution;
 // because the sequence number that half-identifies a row is minted per instance. A DbContext is not
 // thread-safe and Cove disables EF's thread-safety checks, so concurrent writes through one context
 // corrupt silently instead of throwing. The write gate serializes them.
-public sealed class CoveRevertJournal : IRevertJournal, IDisposable
+public sealed class CoveRevertJournal : IRevertJournal, IDisposable, IAsyncDisposable
 {
     // A read granularity, not a ceiling on what an undo restores: the run pages until a page comes back
     // empty, so the whole batch comes back however many pages that takes.
@@ -38,6 +38,26 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
     // Minted here because an auto-numbering column would be provider-specific, and the shipped schema
     // has to run unchanged on every provider this extension is tested against.
     private long _lastSeq;
+
+    // How many appended rows are held before they are written. A save per row costs a round-trip per
+    // renamed file, which on a same-volume rename is several times the rename it records and is what
+    // every parallel worker queues behind. What the buffer costs is the crash window: a host that dies
+    // mid-run leaves up to this many already-renamed files with no journal row, so undo cannot put
+    // those back. They are renamed correctly and recorded correctly in Cove's own tables; only their
+    // reversal is lost.
+    public const int AppendFlushEvery = 500;
+
+    // The appended rows this instance has not written yet, in append order. Bounded by
+    // AppendFlushEvery, so it does not grow with the run. Held as values rather than added to the
+    // context, because a context can be shared with the code that is renaming: entities parked in its
+    // change tracker would be written by that code's own SaveChangesAsync, and would be rolled into
+    // its failures.
+    private readonly List<RevertRowEntity> _pending = new(AppendFlushEvery);
+
+    // How many buffered rows each batch is owed on its OriginalCount. Applied as a statement at the
+    // flush rather than by mutating a tracked batch, so the journal holds nothing tracked between
+    // flushes and a batch a purge removed under it updates nothing instead of throwing.
+    private readonly Dictionary<string, int> _pendingCounts = new(StringComparer.Ordinal);
 
     // Whether this instance has already swept retention. One instance serves a whole rename run, and a
     // run opens a batch per chunk and per kind, so without the latch a whole-library rename sweeps the
@@ -64,6 +84,9 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         await _writes.WaitAsync(ct);
         try
         {
+            // Buffered appends reach the database before anything reads or deletes over them.
+            await FlushAsync(ct);
+
             Interlocked.Exchange(ref _lastSeq, 0);
 
             var batch = new RevertBatchEntity
@@ -97,19 +120,13 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
                 OldPath = row.OldPath,
                 SidecarsJson = row.SidecarsJson,
             };
-            _db.Set<RevertRowEntity>().Add(entity);
+            _pending.Add(entity);
+            _pendingCounts[row.RunId] = _pendingCounts.GetValueOrDefault(row.RunId) + 1;
 
-            var batch = await FindBatchAsync(row.RunId, ct);
-            if (batch is not null)
+            if (_pending.Count >= AppendFlushEvery)
             {
-                batch.OriginalCount++;
+                await FlushAsync(ct);
             }
-
-            await _db.SaveChangesAsync(ct);
-
-            // One context lives for the whole batch, so a tracked saved row would make the change tracker
-            // grow with the batch. Detaching keeps this instance's memory flat.
-            _db.Entry(entity).State = EntityState.Detached;
         }
         finally
         {
@@ -122,6 +139,9 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         await _writes.WaitAsync(ct);
         try
         {
+            // Buffered appends reach the database before anything reads or deletes over them.
+            await FlushAsync(ct);
+
             var rows = _db.Set<RevertRowEntity>();
 
             // Having a row left is the first sort key, so an operation that can still be replayed
@@ -180,6 +200,9 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         await _writes.WaitAsync(ct);
         try
         {
+            // Buffered appends reach the database before anything reads or deletes over them.
+            await FlushAsync(ct);
+
             var rows = _db.Set<RevertRowEntity>();
 
             var batch = await _db.Set<RevertBatchEntity>().AsNoTracking()
@@ -208,6 +231,9 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         await _writes.WaitAsync(ct);
         try
         {
+            // Buffered appends reach the database before anything reads or deletes over them.
+            await FlushAsync(ct);
+
             var stored = await _db.Set<RevertBatchEntity>().AsNoTracking()
                 .Where(b => (b.OperationId == "" ? b.RunId : b.OperationId) == operationId)
                 .Select(b => b.Kind)
@@ -228,6 +254,9 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         await _writes.WaitAsync(ct);
         try
         {
+            // Buffered appends reach the database before anything reads or deletes over them.
+            await FlushAsync(ct);
+
             // The Take keeps this materialization bounded by the page and not by the library.
             var page = await _db.Set<RevertRowEntity>().AsNoTracking()
                 .Where(r => r.RunId == runId && r.Seq < belowSeq)
@@ -249,6 +278,9 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         await _writes.WaitAsync(ct);
         try
         {
+            // Buffered appends reach the database before anything reads or deletes over them.
+            await FlushAsync(ct);
+
             var row = await _db.Set<RevertRowEntity>()
                 .FirstOrDefaultAsync(r => r.RunId == runId && r.Seq == seq, ct);
 
@@ -287,6 +319,9 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         await _writes.WaitAsync(ct);
         try
         {
+            // Buffered appends reach the database before anything reads or deletes over them.
+            await FlushAsync(ct);
+
             long cutoff = (nowUtc - RetentionWindow).Ticks;
 
             // Keyed on the batch's own open timestamp and never on a row. There is no per-row age to
@@ -311,7 +346,26 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
     }
 
     // The context belongs to the scope, so only the write gate is released here.
-    public void Dispose() => _writes.Dispose();
+    /// <summary>Writes whatever is still buffered, then releases the gate.</summary>
+    /// <remarks>
+    /// A buffered row that never reaches the database is an undo the user was told they have. Every
+    /// production caller disposes asynchronously; the synchronous path is the backstop.
+    /// </remarks>
+    public async ValueTask DisposeAsync()
+    {
+        await FlushAsync(CancellationToken.None);
+        _writes.Dispose();
+    }
+
+    public void Dispose()
+    {
+        if (_pending.Count > 0 || _pendingCounts.Count > 0)
+        {
+            FlushAsync(CancellationToken.None).GetAwaiter().GetResult();
+        }
+
+        _writes.Dispose();
+    }
 
     private static RevertBatchSummary Summarize(RevertBatchEntity batch) =>
         new(batch.RunId,
@@ -323,8 +377,45 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
             batch.RestoredCount,
             batch.UnrestorableCount);
 
-    private Task<RevertBatchEntity?> FindBatchAsync(string runId, CancellationToken ct) =>
-        _db.Set<RevertBatchEntity>().FirstOrDefaultAsync(b => b.RunId == runId, ct);
+    // Writes the buffered rows and detaches them. The caller holds the write gate.
+    //
+    // Detaching rather than clearing the change tracker: one context can be shared with the executor
+    // that is renaming, and clearing it would detach the rows that executor is mid-save on.
+    private async Task FlushAsync(CancellationToken ct)
+    {
+        if (_pending.Count == 0 && _pendingCounts.Count == 0)
+        {
+            return;
+        }
+
+        _db.Set<RevertRowEntity>().AddRange(_pending);
+        await _db.SaveChangesAsync(ct);
+
+        // One context lives for the whole run, so tracked saved rows would make the change tracker grow
+        // with the run. Detaching keeps this instance's memory flat.
+        foreach (var written in _pending)
+        {
+            _db.Entry(written).State = EntityState.Detached;
+        }
+
+        _pending.Clear();
+
+        // After the rows, so a tally never counts a row that is not there yet. A batch that expired
+        // under this instance matches nothing and updates nothing.
+        foreach (var (runId, appended) in _pendingCounts)
+        {
+            await _db.Set<RevertBatchEntity>()
+                .Where(b => b.RunId == runId)
+                .ExecuteUpdateAsync(u => u.SetProperty(b => b.OriginalCount, b => b.OriginalCount + appended), ct);
+        }
+
+        _pendingCounts.Clear();
+    }
+
+    // Keyed lookup, not a predicate query: the run id is the batch's primary key, so a keyed read
+    // answers from the change tracker when the batch is already tracked.
+    private ValueTask<RevertBatchEntity?> FindBatchAsync(string runId, CancellationToken ct) =>
+        _db.Set<RevertBatchEntity>().FindAsync([runId], ct);
 
     // This column is written from a renamable kind by this extension alone, so a value that is not one
     // is corrupt state and not input to tolerate. Undo re-gates on the kind the batch names, so a

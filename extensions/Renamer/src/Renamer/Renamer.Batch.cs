@@ -183,7 +183,7 @@ public sealed partial class Renamer
         // elevation because its two tables are extension-owned and carry none of CoveContext's
         // per-principal query filters.
         await using var journalScope = ScopeFactory.CreateAsyncScope();
-        using var journal = new CoveRevertJournal(journalScope.ServiceProvider.GetRequiredService<DbContext>());
+        await using var journal = new CoveRevertJournal(journalScope.ServiceProvider.GetRequiredService<DbContext>());
 
         int renamed = 0, skipped = 0, failed = 0, contested = 0, entitiesDone = 0;
         string? shortfall = null;

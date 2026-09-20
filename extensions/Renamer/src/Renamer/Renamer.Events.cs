@@ -85,7 +85,7 @@ public sealed partial class Renamer
                 // operation id and its undo reaches that edit alone. The journal instance is shared
                 // with the executor so its rows land under this batch.
                 var runId = Guid.NewGuid().ToString("N");
-                using var journal = new CoveRevertJournal(db);
+                await using var journal = new CoveRevertJournal(db);
                 await journal.BeginBatchAsync(runId, runId, kind, DateTime.UtcNow, ct);
 
                 // Claimed before the save that raises the event: the host dispatches fire-and-forget,

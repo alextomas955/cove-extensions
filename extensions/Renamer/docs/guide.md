@@ -175,6 +175,10 @@ Know what undo covers:
   file is locked — stays pending, so undoing again after you fix the cause finishes exactly the work
   that is left. One case is final rather than worth retrying: a file that is no longer in your library
   cannot be restored, because Renamer reads its current location from Cove.
+- **If Cove is killed in the middle of a rename, the last few hundred files may not be undoable.**
+  Renamer records what it moved in groups rather than one file at a time, because a record per file
+  would cost more than the rename. A crash loses the group it had not written yet. Those files are
+  renamed correctly and Cove knows where they are; only putting them back automatically is lost.
 - **A companion file can be stranded even when its media file comes back.** The result then reads
   "Undone — 40 files moved back to their original names. 2 companion files stayed behind ([which one, and why])." The
   video is where you wanted it; the subtitle beside it is not, and nothing else reports that.

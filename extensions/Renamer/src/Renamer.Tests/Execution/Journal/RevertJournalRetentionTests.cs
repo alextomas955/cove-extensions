@@ -159,19 +159,24 @@ public sealed class RevertJournalRetentionTests
         }
     }
 
+    // Seeds a finished run: the journal that wrote the batch is disposed, which is what puts its
+    // buffered rows in the database. The returned journal is a fresh one over the same context, as a
+    // later undo or purge would have.
     private static async Task<CoveRevertJournal> SeedBatchAsync(
         DbContext db, string runId, DateTime openedAt, int rows)
     {
-        var journal = new CoveRevertJournal(db);
-        await journal.BeginBatchAsync(runId, runId, RenamerFileKind.Video, openedAt);
-
-        for (int i = 1; i <= rows; i++)
+        await using (var writing = new CoveRevertJournal(db))
         {
-            await journal.AppendAsync(
-                new RevertRow(runId, Seq: 0, EntityId: 100 + i, FileId: 200 + i, $"/media/{runId}/{i}.mkv", ""));
+            await writing.BeginBatchAsync(runId, runId, RenamerFileKind.Video, openedAt);
+
+            for (int i = 1; i <= rows; i++)
+            {
+                await writing.AppendAsync(
+                    new RevertRow(runId, Seq: 0, EntityId: 100 + i, FileId: 200 + i, $"/media/{runId}/{i}.mkv", ""));
+            }
         }
 
-        return journal;
+        return new CoveRevertJournal(db);
     }
 
     // Read the tables directly rather than through the port: what the purge must leave behind is a
