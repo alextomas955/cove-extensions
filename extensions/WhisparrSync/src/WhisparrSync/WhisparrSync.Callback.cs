@@ -4,8 +4,11 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
@@ -18,6 +21,37 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapCallbackEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        // The ONE route of this extension that answers a caller holding no Cove permission, and it
+        // says so with the SDK's own convention rather than by declaring nothing. An endpoint
+        // declaring no convention also admits an anonymous caller, but silently and with a host
+        // warning, which is an access tier nothing states.
+        endpoints.MapPost(CallbackRoute,
+            (HttpContext http, IServiceScopeFactory scopes, CancellationToken ct)
+                => CallbackAsync(http, scopes, _log, ct))
+            .WithTags(WireTag)
+            .AllowCoveAnonymous();
+
+        endpoints.MapPost(CallbackRegisterRoute,
+            (RegisterCallbackRequest request, HttpContext http, ICurrentPrincipalAccessor principal,
+             OptionsStore options, OptionsWriteGate gate, ICredentialPort credentials,
+             ICallbackSecretPort secrets, IWhisparrNotificationPort notifications,
+             RegistrationGate registrations, TimeProvider clock, CancellationToken ct)
+                => RegisterCallbackAsync(
+                    request, http, principal, Id, options, gate, credentials, secrets, notifications,
+                    registrations, clock, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapGet(CallbackStatusRoute,
+            (HttpContext http, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICallbackSecretPort secrets, TimeProvider clock, CancellationToken ct)
+                => ReadCallbackStatusAsync(http, principal, Id, options, secrets, clock, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
     /// <summary>Receives one callback from Whisparr and answers whether it was this product's.</summary>
     /// <remarks>
     /// Authenticated by a secret this product minted, not by a Cove permission, because the caller is

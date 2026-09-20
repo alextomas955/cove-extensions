@@ -1,8 +1,11 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
+using Cove.Sdk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
@@ -18,6 +21,23 @@ namespace WhisparrSync;
 
 public sealed partial class WhisparrSync
 {
+    private void MapMissingMonitorAllEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        // The same tier again, and the same act over a wider reach. It names no scene at all: the
+        // narrowing rides the query string and the run re-derives its own set, so what a caller can
+        // reach is one entity's catalogue and never a set it composed itself.
+        endpoints.MapPost(MissingMonitorAllRoute,
+            (string kind, int coveId, string? q, string? filters,
+             ICurrentPrincipalAccessor principal, IJobService jobs, IServiceScopeFactory scopes,
+             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             CancellationToken ct)
+                => EnqueueMissingMonitorAllAsync(
+                    kind, coveId, q, filters, principal, jobs, scopes, options, credentials, client,
+                    ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+    }
+
     /// <summary>Marks every scene the narrowed catalogue lists as wanted, as one background run.</summary>
     /// <remarks>
     /// The route carries the narrowing the grid is showing and no scene identifiers at all: the run
