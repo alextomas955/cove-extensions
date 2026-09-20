@@ -205,7 +205,11 @@ public sealed class SearchGrabbingRouteTests
         var sites = ObtainingTheGrabbingRole();
 
         Assert.Single(sites);
-        Assert.StartsWith("WhisparrSync.Api.cs:", sites[0], StringComparison.Ordinal);
+        Assert.StartsWith(
+            "WhisparrSync.MonitoringResolution.cs:",
+            sites[0],
+            StringComparison.Ordinal
+        );
     }
 
     /// <summary>
