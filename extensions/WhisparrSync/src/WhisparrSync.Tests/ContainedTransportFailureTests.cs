@@ -6,33 +6,19 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests;
 
-/// <summary>
-/// What reaches a caller when an instance answers its headers and then stops sending.
-/// </summary>
-/// <remarks>
-/// The client reads a body out of the response stream rather than letting the send buffer it, so a
-/// connection dropped part way through an answer raises an I/O failure and not a request one. Every
-/// containment filter has to name both, and these cases are what say so: a route whose declared
-/// results hold no failure answers a refusal, and a batch keeps the record it had already built.
-/// <para>
-/// Driven through the shipped client over a transport double rather than through the recording seam.
-/// The seam answers a response object and can express no failure at all, so a case taken there could
-/// not tell a contained failure from a refusal the product chose.
-/// </para>
-/// </remarks>
+// An instance that answers its headers and then stops sending raises an I/O failure and not a
+// request one, because the client reads the body out of the response stream. Every containment
+// filter has to name both.
+// Driven through the shipped client over a transport double rather than through the recording
+// seam. The seam answers a response object and can express no failure at all, so a case taken
+// there could not tell a contained failure from a refusal the product chose.
 public sealed class ContainedTransportFailureTests
 {
-    /// <summary>A second identifier, so two seeded studios do not share one.</summary>
+    // A second identifier, so two seeded studios do not share one.
     private const string SecondStudioRemoteId = "b1c2d3e4-f5a6-4708-9192-a3b4c5d6e7f8";
 
-    /// <summary>
-    /// One entity's press answers a stated refusal rather than a server failure.
-    /// </summary>
-    /// <remarks>
-    /// The status is asserted before the view is read. An escaped failure answers 500, which the
-    /// control shows as a failed request instead of as a reason, and reading the view first would
-    /// throw on the deserialization rather than name what happened.
-    /// </remarks>
+    // The status is asserted before the view is read. An escaped failure answers 500, and reading
+    // the view first would throw on the deserialization rather than name what happened.
     [Fact]
     public async Task APressWhoseAnswerStopsPartWayIsAnsweredAsARefusalRatherThanAServerFailure()
     {
@@ -50,16 +36,10 @@ public sealed class ContainedTransportFailureTests
         Assert.Equal(MonitorRefusalKind.InstanceRefused, view.Refusal);
     }
 
-    /// <summary>
-    /// A batch whose answers stop part way completes, reports every unit, and reports its own
-    /// closing count.
-    /// </summary>
-    /// <remarks>
-    /// The closing report is the assertion that matters. A failure escaping the per-entity containment
-    /// leaves the run before its count is reported, so a selection loses the record of every entity it
-    /// had already acted on and the host marks the whole run failed. Both units are asserted too, so a
-    /// run that stopped at the first entity is reported here rather than passing on the count alone.
-    /// </remarks>
+    // A failure escaping the per-entity containment leaves the run before its closing count is
+    // reported, so a selection loses the record of every entity it had already acted on and the
+    // host marks the whole run failed. Both units are asserted as well, so a run that stopped at
+    // the first entity fails here rather than passing on the count alone.
     [Fact]
     public async Task ABatchWhoseAnswersStopPartWayKeepsEveryUnitAndItsClosingCount()
     {

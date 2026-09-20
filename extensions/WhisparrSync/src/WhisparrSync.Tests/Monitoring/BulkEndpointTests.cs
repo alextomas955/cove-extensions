@@ -10,31 +10,22 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// What the selection bar has to send for the buttons to appear at all, what the bulk route refuses
-/// before anything is enqueued, and what this extension's own status route will and will not confirm.
-/// </summary>
-/// <remarks>
-/// The registration half is a pin rather than an inspection: the entity type the host matches on is a
-/// literal list membership check, so a singular spelling makes the button simply not appear with no
-/// error anywhere. The literals here are hand-written; a list read out of the registration would
-/// agree with it whatever it says.
-/// </remarks>
+// The host matches an action's entity type by literal list membership, so a wrong spelling makes
+// the button not appear with no error anywhere. The literals here are hand-written: a list read out
+// of the registration would agree with it whatever it says.
 public sealed class BulkEndpointTests
 {
     private const string Studios = "studios";
     private const string Performers = "performers";
 
-    /// <summary>The spelling the bar passes for a video selection, which is the singular one.</summary>
+    // The bar passes the singular spelling for a video selection.
     private const string Videos = "video";
 
-    /// <summary>Renamer's own bound, and the one this route copies.</summary>
+    // The bound Renamer uses, which this route copies.
     private const int Cap = 1000;
 
-    /// <summary>
-    /// One listing row: a file under the outer declared root, matched to a site the instance holds
-    /// under the inner one.
-    /// </summary>
+    // One listing row: a file under the outer declared root, matched to a site the instance holds
+    // under the inner one.
     private const string InboxRowMatchedToAnotherRoot = """
         [{"path":"/config/library/inbox/scene.mp4","folderName":"inbox","size":41,
           "movie":{"id":7,"title":"A scene","path":"/config/library/rootB/Tushy"},
@@ -51,10 +42,8 @@ public sealed class BulkEndpointTests
             bulk.Select(action => action.EntityTypes).OrderBy(types => types[0], StringComparer.Ordinal));
     }
 
-    /// <summary>
-    /// The singular spellings are the trap. The bar normalizes only the two media plurals, so a
-    /// studio or performer action declaring one is filtered out of every selection.
-    /// </summary>
+    // The bar normalizes only the two media plurals, so a studio or performer action declaring a
+    // singular type is filtered out of every selection.
     [Fact]
     public void NoBulkActionDeclaresASingularEntityType()
     {
@@ -84,7 +73,7 @@ public sealed class BulkEndpointTests
                 .Select(action => action.HandlerName));
     }
 
-    /// <summary>That action type has no renderer at all, so it would contribute nothing.</summary>
+    // The host has no renderer for a context-menu action, so one registered would show nothing.
     [Fact]
     public void NoActionIsRegisteredAsAContextMenuOne()
         => Assert.DoesNotContain(
@@ -106,10 +95,8 @@ public sealed class BulkEndpointTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// The control the refusal above needs: without it a refused enqueue could equally mean the
-    /// route is broken for every size.
-    /// </summary>
+    // The control the refusal above needs: without it a refused enqueue could equally mean the
+    // route is broken for every size.
     [Fact]
     public async Task AnIdArrayAtTheCapIsEnqueued()
     {
@@ -123,7 +110,7 @@ public sealed class BulkEndpointTests
         Assert.Single(host.Jobs.Enqueued);
     }
 
-    /// <summary>An empty run in the Job Drawer reads as work that happened.</summary>
+    // An empty run in the host's Job Drawer reads as work that happened.
     [Fact]
     public async Task AnEmptySelectionIsRefusedAndNothingIsEnqueued()
     {
@@ -163,14 +150,8 @@ public sealed class BulkEndpointTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// A job outside this extension's own type prefix is NOT FOUND rather than forbidden.
-    /// </summary>
-    /// <remarks>
-    /// Answering forbidden would confirm the id names a real job, which is the fact the host's own
-    /// gate withholds. The job asked about here is a REAL one this service holds, so a not-found is
-    /// about the prefix rather than about the id being unknown.
-    /// </remarks>
+    // Answering forbidden would confirm the id names a real job. The job asked about here is a real
+    // one this service holds, so the not-found is about the prefix, not about an unknown id.
     [Fact]
     public async Task AJobOutsideThisExtensionsOwnPrefixIsAnsweredNotFoundAndNeverForbidden()
     {
@@ -232,15 +213,8 @@ public sealed class BulkEndpointTests
         Assert.Equal("ext:" + host.ExtensionId + ":monitoring-bulk", enqueued.Type);
     }
 
-    /// <summary>
-    /// The verb the connected generation cannot honour is refused PER ENTITY, and the batch still
-    /// reaches the entities after it.
-    /// </summary>
-    /// <remarks>
-    /// Whisparr v2 addresses no performer at all, so it holds no role to act through. The
-    /// button is a manifest fact and is registered whatever the generation is; the availability is a
-    /// runtime one, and this is where it is answered.
-    /// </remarks>
+    // Whisparr v2 addresses no performer, so it holds no role to act through. The button is a
+    // manifest fact registered whatever the generation is, so availability is answered at run time.
     [Fact]
     public async Task AVerbTheConnectedGenerationCannotHonourIsRefusedPerEntityRatherThanFailingTheBatch()
     {
@@ -261,7 +235,6 @@ public sealed class BulkEndpointTests
         Assert.Equal((1d, "0 applied, 2 refused."), Assert.Single(progress.Reports));
     }
 
-    /// <summary>The batch acts once per distinct id, whatever the selection carried.</summary>
     [Fact]
     public async Task ASelectionCarryingOneEntityTwiceActsOnItOnce()
     {
@@ -282,15 +255,8 @@ public sealed class BulkEndpointTests
             Assert.Single(progress.Reports));
     }
 
-    /// <summary>
-    /// A selection reports a file left under another root in the same words a single entity's run
-    /// does, and sends no import for it.
-    /// </summary>
-    /// <remarks>
-    /// The instance declares a root inside another one and holds the site under the inner one, while
-    /// the file sits under the outer. An import across the two copies the whole file, so nothing is
-    /// sent and the run says why.
-    /// </remarks>
+    // The instance declares a root inside another one and holds the site under the inner one, while
+    // the file sits under the outer. An import across the two copies the whole file.
     [Fact]
     public async Task ASelectionWhoseFileAndSiteSitUnderDifferentRootsLinksNothingAndSaysWhy()
     {
@@ -323,19 +289,10 @@ public sealed class BulkEndpointTests
             nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync), host.Client.Verbs);
     }
 
-    /// <summary>
-    /// A selection whose library root the instance agrees no spelling for adds nothing at all.
-    /// </summary>
-    /// <remarks>
-    /// The instance declares one root and holds nothing under it, which is what a container with no
-    /// counterpart for a Cove path really answers. Adding anyway would create an entry at a root
-    /// holding none of the entity's files, which can never link anything and which a later run
-    /// cannot tell from an entry a reader made.
-    /// <para>
-    /// Nothing is linked either, and no folder is listed: what would be linked belongs to an entry
-    /// that was never created.
-    /// </para>
-    /// </remarks>
+    // The instance declares one root and holds nothing under it, which is what a container with no
+    // counterpart for a Cove path answers. Adding anyway would create an entry at a root holding
+    // none of the entity's files, which can never link anything and which a later run cannot tell
+    // from an entry a reader made.
     [Fact]
     public async Task ASelectionWhoseRootAgreedOnNothingAddsNothingAndLinksNothing()
     {
@@ -364,10 +321,6 @@ public sealed class BulkEndpointTests
                 or nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync));
     }
 
-    /// <summary>
-    /// Each verb reaches the same statement of itself the single-entity route reaches, so a selection
-    /// cannot behave differently from a click.
-    /// </summary>
     [Fact]
     public async Task TheUnmonitorVerbReachesTheUnmonitorPathAndNotTheAddOne()
     {

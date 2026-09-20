@@ -7,18 +7,12 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Connection;
 
-/// <summary>
-/// The credential table: at most one row per generation, two generations that never read each
-/// other's key, and a save that distinguishes keeping a key from removing one.
-/// </summary>
-/// <remarks>
-/// The table is created by the SHIPPED migration string and mapped by the SHIPPED model
-/// configuration, so a change to either reaches these tests. What they cannot prove is that the HOST
-/// applies that migration against its own database — that is the end-to-end spec's job.
-/// </remarks>
+// The table here is created by the shipped migration string and mapped by the shipped model
+// configuration, so a change to either reaches these tests. They do not prove the host applies
+// the migration against its own database.
 public sealed class CredentialStorageTests
 {
-    /// <summary>The spellings the generation column holds, transcribed rather than computed.</summary>
+    // The spellings the generation column holds, transcribed from the column rather than computed.
     private const string V3Stored = "v3";
     private const string V2Stored = "v2";
 
@@ -35,10 +29,7 @@ public sealed class CredentialStorageTests
         Assert.Equal("first-key", await database.ReadAsync(WhisparrGeneration.V3));
     }
 
-    /// <summary>
-    /// A second save for the same generation replaces the row it already has. An append would leave
-    /// two keys for one instance with nothing to say which is current.
-    /// </summary>
+    // An append would leave two keys for one instance with nothing to say which is current.
     [Fact]
     public async Task ASecondWriteForTheSameGenerationLeavesExactlyOneRow()
     {
@@ -51,10 +42,7 @@ public sealed class CredentialStorageTests
         Assert.Equal("second-key", await database.ReadAsync(WhisparrGeneration.V3));
     }
 
-    /// <summary>
-    /// A save whose key is byte-identical to the stored one is still one row, not two. The row is
-    /// keyed on the generation, so the key's value can never decide how many rows exist.
-    /// </summary>
+    // The row is keyed on the generation, so the key's value never decides how many rows exist.
     [Fact]
     public async Task AWriteIdenticalToTheStoredKeyLeavesExactlyOneRow()
     {
@@ -66,7 +54,6 @@ public sealed class CredentialStorageTests
         Assert.Equal(1, await database.CountRowsAsync(V3Stored));
     }
 
-    /// <summary>Each generation keeps its own key, even when both name the same instance.</summary>
     [Fact]
     public async Task TheTwoGenerationsKeepIndependentRows()
     {
@@ -81,10 +68,6 @@ public sealed class CredentialStorageTests
         Assert.Equal("v2-key", await database.ReadAsync(WhisparrGeneration.V2));
     }
 
-    /// <summary>
-    /// Replacing one generation's key leaves the other's alone, so switching generations and coming
-    /// back finds the first key where it was.
-    /// </summary>
     [Fact]
     public async Task ReplacingOneGenerationLeavesTheOtherUntouched()
     {
@@ -97,10 +80,8 @@ public sealed class CredentialStorageTests
         Assert.Equal("v2-key", await database.ReadAsync(WhisparrGeneration.V2));
     }
 
-    /// <summary>
-    /// A save carrying no key keeps the stored one. A settings form never receives the key back, so
-    /// a blank field is the ordinary state of a form that is saving something else.
-    /// </summary>
+    // The settings form never receives the key back, so a blank field is the ordinary state of a
+    // form saving something else. It must keep the stored key.
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -116,10 +97,7 @@ public sealed class CredentialStorageTests
         Assert.Equal(1, await database.CountRowsAsync(V3Stored));
     }
 
-    /// <summary>
-    /// An explicit clear removes the row. This is the case a blank save must NOT reach: the two are
-    /// separate instructions and only one of them destroys a stored key.
-    /// </summary>
+    // A clear and a blank save are separate instructions. Only the clear destroys a stored key.
     [Fact]
     public async Task AnExplicitClearRemovesTheRow()
     {
@@ -132,7 +110,6 @@ public sealed class CredentialStorageTests
         Assert.Equal(0, await database.CountRowsAsync(V3Stored));
     }
 
-    /// <summary>A clear against a generation holding nothing changes nothing and raises nothing.</summary>
     [Fact]
     public async Task AClearWithNothingStoredIsHarmless()
     {
@@ -144,10 +121,7 @@ public sealed class CredentialStorageTests
         Assert.Equal(0, await database.CountRowsAsync(V2Stored));
     }
 
-    /// <summary>
-    /// A generation nothing has written reads as absent, never as the other generation's key. A
-    /// borrowed key would authenticate against an instance the user never named.
-    /// </summary>
+    // A borrowed key would authenticate against an instance the user never named.
     [Fact]
     public async Task AGenerationNeverWrittenReadsAsAbsent()
     {
@@ -157,7 +131,6 @@ public sealed class CredentialStorageTests
         Assert.Null(await database.ReadAsync(WhisparrGeneration.V2));
     }
 
-    /// <summary>The instant travels with the row, so a replacement is distinguishable from the write before it.</summary>
     [Fact]
     public async Task AReplacementRecordsTheInstantItWasWritten()
     {
@@ -169,10 +142,8 @@ public sealed class CredentialStorageTests
         Assert.Equal(SecondWriteAt.UtcTicks, await database.UpdatedAtUtcTicksAsync(V3Stored));
     }
 
-    /// <summary>
-    /// The generation column holds these two spellings. They are persisted data, so a later change to
-    /// them would leave every existing install's key unreadable under a name nothing looks up.
-    /// </summary>
+    // The spellings are persisted data. Changing them leaves every existing install's key stored
+    // under a name nothing looks up.
     [Fact]
     public async Task TheStoredGenerationSpellingsAreTheOnesTheColumnHolds()
     {
@@ -184,10 +155,8 @@ public sealed class CredentialStorageTests
         Assert.Equal([V2Stored, V3Stored], await database.StoredGenerationsAsync());
     }
 
-    /// <summary>
-    /// A background path reads through a scope of its own. What this proves is the wiring: the
-    /// elevation itself needs a host principal accessor, which no unit tier here supplies.
-    /// </summary>
+    // This covers the scope wiring only. The elevation needs a host principal accessor, which no
+    // unit test here supplies.
     [Fact]
     public async Task AReadThroughTheSystemScopeReturnsTheStoredKey()
     {
@@ -204,10 +173,8 @@ public sealed class CredentialStorageTests
         Assert.Equal("background-key", read);
     }
 
-    /// <summary>
-    /// The migration re-runs harmlessly. The table can outlive its receipt — a restored database
-    /// carries the table with no receipt at all — so a second application must not fail.
-    /// </summary>
+    // The table can outlive its receipt; a restored database carries the table with no receipt at
+    // all. A second application must not fail.
     [Fact]
     public async Task TheMigrationIsCreateIfAbsent()
     {
@@ -219,20 +186,13 @@ public sealed class CredentialStorageTests
         Assert.Equal("surviving-key", await database.ReadAsync(WhisparrGeneration.V3));
     }
 
-    /// <summary>A key of whitespace is not a key. It reaches the keep rule, never the store.</summary>
     [Fact]
     public void AReplacementWithNoKeyIsRefused()
         => Assert.Throws<ArgumentException>(() => CredentialWrite.Replace("   "));
 
-    /// <summary>
-    /// A SQLite-in-memory database carrying the credential table and nothing else, created by the
-    /// shipped migration string and mapped by the shipped model configuration.
-    /// </summary>
-    /// <remarks>
-    /// A connection held open for the fixture's lifetime, because an in-memory SQLite database is
-    /// discarded when its last connection closes. Each operation takes a context of its own, so a
-    /// read never answers out of the tracker of the write before it.
-    /// </remarks>
+    // The connection stays open for the fixture's lifetime, because an in-memory SQLite database
+    // is discarded when its last connection closes. Each operation takes a context of its own, so
+    // a read never answers out of the tracker of the write before it.
     private sealed class CredentialDatabase : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;
@@ -299,7 +259,6 @@ public sealed class CredentialStorageTests
         public ValueTask DisposeAsync() => _connection.DisposeAsync();
     }
 
-    /// <summary>A context carrying the extension's own model configuration and nothing else.</summary>
     private sealed class CredentialContext(DbContextOptions<CredentialContext> options) : DbContext(options)
     {
         protected override void OnModelCreating(ModelBuilder modelBuilder)

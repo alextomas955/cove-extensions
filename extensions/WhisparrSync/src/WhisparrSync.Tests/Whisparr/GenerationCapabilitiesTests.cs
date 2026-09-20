@@ -5,19 +5,10 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Whisparr;
 
-/// <summary>
-/// Which roles each generation holds, and what a caller gets when it asks for one that is absent.
-/// </summary>
-/// <remarks>
-/// The capability split is checked against the notification schemas the two builds themselves
-/// returned, so this product's table is compared with the instances rather than with itself.
-/// </remarks>
 public sealed class GenerationCapabilitiesTests
 {
-    /// <summary>The build each fixture was captured from, named in the file it is read from.</summary>
     private const string V3SchemaFixture = "whisparr-v3-3.3.8.1097-notification-schema-webhook.json";
 
-    /// <inheritdoc cref="V3SchemaFixture"/>
     private const string V2SchemaFixture = "whisparr-v2-2.2.0.231-notification-schema-webhook.json";
 
     private static readonly JsonSerializerOptions HostJsonOptions = new(JsonSerializerDefaults.Web);
@@ -67,16 +58,8 @@ public sealed class GenerationCapabilitiesTests
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);
     }
 
-    /// <summary>
-    /// A refusal is an answer of its own: not null, not a default role, and not an exception the
-    /// caller has to catch to learn what happened.
-    /// </summary>
-    /// <remarks>
-    /// Taken through a real generation gap: no route on v2 adds a catalogue item at
-    /// all, so its set holds no scene-registration role. A generation whose capability list is empty
-    /// would be a generation nothing manages, so the refusal is asserted where a user actually meets
-    /// one.
-    /// </remarks>
+    // No route on v2 adds a catalogue item, so its set holds no scene-registration role. The
+    // refusal is an answer of its own: not null, not a default role, and not an exception.
     [Fact]
     public void ASetHoldingNoRoleRefusesAndNamesWhatItRefused()
     {
@@ -93,14 +76,8 @@ public sealed class GenerationCapabilitiesTests
         Assert.DoesNotContain(WhisparrCapability.RegisterMissingScenes, capabilities.Held);
     }
 
-    /// <summary>
-    /// Whisparr v2 addresses no performer at all, so it holds no performer capability and a
-    /// caller asking for that role is told which capability was refused and on which generation.
-    /// </summary>
-    /// <remarks>
-    /// The refusal is the absence of a registration rather than a check: there is nothing in either
-    /// table to reach, so no code path exists that could be asked to decide this.
-    /// </remarks>
+    // Whisparr v2 addresses no performer at all. The refusal is the absence of a registration
+    // rather than a check.
     [Fact]
     public void TheOlderGenerationHoldsNoPerformerCapabilityAndRefusesTheRoleByName()
     {
@@ -120,7 +97,6 @@ public sealed class GenerationCapabilitiesTests
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
     }
 
-    /// <summary>Whisparr v3 holds the performer capability and hands out the role.</summary>
     [Fact]
     public void TheNewerGenerationHoldsThePerformerCapabilityAndHandsOutTheRole()
     {
@@ -134,21 +110,13 @@ public sealed class GenerationCapabilitiesTests
                 .Match<IWhisparrPerformerActing?>(held => held, _ => null));
     }
 
-    /// <summary>
-    /// A capability the generation HOLDS, asked of a set built with no source for it, is a fault
-    /// rather than a refusal.
-    /// </summary>
-    /// <remarks>
-    /// The two answers are what a caller would otherwise be unable to tell apart: one says the
-    /// instance cannot do this and the other says this product was wired wrong, and only the first is
-    /// something to tell a user about their Whisparr.
-    /// </remarks>
+    // A held capability with no source is a wiring fault, not an answer about the connected
+    // instance, so it throws instead of refusing.
     [Fact]
     public void ACapabilityHeldButUnsourcedIsAFaultRatherThanARefusal()
         => Assert.Throws<InvalidOperationException>(
             () => GenerationCapabilities.For(WhisparrGeneration.V3).Obtain<IWhisparrStudioActing>());
 
-    /// <summary>The capability table is per generation, and the two differ in both directions.</summary>
     [Fact]
     public void EachGenerationsCapabilitiesAreWrittenDownPerGeneration()
     {
@@ -184,16 +152,8 @@ public sealed class GenerationCapabilitiesTests
         Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
     }
 
-    /// <summary>
-    /// Whisparr v2 holds exactly what it can honour, and every capability it cannot is absent
-    /// from its table rather than present and refusing when it is called.
-    /// </summary>
-    /// <remarks>
-    /// Each absence has its own reason: it addresses no performer at all, no route on it adds a
-    /// catalogue item, and it keeps no scene records, so it has neither a scene to read nor one to
-    /// search for. Everything else it honours, so the list is the whole claim rather than a sample
-    /// of it.
-    /// </remarks>
+    // v2 addresses no performer, adds no catalogue item, and keeps no scene records. It honours
+    // everything else, so both lists are the whole claim rather than a sample.
     [Fact]
     public void TheOlderGenerationHoldsExactlyTheCapabilitiesItCanHonour()
     {
@@ -225,18 +185,9 @@ public sealed class GenerationCapabilitiesTests
             absent => Assert.DoesNotContain(absent, held));
     }
 
-    /// <summary>
-    /// Whisparr v2 obtains no per-scene search role, and v3 does.
-    /// </summary>
-    /// <remarks>
-    /// Read through the capability table rather than through a check inside the role: a member that
-    /// refused once it was called would be a promise the type made and could not keep, and the
-    /// generation that keeps no scene records has no scene to search for.
-    /// <para>
-    /// Both are asserted over one client implementing every role, so the answers differ by generation
-    /// rather than by what each set happened to be built with.
-    /// </para>
-    /// </remarks>
+    // v2 keeps no scene records, so it has no scene to search for. Both generations are asserted
+    // over one client implementing every role, so the answers differ by generation rather than by
+    // what each set was built with.
     [Fact]
     public void OnlyTheNewerGenerationObtainsThePerSceneSearchRole()
     {
@@ -254,12 +205,8 @@ public sealed class GenerationCapabilitiesTests
         Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
     }
 
-    /// <summary>Only Whisparr v2 obtains the held-site read role, and v3 refuses it by name.</summary>
-    /// <remarks>
-    /// v3 answers presence for a site through a route naming the site, so it needs no list to do it
-    /// and has nothing to implement. A member answering an empty set there would report every site
-    /// as one that instance does not hold.
-    /// </remarks>
+    // v3 answers presence for a site through a route naming the site, so it needs no list and has
+    // nothing to implement here.
     [Fact]
     public void OnlyTheOlderGenerationObtainsTheHeldSiteReadRole()
     {
@@ -281,7 +228,6 @@ public sealed class GenerationCapabilitiesTests
         Assert.Equal(WhisparrGeneration.V3, refusal.Generation);
     }
 
-    /// <summary>The per-scene search role <paramref name="generation"/> holds, or null.</summary>
     private static IWhisparrSceneSearchGrabbing? SceneSearchRoleOn(
         WhisparrGeneration generation, RecordingWhisparrClient client)
         => GenerationCapabilities
@@ -289,15 +235,8 @@ public sealed class GenerationCapabilitiesTests
             .Obtain<IWhisparrSceneSearchGrabbing>()
             .Match<IWhisparrSceneSearchGrabbing?>(held => held, _ => null);
 
-    /// <summary>
-    /// Whisparr v2 refuses the missing-scene role by name, because no route on it adds a
-    /// catalogue item at all.
-    /// </summary>
-    /// <remarks>
-    /// Its catalogue arrives only by re-reading its own metadata source, which pulls whatever that
-    /// source lists, so there is no way to register an item this library holds and the instance does
-    /// not. The capability is genuinely absent rather than expressed differently.
-    /// </remarks>
+    // v2's catalogue arrives only by re-reading its own metadata source, so there is no way to
+    // register an item this library holds and the instance does not.
     [Fact]
     public void TheOlderGenerationHoldsNoMissingSceneCapabilityAndRefusesTheRoleByName()
     {
@@ -313,10 +252,6 @@ public sealed class GenerationCapabilitiesTests
         Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
     }
 
-    /// <summary>
-    /// Whisparr v2 hands out the studio-acting role, and the role it hands out is the one the
-    /// set was built with.
-    /// </summary>
     [Fact]
     public void TheOlderGenerationHoldsTheStudioCapabilityAndHandsOutTheRole()
     {
@@ -331,16 +266,9 @@ public sealed class GenerationCapabilitiesTests
                 .Match<IWhisparrStudioActing?>(held => held, _ => null));
     }
 
-    /// <summary>
-    /// Each generation carries the secret in fields its OWN schema declares, and the two sets are
-    /// disjoint: a list-of-headers field on one, a user-and-password pair on the other.
-    /// </summary>
-    /// <remarks>
-    /// Checked against the schemas the two builds themselves returned, so this product's table is
-    /// compared with the instances rather than with itself. The absence half matters as much as the
-    /// presence half: registering one generation's field on the other is a save that is accepted and
-    /// delivers nothing.
-    /// </remarks>
+    // Checked against the notification schemas the two builds themselves returned, so the table is
+    // compared with the instances rather than with itself. Registering one generation's field on the
+    // other is a save that is accepted and delivers nothing.
     [Fact]
     public void EachGenerationCarriesTheSecretInFieldsItsOwnSchemaDeclares()
     {
@@ -365,7 +293,6 @@ public sealed class GenerationCapabilitiesTests
         }
     }
 
-    /// <summary>Whisparr v3 sets one field, a list of headers, carrying this product's own.</summary>
     [Fact]
     public void TheV3RoleCarriesTheSecretAsACustomHeader()
     {
@@ -379,12 +306,8 @@ public sealed class GenerationCapabilitiesTests
             JsonSerializer.Serialize(field.Value, HostJsonOptions));
     }
 
-    /// <summary>Whisparr v2 sets two fields, and the secret is the PASSWORD half.</summary>
-    /// <remarks>
-    /// That the instance then sends them as an authorization header, and that Cove delivers one to a
-    /// route declaring the anonymous convention, are both measured on the fixture rather than
-    /// inferred. The header named here is what such a delivery arrives in.
-    /// </remarks>
+    // v2 takes a user and password pair and sends it as an authorization header. The secret is the
+    // password half, and the header name is measured against an instance rather than inferred.
     [Fact]
     public void TheV2RoleCarriesTheSecretAsTheBasicAuthPassword()
     {
@@ -411,16 +334,13 @@ public sealed class GenerationCapabilitiesTests
         }
     }
 
-    /// <summary>
-    /// A role this product does not declare is a build error rather than an answer about the
-    /// connected instance, so it is not expressible as a refusal.
-    /// </summary>
     [Fact]
     public void ARoleThisProductDoesNotDeclareIsNotAnsweredAsARefusal()
         => Assert.Throws<InvalidOperationException>(
             () => GenerationCapabilities.For(WhisparrGeneration.V3).Obtain<IWhisparrClient>());
 
-    /// <summary>The wire spelling, transcribed by hand from the convention it must follow.</summary>
+    // The expected spelling is transcribed by hand from the camelCase wire convention, not computed
+    // from the enum.
     [Fact]
     public void TheCapabilityTravelsInTheCamelCaseSpelling()
         => Assert.Equal(
@@ -431,7 +351,6 @@ public sealed class GenerationCapabilitiesTests
             JsonSerializer.Serialize(
                 GenerationCapabilities.For(WhisparrGeneration.V3).Held, HostJsonOptions));
 
-    /// <summary>The role <paramref name="generation"/> holds, or null when it is refused.</summary>
     private static IOutOfBandSecretRegistration? OutOfBandRoleOf(WhisparrGeneration generation)
         => GenerationCapabilities.For(generation)
             .Obtain<IOutOfBandSecretRegistration>()

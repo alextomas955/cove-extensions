@@ -1,10 +1,3 @@
-/**
- * The state vocabulary as the spec states it.
- *
- * Every mark is asserted by the key it is named by, transcribed by hand from the spec's own legend.
- * Which shape a key draws is the business of the component that resolves it, and the two are tested
- * apart: what matters here is that no two states are named by the same mark.
- */
 import { describe, expect, it } from "vitest";
 
 import {
@@ -24,7 +17,7 @@ const STATES: readonly WhisparrEntityState[] = [
   "statusUnknown",
 ];
 
-/** The legend, transcribed by hand: the mark each state is named by. */
+// Transcribed by hand from the spec's legend: the mark each state is named by.
 const EXPECTED_ICON_KEY: Record<WhisparrEntityState, string> = {
   monitored: "bookmark",
   unmonitored: "circle",
@@ -33,7 +26,7 @@ const EXPECTED_ICON_KEY: Record<WhisparrEntityState, string> = {
   statusUnknown: "circleQuestion",
 };
 
-/** The legend's labels, transcribed by hand. */
+// The legend's labels, transcribed by hand.
 const EXPECTED_LABEL: Record<WhisparrEntityState, string> = {
   monitored: "Monitored",
   unmonitored: "Unmonitored",
@@ -42,7 +35,7 @@ const EXPECTED_LABEL: Record<WhisparrEntityState, string> = {
   statusUnknown: "Status unknown",
 };
 
-/** The marker the spec declares is not a state, so no entry may carry it. */
+// The marker that is not a state, so no entry may carry it.
 const IN_LIBRARY_ICON_KEY = "download";
 
 const PRESENT_AND_MONITORED: EntityStateInput = {

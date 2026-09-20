@@ -5,18 +5,8 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// The run that offers one entity's own scenes to the connected instance, one at a time.
-/// </summary>
-/// <remarks>
-/// Driven through the recorder that stands in for the whole outbound seam, so the ordered verb log
-/// covers every request this product can issue rather than the ones one interface declares.
-/// <para>
-/// The classification of an already-held scene is read from the documents build 3.3.8.1097 produced.
-/// Both answers carry the same status and the same content type, so a run classifying on the status
-/// would report every scene the instance holds as a refusal.
-/// </para>
-/// </remarks>
+// Whisparr v3 build 3.3.8.1097 answers an already-held scene and an unknown identifier with the
+// same status and the same content type, so the classification reads the error code.
 public sealed class AddAllMissingPlannerTests
 {
     private const string AlreadyHeldFixture = "whisparr-v3-3.3.8.1097-scene-add-already-held.json";
@@ -34,22 +24,13 @@ public sealed class AddAllMissingPlannerTests
 
     private static readonly AddDefaults Defaults = new(1, "/config/library");
 
-    /// <summary>A key of the shape the settings store holds one in.</summary>
-    /// <remarks>
-    /// Written down here rather than taken from the shared monitor host: that host owns a real Cove
-    /// context, and this file compiles on the leg where those types are absent.
-    /// </remarks>
+    // Written here rather than taken from the shared monitor host: that host owns a real Cove
+    // context, and this file compiles where those types are absent.
     private const string StoredKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// Three identifiers are three registrations and one catalogue refresh, in that order.
-    /// </summary>
-    /// <remarks>
-    /// The refresh comes after rather than before, because a registration becomes visible in the
-    /// instance's own catalogue only once one has run.
-    /// </remarks>
+    // The refresh comes last: a registration reaches the instance's catalogue only once one runs.
     [Fact]
     public async Task ThreeIdentifiersAreThreeRegistrationsThenOneCatalogueRefresh()
     {
@@ -74,9 +55,6 @@ public sealed class AddAllMissingPlannerTests
         Assert.Equal(3, run.Registered);
     }
 
-    /// <summary>
-    /// A scene the instance already holds is counted as already held, never as a refusal.
-    /// </summary>
     [Fact]
     public async Task ASceneTheInstanceAlreadyHoldsIsCountedAsHeldRatherThanRefused()
     {
@@ -90,14 +68,8 @@ public sealed class AddAllMissingPlannerTests
         Assert.Equal(0, run.Refused);
     }
 
-    /// <summary>
-    /// The catalogue refresh runs even when the instance already held every scene.
-    /// </summary>
-    /// <remarks>
-    /// What the run offered is not the only thing the refresh brings in: the instance re-reads its
-    /// own metadata source for the entity, and the entity's catalogue is what the reader asked to be
-    /// complete.
-    /// </remarks>
+    // The refresh makes the instance re-read its metadata source for the whole entity, so it is
+    // still worth sending when the run registered nothing.
     [Fact]
     public async Task ARunThatRegisteredNothingStillRefreshesTheCatalogue()
     {
@@ -109,14 +81,6 @@ public sealed class AddAllMissingPlannerTests
         Assert.Contains(nameof(IWhisparrMissingSceneActing.RefreshCatalogueAsync), client.Verbs);
     }
 
-    /// <summary>
-    /// An identifier no provider lists is a refusal, and is told apart from a scene already held.
-    /// </summary>
-    /// <remarks>
-    /// The control matters as much as the case: both answers carry the same status and the same
-    /// content type, so a run that could not tell them apart would report a whole entity as already
-    /// registered.
-    /// </remarks>
     [Fact]
     public async Task AnIdentifierTheInstanceDoesNotRecogniseIsRefusedRatherThanHeld()
     {
@@ -129,13 +93,6 @@ public sealed class AddAllMissingPlannerTests
         Assert.Equal(1, run.Refused);
     }
 
-    /// <summary>
-    /// The three answers the pinned build gave are classified as three different things.
-    /// </summary>
-    /// <remarks>
-    /// The status alone separates none of them: the already-held answer and the control share both
-    /// the status and the content type, which is why the classification reads the error code.
-    /// </remarks>
     [Fact]
     public void TheClassificationReadsTheErrorCodeRatherThanTheStatus()
     {
@@ -150,13 +107,6 @@ public sealed class AddAllMissingPlannerTests
             AddAllMissingPlanner.Classify(400, ProbeFixtures.Read(UnknownIdentifierFixture)));
     }
 
-    /// <summary>
-    /// A body nothing can be read out of is a refusal rather than an already-held scene.
-    /// </summary>
-    /// <remarks>
-    /// The claim that costs least when it is wrong. Reporting a scene as held that the instance
-    /// refused leaves the reader believing a catalogue is complete when it is not.
-    /// </remarks>
     [Fact]
     public void AnUnreadableAnswerIsRefusedRatherThanHeld()
     {
@@ -165,9 +115,6 @@ public sealed class AddAllMissingPlannerTests
         Assert.Equal(SceneRegistration.Refused, AddAllMissingPlanner.Classify(409, "[]"));
     }
 
-    /// <summary>
-    /// A registration that reached no answer at all is refused, and the run carries on.
-    /// </summary>
     [Fact]
     public async Task ARegistrationThatReachedNoAnswerIsRefusedAndTheRunCarriesOn()
     {
@@ -186,14 +133,8 @@ public sealed class AddAllMissingPlannerTests
         Assert.Equal(AddAllMissingRunOutcome.Completed, run.Outcome);
     }
 
-    /// <summary>
-    /// An answer larger than the read bound is refused, not registered, and the run carries on.
-    /// </summary>
-    /// <remarks>
-    /// The bounded read answers a success status and an empty body and states the refusal on the
-    /// answer itself, so a classification reading only the status and the body counts the scene as
-    /// registered and tells the reader a catalogue is complete when it is not.
-    /// </remarks>
+    // The bounded read answers a success status with an empty body and states the refusal on the
+    // answer itself, so a classification reading only status and body would count it as registered.
     [Fact]
     public async Task AnAnswerLargerThanTheReadBoundIsRefusedRatherThanRegistered()
     {
@@ -216,13 +157,8 @@ public sealed class AddAllMissingPlannerTests
         Assert.Equal(0, run.AlreadyHeld);
     }
 
-    /// <summary>
-    /// A run over no identifier at all sends nothing and says that there was nothing to register.
-    /// </summary>
-    /// <remarks>
-    /// A distinct outcome rather than a completed run that did nothing. A job that did nothing still
-    /// appears in the host's Job Drawer, where it reads as work that happened.
-    /// </remarks>
+    // A distinct outcome rather than a completed run: a job that did nothing still appears in the
+    // host's Job Drawer, where a completed outcome reads as work that happened.
     [Fact]
     public async Task ARunOverNoIdentifierSendsNothingAndSaysSo()
     {
@@ -235,9 +171,6 @@ public sealed class AddAllMissingPlannerTests
         Assert.Equal(0, run.Registered);
     }
 
-    /// <summary>
-    /// A run stopped part way is cancelled rather than failed, and keeps what it registered.
-    /// </summary>
     [Fact]
     public async Task ARunStoppedPartWayIsCancelledAndKeepsWhatItRegistered()
     {
@@ -259,13 +192,6 @@ public sealed class AddAllMissingPlannerTests
         Assert.Equal(1, run.Registered);
     }
 
-    /// <summary>
-    /// A cancelled run does not refresh the catalogue.
-    /// </summary>
-    /// <remarks>
-    /// The refresh is what makes a completed registration set visible, and a run that stopped part
-    /// way has no complete set to make visible.
-    /// </remarks>
     [Fact]
     public async Task ACancelledRunIssuesNoCatalogueRefresh()
     {
@@ -287,13 +213,8 @@ public sealed class AddAllMissingPlannerTests
             nameof(IWhisparrMissingSceneActing.RefreshCatalogueAsync), client.Verbs);
     }
 
-    /// <summary>
-    /// Nothing the run answers grows with the identifier set.
-    /// </summary>
-    /// <remarks>
-    /// Read off the record's own members rather than off one run's answer: a record carrying a list
-    /// answers the same counts on a small entity and is unusable on a large one.
-    /// </remarks>
+    // Read off the record's members rather than one run's answer: a record carrying a list answers
+    // the same counts on a small entity and is unusable on a large one.
     [Fact]
     public void TheRunRecordCarriesCountsAndNoCollection()
     {
@@ -307,14 +228,8 @@ public sealed class AddAllMissingPlannerTests
         Assert.Equal(4, members.Length);
     }
 
-    /// <summary>
-    /// No request the run makes can grab, and none of them can retract.
-    /// </summary>
-    /// <remarks>
-    /// The ordered verb log covers the whole outbound seam, so a grabbing verb reached by any path
-    /// this run takes would appear in it. The retraction half is read off the shipped source, because
-    /// a delete this run never happens to reach is still a delete this run could reach.
-    /// </remarks>
+    // The retraction half reads the shipped source, because a delete this run never happens to
+    // reach is still a delete this run could reach.
     [Fact]
     public async Task NothingTheRunIssuesGrabsAndNothingInItRetracts()
     {
@@ -330,13 +245,6 @@ public sealed class AddAllMissingPlannerTests
                 retracting, PlannerSource(), StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>
-    /// The classification names the pin the measurement was transcribed into.
-    /// </summary>
-    /// <remarks>
-    /// A rule read off the instance's own answer is an external fact, and the reader of this file has
-    /// to be able to find what it was measured against.
-    /// </remarks>
     [Fact]
     public void TheClassificationNamesThePinItRestsOn()
     {
@@ -367,11 +275,8 @@ public sealed class AddAllMissingPlannerTests
         => await client.RefreshCatalogueAsync(
             Instance, StoredKey, WhisparrEntityKind.Studio, 31, ct);
 
-    /// <summary>The identifiers, handed over one at a time as the library's own source hands them.</summary>
-    /// <remarks>
-    /// Genuinely asynchronous between items rather than a list dressed as one, so the run is driven
-    /// through the same suspension points a database read would suspend at.
-    /// </remarks>
+    // Asynchronous between items rather than a list dressed as one, so the run is driven through
+    // the same suspension points a database read would suspend at.
     private static async IAsyncEnumerable<string> Identities(IReadOnlyList<string> identities)
     {
         foreach (var identity in identities)

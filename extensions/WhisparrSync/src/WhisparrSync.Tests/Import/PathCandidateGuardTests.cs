@@ -2,22 +2,13 @@ using WhisparrSync.Import;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// The arithmetic that turns a path one system reported into the paths the other might really hold
-/// it at, and the two rules that keep a reported string from reaching the filesystem.
-/// </summary>
-/// <remarks>
-/// Pure throughout, so every branch is reachable here. The container proves the one case that needs
-/// a real file; not-found, ambiguous and every refusal are proven exhaustively in this file, which is
-/// the split the two tiers exist for.
-/// </remarks>
+// Pure throughout, so every branch is reachable here. The container proves the one case that needs
+// a real file; not-found, ambiguous and every refusal are proven exhaustively in this file.
 public sealed class PathCandidateGuardTests
 {
-    /// <summary>The host's own library paths in the containerized fixture, transcribed by hand.</summary>
-    /// <remarks>
-    /// Written out rather than read from the compose file, because an expectation computed from the
-    /// thing it checks agrees with it whatever either says.
-    /// </remarks>
+    // The host's own library paths in the containerized fixture, transcribed by hand. Written out
+    // rather than read from the compose file, because an expectation computed from the thing it checks
+    // agrees with it whatever either says.
     private static readonly string[] HostRoots = ["/data", "/data2"];
 
     [Fact]
@@ -33,13 +24,8 @@ public sealed class PathCandidateGuardTests
             reading.Candidates);
     }
 
-    /// <summary>
-    /// Every reporting root that contains the path yields its own tail, and none is chosen here.
-    /// </summary>
-    /// <remarks>
-    /// Nested roots are a real configuration. Deciding between them in arithmetic would be a guess
-    /// the caller could not see; leaving both means what is on disk settles it.
-    /// </remarks>
+    // Nested roots are a real configuration. Deciding between them in arithmetic would be a guess the
+    // caller could not see; leaving both means what is on disk settles it.
     [Fact]
     public void NestedReportingRootsEachYieldTheirOwnTail()
     {
@@ -51,7 +37,6 @@ public sealed class PathCandidateGuardTests
         Assert.Equal(["/data/inner/scene.mp4", "/data/scene.mp4"], reading.Candidates);
     }
 
-    /// <summary>A root does not contain a sibling whose name merely extends its own.</summary>
     [Fact]
     public void ASiblingRootWhoseNameExtendsAnothersDoesNotContainIt()
     {
@@ -65,13 +50,8 @@ public sealed class PathCandidateGuardTests
         Assert.Equal(["/data/scene.mp4"], reading.Candidates);
     }
 
-    /// <summary>
-    /// A parent-directory segment in the reported tail cannot produce a candidate outside its root.
-    /// </summary>
-    /// <remarks>
-    /// The collapse happens after the join, so the containment check has to happen after the
-    /// collapse. A check made before it would see a string that still begins with the root.
-    /// </remarks>
+    // The collapse happens after the join, so the containment check has to happen after the collapse. A
+    // check made before it would see a string that still begins with the root.
     [Theory]
     [InlineData("/media/../../etc/shadow")]
     [InlineData("/media/scenes/../../../etc/shadow")]
@@ -89,13 +69,8 @@ public sealed class PathCandidateGuardTests
         Assert.Empty(reading.Candidates);
     }
 
-    /// <summary>
-    /// A parent segment that stays inside its root is kept, collapsed.
-    /// </summary>
-    /// <remarks>
-    /// The discriminating control for the case above: without it, refusing every path carrying a
-    /// parent segment would pass it too, and the rule would be "no dots" rather than "no escape".
-    /// </remarks>
+    // The control for the case above: without it, refusing every path carrying a parent segment would
+    // pass it too, and the rule would be "no dots" rather than "no escape".
     [Fact]
     public void AParentSegmentThatStaysInsideItsRootIsKept()
     {
@@ -127,12 +102,11 @@ public sealed class PathCandidateGuardTests
         var reading = PathCandidateGuard.Read("/media/scene.mp4", ["/media"], []);
 
         Assert.Equal(PathCandidateRefusal.NoLibraryRoots, reading.Refusal);
-        // The tail is still reported: it says the reported path WAS resolvable against the instance,
+        // The tail is still reported: it says the reported path was resolvable against the instance,
         // which is a different fact from the host having nowhere to put it.
         Assert.Equal(["scene.mp4"], reading.Tails);
     }
 
-    /// <summary>A blank entry in either list is not a root that contains everything.</summary>
     [Fact]
     public void ABlankEntryIsNotARoot()
     {
@@ -144,11 +118,8 @@ public sealed class PathCandidateGuardTests
             PathCandidateGuard.Read("/media/scene.mp4", ["/media"], ["  "]).Refusal);
     }
 
-    /// <summary>A Windows-spelled report resolves against a Linux-spelled host root.</summary>
-    /// <remarks>
-    /// The two systems need not run on the same platform, and the whole reason this arithmetic
-    /// exists is that they need not spell one file the same way.
-    /// </remarks>
+    // The two systems need not run on the same platform, and this arithmetic exists because they need
+    // not spell one file the same way.
     [Fact]
     public void ABackslashSpelledReportResolvesAgainstAForwardSlashRoot()
     {
@@ -159,11 +130,8 @@ public sealed class PathCandidateGuardTests
         Assert.Equal(["/data/scenes/scene.mp4"], reading.Candidates);
     }
 
-    /// <summary>The delivery reported a path under no root the instance itself declares.</summary>
-    /// <remarks>
-    /// The line a refusal is counted under is blank here, which is the case the banner most needs to
-    /// show: the delivery named a path its own instance cannot place.
-    /// </remarks>
+    // The line a refusal is counted under is blank here, which is the case the banner most needs to
+    // show: the delivery named a path its own instance cannot place.
     [Fact]
     public void APathUnderNoReportingRootIsCountedUnderNoRoot()
     {
@@ -173,7 +141,6 @@ public sealed class PathCandidateGuardTests
         Assert.Equal("", reading.RefusalRoot);
     }
 
-    /// <summary>The reporting root a refusal is counted under, where one contains the path.</summary>
     [Fact]
     public void TheContainingReportingRootCarriesTheLine()
     {
@@ -183,11 +150,8 @@ public sealed class PathCandidateGuardTests
         Assert.Equal("/media", reading.RefusalRoot);
     }
 
-    /// <summary>Nested reporting roots count under the first the instance listed.</summary>
-    /// <remarks>
-    /// Both contain the path and both yield a tail. The choice groups a count and settles nothing
-    /// about which file to import.
-    /// </remarks>
+    // Both contain the path and both yield a tail. The choice groups a count and settles nothing about
+    // which file to import.
     [Fact]
     public void NestedReportingRootsCountUnderTheFirstTheInstanceListed()
     {
@@ -198,11 +162,8 @@ public sealed class PathCandidateGuardTests
         Assert.Equal("/media/inner", reading.RefusalRoot);
     }
 
-    /// <summary>The resolution is total over the causes the refusal vocabulary declares.</summary>
-    /// <remarks>
-    /// Transcribed by hand rather than counted from the enum, so adding a member fails here and has to
-    /// be decided rather than absorbed.
-    /// </remarks>
+    // Transcribed by hand rather than counted from the enum, so adding a member fails here and has to
+    // be decided rather than absorbed.
     [Fact]
     public void TheRefusalVocabularyIsTheThreeCausesAndNoMore()
         => Assert.Equal(
@@ -214,7 +175,6 @@ public sealed class PathCandidateGuardTests
             }.Order(),
             Enum.GetValues<ImportRefusalCause>().Order());
 
-    /// <summary>A resolution names a path or a cause, never both and never neither.</summary>
     [Fact]
     public void AResolutionNamesEitherAPathOrACauseAndNeverBoth()
     {
@@ -247,13 +207,8 @@ public sealed class PathCandidateGuardTests
         Assert.Equal(ImportRefusalCause.NotFoundUnderAnyRoot, resolution.Cause);
     }
 
-    /// <summary>
-    /// Two Cove roots where one contains the other, both holding the reported tail, is refused.
-    /// </summary>
-    /// <remarks>
-    /// The refusal is the point: a longest-root or first-root rule would import one of the two and
-    /// leave the user no signal that the other exists.
-    /// </remarks>
+    // The refusal is the point: a longest-root or first-root rule would import one of the two and leave
+    // the user no signal that the other exists.
     [Fact]
     public void TwoVerifiedCandidatesUnderNestedCoveRootsAreRefusedAsAmbiguous()
     {
@@ -268,11 +223,8 @@ public sealed class PathCandidateGuardTests
         Assert.Equal(ImportRefusalCause.AmbiguousCandidates, resolution.Cause);
     }
 
-    /// <summary>A candidate of the right name and the wrong length is a different file.</summary>
-    /// <remarks>
-    /// Its control is the same pair resolved against the size that does match, which imports: without
-    /// it, a guard that verified nothing at all would pass the refusal too.
-    /// </remarks>
+    // Its control is the same pair resolved against the size that does match, which imports: without
+    // it, a guard that verified nothing at all would pass the refusal too.
     [Fact]
     public void ASizeMismatchTurnsASingleVerificationIntoNone()
     {
@@ -285,11 +237,8 @@ public sealed class PathCandidateGuardTests
             PathCandidateGuard.Resolve([Found("/data/scene.mp4", 10)], 10).Path);
     }
 
-    /// <summary>A delivery that reported no size verifies on presence alone.</summary>
-    /// <remarks>
-    /// Absence of a size is not a mismatch. A candidate of any length verifies, and the same candidate
-    /// absent from disk still does not.
-    /// </remarks>
+    // Absence of a size is not a mismatch. A candidate of any length verifies, and the same candidate
+    // absent from disk still does not.
     [Fact]
     public void APayloadCarryingNoSizeVerifiesOnPresenceAlone()
     {

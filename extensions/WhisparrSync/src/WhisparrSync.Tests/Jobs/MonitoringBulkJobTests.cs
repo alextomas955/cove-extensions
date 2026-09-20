@@ -7,14 +7,6 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Jobs;
 
-/// <summary>
-/// What one bulk batch does with the ids it was given: how many times it acts, in which order it
-/// reports, and how it ends.
-/// </summary>
-/// <remarks>
-/// The acting delegate is the seam every case drives, so an assertion that an id was acted on once is
-/// about the calls the batch made rather than about the answer it composed.
-/// </remarks>
 public sealed class MonitoringBulkJobTests
 {
     [Fact]
@@ -40,10 +32,8 @@ public sealed class MonitoringBulkJobTests
         Assert.Null(decoded.Scope);
     }
 
-    /// <summary>
-    /// Every shape the host's string-only parameter map can arrive in that a strict decode would
-    /// throw on. A throw here lands inside the host's job runner rather than in a handler.
-    /// </summary>
+    // The host's parameter map holds strings only. A strict decode would throw on these shapes,
+    // and the throw would land inside the host's job runner rather than in a handler.
     public static TheoryData<Dictionary<string, string>> UnreadableParameters()
         => new()
         {
@@ -79,7 +69,7 @@ public sealed class MonitoringBulkJobTests
         Assert.Empty(decoded.EntityIds);
     }
 
-    /// <summary>The host declares the map nullable, so the null case is its own.</summary>
+    // The host declares the parameter map nullable, so null is its own case.
     [Fact]
     public void ANullParameterMapDecodesToNoIdsAndNeverThrows()
     {
@@ -134,10 +124,7 @@ public sealed class MonitoringBulkJobTests
         Assert.Single(run.Outcomes);
     }
 
-    /// <summary>
-    /// Two of the three share an outcome, because a grouping bug is invisible when every outcome
-    /// differs.
-    /// </summary>
+    // Two of the three share an outcome. A grouping bug is invisible when every outcome differs.
     [Fact]
     public async Task TheOutcomeListIsInTheSuppliedOrderEvenWhereTwoShareAnOutcome()
     {
@@ -217,10 +204,8 @@ public sealed class MonitoringBulkJobTests
         Assert.Equal([1, 2], run.Outcomes.Select(outcome => outcome.CoveId));
     }
 
-    /// <summary>
-    /// The batch carries no principal of its own, and an anonymous reader is answered zero rows with
-    /// no error, which on this path reports every entity as carrying no identity.
-    /// </summary>
+    // The batch carries no principal of its own, and Cove answers an anonymous reader with zero
+    // rows and no error, which on this path reports every entity as carrying no identity.
     [Fact]
     public async Task TheBatchsWorkRunsUnderTheSystemPrincipal()
     {

@@ -13,15 +13,8 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// One walk back through an instance's history: how far it reads, what it hands to the ingest core,
-/// where it leaves the mark, and what it never does.
-/// </summary>
-/// <remarks>
-/// The instance under test always HAS a past. Against an empty one, "the pass imported nothing" and
-/// "the pass did nothing" are the same observation, and every assertion below would hold with the
-/// walk deleted.
-/// </remarks>
+// Every instance under test has a past. Against an empty one the assertions below would all hold
+// with the walk deleted.
 public sealed class BackstopPassTests
 {
     private const string Address = "http://whisparr:6969";
@@ -29,23 +22,15 @@ public sealed class BackstopPassTests
     private const string ApiKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
     private const string ImportedPath = "/whisparr-media/scene.mp4";
 
-    /// <summary>
-    /// The identifier the entity on a record names, written so both lineages can carry it as text.
-    /// </summary>
+    // Digits only, so either lineage's spelling can carry it.
     private const string SceneIdentifier = "4149372";
 
-    /// <summary>The id of the newest record in the history the paging cases read.</summary>
     private const int NewestRecordId = 1000;
 
     private static readonly DateTimeOffset Noon = new(2026, 8, 30, 12, 0, 0, TimeSpan.Zero);
 
-    /// <summary>
-    /// With no mark stored, the pass records where history ends and imports nothing.
-    /// </summary>
-    /// <remarks>
-    /// Both halves are asserted. The instance holds records the pass could have imported, so the mark
-    /// advancing is what tells "imported nothing" from "read nothing".
-    /// </remarks>
+    // The instance holds records the pass could have imported, so the mark advancing is what tells
+    // "imported nothing" from "read nothing".
     [Fact]
     public async Task TheFirstPassRecordsWhereHistoryEndsAndImportsNothing()
     {
@@ -61,7 +46,6 @@ public sealed class BackstopPassTests
         Assert.Equal(0, result.RecordsTaken);
     }
 
-    /// <summary>The first pass records that the position was lost, so a gap may exist.</summary>
     [Fact]
     public async Task TheFirstPassRecordsThePositionAsLost()
     {
@@ -73,11 +57,8 @@ public sealed class BackstopPassTests
         Assert.True((await pass.StoredAsync()).ImportHealth.BackstopPositionLost);
     }
 
-    /// <summary>An instance with no history at all still leaves the unset state.</summary>
-    /// <remarks>
-    /// Without a mark written here, every later pass would be another first connect and the backstop
-    /// would never import anything.
-    /// </remarks>
+    // Without a mark written here, every later pass would be another first connect and the backstop
+    // would never import anything.
     [Fact]
     public async Task AFirstPassOverAnEmptyHistoryStillWritesAMark()
     {
@@ -89,11 +70,8 @@ public sealed class BackstopPassTests
         Assert.Equal(Pass.Now, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
     }
 
-    /// <summary>The walk asks only for the pages it has to read.</summary>
-    /// <remarks>
-    /// Five pages exist and the mark sits inside the third. A walk that read to the end of the
-    /// history would ask for all five, and the records past the mark are ones it has already imported.
-    /// </remarks>
+    // Five pages exist and the mark sits inside the third. A walk that read to the end would ask for
+    // all five, and the records past the mark are already imported.
     [Fact]
     public async Task TheWalkStopsAtThePageHoldingTheMark()
     {
@@ -107,7 +85,6 @@ public sealed class BackstopPassTests
         Assert.Equal((2 * BackstopPass.PageSize) + 26, result.RecordsTaken);
     }
 
-    /// <summary>The mark moves to the newest record the walk saw, not to the oldest.</summary>
     [Fact]
     public async Task TheMarkMovesToTheNewestRecordTheWalkSaw()
     {
@@ -120,7 +97,6 @@ public sealed class BackstopPassTests
         Assert.Equal(Noon, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
     }
 
-    /// <summary>A pass with nothing new leaves the mark where it was.</summary>
     [Fact]
     public async Task APassOverAnEmptyHistoryLeavesTheMarkWhereItWas()
     {
@@ -134,15 +110,9 @@ public sealed class BackstopPassTests
         Assert.Equal(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
     }
 
-    /// <summary>
-    /// A save that moved the address under the walk leaves the new instance's mark unset.
-    /// </summary>
-    /// <remarks>
-    /// A save that moves the address starts a new instance's history again, and the walk it lands
-    /// inside is an unbounded number of outbound reads long. Writing the instant read from the old
-    /// instance onto the new record would put every record older than it out of reach for good, with
-    /// nothing observable happening.
-    /// </remarks>
+    // A save that moves the address starts a new instance's history. Writing the instant read from the
+    // old instance onto the new record would put every older record out of reach, with nothing
+    // observable happening.
     [Fact]
     public async Task APassWhoseAddressMovedUnderItDoesNotMarkTheNewInstance()
     {
@@ -158,14 +128,8 @@ public sealed class BackstopPassTests
         Assert.Null(stored.V3?.BackstopWatermarkUtc);
     }
 
-    /// <summary>
-    /// A pass whose address moved under it still records that it ran, because the health half
-    /// describes the pass and not a position in an instance's history.
-    /// </summary>
-    /// <remarks>
-    /// The failure streak is built first, so its reset is an observation rather than the value an
-    /// untouched aggregate already holds.
-    /// </remarks>
+    // The failure streak is built first, so its reset is an observation rather than the value an
+    // untouched aggregate already holds.
     [Fact]
     public async Task APassWhoseAddressMovedUnderItStillRecordsThatItRan()
     {
@@ -186,14 +150,8 @@ public sealed class BackstopPassTests
         Assert.False(stored.ImportHealth.BackstopPositionLost);
     }
 
-    /// <summary>
-    /// A save landing under the walk that left the address where it points still records the mark.
-    /// </summary>
-    /// <remarks>
-    /// The discriminating control for the two cases above: a refusal keyed on a write having met the
-    /// pass, rather than on the instance having changed, would satisfy both and stop the backstop
-    /// advancing at all.
-    /// </remarks>
+    // Control for the two cases above: a refusal keyed on a write having met the pass, rather than on
+    // the instance having changed, would satisfy both and stop the backstop advancing at all.
     [Fact]
     public async Task APassWhoseAddressStayedRecordsItsMarkThroughACompetingSave()
     {
@@ -208,13 +166,8 @@ public sealed class BackstopPassTests
         Assert.Equal(Noon, stored.V3?.BackstopWatermarkUtc);
     }
 
-    /// <summary>
-    /// A pass that imported three files starts ONE scan at the end of it, covering all three.
-    /// </summary>
-    /// <remarks>
-    /// The host's enqueue deduplicates nothing and defaults to exclusive, so one scan per record
-    /// would serialise three library scans behind each other for one pass.
-    /// </remarks>
+    // The host's enqueue deduplicates nothing and defaults to exclusive, so one scan per record would
+    // serialise three library scans behind each other.
     [Fact]
     public async Task APassThatImportedThreeFilesStartsOneScanCoveringAllThree()
     {
@@ -229,11 +182,8 @@ public sealed class BackstopPassTests
             Assert.Single(pass.Library.Scans).Order());
     }
 
-    /// <summary>A pass that imported nothing starts no scan.</summary>
-    /// <remarks>
-    /// The discriminating control for the test above: without it, a pass that started a scan on every
-    /// run would satisfy the same "exactly one scan" assertion.
-    /// </remarks>
+    // Control for the test above: without it, a pass that started a scan on every run would satisfy the
+    // same "exactly one scan" assertion.
     [Fact]
     public async Task APassThatImportedNothingStartsNoScan()
     {
@@ -245,14 +195,8 @@ public sealed class BackstopPassTests
         Assert.Empty(pass.Library.Scans);
     }
 
-    /// <summary>
-    /// The walk asks each page for the entity spelling of the lineage it is connected to.
-    /// </summary>
-    /// <remarks>
-    /// The argument rather than the count: the identifier the candidate carries lives on the entity
-    /// that argument asks for, so a walk asking the other lineage's spelling would read a page with no
-    /// entity on it and hand the core a candidate matchable on nothing.
-    /// </remarks>
+    // The identifier the candidate carries lives on the entity that argument asks for, so a walk asking
+    // the other lineage's spelling would read a page with no entity on it.
     [Theory]
     [InlineData(WhisparrGeneration.V3)]
     [InlineData(WhisparrGeneration.V2)]
@@ -267,13 +211,8 @@ public sealed class BackstopPassTests
         Assert.NotEmpty(pass.Client.Histories);
     }
 
-    /// <summary>
-    /// A record whose entity declares an identifier hands the ingest core a candidate carrying it.
-    /// </summary>
-    /// <remarks>
-    /// This is what lets an arrival through this channel re-point onto the item a webhook arrival for
-    /// the same scene would have found, rather than creating a second one beside it.
-    /// </remarks>
+    // This is what lets an arrival through this channel re-point onto the item a webhook arrival for
+    // the same scene would have found.
     [Theory]
     [InlineData(WhisparrGeneration.V3)]
     [InlineData(WhisparrGeneration.V2)]
@@ -288,13 +227,7 @@ public sealed class BackstopPassTests
         Assert.Equal(SceneIdentifier, Assert.Single(pass.Core.Ingested).RemoteId);
     }
 
-    /// <summary>
-    /// A record whose answer embedded no entity still reaches the core, carrying no identifier.
-    /// </summary>
-    /// <remarks>
-    /// The discriminating control for the case above, and the residual this plan leaves in place: a
-    /// file an instance never matched is still one to register.
-    /// </remarks>
+    // Control for the case above: a file an instance never matched is still one to register.
     [Fact]
     public async Task ARecordNamingNoSceneStillReachesTheCore()
     {
@@ -306,7 +239,6 @@ public sealed class BackstopPassTests
         Assert.Null(Assert.Single(pass.Core.Ingested).RemoteId);
     }
 
-    /// <summary>Two records sharing one instant are both handed to the ingest core.</summary>
     [Fact]
     public async Task TwoRecordsSharingOneInstantAreBothProjected()
     {
@@ -318,13 +250,8 @@ public sealed class BackstopPassTests
         Assert.Equal(2, pass.Core.Ingested.Count);
     }
 
-    /// <summary>
-    /// A page whose records ascend refuses the pass, and nothing reaches the ingest core.
-    /// </summary>
-    /// <remarks>
-    /// Importing from an order the walk does not understand is how a bulk replay starts, so the pass
-    /// refuses and keeps its place rather than reading on.
-    /// </remarks>
+    // Importing from an order the walk does not understand is how a bulk replay starts, so the pass
+    // refuses and keeps its place rather than reading on.
     [Fact]
     public async Task AnAscendingPageRefusesThePassAndImportsNothing()
     {
@@ -340,7 +267,6 @@ public sealed class BackstopPassTests
         Assert.Equal(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
     }
 
-    /// <summary>A refused pass is recorded, not swallowed.</summary>
     [Fact]
     public async Task ARefusedPassIsRecordedInTheHealthAggregate()
     {
@@ -355,14 +281,8 @@ public sealed class BackstopPassTests
         Assert.NotEmpty(health.LastError);
     }
 
-    /// <summary>
-    /// A pass that walked resets the streak the refusals before it built, so the recorded health can
-    /// improve as well as decline.
-    /// </summary>
-    /// <remarks>
-    /// The last-failed instant is deliberately left where it was. It records that a failure happened,
-    /// and a later readout has to be able to say when.
-    /// </remarks>
+    // The last-failed instant is left where it was. It records that a failure happened, and a later
+    // readout has to be able to say when.
     [Fact]
     public async Task AWalkedPassClearsTheFailureStreakAndKeepsWhenTheFailureHappened()
     {
@@ -383,10 +303,6 @@ public sealed class BackstopPassTests
         Assert.Equal(failed, health.LastFailedAtUtc);
     }
 
-    /// <summary>
-    /// The lost-position flag a first connect raises is cleared by the next pass that walks, so it
-    /// reports a gap that may exist rather than one that did once.
-    /// </summary>
     [Fact]
     public async Task ThePositionLostFlagAFirstConnectRaisesIsClearedByTheNextWalk()
     {
@@ -402,10 +318,6 @@ public sealed class BackstopPassTests
         Assert.False((await pass.StoredAsync()).ImportHealth.BackstopPositionLost);
     }
 
-    /// <summary>
-    /// A pass that reached the instance and imported nothing still counts as the channel working: it
-    /// authenticated, read the history and advanced the mark.
-    /// </summary>
     [Fact]
     public async Task AWalkedPassThatImportedNothingStillCountsAsTheChannelWorking()
     {
@@ -420,13 +332,8 @@ public sealed class BackstopPassTests
         Assert.Equal(0, (await pass.StoredAsync()).ImportHealth.ConsecutiveFailures);
     }
 
-    /// <summary>
-    /// A route answering every page with the same one refuses rather than walking forever.
-    /// </summary>
-    /// <remarks>
-    /// The order is read across the page boundary as well as within a page, so a second page starting
-    /// newer than the first one ended is the same refusal as a page that ascends.
-    /// </remarks>
+    // The order is read across the page boundary as well as within a page, so a second page starting
+    // newer than the first one ended is the same refusal as a page that ascends.
     [Fact]
     public async Task ARouteThatDoesNotPageRefusesRatherThanWalkingForever()
     {
@@ -439,19 +346,11 @@ public sealed class BackstopPassTests
         Assert.Equal(2, result.PagesRead);
     }
 
-    /// <summary>
-    /// A route answering every page with one page of a single instant refuses rather than walking
-    /// forever.
-    /// </summary>
-    /// <remarks>
-    /// The across-page order check passes for this shape and no other: a repeated page starts newer
-    /// than the previous one ended unless every record on it carries the same instant. These records
-    /// carry no id, so the repeat is read off the range the two pages share.
-    /// <para>
-    /// The read count is bounded, so a rule that stops terminating raises here rather than running
-    /// until the suite is killed.
-    /// </para>
-    /// </remarks>
+    // The across-page order check passes for this shape and no other: a repeated page starts newer than
+    // the previous one ended unless every record on it carries the same instant. These records carry no
+    // id, so the repeat is read off the range the two pages share.
+    // The read count is bounded, so a rule that stops terminating raises here rather than running until
+    // the suite is killed.
     [Fact]
     public async Task ARouteAnsweringOnePageOfOneInstantRefusesRatherThanWalkingForever()
     {
@@ -466,14 +365,8 @@ public sealed class BackstopPassTests
         Assert.Equal(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
     }
 
-    /// <summary>
-    /// A route answering every page with the same identified records refuses rather than walking
-    /// forever, and leaves the mark where it was.
-    /// </summary>
-    /// <remarks>
-    /// The same page answered again is the one shape a walk cannot read its way out of, and reaching
-    /// the records past it means reaching them through a route that will not serve them.
-    /// </remarks>
+    // The same page answered again is the one shape a walk cannot read its way out of, and the records
+    // past it are only reachable through a route that will not serve them.
     [Fact]
     public async Task ARouteAnsweringOnePageOfIdentifiedRecordsRefusesRatherThanWalkingForever()
     {
@@ -488,15 +381,9 @@ public sealed class BackstopPassTests
         Assert.Equal(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
     }
 
-    /// <summary>
-    /// Records added at the head between two page reads shift the second page without refusing the
-    /// pass, and the records it repeats are not taken twice.
-    /// </summary>
-    /// <remarks>
-    /// The route is offset-paged, so records arriving mid-walk push the window back and the next page
-    /// begins inside the one already read. This is the busiest moment the walk has - a long catch-up
-    /// while the instance is still importing - and it is exactly then that the pass has to keep going.
-    /// </remarks>
+    // The route is offset-paged, so records arriving mid-walk push the window back and the next page
+    // begins inside the one already read. A long catch-up while the instance is still importing is
+    // exactly when the pass has to keep going.
     [Fact]
     public async Task RecordsAddedAtTheHeadDuringTheWalkDoNotRefuseThePass()
     {
@@ -514,12 +401,9 @@ public sealed class BackstopPassTests
             pass.Core.Ingested.Select(candidate => candidate.ReportedPath));
     }
 
-    /// <summary>A run of records sharing one instant that spans a page boundary is walked through.</summary>
-    /// <remarks>
-    /// A bulk import of more than one page of records at one instant produces two pages with the same
-    /// newest and oldest instant and no record in common, which is a continuing run rather than a page
-    /// answered twice.
-    /// </remarks>
+    // A bulk import of more than one page of records at one instant produces two pages with the same
+    // newest and oldest instant and no record in common, which is a continuing run rather than a page
+    // answered twice.
     [Fact]
     public async Task ATieRunSpanningAPageBoundaryIsWalkedThrough()
     {
@@ -535,12 +419,8 @@ public sealed class BackstopPassTests
         Assert.Equal(2 * BackstopPass.PageSize, result.RecordsTaken);
     }
 
-    /// <summary>A refusal recurring on every pass stops climbing rather than reading as a worsening one.</summary>
-    /// <remarks>
-    /// The streak's job is to tell one bad pass from a channel that is stuck. Past the point where it
-    /// has said that, a number that keeps rising reports a condition getting worse while nothing about
-    /// it has changed.
-    /// </remarks>
+    // The streak tells one bad pass from a channel that is stuck. Past the point where it has said
+    // that, a number that keeps rising reports a condition getting worse while nothing has changed.
     [Fact]
     public async Task ARefusalThatRepeatsStopsClimbingRatherThanReadingAsAWorseningOutage()
     {
@@ -564,7 +444,6 @@ public sealed class BackstopPassTests
         }
     }
 
-    /// <summary>An answer this product cannot read as a page refuses the pass.</summary>
     [Theory]
     [InlineData("not json at all")]
     [InlineData("[]")]
@@ -579,19 +458,11 @@ public sealed class BackstopPassTests
         Assert.Empty(pass.Core.Ingested);
     }
 
-    /// <summary>
-    /// A record the ingest cannot take at all leaves the walk running and the mark moving.
-    /// </summary>
-    /// <remarks>
-    /// The mark means "history up to here has been read", so a record that could not be taken is not
-    /// a page that was not read. A walk that ended in the throw would leave the mark where it was,
-    /// and every later pass would then read the same page and fail on the same record for ever - a
-    /// channel that has silently stopped importing, which is the state it exists to prevent.
-    /// <para>
-    /// Asserted on the STORED mark after the pass rather than on a call count: a mark write that ran
-    /// and wrote nothing would satisfy a count.
-    /// </para>
-    /// </remarks>
+    // The mark means history up to here has been read, so a record that could not be taken is not a
+    // page that was not read. A walk that ended in the throw would leave the mark where it was, and
+    // every later pass would read the same page and fail on the same record for ever.
+    // Asserted on the stored mark rather than on a call count: a mark write that ran and wrote nothing
+    // would satisfy a count.
     [Fact]
     public async Task ARecordWhoseIngestThrowsDoesNotAbortTheWalkOrFreezeTheMark()
     {
@@ -611,19 +482,11 @@ public sealed class BackstopPassTests
         Assert.NotEqual(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
     }
 
-    /// <summary>
-    /// A walk whose every record failed is still a walk, so the mark still moves — and the records it
-    /// moved past are recorded rather than left to the log.
-    /// </summary>
-    /// <remarks>
-    /// The pages were read either way, which is what the mark records. Leaving it behind would make
-    /// the next pass re-read exactly the records that already failed.
-    /// <para>
-    /// The stored count and instant are asserted with the mark, because it is the mark moving that
-    /// puts those records beyond this channel: without them the aggregate reports a pass that reached
-    /// the instance, cleared its failure streak and found nothing to take.
-    /// </para>
-    /// </remarks>
+    // The pages were read either way, which is what the mark records. Leaving it behind would make the
+    // next pass re-read exactly the records that already failed.
+    // The stored count and instant are asserted with the mark, because it is the mark moving that puts
+    // those records beyond this channel. Without them the aggregate reports a pass that reached the
+    // instance, cleared its failure streak and found nothing to take.
     [Fact]
     public async Task AWalkWhoseEveryRecordFailedStillAdvancesTheMark()
     {
@@ -643,11 +506,8 @@ public sealed class BackstopPassTests
         Assert.Empty(pass.Library.Scans);
     }
 
-    /// <summary>A walk that took every record records no containment.</summary>
-    /// <remarks>
-    /// The control for the case above. A fold writing the count and the instant whatever the walk
-    /// contained satisfies that one, and every clean pass then reads as one that skipped records.
-    /// </remarks>
+    // Control for the case above. A fold writing the count and the instant whatever the walk contained
+    // satisfies that one, and every clean pass then reads as one that skipped records.
     [Fact]
     public async Task AWalkThatTookEveryRecordRecordsNoContainment()
     {
@@ -663,11 +523,8 @@ public sealed class BackstopPassTests
         Assert.Null(health.LastContainedAtUtc);
     }
 
-    /// <summary>The containment total carries across passes rather than reporting the last one's.</summary>
-    /// <remarks>
-    /// Every counted record is one the mark has already moved past, so no later pass has anything to
-    /// clear and a total that reset would report the backlog as smaller than it is.
-    /// </remarks>
+    // Every counted record is one the mark has already moved past, so no later pass has anything to
+    // clear and a total that reset would report the backlog as smaller than it is.
     [Fact]
     public async Task TheContainmentTotalCarriesAcrossPasses()
     {
@@ -683,12 +540,9 @@ public sealed class BackstopPassTests
         Assert.Equal(5, (await pass.StoredAsync()).ImportHealth.RecordsContained);
     }
 
-    /// <summary>A later pass that contained nothing keeps when the last containment happened.</summary>
-    /// <remarks>
-    /// The total that instant belongs to does not clear, so clearing the instant alone would leave a
-    /// count of records passed over with no when — and a pass runs on a timer, so the next one would
-    /// clear it almost at once.
-    /// </remarks>
+    // The total that instant belongs to does not clear, so clearing the instant alone would leave a
+    // count of records passed over with no when. A pass runs on a timer, so the next one would clear it
+    // almost at once.
     [Fact]
     public async Task APassThatContainedNothingKeepsWhenTheLastContainmentHappened()
     {
@@ -706,7 +560,6 @@ public sealed class BackstopPassTests
         Assert.Equal(Pass.Now, health.LastContainedAtUtc);
     }
 
-    /// <summary>A record naming an import with no path is counted rather than dropped.</summary>
     [Fact]
     public async Task ARecordWithNoReadablePathIsCounted()
     {
@@ -719,7 +572,6 @@ public sealed class BackstopPassTests
         Assert.Empty(pass.Core.Ingested);
     }
 
-    /// <summary>A generation with no address and key reaches nothing that could make a request.</summary>
     [Fact]
     public async Task AnUnconfiguredGenerationMakesNoRequest()
     {
@@ -731,13 +583,8 @@ public sealed class BackstopPassTests
         Assert.Empty(pass.Client.Verbs);
     }
 
-    /// <summary>
-    /// The whole pass makes read calls and nothing else.
-    /// </summary>
-    /// <remarks>
-    /// Asserted as the set of verbs the pass DID use rather than as a list of the ones it avoided: a
-    /// verb added to the seam and then called here is a failure rather than an omission from a list.
-    /// </remarks>
+    // Asserted as the set of verbs the pass did use rather than as a list of the ones it avoided: a verb
+    // added to the seam and then called here is a failure rather than an omission from a list.
     [Fact]
     public async Task TheWholePassMakesOnlyHistoryReads()
     {
@@ -753,13 +600,8 @@ public sealed class BackstopPassTests
         Assert.Empty(pass.Client.Notifications);
     }
 
-    /// <summary>
-    /// A thousand records leave an answer the same size as three do.
-    /// </summary>
-    /// <remarks>
-    /// The walk may be linear in time. What it hands back must not be, and neither may what it holds
-    /// while walking.
-    /// </remarks>
+    // The walk may be linear in time. What it hands back must not be, and neither may what it holds
+    // while walking.
     [Fact]
     public async Task AThousandRecordsLeaveAnAnswerOfTheSameSizeAsThree()
     {
@@ -786,11 +628,8 @@ public sealed class BackstopPassTests
             Serialized(overAThousand with { RecordsTaken = 0, Imported = 0, PagesRead = 0 }));
     }
 
-    /// <summary>Neither the pass nor its answer declares a collection member.</summary>
-    /// <remarks>
-    /// The structural half of the assertion above: a pass that accumulated records would answer with
-    /// the same counters and still hold the library in memory.
-    /// </remarks>
+    // The structural half of the assertion above: a pass that accumulated records would answer with the
+    // same counters and still hold the library in memory.
     [Fact]
     public void NeitherThePassNorItsAnswerDeclaresACollection()
     {
@@ -806,15 +645,11 @@ public sealed class BackstopPassTests
     private static bool IsCollection(Type type)
         => type != typeof(string) && typeof(IEnumerable).IsAssignableFrom(type);
 
-    /// <summary>Everything a result carries, written out in full.</summary>
-    /// <remarks>
-    /// A record's own <c>ToString</c> renders a collection member as its type name, which is the same
-    /// length whatever the member holds, so a result that accumulated the library would render at the
-    /// size of one that accumulated nothing.
-    /// </remarks>
+    // A record's own ToString renders a collection member as its type name, which is the same length
+    // whatever the member holds, so a result that accumulated the library would render at the size of
+    // one that accumulated nothing.
     private static string Serialized(BackstopPassResult result) => JsonSerializer.Serialize(result);
 
-    /// <summary>A settings save aiming v3 at <paramref name="address"/>, leaving the key alone.</summary>
     private static WhisparrSyncSettingsSaveRequest Aiming(string address)
         => new(
             WhisparrGeneration.V3,
@@ -824,30 +659,19 @@ public sealed class BackstopPassTests
     private static DateTimeOffset[] Descending(int count)
         => [.. Enumerable.Range(0, count).Select(index => Noon.AddMinutes(-index))];
 
-    /// <summary>
-    /// A run of one descending history, starting <paramref name="from"/> records back from its newest.
-    /// </summary>
-    /// <remarks>
-    /// One record per minute with ids descending alongside the instants, so a page read after records
-    /// arrived at the head is the same run read from a later offset.
-    /// </remarks>
+    // One record per minute with ids descending alongside the instants, so a page read after records
+    // arrived at the head is the same run read from a later offset.
     private static (int Id, DateTimeOffset Instant)[] History(int from, int count)
         => [.. Enumerable
             .Range(from, count)
             .Select(offset => (NewestRecordId - offset, Noon.AddMinutes(-offset)))];
 
-    /// <summary>
-    /// <paramref name="count"/> records sharing one instant, ids descending from
-    /// <paramref name="firstId"/>.
-    /// </summary>
     private static (int Id, DateTimeOffset Instant)[] AtOneInstant(int firstId, int count)
         => [.. Enumerable.Range(0, count).Select(index => (firstId - index, Noon))];
 
-    /// <summary>The path the record with <paramref name="id"/> reports.</summary>
     private static string PathOf(int id)
         => string.Create(CultureInfo.InvariantCulture, $"/whisparr-media/scene{id}.mp4");
 
-    /// <summary>One page of import records, each carrying its own id and a path naming it.</summary>
     private static WhisparrResponse PageOf(IEnumerable<(int Id, DateTimeOffset Instant)> records)
     {
         var page = new JsonArray();
@@ -867,14 +691,12 @@ public sealed class BackstopPassTests
             200, new JsonObject { ["records"] = page }.ToJsonString());
     }
 
-    /// <summary>One page's worth of records, one minute apart, descending from <paramref name="page"/>.</summary>
     private static WhisparrResponse FullPage(int page)
         => Page(
             Enumerable
                 .Range(page * BackstopPass.PageSize, BackstopPass.PageSize)
                 .Select(index => Noon.AddMinutes(-index)));
 
-    /// <summary>One page of import records, each naming a different file.</summary>
     private static WhisparrResponse PageOfDistinctPaths(int count)
     {
         var records = new JsonArray();
@@ -897,10 +719,6 @@ public sealed class BackstopPassTests
             200, new JsonObject { ["records"] = records }.ToJsonString());
     }
 
-    /// <summary>
-    /// One page holding a single import record whose entity names <see cref="SceneIdentifier"/>, in
-    /// the spelling <paramref name="generation"/>'s own instance answers with.
-    /// </summary>
     private static WhisparrResponse PageNamingAScene(WhisparrGeneration generation)
     {
         var (entity, member) = generation == WhisparrGeneration.V3
@@ -940,10 +758,8 @@ public sealed class BackstopPassTests
             200, new JsonObject { ["records"] = records }.ToJsonString());
     }
 
-    /// <summary>One pass, its store, and the doubles standing in for everything outside it.</summary>
     private sealed class Pass
     {
-        /// <summary>The instant this pass's clock reads.</summary>
         public static readonly DateTimeOffset Now = new(2026, 8, 31, 9, 0, 0, TimeSpan.Zero);
 
         private readonly OptionsStore _options;
@@ -974,17 +790,14 @@ public sealed class BackstopPassTests
                 .GetResult();
         }
 
-        /// <summary>The lineage this pass is connected to.</summary>
         public WhisparrGeneration Generation { get; }
 
         public FakeStore Store { get; } = new();
 
-        /// <summary>The one gate every write in a case goes through, as the container has it.</summary>
         public OptionsWriteGate Gate { get; } = new();
 
         public RecordingWhisparrClient Client { get; }
 
-        /// <summary>The one pending batch this pass's imports collect into.</summary>
         public FollowUpScanCoalescer FollowUp { get; } = new(new FixedClock(Now), NullLogger.Instance);
 
         public RecordingLibrary Library { get; } = new(reached: true, ["/data"]);
@@ -993,18 +806,11 @@ public sealed class BackstopPassTests
 
         private RecordingImportCore? _core;
 
-        /// <summary>Queues what each history read answers with, the last entry repeating.</summary>
         public void Answering(params WhisparrResponse[] pages)
             => Client.Answering(nameof(IWhisparrClient.ReadHistoryAsync), pages);
 
-        /// <summary>
-        /// Commits <paramref name="save"/> at the first history read of the next pass, through the
-        /// gate and the projector the settings endpoint writes through.
-        /// </summary>
-        /// <remarks>
-        /// The competing write is the production one rather than a stand-in, so what the fold at the
-        /// end of the walk meets is what a save landing mid-walk really leaves behind.
-        /// </remarks>
+        // The competing write is the production one rather than a stand-in, so what the fold at the end of
+        // the walk meets is what a save landing mid-walk really leaves behind.
         public void SavingDuringTheWalk(WhisparrSyncSettingsSaveRequest save) => _competing = save;
 
         public Task<BackstopPassResult> RunAsync()
@@ -1038,11 +844,8 @@ public sealed class BackstopPassTests
                 TestContext.Current.CancellationToken);
     }
 
-    /// <summary>A client that commits one settings save before it answers the first history read.</summary>
-    /// <remarks>
-    /// The other verbs raise: a pass makes history reads and nothing else, so a call reaching one of
-    /// them is a change to what a pass does rather than a gap here.
-    /// </remarks>
+    // The other verbs raise: a pass makes history reads and nothing else, so a call reaching one of them
+    // is a change to what a pass does rather than a gap here.
     private sealed class SavingClient(IWhisparrClient inner, Func<Task> save) : IWhisparrClient
     {
         private bool _committed;
@@ -1099,11 +902,7 @@ public sealed class BackstopPassTests
             => throw new NotSupportedException();
     }
 
-    /// <summary>An ingest core recording every candidate handed to it.</summary>
-    /// <remarks>
-    /// It notes each import into the coalescer, standing in for the real core, whose own note is
-    /// asserted where that core is driven.
-    /// </remarks>
+    // It notes each import into the coalescer as the real core does.
     private sealed class RecordingImportCore(FollowUpScanCoalescer followUp, ICoveLibraryPort library)
         : IImportCore
     {
@@ -1112,10 +911,8 @@ public sealed class BackstopPassTests
 
         public List<ImportCandidate> Ingested { get; } = [];
 
-        /// <summary>Makes the ingest of the candidate naming <paramref name="path"/> raise.</summary>
         public void ThrowFor(string path, Exception failure) => _raised[path] = failure;
 
-        /// <summary>Makes every ingest raise.</summary>
         public void ThrowForEverything(Exception failure) => _raisedForEverything = failure;
 
         public Task<ImportOutcome> IngestAsync(ImportCandidate candidate, CancellationToken ct)
@@ -1132,12 +929,9 @@ public sealed class BackstopPassTests
         }
     }
 
-    /// <summary>A client that raises once a walk has asked for more pages than it was allowed.</summary>
-    /// <remarks>
-    /// The raise is of a kind the walk classifies as neither unreachable nor cancelled, so it leaves
-    /// the pass instead of being recorded as a refusal. That is what makes a non-terminating walk a
-    /// failing case rather than a hanging one.
-    /// </remarks>
+    // The raise is of a kind the walk classifies as neither unreachable nor cancelled, so it leaves the
+    // pass instead of being recorded as a refusal. That is what makes a non-terminating walk a failing
+    // case rather than a hanging one.
     private sealed class BoundedClient(RecordingWhisparrClient inner, int budget) : IWhisparrClient
     {
         private int _reads;

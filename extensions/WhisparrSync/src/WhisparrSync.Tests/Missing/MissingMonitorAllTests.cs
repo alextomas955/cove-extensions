@@ -10,27 +10,17 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Missing;
 
-/// <summary>
-/// The whole-catalogue marking route: which entities it expresses, what it enqueues, what the run
-/// then marks, and that none of it downloads.
-/// </summary>
-/// <remarks>
-/// Driven through the shipped registration and the shipped derivation. A run compared against a set
-/// this file composed for it would agree with whatever it was given, and the claim under test is
-/// that the run marks the set the grid shows.
-/// </remarks>
 public sealed class MissingMonitorAllTests
 {
     private const string MonitorAll = "missing/monitor-all";
 
     private const string StashDb = "https://stashdb.org/graphql";
 
-    /// <summary>Two pages and a bit, at the page size the surface reads in.</summary>
+    // Two pages and a bit at the page size the surface reads in.
     private const int Catalogue = 85;
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>A host whose configured metadata source really answers a catalogue.</summary>
     private static Task<MonitorHost> HostOverAsync(PagedProviderCatalogue catalogue)
     {
         var config = new CoveConfiguration();
@@ -46,7 +36,6 @@ public sealed class MissingMonitorAllTests
         return MonitorHost.CreateAsync(catalogue: catalogue, metadataConfig: config);
     }
 
-    /// <summary>A catalogue where a title search leaves a strict subset.</summary>
     private static PagedProviderCatalogue PagedCatalogue()
         => new(
             [.. Enumerable.Range(0, Catalogue).Select(at => SceneNamed(
@@ -70,7 +59,6 @@ public sealed class MissingMonitorAllTests
         return (await answered.Content.ReadFromJsonAsync<MissingBulkEnqueued>(TestCt))!;
     }
 
-    /// <summary>Every scene the grid draws for one narrowing, over every page it serves.</summary>
     private static async Task<List<string>> GridScenesAsync(
         MonitorHost host, string kind, int coveId, string? query)
     {
@@ -96,7 +84,6 @@ public sealed class MissingMonitorAllTests
         }
     }
 
-    /// <summary>The scenes the last enqueued run offered the instance, in order.</summary>
     private static async Task<List<string>> RunAndReadOfferedAsync(MonitorHost host)
     {
         await host.RunEnqueuedBatchAsync(new RecordingJobProgress());
@@ -106,9 +93,6 @@ public sealed class MissingMonitorAllTests
             .Select(call => call.ForeignId!)];
     }
 
-    /// <summary>
-    /// The route answers a job id without waiting for the run, against a run that never starts.
-    /// </summary>
     [Fact]
     public async Task TheRouteAnswersAJobIdWithoutWaitingForTheRun()
     {
@@ -123,7 +107,6 @@ public sealed class MissingMonitorAllTests
         Assert.Empty(host.Client.Acting);
     }
 
-    /// <summary>The enqueued type carries this extension's own prefix and the run's own id.</summary>
     [Fact]
     public async Task TheEnqueuedTypeCarriesTheExtensionsOwnPrefixAndIsExclusive()
     {
@@ -139,10 +122,6 @@ public sealed class MissingMonitorAllTests
         Assert.True(job.Exclusive);
     }
 
-    /// <summary>
-    /// A performer is expressed too, so the refusal below is about the tag rather than about
-    /// everything that is not a studio.
-    /// </summary>
     [Fact]
     public async Task APerformerIsOfferedTheRunAsWell()
     {
@@ -156,14 +135,6 @@ public sealed class MissingMonitorAllTests
         Assert.Single(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// A tag is refused at the route, not merely left undrawn in the browser.
-    /// </summary>
-    /// <remarks>
-    /// The control is absent on a tag page because a tag's catalogue spans the library. An absent
-    /// control is not a bound: the address is reachable without one, so the route has to express no
-    /// tag rather than trust that nothing sends it.
-    /// </remarks>
     [Fact]
     public async Task ATagIsRefusedAndNothingIsEnqueued()
     {
@@ -179,14 +150,6 @@ public sealed class MissingMonitorAllTests
         Assert.Empty(host.Client.Acting);
     }
 
-    /// <summary>
-    /// The run offers exactly the scenes the grid draws for the same narrowing, over every page.
-    /// </summary>
-    /// <remarks>
-    /// Both sides are read from the shipped surfaces: the grid's from its own route, the run's from
-    /// what actually reached the instance. That is the whole claim of the feature, the browser having
-    /// sent no identifier at all.
-    /// </remarks>
     [Fact]
     public async Task TheRunOffersTheScenesTheGridDrawsForTheSameNarrowing()
     {
@@ -208,7 +171,6 @@ public sealed class MissingMonitorAllTests
         Assert.True(drawn.Count < Catalogue, "the search narrowed nothing");
     }
 
-    /// <summary>An unnarrowed run walks every page of the catalogue.</summary>
     [Fact]
     public async Task AnUnnarrowedRunReachesEveryPage()
     {
@@ -226,14 +188,6 @@ public sealed class MissingMonitorAllTests
         Assert.Equal(Catalogue, offered.Distinct(StringComparer.Ordinal).Count());
     }
 
-    /// <summary>
-    /// The run marks and never grabs.
-    /// </summary>
-    /// <remarks>
-    /// Asserted as the set of verbs the run used rather than as the absence of one name, so a
-    /// grabbing verb added to the seam and then reached is a failure here rather than an omission
-    /// from a list nobody updated.
-    /// </remarks>
     [Fact]
     public async Task TheRunIssuesTheSceneAddAndNoOtherVerb()
     {
@@ -257,7 +211,6 @@ public sealed class MissingMonitorAllTests
             host.Client.Verbs.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
     }
 
-    /// <summary>A run round-trips its entity and its narrowing across the host's parameter map.</summary>
     [Fact]
     public void ARunRoundTripsItsEntityAndItsNarrowing()
     {
@@ -271,9 +224,6 @@ public sealed class MissingMonitorAllTests
         Assert.Equal("year:2024", decoded.Filters);
     }
 
-    /// <summary>
-    /// A map nothing can be read out of names no kind rather than the first one declared.
-    /// </summary>
     [Fact]
     public void AMapNothingCanBeReadOutOfNamesNoKind()
     {
@@ -287,7 +237,6 @@ public sealed class MissingMonitorAllTests
                 .Kind);
     }
 
-    /// <summary>A narrowing nobody asked for reads back as none rather than as an empty one.</summary>
     [Fact]
     public void AnUnnarrowedRunCarriesNoNarrowing()
     {

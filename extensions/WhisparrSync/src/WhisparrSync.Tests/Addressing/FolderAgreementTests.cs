@@ -3,15 +3,8 @@ using WhisparrSync.Import;
 
 namespace WhisparrSync.Tests.Addressing;
 
-/// <summary>
-/// What one Cove library root and the roots an instance declares make of each other, given one
-/// sample file and what the instance reported at each candidate.
-/// </summary>
-/// <remarks>
-/// Pure arithmetic over supplied readings. Whether a candidate really holds that file is a separate
-/// reading taken through the instance and folded back in here, exactly as the inbound direction
-/// folds a filesystem probe back in.
-/// </remarks>
+// Pure arithmetic over supplied readings. Whether a candidate really holds the file is a separate
+// reading taken through the instance and folded back in here.
 public sealed class FolderAgreementTests
 {
     private const string CoveRoot = "G:/Downloads/P";
@@ -22,14 +15,9 @@ public sealed class FolderAgreementTests
 
     private static readonly string[] TwoInstanceRoots = ["/data", "/media"];
 
-    /// <summary>
-    /// One candidate per declared root, and the library's own spelling beside them.
-    /// </summary>
-    /// <remarks>
-    /// The library's own spelling is the deployment where both systems reach one filesystem at one
-    /// path, and the one where the instance's root sits below the Cove root. Neither produces a
-    /// rebuilt candidate that names the file.
-    /// </remarks>
+    // The library's own spelling covers the deployment where both systems reach one filesystem at
+    // one path, and the one where the instance's root sits below the Cove root. Neither produces a
+    // rebuilt candidate that names the file.
     [Fact]
     public void ASampleFileProducesOneCandidatePerDeclaredRootAndTheLibrarysOwnSpelling()
     {
@@ -41,14 +29,9 @@ public sealed class FolderAgreementTests
             reading.Candidates);
     }
 
-    /// <summary>
-    /// An instance whose root sits below the Cove root agrees on the Cove root itself.
-    /// </summary>
-    /// <remarks>
-    /// One filesystem both systems reach at one path, with the instance's catalogue rooted inside
-    /// the library. Rebuilding the tail under the instance's own root repeats the segments that root
-    /// already carries, so the only candidate naming the file is the library's own spelling.
-    /// </remarks>
+    // One filesystem both systems reach at one path, with the instance's catalogue rooted inside
+    // the library. Rebuilding the tail under the instance's own root repeats the segments that root
+    // already carries, so the only candidate naming the file is the library's own spelling.
     [Fact]
     public void AnInstanceRootedInsideTheLibraryAgreesOnTheLibrarysOwnSpelling()
     {
@@ -56,8 +39,6 @@ public sealed class FolderAgreementTests
         const string sample = "/shared/media/Blue Harbor/scene.mp4";
         var reading = FolderAgreement.CandidatesFor(sample, oneRoot, ["/shared/media"], mapping: null);
 
-        // The rebuild repeats the root's own segment and names nothing; the library's own spelling is
-        // the file.
         Assert.Equal(["/shared/media/media/Blue Harbor/scene.mp4", sample], reading.Candidates);
 
         var agreement = FolderAgreement.Resolve(
@@ -94,13 +75,8 @@ public sealed class FolderAgreementTests
         Assert.Empty(reading.Candidates);
     }
 
-    /// <summary>
-    /// The agreement is the verified candidate with the sample file's own tail removed.
-    /// </summary>
-    /// <remarks>
-    /// Taken off the candidate rather than by searching the declared roots for one that is a prefix,
-    /// so instance roots that nest need no tie-break.
-    /// </remarks>
+    // The root is taken off the verified candidate rather than by searching the declared roots for
+    // one that is a prefix, so instance roots that nest need no tie-break.
     [Fact]
     public void AVerifiedCandidateOfTheRightSizeAgreesOnItsOwnRoot()
     {
@@ -137,7 +113,6 @@ public sealed class FolderAgreementTests
         Assert.Equal(FolderAgreementRefusal.NothingResolved, agreement.Refusal);
     }
 
-    /// <summary>Two candidates the sizes cannot separate resolve to nothing, and neither is chosen.</summary>
     [Fact]
     public void TwoCandidatesThatBothResolveChooseNeither()
     {

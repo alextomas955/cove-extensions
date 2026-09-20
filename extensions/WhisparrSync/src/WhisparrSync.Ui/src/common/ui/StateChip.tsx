@@ -1,8 +1,6 @@
 /**
  * One entity state, rendered as the shared `StatusPill` with the vocabulary's glyph in its `icon`
- * slot - the prop exists so a status never rides on colour alone, which is what this chip needs.
- *
- * The glyph takes the pill's own colour, so the mark and the tint cannot disagree about a state.
+ * slot, so a status never rides on colour alone.
  */
 import { StatusPill } from "@cove-extensions/ui-shared";
 
@@ -14,7 +12,7 @@ export function StateChip({
   label,
 }: {
   state: WhisparrEntityState;
-  /** The name this view uses for the state. The glyph and the tint are unchanged. */
+  /** The name this view uses for the state. The glyph and the tint stay as they are. */
   label?: string;
 }) {
   const description = label === undefined ? describeState(state) : renameState(state, label);

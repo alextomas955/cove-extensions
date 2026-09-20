@@ -8,39 +8,22 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Scene;
 
-/// <summary>
-/// What the scene batch route refuses before anything is encoded or enqueued, and which bound each
-/// refusal names.
-/// </summary>
-/// <remarks>
-/// The two bounds are the point. A single-bound implementation passes the thousand cases and fails
-/// the search pair, and a shared code makes the lower bound undescribable to a reader.
-/// <para>
-/// Every refusal is asserted against the job service as well as the answer, so a route that refused
-/// a caller and enqueued the run anyway is a failure here.
-/// </para>
-/// </remarks>
+// Every refusal is asserted against the job service as well as the answer, so a route that refused
+// a caller and enqueued the run anyway fails here.
 public sealed class SceneBatchBoundTests
 {
-    /// <summary>The spelling the host's selection bar passes for a video selection.</summary>
+    // The spelling the host's selection bar passes for a video selection.
     private const string Videos = "video";
 
-    /// <summary>The bound the four non-grabbing verbs take.</summary>
     private const int Bound = 1000;
 
-    /// <summary>The bound the search verb takes, because its cost multiplies outside Cove.</summary>
+    // The search verb takes a lower bound, because its cost multiplies outside Cove.
     private const int SearchBound = 100;
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// A body naming no verb is refused before the size of the selection matters.
-    /// </summary>
-    /// <remarks>
-    /// The selection here is over both bounds, so a route that read the size first would answer one
-    /// of the two bound codes. The verb decides what the request is, and a caller told to split
-    /// would send two halves each still naming no verb.
-    /// </remarks>
+    // The selection is over both bounds, so a route that read the size first would answer a bound
+    // code instead. A caller told to split would send two halves each still naming no verb.
     [Fact]
     public async Task ABodyNamingNoVerbIsRefusedBeforeTheSizeOfTheSelectionMatters()
     {
@@ -71,7 +54,7 @@ public sealed class SceneBatchBoundTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
-    /// <summary>An empty run in the Job Drawer reads as work that happened.</summary>
+    // An empty run in the Job Drawer reads as work that happened.
     [Fact]
     public async Task ASelectionOfNoScenesIsRefusedAsNothingSelected()
     {
@@ -85,9 +68,6 @@ public sealed class SceneBatchBoundTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// A selection one over the thousand bound is refused for each of the four non-grabbing verbs.
-    /// </summary>
     [Theory]
     [InlineData("add")]
     [InlineData("monitor")]
@@ -107,13 +87,8 @@ public sealed class SceneBatchBoundTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// A selection one over the search bound is refused under a code of the search verb's own.
-    /// </summary>
-    /// <remarks>
-    /// The code is distinct from the thousand bound's, because the browser chooses its sentence on
-    /// the code and never on the text: one code for both bounds makes the lower one undescribable.
-    /// </remarks>
+    // The browser chooses its sentence on the code and never on the text, so one code for both
+    // bounds leaves the lower one undescribable.
     [Fact]
     public async Task ASearchSelectionOverItsOwnBoundIsRefusedUnderItsOwnCodeAndNothingIsSent()
     {
@@ -130,14 +105,7 @@ public sealed class SceneBatchBoundTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// The same size is accepted for a non-grabbing verb, because the lower bound is the search
-    /// verb's alone.
-    /// </summary>
-    /// <remarks>
-    /// The discriminating half of the pair. A route holding one bound for every verb passes the
-    /// refusal above and fails here.
-    /// </remarks>
+    // A route holding one bound for every verb passes the refusal above and fails here.
     [Fact]
     public async Task ASelectionOverTheSearchBoundIsAcceptedForANonGrabbingVerb()
     {
@@ -151,9 +119,7 @@ public sealed class SceneBatchBoundTests
         Assert.Single(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// A search selection at its bound is enqueued, so the refusal above is about the size.
-    /// </summary>
+    // The refusal above is about the size, not about the verb.
     [Fact]
     public async Task ASearchSelectionAtItsOwnBoundIsEnqueued()
     {
@@ -167,13 +133,8 @@ public sealed class SceneBatchBoundTests
         Assert.Equal("ext:" + host.ExtensionId + ":scene-batch", enqueued.Type);
     }
 
-    /// <summary>
-    /// A selection type other than the videos one is refused.
-    /// </summary>
-    /// <remarks>
-    /// The plural is the trap: the bar normalizes the videos plural to the singular before it
-    /// matches, so the route accepts the singular and the registration declares it.
-    /// </remarks>
+    // The selection bar normalizes the videos plural to the singular before it matches, so the
+    // route accepts the singular and the registration declares it.
     [Theory]
     [InlineData("videos")]
     [InlineData("studios")]
@@ -193,14 +154,8 @@ public sealed class SceneBatchBoundTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// The route refuses a caller holding the read tier and enqueues nothing.
-    /// </summary>
-    /// <remarks>
-    /// The caller holds the tier the scene's own read sits at, so a pass here is about the configure
-    /// gate and not about holding no permission at all. The gate is the handler's first statement,
-    /// so the body is never read.
-    /// </remarks>
+    // The caller holds the tier the scene's own read sits at, so the refusal is about the configure
+    // gate rather than about holding no permission at all.
     [Fact]
     public async Task TheRouteRefusesACallerWithoutTheConfigureTierAndEnqueuesNothing()
     {

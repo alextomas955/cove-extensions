@@ -16,18 +16,11 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Jobs;
 
-/// <summary>
-/// The site pass, where presence is a site rather than a scene: what the run registers, what a
-/// re-run does, how many sites the count reads, and what a read that could not be answered leaves.
-/// </summary>
-/// <remarks>
-/// Driven through the mounted route and the recording seam rather than by reading source. The
-/// recording client refuses a verb it was not given an answer for, so a request this pass must not
-/// make faults the run instead of passing unnoticed.
-/// </remarks>
+// The recording client refuses a verb it was given no answer for, so a request this pass must not
+// make faults the run instead of passing unnoticed.
 public sealed class SyncLibrarySitesTests
 {
-    /// <summary>The namespace v2 identifies a site in.</summary>
+    // The namespace v2 identifies a site in.
     private const string V2Endpoint = "https://theporndb.net/graphql";
 
     private const string FirstSite = "a30bc641-6afe-4c80-9c73-ecb68104a68d";
@@ -38,42 +31,35 @@ public sealed class SyncLibrarySitesTests
 
     private const string SecondScene = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-    /// <summary>The number the metadata provider issues for each scene, as this generation names it.</summary>
+    // The number the metadata provider issues for each scene.
     private static readonly Dictionary<string, int> SceneNumbers = new(StringComparer.Ordinal)
     {
         [FirstScene] = 1363738,
         [SecondScene] = 1363739,
     };
 
-    /// <summary>
-    /// The instance's own row identifier for each scene, which is not the number above.
-    /// </summary>
-    /// <remarks>
-    /// Held apart on purpose: a pass that set the flag by the provider's number rather than by the
-    /// row the instance answered would pass against one shared value.
-    /// </remarks>
+    // The instance's own row identifier for each scene, held apart from the provider's number. A
+    // pass that set the flag by the provider's number would pass against one shared value.
     private static readonly Dictionary<string, int> SceneRows = new(StringComparer.Ordinal)
     {
         [FirstScene] = 77,
         [SecondScene] = 88,
     };
 
-    /// <summary>A provider holding an answer for nothing at all, so any resolution faults the run.</summary>
+    // A provider holding no answer at all, so any resolution faults the run.
     private static readonly Dictionary<string, int?> NoAnswers = new(StringComparer.Ordinal);
 
-    /// <summary>The instance's own numeric id for a site it took, as its add's answer names it.</summary>
     private const int RegisteredSiteId = 11;
 
-    /// <summary>The instance's own numeric id for a site it already held.</summary>
     private const int HeldSiteId = 9;
 
-    /// <summary>The instance root this studio's own files agree on.</summary>
+    // The instance root this studio's own files agree on.
     private const string AgreedRoot = "/i-downloads-p/videos";
 
-    /// <summary>The instance root a site was registered at before any of this ran.</summary>
+    // The instance root a site was registered at before the run.
     private const string OtherRoot = "/g-downloads-p/videos";
 
-    /// <summary>The library root holding a studio's files that its site was not registered at.</summary>
+    // Cove's own spelling of a library root, which the instance never uses.
     private const string LeftBehindRoot = "G:/Downloads/P";
 
     private static readonly string RegisteredRow =
@@ -84,19 +70,9 @@ public sealed class SyncLibrarySitesTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// Every site the library names is registered once, and with the monitor toggle off no monitor
-    /// call is made at all.
-    /// </summary>
-    /// <remarks>
-    /// Scoped to the toggle being off on purpose. With it on, what the reader owns on a site is its
-    /// scenes, and marking those is a separate capability this pass does not obtain - so a case
-    /// asserting that no monitor call is ever made would be a case that has to be deleted once it is.
-    /// <para>
-    /// The absence is proved by the recording client refusing a verb it was given no answer for
-    /// rather than by a zero count: a zero count also passes over a run that walked nothing.
-    /// </para>
-    /// </remarks>
+    // Scoped to the toggle being off. With it on the pass marks the scenes on a site, which is a
+    // separate capability. The absence is proved by the recording client refusing a verb it was
+    // given no answer for, because a zero count also passes over a run that walked nothing.
     [Fact]
     public async Task WithTheToggleOffTheSitePassRegistersEachSiteAndMakesNoMonitorCall()
     {
@@ -118,13 +94,8 @@ public sealed class SyncLibrarySitesTests
         Assert.Contains("2 sites registered", Assert.Single(progress.Summaries), StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A site the instance already holds is counted as already held, and no add is composed for it.
-    /// </summary>
-    /// <remarks>
-    /// Which is what makes a second pass over the same library create no duplicate. The recording
-    /// client is given no answer for the add at all, so composing one faults the run.
-    /// </remarks>
+    // This is what makes a second pass create no duplicate. The recording client is given no answer
+    // for the add, so composing one faults the run.
     [Fact]
     public async Task ASiteTheInstanceAlreadyHoldsIsCountedAsAlreadyHeldAndGetsNoSecondAdd()
     {
@@ -144,14 +115,8 @@ public sealed class SyncLibrarySitesTests
             StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The per-site outcome carries the instance's own id, off whichever answer the step already
-    /// read.
-    /// </summary>
-    /// <remarks>
-    /// The add's own answer where the site was added, the held row's where it was already there.
-    /// Nothing reads the site a second time to learn an id the instance has just stated.
-    /// </remarks>
+    // The id comes off whichever answer the step already read: the add's where the site was added,
+    // the held row's where it was already there. Nothing reads the site a second time.
     [Fact]
     public async Task ThePerSiteOutcomeCarriesTheInstancesOwnIdWithNoSecondRead()
     {
@@ -185,11 +150,8 @@ public sealed class SyncLibrarySitesTests
         Assert.Equal([FirstSite], adds);
     }
 
-    /// <summary>A read that answered neither presence nor absence registers nothing.</summary>
-    /// <remarks>
-    /// Registering on an answer nothing could be read out of would add a site the instance may
-    /// already hold, and this generation publishes no contract for what that answer then is.
-    /// </remarks>
+    // Registering on an answer nothing could be read out of would add a site the instance may
+    // already hold, and this generation publishes no contract for what that answer then is.
     [Fact]
     public async Task ASiteWhoseReadAnsweredNeitherIsRefusedRatherThanRegistered()
     {
@@ -209,18 +171,10 @@ public sealed class SyncLibrarySitesTests
         Assert.Empty(adds);
     }
 
-    /// <summary>
-    /// The site count reads every site in the stream and truncates nothing, at any number of sites.
-    /// </summary>
-    /// <remarks>
-    /// Seeded past <see cref="SyncPreviewJob.ChunkSize"/>, so the count both spans more than one
-    /// batch and reddens on a ceiling introduced at any value below the seed.
-    /// <para>
-    /// This stands in for the failure nobody can observe at three studios: a ceiling would answer a
-    /// short already-there and not-yet-there pair that reads exactly like a complete one, which is
-    /// why the pair is asserted to add back up to the number seeded.
-    /// </para>
-    /// </remarks>
+    // Seeded past SyncPreviewJob.ChunkSize, so the count spans more than one chunk and fails on a
+    // ceiling introduced at any value below the seed. A ceiling would answer a short already-there
+    // and not-yet-there pair that reads like a complete one, so the pair is asserted to add back up
+    // to the number seeded.
     [Fact]
     public async Task TheSiteCountReadsEverySiteInTheStreamAndTruncatesNothing()
     {
@@ -244,11 +198,8 @@ public sealed class SyncLibrarySitesTests
         Assert.Equal(SyncRegisters.Sites, counted.Registers);
     }
 
-    /// <summary>The pacing bound is a bound on one site's scene reads in flight, and it is one.</summary>
-    /// <remarks>
-    /// Read from the constant rather than restated: what it bounds is how many of a site's own scene
-    /// reads are outstanding, and not how many the pass issues.
-    /// </remarks>
+    // The bound is on how many of one site's scene reads are outstanding, not on how many the pass
+    // issues. It is read from the constant rather than restated.
     [Fact]
     public void ThePacingBoundIsOneReadInFlightAndBoundsNoTotal()
     {
@@ -256,14 +207,8 @@ public sealed class SyncLibrarySitesTests
         Assert.True(SyncPreviewJob.SiteSceneReadsInFlight < SyncPreviewJob.ChunkSize);
     }
 
-    /// <summary>
-    /// A site read that could not be answered part way through leaves no slot written.
-    /// </summary>
-    /// <remarks>
-    /// Three counts arrive together or not at all. A site put in the not-yet-there column because
-    /// its read failed is a number a reader cannot tell from a real one, so the whole count fails and
-    /// the read route answers no view.
-    /// </remarks>
+    // The three counts arrive together or not at all. A site put in the not-yet-there column
+    // because its read failed is a number a reader cannot tell from a real one.
     [Fact]
     public async Task ASiteReadThatFailedPartWayThroughLeavesNoSlot()
     {
@@ -288,14 +233,8 @@ public sealed class SyncLibrarySitesTests
         Assert.Null(cache.Held(WhisparrGeneration.V2));
     }
 
-    /// <summary>
-    /// None of the three sync routes answers the keeps-no-scene-records refusal on a generation that
-    /// registers sites.
-    /// </summary>
-    /// <remarks>
-    /// The refusal was the whole of what that generation used to get. It stays as an enum member for
-    /// a target obtaining neither role, and is no longer the answer for one obtaining the site add.
-    /// </remarks>
+    // The refusal stays as an enum member for a target holding neither role. It is not the answer
+    // for one holding the site add.
     [Fact]
     public async Task TheThreeRoutesNoLongerRefuseAGenerationThatRegistersSites()
     {
@@ -312,15 +251,9 @@ public sealed class SyncLibrarySitesTests
         Assert.NotNull(startedRun.JobId);
     }
 
-    /// <summary>
-    /// With the monitor toggle off, nothing reads a scene number and nothing sets a flag.
-    /// </summary>
-    /// <remarks>
-    /// Over a library that would otherwise produce many of both, and proved by both doubles refusing
-    /// a call they were not given rather than by a zero count: the provider throws on an identifier
-    /// it holds no answer for, and the recording client throws on a verb it was given no answer for,
-    /// so either call faults the run instead of passing unnoticed.
-    /// </remarks>
+    // Proved by both doubles refusing a call they were not given rather than by a zero count. The
+    // provider throws on an identifier it holds no answer for and the client throws on a verb it
+    // was given no answer for, so either call faults the run.
     [Fact]
     public async Task WithTheToggleOffNoSceneNumberIsReadAndNoFlagIsSet()
     {
@@ -338,15 +271,9 @@ public sealed class SyncLibrarySitesTests
         Assert.Contains("2 sites registered", Assert.Single(progress.Summaries), StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// With the toggle on, every scene the reader owns on a registered site is flagged, including one
-    /// on a site the instance already held.
-    /// </summary>
-    /// <remarks>
-    /// That last one is the difference between marking what was just registered and marking what the
-    /// reader owns, which is what the requirement asks for: on a second press most of the library is
-    /// on sites a previous run registered.
-    /// </remarks>
+    // The site the instance already held is the difference between marking what this run
+    // registered and marking what the reader owns. On a second press most of the library sits on
+    // sites an earlier run registered.
     [Fact]
     public async Task WithTheToggleOnEveryOwnedSceneIsFlaggedIncludingOnASiteAlreadyHeld()
     {
@@ -375,14 +302,8 @@ public sealed class SyncLibrarySitesTests
         Assert.Contains("2 scenes monitored", summary, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A site the instance holds at a root other than the agreed one is moved once, and no add is
-    /// composed for it.
-    /// </summary>
-    /// <remarks>
-    /// The correction is one update against the site the read already found. A second add would
-    /// create a duplicate the instance has no way to merge.
-    /// </remarks>
+    // The correction is one update against the site the read already found. A second add would
+    // create a duplicate the instance has no way to merge.
     [Fact]
     public async Task ASiteHeldAtTheWrongRootIsMovedOnceAndAddedNotAtAll()
     {
@@ -396,7 +317,6 @@ public sealed class SyncLibrarySitesTests
         Assert.Empty(instance.Adds);
     }
 
-    /// <summary>A site already at the agreed root is sent nothing at all.</summary>
     [Fact]
     public async Task ASiteHeldAtTheAgreedRootIsSentNothing()
     {
@@ -409,15 +329,9 @@ public sealed class SyncLibrarySitesTests
         Assert.Empty(instance.Adds);
     }
 
-    /// <summary>
-    /// A site held at the agreed root, spelled with the separator its own host uses, is sent
-    /// nothing.
-    /// </summary>
-    /// <remarks>
-    /// The agreed root reaches the step forward-slashed whichever host the instance runs on, because
-    /// every candidate the addressing port builds is spelled that way. Compared literally, a Windows
-    /// instance would be told to move every site it holds on every run, forever.
-    /// </remarks>
+    // Every candidate the addressing port builds is forward-slashed, whichever host the instance
+    // runs on. Compared literally, a Windows instance would be told to move every site it holds on
+    // every run.
     [Fact]
     public async Task ASiteHeldAtTheAgreedRootTheInstanceSpellsItsOwnWayIsSentNothing()
     {
@@ -430,14 +344,9 @@ public sealed class SyncLibrarySitesTests
         Assert.Empty(instance.Adds);
     }
 
-    /// <summary>
-    /// A move whose catalogue re-read never arrived is finished by the next pass, which then stops.
-    /// </summary>
-    /// <remarks>
-    /// The update lands before the re-read, so a timeout between the two leaves the site registered
-    /// at the right root and reporting no file. Its root reads as correct from then on, so without a
-    /// re-read decided on its own the site would stay unlinked with nothing able to repair it.
-    /// </remarks>
+    // The update lands before the re-read, so a timeout between the two leaves the site registered
+    // at the right root and reporting no file. Its root reads as correct from then on, so without a
+    // re-read decided on its own the site would stay unlinked.
     [Fact]
     public async Task AMoveWhoseCatalogueReReadDidNotArriveIsFinishedByTheNextPass()
     {
@@ -459,15 +368,8 @@ public sealed class SyncLibrarySitesTests
         Assert.Empty(instance.Adds);
     }
 
-    /// <summary>A studio this product has no agreed root for is left where it is.</summary>
-    /// <remarks>
-    /// A studio owning no file reaches this step with no root, because there is nothing to derive one
-    /// from. A studio whose own library root the instance agrees no spelling for never reaches it at
-    /// all: the composition refuses before the read, which
-    /// <c>SiteRootRegistrationTests.AStudioWhoseRootAgreedOnNothingHasNoAddSentForIt</c> asserts over
-    /// the whole pass. Both are states in which moving the site would be a guess written to a live
-    /// instance.
-    /// </remarks>
+    // A studio owning no file reaches this step with no root, because there is nothing to derive
+    // one from. Moving its site would be a guess written to a live instance.
     [Fact]
     public async Task AStudioWithNoAgreedRootIsSentNothing()
     {
@@ -480,11 +382,8 @@ public sealed class SyncLibrarySitesTests
         Assert.Empty(instance.Adds);
     }
 
-    /// <summary>A second pass over what the first one left sends nothing of either kind.</summary>
-    /// <remarks>
-    /// The whole point of correcting a root by moving rather than adding: a library already put right
-    /// costs one read per site and changes nothing.
-    /// </remarks>
+    // Correcting a root by moving rather than adding means a library already put right costs one
+    // read per site and changes nothing.
     [Fact]
     public async Task ASecondPassOverACorrectedLibrarySendsNothing()
     {
@@ -503,11 +402,8 @@ public sealed class SyncLibrarySitesTests
         Assert.Empty(instance.Adds);
     }
 
-    /// <summary>A pass stopped part way leaves every site it already moved at its new root.</summary>
-    /// <remarks>
-    /// There is nothing to undo. Each move is its own request against its own site, so a stop leaves
-    /// a library part corrected rather than one in a state no run produced.
-    /// </remarks>
+    // Each move is its own request against its own site, so a stop leaves a library part corrected
+    // rather than one in a state no run produced. There is nothing to undo.
     [Fact]
     public async Task APassStoppedPartWayLeavesTheSitesItMovedAtTheirNewRoot()
     {
@@ -526,11 +422,8 @@ public sealed class SyncLibrarySitesTests
         Assert.Equal(OtherRoot, instance.RootOf(SecondSite));
     }
 
-    /// <summary>A move the instance declined is reported as refused, not as already held.</summary>
-    /// <remarks>
-    /// The site is still registered where none of its files sit, which is the state this pass exists
-    /// to remove, so reporting it as untouched would hide a failure a reader acts on.
-    /// </remarks>
+    // The site is still registered where none of its files sit, so reporting it as untouched would
+    // hide a failure a reader acts on.
     [Fact]
     public async Task AMoveTheInstanceDeclinedIsReportedAsRefused()
     {
@@ -545,14 +438,8 @@ public sealed class SyncLibrarySitesTests
         Assert.Equal(OtherRoot, instance.RootOf(FirstSite));
     }
 
-    /// <summary>
-    /// The unit for a site the pass moved is completed as succeeded, and the refused site's is not.
-    /// </summary>
-    /// <remarks>
-    /// Read off the unit the run actually reported rather than off the member that decides it: the
-    /// host aggregates what it was told, and a moved site reported as failed is the figure a reader
-    /// would act on.
-    /// </remarks>
+    // Read off the unit the run reported rather than off the member that decides it. The host
+    // aggregates what it was told, and a moved site reported as failed is what a reader acts on.
     [Fact]
     public async Task TheUnitForASiteThePassMovedIsSucceededAndTheRefusedOneIsNot()
     {
@@ -567,11 +454,7 @@ public sealed class SyncLibrarySitesTests
         Assert.Equal(1, run.Refused);
     }
 
-    /// <summary>The pass counts a site it moved apart from the ones it refused.</summary>
-    /// <remarks>
-    /// A moved site is neither work refused nor a catalogue that was already right, and a reader acts
-    /// differently on each.
-    /// </remarks>
+    // A moved site is neither work refused nor a catalogue that was already right.
     [Fact]
     public async Task ThePassCountsAMovedSiteApartFromTheRefusedOnes()
     {
@@ -594,13 +477,8 @@ public sealed class SyncLibrarySitesTests
             StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A run over a library with one split studio names the other root once and carries both counts.
-    /// </summary>
-    /// <remarks>
-    /// The line says the files were left where they are, because an operator reading that a site
-    /// moved could otherwise take it to mean the files moved with it.
-    /// </remarks>
+    // The line says the files were left where they are. An operator reading that a site moved could
+    // otherwise take it to mean the files moved with it.
     [Fact]
     public async Task ARunWithOneSplitStudioNamesTheOtherRootOnceAndCarriesBothCounts()
     {
@@ -625,7 +503,6 @@ public sealed class SyncLibrarySitesTests
         Assert.Contains("nothing was copied", summary, StringComparison.Ordinal);
     }
 
-    /// <summary>A run with no split studio says nothing about splits at all.</summary>
     [Fact]
     public async Task ARunWithNoSplitStudioSaysNothingAboutSplits()
     {
@@ -644,7 +521,6 @@ public sealed class SyncLibrarySitesTests
             "1 sites registered, 1 already in Whisparr, 0 refused.", summary, StringComparer.Ordinal);
     }
 
-    /// <summary>A run that moved sites states how many.</summary>
     [Fact]
     public async Task ARunThatMovedSitesStatesHowMany()
     {
@@ -659,14 +535,9 @@ public sealed class SyncLibrarySitesTests
             StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A run that agreed no root for some studios states that count beside the other figures.
-    /// </summary>
-    /// <remarks>
-    /// Beside them rather than inside the refused one: a studio the instance already holds is
-    /// counted as already held even where its root was not agreed, so the count is spread across two
-    /// figures and a parenthetical inside either would read as a subset of it.
-    /// </remarks>
+    // The count sits beside the other figures rather than inside the refused one. A studio the
+    // instance already holds is counted as already held even where its root was not agreed, so the
+    // count is spread across two figures and a parenthetical inside either would read as a subset.
     [Fact]
     public async Task ARunThatAgreedNoRootForSomeStudiosStatesThatCountBesideTheOthers()
     {
@@ -687,11 +558,7 @@ public sealed class SyncLibrarySitesTests
             StringComparison.Ordinal);
     }
 
-    /// <summary>Two studios split under one root name that root once, not twice.</summary>
-    /// <remarks>
-    /// The names are what an operator acts on, and one entry per library root is the only shape that
-    /// does not grow with the library.
-    /// </remarks>
+    // One entry per library root is the only shape that does not grow with the library.
     [Fact]
     public async Task TwoStudiosSplitUnderOneRootNameThatRootOnce()
     {
@@ -711,19 +578,15 @@ public sealed class SyncLibrarySitesTests
             StringComparison.Ordinal);
     }
 
-    /// <summary>A studio whose files all sit under the one root that was chosen.</summary>
     private static EntityRoot AtOneRoot { get; } =
         new(AgreedRoot, MonitorRefusalKind.None, "I:/Downloads/P", 4, 0, []);
 
-    /// <summary>A studio whose own library root the instance agreed no spelling for.</summary>
     private static EntityRoot NoAgreedRoot { get; } =
         new(null, MonitorRefusalKind.NoAgreedRootForThisEntity, "I:/Downloads/P", 4, 0, []);
 
-    /// <summary>A studio with files under a library root other than the one that was chosen.</summary>
     private static EntityRoot Split(int filesLeftElsewhere, params string[] leftBehind)
         => new(AgreedRoot, MonitorRefusalKind.None, "I:/Downloads/P", 4, filesLeftElsewhere, leftBehind);
 
-    /// <summary>One site through the registration step, against <paramref name="instance"/>.</summary>
     private static Task<SyncRegistration> PassAsync(
         InstanceHolding instance,
         string site,
@@ -738,15 +601,10 @@ public sealed class SyncLibrarySitesTests
             new LibrarySiteIdentity(4, site),
             ct);
 
-    /// <summary>One run over as many sites as <paramref name="answers"/> names.</summary>
     private static Task<SyncLibraryRun> RunOverAsync(
         RecordingJobProgress progress, params SceneRegistration[] answers)
         => RunOverAsync(progress, [.. answers.Select(answer => (answer, AtOneRoot))]);
 
-    /// <summary>
-    /// One run over as many sites as <paramref name="answers"/> names, each with the root choice
-    /// that was made for it.
-    /// </summary>
     private static Task<SyncLibraryRun> RunOverAsync(
         RecordingJobProgress progress,
         params (SceneRegistration Registration, EntityRoot Root)[] answers)
@@ -780,11 +638,9 @@ public sealed class SyncLibrarySitesTests
         }
     }
 
-    /// <summary>A move no case under it may make, so a call faults rather than passing unnoticed.</summary>
     private static Task<WhisparrResponse?> NeverMoves(int siteId, string root, CancellationToken ct)
         => throw new InvalidOperationException("This case must send no move.");
 
-    /// <summary>The same for the catalogue re-read.</summary>
     private static Task<WhisparrResponse?> NeverRefreshes(int siteId, CancellationToken ct)
         => throw new InvalidOperationException("This case must send no catalogue re-read.");
 
@@ -812,7 +668,6 @@ public sealed class SyncLibrarySitesTests
             TestCt);
     }
 
-    /// <summary>One request answering <paramref name="answer"/>, recording what it was asked about.</summary>
     private static Func<string, CancellationToken, Task<WhisparrResponse?>> Answering(
         List<string> asked, WhisparrResponse answer)
         => (identity, ct) =>
@@ -822,16 +677,9 @@ public sealed class SyncLibrarySitesTests
             return Task.FromResult<WhisparrResponse?>(answer);
         };
 
-    /// <summary>
-    /// A pass that could settle no instance root for a library root puts that root on the settings
-    /// page, where its own ending sends the reader to state a path for it.
-    /// </summary>
-    /// <remarks>
-    /// The run's ending counts the sites it left for want of an agreed root and names the settings
-    /// page as the remedy. That page offers a root only once something has recorded a reading for
-    /// it, so without this the reader is sent to a page listing nothing and no site under that root
-    /// can ever acquire one.
-    /// </remarks>
+    // The settings page offers a root only once something has recorded a reading for it. Without
+    // this the run's ending sends the reader to a page listing nothing, and no site under that root
+    // can ever acquire one.
     [Fact]
     public async Task APassThatSettledNoRootPutsThatRootOnTheSettingsPage()
     {
@@ -847,10 +695,9 @@ public sealed class SyncLibrarySitesTests
         Assert.NotNull(listed.Refusal);
     }
 
-    /// <summary>The library root whose instance spelling the probe below never resolves.</summary>
     private const string UnsettledCoveRoot = "I:/Downloads/P";
 
-    /// <summary>A host whose probe answers no file, so no library root is ever settled.</summary>
+    // The probe answers no file, so no library root is ever settled.
     private static Task<MonitorHost> UnsettledRootHostAsync()
         => MonitorHost.CreateAsync(
             generation: WhisparrGeneration.V2,
@@ -869,14 +716,8 @@ public sealed class SyncLibrarySitesTests
                 CovePaths = [new CovePath { Path = UnsettledCoveRoot }],
             });
 
-    /// <summary>
-    /// A host on v2, whose instance either holds every site or holds none.
-    /// </summary>
-    /// <remarks>
-    /// The add is given an answer only where the instance holds nothing. A pass that composed one
-    /// against an instance that already holds the site reaches a verb this client was given no answer
-    /// for, and the client refuses it.
-    /// </remarks>
+    // The add is given an answer only where the instance holds nothing, so a pass that composed one
+    // against a site the instance already holds reaches a verb the client refuses.
     private static async Task<MonitorHost> SiteHost(
         bool held, RecordingProviderCatalogue? provider = null)
     {
@@ -896,16 +737,9 @@ public sealed class SyncLibrarySitesTests
         return host;
     }
 
-    /// <summary>
-    /// A host whose instance holds the second site the run reaches and not the first, and which
-    /// answers the scene rows and the flag.
-    /// </summary>
-    /// <remarks>
-    /// Two answers are queued for the presence read, so one site is registered by this run and the
-    /// other was already there. Which library studio each is depends on the order the identifier
-    /// stream yields them, so every assertion reads the instance's own site ids rather than assuming
-    /// one.
-    /// </remarks>
+    // Two answers are queued for the presence read, so one site is registered by this run and the
+    // other was already there. Which library studio each is depends on the order the identifier
+    // stream yields them, so assertions read the instance's own site ids rather than assuming one.
     private static async Task<MonitorHost> MonitoringHost(RecordingProviderCatalogue provider)
     {
         var host = await MonitorHost.CreateAsync(
@@ -931,15 +765,12 @@ public sealed class SyncLibrarySitesTests
         return host;
     }
 
-    /// <summary>A provider naming a number for each of <paramref name="scenes"/> and nothing else.</summary>
     private static RecordingProviderCatalogue ProviderNaming(params string[] scenes)
         => new(scenes.ToDictionary(
             scene => scene, scene => (int?)SceneNumbers[scene], StringComparer.Ordinal));
 
-    /// <summary>The instance's own row identifier for <paramref name="scene"/>.</summary>
     private static int RowFor(string scene) => SceneRows[scene];
 
-    /// <summary>Seeds one studio the library identifies, holding one scene it identifies.</summary>
     private static async Task SeedSiteAsync(MonitorHost host, string site, string scene)
     {
         var studioId = await host.SeedStudioAsync(V2Endpoint, site);
@@ -967,11 +798,7 @@ public sealed class SyncLibrarySitesTests
         return (await answered.Content.ReadFromJsonAsync<SyncPreviewRead>(TestCt))!;
     }
 
-    /// <summary>Posts <paramref name="body"/> to <paramref name="route"/>.</summary>
-    /// <remarks>
-    /// The default body names the monitor toggle not at all, which reads as off: a caller naming
-    /// nothing monitors nothing, which is the same request a reader with the switch off makes.
-    /// </remarks>
+    // The default body names the monitor toggle not at all, which reads as off.
     private static async Task<T> PostAsync<T>(MonitorHost host, string route, string body = "{}")
     {
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
@@ -982,16 +809,10 @@ public sealed class SyncLibrarySitesTests
         return (await answered.Content.ReadFromJsonAsync<T>(TestCt))!;
     }
 
-    /// <summary>
-    /// An instance holding some sites, each at one root, that a pass can read, add to and move.
-    /// </summary>
-    /// <remarks>
-    /// Stateful on purpose. What a second pass sends depends on what the first one left, so a double
-    /// answering a fixed reply could not tell a correction that stuck from one that did not.
-    /// </remarks>
+    // Stateful on purpose. What a second pass sends depends on what the first one left, so a double
+    // answering a fixed reply could not tell a correction that stuck from one that did not.
     private sealed class InstanceHolding
     {
-        /// <summary>What a site whose catalogue the instance has read reports.</summary>
         private const int LinkedFiles = 2;
 
         private readonly Dictionary<string, (int Id, string Root, int Files)> _held;
@@ -1010,13 +831,11 @@ public sealed class SyncLibrarySitesTests
 
         public bool RefusesTheMove { get; init; }
 
-        /// <summary>
-        /// The update lands and the catalogue re-read beside it does not, which is what a timeout or
-        /// a restart between the two leaves behind.
-        /// </summary>
+        // The update lands and the catalogue re-read beside it does not, which is what a timeout
+        // or a restart between the two leaves behind.
         public bool MoveLosesTheCatalogueReRead { get; init; }
 
-        /// <summary>Stopped once one move is made, standing in for the host stopping the job.</summary>
+        // Stands in for the host stopping the job.
         public CancellationTokenSource? StopAfterTheFirstMove { get; init; }
 
         public string? RootOf(string site)
@@ -1075,10 +894,8 @@ public sealed class SyncLibrarySitesTests
             return Task.FromResult<WhisparrResponse?>(MonitorHost.Json(201, "{}"));
         }
 
-        /// <remarks>
-        /// Serialized rather than interpolated, so a root carrying the separator a Windows instance
-        /// answers with reaches the step as the instance really spells it.
-        /// </remarks>
+        // Serialized rather than interpolated, so a root carrying the separator a Windows instance
+        // answers with reaches the step as the instance really spells it.
         private static string Row(int siteId, string root, int files)
         {
             var separator = root.Contains('\\', StringComparison.Ordinal) ? "\\" : "/";

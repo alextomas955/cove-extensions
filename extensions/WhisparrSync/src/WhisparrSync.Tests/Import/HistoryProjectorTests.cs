@@ -4,26 +4,15 @@ using WhisparrSync.Import;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// What one history record, and one page of them, are read as.
-/// </summary>
-/// <remarks>
-/// The event vocabulary here is the history route's, which spells in camelCase what the webhook
-/// surface spells in PascalCase. The pin below is the history spelling, and a projector that answered
-/// to the webhook's would act on nothing an instance's history ever holds.
-/// </remarks>
+// The event vocabulary here is the history route's, which spells in camelCase what the webhook
+// surface spells in PascalCase. The pin below is the history spelling, and a projector that answered
+// to the webhook's would act on nothing an instance's history ever holds.
 public sealed class HistoryProjectorTests
 {
     private const string ImportedPath = "/whisparr-media/scene.mp4";
 
-    /// <summary>
-    /// The event type this product acts on, transcribed by hand from the history route's own
-    /// rendering.
-    /// </summary>
-    /// <remarks>
-    /// Written out rather than read off the constant it checks: an expectation computed from the
-    /// module it checks agrees with that module however wrong both are.
-    /// </remarks>
+    // Transcribed by hand from the history route's own rendering. An expectation computed from the
+    // module it checks agrees with that module however wrong both are.
     [Fact]
     public void TheActedEventTypeIsTheHistorySpelling()
         => Assert.Equal("downloadFolderImported", HistoryProjector.ImportedEventType);
@@ -39,25 +28,15 @@ public sealed class HistoryProjectorTests
         Assert.Equal(HistoryProjector.ImportedEventType, reading.Candidate?.EventType);
     }
 
-    /// <summary>
-    /// A history record yields no size.
-    /// </summary>
-    /// <remarks>
-    /// A size has not been shown to live on one, so none is read, and a candidate with no size is
-    /// verified on presence alone.
-    /// </remarks>
+    // A size has not been shown to live on a history record, so none is read, and a candidate with no
+    // size is verified on presence alone.
     [Fact]
     public void AProjectedCandidateCarriesNoSize()
         => Assert.Null(HistoryProjector.Read(WhisparrGeneration.V3, Record(ImportedPath)).Candidate?.ReportedSize);
 
-    /// <summary>
-    /// Each lineage's record yields the identifier its own metadata entity declares.
-    /// </summary>
-    /// <remarks>
-    /// The entity and the member are the ones the live channel reads for the same lineage, which is
-    /// what makes one scene the same scene whichever channel reported it. Transcribed by hand from
-    /// an instance's own answer on each lineage.
-    /// </remarks>
+    // The entity and the member are the ones the live channel reads for the same lineage, which is what
+    // makes one scene the same scene whichever channel reported it. Transcribed by hand from an
+    // instance's own answer on each lineage.
     [Theory]
     [InlineData("v3")]
     [InlineData("v2")]
@@ -71,13 +50,8 @@ public sealed class HistoryProjectorTests
         Assert.Equal(declared, reading.Candidate?.RemoteId);
     }
 
-    /// <summary>
-    /// A record read as the other lineage yields no identifier.
-    /// </summary>
-    /// <remarks>
-    /// The discriminating control for the two cases above: a reader that looked in both places would
-    /// pass them with the per-lineage rule untested.
-    /// </remarks>
+    // The control for the two cases above: a reader that looked in both places would pass them with the
+    // per-lineage rule untested.
     [Theory]
     [InlineData("v3")]
     [InlineData("v2")]
@@ -89,13 +63,8 @@ public sealed class HistoryProjectorTests
         Assert.Null(HistoryProjector.Read(other, record).Candidate?.RemoteId);
     }
 
-    /// <summary>
-    /// A record whose answer embedded no entity still projects, carrying no identifier.
-    /// </summary>
-    /// <remarks>
-    /// The residual. A file an instance never matched is still a file to register, and the absence is
-    /// what tells a later match there is nothing to match on.
-    /// </remarks>
+    // A file an instance never matched is still a file to register, and the absence is what tells a
+    // later match there is nothing to match on.
     [Fact]
     public void ARecordCarryingNoEntityStillProjectsWithNoIdentifier()
     {
@@ -105,14 +74,9 @@ public sealed class HistoryProjectorTests
         Assert.Null(reading.Candidate?.RemoteId);
     }
 
-    /// <summary>
-    /// Each lineage's own unset rendering yields no identifier.
-    /// </summary>
-    /// <remarks>
-    /// One lineage omits its member or leaves it blank; the other carries a number its schema starts
-    /// every row at. Read as an identifier, an unset rendering would make every unmatched scene the
-    /// same scene.
-    /// </remarks>
+    // One lineage omits its member or leaves it blank; the other carries a number its schema starts
+    // every row at. Read as an identifier, an unset rendering would make every unmatched scene the same
+    // scene.
     [Theory]
     [InlineData("v3")]
     [InlineData("v2")]
@@ -140,7 +104,6 @@ public sealed class HistoryProjectorTests
         Assert.Equal(eventType, reading.EventType);
     }
 
-    /// <summary>An import record with no path is named rather than silently dropped.</summary>
     [Fact]
     public void AnImportRecordCarryingNoPathIsNamed()
     {
@@ -182,13 +145,8 @@ public sealed class HistoryProjectorTests
     public void AnAnswerThatIsNotAPageReadsAsNoPage(string body)
         => Assert.Null(HistoryProjector.RecordsIn(body));
 
-    /// <summary>
-    /// An empty page is read as an empty page rather than as an unreadable answer.
-    /// </summary>
-    /// <remarks>
-    /// The discriminating control for the four above: an answer nobody could read and a page holding
-    /// nothing mean opposite things to a walk, and one refuses the pass while the other ends it.
-    /// </remarks>
+    // The control for the four above: an answer nobody could read and a page holding nothing mean
+    // opposite things to a walk, and one refuses the pass while the other ends it.
     [Fact]
     public void AnEmptyPageIsAPage()
         => Assert.Empty(Assert.IsType<JsonArray>(HistoryProjector.RecordsIn("""{"records":[]}""")));
@@ -208,13 +166,8 @@ public sealed class HistoryProjectorTests
             HistoryProjector.InstantsIn(page));
     }
 
-    /// <summary>
-    /// An instant rendered without a zone is read as one, rather than as the reader's own.
-    /// </summary>
-    /// <remarks>
-    /// The stop rule compares this against a stored instant, so a page read in the host container's
-    /// zone would place every record by however that container is configured.
-    /// </remarks>
+    // The stop rule compares this against a stored instant, so a page read in the host container's zone
+    // would place every record by however that container is configured.
     [Fact]
     public void AnInstantCarryingNoZoneIsReadAsUniversal()
         => Assert.Equal(
@@ -222,7 +175,6 @@ public sealed class HistoryProjectorTests
             Assert.IsType<DateTimeOffset>(
                 HistoryProjector.InstantsIn(new JsonArray(Record(ImportedPath, "2026-08-30T12:00:00")))?[0]));
 
-    /// <summary>A page carrying a record with no readable instant yields none at all.</summary>
     [Fact]
     public void APageCarryingARecordWithNoReadableInstantYieldsNone()
     {
@@ -241,13 +193,8 @@ public sealed class HistoryProjectorTests
             ["data"] = new JsonObject { ["importedPath"] = path },
         };
 
-    /// <summary>
-    /// One lineage, one record its own instance would answer with, and the identifier it declares.
-    /// </summary>
-    /// <remarks>
-    /// The entity member, the identifier member and the JSON type of each are transcribed by hand
-    /// from a live answer on that lineage.
-    /// </remarks>
+    // The entity member, the identifier member and the JSON type of each are transcribed by hand from a
+    // live answer on that lineage.
     private static (WhisparrGeneration Generation, JsonObject Record, string Declared) Identified(
         string lineage)
         => lineage switch
@@ -263,7 +210,6 @@ public sealed class HistoryProjectorTests
             _ => throw new ArgumentOutOfRangeException(nameof(lineage)),
         };
 
-    /// <summary>One lineage, and a record whose entity was never matched to a scene.</summary>
     private static (WhisparrGeneration Generation, JsonObject Record, string Declared) Unidentified(
         string lineage)
         => lineage switch

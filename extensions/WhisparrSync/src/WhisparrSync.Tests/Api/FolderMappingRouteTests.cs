@@ -8,31 +8,19 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Api;
 
-/// <summary>
-/// The two folder-mapping routes: what the read answers, and what a save does before it stores
-/// anything.
-/// </summary>
-/// <remarks>
-/// Driven over the shipped routes and the shipped addressing chain, with the instance's answers
-/// supplied by a recording transport. The two cases that would be indistinguishable without a probe
-/// are here on purpose: a path that exists as a directory holding nothing, and a path holding a file
-/// of the wrong size. Both are paths a save taking the operator's word for it would store.
-/// </remarks>
 public sealed class FolderMappingRouteTests
 {
-    /// <summary>The library root as Cove has it, on a machine the instance does not share.</summary>
+    // A Windows library root and a Linux instance path: the instance does not share Cove's machine.
     private const string CoveRoot = "G:/Downloads/P";
 
     private const string Folder = CoveRoot + "/Blue Harbor";
 
-    /// <summary>Where the operator says the instance holds that root.</summary>
     private const string Mapping = "/mnt/media";
 
     private const long SampleSize = 41;
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>The read answers one line per root the instance could not see.</summary>
     [Fact]
     public async Task TheReadAnswersOneLinePerRootTheInstanceCouldNotSee()
     {
@@ -60,7 +48,6 @@ public sealed class FolderMappingRouteTests
         Assert.Equal(Mapping, line.Mapping);
     }
 
-    /// <summary>The read answers nothing at all where neither collection has been written to.</summary>
     [Fact]
     public async Task TheReadAnswersNothingWhereNothingIsStored()
     {
@@ -69,7 +56,6 @@ public sealed class FolderMappingRouteTests
         Assert.Empty((await host.ReadFolderMappingsAsync()).Roots);
     }
 
-    /// <summary>A mapping the instance holds the library's own file under is stored.</summary>
     [Fact]
     public async Task AMappingTheProbeResolvesIsStored()
     {
@@ -85,14 +71,8 @@ public sealed class FolderMappingRouteTests
             Assert.Single((await host.Options.LoadAsync(TestCt)).OutboundMappings).InstanceRoot);
     }
 
-    /// <summary>
-    /// A path that exists as a directory holding nothing stores nothing, and the answer names the
-    /// path that was tried.
-    /// </summary>
-    /// <remarks>
-    /// The case a save taking the operator's word for it cannot tell from a working mapping: the
-    /// directory is there, and every folder handed under it would list nothing.
-    /// </remarks>
+    // A save that took the operator's word for it cannot tell this from a working mapping: the
+    // directory is there and lists nothing.
     [Fact]
     public async Task ADirectoryHoldingNothingStoresNothingAndNamesThePathTried()
     {
@@ -107,11 +87,8 @@ public sealed class FolderMappingRouteTests
         Assert.Empty((await host.Options.LoadAsync(TestCt)).OutboundMappings);
     }
 
-    /// <summary>A path holding a file of the wrong size stores nothing.</summary>
-    /// <remarks>
-    /// The second case a probe is needed for: the name is right and the content is a different file,
-    /// which is what a second library mounted at the same shape of path looks like.
-    /// </remarks>
+    // The other case a probe is needed for: the name is right and the content is a different file,
+    // which is what a second library mounted at the same shape of path looks like.
     [Fact]
     public async Task APathHoldingAFileOfAnotherLengthStoresNothing()
     {
@@ -125,7 +102,6 @@ public sealed class FolderMappingRouteTests
         Assert.Empty((await host.Options.LoadAsync(TestCt)).OutboundMappings);
     }
 
-    /// <summary>A save for a path that is none of the host's library paths is refused.</summary>
     [Fact]
     public async Task ASaveForAPathThatIsNotALibraryRootIsRefused()
     {
@@ -138,7 +114,6 @@ public sealed class FolderMappingRouteTests
         Assert.Empty((await host.Options.LoadAsync(TestCt)).OutboundMappings);
     }
 
-    /// <summary>A blank path removes the mapping stored for that root.</summary>
     [Fact]
     public async Task ABlankPathRemovesTheStoredMapping()
     {
@@ -152,13 +127,8 @@ public sealed class FolderMappingRouteTests
         Assert.Empty((await host.Options.LoadAsync(TestCt)).OutboundMappings);
     }
 
-    /// <summary>
-    /// A save that resolved reads back as one line carrying the stored path and no reason.
-    /// </summary>
-    /// <remarks>
-    /// The refusal the save settled is gone, and the line stays so the path can still be read and
-    /// withdrawn. A root that vanished on resolving would leave the operator no way back to it.
-    /// </remarks>
+    // The line stays after the refusal is settled, so the operator can still read and withdraw the
+    // path. A root that vanished on resolving would leave no way back to it.
     [Fact]
     public async Task ASaveThatResolvedReadsAsOneLineCarryingThePathAndNoReason()
     {
@@ -185,7 +155,6 @@ public sealed class FolderMappingRouteTests
         Assert.Empty(line.PathsTried);
     }
 
-    /// <summary>A save that withdrew the path leaves that root no line at all.</summary>
     [Fact]
     public async Task ASaveThatWithdrewThePathLeavesThatRootNoLine()
     {
@@ -198,11 +167,8 @@ public sealed class FolderMappingRouteTests
         Assert.Empty((await host.ReadFolderMappingsAsync()).Roots);
     }
 
-    /// <summary>Both routes refuse a caller without the configure tier, and neither stores anything.</summary>
-    /// <remarks>
-    /// Paired with a caller who does hold the tier in the cases above. Without that control a 403
-    /// could equally mean the handler is broken for everyone.
-    /// </remarks>
+    // Both routes sit at the configure tier. The cases above drive the same routes with a caller
+    // who holds it, so a 403 here is the gate and not a handler broken for everyone.
     [Fact]
     public async Task BothRoutesRefuseACallerWithoutTheConfigureTier()
     {
@@ -220,7 +186,6 @@ public sealed class FolderMappingRouteTests
         Assert.Empty((await host.Options.LoadAsync(TestCt)).OutboundMappings);
     }
 
-    /// <summary>What the instance is standing at the mapped directory, in one of these cases.</summary>
     private enum Holding
     {
         TheSample,
@@ -228,26 +193,18 @@ public sealed class FolderMappingRouteTests
         AnotherLength,
     }
 
-    /// <summary>The stored options folded through <paramref name="fold"/>.</summary>
-    /// <remarks>
-    /// Loaded and saved rather than written fresh, so the connection the host configured survives and
-    /// the save route still resolves an instance.
-    /// </remarks>
+    // Loaded and saved rather than written fresh, so the connection the host configured survives
+    // and the save route still resolves an instance.
     private static async Task StoreAsync(
         MonitorHost host, Func<WhisparrSyncOptions, WhisparrSyncOptions> fold)
         => await host.Options.SaveAsync(
             fold(await host.Options.LoadAsync(TestCt)), TestCt);
 
-    /// <summary>
-    /// A host over one library root, one seeded file, and an instance answering
-    /// <paramref name="holding"/> at the mapped directory, with the one path a probe under
-    /// <see cref="Mapping"/> would ask about.
-    /// </summary>
     private static async Task<(MonitorHost Host, string Candidate)> ProbingHostAsync(
         Holding holding, FakePrincipalAccessor? principal = null)
     {
-        // The listing is composed from the file the library really seeded, so the probe is answered
-        // about the path the product really asked about rather than one this case guessed.
+        // The listing is composed from the file the library seeded, so the probe is answered about
+        // the path the product asked about rather than one this case guessed.
         var listing = new[] { """{"parent":"/mnt/media/","directories":[],"files":[]}""" };
 
         var bytes = BodyRecordingHandler.AnsweringByPath(path => path switch

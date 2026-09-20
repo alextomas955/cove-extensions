@@ -8,13 +8,6 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Missing;
 
-/// <summary>
-/// The derivation: one provider read, the owned rows removed, and a status for what remains.
-/// </summary>
-/// <remarks>
-/// The call count is asserted alongside the answer. Every value here is also producible by a shape
-/// that reads several pages or walks the library, so a correct answer alone says nothing about cost.
-/// </remarks>
 public sealed class MissingPagePlannerTests
 {
     private const string StashDb = "https://stashdb.org/graphql";
@@ -32,11 +25,6 @@ public sealed class MissingPagePlannerTests
         Assert.Equal(1, catalogue.PageReads);
     }
 
-    /// <summary>
-    /// A page is never topped back up, and the range stays the provider's own. Derived from the card
-    /// count the count line would read one to thirty-five above a page the provider called one to
-    /// forty.
-    /// </summary>
     [Fact]
     public async Task OwnedScenesLeaveThePageAndTheRangeStaysTheProvidersOwn()
     {
@@ -54,7 +42,6 @@ public sealed class MissingPagePlannerTests
         Assert.Equal(1, catalogue.PageReads);
     }
 
-    /// <summary>An entity the provider names nothing for is a refusal taken before any request.</summary>
     [Fact]
     public async Task AnUnresolvedIdentityRefusesAndAsksTheProviderNothing()
     {
@@ -68,10 +55,6 @@ public sealed class MissingPagePlannerTests
         Assert.Equal(0, catalogue.PageReads);
     }
 
-    /// <summary>
-    /// Zero is a claim and null is an abstention. A count of zero for an entity nothing could be
-    /// resolved for would state that the provider lists nothing, which was never measured.
-    /// </summary>
     [Fact]
     public async Task AnUnresolvableEntitysCountIsNullRatherThanZero()
     {
@@ -96,10 +79,6 @@ public sealed class MissingPagePlannerTests
         Assert.Equal(0, catalogue.PageReads);
     }
 
-    /// <summary>
-    /// The menus are read when the tab opens and not again per page, a menu read being one provider
-    /// call per menu.
-    /// </summary>
     [Fact]
     public async Task MenusTheCallerAlreadyHoldsAreNotReadAgain()
     {
@@ -126,10 +105,6 @@ public sealed class MissingPagePlannerTests
         Assert.Equal("DATE", Assert.Single(view.Sorts).Value);
     }
 
-    /// <summary>
-    /// A caller naming no ordering still reads an ordered page, so the view names the ordering
-    /// the provider applied rather than echoing the caller's silence back as nothing.
-    /// </summary>
     [Fact]
     public async Task APageReadUnderNoNamedOrderingReportsTheProvidersOwn()
     {
@@ -154,7 +129,6 @@ public sealed class MissingPagePlannerTests
         Assert.Equal("TITLE:ASC", view.SortInForce);
     }
 
-    /// <summary>Nothing was read, so nothing was ordered.</summary>
     [Fact]
     public async Task ARefusedPageNamesNoOrdering()
     {
@@ -168,10 +142,6 @@ public sealed class MissingPagePlannerTests
         Assert.Null(view.SortInForce);
     }
 
-    /// <summary>
-    /// A generation keeping no per-scene record states that rather than offering a retry, because no
-    /// retry could establish a status.
-    /// </summary>
     [Fact]
     public async Task AGenerationHoldingNoStatusRoleStatesThatNothingCanEstablishOne()
     {
@@ -207,10 +177,6 @@ public sealed class MissingPagePlannerTests
             withStatusRole ? new StubStatusReading() : null,
             ExclusionReading: null);
 
-    /// <summary>
-    /// The card carries where its scene is shown, composed by the source that answered. A browser
-    /// composing one would hold a pattern per source, and the wrong one on the other generation.
-    /// </summary>
     [Fact]
     public async Task ACardCarriesTheAddressTheSourceNamedForItsScene()
     {
@@ -227,7 +193,6 @@ public sealed class MissingPagePlannerTests
             view.Cards.Select(card => card.SceneUrl));
     }
 
-    /// <summary>A source that names no address leaves the card with none, rather than a guess.</summary>
     [Fact]
     public async Task ACardFromASourceThatNamesNoAddressCarriesNone()
     {
@@ -240,11 +205,6 @@ public sealed class MissingPagePlannerTests
     private static List<ProviderScene> ScenesNamed(params string[] ids)
         => [.. ids.Select(id => new ProviderScene(id, id, null, null, null, null, [], []))];
 
-    /// <summary>
-    /// The page names the source that answered it, and a page that answered nothing names the
-    /// source it would have read. A name held by the surface would say one provider on both
-    /// generations.
-    /// </summary>
     [Fact]
     public async Task EveryPageNamesTheSourceItWasReadFrom()
     {
@@ -263,10 +223,6 @@ public sealed class MissingPagePlannerTests
         Assert.Equal("ThePornDB", refused.ProviderName);
     }
 
-    /// <summary>
-    /// A fragment reaches the source under the entity the page is for, and the values it matched
-    /// come back as rows a menu can offer.
-    /// </summary>
     [Fact]
     public async Task AFragmentReachesTheSourceAndItsValuesComeBackAsMenuRows()
     {
@@ -290,10 +246,6 @@ public sealed class MissingPagePlannerTests
         Assert.Equal("a-studio", catalogue.SearchedEntityId);
     }
 
-    /// <summary>
-    /// A lookup that answered nothing is not an absence. Answered as a match of nothing it would
-    /// state that a value the source holds does not exist, which is what a lookup is for.
-    /// </summary>
     [Fact]
     public async Task ALookupThatAnsweredNothingIsHeldApartFromAMatchOfNothing()
     {
@@ -320,10 +272,6 @@ public sealed class MissingPagePlannerTests
         Assert.Empty(none.Values);
     }
 
-    /// <summary>
-    /// A facet the source cannot search says so, and the surface keeps narrowing the values it
-    /// already holds for that one.
-    /// </summary>
     [Fact]
     public async Task AFacetTheSourceCannotSearchSaysSo()
     {
@@ -341,7 +289,6 @@ public sealed class MissingPagePlannerTests
         Assert.Empty(answer.Values);
     }
 
-    /// <summary>An entity the source names nothing for is asked nothing, and states no absence.</summary>
     [Fact]
     public async Task AnUnresolvedIdentityAsksTheSourceNothingAndStatesNoAbsence()
     {
@@ -432,7 +379,6 @@ public sealed class MissingPagePlannerTests
 
         public string DefaultSort { get; init; } = "DATE";
 
-        /// <summary>Where this catalogue says one of its scenes is shown.</summary>
         public Func<string, string?> Address { get; init; } = _ => null;
 
         public ProviderCapabilitySet Capabilities { get; init; } =

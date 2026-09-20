@@ -7,18 +7,15 @@ import {
   pagerTotalFor,
 } from "./missingPageLogic";
 
-/**
- * Paging measured against the live providers on 2026-09-06.
- *
- * ThePornDB serves at most ten thousand rows for any query and reports a total of `min(actual,
- * 10000)`, so at the ceiling its reported size is a floor while the set behind it is larger.
- */
+// Paging measured against the live providers. ThePornDB serves at most ten thousand rows for any
+// query and reports a total of `min(actual, 10000)`, so at the ceiling its reported size is a floor
+// while the set behind it is larger.
 const RECORDED = {
-  /** `per_page=40&page=1` against tag 70: total 10,000, last_page 250. Page 251 re-serves page 250. */
+  // `per_page=40&page=1` against tag 70: total 10,000, last_page 250. Page 251 re-serves page 250.
   thePornDbAtTheCeiling: { catalogueSize: 10000, lastPage: 250, perPage: 40 },
-  /** `site_id=92`: 272 scenes, last_page 7, and page 8 answers no rows at all. */
+  // `site_id=92`: 272 scenes, last_page 7, and page 8 answers no rows at all.
   thePornDbBelowTheCeiling: { catalogueSize: 272, lastPage: 7, perPage: 40 },
-  /** StashDB against a 162,350-scene tag at forty a page, with a genuine short last page. */
+  // StashDB against a 162,350-scene tag at forty a page, with a genuine short last page.
   stashDb: { catalogueSize: 162350, lastPage: 4059, perPage: 40 },
 } as const;
 

@@ -1,11 +1,10 @@
 /**
- * The panel a selection's handler opens: one row per thing it can do over the whole selection, and a
- * way out that sends nothing.
+ * The panel a selection's handler opens: one row per thing it can do, and a way out that sends
+ * nothing.
  *
- * Presentational. The rows arrive already decided, so this module computes nothing about
- * capabilities, generations or bounds, and runs with no host and no network.
+ * The rows arrive already decided, so this module issues no request and needs no host.
  *
- * Mounted imperatively rather than rendered into a tree, because a selection-bar handler owns none.
+ * It is mounted imperatively, because a selection-bar handler has no tree to render into.
  */
 import { useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
@@ -14,10 +13,8 @@ import { useOverlayKeys } from "@cove-extensions/ui-shared/overlay";
 import { selectionMenuHeader } from "./copy";
 import { WhisparrLogo } from "./WhisparrLogo";
 
-/** What draws a row's glyph. Every row carries one, so no row is a label on its own. */
 export type RowIcon = (props: { className?: string }) => ReactNode;
 
-/** What one offered row needs to draw itself: a stable key, its own name, and its glyph. */
 export interface ChoiceRow {
   readonly key: string;
   readonly label: string;
@@ -25,10 +22,8 @@ export interface ChoiceRow {
 }
 
 /**
- * The panel's width in pixels.
- *
- * Inline rather than a class, as the placement below is: the host's Tailwind JIT never scans this
- * bundle, so a width class it does not already emit would not render.
+ * The panel's width in pixels, applied inline like the placement below. The host's Tailwind JIT
+ * never scans this bundle, so a width class it does not already emit would not render.
  */
 const PANEL_WIDTH = 288;
 
@@ -43,17 +38,14 @@ export function ChoiceOverlay<TRow extends ChoiceRow>({
   closeLabel,
   onChoose,
 }: {
-  /** How many things the selection holds, which the header names. */
   count: number;
-  /** The one sentence saying why nothing is offered, or null when something is. */
+  /** Why nothing is offered, or null when something is. */
   reason: string | null;
-  /** The rows offered, in the order they read. Empty when there is nothing to offer. */
   rows: readonly TRow[];
-  /** The way out of a choice. */
   cancelLabel: string;
-  /** The way out of a panel with nothing to choose between. */
+  /** Used in place of the cancel label when there are no rows. */
   closeLabel: string;
-  /** Called with the chosen row, or with null when the reader leaves without choosing. */
+  /** Called with the chosen row, or null when the reader leaves without choosing. */
   onChoose: (row: TRow | null) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
@@ -71,8 +63,8 @@ export function ChoiceOverlay<TRow extends ChoiceRow>({
       ref={panel}
       role="menu"
       aria-label={header}
-      // The panel is opened from a host action rather than from a control this bundle owns, so there
-      // is nothing to anchor it to and it is centred against the viewport instead.
+      // A host action opens the panel, so there is no control to anchor it to. It is centred
+      // against the viewport instead.
       style={{
         position: "fixed",
         top: "20vh",
@@ -107,7 +99,7 @@ export function ChoiceOverlay<TRow extends ChoiceRow>({
         </button>
       ))}
 
-      {/* A menu role admits menu children only, so the way out carries one too and the arrow keys
+      {/* A menu role admits menu children only, so the way out carries one and the arrow keys
           reach it. */}
       <button
         type="button"

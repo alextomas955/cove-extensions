@@ -10,22 +10,11 @@ using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Tests.Jobs;
 
-/// <summary>
-/// The one line a reflect-owned run that started by itself is reported on, for each of the reasons
-/// it can reach no folder for.
-/// </summary>
-/// <remarks>
-/// The run's line is the ONLY place this path is reported. The gesture that started it was answered
-/// before the instance's setting was read again, so a run that says "0 linked, 0 refused." about a
-/// setting that stopped it tells the reader nothing they can act on.
-/// <para>
-/// Every expected sentence here is transcribed by hand from the source. Composing one from
-/// <c>SentenceFor</c> would agree with a sentence that changed underneath it.
-/// </para>
-/// </remarks>
+// The run's line is the only place this path is reported, so it has to carry the reason. Every
+// expected sentence is transcribed by hand from the source. Composing one from SentenceFor would
+// agree with a sentence that changed underneath it.
 public sealed class ReflectOwnedJobTests
 {
-    /// <summary>One folder's parse answer, with everything an attach has to be composed from.</summary>
     private const string Attachable = """
         [{"path":"/library/one/scene.mp4","folderName":"one",
           "quality":{"quality":{"id":7}},"languages":[{"id":1}],"movie":{"id":31}}]
@@ -66,15 +55,9 @@ public sealed class ReflectOwnedJobTests
         Assert.NotEqual(SettingIsOff, line);
     }
 
-    /// <summary>
-    /// A run whose instance root list could not be read reaches no folder, and says the check was
-    /// not made.
-    /// </summary>
-    /// <remarks>
-    /// The list is what the cross-root guard compares against, and an import that crosses two roots
-    /// copies the bytes in full. A run that linked with the guard unapplied would be textually
-    /// identical to one that linked safely, so it stops instead and says why.
-    /// </remarks>
+    // The root list is what the cross-root guard compares against, and an import that crosses two
+    // roots copies the bytes in full. A run that linked with the guard unapplied would read the
+    // same as one that linked safely, so it stops instead and says why.
     [Fact]
     public async Task ARunWhoseInstanceRootsCouldNotBeReadLinksNothingAndSaysSo()
     {
@@ -97,10 +80,8 @@ public sealed class ReflectOwnedJobTests
         Assert.Equal(0, attaches);
     }
 
-    /// <summary>
-    /// No connection configured, or a connected generation holding no reflect-owned role, is not a
-    /// fact about the instance's setting. Naming one would send the reader to a value nobody read.
-    /// </summary>
+    // An aim that failed for any other reason says nothing about the hard-link setting. Naming the
+    // setting would send the reader to a value nobody read.
     [Fact]
     public async Task ARunThatCouldNotBeAimedForAnyOtherReasonReportsAsARunThatAttachedNothing()
     {
@@ -111,7 +92,6 @@ public sealed class ReflectOwnedJobTests
         Assert.DoesNotContain("setting", line, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>A run nobody can read stays a clean no-op, and is never aimed at anything.</summary>
     [Fact]
     public async Task ARunNamingNoEntityReportsAsARunThatAttachedNothing()
     {
@@ -147,10 +127,7 @@ public sealed class ReflectOwnedJobTests
         Assert.DoesNotContain("setting", line, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// A stopped run keeps the ending that tells the reader it did not finish. What it linked before
-    /// the stop is on the instance and there is nothing to undo.
-    /// </summary>
+    // Files linked before the stop are on the instance and there is nothing to undo.
     [Fact]
     public async Task ACancelledRunKeepsItsEnding()
     {
@@ -175,12 +152,10 @@ public sealed class ReflectOwnedJobTests
 
     private static ReflectOwnedBatch OneStudio => new(WhisparrEntityKind.Studio, 7);
 
-    /// <summary>An aim that reached nothing because <paramref name="reason"/> stopped it.</summary>
     private static Func<IServiceProvider, CancellationToken, Task<ReflectOwnedAim>> Stopped(
         ReflectOwnedSkipReason reason)
         => (_, _) => Task.FromResult(new ReflectOwnedAim(null, reason));
 
-    /// <summary>An aim that acts, reading and attaching through the delegates supplied.</summary>
     private static Func<IServiceProvider, CancellationToken, Task<ReflectOwnedAim>> Acting(
         Func<string, CancellationToken, Task<ImportableListing>> read,
         Func<JsonArray, CancellationToken, Task<bool>> attach)
@@ -224,7 +199,6 @@ public sealed class ReflectOwnedJobTests
             batch, provider.GetRequiredService<IServiceScopeFactory>(), aiming, ct);
     }
 
-    /// <summary>The folders one entity holds files in, as this case supplies them.</summary>
     private sealed class FixedFolders(string[] folders) : IEntityFolderPort
     {
         public async IAsyncEnumerable<string> FoldersFor(
@@ -249,7 +223,6 @@ public sealed class ReflectOwnedJobTests
             => throw new NotSupportedException("This case is about the folder loop.");
     }
 
-    /// <summary>An instance declaring no root, so no file is compared against one.</summary>
     private sealed class NoDeclaredRoots : IReportedRootPort
     {
         public Task<IReadOnlyList<string>?> ReadAsync(
@@ -257,7 +230,6 @@ public sealed class ReflectOwnedJobTests
             => Task.FromResult<IReadOnlyList<string>?>([]);
     }
 
-    /// <summary>An instance whose root list nothing could be established from.</summary>
     private sealed class UnreadableRoots : IReportedRootPort
     {
         public Task<IReadOnlyList<string>?> ReadAsync(

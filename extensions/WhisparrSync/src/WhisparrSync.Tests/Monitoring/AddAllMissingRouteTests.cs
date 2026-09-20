@@ -9,15 +9,9 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// The add-all-missing verb over the path a user reaches: the mounted route, the refusals taken
-/// before anything leaves, and the background run that offers one scene at a time.
-/// </summary>
-/// <remarks>
-/// Driven through the shipped registration rather than by calling the handler. A handler called
-/// directly agrees with a route mounted at the wrong pattern, bound to a body the browser cannot
-/// send, or reachable by a caller the declaration excludes.
-/// </remarks>
+// Driven through the shipped registration rather than by calling the handler. A handler called
+// directly agrees with a route mounted at the wrong pattern, bound to a body the browser cannot
+// send, or reachable by a caller the declaration excludes.
 public sealed class AddAllMissingRouteTests
 {
     private const string HeldStudio =
@@ -29,7 +23,6 @@ public sealed class AddAllMissingRouteTests
     private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
     private const string SecondScene = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-    /// <summary>An identifier a caller put in a body this route declares nothing for.</summary>
     private const string SmuggledScene = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
@@ -52,7 +45,6 @@ public sealed class AddAllMissingRouteTests
         Assert.EndsWith(AddAllMissingJob.JobId, job.Type, StringComparison.Ordinal);
     }
 
-    /// <summary>The performer arm reaches the same route through its own held read.</summary>
     [Fact]
     public async Task AMonitoredPerformerAnswersAcceptedWithAJobId()
     {
@@ -66,15 +58,8 @@ public sealed class AddAllMissingRouteTests
         Assert.Equal(MonitorRefusalKind.None, enqueued.Refusal);
     }
 
-    /// <summary>
-    /// Whisparr v2 refuses because it registers no role, not because anything compared a
-    /// version.
-    /// </summary>
-    /// <remarks>
-    /// The capability table is the evidence. A handler asking which generation is connected would
-    /// answer the same refusal here and would go on answering it after the generation gained a
-    /// route.
-    /// </remarks>
+    // The capability table is the evidence. A handler asking which generation is connected would
+    // answer the same refusal here and go on answering it after the generation gained a route.
     [Fact]
     public async Task TheOlderGenerationRefusesFromTheAbsentRegistrationRatherThanAVersionCheck()
     {
@@ -108,10 +93,6 @@ public sealed class AddAllMissingRouteTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// An entity the instance does not hold has no catalogue to add to, so nothing is sent, and the
-    /// refusal names the absence rather than the instance declining.
-    /// </summary>
     [Fact]
     public async Task AnEntityTheInstanceDoesNotHoldIsRefusedWithNoSceneSent()
     {
@@ -126,13 +107,8 @@ public sealed class AddAllMissingRouteTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// An instance offering no quality profile is a stop taken before anything is composed.
-    /// </summary>
-    /// <remarks>
-    /// This generation accepts a quality profile id of zero, echoes it back and then never acquires
-    /// anything, so refusing here is the only guard there is.
-    /// </remarks>
+    // This generation accepts a quality profile id of zero, echoes it back and then never acquires
+    // anything, so refusing here is the only guard there is.
     [Fact]
     public async Task AnInstanceOfferingNoQualityProfileIsRefusedBeforeAnySceneIsSent()
     {
@@ -165,10 +141,7 @@ public sealed class AddAllMissingRouteTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// The route creates items in the reader's Whisparr, so a caller who cannot configure the
-    /// extension is out of reach of it.
-    /// </summary>
+    // The route creates items in the reader's Whisparr, so read permission alone cannot reach it.
     [Fact]
     public async Task ACallerHoldingOnlyReadIsRefused()
     {
@@ -192,13 +165,8 @@ public sealed class AddAllMissingRouteTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// Every identified scene is offered once, and the catalogue refresh follows.
-    /// </summary>
-    /// <remarks>
-    /// The refresh names the instance's OWN row id for the entity, read from its own record, so no
-    /// value a caller could supply reaches it.
-    /// </remarks>
+    // The refresh names the instance's own row id for the entity, read from its own record, so no
+    // value a caller could supply reaches it.
     [Fact]
     public async Task TheEnqueuedRunOffersEachIdentifiedSceneOnceAndRefreshesTheCatalogueOnce()
     {
@@ -228,14 +196,8 @@ public sealed class AddAllMissingRouteTests
         Assert.Contains(progress.Reports, report => report.SubTask is not null);
     }
 
-    /// <summary>
-    /// An identifier a caller put in a body reaches nothing.
-    /// </summary>
-    /// <remarks>
-    /// The route declares no request record at all, so the value has nowhere to bind. This asserts
-    /// what LEFT rather than what bound: every identifier the run offered came from the library's
-    /// own rows.
-    /// </remarks>
+    // The route declares no request record, so the value has nowhere to bind. The assertion is on
+    // what left the process, not on what bound.
     [Fact]
     public async Task AnIdentifierACallerPutInABodyReachesNoOutboundRequest()
     {
@@ -261,7 +223,6 @@ public sealed class AddAllMissingRouteTests
         Assert.All(host.Client.Acting, call => Assert.NotEqual(4242, call.EntityId));
     }
 
-    /// <summary>An entity naming no identified scene registers nothing and refreshes nothing.</summary>
     [Fact]
     public async Task AnEntityNamingNoIdentifiedSceneOffersNothingAndRefreshesNothing()
     {

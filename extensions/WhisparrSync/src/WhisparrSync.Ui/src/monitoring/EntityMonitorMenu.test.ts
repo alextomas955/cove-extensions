@@ -1,11 +1,7 @@
 // @vitest-environment jsdom
-/**
- * The menu's keyboard behaviour, its roles, and where each sentence lands.
- *
- * The overlay hook is the real one, because the three properties under test are the ones it decides:
- * roving focus finds rows only through their role, its Escape must not reach the page underneath, and
- * the trigger must not count as a click outside. A stand-in for it would assert the stand-in.
- */
+// The overlay hook is the real one, because the properties under test are the ones it decides:
+// roving focus finds rows only through their role, its Escape must not reach the page underneath,
+// and the trigger must not count as a click outside.
 import { test, expect, afterEach } from "vitest";
 import { act, createElement, type ReactNode } from "react";
 
@@ -23,10 +19,7 @@ import {
 } from "../common/ui/copy";
 import type { EntityMonitoringView } from "../wire/api";
 
-/**
- * The name assistive technology composes from an element: its text in document order, minus every
- * subtree removed from the accessibility tree.
- */
+// The text in document order, minus every subtree removed from the accessibility tree.
 function accessibleName(element: Element): string {
   return [...element.childNodes]
     .map((node) => {
@@ -85,8 +78,8 @@ async function mount(
   return {
     container,
     trigger,
-    // Queried from the document, because the menu is portaled out of the host page's own hero: that
-    // container clips its overflow, so a panel left in the flow there would be cut off.
+    // Queried from the document: the menu is portaled out of the host page's hero, which clips its
+    // overflow.
     panel: () => document.body.querySelector('[role="menu"]'),
     rows: () => [...document.body.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]')],
   };
@@ -164,9 +157,9 @@ test("the panel leaves the page's own container, which clips what it holds", asy
 
   const panel = mounted.panel();
   expect(panel).not.toBeNull();
-  // In the document rather than beside the control, and positioned against the viewport, so an
-  // ancestor hiding its overflow cannot cut the panel off. The placement is on the container the
-  // panel and the outcome notice share, which is what stops the two stacking on one another.
+  // In the document and positioned against the viewport, so an ancestor hiding its overflow cannot
+  // cut the panel off. The placement is on the container the panel and the notice share, which is
+  // what stops the two stacking on one another.
   expect(mounted.container.contains(panel)).toBe(false);
   expect(panel?.parentElement?.classList.contains("fixed")).toBe(true);
 });
@@ -347,11 +340,8 @@ test("an action already on its way disables every row and says what is being wai
   expect(rows.every((row) => (row.getAttribute("title") ?? "").includes(", "))).toBe(true);
 });
 
-/**
- * The armed menu of a studio on v2, with the capability set that generation
- * actually holds: it registers no missing scene, so that one row is dimmed and two pressable rows
- * follow it.
- */
+// The capability set v2 actually holds for a studio: it registers no missing scene, so that one
+// row is dimmed and two pressable rows follow it.
 const V2_STUDIO_CAPABILITIES = [
   "outOfBandCallbackSecret",
   "monitorStudio",
@@ -359,11 +349,9 @@ const V2_STUDIO_CAPABILITIES = [
   "searchMonitored",
 ] as const;
 
-/**
- * A menu whose LAST row is dimmed, which needs a capability set no shipped generation answers with:
- * v2 holds the search and v3 holds all three. Written out because the hook
- * being asserted is shared, and a set the wire admits is a set it will be handed.
- */
+// A menu whose last row is dimmed. No shipped generation answers with this set: v2 holds the
+// search and v3 holds all three. Written out because the hook under test is shared, and a set the
+// wire admits is a set it will be handed.
 const NO_SEARCH_CAPABILITIES = ["monitorPerformer", "reflectOwnedFiles"] as const;
 
 test("the arrow keys pass a disabled row to reach the one after it", async () => {
@@ -444,11 +432,9 @@ test("with every row disabled an arrow press moves nothing and raises nothing", 
   expect(document.activeElement).toBe(before);
 });
 
-/**
- * Focus outside the row list is the state a settled press leaves: the pressed row is disabled while
- * the gesture runs, the browser moves focus off it to the document, and the rows re-enable. Both
- * directions have to enter the list from there, and the wrapping arithmetic is the shared hook's.
- */
+// Focus outside the row list is the state a settled press leaves: the pressed row disables, the
+// browser moves focus to the document, and the rows re-enable. Both directions must enter the list
+// from there.
 test("an arrow press with the focus outside the rows enters the list at its own end", async () => {
   const menu = monitorMenu(viewOf({ monitored: true }), false);
   const mounted = await mount((triggerRef) =>
@@ -474,12 +460,9 @@ test("an arrow press with the focus outside the rows enters the list at its own 
   expect(document.activeElement).toBe(pressable.at(0));
 });
 
-/**
- * The room below the control is what bounds the overlay, and a window short enough to leave almost
- * none of it would bound the panel to a few pixels while the outcome sentence keeps its own height,
- * pushing that sentence past the bound the container carries. The floor is stated as a lower bound
- * rather than as the module's own number, so raising it does not fail this case.
- */
+// The room below the control bounds the overlay. A window short enough to leave almost none of it
+// would bound the panel to a few pixels while the notice keeps its own height, pushing the notice
+// past the bound. The floor is asserted as a lower bound, so raising it does not fail this case.
 test("the room the overlay is given never falls below a readable floor", async () => {
   const wasInnerHeight = window.innerHeight;
   teardowns.push(() => {
@@ -532,9 +515,8 @@ test("the menu panel scrolls rather than clipping", async () => {
     }),
   );
 
-  // A class assertion is weak on its own. What carries the rest of the claim is the check-classes
-  // gate, which rejects a class the host does not emit, and the measurement that the host emits
-  // overflow-y-auto and no arbitrary max-height value.
+  // A class assertion is weak on its own. The check-classes gate carries the rest of the claim by
+  // rejecting a class the host does not emit.
   const panel = mounted.panel() as HTMLElement;
   expect(panel.classList.contains("overflow-y-auto")).toBe(true);
   expect(panel.classList.contains("overflow-hidden")).toBe(false);
@@ -558,9 +540,9 @@ test("the room below the trigger bounds the container, and the notice cannot be 
   const container = panel.parentElement!;
   const notice = document.body.querySelector<HTMLElement>('[role="status"]')!;
 
-  // jsdom reports every element rectangle as zeroes, so the height the notice keeps out of the
-  // room is not measurable here. What is measurable is which element carries the bound and which
-  // of the two children the column may shrink: the panel may, the notice may not.
+  // jsdom reports every element rectangle as zeroes, so the height the notice keeps out of the room
+  // is not measurable. What is measurable is which element carries the bound and which of the two
+  // children the column may shrink: the panel may, the notice may not.
   expect(container.style.maxHeight).not.toBe("");
   expect(panel.style.maxHeight).toBe("");
   expect(container.classList.contains("flex")).toBe(true);

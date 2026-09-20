@@ -6,28 +6,20 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// The two channels ingesting one file exactly once between them, derived live on every delivery
-/// rather than remembered.
-/// </summary>
-/// <remarks>
-/// The assertions are over the ARGUMENTS and the call counts the host seams saw, not over the
-/// returned outcome alone: a core that reported a done-already outcome while still calling the host
-/// import would satisfy the outcome and none of the claim.
-/// </remarks>
+// The assertions are over the arguments and the call counts the host seams saw, not over the
+// returned outcome alone: a core that reported a done-already outcome while still calling the host
+// import would satisfy the outcome and none of the claim.
 public sealed class ImportCoreIdempotencyTests
 {
     private const string WhisparrRoot = "/whisparr-media";
 
-    /// <summary>
-    /// A second root, whose line is the control that tells a per-root clear from a global one.
-    /// </summary>
+    // A second root, whose line is the control that tells a per-root clear from a global one.
     private const string OtherWhisparrRoot = "/whisparr-elsewhere";
 
     private const string ReportedPath = "/whisparr-media/scene.mp4";
     private const string VerifiedPath = "/data/scene.mp4";
 
-    /// <summary>A reported path no probe finds, so its delivery is refused by name.</summary>
+    // No probe finds this path, so a delivery naming it is refused by name.
     private const string MissingPath = "/whisparr-media/nothing-is-here.mp4";
 
     private const string RemoteId = "e1a5c0d2-0000-4000-8000-000000000004";
@@ -62,10 +54,6 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Equal(ImportOutcome.AlreadyHeld, outcome);
     }
 
-    /// <summary>
-    /// The backstop projects no identifier off a history record, so the pass that arrives second at a
-    /// path the live channel already brought in reaches nothing at all.
-    /// </summary>
     [Fact]
     public async Task ABackstopCandidateForAPathTheLiveChannelImportedDoesNoWork()
     {
@@ -80,10 +68,6 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Single(ingest.Library.Enriched);
     }
 
-    /// <summary>
-    /// The live channel arriving second at a path the backstop brought in: the import is still not
-    /// repeated, and the identity the backstop could not read is written now.
-    /// </summary>
     [Fact]
     public async Task TheLiveChannelArrivingSecondStampsTheIdentityTheBackstopCouldNotRead()
     {
@@ -98,14 +82,8 @@ public sealed class ImportCoreIdempotencyTests
             (1, "https://stashdb.org/graphql", RemoteId), Assert.Single(ingest.Library.Stamped));
     }
 
-    /// <summary>
-    /// A row no item claims, named by a delivery carrying no identifier, reaches the host not at all.
-    /// </summary>
-    /// <remarks>
-    /// Handing the host a path it already has a row for and no item to attach it to is the one input
-    /// its import answers by raising, so this is the refusal that keeps the delivery inside its
-    /// answer.
-    /// </remarks>
+    // Handing the host a path it already has a row for and no item to attach it to is the one input
+    // its import answers by raising, so this is the refusal that keeps the delivery inside its answer.
     [Fact]
     public async Task ADeliveryForADetachedPathWithNoIdentityReachesNoHostImport()
     {
@@ -121,15 +99,9 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Empty(ingest.Library.Enriched);
     }
 
-    /// <summary>
-    /// The same row, named by a delivery whose identifier resolves, is handed to the host WITH that
-    /// item's key.
-    /// </summary>
-    /// <remarks>
-    /// Asserted on the argument the host import received. A core that called it with no key would
-    /// satisfy "the host was called" and none of the claim - that key is the whole difference between
-    /// the host re-attaching the row and the host raising.
-    /// </remarks>
+    // Asserted on the argument the host import received. A core that called it with no key would
+    // satisfy "the host was called" and none of the claim: that key is the difference between the host
+    // re-attaching the row and the host raising.
     [Fact]
     public async Task ADeliveryForADetachedPathWithAnIdentityHandsTheHostThatVideoKey()
     {
@@ -155,14 +127,9 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Equal([VerifiedPath, VerifiedPath, VerifiedPath], ingest.Library.Probed);
     }
 
-    /// <summary>
-    /// A delivery with nothing to report against its own root writes nothing at all.
-    /// </summary>
-    /// <remarks>
-    /// The seeded line belongs to another root, which this delivery neither clears nor touches, so the
-    /// fold answers a value equal to the stored one. The blob is compared as the store holds it, so a
-    /// save that wrote an equal value would still be caught by the write count beside it.
-    /// </remarks>
+    // The seeded line belongs to another root, which this delivery neither clears nor touches, so the
+    // fold answers a value equal to the stored one. The blob is compared as the store holds it, so a
+    // save that wrote an equal value would still be caught by the write count beside it.
     [Fact]
     public async Task ADeliveryThatRegisteredNothingLeavesTheStoredBlobByteIdentical()
     {
@@ -180,16 +147,10 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Equal(writes, ingest.Store.SetCallCount);
     }
 
-    /// <summary>
-    /// A delivery whose file the library already holds is evidence its root works: it covers the path
-    /// with a follow-up and clears that root's line, and only that root's.
-    /// </summary>
-    /// <remarks>
-    /// This is the ordinary recovery path. The user adds the root they were missing, Cove's own scan
-    /// imports the files, and the next delivery finds them already held - so if this branch reported
-    /// nothing, the banner would keep naming a root the user had already fixed until a genuinely new
-    /// file arrived under it.
-    /// </remarks>
+    // This is the ordinary recovery path. The user adds the root they were missing, Cove's own scan
+    // imports the files, and the next delivery finds them already held. If this branch reported
+    // nothing, the banner would keep naming a root the user had already fixed until a genuinely new
+    // file arrived under it.
     [Fact]
     public async Task AnAlreadyHeldDeliveryCoversItsPathAndClearsOnlyItsOwnRootsLine()
     {
@@ -207,9 +168,6 @@ public sealed class ImportCoreIdempotencyTests
             Assert.Single((await ingest.StoredAsync()).ImportRefusals).Root);
     }
 
-    /// <summary>
-    /// The already-held branch is not an import, and nothing it does reports one.
-    /// </summary>
     [Fact]
     public async Task AnAlreadyHeldDeliveryRecordsNoImportAsHavingWorked()
     {
@@ -223,15 +181,8 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Empty(ingest.Library.Imported);
     }
 
-    /// <summary>
-    /// An ingest that registered a file records when an import last worked, and one that was refused
-    /// does not.
-    /// </summary>
-    /// <remarks>
-    /// Written from the ingest rather than from the backstop, because the live channel imports with no
-    /// pass running at all and a member only a pass wrote would read as never against a working
-    /// webhook.
-    /// </remarks>
+    // Written from the ingest rather than from the backstop, because the live channel imports with no
+    // pass running at all and a member only a pass wrote would read as never against a working webhook.
     [Fact]
     public async Task AnIngestThatRegisteredAFileRecordsWhenAnImportLastWorked()
     {
@@ -253,15 +204,12 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Null((await ingest.StoredAsync()).ImportHealth.LastWorkedAtUtc);
     }
 
-    /// <summary>One ingest wired over fakes, with the live dedupe read recorded.</summary>
     private sealed class Ingest
     {
-        /// <summary>The instant this ingest's clock reads.</summary>
         public static readonly DateTimeOffset Now = new(2026, 8, 31, 9, 0, 0, TimeSpan.Zero);
 
         public FakeStore Store { get; } = new();
 
-        /// <summary>The one gate every delivery in a case goes through, as the container has it.</summary>
         public OptionsWriteGate Gate { get; } = new();
 
         public RecordingLibrary Library { get; } = new(reached: true, ["/data"]);
@@ -270,13 +218,11 @@ public sealed class ImportCoreIdempotencyTests
 
         public void Holds(string path) => Library.Held[path] = new HeldFile(1);
 
-        /// <summary>Puts a row at <paramref name="path"/> that no item claims.</summary>
         public void HoldsDetached(string path) => Library.Held[path] = new HeldFile(null);
 
-        /// <summary>The one pending batch this ingest's imports collect into.</summary>
         public FollowUpScanCoalescer FollowUp { get; } = new(new FixedClock(Now), NullLogger.Instance);
 
-        /// <summary>Puts one outstanding refusal in the blob, so a clearing write would show.</summary>
+        // One outstanding refusal in the blob, so a clearing write would show.
         public async Task SeedRefusalAsync(string root = WhisparrRoot)
         {
             var options = new OptionsStore(Store);

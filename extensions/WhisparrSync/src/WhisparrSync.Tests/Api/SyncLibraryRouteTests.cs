@@ -11,25 +11,18 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Api;
 
-/// <summary>
-/// The library run over the path a reader reaches: the mounted route, the refusals taken before
-/// anything leaves, and the background run that offers one scene at a time.
-/// </summary>
-/// <remarks>
-/// Driven through the shipped registration rather than by calling the handler. A handler called
-/// directly agrees with a route mounted at the wrong pattern, bound to a body the browser cannot
-/// send, or reachable by a caller the declaration excludes.
-/// </remarks>
+// Driven through the shipped registration rather than by calling the handler. A handler called
+// directly agrees with a route mounted at the wrong pattern, bound to a body the browser cannot
+// send, or reachable by a caller the declaration excludes.
 public sealed class SyncLibraryRouteTests
 {
     private const string AcceptedFixture = "whisparr-v3-3.3.8.1097-scene-add-accepted.json";
 
     private const string AlreadyHeldFixture = "whisparr-v3-3.3.8.1097-scene-add-already-held.json";
 
-    /// <summary>The instance's own numeric scene id, as the accepted add's own answer names it.</summary>
+    // The instance's own numeric scene id, as the accepted add fixture names it.
     private const int AcceptedSceneId = 569;
 
-    /// <summary>A scene the instance already holds, answered by its per-scene read.</summary>
     private const int HeldSceneId = 412;
 
     private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
@@ -37,11 +30,8 @@ public sealed class SyncLibraryRouteTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>A configure-permitted reader starts one run, and it is enqueued non-exclusive.</summary>
-    /// <remarks>
-    /// The one non-exclusive enqueue in this extension. A library-wide run enqueued exclusive would
-    /// hold the reader's own Cove scans and refreshes behind it for as long as the library is large.
-    /// </remarks>
+    // The one non-exclusive enqueue in this extension. A library-wide run enqueued exclusive holds
+    // Cove's own scans and refreshes behind it for as long as the library is large.
     [Fact]
     public async Task ARunIsEnqueuedNonExclusiveAndAnswersItsJobId()
     {
@@ -63,12 +53,8 @@ public sealed class SyncLibraryRouteTests
         Assert.DoesNotContain("site", job.Description, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>A second run is refused while the first is pending or running, and names it.</summary>
-    /// <remarks>
-    /// Read off the host's own job list rather than a flag of this product's, so it answers false the
-    /// moment the run ends and is empty after a process restart. The refusal carries the running
-    /// job's own id, so the page can point at the run rather than at an unexplained no.
-    /// </remarks>
+    // In-flight is read off the host's job list rather than a flag of this product's, so it clears
+    // when the run ends and after a process restart. The refusal carries the running job's id.
     [Fact]
     public async Task ASecondRunIsRefusedByNameWhileTheFirstIsStillInFlight()
     {
@@ -82,11 +68,8 @@ public sealed class SyncLibraryRouteTests
         Assert.Single(host.Jobs.Enqueued);
     }
 
-    /// <summary>A caller without the configure tier is refused before anything is enqueued.</summary>
-    /// <remarks>
-    /// The route declares the tier and the handler re-checks it, because the host's own permission
-    /// filter is inert on a minimal-API endpoint.
-    /// </remarks>
+    // The route declares the configure tier and the handler re-checks it, because the host's
+    // permission filter is inert on a minimal-API endpoint.
     [Fact]
     public async Task ACallerWithoutTheConfigureTierIsRefusedBeforeAnythingIsEnqueued()
     {
@@ -100,7 +83,6 @@ public sealed class SyncLibraryRouteTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>With no instance configured nothing is enqueued and the reason is named.</summary>
     [Fact]
     public async Task WithNoInstanceConfiguredNothingIsEnqueued()
     {
@@ -113,16 +95,9 @@ public sealed class SyncLibraryRouteTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// Whisparr v2 is aimed at its own pass rather than refused, from the roles the target
-    /// obtains rather than from a version check.
-    /// </summary>
-    /// <remarks>
-    /// It registers no scene-status read, so the scene pass has nothing to ask; it does register the
-    /// site add, so the run is a site pass. The keeps-no-scene-records refusal stays for a target
-    /// obtaining neither role, which is what the route answers where no generation this product
-    /// expresses is connected.
-    /// </remarks>
+    // Whisparr v2 is aimed at its own pass from the roles the target obtains, not from a version
+    // check. It registers no scene-status read and does register the site add, so the run is a site
+    // pass. A target obtaining neither role is what the keeps-no-scene-records refusal is for.
     [Fact]
     public async Task TheOlderGenerationIsAimedAtItsOwnPassRatherThanRefused()
     {
@@ -135,14 +110,9 @@ public sealed class SyncLibraryRouteTests
         Assert.Single(host.Jobs.Enqueued);
     }
 
-    /// <summary>
-    /// The run offers every identified scene in the library once and asks for no acquisition.
-    /// </summary>
-    /// <remarks>
-    /// The ordered verb log is the evidence, and it covers every verb this product can issue rather
-    /// than the ones one interface declares. A scene carrying no identifier in the connected namespace
-    /// is not offered at all: there is nothing to name it by.
-    /// </remarks>
+    // The seeded scene carrying no identifier in the connected namespace is not offered, because
+    // there is nothing to name it by. The verb log covers every verb this product can issue, not
+    // only the ones one interface declares.
     [Fact]
     public async Task TheRunOffersEveryIdentifiedSceneOnceAndAsksForNoAcquisition()
     {
@@ -170,15 +140,9 @@ public sealed class SyncLibraryRouteTests
             verb => Assert.DoesNotContain("Grab", verb, StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// With monitoring on, a scene just registered and one the instance already held are both
-    /// monitored, each by the instance's own numeric id.
-    /// </summary>
-    /// <remarks>
-    /// The id is not an identifier this product holds. It is taken off the accepted add's own answer
-    /// where the add was accepted, and off one read of the scene where the instance already held it,
-    /// so an already-held scene costs one extra request and a just-registered one costs none.
-    /// </remarks>
+    // The numeric id is not an identifier this product holds. It comes off the accepted add's
+    // answer, or off one read of the scene where the instance already held it, so an already-held
+    // scene costs one extra request and a just-registered one costs none.
     [Fact]
     public async Task WithMonitoringOnBothANewSceneAndOneAlreadyHeldAreMonitoredByTheInstancesOwnId()
     {
@@ -208,7 +172,6 @@ public sealed class SyncLibraryRouteTests
         Assert.All(monitored, call => Assert.True(call.Monitored));
     }
 
-    /// <summary>With monitoring off, no flag is set on anything.</summary>
     [Fact]
     public async Task WithMonitoringOffNoFlagIsSetOnAnything()
     {
@@ -223,13 +186,13 @@ public sealed class SyncLibraryRouteTests
             nameof(IWhisparrSceneMonitorActing.SetSceneMonitoredAsync), host.Client.Verbs);
     }
 
-    /// <summary>One row of the shape the per-scene read answers for a scene the instance holds.</summary>
+    // One row of the shape the per-scene read answers for a scene the instance holds.
     private static string HeldRow
         => string.Create(
             CultureInfo.InvariantCulture,
             $$"""[{"id":{{HeldSceneId}},"foreignId":"{{SecondScene}}","monitored":false}]""");
 
-    /// <summary>A host whose instance takes every scene it is offered.</summary>
+    // A host whose instance takes every scene it is offered.
     private static async Task<MonitorHost> HoldingHost()
     {
         var host = await MonitorHost.CreateAsync();

@@ -3,26 +3,15 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// Which folders one entity's own files sit in, and how many sit under one library root, read from a
-/// real relational library.
-/// </summary>
-/// <remarks>
-/// The de-duplication is as much the subject as the paths are. A library reaches millions of files,
-/// so a folder set assembled by loading every file and reducing it in memory would answer correctly
-/// and be unusable, which is why the shape of the read is asserted beside the answer.
-/// <para>
-/// The counting cases are about the answer and about which kind's table each arm reads, not about
-/// the SQL. The two traps they exist for are a sibling directory sharing a root's name prefix, and a
-/// root spelled with the separator the library does not store.
-/// </para>
-/// </remarks>
+// A library reaches millions of files, so a folder set assembled by loading every file and reducing
+// it in memory would answer correctly and be unusable. That is why the shape of the read is
+// asserted beside the answer.
 public sealed class EntityFolderPortTests
 {
     private const string Earlier = "/library/vixen/2025";
     private const string Later = "/library/vixen/2026";
 
-    /// <summary>A library root spelled the way the host stores one, and a second beside it.</summary>
+    // A library root spelled the way the host stores one.
     private const string FirstRoot = "G:/Downloads/P";
 
     private const string SecondRoot = "I:/Downloads/P";
@@ -41,10 +30,8 @@ public sealed class EntityFolderPortTests
         Assert.Equal([Earlier, Later], await FoldersOf(host, WhisparrEntityKind.Studio, studioId));
     }
 
-    /// <summary>
-    /// A performer's files reach it through the join row, which is a different table from the column
-    /// a studio's files carry.
-    /// </summary>
+    // A performer's files reach it through the join row, a different table from the column a
+    // studio's files carry.
     [Fact]
     public async Task APerformerLinkedToAVideoAnswersThatVideosFolder()
     {
@@ -55,13 +42,8 @@ public sealed class EntityFolderPortTests
         Assert.Equal([Later], await FoldersOf(host, WhisparrEntityKind.Performer, performerId));
     }
 
-    /// <summary>
-    /// One entity's files are not another's, in both directions.
-    /// </summary>
-    /// <remarks>
-    /// Both kinds are seeded in one library, so an arm reading the other kind's table finds rows
-    /// rather than nothing and the mistake is visible.
-    /// </remarks>
+    // Both kinds are seeded in one library, so an arm reading the other kind's table finds rows
+    // rather than nothing.
     [Fact]
     public async Task NeitherKindAnswersTheOthersFolders()
     {
@@ -75,14 +57,9 @@ public sealed class EntityFolderPortTests
         Assert.Equal([Earlier], await FoldersOf(host, WhisparrEntityKind.Performer, performerId));
     }
 
-    /// <summary>
-    /// A folder the library holds under a blank path is not offered, because the request that reads
-    /// a folder refuses a blank one by throwing rather than by answering nothing.
-    /// </summary>
-    /// <remarks>
-    /// The real one is seeded beside it so the case separates "excluded the blank" from "answered
-    /// nothing at all".
-    /// </remarks>
+    // The request that reads a folder throws on a blank path rather than answering nothing. A real
+    // folder is seeded beside the blank one, so excluding the blank is told apart from answering
+    // nothing at all.
     [Fact]
     public async Task AFileWhoseParentFolderPathIsBlankYieldsNoFolder()
     {
@@ -94,15 +71,8 @@ public sealed class EntityFolderPortTests
         Assert.Equal([Later], await FoldersOf(host, WhisparrEntityKind.Studio, studioId));
     }
 
-    /// <summary>
-    /// A path of nothing but spaces is excluded too, matching the consumer's guard rather than a
-    /// narrower emptiness test.
-    /// </summary>
-    /// <remarks>
-    /// Spaces rather than a tab: the two engines this runs against trim different sets, and a space
-    /// is in both. This case is what pins the predicate to whitespace emptiness, so narrowing it to
-    /// an empty-string comparison later goes red here.
-    /// </remarks>
+    // Spaces rather than a tab: the two engines this runs against trim different sets, and a space
+    // is in both. The case pins the predicate to whitespace emptiness.
     [Fact]
     public async Task AFileWhoseParentFolderPathIsOnlySpacesYieldsNoFolder()
     {
@@ -114,9 +84,6 @@ public sealed class EntityFolderPortTests
         Assert.Equal([Later], await FoldersOf(host, WhisparrEntityKind.Studio, studioId));
     }
 
-    /// <summary>
-    /// Two files in one folder are one folder to read, whatever else the entity holds.
-    /// </summary>
     [Fact]
     public async Task TwoFilesInOneFolderYieldOneFolder()
     {
@@ -137,9 +104,6 @@ public sealed class EntityFolderPortTests
         Assert.Empty(await FoldersOf(host, WhisparrEntityKind.Studio, studioId));
     }
 
-    /// <summary>
-    /// An id below one answers nothing rather than every file carrying no entity.
-    /// </summary>
     [Fact]
     public async Task AnIdBelowOneAnswersNothing()
     {
@@ -150,9 +114,6 @@ public sealed class EntityFolderPortTests
         Assert.Empty(await FoldersOf(host, WhisparrEntityKind.Performer, -1));
     }
 
-    /// <summary>
-    /// A kind this product does not express is a fault, matching how identity treats the same case.
-    /// </summary>
     [Fact]
     public async Task AKindThisProductDoesNotExpressIsAFaultRatherThanAnEmptyAnswer()
     {
@@ -162,14 +123,8 @@ public sealed class EntityFolderPortTests
             () => FoldersOf(host, (WhisparrEntityKind)(-1), 1));
     }
 
-    /// <summary>
-    /// The answer is streamed and the de-duplication is the database's.
-    /// </summary>
-    /// <remarks>
-    /// Read off the source, because no behavioural assertion can tell a query that de-duplicates from
-    /// a method that loads every row and reduces it: both answer the same folders, and only one of
-    /// them still works on a library of millions.
-    /// </remarks>
+    // Read off the source, because no behavioural assertion tells a query that de-duplicates from a
+    // method that loads every row and reduces it. Both answer the same folders.
     [Fact]
     public void TheFolderReadHoldsNothingPerFile()
     {
@@ -182,7 +137,6 @@ public sealed class EntityFolderPortTests
             accumulating => Assert.DoesNotContain(accumulating, source, StringComparison.Ordinal));
     }
 
-    /// <summary>One studio's files under two library roots answer each root's own count.</summary>
     [Fact]
     public async Task AStudioSplitAcrossTwoRootsAnswersEachRootsOwnCount()
     {
@@ -196,14 +150,8 @@ public sealed class EntityFolderPortTests
         Assert.Equal(1, await CountUnder(host, WhisparrEntityKind.Studio, studioId, SecondRoot));
     }
 
-    /// <summary>
-    /// A sibling directory whose name begins with the root's own name counts under neither root.
-    /// </summary>
-    /// <remarks>
-    /// The two roots share a name prefix on purpose: a count taken without the root's trailing
-    /// separator answers three for the shorter root, so this case reddens rather than passing by
-    /// accident.
-    /// </remarks>
+    // The two roots share a name prefix on purpose: a count taken without the root's trailing
+    // separator answers three for the shorter root.
     [Fact]
     public async Task ASiblingSharingTheRootsNamePrefixCountsUnderNeitherRoot()
     {
@@ -220,11 +168,8 @@ public sealed class EntityFolderPortTests
             await CountUnder(host, WhisparrEntityKind.Studio, studioId, "/library/vixen-classics"));
     }
 
-    /// <summary>A root spelled with the other separator still counts its files.</summary>
-    /// <remarks>
-    /// The library stores the forward-slash form, and a host configured on Windows names its roots
-    /// the other way, so a count comparing the two as typed would answer zero for every studio.
-    /// </remarks>
+    // The library stores the forward-slash form, and a host configured on Windows names its roots
+    // the other way, so a count comparing the two as typed would answer zero for every studio.
     [Fact]
     public async Task ARootSpelledWithBackslashesStillCountsItsFiles()
     {
@@ -237,13 +182,8 @@ public sealed class EntityFolderPortTests
             await CountUnder(host, WhisparrEntityKind.Studio, studioId, @"G:\Downloads\P"));
     }
 
-    /// <summary>
-    /// A performer's files reach the count through the join row, and a studio's are not in it.
-    /// </summary>
-    /// <remarks>
-    /// Both kinds are seeded in one library under one root, so an arm reading the other kind's table
-    /// finds rows rather than nothing and the mistake is visible.
-    /// </remarks>
+    // Both kinds are seeded in one library under one root, so an arm reading the other kind's table
+    // finds rows rather than nothing.
     [Fact]
     public async Task NeitherKindCountsTheOthersFiles()
     {
@@ -259,7 +199,6 @@ public sealed class EntityFolderPortTests
             2, await CountUnder(host, WhisparrEntityKind.Performer, performerId, FirstRoot));
     }
 
-    /// <summary>An id below one counts nothing rather than every file carrying no entity.</summary>
     [Fact]
     public async Task AnIdBelowOneCountsNothing()
     {
@@ -271,7 +210,6 @@ public sealed class EntityFolderPortTests
         Assert.Equal(0, await CountUnder(host, WhisparrEntityKind.Performer, -1, FirstRoot));
     }
 
-    /// <summary>A kind this product does not express is a fault here too.</summary>
     [Fact]
     public async Task AKindThisProductDoesNotExpressFaultsTheCount()
     {
@@ -281,7 +219,7 @@ public sealed class EntityFolderPortTests
             () => CountUnder(host, (WhisparrEntityKind)(-1), 1, FirstRoot));
     }
 
-    /// <summary>A blank root is refused rather than counted as every file in the library.</summary>
+    // A blank root, if counted, would match every file in the library.
     [Fact]
     public async Task ABlankRootIsRefused()
     {
@@ -292,14 +230,9 @@ public sealed class EntityFolderPortTests
             () => CountUnder(host, WhisparrEntityKind.Studio, studioId, "   "));
     }
 
-    /// <summary>
-    /// The per-root count is the database's, and no file row is loaded to reach it.
-    /// </summary>
-    /// <remarks>
-    /// Read off the source for the reason the folder read's own shape case states: a count assembled
-    /// in memory answers the same number, and only one of the two still works on a library of
-    /// millions. The narrowing is on the denormalized path column, which no folder row is loaded for.
-    /// </remarks>
+    // Read off the source for the same reason as the folder read: a count assembled in memory
+    // answers the same number. The narrowing is on the denormalized path column, so no folder row
+    // is loaded.
     [Fact]
     public void ThePerRootCountIsTakenAsACount()
     {
@@ -310,7 +243,6 @@ public sealed class EntityFolderPortTests
         Assert.DoesNotContain("Select(file => file.Path)", source, StringComparison.Ordinal);
     }
 
-    /// <summary>One video's files under two library roots answer each root's own count.</summary>
     [Fact]
     public async Task AVideoSplitAcrossTwoRootsAnswersEachRootsOwnCount()
     {

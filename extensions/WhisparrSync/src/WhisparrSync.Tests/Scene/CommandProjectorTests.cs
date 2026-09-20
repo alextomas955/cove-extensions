@@ -3,18 +3,13 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Scene;
 
-/// <summary>
-/// What a posted command's own answers establish, and what they deliberately do not.
-/// </summary>
-/// <remarks>
-/// Every body here is a raw answer, because the instance composes it. A builder composing the value
-/// under test would agree with itself whatever the projection did with it.
-/// </remarks>
+// Every body here is a raw answer, because the instance composes it. A builder composing the value
+// under test would agree with itself whatever the projection did.
 public sealed class CommandProjectorTests
 {
     private const string JsonContentType = "application/json; charset=utf-8";
 
-    /// <summary>The answer the command route gives to a post it accepted.</summary>
+    // The answer Whisparr's command route gives to a post it accepted.
     private const string Posted =
         """
         {"id":8123,"name":"MoviesSearch","commandName":"Movies Search","status":"queued",
@@ -33,20 +28,12 @@ public sealed class CommandProjectorTests
     public void AnEmptyAnswerNamesNoCommand()
         => Assert.Null(CommandProjector.IdIn(Json(string.Empty)));
 
-    /// <summary>
-    /// A non-numeric identifier names no command, rather than being coerced into one.
-    /// </summary>
     [Fact]
     public void AnAnswerWhoseIdentifierIsNotANumberNamesNoCommand()
         => Assert.Null(CommandProjector.IdIn(Json("""{"id":"8123","name":"MoviesSearch"}""")));
 
-    /// <summary>
-    /// A read-back naming the posted command confirms it, whatever progress it reports.
-    /// </summary>
-    /// <remarks>
-    /// Both statuses are asserted from one identifier, so no progress vocabulary can reach the
-    /// decision. Which status a just-posted command reports is the instance's own and unmeasured.
-    /// </remarks>
+    // Which status a just-posted command reports is the instance's own and unmeasured, so every
+    // status is asserted from the identifier alone.
     [Fact]
     public void AReadBackNamingThePostedCommandConfirmsItWhateverProgressItReports()
     {

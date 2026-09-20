@@ -6,17 +6,6 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Missing;
 
-/// <summary>
-/// What each card on a page reads as, and how many requests a page of them costs.
-/// </summary>
-/// <remarks>
-/// The cost claim is the point. Every value here is also derivable from a shape that asks the
-/// instance for its whole catalogue, so the request count is asserted rather than the answers alone.
-/// <para>
-/// The recorded row is a real answer from the instance the fixture names, so a field read under a
-/// name that instance does not use fails here.
-/// </para>
-/// </remarks>
 public sealed class SceneStatusPortTests
 {
     private const string FixtureName = "whisparr-v3-3.4.0.1387-movie-by-stashid.json";
@@ -27,7 +16,6 @@ public sealed class SceneStatusPortTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>The recording states the build and the day it came from.</summary>
     [Fact]
     public void TheFixtureStatesItsOwnProvenance()
     {
@@ -37,10 +25,6 @@ public sealed class SceneStatusPortTests
         Assert.Equal("Whisparr 3.4.0.1387", fixture.GetProperty("recordedAgainst").GetString());
     }
 
-    /// <summary>
-    /// An instance holding no entry for the entity holds none for a scene under it, so one request
-    /// settles the page.
-    /// </summary>
     [Fact]
     public async Task AnAbsentEntityIsFortyNotAddedCardsAndZeroPerCardRequests()
     {
@@ -57,7 +41,6 @@ public sealed class SceneStatusPortTests
         Assert.Equal(0, reading.SceneCalls);
     }
 
-    /// <summary>A page costs one request per card and no more.</summary>
     [Fact]
     public async Task APresentEntityCostsAtMostOneRequestPerCard()
     {
@@ -72,10 +55,8 @@ public sealed class SceneStatusPortTests
         Assert.Equal(40, reading.SceneCalls);
     }
 
-    /// <summary>
-    /// The identifier travels on the one key that narrows. Two other spellings this instance accepts
-    /// are ignored and answer with the whole catalogue.
-    /// </summary>
+    // stashId is the one key that narrows. The instance accepts stashIds and foreignId and ignores
+    // both, answering with the whole catalogue.
     [Fact]
     public async Task TheComposedQueryCarriesExactlyOneNarrowingKey()
     {
@@ -92,7 +73,6 @@ public sealed class SceneStatusPortTests
         Assert.DoesNotContain("foreignId=", target, StringComparison.Ordinal);
     }
 
-    /// <summary>Each of the four values comes from a real recorded row shape.</summary>
     [Theory]
     [InlineData(true, MissingSceneState.Monitored)]
     [InlineData(false, MissingSceneState.Unmonitored)]
@@ -110,10 +90,8 @@ public sealed class SceneStatusPortTests
         Assert.Equal(expected, states["a-scene"]);
     }
 
-    /// <summary>
-    /// The instance answers a scene it does not hold with a success and an empty list rather than a
-    /// not-found, so the absence is read out of the body.
-    /// </summary>
+    // The instance answers a scene it does not hold with a success and an empty list, not a
+    // not-found, so the absence is read out of the body.
     [Fact]
     public async Task AnEmptyListForAHeldEntityIsNotAddedRatherThanUnknown()
     {
@@ -129,10 +107,6 @@ public sealed class SceneStatusPortTests
         Assert.Equal(MissingSceneState.NotAdded, states["a-scene"]);
     }
 
-    /// <summary>
-    /// A probe that answered nothing claims nothing about the instance, and no per-card request is
-    /// spent finding out again.
-    /// </summary>
     [Fact]
     public async Task AnUnreadProbeIsUnknownForTheWholePageAndCostsNoPerCardRequest()
     {

@@ -7,53 +7,30 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// Two guarantees about reflect owned, asserted over the path a user reaches: it never transfers
-/// file data, and neither it nor the gesture that starts it asks the reader for anything.
-/// </summary>
-/// <remarks>
-/// Both were previously safe for a reason that no longer holds. The verb had no mounted route, so
-/// nothing it might compose could reach an instance and the question could be answered by reading
-/// the source. It is mounted now, and it runs by itself when monitoring is turned on, so each is
-/// asserted here on the bytes that actually leave and on the shape of what the route accepts.
-/// <para>
-/// The transfer assertions read the composed command rather than the constant it is composed from.
-/// Comparing a constant against itself is not evidence of anything; what an instance acts on is the
-/// serialized body, which is composed below the seam a call site can see.
-/// </para>
-/// <para>
-/// Both generations report exactly two usable import modes, and the one this product never composes
-/// moves the file out of the library. The captured mode lists are what that is read from.
-/// </para>
-/// </remarks>
+// Asserted on the bytes that leave, not on the constants they are composed from: the body is
+// composed below the seam a call site can see.
 public sealed class ReflectOwnedNeverTransfersTests
 {
-    /// <summary>The mode that links when it can, which is the only one this product composes.</summary>
+    // Both Whisparr generations offer exactly these two import modes. "copy" links when it can;
+    // "move" takes the file out of the library.
     private const string Linking = "copy";
 
-    /// <summary>The only other mode either instance offers. It moves the file out of the library.</summary>
     private const string Moving = "move";
 
-    /// <summary>The one command name this whole path may name.</summary>
     private const string TheOnlyCommand = "ManualImport";
 
     private const string LinksIntoPlace = """{"copyUsingHardlinks":true}""";
 
     private const string CopiesInstead = """{"copyUsingHardlinks":false}""";
 
-    /// <summary>One folder's parse answer, with everything an attach has to be composed from.</summary>
+    // One folder's parse answer, with everything an attach is composed from.
     private const string Attachable = """
         [{"path":"/library/vixen/2026/scene.mp4","folderName":"2026",
           "quality":{"quality":{"id":7}},"languages":[{"id":1}],"movie":{"id":31}}]
         """;
 
-    /// <summary>
-    /// The same rows with the quality gone, which the instance's own submit path refuses.
-    /// </summary>
-    /// <remarks>
-    /// A row the parse could not match carries no matched member at all rather than a null one, so
-    /// exclusion is on absence and a row this shape must contribute nothing rather than be filled in.
-    /// </remarks>
+    // A row the parse could not match omits the quality member rather than sending it null, so
+    // exclusion keys on absence.
     private const string Unmatchable = """
         [{"path":"/library/vixen/2026/scene.mp4","folderName":"2026","movie":{"id":31}}]
         """;
@@ -63,9 +40,6 @@ public sealed class ReflectOwnedNeverTransfersTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// A run over two folders composes one linking import per folder and moves nothing.
-    /// </summary>
     [Fact]
     public async Task ARunOverTwoFoldersComposesOneLinkingImportPerFolder()
     {
@@ -77,13 +51,8 @@ public sealed class ReflectOwnedNeverTransfersTests
         Assert.All(commands, body => Assert.Equal(Linking, body["importMode"]!.GetValue<string>()));
     }
 
-    /// <summary>
-    /// No body the whole path sends carries the mode that moves the file, at any depth.
-    /// </summary>
-    /// <remarks>
-    /// Asserted over EVERY recorded body rather than over the command bodies alone: the mode reaching
-    /// an instance is not decided by which request this product thinks composed it.
-    /// </remarks>
+    // Asserted over every recorded body, not the command bodies alone: the mode that reaches an
+    // instance is not decided by which request this product thinks composed it.
     [Fact]
     public async Task NoOutboundBodyNamesTheModeThatMovesTheFile()
     {
@@ -98,16 +67,8 @@ public sealed class ReflectOwnedNeverTransfersTests
                 $"\"importMode\":\"{Moving}\"", body, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>
-    /// The whole path names one command and no other, and retracts nothing.
-    /// </summary>
-    /// <remarks>
-    /// The command names are read out of the bodies rather than checked against a list of forbidden
-    /// ones. A denylist covers the acts whoever wrote it thought of; an allow-set of exactly one name
-    /// covers a rename, an organize, a delete and a search alike, including one nobody has written
-    /// down. The transcribed grabbing names are asserted beside it, because those are the ones a
-    /// reader will look for.
-    /// </remarks>
+    // The command names are read out of the bodies and compared against an allow-set of one name,
+    // so a rename, organize, delete or search command fails here without being listed.
     [Fact]
     public async Task TheWholePathNamesOneCommandAndIssuesNoDelete()
     {
@@ -122,13 +83,8 @@ public sealed class ReflectOwnedNeverTransfersTests
                 grabbing => Assert.DoesNotContain(grabbing, body, StringComparison.Ordinal)));
     }
 
-    /// <summary>
-    /// A folder whose rows cannot be matched contributes no request and is neither linked nor refused.
-    /// </summary>
-    /// <remarks>
-    /// The refused count matters as much as the linked one: reporting an unmatched folder as refused
-    /// would say the instance declined something it was never sent.
-    /// </remarks>
+    // The refused count matters as much as the linked one: counting an unmatched folder as refused
+    // would claim the instance declined something it was never sent.
     [Fact]
     public async Task AFolderWhoseRowsCannotBeMatchedSendsNothingAndIsNotCountedEitherWay()
     {
@@ -139,9 +95,6 @@ public sealed class ReflectOwnedNeverTransfersTests
         Assert.Contains(progress.Reports, report => report.SubTask == "0 linked, 0 refused.");
     }
 
-    /// <summary>
-    /// With the hard-link setting off the route makes exactly one request, and it is the read.
-    /// </summary>
     [Fact]
     public async Task TheHardLinkSettingBeingOffCostsOneReadAndNothingElse()
     {
@@ -158,13 +111,8 @@ public sealed class ReflectOwnedNeverTransfersTests
         Assert.EndsWith("/config/mediamanagement", only.Path, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The monitor gesture asks the reader for nothing, and cannot be given a folder or a profile.
-    /// </summary>
-    /// <remarks>
-    /// Asserted by reflection over the request contract as well as behaviourally, so a folder or a
-    /// profile member added later fails here rather than at whichever surface first sends one.
-    /// </remarks>
+    // Asserted by reflection over the request contract, so a folder or profile member added later
+    // fails here rather than at whichever surface first sends one.
     [Fact]
     public void TheMonitorRequestDeclaresOneOptionalScopeAndNothingElse()
     {
@@ -177,13 +125,8 @@ public sealed class ReflectOwnedNeverTransfersTests
         Assert.Equal(typeof(MonitorScope?), only.PropertyType);
     }
 
-    /// <summary>
-    /// The automatic run adds no prompt and no wait: the click reads no folder and no profile.
-    /// </summary>
-    /// <remarks>
-    /// Driven over an entity the instance ALREADY holds, which is the branch a profile or root-folder
-    /// read would be pointless on and the one a careless add would reach anyway.
-    /// </remarks>
+    // Driven over an entity the instance already holds, which is the branch a profile or root-folder
+    // read is pointless on and the one a careless add would still reach.
     [Fact]
     public async Task TheAutomaticRunAddsNoReadToTheClickThatStartsIt()
     {
@@ -214,14 +157,8 @@ public sealed class ReflectOwnedNeverTransfersTests
             verb => Assert.DoesNotContain(verb, host.Client.Verbs));
     }
 
-    /// <summary>
-    /// One host whose reflect-owned run has been driven to completion over two folders, with what
-    /// the run reported.
-    /// </summary>
-    /// <remarks>
-    /// The answers are keyed on the path each read asks for rather than on their order, so a read
-    /// added to the run does not silently hand one call's answer to another.
-    /// </remarks>
+    // The answers are keyed on the path each read asks for rather than on call order, so a read
+    // added to the run does not hand one call's answer to another.
     private static async Task<(MonitorHost Host, RecordingJobProgress Progress)> RunOverAsync(
         string rows)
     {
@@ -255,11 +192,9 @@ public sealed class ReflectOwnedNeverTransfersTests
     private static Task<int> SeededStudio(MonitorHost host)
         => host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
-    /// <summary>Every request body that actually left, as text.</summary>
     private static List<string> Bodies(MonitorHost host)
         => [.. host.Bytes!.Requests.Select(sent => sent.Body).Where(body => body.Length > 0)];
 
-    /// <summary>Every command body that actually left, parsed.</summary>
     private static List<JsonObject> Commands(MonitorHost host)
         => [.. Bodies(host).Select(body => JsonNode.Parse(body) as JsonObject).OfType<JsonObject>()];
 

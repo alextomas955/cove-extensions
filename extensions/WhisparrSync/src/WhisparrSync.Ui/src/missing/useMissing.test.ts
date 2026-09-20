@@ -1,14 +1,7 @@
 // @vitest-environment jsdom
-/**
- * Which address the tab's bulk path asks for, and what it carries there.
- *
- * A DOM is needed because the property under test is what a mounted hook sends, not what a helper
- * returns: a route composed correctly and never reached, or reached with a body naming other scenes,
- * both pass a value-level check on the composer alone.
- *
- * The host's authenticated fetch and its POST helper stand in, because each resolves only inside a consuming
- * bundle.
- */
+// A DOM is needed because the property under test is what a mounted hook sends, not what a helper
+// returns. The host's authenticated fetch and its POST helper stand in, because each resolves only
+// inside a consuming bundle.
 import { test, expect, vi, afterEach } from "vitest";
 import { act, createElement } from "react";
 
@@ -51,7 +44,6 @@ afterEach(() => {
   sent.length = 0;
 });
 
-/** Mounts the hook over one studio and hands back what it returns. */
 async function mount(coveId: number) {
   let latest: ReturnType<typeof useMissing> | null = null;
   function Probe() {
@@ -65,7 +57,7 @@ async function mount(coveId: number) {
   return latest as unknown as ReturnType<typeof useMissing>;
 }
 
-/** Calls a verb and lets everything it set off run, rather than waiting a number of milliseconds. */
+// Lets everything the verb set off run, rather than waiting a number of milliseconds.
 async function pressing(verb: () => void): Promise<void> {
   await act(() => {
     verb();
@@ -89,10 +81,8 @@ test("the selection asks for the bulk route and carries exactly the ticked scene
   });
 });
 
-/**
- * The entity route registers the scenes the library holds, and every scene on this tab is one it
- * does not, so a call from here would act on the opposite set.
- */
+// The entity route registers the scenes the library holds, and every scene on this tab is one it
+// does not, so a call from here would act on the opposite set.
 test("nothing the tab sends reaches the whole-entity route", async () => {
   const missing = await mount(42);
 

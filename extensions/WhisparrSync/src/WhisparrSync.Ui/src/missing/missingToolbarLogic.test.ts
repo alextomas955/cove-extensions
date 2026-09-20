@@ -8,17 +8,14 @@ import {
   sortOptionsFor,
 } from "./missingToolbarLogic";
 
-/**
- * The three orderings a v3 provider offers, transcribed by hand. A list read from the module under
- * test would agree with whatever it says and report nothing.
- */
+// Transcribed by hand. A list read from the module under test would agree with whatever it says.
 const V3_SORTS: MissingSortOption[] = [
   { value: "DATE-DESC", label: "Newest first" },
   { value: "DATE-ASC", label: "Oldest first" },
   { value: "TITLE-ASC", label: "Title A–Z" },
 ];
 
-/** The two a generation with no title ordering offers. */
+// A generation with no title ordering.
 const V2_SORTS: MissingSortOption[] = [
   { value: "date_desc", label: "Newest first" },
   { value: "date_asc", label: "Oldest first" },

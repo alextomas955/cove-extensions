@@ -7,27 +7,15 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Whisparr;
 
-/// <summary>
-/// What moving a held site's root actually SENDS, read off the serialized request.
-/// </summary>
-/// <remarks>
-/// The transfer guarantee is the reason this file asserts bytes rather than arguments. Whether the
-/// instance moves terabytes is decided by what the request carries, which is composed below the
-/// level a call site can see, so comparing a value a seam was handed against itself would be no
-/// evidence at all. The same rule <c>ReflectOwnedNeverTransfersTests</c> states for the import path.
-/// <para>
-/// The instance transfers nothing when the transfer parameter is absent, measured against a live
-/// instance whose files sat under the old root. So the guarantee here is the parameter's absence,
-/// and an edit that begins naming it is what these cases go red on.
-/// </para>
-/// </remarks>
+// These cases read the serialized request rather than the arguments a seam was handed. Whether
+// the instance moves terabytes is decided by what the request carries, and that is composed below
+// the level a call site can see.
 public sealed class SiteRootMoveTests
 {
     private static readonly Uri Instance = new("http://whisparr-v2:6969/");
 
     private const string ApiKey = "7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c";
 
-    /// <summary>The instance's own numeric id for the site, already resolved upstream.</summary>
     private const int SiteId = 9;
 
     private const string OldRoot = "/library/rootA";
@@ -36,9 +24,7 @@ public sealed class SiteRootMoveTests
 
     private const string Folder = "Tushy";
 
-    /// <summary>
-    /// The site as the instance answers it, carrying members this product never names.
-    /// </summary>
+    // The site as the instance answers it, carrying members this product never names.
     private static readonly string Held = $$"""
         {"id":{{SiteId}},"title":"{{Folder}}","tvdbId":3372,
          "path":"{{OldRoot}}/{{Folder}}","rootFolderPath":"{{OldRoot}}",
@@ -48,11 +34,8 @@ public sealed class SiteRootMoveTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>One read, one update and the catalogue re-read, and nothing else.</summary>
-    /// <remarks>
-    /// The re-read is counted here because the update alone links nothing: a site moved onto the root
-    /// its media really sits under still reports no file until the catalogue is read again.
-    /// </remarks>
+    // The catalogue re-read is counted because the update alone links nothing: a site moved onto
+    // the root its media sits under still reports no file until the catalogue is read again.
     [Fact]
     public async Task OneReadOneUpdateAndTheCatalogueReReadLeave()
     {
@@ -69,12 +52,7 @@ public sealed class SiteRootMoveTests
         Assert.EndsWith("/command", sent.Requests[2].Path, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The update's path is the agreed root and the site's own existing last segment.
-    /// </summary>
-    /// <remarks>
-    /// The path is what relocates a site; the root folder alone is accepted and relocates nothing.
-    /// </remarks>
+    // The path is what relocates a site. The root folder alone is accepted and relocates nothing.
     [Fact]
     public async Task TheUpdateCarriesThePathRecomposedUnderTheAgreedRoot()
     {
@@ -85,15 +63,9 @@ public sealed class SiteRootMoveTests
         Assert.Equal(AgreedRoot, body["rootFolderPath"]!.GetValue<string>());
     }
 
-    /// <summary>
-    /// The update is spelled with the separator the site's own held path uses, not the one the
-    /// agreed root arrives with.
-    /// </summary>
-    /// <remarks>
-    /// Every candidate the addressing port builds is forward-slashed whichever host the instance
-    /// runs on, so the root alone cannot say which separator that host resolves. A Windows instance
-    /// does not resolve a path joined with the other one.
-    /// </remarks>
+    // Every candidate the addressing port builds is forward-slashed whichever host the instance
+    // runs on, so the agreed root cannot say which separator that host resolves. A Windows instance
+    // does not resolve a path joined with the other one.
     [Fact]
     public async Task TheUpdateIsSpelledWithTheSeparatorTheHeldPathUses()
     {
@@ -110,11 +82,8 @@ public sealed class SiteRootMoveTests
         Assert.Equal(@"D:\MediaB", body["rootFolderPath"]!.GetValue<string>());
     }
 
-    /// <summary>The update instructs no file transfer, in the request or in the body.</summary>
-    /// <remarks>
-    /// Absence is the guarantee. The instance leaves the bytes under the old root when the parameter
-    /// is absent, so the request naming it at all is the change that could move a library.
-    /// </remarks>
+    // Absence is the guarantee, measured against a live instance: with the transfer parameter
+    // absent the bytes stay under the old root. A request naming it at all could move a library.
     [Fact]
     public async Task TheUpdateInstructsNoFileTransfer()
     {
@@ -126,13 +95,8 @@ public sealed class SiteRootMoveTests
             "moveFiles", sent.Requests[1].Body, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// A member the composition does not name survives from the read into the update.
-    /// </summary>
-    /// <remarks>
-    /// Which is what makes the update a re-send rather than a replacement. Composing a member set
-    /// here would drop the instance's own tags, profile and per-year flags with nothing saying so.
-    /// </remarks>
+    // The update is a re-send rather than a replacement. Composing a member set here would drop
+    // the instance's own tags, profile and per-year flags with nothing saying so.
     [Fact]
     public async Task AMemberTheCompositionDoesNotNameSurvivesIntoTheUpdate()
     {
@@ -145,11 +109,8 @@ public sealed class SiteRootMoveTests
         Assert.Equal(3372, body["tvdbId"]!.GetValue<int>());
     }
 
-    /// <summary>A read the instance refused produces no update at all.</summary>
-    /// <remarks>
-    /// There is nothing to re-send. An update composed from an answer nothing could be read out of
-    /// would write a member set this product named over a site it never saw.
-    /// </remarks>
+    // There is nothing to re-send. An update composed from a refused read would write a member set
+    // this product named over a site it never saw.
     [Fact]
     public async Task AReadTheInstanceRefusedProducesNoUpdate()
     {
@@ -159,15 +120,8 @@ public sealed class SiteRootMoveTests
         Assert.Equal([HttpMethod.Get], sent.Requests.Select(request => request.Method));
     }
 
-    /// <summary>
-    /// A read the instance answered, and that nothing could be read out of, sends no update and
-    /// does not read as accepted.
-    /// </summary>
-    /// <remarks>
-    /// The status alone is a success here, so an answer handed back unchanged would be counted as a
-    /// move that happened. Nothing left, and the site is still registered where none of its files
-    /// sit, which is a failure a reader acts on.
-    /// </remarks>
+    // The status alone is a success here, so an answer handed back unchanged would count as a move
+    // that happened while the site is still registered where none of its files sit.
     [Fact]
     public async Task AReadAnsweringNothingReadableSendsNoUpdateAndIsNotAccepted()
     {
@@ -177,7 +131,6 @@ public sealed class SiteRootMoveTests
         Assert.NotEqual(MonitorRefusalKind.None, MonitoringProjector.Accepted(answered));
     }
 
-    /// <summary>An update the instance refused stops before the catalogue re-read.</summary>
     [Fact]
     public async Task AnUpdateTheInstanceRefusedStopsBeforeTheCatalogueReRead()
     {
@@ -188,7 +141,6 @@ public sealed class SiteRootMoveTests
             [HttpMethod.Get, HttpMethod.Put], sent.Requests.Select(request => request.Method));
     }
 
-    /// <summary>The re-read names this generation's own catalogue command and the moved site.</summary>
     [Fact]
     public async Task TheReReadNamesTheCatalogueCommandAndTheMovedSite()
     {
@@ -203,7 +155,6 @@ public sealed class SiteRootMoveTests
     private static JsonObject UpdateBody(BodyRecordingHandler sent)
         => Assert.IsType<JsonObject>(JsonNode.Parse(sent.Requests[1].Body));
 
-    /// <summary>One move against an instance holding the site under the other root.</summary>
     private static async Task<(WhisparrResponse Answered, BodyRecordingHandler Sent)> MoveAsync(
         HttpStatusCode readStatus = HttpStatusCode.OK,
         HttpStatusCode updateStatus = HttpStatusCode.Accepted,

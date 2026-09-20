@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
-/**
- * Two things this surface deliberately does not do. Each is asserted, because an absence nobody
- * asserts is unfalsifiable and grows back in silence.
- *
- * The second one needs a real transport rather than a helper's return value: what is under test is
- * how many requests leave the browser between a press and the enqueue, and only a recorded transport
- * can count them.
- */
+// Two things this surface deliberately does not do. The second needs a recorded transport, because
+// what is under test is how many requests leave the browser between a press and the enqueue.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 
@@ -54,10 +48,7 @@ afterEach(() => {
   sent.length = 0;
 });
 
-/**
- * Mounts the data layer behind a button that ticks every scene through the Select all gesture and
- * sends that selection, which is the whole path a reader takes.
- */
+// The whole path a reader takes: tick every scene through Select all, then send that selection.
 function Probe() {
   const missing = useMissing("studio", 7, { page: 1, sort: null, q: "", filters: {} });
   const loaded = (missing.state.view?.cards ?? []).map((card) => card.providerSceneId);

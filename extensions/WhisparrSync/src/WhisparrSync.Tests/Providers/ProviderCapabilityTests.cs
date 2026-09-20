@@ -9,22 +9,11 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Providers;
 
-/// <summary>
-/// Which roles each provider holds, and what happens when one it does not hold is asked for.
-/// </summary>
-/// <remarks>
-/// The two providers share almost no filter vocabulary, so a capability difference is an absent
-/// registration rather than a control the surface dims. The two absences that decide the toolbar are
-/// asserted by name: ThePornDB orders by no title, and StashDB filters by no year.
-/// </remarks>
 public sealed class ProviderCapabilityTests
 {
     private const string SomeKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
-    /// <summary>
-    /// The provider's own ordering vocabulary declares no title value and refuses one it does not
-    /// declare, so the option is absent from the menu rather than offered and rejected.
-    /// </summary>
+    // ThePornDB's ordering vocabulary declares no title value and refuses one it does not declare.
     [Fact]
     public void ThePornDbOrdersByNoTitle()
     {
@@ -36,10 +25,8 @@ public sealed class ProviderCapabilityTests
             sort => sort.Label.Contains("Title", StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>
-    /// A year is two bounds and the provider's scene query carries one date criterion with no
-    /// inclusive modifier, so a year is not expressible on it at all.
-    /// </summary>
+    // A year is two bounds. StashDB's scene query carries one date criterion with no inclusive
+    // modifier, so a year is not expressible on it.
     [Fact]
     public void StashDbFiltersByNoYear()
     {
@@ -56,10 +43,6 @@ public sealed class ProviderCapabilityTests
             sort => sort.Label.Contains("Title", StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>
-    /// A role the provider does not hold answers as a refusal naming what was asked for, so a caller
-    /// states the absence rather than catching it.
-    /// </summary>
     [Fact]
     public void ARoleTheProviderDoesNotHoldIsARefusalAndNotAThrow()
     {
@@ -76,10 +59,6 @@ public sealed class ProviderCapabilityTests
         Assert.Equal("StashDB", refusedOnStashDb.Provider);
     }
 
-    /// <summary>
-    /// A role the provider holds is obtained. A set built without a source for one it holds is a
-    /// construction fault rather than a statement about the provider.
-    /// </summary>
     [Fact]
     public void ARoleTheProviderHoldsIsObtained()
     {
@@ -87,10 +66,6 @@ public sealed class ProviderCapabilityTests
         Assert.NotNull(StashDb().Capabilities.Obtain<ISortsByTitle>().Match<object?>(role => role, _ => null));
     }
 
-    /// <summary>
-    /// A role this product does not express says nothing about a provider, so it is not answerable
-    /// as a refusal.
-    /// </summary>
     [Fact]
     public void ARoleThisProductDoesNotExpressThrows()
     {
@@ -98,11 +73,8 @@ public sealed class ProviderCapabilityTests
             () => StashDb().Capabilities.Obtain<IDisposable>());
     }
 
-    /// <summary>
-    /// A scene's number is ThePornDB's alone. Its scene rows carry an <c>_id</c> beside the uuid
-    /// Cove stores; StashDB names a scene by its uuid and issues no number to resolve to, so the
-    /// resolution is refused there before any request.
-    /// </summary>
+    // ThePornDB scene rows carry an _id beside the uuid Cove stores. StashDB names a scene by its
+    // uuid alone and issues no number to resolve to.
     [Fact]
     public void OnlyThePornDbResolvesASceneToANumber()
     {
@@ -123,11 +95,8 @@ public sealed class ProviderCapabilityTests
                 .Match<object?>(role => role, _ => null));
     }
 
-    /// <summary>
-    /// A site's number is ThePornDB's alone. Its site route answers an <c>id</c> beside the uuid
-    /// Cove stores; StashDB names a site by its uuid and issues no number to resolve to, so the
-    /// resolution is refused there before any request.
-    /// </summary>
+    // ThePornDB's site route answers an id beside the uuid Cove stores. StashDB names a site by its
+    // uuid alone.
     [Fact]
     public void OnlyThePornDbResolvesASiteToANumber()
     {
@@ -138,10 +107,6 @@ public sealed class ProviderCapabilityTests
                 .Match<object?>(role => role, _ => null));
     }
 
-    /// <summary>
-    /// The refusal names the capability, so a caller that cannot resolve a site states which
-    /// capability the configured provider does not hold rather than catching a failure.
-    /// </summary>
     [Fact]
     public void StashDbRefusesTheSiteNumberRoleByName()
     {
@@ -155,10 +120,6 @@ public sealed class ProviderCapabilityTests
         Assert.Equal("StashDB", refused.Provider);
     }
 
-    /// <summary>
-    /// The provider that issues no such number sends nothing to establish it. A request there would
-    /// spend the credential on a question its answer cannot carry.
-    /// </summary>
     [Fact]
     public async Task StashDbSendsNoRequestToResolveASceneToANumber()
     {
@@ -177,10 +138,6 @@ public sealed class ProviderCapabilityTests
         Assert.Empty(handler.Requests);
     }
 
-    /// <summary>
-    /// Absence is the whole mechanism. A member asking whether a provider supports something would
-    /// be a control the surface can render and then refuse.
-    /// </summary>
     [Theory]
     [InlineData(typeof(StashDbCatalogue))]
     [InlineData(typeof(ThePornDbCatalogue))]
@@ -193,10 +150,6 @@ public sealed class ProviderCapabilityTests
             member => member.Name.StartsWith("Supports", StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// Every role this product declares is obtainable from either provider without throwing, so a
-    /// set claiming a capability its source cannot honour is reported here rather than at a request.
-    /// </summary>
     [Theory]
     [InlineData(typeof(ISortsByTitle))]
     [InlineData(typeof(ISortsByDate))]
@@ -221,10 +174,6 @@ public sealed class ProviderCapabilityTests
         }
     }
 
-    /// <summary>
-    /// The name a sentence uses is the name of the source that answered. Held on the surface it
-    /// would say one provider whichever generation is connected.
-    /// </summary>
     [Theory]
     [InlineData(WhisparrGeneration.V3, "StashDB")]
     [InlineData(WhisparrGeneration.V2, "ThePornDB")]
@@ -241,11 +190,7 @@ public sealed class ProviderCapabilityTests
         Assert.Equal(named, selected.Capabilities.Provider);
     }
 
-    /// <summary>
-    /// The catalogue a v2 connection reads through is one that issues a scene number.
-    /// The site-scene monitor pass runs only on that generation and addresses a row by that number,
-    /// so it composes its provider read without asking whether the number exists.
-    /// </summary>
+    // The site-scene monitor pass runs on v2 alone and addresses a row by its scene number.
     [Theory]
     [InlineData(WhisparrGeneration.V2, true)]
     [InlineData(WhisparrGeneration.V3, false)]

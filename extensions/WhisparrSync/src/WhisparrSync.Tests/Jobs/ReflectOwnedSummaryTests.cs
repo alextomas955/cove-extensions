@@ -5,24 +5,16 @@ using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Tests.Jobs;
 
-/// <summary>
-/// The one line a run is reported on when it could not address the folders it was given.
-/// </summary>
-/// <remarks>
-/// A run that reached the instance for nothing has both counts at zero, and "0 linked, 0 refused."
-/// reads as a clean pass over every folder. This line is the only place the run is reported at all,
-/// so the reason has to be in it.
-/// <para>
-/// Every expected sentence is transcribed by hand. Composing one from the member under test would
-/// agree with a sentence that changed underneath it.
-/// </para>
-/// </remarks>
+// A run that reached the instance for nothing has both counts at zero, and "0 linked, 0 refused."
+// reads as a clean pass over every folder. This line is the only place the run is reported, so the
+// reason has to be in it. Every expected sentence is transcribed by hand. Composing one from the
+// member under test would agree with a sentence that changed underneath it.
 public sealed class ReflectOwnedSummaryTests
 {
-    /// <summary>The library root as Cove has it, on a machine the instance does not share.</summary>
+    // Cove's root and the path the instance was asked about are spelled for different machines, so
+    // a summary that echoed one for the other is visible here.
     private const string CoveRoot = "G:/Downloads/P";
 
-    /// <summary>The one path under it the instance was asked about.</summary>
     private const string Tried = "/data/Blue Harbor/scene 1.mp4";
 
     private const string Under = "Nothing under " + CoveRoot + " could be linked: ";
@@ -47,7 +39,6 @@ public sealed class ReflectOwnedSummaryTests
             "2 linked, 1 refused. " + Under + "Whisparr holds nothing at " + Tried + ".", line);
     }
 
-    /// <summary>A run with nothing it could not address reports what it has always reported.</summary>
     [Fact]
     public void ARunThatAddressedEveryFolderKeepsItsCounts()
         => Assert.Equal("0 linked, 0 refused.", ReflectOwnedJob.SummaryOf(Run(0, 0)));
@@ -63,10 +54,8 @@ public sealed class ReflectOwnedSummaryTests
             ReflectOwnedJob.SummaryOf(run));
     }
 
-    /// <summary>
-    /// Each root is named once and carries at most one of the paths tried under it. The roots are an
-    /// operator's own small set; the paths under them are not.
-    /// </summary>
+    // A root is an operator's own small set; the paths under it are not, so the line carries at
+    // most one path per root.
     [Fact]
     public void ARunReportingTwoRootsNamesEachOnceAndOnePathUnderEach()
     {
@@ -88,10 +77,6 @@ public sealed class ReflectOwnedSummaryTests
         Assert.DoesNotContain("second.mp4", line, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A library root holding no file to establish the agreement from is not a misconfiguration, so
-    /// its sentence asks the reader for nothing.
-    /// </summary>
     [Theory]
     [InlineData(
         FolderAgreementRefusal.NothingResolved,
@@ -119,7 +104,6 @@ public sealed class ReflectOwnedSummaryTests
         FolderAgreementRefusal refusal, string because)
         => Assert.Equal(Under + because, ReflectOwnedJob.SummaryOf(Run(0, 0, Refused(refusal))));
 
-    /// <summary>A reason with no sentence written down for it throws rather than shipping silently.</summary>
     [Fact]
     public void NoReasonIsLeftWithoutASentence()
     {
@@ -131,10 +115,8 @@ public sealed class ReflectOwnedSummaryTests
         }
     }
 
-    /// <summary>
-    /// An instance holding no filesystem role answers for every folder at once, so there is no one
-    /// library root to name.
-    /// </summary>
+    // An instance that cannot be asked answers for every folder at once, so there is no one library
+    // root to name.
     [Fact]
     public void ARunOnAnInstanceThatCannotBeAskedNamesNoLibraryRoot()
     {
@@ -161,10 +143,6 @@ public sealed class ReflectOwnedSummaryTests
         Assert.Contains("then stopped", ReflectOwnedJob.SummaryOf(run), StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A run that linked nothing because every file's site sits under another root says so, rather
-    /// than reporting a pair of zeros.
-    /// </summary>
     [Fact]
     public void ARunThatLeftEveryFileUnderAnotherRootReportsTheReasonRatherThanACountOfZero()
     {
@@ -177,7 +155,6 @@ public sealed class ReflectOwnedSummaryTests
         Assert.DoesNotContain("0 linked", line, StringComparison.Ordinal);
     }
 
-    /// <summary>A run that linked some and left others reports the counts first and the reason after.</summary>
     [Fact]
     public void ARunThatLinkedSomeAndLeftOthersUnderAnotherRootReportsBoth()
         => Assert.Equal(
@@ -185,10 +162,6 @@ public sealed class ReflectOwnedSummaryTests
                 + "different root from the files, and nothing was copied.",
             ReflectOwnedJob.SummaryOf(LeftUnderAnotherRoot(2, 1, 4)));
 
-    /// <summary>
-    /// A run that left nothing out and could address nothing keeps the sentence it already had, so
-    /// the new clause is never composed onto a run it is not about.
-    /// </summary>
     [Fact]
     public void ARunThatLeftNothingUnderAnotherRootKeepsTheSentenceItAlreadyHad()
     {
@@ -198,7 +171,6 @@ public sealed class ReflectOwnedSummaryTests
         Assert.DoesNotContain("different root", line, StringComparison.Ordinal);
     }
 
-    /// <summary>A run that could address nothing AND left files out reports both reasons.</summary>
     [Fact]
     public void ARunWithBothReasonsReportsTheRootItCouldNotAddressAndThenWhatItLeftOut()
         => Assert.Equal(

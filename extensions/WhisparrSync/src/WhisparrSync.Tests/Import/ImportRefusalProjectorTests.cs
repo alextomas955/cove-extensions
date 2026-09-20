@@ -4,10 +4,6 @@ using WhisparrSync.Options;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// The fold that turns a stream of refusals into a value whose size is the root count, not the
-/// library's, and the success that clears one root without touching another.
-/// </summary>
 public sealed class ImportRefusalProjectorTests
 {
     private const string Root = "/whisparr-media";
@@ -31,7 +27,6 @@ public sealed class ImportRefusalProjectorTests
             entry.NewestPaths);
     }
 
-    /// <summary>Three refusals fill the line; a fourth drops the oldest and leads with the newest.</summary>
     [Fact]
     public void AFourthRefusalDropsTheOldestAndLeadsWithTheNewest()
     {
@@ -44,13 +39,8 @@ public sealed class ImportRefusalProjectorTests
             entry.NewestPaths.Select(path => path.Path));
     }
 
-    /// <summary>
-    /// A hundred refusals for one root leave the same three paths and one count as four do.
-    /// </summary>
-    /// <remarks>
-    /// The entry's size is what the aggregate promises: whatever a library throws at it, one root's
-    /// line is a count and three paths.
-    /// </remarks>
+    // The entry's size is what the aggregate promises: whatever a library throws at it, one root's line
+    // is a count and three paths.
     [Fact]
     public void AHundredRefusalsForOneRootStillLeaveThreePathsAndOneCount()
     {
@@ -63,7 +53,6 @@ public sealed class ImportRefusalProjectorTests
             entry.NewestPaths.Select(path => path.Path));
     }
 
-    /// <summary>A path already listed is already reported.</summary>
     [Fact]
     public void ARepeatedPathNeitherLengthensTheListNorCountsTwice()
     {
@@ -80,12 +69,9 @@ public sealed class ImportRefusalProjectorTests
         Assert.Equal(once, twice);
     }
 
-    /// <summary>A path too long to be stored whole is still recognised on its second delivery.</summary>
-    /// <remarks>
-    /// Such a path is stored shortened, so a fold comparing the reported path against the stored one
-    /// never matches it against itself: one root reporting one path twice would take two of the three
-    /// slots its line keeps.
-    /// </remarks>
+    // Such a path is stored shortened, so a fold comparing the reported path against the stored one
+    // never matches it against itself: one root reporting one path twice would take two of the three
+    // slots its line keeps.
     [Fact]
     public void ARepeatedOverLongPathNeitherLengthensTheListNorCountsTwice()
     {
@@ -102,11 +88,8 @@ public sealed class ImportRefusalProjectorTests
         Assert.Equal(once, twice);
     }
 
-    /// <summary>The same path refused for a different reason carries the newer reason.</summary>
-    /// <remarks>
-    /// Still one entry and still one count: the delivery said something new about a path the root
-    /// already lists, not that the root failed again.
-    /// </remarks>
+    // Still one entry and still one count: the delivery said something new about a path the root
+    // already lists, not that the root failed again.
     [Fact]
     public void ARepeatedPathWithANewCauseCarriesTheNewCause()
     {
@@ -122,7 +105,6 @@ public sealed class ImportRefusalProjectorTests
             Assert.Single(entry.NewestPaths).Cause);
     }
 
-    /// <summary>Each listed path keeps the cause it was refused for.</summary>
     [Fact]
     public void EachListedPathKeepsItsOwnCause()
     {
@@ -138,7 +120,6 @@ public sealed class ImportRefusalProjectorTests
             Assert.Single(folded).NewestPaths.Select(path => path.Cause));
     }
 
-    /// <summary>Two spellings of one root differing only by a trailing separator are one entry.</summary>
     [Theory]
     [InlineData("/whisparr-media/")]
     [InlineData("/whisparr-media\\")]
@@ -156,7 +137,6 @@ public sealed class ImportRefusalProjectorTests
         Assert.Equal(2, entry.CountSinceLastSuccess);
     }
 
-    /// <summary>A delivery whose path fell under no root is counted, not dropped.</summary>
     [Fact]
     public void ADeliveryUnderNoRootLandsUnderTheStatedPlaceholder()
     {
@@ -171,7 +151,6 @@ public sealed class ImportRefusalProjectorTests
         Assert.Equal(1, entry.CountSinceLastSuccess);
     }
 
-    /// <summary>A root's success clears its own line and leaves every other root's alone.</summary>
     [Fact]
     public void ASuccessClearsOneRootAndLeavesAnotherIntact()
     {
@@ -184,7 +163,6 @@ public sealed class ImportRefusalProjectorTests
         Assert.Equal(before.Single(entry => entry.Root == Other), after[0]);
     }
 
-    /// <summary>Three roots, one success: the other two lines survive unchanged.</summary>
     [Fact]
     public void ASuccessOnOneOfThreeRootsLeavesTheOtherTwoAsTheyWere()
     {
@@ -210,11 +188,8 @@ public sealed class ImportRefusalProjectorTests
         Assert.Equal(before, ImportRefusalProjector.Succeed(before, Other));
     }
 
-    /// <summary>The count does not wrap when there is no larger one.</summary>
-    /// <remarks>
-    /// Its control is a count one below the bound, which does move: without it a fold that never
-    /// counted at all would satisfy the assertion.
-    /// </remarks>
+    // Its control is a count one below the bound, which does move: without it a fold that never counted
+    // at all would satisfy the assertion.
     [Fact]
     public void TheCountAtItsBoundDoesNotBecomeNegative()
     {
@@ -233,12 +208,9 @@ public sealed class ImportRefusalProjectorTests
         Assert.Equal(int.MaxValue, Assert.Single(belowBound).CountSinceLastSuccess);
     }
 
-    /// <summary>The spelling the stored blob carries, which the containerized spec reads by hand.</summary>
-    /// <remarks>
-    /// The expectation is transcribed rather than computed from the model, so it can disagree with it.
-    /// A spec that reads the blob out of Cove's own bulk data route has nothing else to check its
-    /// field names and its enum spelling against.
-    /// </remarks>
+    // The spelling the stored blob carries, transcribed rather than computed from the model so that it
+    // can disagree with it. A spec that reads the blob out of Cove's own bulk data route has nothing
+    // else to check its field names and its enum spelling against.
     [Fact]
     public void TheStoredAggregateCarriesTheSpellingTheBannerIsReadBy()
     {

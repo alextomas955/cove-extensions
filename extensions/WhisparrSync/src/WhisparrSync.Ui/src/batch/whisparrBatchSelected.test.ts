@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
-/**
- * What the videos selection bar's handler offers, what it sends, and what it states when the route
- * refuses the whole gesture.
- *
- * A DOM is needed because the overlay is mounted imperatively into the document rather than returned
- * as a value: the properties under test are which rows a reader is actually offered, and that a
- * refusal is stated in that same overlay rather than escaping to the host's own alert.
- */
+// A DOM is needed because the overlay is mounted imperatively into the document rather than
+// returned as a value.
 import { test, expect, vi, afterEach } from "vitest";
 import { act } from "react";
 
@@ -20,8 +14,8 @@ vi.mock("@cove-extensions/ui-shared", () => ({
 let opened = 0;
 
 vi.mock("@cove-extensions/ui-shared/overlay", async (importOriginal) => {
-  // The real mounter, wrapped only to count. What a reader is offered is read off the document it
-  // mounts into, and a stand-in would answer that question with itself.
+  // The real mounter, wrapped only to count. A stand-in would decide what the reader is offered,
+  // which is the thing under test.
   const real = await importOriginal<typeof import("@cove-extensions/ui-shared/overlay")>();
   return {
     ...real,
@@ -95,12 +89,8 @@ async function press(label: string): Promise<void> {
   await pressControl(button);
 }
 
-/**
- * Starts the handler and waits for whatever it opens to be on screen.
- *
- * The handler's own promise is returned WRAPPED. An async function returning it bare would await it,
- * and it does not settle until the overlay is answered.
- */
+// The handler's promise is returned wrapped. Returned bare, this async function would await it,
+// and it does not settle until the overlay is answered.
 async function open(
   entityType: string,
   entityIds: number[],
@@ -115,7 +105,6 @@ async function open(
   return { running: started };
 }
 
-/** Refuses the post with one answer, and returns what the reader was left reading. */
 async function refusedWith(status: number, body: string): Promise<string> {
   postAnswer = () => Promise.reject(new FakeApiError(status, body));
 

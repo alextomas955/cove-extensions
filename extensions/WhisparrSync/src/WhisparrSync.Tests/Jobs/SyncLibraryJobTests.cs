@@ -9,24 +9,16 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Jobs;
 
-/// <summary>
-/// What one enqueued library run carries, what it offers, and what the wire then reports about it.
-/// </summary>
-/// <remarks>
-/// The wire half is here rather than beside the run, because this extension's own job-status
-/// projection copies the host's <c>Summary</c> straight onto the wire. A run whose last progress call
-/// is not its own summary therefore publishes the host's sentence, and a test asserting only on the
-/// run's own string would not see it.
-/// </remarks>
+// The job-status projection copies the host's Summary straight onto the wire. A run whose last
+// progress call is not its own summary therefore publishes the host's sentence, which a test
+// asserting only on the run's own string would not see.
 public sealed class SyncLibraryJobTests
 {
     private const string AcceptedFixture = "whisparr-v3-3.3.8.1097-scene-add-accepted.json";
 
-    /// <summary>The host's own aggregate sentence, transcribed from its implementation.</summary>
-    /// <remarks>
-    /// Written down rather than computed, because what matters is the phrasing a reader would see.
-    /// The host writes it into the job's summary on every unit-mode job once the last unit completes.
-    /// </remarks>
+    // The host writes this sentence into the job summary of every unit-mode job once the last unit
+    // completes. Transcribed from the host rather than composed, so the phrasing a reader sees is
+    // what is asserted.
     private const string HostsOwnUnitSentence = "5,898 of 5,898 units succeeded";
 
     private static readonly string[] ForbiddenFragments =
@@ -34,7 +26,6 @@ public sealed class SyncLibraryJobTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>The monitor choice survives the host's string-only parameter map.</summary>
     [Fact]
     public void TheMonitorChoiceSurvivesTheHostsStringOnlyMap()
     {
@@ -42,12 +33,8 @@ public sealed class SyncLibraryJobTests
         Assert.False(SyncLibraryJob.Decode(SyncLibraryJob.Encode(false)).AlsoMonitor);
     }
 
-    /// <summary>A map nothing can be read out of monitors nothing.</summary>
-    /// <remarks>
-    /// Read inside the host's job runner, where a throw is a faulted job rather than a handled
-    /// answer. A default of true would set flags on a reader's whole library for a run that named
-    /// nothing.
-    /// </remarks>
+    // A default of true would set flags across a whole library for a run that named nothing. The
+    // map is read inside the host's job runner, where a throw is a faulted job.
     [Fact]
     public void AMapNothingCanBeReadOutOfMonitorsNothing()
     {
@@ -58,13 +45,6 @@ public sealed class SyncLibraryJobTests
                 .AlsoMonitor);
     }
 
-    /// <summary>
-    /// The run offers every identifier the library stream yields, and declares that many.
-    /// </summary>
-    /// <remarks>
-    /// The count and the offers come from one member called twice, so the declared total cannot
-    /// disagree with the number of ticks.
-    /// </remarks>
     [Fact]
     public async Task TheRunOffersEveryIdentifierTheLibraryStreamYields()
     {
@@ -88,12 +68,8 @@ public sealed class SyncLibraryJobTests
         Assert.Equal(4, progress.Units.Count);
     }
 
-    /// <summary>A run that could not be aimed at an instance offers nothing and says so.</summary>
-    /// <remarks>
-    /// Its own sentence, because a run that reached no instance is a different fact from a library
-    /// carrying no identifier. It declares no count either: a run declaring zero never derives a
-    /// fraction and would sit in the job list with no ending.
-    /// </remarks>
+    // A run that declared zero units never derives a fraction and would sit in the job list with
+    // no ending, so it declares no count at all.
     [Fact]
     public async Task ARunThatCouldNotBeAimedOffersNothingAndSaysSo()
     {
@@ -114,11 +90,8 @@ public sealed class SyncLibraryJobTests
         Assert.Equal(SyncLibraryJob.NoInstanceLine, Assert.Single(progress.Summaries));
     }
 
-    /// <summary>What the wire carries about the run counts scenes and nothing else.</summary>
-    /// <remarks>
-    /// The projection fills both the summary and the sub-task from the host's job, and the host copies
-    /// its summary over the sub-task, so both are asserted.
-    /// </remarks>
+    // The projection fills both the summary and the sub-task from the host's job, and the host
+    // copies its summary over the sub-task, so both are asserted.
     [Fact]
     public async Task WhatTheWireCarriesAboutTheRunCountsScenesAndNothingElse()
     {
@@ -142,14 +115,8 @@ public sealed class SyncLibraryJobTests
         Assert.Contains("scenes registered", reported.Summary!, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The host's own sentence reaches the wire unaltered where a run lets it stand.
-    /// </summary>
-    /// <remarks>
-    /// Why the run's last progress call has to be its own summary. The projection is a conduit: it
-    /// copies whatever the host holds, so nothing downstream can filter the phrasing out, and a run
-    /// that ends with a report leaves the host's sentence in place.
-    /// </remarks>
+    // The projection copies whatever the host holds, so nothing downstream filters the phrasing
+    // out. This is why a run's last progress call has to be its own summary.
     [Fact]
     public void TheHostsOwnUnitSentenceReachesTheWireWhereARunLetsItStand()
     {
@@ -162,11 +129,8 @@ public sealed class SyncLibraryJobTests
     private static WhisparrResponse Accepted
         => RecordingWhisparrClient.Json(201, ProbeFixtures.Read(AcceptedFixture));
 
-    /// <summary>A finished unit-mode job whose summary and sub-task read <paramref name="ending"/>.</summary>
-    /// <remarks>
-    /// The sub-task carries the summary because the host copies one over the other when it finalizes
-    /// successful work.
-    /// </remarks>
+    // The sub-task carries the summary because the host copies one over the other when it
+    // finalizes successful work.
     private static JobInfo Finished(string ending)
         => new(
             "job-1",
@@ -213,7 +177,6 @@ public sealed class SyncLibraryJobTests
     private static List<string> Identifiers(int count)
         => [.. Enumerable.Range(1, count).Select(n => $"{n:x8}-0000-4000-8000-000000000000")];
 
-    /// <summary>One offer classified the way the scene pass classifies it.</summary>
     private static async Task<SyncRegistration> Offered(
         Func<string, CancellationToken, Task<WhisparrResponse?>> register,
         string identity,

@@ -2,7 +2,7 @@
  * What a facet menu learns by asking the metadata source about a typed fragment.
  *
  * Kept apart from the catalogue layer so that drawing a menu does not pull the host's authenticated
- * transport in behind it: the menu is handed the way to ask rather than reaching for one.
+ * transport in behind it. The menu is handed the way to ask rather than reaching for one.
  */
 import { useEffect, useState } from "react";
 
@@ -23,13 +23,12 @@ export type FacetValueSearch = (
 /**
  * What the values of `facetKey` matching `fragment` currently answer.
  *
- * Typing settles before anything is sent, on the delay the title search already settles on, so a
- * typed word costs one request rather than one per key press.
+ * Typing settles before anything is sent, so a typed word costs one request rather than one per key
+ * press.
  *
- * An answer is held under the fragment it was asked about and read back only under that same
- * fragment, so an answer is never drawn beneath a fragment it does not answer. A request the reader
- * has typed past is dropped as they type past it, so two in flight together settle in whatever order
- * they settle in and the older one neither replaces the newer answer nor erases it.
+ * An answer is held under the fragment it was asked about and read back only under that fragment,
+ * so an answer is never drawn beneath a fragment it does not answer. Two requests in flight together
+ * may settle in either order, and the older one neither replaces nor erases the newer answer.
  *
  * @param search how to ask, or undefined where nothing can be asked
  * @param facetKey the facet to ask about, or undefined for a menu that is not a facet

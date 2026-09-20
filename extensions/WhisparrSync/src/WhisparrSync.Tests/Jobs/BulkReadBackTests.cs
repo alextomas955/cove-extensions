@@ -6,28 +6,20 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Jobs;
 
-/// <summary>
-/// What one selected entity's unit is classified from: the state a read reports, never the status of
-/// the write.
-/// </summary>
-/// <remarks>
-/// The measured behaviour these cases stand over is an add answered with a created status and an
-/// echo showing the monitored field dropped. On a click the browser reads the entity back and the
-/// screen corrects itself; a batch has no browser, so the correction has to be in the verb.
-/// </remarks>
+// Whisparr answers an add with a created status and an echo that drops the monitored field. A
+// click recovers because the browser reads the entity back; a batch has no browser, so the unit is
+// classified from a read rather than from the write's status.
 public sealed class BulkReadBackTests
 {
     private const string Studios = "studios";
 
-    /// <summary>The studio as an instance reports it once it holds and monitors it.</summary>
     private const string HeldMonitored =
         """{"id":1,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","monitored":true}""";
 
-    /// <summary>The same studio, held and not monitored.</summary>
     private const string HeldUnmonitored =
         """{"id":1,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","monitored":false}""";
 
-    /// <summary>The add's own answer with the field dropped, which is what this generation sends.</summary>
+    // This Whisparr generation's add answer drops the monitored field.
     private const string AcceptedWithTheFieldDropped =
         """{"id":1,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e"}""";
 
@@ -56,7 +48,6 @@ public sealed class BulkReadBackTests
         Assert.Equal(nameof(MonitorRefusalKind.InstanceDidNotReportTheChange), unit.Message);
     }
 
-    /// <summary>A run reporting the unit above as applied is the record a reader cannot act on.</summary>
     [Fact]
     public async Task ThatUnitIsCountedAsRefusedInTheRunsOwnSummary()
     {
@@ -99,10 +90,7 @@ public sealed class BulkReadBackTests
             Assert.Single(progress.Reports));
     }
 
-    /// <summary>
-    /// A read-back that fails leaves what the instance holds unknown, which is not evidence that the
-    /// monitor took.
-    /// </summary>
+    // A failed read-back leaves the instance state unknown, which is not evidence the monitor took.
     [Fact]
     public async Task AReadBackThatItselfFailsIsNotSucceededAndDoesNotFailTheBatch()
     {
@@ -121,10 +109,6 @@ public sealed class BulkReadBackTests
         Assert.Equal((1d, "0 applied, 1 refused."), Assert.Single(progress.Reports));
     }
 
-    /// <summary>
-    /// An entity the instance already holds is classified from a read too, so the flip is not
-    /// reported from its own status either.
-    /// </summary>
     [Fact]
     public async Task AFlipOnAnEntityTheInstanceHoldsIsAlsoClassifiedFromAReadBack()
     {
@@ -166,14 +150,8 @@ public sealed class BulkReadBackTests
         Assert.Equal(JobUnitOutcome.Succeeded, Assert.Single(progress.Units).Outcome);
     }
 
-    /// <summary>
-    /// The entity is read exactly TWICE: once to decide what to send, once to classify what the
-    /// instance then holds. A batch of a thousand gains a thousand reads rather than a multiple.
-    /// </summary>
-    /// <remarks>
-    /// The whole ordered log is asserted rather than a count of one verb, so a request added anywhere
-    /// in the sequence is reported here.
-    /// </remarks>
+    // The whole ordered call log is asserted rather than a count of one verb, so a request added
+    // anywhere in the sequence fails here.
     [Fact]
     public async Task AOneEntityBatchReadsTheEntityTwiceAndNoMore()
     {
@@ -200,10 +178,6 @@ public sealed class BulkReadBackTests
             host.Client.Verbs);
     }
 
-    /// <summary>
-    /// The single-entity route reaches the same statement of the verb, so the click inherits the
-    /// correction rather than depending on the browser's own read.
-    /// </summary>
     [Fact]
     public async Task TheSingleEntityRouteIsClassifiedFromTheSameReadBack()
     {

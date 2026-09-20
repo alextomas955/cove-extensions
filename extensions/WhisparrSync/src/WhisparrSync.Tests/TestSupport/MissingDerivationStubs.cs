@@ -6,25 +6,19 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
 
-/// <summary>A provider catalogue that records what it was asked and answers what it was given.</summary>
-/// <remarks>
-/// The counts are the point: a case claiming that a refusal reaches no provider asserts a zero here
-/// rather than an empty result, which an implementation that called and discarded would also produce.
-/// </remarks>
+// The counts are the point: a case claiming that a refusal reaches no provider asserts a zero here
+// rather than an empty result, which an implementation that called and discarded would also
+// produce.
 internal sealed class StubProviderCatalogue(
     List<ProviderScene>? scenes = null, ProviderIdentityLookup? lookup = null) : IProviderCatalogue
 {
-    /// <summary>How many page reads this was asked for.</summary>
     public int PageReads { get; private set; }
 
-    /// <summary>How many catalogue-size reads this was asked for.</summary>
     public int SizeReads { get; private set; }
 
-    /// <summary>Every name lookup this was asked for, in order.</summary>
     public List<(WhisparrEntityKind Kind, string Name, IReadOnlyList<string> Aliases)> Lookups { get; }
         = [];
 
-    /// <summary>Every scene this was asked to resolve to a number, in order.</summary>
     public List<string> Resolutions { get; } = [];
 
     public IReadOnlyList<ProviderSortOption> Sorts { get; } =
@@ -91,18 +85,12 @@ internal sealed class StubProviderCatalogue(
         => Task.FromResult(ProviderFacetSearch.NotReached);
 }
 
-/// <summary>
-/// A provider catalogue holding several pages, which narrows by title the way a source does.
-/// </summary>
-/// <remarks>
-/// Held apart from <see cref="StubProviderCatalogue"/>, which answers one page and reports one. A
-/// walk over a catalogue is only observable where a second page exists, and a narrowing that narrows
-/// nothing would let a run over the whole catalogue pass for a run over the narrowed one.
-/// </remarks>
+// Held apart from StubProviderCatalogue, which answers one page and reports one. A walk over a
+// catalogue is only observable where a second page exists, and a narrowing that narrows nothing
+// would let a run over the whole catalogue pass for a run over the narrowed one.
 internal sealed class PagedProviderCatalogue(List<ProviderScene> scenes, int perPage)
     : IProviderCatalogue
 {
-    /// <summary>Every page read this was asked for, in order.</summary>
     public List<ProviderCatalogueRequest> Requests { get; } = [];
 
     public IReadOnlyList<ProviderSortOption> Sorts { get; } =
@@ -114,7 +102,6 @@ internal sealed class PagedProviderCatalogue(List<ProviderScene> scenes, int per
 
     public string? SceneAddress(string providerSceneId) => null;
 
-    /// <summary>The scenes a title search leaves, in the source's own order.</summary>
     public List<ProviderScene> Matching(string? titleSearch)
         => titleSearch is null
             ? scenes
@@ -172,7 +159,6 @@ internal sealed class PagedProviderCatalogue(List<ProviderScene> scenes, int per
         => Task.FromResult(ProviderFacetSearch.NotReached);
 }
 
-/// <summary>An identity table holding one identifier, or none.</summary>
 internal sealed class StubEntityIdentities(string? foreignId) : IEntityIdentityPort
 {
     public Task<IdentityResolution> ResolveAsync(
@@ -181,7 +167,6 @@ internal sealed class StubEntityIdentities(string? foreignId) : IEntityIdentityP
             foreignId is null ? IdentityResolution.Unmatched : IdentityResolution.At(foreignId));
 }
 
-/// <summary>A library holding none of a page's scenes.</summary>
 internal sealed class StubOwnedScenes(params string[] owned) : IOwnedScenePort
 {
     public Task<IReadOnlySet<string>> ReadOwnedAsync(
@@ -189,19 +174,14 @@ internal sealed class StubOwnedScenes(params string[] owned) : IOwnedScenePort
         => Task.FromResult<IReadOnlySet<string>>(owned.ToHashSet(StringComparer.Ordinal));
 }
 
-/// <summary>An instance answering a fixed status, counting the two reads apart.</summary>
-/// <remarks>
-/// The two counts are held apart because the claim they serve is about which of them was issued: a
-/// kind the instance publishes no entity for has no probe to spend, and a total would hide that.
-/// </remarks>
+// The two counts are held apart because the claim they serve is about which of them was issued: a
+// kind the instance publishes no entity for has no probe to spend, and a total would hide that.
 internal sealed class StubSceneStatusReading(
     int presence = 200, string sceneAnswer = "[]", bool unreachable = false)
     : IWhisparrSceneStatusReading
 {
-    /// <summary>How many entity probes this was asked for.</summary>
     public int PresenceReads { get; private set; }
 
-    /// <summary>How many per-scene reads this was asked for.</summary>
     public int SceneReads { get; private set; }
 
     public Task<WhisparrResponse> ReadEntityPresenceAsync(

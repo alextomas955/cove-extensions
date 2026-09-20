@@ -7,10 +7,6 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Import;
 
-/// <summary>
-/// What one delivery does about identity: which row is written, when the source is asked for a
-/// record, and what happens when asking fails.
-/// </summary>
 public sealed class ImportCoreIdentityTests
 {
     private const string WhisparrRoot = "/whisparr-media";
@@ -19,10 +15,8 @@ public sealed class ImportCoreIdentityTests
     private const string RemoteId = "e1a5c0d2-0000-4000-8000-000000000003";
     private const long ReportedSize = 10;
 
-    /// <summary>
-    /// Transcribed by hand from the sources this product identifies against, per generation. The
-    /// stamp falls back to these when the host is configured with no source, which is its default.
-    /// </summary>
+    // Transcribed by hand from the sources this product identifies against, per generation. The stamp
+    // falls back to these when the host is configured with no source, which is its default.
     [Theory]
     [InlineData(WhisparrGeneration.V3, "https://stashdb.org/graphql")]
     [InlineData(WhisparrGeneration.V2, "https://theporndb.net/graphql")]
@@ -36,10 +30,8 @@ public sealed class ImportCoreIdentityTests
         Assert.Equal((1, expected, RemoteId), Assert.Single(ingest.Library.Stamped));
     }
 
-    /// <summary>
-    /// A host configured at another spelling of the same source gets that spelling, so the host's own
-    /// merge - which dedupes those rows by exact string - finds the row rather than adding a second.
-    /// </summary>
+    // A host configured at another spelling of the same source gets that spelling, so the host's own
+    // merge, which dedupes those rows by exact string, finds the row rather than adding a second.
     [Fact]
     public async Task TheStampTakesTheHostsOwnSpellingOfTheSourceWhenItIsConfiguredWithOne()
     {
@@ -76,10 +68,8 @@ public sealed class ImportCoreIdentityTests
         Assert.Single(ingest.Library.Enriched);
     }
 
-    /// <summary>
-    /// A scene the library already identified before this product ever saw it. Nothing is stamped and
-    /// the source is not asked, which is what keeps a user's own edits.
-    /// </summary>
+    // The library identified this scene before this product saw it. Nothing is stamped and the source
+    // is not asked, which is what keeps a user's own edits.
     [Fact]
     public async Task ASceneTheLibraryAlreadyIdentifiedIsNeitherStampedNorEnriched()
     {
@@ -118,11 +108,8 @@ public sealed class ImportCoreIdentityTests
         Assert.Empty(ingest.Library.Enriched);
     }
 
-    /// <summary>The documented failure of an unconfigured source, contained.</summary>
-    /// <remarks>
-    /// This is the case the source-applied-nothing line correctly describes, so it is asserted to be
-    /// the one emitted rather than merely that something was.
-    /// </remarks>
+    // This is the case the source-applied-nothing line correctly describes, so it is asserted to be the
+    // one emitted rather than merely that something was.
     [Fact]
     public async Task AnUnconfiguredSourceIsCaughtLoggedOnceAndTheImportStillSucceeds()
     {
@@ -138,15 +125,9 @@ public sealed class ImportCoreIdentityTests
         Assert.Equal(0, log.UncommittedEnrichments);
     }
 
-    /// <summary>
-    /// A save that failed after the source applied its record is not reported as the source applying
-    /// nothing.
-    /// </summary>
-    /// <remarks>
-    /// One call does the merge and then the save, so both failures arrive at one containment. A line
-    /// naming the source for the second sends a user to look at a source that answered correctly, and
-    /// the scene is bare either way - which is what makes the wrong line hard to notice.
-    /// </remarks>
+    // One call does the merge and then the save, so both failures arrive at one containment. A line
+    // naming the source for the second sends a user to look at a source that answered correctly, and
+    // the scene is bare either way, which is what makes the wrong line hard to notice.
     [Fact]
     public async Task ASaveThatFailedAfterTheSourceAppliedItsRecordDoesNotBlameTheSource()
     {
@@ -162,10 +143,8 @@ public sealed class ImportCoreIdentityTests
         Assert.Equal(0, log.ContainedEnrichments);
     }
 
-    /// <summary>
-    /// The same seam raising cancellation must NOT be contained, which holds only while the
-    /// cancellation catch sits above the broad one.
-    /// </summary>
+    // The same seam raising cancellation must not be contained, which holds only while the cancellation
+    // catch sits above the broad one.
     [Fact]
     public async Task ACancellationFromTheSameSeamPropagatesRatherThanBeingContained()
     {
@@ -178,7 +157,6 @@ public sealed class ImportCoreIdentityTests
         Assert.Equal(0, log.ContainedEnrichments);
     }
 
-    /// <summary>One ingest wired over fakes, with the identity seams recorded.</summary>
     private sealed class Ingest(ILogger? log = null)
     {
         public FakeStore Store { get; } = new();
@@ -222,11 +200,8 @@ public sealed class ImportCoreIdentityTests
                 : new ProbedPath(false, null);
     }
 
-    /// <summary>Counts the two enrichment-containment lines apart, by their event ids.</summary>
-    /// <remarks>
-    /// The ids are transcribed by hand from the declared templates. Counted separately and not as one
-    /// total, because which of the two was emitted is the whole claim.
-    /// </remarks>
+    // The ids are transcribed by hand from the declared templates. Counted separately and not as one
+    // total, because which of the two was emitted is the whole claim.
     private sealed class CountingLogger : ILogger
     {
         private const int ContainedEnrichmentEventId = 2106;
