@@ -46,7 +46,12 @@ export function isolatedHarnessFixture(extension) {
 }
 
 export const test = base.extend({
-  extension: [undefined, { option: true }],
+  // Worker-scoped, because the install it names is done once per worker by the `harness` fixture
+  // below. A test-scoped option cannot be read from a worker fixture, and the install is worth far
+  // more there: it restarts the container, which every test in the worker would otherwise pay for.
+  // The scope also keeps Playwright from putting two extensions' files in one worker, since it
+  // reuses a worker only across files whose worker fixtures match.
+  extension: [undefined, { scope: "worker", option: true }],
 
   // Auto so it applies to every test, and dependency-free so the runner sets it up before the
   // fixtures that boot containers. What it records is the start of the budget a page object has to
@@ -60,22 +65,29 @@ export const test = base.extend({
   ],
 
   harness: [
-    async ({}, use) => {
+    async ({ extension }, use) => {
       const harness = await startHarness();
       // Cove's frontend hard-gates the entire app behind a first-run setup wizard until an owner
       // account exists, and that wizard cannot be dismissed. Every browser-driven test needs it done
       // once per instance; an API-only file pays nothing it would notice.
       harness.owner = await harness.bootstrapOwner();
+      // Installed here rather than per test: the install copies the package in and RESTARTS Cove, so
+      // done per test it charged every test in the worker a container restart (measured at about 5.5s
+      // each). It is also nothing a test can undo on its own — the specs that add, remove or toggle
+      // an install take `isolatedHarnessFixture` and a container of their own instead.
+      if (extension) {
+        await harness.installExtension(extension);
+      }
       await use(harness);
       await harness.stop();
     },
     { scope: "worker" },
   ],
 
-  baseUrl: async ({ harness, extension }, use) => {
-    if (extension) {
-      await harness.installExtension(extension);
-    }
+  // Read per test, never held across tests: `restart()` can republish the container on a new host
+  // port, so a value captured once at worker startup would address nothing for every test after the
+  // restart that moved it.
+  baseUrl: async ({ harness }, use) => {
     await use(harness.baseUrl);
   },
 

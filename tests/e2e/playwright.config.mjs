@@ -50,15 +50,18 @@ export default defineConfig({
   // mutations either.
   //
   // Workers capped, not left at Playwright's CPU-based default: each worker brings up its own
-  // Docker Compose network (one per Cove+Postgres pair) plus a Chromium instance. Locally, 4 is
+  // Docker Compose network (one per Cove+Postgres pair) plus a Chromium instance. Locally, 6 is
   // comfortably within Docker Desktop's default address-pool on a typical dev machine — confirmed
   // directly (a 13-worker run failed 3 tests with "all predefined address pools have been fully
-  // subnetted" on a machine that already had several unrelated projects' networks allocated). In
-  // CI, each worker's fixed cost (a full Compose stack + a real browser, not just a browser context
-  // against one shared server) is high relative to a standard GitHub-hosted runner's 4 vCPU/16GB —
-  // running all 4 concurrently there oversubscribes the runner, so CI gets fewer, not the same
-  // count as local. Override with `--workers=N` if a given machine/runner can sustain more (or
-  // fewer) than its default.
+  // subnetted" on a machine that already had several unrelated projects' networks allocated). The
+  // pool is host-wide and shared with whatever else is running, which is why the local figure stays
+  // below what the machine alone could carry: 8 ran the Renamer suite green twice at 2.0m against
+  // 6's 2.5m, so `--workers=8` is there for a machine running nothing else. In CI, each worker's
+  // fixed cost (a full Compose stack + a real browser, not just a browser context against one
+  // shared server) is high relative to a standard GitHub-hosted runner's 4 vCPU/16GB — the peak is
+  // twice the worker count, and a runner that runs short of memory has a container killed rather
+  // than a test failed, so CI gets fewer, not the same count as local. Override with `--workers=N`
+  // if a given machine/runner can sustain more (or fewer) than its default.
   fullyParallel: true,
   // A committed `.only` silently shrinks the suite to the focused test and still exits 0, which reads
   // as a green run over work nothing checked. Keyed on CI so a local focused run stays possible.
@@ -72,7 +75,7 @@ export default defineConfig({
   // build as well, and when it runs short the kernel kills a container rather than failing a test.
   // That arrives as a spec timing out against a host serving nothing, which reads as a UI defect and
   // costs the run twice — once in the red, once in the wrong diagnosis.
-  workers: process.env.CI ? 2 : 4,
+  workers: process.env.CI ? 2 : 6,
   retries: process.env.CI ? 2 : 0,
 
   // Retries exist so an infrastructure hiccup does not fail a run, not so a flaky test can hide behind
