@@ -8,7 +8,21 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Library;
 
 /// <summary>What the connected instance holds for each card on one page.</summary>
-public interface ILibraryStatusPort
+/// <remarks>
+/// The reads run one after another, matching the per-scene path this product already ships. Issuing
+/// them together would put a page of parallel requests against a third party on every press of one
+/// control.
+/// <para>
+/// Nothing is enumerated. Each read names one entity the caller asked about, so a page of cards
+/// costs one read per card whatever the instance's own catalogue holds.
+/// </para>
+/// <para>
+/// A contained failure writes one line naming its classification and the host. Without it a page of
+/// badges that quietly drew nothing leaves no trace at all, on the one surface where a press costs a
+/// read per card.
+/// </para>
+/// </remarks>
+internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger log)
 {
     /// <summary>
     /// What the instance holds for each of <paramref name="coveIds"/>, one row per identifier in the
@@ -30,61 +44,6 @@ public interface ILibraryStatusPort
     /// reading cannot carry: a card the instance answered and established nothing about looks exactly
     /// like a card whose read dropped.
     /// </returns>
-    Task<(IReadOnlyList<LibraryStatusRow> Rows, bool AnyReadDropped)> ReadEntityCardsAsync(
-        Func<string, CancellationToken, Task<WhisparrResponse>> reading,
-        WhisparrEntityKind kind,
-        WhisparrGeneration generation,
-        Uri baseAddress,
-        IReadOnlyList<int> coveIds,
-        CancellationToken ct);
-
-    /// <summary>
-    /// What the instance holds for each of <paramref name="identities"/>, keyed by the Cove id each
-    /// was resolved from.
-    /// </summary>
-    /// <remarks>
-    /// Costs one exclusion read for the whole set plus one status read per identifier. The exclusion
-    /// read comes first, because exclusion is tested before a state is derived and a scene that is
-    /// both excluded and unheld reads as excluded.
-    /// <para>
-    /// <paramref name="exclusions"/> is a capability rather than a role, so a generation registering
-    /// none is expressible here: nothing is obtained, nothing is sent, and no card is reported as
-    /// excluded on a fact no instance answered.
-    /// </para>
-    /// </remarks>
-    /// <returns>
-    /// One reading per identifier, keyed by the Cove id it was resolved from, and whether any read
-    /// left for the instance and did not come back.
-    /// </returns>
-    Task<(IReadOnlyDictionary<int, LibraryCardReading> Readings, bool AnyReadDropped)>
-        ReadSceneCardsAsync(
-            IWhisparrSceneStatusReading reading,
-            Capability<IWhisparrSceneExclusionReading> exclusions,
-            Uri baseAddress,
-            string apiKey,
-            WhisparrGeneration generation,
-            IReadOnlyList<LibraryCardIdentity> identities,
-            CancellationToken ct);
-}
-
-/// <inheritdoc cref="ILibraryStatusPort"/>
-/// <remarks>
-/// The reads run one after another, matching the per-scene path this product already ships. Issuing
-/// them together would put a page of parallel requests against a third party on every press of one
-/// control.
-/// <para>
-/// Nothing is enumerated. Each read names one entity the caller asked about, so a page of cards
-/// costs one read per card whatever the instance's own catalogue holds.
-/// </para>
-/// <para>
-/// A contained failure writes one line naming its classification and the host. Without it a page of
-/// badges that quietly drew nothing leaves no trace at all, on the one surface where a press costs a
-/// read per card.
-/// </para>
-/// </remarks>
-internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger log)
-    : ILibraryStatusPort
-{
     public async Task<(IReadOnlyList<LibraryStatusRow> Rows, bool AnyReadDropped)>
         ReadEntityCardsAsync(
             Func<string, CancellationToken, Task<WhisparrResponse>> reading,
@@ -111,6 +70,24 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
         return (rows, dropped);
     }
 
+    /// <summary>
+    /// What the instance holds for each of <paramref name="identities"/>, keyed by the Cove id each
+    /// was resolved from.
+    /// </summary>
+    /// <remarks>
+    /// Costs one exclusion read for the whole set plus one status read per identifier. The exclusion
+    /// read comes first, because exclusion is tested before a state is derived and a scene that is
+    /// both excluded and unheld reads as excluded.
+    /// <para>
+    /// <paramref name="exclusions"/> is a capability rather than a role, so a generation registering
+    /// none is expressible here: nothing is obtained, nothing is sent, and no card is reported as
+    /// excluded on a fact no instance answered.
+    /// </para>
+    /// </remarks>
+    /// <returns>
+    /// One reading per identifier, keyed by the Cove id it was resolved from, and whether any read
+    /// left for the instance and did not come back.
+    /// </returns>
     public async Task<(IReadOnlyDictionary<int, LibraryCardReading> Readings, bool AnyReadDropped)>
         ReadSceneCardsAsync(
             IWhisparrSceneStatusReading reading,

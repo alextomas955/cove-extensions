@@ -17,26 +17,6 @@ namespace WhisparrSync.Missing;
 public sealed record SceneOnInstance(MissingSceneState State, int? InstanceId);
 
 /// <summary>What the connected instance holds for each scene on one page.</summary>
-public interface ISceneStatusPort
-{
-    /// <summary>
-    /// The state of each of <paramref name="providerSceneIds"/>, keyed as the provider issued them.
-    /// </summary>
-    /// <remarks>
-    /// Costs one entity read plus at most one read per scene, so it is bounded by the page and never
-    /// by what the instance holds.
-    /// </remarks>
-    Task<IReadOnlyDictionary<string, MissingSceneState>> ReadStatesAsync(
-        IWhisparrSceneStatusReading reading,
-        Uri baseAddress,
-        string apiKey,
-        WhisparrEntityKind kind,
-        string entityForeignId,
-        IReadOnlyList<string> providerSceneIds,
-        CancellationToken ct);
-}
-
-/// <inheritdoc cref="ISceneStatusPort"/>
 /// <remarks>
 /// One entity probe decides the page before any per-scene read is issued. An instance holding no
 /// entry for the entity holds none for a scene under it, so an absence settles forty cards with one
@@ -47,14 +27,21 @@ public interface ISceneStatusPort
 /// whole-catalogue read is both larger and unable to answer for a scene the instance does not hold.
 /// </para>
 /// <para>
-/// The reading role arrives per call rather than per construction. Which generation is connected is
-/// a stored setting, so a role held from construction would be one obtained before the connection it
-/// describes was known.
+/// The reading role is a parameter rather than held state. Which generation is connected is a
+/// stored setting, so a role captured ahead of the call would be one obtained before the connection
+/// it describes was known. Holding nothing is why this is static and resolves from no container.
 /// </para>
 /// </remarks>
-internal sealed class SceneStatusPort : ISceneStatusPort
+internal static class SceneStatusPort
 {
-    public async Task<IReadOnlyDictionary<string, MissingSceneState>> ReadStatesAsync(
+    /// <summary>
+    /// The state of each of <paramref name="providerSceneIds"/>, keyed as the provider issued them.
+    /// </summary>
+    /// <remarks>
+    /// Costs one entity read plus at most one read per scene, so it is bounded by the page and never
+    /// by what the instance holds.
+    /// </remarks>
+    public static async Task<IReadOnlyDictionary<string, MissingSceneState>> ReadStatesAsync(
         IWhisparrSceneStatusReading reading,
         Uri baseAddress,
         string apiKey,

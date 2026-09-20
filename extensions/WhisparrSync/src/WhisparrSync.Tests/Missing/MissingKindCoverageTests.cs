@@ -154,9 +154,7 @@ public sealed class MissingKindCoverageTests
         => new(
             new MissingIdentityResolver(new StubEntityIdentities(identity), catalogue, names),
             catalogue,
-            new StubOwnedScenes(),
-            new SceneStatusPort(),
-            new SceneExclusionPort());
+            new StubOwnedScenes());
 
     private static List<ProviderScene> ScenesNamed(params string[] ids)
         => [.. ids.Select(id => new ProviderScene(id, id, null, null, null, null, [], []))];

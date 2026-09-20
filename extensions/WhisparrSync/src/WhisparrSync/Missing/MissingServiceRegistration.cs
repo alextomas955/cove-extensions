@@ -19,8 +19,6 @@ internal static class MissingServiceRegistration
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<IOwnedScenePort, OwnedScenePort>();
-        services.AddScoped<ISceneStatusPort, SceneStatusPort>();
-        services.AddScoped<ISceneExclusionPort, SceneExclusionPort>();
         services.AddScoped<IEntityNamePort, EntityNamePort>();
         services.AddScoped<MissingIdentityResolver>();
         services.AddScoped<MissingPagePlanner>();

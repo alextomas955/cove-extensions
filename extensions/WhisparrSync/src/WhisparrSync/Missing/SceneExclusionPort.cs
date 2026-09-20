@@ -3,24 +3,6 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Missing;
 
 /// <summary>Which of one page's scenes the instance's user has excluded.</summary>
-public interface ISceneExclusionPort
-{
-    /// <summary>
-    /// Which of <paramref name="providerSceneIds"/> the instance's user has excluded.
-    /// </summary>
-    /// <remarks>
-    /// One request per page derivation, and never one per card. What the answer carries is bounded
-    /// by the page whatever the instance holds.
-    /// </remarks>
-    Task<IReadOnlySet<string>> ReadExcludedAsync(
-        IWhisparrSceneExclusionReading reading,
-        Uri baseAddress,
-        string apiKey,
-        IReadOnlyList<string> providerSceneIds,
-        CancellationToken ct);
-}
-
-/// <inheritdoc cref="ISceneExclusionPort"/>
 /// <remarks>
 /// An excluded scene has left the missing set, so it does not render at all and there is no state a
 /// card could carry for it.
@@ -31,13 +13,20 @@ public interface ISceneExclusionPort
 /// what the instance holds.
 /// </para>
 /// <para>
-/// The reading role arrives per call rather than per construction, for the reason the status port's
-/// does: which generation is connected is a stored setting.
+/// The reading role is a parameter, for the reason the status port's is: which generation is
+/// connected is a stored setting. This holds nothing either, so it is static too.
 /// </para>
 /// </remarks>
-internal sealed class SceneExclusionPort : ISceneExclusionPort
+internal static class SceneExclusionPort
 {
-    public async Task<IReadOnlySet<string>> ReadExcludedAsync(
+    /// <summary>
+    /// Which of <paramref name="providerSceneIds"/> the instance's user has excluded.
+    /// </summary>
+    /// <remarks>
+    /// One request per page derivation, and never one per card. What the answer carries is bounded
+    /// by the page whatever the instance holds.
+    /// </remarks>
+    public static async Task<IReadOnlySet<string>> ReadExcludedAsync(
         IWhisparrSceneExclusionReading reading,
         Uri baseAddress,
         string apiKey,
