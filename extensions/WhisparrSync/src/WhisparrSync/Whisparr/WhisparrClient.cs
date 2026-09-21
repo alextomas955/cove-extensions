@@ -1316,7 +1316,8 @@ internal sealed class WhisparrClient(
     {
         try
         {
-            return Whisparr3Gateway.Answered(await call(v3Gateway.For(target)).ConfigureAwait(false));
+            using var apis = v3Gateway.For(target);
+            return Whisparr3Gateway.Answered(await call(apis).ConfigureAwait(false));
         }
         catch (AnswerTooLargeException beyond)
         {
@@ -1378,7 +1379,8 @@ internal sealed class WhisparrClient(
     {
         try
         {
-            return Whisparr2Gateway.Answered(await call(v2Gateway.For(target)).ConfigureAwait(false));
+            using var apis = v2Gateway.For(target);
+            return Whisparr2Gateway.Answered(await call(apis).ConfigureAwait(false));
         }
         catch (AnswerTooLargeException beyond)
         {
