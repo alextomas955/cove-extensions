@@ -4,15 +4,19 @@ title: Browse what you do not own
 sidebar_position: 3
 ---
 
-Whisparr Sync adds a **Missing** tab to a studio page, a performer page and a tag page in Cove. It
-lists the scenes your Whisparr knows about for that entity and your library does not hold, tells you
-whether Whisparr is monitoring each one, and lets you mark them wanted.
+Whisparr Sync adds a **Missing** tab to a studio page in Cove, and to a performer page where the
+connected instance is Whisparr v3 (Eros). It lists the scenes your Whisparr knows about for that
+entity and your library does not hold, tells you whether Whisparr is monitoring each one, and lets
+you mark them wanted.
+
+A tag page carries no Missing tab. A tag names no entity Whisparr holds a catalogue under, so there
+is nothing to list it against.
 
 Connect an instance first. See the [Settings reference](./settings.md).
 
 ## Where the tab is
 
-In the row of tabs on a studio, performer or tag page, after Cove's own tabs. A number sits beside
+In the row of tabs on a studio or performer page, after Cove's own tabs. A number sits beside
 the name. Cove asks for that number when the page loads, so it is there before you open the tab.
 
 ## Where the list comes from
@@ -165,10 +169,6 @@ It runs in the background, one job, and reports the same three counts a selectio
 page does not change while it runs. It needs permission to configure extensions, as each card's own
 **Monitor** does.
 
-**Monitor all is not offered on a tag page.** A tag's list spans your whole library rather than one
-entity, so there is no bounded run to make. Nothing you can change turns it on. Narrow with the
-search and the facets and use a selection instead.
-
 ## Narrow the list
 
 One bar above the grid carries the tab's name, the range you are looking at and every control:
@@ -202,10 +202,6 @@ source your Whisparr generation reads from.
 - **A facet one source cannot scope to the entity.** On StashDB a studio page offers
   Performers, Sub-studios and Tags, and a performer page offers Tags. On ThePornDB a studio page and
   a performer page each offer Tags.
-- **A tag page carries no facet control on either source**, because the only control left would narrow a
-  tag to itself.
-- **Monitor all on a tag page.** A studio's and a performer's list is bounded by that entity; a
-  tag's spans the whole library, so there is no run of a knowable size to offer.
 - **A year filter is offered on ThePornDB and not on StashDB.** ThePornDB narrows to an exact year.
   StashDB carries one date bound that cannot express a year, so no year control is drawn there.
 

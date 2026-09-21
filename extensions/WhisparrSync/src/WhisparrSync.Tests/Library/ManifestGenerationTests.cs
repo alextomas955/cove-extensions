@@ -14,13 +14,14 @@ namespace WhisparrSync.Tests.Library;
 // written outside the generation-conditional block reaches both manifests.
 public sealed class ManifestGenerationTests
 {
-    // The surfaces v2 has no meaning for. It publishes no per-scene identity and holds no
-    // performer entity.
-    private static readonly string[] VideosViewSlots =
+    // The surfaces v2 has no meaning for. It reaches no scene without the site holding it, and it
+    // holds no performer entity, so a control drawn here could only refuse.
+    private static readonly string[] SlotsAbsentOnV2 =
     [
         "videos-list-toolbar-end",
         "video-card-content",
         "videos-list-row",
+        "performer-detail-actions",
         "performers-list-toolbar-end",
         "performer-card-footer",
         "performers-list-row",
@@ -29,64 +30,79 @@ public sealed class ManifestGenerationTests
     // The whole tuple, so a count route or a glyph added to the registration is reported here. The
     // video detail page keeps only a contributed tab's key, label and manual contexts, so either
     // would be fetched and drawn by nothing.
-    private static readonly string[] VideosViewTabs =
+    private static readonly string[] TabsAbsentOnV2 =
     [
+        "performer|whisparr-missing|Missing|WhisparrMissingTab|150|"
+            + "/api/extensions/com.alextomas955.whisparrsync/entity/performer/{entityId}/missing/count"
+            + "|no glyph",
         "video|whisparr-scene|Whisparr|WhisparrSceneTab|150|no count route|no glyph",
     ];
 
-    // The entity type is the singular spelling the host's selection bar passes for a video
-    // selection. The plural makes the button not appear, with no error anywhere.
-    private static readonly string[] VideosViewActions =
+    // The entity type is the spelling the host's selection bar passes: singular for a video
+    // selection, plural for a studio or performer one. The wrong number makes the button not
+    // appear, with no error anywhere.
+    private static readonly string[] ActionsAbsentOnV2 =
     [
+        "whisparr-monitor-selected-performers|bulk|performers|whisparrMonitorSelected|no endpoint|100",
         "whisparr-scene-batch|bulk|video|whisparrSceneBatch|no endpoint|100",
     ];
 
-    private const string VideoTabPrefix = "video|";
+    // The one action both generations carry, so the v2 manifest is asserted whole rather than only
+    // for what it lacks.
+    private static readonly string[] ActionsOnBothGenerations =
+    [
+        "whisparr-monitor-selected-studios|bulk|studios|whisparrMonitorSelected|no endpoint|100",
+    ];
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task TheNewerGenerationRegistersEveryLibrarySurface()
+    public async Task V3RegistersEveryLibrarySurface()
     {
         var surfaces = await SurfacesForAsync(WhisparrGeneration.V3);
 
         Assert.Contains("studios-list-toolbar-end", surfaces.Slots);
         Assert.Contains("studio-card-footer", surfaces.Slots);
-        Assert.All(VideosViewSlots, slot => Assert.Contains(slot, surfaces.Slots));
+        Assert.All(SlotsAbsentOnV2, slot => Assert.Contains(slot, surfaces.Slots));
 
         // Equality rather than containment, so a second video tab is reported as well as an absent
         // one.
-        Assert.Equal(VideosViewTabs, VideoTabsIn(surfaces.Tabs));
-        Assert.Equal(VideosViewActions, VideoActionsIn(surfaces.Actions));
+        Assert.Equal(TabsAbsentOnV2.Order(), TabsAbsentOnV2Order(surfaces.Tabs));
+        Assert.Equal(
+            ActionsAbsentOnV2.Concat(ActionsOnBothGenerations).Order(),
+            surfaces.Actions.Order());
     }
 
+    // A control that draws and then refuses is the defect this pins: the performer surfaces read as
+    // offered on v2 and answered nothing, because both sat outside the conditional block.
     [Fact]
-    public async Task TheOlderGenerationRegistersTheStudioSurfacesAndNoneOfTheVideosViewOnes()
+    public async Task V2RegistersTheStudioSurfacesAndNoPerformerOrSceneOne()
     {
         var surfaces = await SurfacesForAsync(WhisparrGeneration.V2);
 
         Assert.Contains("studios-list-toolbar-end", surfaces.Slots);
         Assert.Contains("studio-card-footer", surfaces.Slots);
-        Assert.All(VideosViewSlots, slot => Assert.DoesNotContain(slot, surfaces.Slots));
-        Assert.Empty(VideoTabsIn(surfaces.Tabs));
-        Assert.Empty(VideoActionsIn(surfaces.Actions));
+        Assert.All(SlotsAbsentOnV2, slot => Assert.DoesNotContain(slot, surfaces.Slots));
+        Assert.DoesNotContain(surfaces.Slots, slot => slot.Contains("performer", StringComparison.Ordinal));
+        Assert.Empty(TabsAbsentOnV2Order(surfaces.Tabs));
+        Assert.Equal(ActionsOnBothGenerations, surfaces.Actions);
     }
 
     // A generation-conditional block written too wide or too narrow is reported here rather than
     // in the browser.
     [Fact]
-    public async Task TheTwoManifestsDifferInTheVideosViewSurfacesAndInNothingElse()
+    public async Task TheTwoManifestsDifferInTheV3OnlySurfacesAndInNothingElse()
     {
         var v3 = await SurfacesForAsync(WhisparrGeneration.V3);
         var v2 = await SurfacesForAsync(WhisparrGeneration.V2);
 
-        Assert.Equal(VideosViewSlots.Order(), v3.Slots.Except(v2.Slots).Order());
+        Assert.Equal(SlotsAbsentOnV2.Order(), v3.Slots.Except(v2.Slots).Order());
         Assert.Empty(v2.Slots.Except(v3.Slots));
 
-        Assert.Equal(VideosViewTabs.Order(), v3.Tabs.Except(v2.Tabs).Order());
+        Assert.Equal(TabsAbsentOnV2.Order(), v3.Tabs.Except(v2.Tabs).Order());
         Assert.Empty(v2.Tabs.Except(v3.Tabs));
 
-        Assert.Equal(VideosViewActions.Order(), v3.Actions.Except(v2.Actions).Order());
+        Assert.Equal(ActionsAbsentOnV2.Order(), v3.Actions.Except(v2.Actions).Order());
         Assert.Empty(v2.Actions.Except(v3.Actions));
     }
 
@@ -112,7 +128,7 @@ public sealed class ManifestGenerationTests
         await new OptionsStore(store)
             .SaveAsync(new WhisparrSyncOptions { SelectedGeneration = WhisparrGeneration.V3 }, TestCt);
         await using var loaded = await LoadedOverAsync(store);
-        Assert.All(VideosViewSlots, slot => Assert.Contains(slot, SlotsOf(loaded.Extension)));
+        Assert.All(SlotsAbsentOnV2, slot => Assert.Contains(slot, SlotsOf(loaded.Extension)));
 
         // Written the way the host's own extension-data route writes it, so nothing of this
         // extension's own save path runs.
@@ -123,7 +139,7 @@ public sealed class ManifestGenerationTests
 
         var slots = SlotsOf(loaded.Extension);
         Assert.Contains("studios-list-toolbar-end", slots);
-        Assert.All(VideosViewSlots, slot => Assert.DoesNotContain(slot, slots));
+        Assert.All(SlotsAbsentOnV2, slot => Assert.DoesNotContain(slot, slots));
     }
 
     // The load answers an unbindable blob with manufactured defaults, and the default names v3.
@@ -143,7 +159,7 @@ public sealed class ManifestGenerationTests
     // An empty store is not the same case as a blob that failed to bind: its defaults are the
     // answer.
     [Fact]
-    public async Task AStoreNothingHasWrittenToEstablishesTheNewerGeneration()
+    public async Task AStoreNothingHasWrittenToEstablishesV3()
     {
         var published = new List<string?>();
         await new OptionsStore(new FakeStore(), null, published.Add).LoadAsync(TestCt);
@@ -188,13 +204,9 @@ public sealed class ManifestGenerationTests
     private static async Task<IReadOnlyList<string>> SlotsForAsync(WhisparrGeneration generation)
         => (await SurfacesForAsync(generation)).Slots;
 
-    private static IReadOnlyList<string> VideoTabsIn(IReadOnlyList<string> tabs)
-        => [.. tabs.Where(tab => tab.StartsWith(VideoTabPrefix, StringComparison.Ordinal))];
-
-    // Matched on the entity type the host's selection bar passes, the singular spelling for a
-    // video selection while a studio or performer selection arrives plural.
-    private static IReadOnlyList<string> VideoActionsIn(IReadOnlyList<string> actions)
-        => [.. actions.Where(action => action.Contains("|video|", StringComparison.Ordinal))];
+    // The tabs a v2 manifest must not carry, read out of whichever manifest was projected.
+    private static IReadOnlyList<string> TabsAbsentOnV2Order(IReadOnlyList<string> tabs)
+        => [.. tabs.Where(tab => TabsAbsentOnV2.Contains(tab, StringComparer.Ordinal)).Order()];
 
     // Loaded through InitializeAsync the way the host loads it, over the extension's own options
     // store, so the field the manifest reads is filled by the shipped path and not by the test.

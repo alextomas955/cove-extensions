@@ -39,7 +39,7 @@ It also adds a Whisparr button to studio and performer pages, and one to those l
   is already wanted.
 - **Do the same for a whole selection**, as one background job that reports in Cove's job list.
 
-It also adds a **Missing** tab to studio, performer and tag pages:
+It also adds a **Missing** tab to studio pages, and to performer pages on Whisparr v3 (Eros):
 
 - **Browse what your metadata source lists and your library does not hold**, with a status pill on
   each scene saying whether your Whisparr holds it and whether it is wanted.
