@@ -149,6 +149,10 @@ public sealed class SafetyInvariantTests
     // single value rather than a list, so a second anonymous route fails here.
     private const string InboundRoute = "/api/extensions/com.alextomas955.whisparrsync/callback";
 
+    private const string GrabKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
+
+    private static readonly Uri GrabAddress = new("http://whisparr:6969");
+
     [Fact]
     public void EverySafetyInvariantHasATestInThisGroup()
     {
@@ -216,32 +220,37 @@ public sealed class SafetyInvariantTests
                 .ToList());
     }
 
-    // The retry table says nothing about either class, so the default is read back through
-    // WhisparrRetryPolicy.AttemptsFor, which is what a request goes through.
+    // Driven over a connection that reaches nothing, which is the one failure a read is re-issued
+    // after. Each grabbing member leaves one attempt behind: a second would be a second download of
+    // the same entity. v2 searches one entity per command, so one identifier is enough there too.
+    [Theory]
+    [InlineData(WhisparrGeneration.V3)]
+    [InlineData(WhisparrGeneration.V2)]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.NoAutoRetriedGrab)]
+    public async Task AnEntitySearchThatReachedNothingIsNotIssuedASecondTime(
+        WhisparrGeneration generation)
+    {
+        var handler = BodyRecordingHandler.ReachingNothing();
+        var client = TestWhisparrClient.Over(handler);
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => client.SearchMonitoredAsync(
+                GrabAddress, GrabKey, generation, WhisparrEntityKind.Studio, [4], TestCt));
+
+        Assert.Single(handler.Requests);
+    }
+
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NoAutoRetriedGrab)]
-    public void EveryActingAndGrabbingMemberIsSentOnceAndNeverRetried()
+    public async Task ASceneSearchThatReachedNothingIsNotIssuedASecondTime()
     {
-        WhisparrVerbClass[] neverRetried = [WhisparrVerbClass.Act, WhisparrVerbClass.Grab];
+        var handler = BodyRecordingHandler.ReachingNothing();
+        var client = TestWhisparrClient.Over(handler);
 
-        Assert.All(
-            neverRetried,
-            verbClass => Assert.Equal(
-                WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor(verbClass)));
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => client.SearchSceneAsync(GrabAddress, GrabKey, 41, TestCt));
 
-        var members = OutboundSeam.VerbClassByMember
-            .Where(member => neverRetried.Contains(member.Value))
-            .ToList();
-
-        // Both classes carry members, so neither assertion above is passing over an empty set.
-        Assert.Equal(
-            neverRetried.Order().ToList(),
-            members.Select(member => member.Value).Distinct().Order().ToList());
-
-        Assert.All(
-            members,
-            member => Assert.Equal(
-                WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor(member.Value)));
+        Assert.Single(handler.Requests);
     }
 
     // The case list is derived from the per-generation capability table rather than transcribed,
