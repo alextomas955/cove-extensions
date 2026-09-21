@@ -5,6 +5,7 @@ import { act, createElement, type ReactNode } from "react";
 import { press, render as renderNode } from "../common/lib/testRender";
 import type { FolderAgreementRootLine, FolderAgreementView } from "../wire/api";
 import {
+  FOLDER_AGREEMENT_CHANGE,
   FOLDER_AGREEMENT_SAVE,
   FOLDER_AGREEMENT_SETTLED,
   FOLDER_AGREEMENT_UNREADABLE,
@@ -20,8 +21,7 @@ vi.mock("@cove-extensions/ui-shared", async () => {
       h("section", null, props.title, props.description, props.children),
     StatusText: (props: { children: ReactNode }) => h("span", null, props.children),
     Spinner: () => h("span", { "data-spinner": "true" }, "…"),
-    Field: (props: { label: string; helper?: string; children: ReactNode }) =>
-      h("label", null, props.label, props.children, props.helper),
+    StatusPill: (props: { children: ReactNode }) => h("span", null, props.children),
     // A real button, because the native disabled attribute decides whether a press can act.
     Button: (props: { children: ReactNode; disabled?: boolean; onClick: () => void }) =>
       h("button", { disabled: props.disabled, onClick: props.onClick }, props.children),
@@ -114,7 +114,16 @@ async function mount() {
     promptFor,
     roots: () => [...prompts()].map((item) => item.getAttribute("data-root")),
     inputFor: (root: string) => promptFor(root)?.querySelector("input") ?? null,
-    saveFor: (root: string) => promptFor(root)?.querySelector("button") ?? null,
+    // The last control on a row: the row's own save or withdrawal, never the disclosure that
+    // opens the field above it.
+    saveFor: (root: string) => {
+      const buttons = [...(promptFor(root)?.querySelectorAll("button") ?? [])];
+      return buttons.length === 0 ? null : buttons[buttons.length - 1];
+    },
+    changeFor: (root: string) =>
+      [...(promptFor(root)?.querySelectorAll("button") ?? [])].find(
+        (button) => button.textContent === FOLDER_AGREEMENT_CHANGE,
+      ) ?? null,
     buttonNamesFor: (root: string) =>
       [...(promptFor(root)?.querySelectorAll("button") ?? [])].map((button) => button.textContent),
     text: () => container.textContent,
@@ -166,7 +175,7 @@ test("two unresolved folders show two prompts, each with its own field", async (
   expect(page.inputFor("/archive")).not.toBeNull();
 });
 
-test("a folder whose stated path is working shows one line, naming the path and offering a field", async () => {
+test("a folder whose stated path is working reads as settled, with its field behind the disclosure", async () => {
   reads = [viewOf(settledLineFor("/media", "/data/media"))];
 
   const page = await mount();
@@ -174,8 +183,12 @@ test("a folder whose stated path is working shows one line, naming the path and 
   expect(page.prompts().length).toBe(1);
   expect(page.text()).toContain(FOLDER_AGREEMENT_SETTLED);
   expect(page.text()).toContain("/data/media");
+  expect(page.inputFor("/media")).toBeNull();
+
+  await press(page.changeFor("/media"));
+
   expect(page.inputFor("/media")).not.toBeNull();
-  expect(page.saveFor("/media")).not.toBeNull();
+  expect(page.saveFor("/media")?.textContent).toContain(FOLDER_AGREEMENT_SAVE);
 });
 
 test("saving under a working path with the field left blank withdraws it", async () => {
@@ -183,6 +196,7 @@ test("saving under a working path with the field left blank withdraws it", async
   saves = { "/media": { outcome: "removed", refusal: null, tried: [] } };
 
   const page = await mount();
+  await press(page.changeFor("/media"));
   await press(page.saveFor("/media"));
 
   expect(JSON.parse(puts()[0].body ?? "{}")).toEqual({ coveRoot: "/media", instancePath: "" });
@@ -199,6 +213,7 @@ test("a folder nothing resolved for and one whose path works show a field each",
   };
 
   const page = await mount();
+  await press(page.changeFor("/media"));
   expect(page.inputFor("/archive")).not.toBeNull();
   expect(page.inputFor("/media")).not.toBeNull();
 
@@ -305,8 +320,11 @@ test("a stored path leaves the field under that folder blank, ready to withdraw 
   await type(page.inputFor("/media"), "/data/media");
   await press(page.saveFor("/media"));
 
-  expect(page.inputFor("/media")?.value).toBe("");
   expect(page.text()).toContain(FOLDER_SAVE_STORED);
+
+  await press(page.changeFor("/media"));
+
+  expect(page.inputFor("/media")?.value).toBe("");
 });
 
 test("a save that was refused leaves the typed path in the field to be corrected", async () => {
