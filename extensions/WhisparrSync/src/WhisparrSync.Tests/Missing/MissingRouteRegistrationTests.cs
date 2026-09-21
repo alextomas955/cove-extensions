@@ -71,8 +71,8 @@ public sealed class MissingRouteRegistrationTests
                 .Contains("/missing", StringComparison.Ordinal))
             .ToList();
 
-        Assert.Equal(7, routes.Count);
-        Assert.Equal(7, routes.Select(Describe).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(8, routes.Count);
+        Assert.Equal(8, routes.Select(Describe).Distinct(StringComparer.Ordinal).Count());
 
         Assert.Equal([Permissions.VideosRead], PermissionsOf(routes, "GET", "/missing"));
         Assert.Equal([Permissions.VideosRead], PermissionsOf(routes, "GET", "/missing/count"));
@@ -86,6 +86,11 @@ public sealed class MissingRouteRegistrationTests
         Assert.Equal(
             [Permissions.ExtensionsConfigure],
             PermissionsOf(routes, "POST", "/missing/monitor-all"));
+
+        // The add that makes an entity's catalogue exist creates an entity in the reader's
+        // Whisparr, so it sits at the same tier as the rest of the writes.
+        Assert.Equal(
+            [Permissions.ExtensionsConfigure], PermissionsOf(routes, "POST", "/missing/track"));
         Assert.Equal(
             [Permissions.ExtensionsConfigure],
             PermissionsOf(routes, "POST", "/missing/{providerSceneId}/monitor"));

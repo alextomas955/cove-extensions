@@ -182,9 +182,47 @@ internal static class ComposedAdds
             // body at all.
             (_, WhisparrCapability.ReadHeldSites) => [],
 
+            // Read a page of cards in one request. Each sends the identifiers asked about and
+            // nothing else, so neither composes an add to enumerate.
+            (_, WhisparrCapability.ReadEntityCardsInBatch) => [],
+
+            (_, WhisparrCapability.ReadSceneCardsInBatch) => [],
+
+            // Reads one entity's own scene list through one get and composes no body at all.
+            (_, WhisparrCapability.ReadEntityCatalogue) => [],
+
             // Reads what the instance holds at a path of its own, through one get, and composes no
             // body at all.
             (_, WhisparrCapability.ReadInstanceFilesystem) => [],
+
+            // One body per kind: the add is the same shape for both, and the route it goes to is
+            // what differs.
+            (WhisparrGeneration.V3, WhisparrCapability.TrackEntityCatalogue) =>
+            [
+                new ComposedAdd(
+                    generation,
+                    WhisparrEntityKind.Studio,
+                    Scope: null,
+                    V3BodyProjector.TrackEntity(MonitorHost.StudioRemoteIdValue, Defaults),
+                    [TopLevelSuppression]),
+                new ComposedAdd(
+                    generation,
+                    WhisparrEntityKind.Performer,
+                    Scope: null,
+                    V3BodyProjector.TrackEntity(MonitorHost.PerformerRemoteIdValue, Defaults),
+                    [TopLevelSuppression]),
+            ],
+
+            // This generation tracks a site through the presence-only add it already composes.
+            (WhisparrGeneration.V2, WhisparrCapability.TrackEntityCatalogue) =>
+            [
+                new ComposedAdd(
+                    generation,
+                    WhisparrEntityKind.Studio,
+                    Scope: null,
+                    ComposedBody.Of(V2BodyProjector.RegisterSite(3, Defaults)),
+                    V2Suppression),
+            ],
 
             (WhisparrGeneration.V3, WhisparrCapability.MonitorStudio) =>
             [
@@ -341,7 +379,7 @@ public sealed class NonGrabbingBodyTests
     [Fact]
     public void TheCaseListIsDerivedFromTheRegisteredCapabilityTable()
     {
-        Assert.Equal(4, ComposedAdds.On(WhisparrGeneration.V3).Count);
+        Assert.Equal(6, ComposedAdds.On(WhisparrGeneration.V3).Count);
         Assert.Equal(
             [
                 WhisparrCapability.OutOfBandCallbackSecret,
@@ -355,11 +393,15 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.SearchScene,
                 WhisparrCapability.MonitorScene,
                 WhisparrCapability.ExcludeScene,
+                WhisparrCapability.ReadEntityCardsInBatch,
+                WhisparrCapability.ReadSceneCardsInBatch,
+                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
 
-        Assert.Equal(3, ComposedAdds.On(WhisparrGeneration.V2).Count);
+        Assert.Equal(4, ComposedAdds.On(WhisparrGeneration.V2).Count);
         Assert.Equal(
             [
                 WhisparrCapability.OutOfBandCallbackSecret,
@@ -370,11 +412,14 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.RegisterOwnedSites,
                 WhisparrCapability.ReadSiteSceneRows,
                 WhisparrCapability.ReadHeldSites,
+                WhisparrCapability.ReadEntityCardsInBatch,
+                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
 
-        Assert.Equal(7, ComposedAdds.All().Count);
+        Assert.Equal(10, ComposedAdds.All().Count);
 
         // The filter is on the verb class rather than on the registration, so a grabbing capability a
         // generation holds contributes no case to a list of bodies asserted non-grabbing. Which

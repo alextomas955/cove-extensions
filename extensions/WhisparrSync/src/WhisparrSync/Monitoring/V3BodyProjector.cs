@@ -95,6 +95,39 @@ internal static class V3BodyProjector
             searchOnAdd: NoAcquisition);
     }
 
+    // Tracks an entity's catalogue and wants none of it.
+    //
+    // Hand-composed rather than built from the generated resource: the member that governs whether a
+    // catalogue arrival is wanted is absent from the generated client, and it defaults to true on
+    // the instance. A body without it adds the entity and marks every scene of it wanted, which is
+    // the opposite of what this add is for.
+    //
+    // No after date, because the whole catalogue is the point: this generation refuses to add a
+    // scene older than that date at all, so a date here would hide most of what a reader is missing.
+    internal static JsonObject TrackEntity(string foreignId, AddDefaults defaults)
+    {
+        Require(foreignId, defaults);
+
+        return new JsonObject
+        {
+            ["foreignId"] = foreignId,
+            ["rootFolderPath"] = defaults.RootFolderPath,
+            ["qualityProfileId"] = defaults.QualityProfileId,
+            ["tags"] = new JsonArray(),
+
+            // The instance syncs a catalogue only for an entity carrying this flag, so it is what
+            // makes the entity's scenes listable at all.
+            ["monitored"] = true,
+
+            // Every scene the sync brings in arrives unmonitored, and nothing is searched.
+            ["whisparrMonitorNewItems"] = false,
+            ["searchOnAdd"] = NoAcquisition,
+
+            // Movie-type items need a metadata link this product never adds.
+            ["moviesMonitored"] = false,
+        };
+    }
+
     // The monitor type covers the scene alone; a wider type would monitor items nobody asked
     // about. No profile is read off the parent entity: a scene the instance's own catalogue
     // refresh creates inherits its parent's profile from the instance.

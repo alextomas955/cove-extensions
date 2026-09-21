@@ -101,7 +101,14 @@ public sealed partial class WhisparrSync
         => ReadingEntity(entityKind, target) is { } reading
             ? await cards
                 .ReadEntityCardsAsync(
-                    reading, entityKind, target.Generation, target.BaseAddress, coveIds, ct)
+                    reading,
+                    target.Capabilities.Obtain<IWhisparrEntityBatchReading>(),
+                    entityKind,
+                    target.Generation,
+                    target.BaseAddress,
+                    target.ApiKey,
+                    coveIds,
+                    ct)
                 .ConfigureAwait(false)
             : (null, false);
 
@@ -128,6 +135,7 @@ public sealed partial class WhisparrSync
         var answered = await cards.ReadSceneCardsAsync(
                 sceneStatus,
                 target.Capabilities.Obtain<IWhisparrSceneExclusionReading>(),
+                target.Capabilities.Obtain<IWhisparrSceneBatchReading>(),
                 target.BaseAddress,
                 target.ApiKey,
                 target.Generation,

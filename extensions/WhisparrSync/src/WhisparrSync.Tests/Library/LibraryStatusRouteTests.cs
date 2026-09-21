@@ -18,7 +18,6 @@ public sealed class LibraryStatusRouteTests
     private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
 
     // The per-scene route answers a list, of one row where the instance holds the scene.
-    private const string HeldAndMonitored = """[{"id":9,"monitored":true}]""";
 
     // The spelling this library holds v2's identity rows under.
     private const string V2Endpoint = "theporndb.net/graphql";
@@ -131,9 +130,7 @@ public sealed class LibraryStatusRouteTests
     public async Task TheVideoKindAnswersOneRowPerRequestedIdAndSpeaksOnlyForTheIdentifiedOnes()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(
-            nameof(IWhisparrSceneStatusReading.ReadSceneByRemoteIdAsync),
-            MonitorHost.Json(200, HeldAndMonitored));
+        host.Client.HeldSceneCards[FirstScene] = new WhisparrHeldCard(true, null);
         var studioId = await host.SeedStudioAsync(null, null);
         var identified = await host.SeedStudioSceneAsync(
             studioId, MonitorHost.StoredEndpoint, FirstScene);
@@ -146,7 +143,11 @@ public sealed class LibraryStatusRouteTests
         Assert.Null(view.Rows[0].Reading);
         Assert.Equal(new LibraryCardReading(false, true, true), view.Rows[1].Reading);
         Assert.Equal([FirstScene], Assert.Single(host.Client.ExclusionReads));
-        Assert.Equal([FirstScene], host.Client.SceneStatuses.Select(call => call.RemoteId));
+
+        // The page costs one batch read naming only the identified scene, and no scene is read on
+        // its own.
+        Assert.Equal([FirstScene], Assert.Single(host.Client.SceneBatchReads));
+        Assert.Empty(host.Client.SceneStatuses);
     }
 
     // The instance answers a not-found for the same scene, so this pins the order the two reads
