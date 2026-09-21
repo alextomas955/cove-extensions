@@ -10,9 +10,9 @@ import { join } from "node:path";
 import { attemptUntil } from "./poll.mjs";
 import { APP_USER } from "./whisparr-images.mjs";
 
-// The database each generation serves its own API from. The seeder takes this as an argument rather
-// than choosing for itself, so the one database it may open is always named by its caller.
-const DATABASES = { v3: "/config/whisparr3.db", v2: "/config/whisparr2.db" };
+// Which generations a seeder is written for. Where each keeps its database is the seeder's own to
+// know, so that path is stated in the seeder and nowhere here.
+const SEEDABLE_GENERATIONS = ["v3", "v2"];
 
 /**
  * The identifier the seeded v2 episode carries, which that generation's history reports under
@@ -141,19 +141,18 @@ export async function seedHistory({
   eventTypes,
   expectedTotal = count,
 }) {
-  if (!Object.hasOwn(DATABASES, generation)) {
+  if (!SEEDABLE_GENERATIONS.includes(generation)) {
     throw new Error(
-      `seedHistory: no database is declared for generation "${generation}"; declared generations are ${Object.keys(DATABASES).join(", ")}.`,
+      `seedHistory: no seeder is written for generation "${generation}"; written are ${SEEDABLE_GENERATIONS.join(", ")}.`,
     );
   }
-  const database = DATABASES[generation];
 
   await container.copyFilesToContainer([{ source: SEEDER_SOURCE, target: SEEDER_TARGET }]);
   // A copied file arrives root-owned, and the chown is the only step here that needs root. The
   // seeder itself is run AS the app's own user so the write-ahead and shared-memory siblings it
   // touches keep belonging to the process that has to go on using them.
   await container.exec(["chown", APP_USER, SEEDER_TARGET], { user: "root" });
-  const written = await runSeeder(container, generation, count, database, data, eventTypes);
+  const written = await runSeeder(container, generation, count, data, eventTypes);
 
   const {
     settled,
@@ -171,7 +170,7 @@ export async function seedHistory({
   );
   if (!settled) {
     throw new Error(
-      `seedHistory: ${generation} wrote ${count} row(s) into ${database}, and GET /api/v3/history still answered ${note} after ${READ_BACK_TIMEOUT_MS}ms while waiting for totalRecords ${expectedTotal}. ` +
+      `seedHistory: ${generation} wrote ${count} row(s), and GET /api/v3/history still answered ${note} after ${READ_BACK_TIMEOUT_MS}ms while waiting for totalRecords ${expectedTotal}. ` +
         "The likeliest cause is an orphaned seed: the reader inner-joins each history row to its parent library row and silently drops any whose parent is missing, so the table keeps the rows while the API reports none of them.",
     );
   }
@@ -247,8 +246,8 @@ export async function seedEntity({
     [
       "python3",
       ENTITY_SEEDER_TARGET,
-      "--db",
-      DATABASES[generation],
+      "--generation",
+      generation,
       "--kind",
       kind,
       "--foreign-id",
@@ -266,7 +265,7 @@ export async function seedEntity({
   );
   if (written.exitCode !== 0) {
     throw new Error(
-      `seedEntity: the seeder exited ${written.exitCode} writing a ${kind} "${foreignId}" into ${DATABASES[generation]} on ${generation}: ${written.output}`,
+      `seedEntity: the seeder exited ${written.exitCode} writing a ${kind} "${foreignId}" on ${generation}: ${written.output}`,
     );
   }
 
@@ -306,7 +305,7 @@ async function firstQualityProfileId(api, generation) {
   return value;
 }
 
-async function runSeeder(container, generation, count, database, data, eventTypes) {
+async function runSeeder(container, generation, count, data, eventTypes) {
   const result = await container.exec(
     [
       "python3",
@@ -315,8 +314,6 @@ async function runSeeder(container, generation, count, database, data, eventType
       generation,
       "--count",
       String(count),
-      "--db",
-      database,
       ...(data ? ["--data", JSON.stringify(data)] : []),
       ...(eventTypes ? ["--event-types", JSON.stringify(eventTypes)] : []),
     ],
@@ -324,7 +321,7 @@ async function runSeeder(container, generation, count, database, data, eventType
   );
   if (result.exitCode !== 0) {
     throw new Error(
-      `seedHistory: the seeder exited ${result.exitCode} against ${generation} (${database}): ${result.output}`,
+      `seedHistory: the seeder exited ${result.exitCode} against ${generation}: ${result.output}`,
     );
   }
   return JSON.parse(result.output).rows;

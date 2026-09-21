@@ -76,6 +76,16 @@ TABLES = {
 }
 
 
+# Where each generation keeps its catalogue, as the image lays it out. Chosen here rather than
+# passed in, so the caller holds no second copy of a path that belongs to this image.
+V3_DATABASE = "/config/whisparr3.db"
+V2_DATABASE = "/config/whisparr2.db"
+
+
+def database_for(generation: str) -> str:
+    return V2_DATABASE if generation == "v2" else V3_DATABASE
+
+
 def write_scene(connection, args) -> int:
     """Writes one scene's catalogue entry and the entry the instance monitors."""
     metadata = {
@@ -112,7 +122,7 @@ def write_scene(connection, args) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--db", required=True, help="the database to write, named by the caller")
+    parser.add_argument("--generation", required=True, choices=("v3", "v2"))
     parser.add_argument("--kind", required=True, choices=sorted([*TABLES, "scene"]))
     parser.add_argument("--foreign-id", required=True, help="the id the instance is addressed by")
     parser.add_argument("--title", required=True)
@@ -122,7 +132,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.kind == "scene":
-        connection = sqlite3.connect(args.db)
+        connection = sqlite3.connect(database_for(args.generation))
         try:
             row = write_scene(connection, args)
             connection.commit()
@@ -149,7 +159,7 @@ def main() -> None:
 
     placeholders = ", ".join("?" for _ in columns)
     names = ", ".join(f'"{column}"' for column in columns)
-    connection = sqlite3.connect(args.db)
+    connection = sqlite3.connect(database_for(args.generation))
     try:
         cursor = connection.execute(
             f'INSERT INTO "{shape["table"]}" ({names}, "Added") '

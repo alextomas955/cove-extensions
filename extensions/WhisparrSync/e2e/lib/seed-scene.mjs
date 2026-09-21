@@ -9,8 +9,8 @@
 // carries CRLF into every path it handles, and the failure then blames the path.
 import { join } from "node:path";
 
-/** The database each generation keeps its catalogue in, as the image lays it out. */
-const DATABASES = { v3: "/config/whisparr3.db", v2: "/config/whisparr2.db" };
+/** Which generations a seeder here is written for; each seeder knows its own database path. */
+const SEEDABLE_GENERATIONS = ["v3", "v2"];
 
 const DATER_SOURCE = join(import.meta.dirname, "date-seeded-scene.py");
 const DATER_TARGET = "/opt/harness/date-seeded-scene.py";
@@ -38,7 +38,7 @@ export const SCENE_SITE = "Tushy Raw";
  * them the interactive search answers an empty list having asked no indexer anything.
  */
 export async function dateSeededScene(container, generation, foreignId) {
-  if (!Object.hasOwn(DATABASES, generation)) {
+  if (!SEEDABLE_GENERATIONS.includes(generation)) {
     throw new Error(`dateSeededScene: no database is declared for generation "${generation}".`);
   }
 
@@ -100,8 +100,6 @@ export async function seedV2Scene(
     [
       "python3",
       V2_SEEDER_TARGET,
-      "--db",
-      DATABASES.v2,
       "--site-id",
       String(siteId),
       "--site-title",
