@@ -56,6 +56,10 @@ const MANUAL_IMPORT_COMMAND = "ManualImport";
 
 const CONTROL_BUDGET_MS = 60_000;
 const GESTURE_BUDGET_MS = 60_000;
+
+// One attempt at getting the menu open, not the whole gesture: the block around it retries, and a
+// long budget here would spend the gesture's own on a single attempt.
+const MENU_OPEN_BUDGET_MS = 5_000;
 const JOB_BUDGET_MS = 120_000;
 
 test.describe.configure({ timeout: SPEC_BUDGET_MS });
@@ -116,13 +120,18 @@ async function pressRow(page, label, route) {
     (response) => new URL(response.url()).pathname.endsWith(`/${route}`),
     { timeout: GESTURE_BUDGET_MS },
   );
-  if (!(await monitoredMenu(page).isVisible())) {
-    await monitoredControl(page).click();
-  }
-  await expect(
-    monitoredMenu(page),
-    `the monitored control did not open its menu before "${label}" could be pressed`,
-  ).toBeVisible();
+  // Retried as a block. `isVisible` reads at an instant, so a menu caught part way through opening
+  // reads as closed and the press below shuts it; retrying reopens it rather than failing on a menu
+  // this helper closed itself.
+  await expect(async () => {
+    if (!(await monitoredMenu(page).isVisible())) {
+      await monitoredControl(page).click();
+    }
+    await expect(
+      monitoredMenu(page),
+      `the monitored control did not open its menu before "${label}" could be pressed`,
+    ).toBeVisible({ timeout: MENU_OPEN_BUDGET_MS });
+  }).toPass({ timeout: GESTURE_BUDGET_MS });
   const row = monitoredMenu(page).getByRole("menuitem", { name: label, exact: true });
   await expect(row, `the menu offers no "${label}" row`).toBeVisible();
   await expect(row, `the "${label}" row is not pressable on a monitored studio`).toBeEnabled();
