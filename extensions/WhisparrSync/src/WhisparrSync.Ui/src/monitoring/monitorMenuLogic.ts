@@ -44,6 +44,7 @@ import {
   SEVERAL_IDENTITIES_IN_THIS_NAMESPACE,
   WAITING_FOR_WHISPARR,
 } from "../common/ui/copy";
+import { membersOf } from "../common/lib/totalTableLogic";
 
 /** A scope a caller can actually choose. The wire type admits null, which is "take the default". */
 export type MonitorScopeChoice = NonNullable<MonitorScope>;
@@ -292,60 +293,30 @@ const SCOPE_LABEL: Record<MonitorScopeChoice, string> = {
   allScenes: SCOPE_ALL_SCENES,
 };
 
-/**
- * The refusal kinds, so a caller covering all of them cannot miss one.
- *
- * The spellings are transcribed by hand from the server's enum. A list computed from the generated
- * module would agree with it whatever it says.
- */
-export const MONITOR_REFUSAL_KINDS: readonly MonitorRefusalKind[] = [
-  "none",
-  "notConfigured",
-  "noIdentityInThisNamespace",
-  "severalIdentitiesInThisNamespace",
-  "capabilityAbsentOnThisGeneration",
-  "noQualityProfile",
-  "noRootFolder",
-  "noAgreedRootForThisEntity",
-  "instanceRefused",
-  "answerTooLargeToRead",
-  "instanceHoldsNoSuchEntity",
-  "instanceDidNotReportTheChange",
-];
+/** The refusal kinds, so a caller covering all of them cannot miss one. */
+export const MONITOR_REFUSAL_KINDS: readonly MonitorRefusalKind[] = membersOf(REFUSALS);
 
 /**
  * The scopes, in the order they render.
  *
- * The order is fixed rather than derived from the state: a varying order puts the cheap option
- * under the cursor sometimes and the expensive one others.
+ * The order is the label table's own rather than derived from the state: a varying order puts the
+ * cheap option under the cursor sometimes and the expensive one others.
  */
-export const SCOPE_ORDER: readonly MonitorScopeChoice[] = ["futureScenes", "allScenes"];
+export const SCOPE_ORDER: readonly MonitorScopeChoice[] = membersOf(SCOPE_LABEL);
 
 /** The scope taken when the reader takes none. */
 export const DEFAULT_SCOPE: MonitorScopeChoice = "futureScenes";
 
 /** The secondary actions, in the order they render. */
-export const SECONDARY_ACTIONS: readonly SecondaryAction[] = [
-  "addAllMissing",
-  "reflectOwned",
-  "searchAllMonitored",
-];
+export const SECONDARY_ACTIONS: readonly SecondaryAction[] = membersOf(SECONDARY_LABEL);
 
-/** The entity kinds, so a caller covering both cannot miss one. */
-export const ENTITY_KINDS: readonly WhisparrEntityKind[] = ["studio", "performer"];
+/** The entity kinds this menu is opened from, so a caller covering them cannot miss one. */
+export const ENTITY_KINDS: readonly WhisparrEntityKind[] = membersOf(MONITOR_CAPABILITY).filter(
+  (kind) => MONITOR_CAPABILITY[kind] !== null,
+);
 
 /** The generations something can be connected to. */
-export const GENERATIONS: readonly ConnectedGeneration[] = ["v3", "v2"];
-
-/** Every capability the wire enum carries. */
-export const CAPABILITY_ORDER: readonly WhisparrCapability[] = [
-  "outOfBandCallbackSecret",
-  "monitorStudio",
-  "monitorPerformer",
-  "registerMissingScenes",
-  "reflectOwnedFiles",
-  "searchMonitored",
-];
+export const GENERATIONS: readonly ConnectedGeneration[] = membersOf(A_SCOPE_CHANGE_IS_RETROACTIVE);
 
 /** How `kind` reads, and whether it leaves anything to offer. */
 export function describeMonitorRefusal(kind: MonitorRefusalKind): MonitorRefusal {

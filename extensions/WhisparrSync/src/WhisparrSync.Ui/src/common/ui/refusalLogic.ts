@@ -5,6 +5,7 @@
  * connection test's decision table, keeps those beside itself and maps them onto these.
  */
 import { CAP_UNAVAILABLE_ON_THIS_GENERATION, NOTHING_MISSING, PROVIDER_UNREACHABLE } from "./copy";
+import { membersOf } from "../lib/totalTableLogic";
 
 export type RefusalKind = "notConfigured" | "unreachable" | "versionCapability" | "nothingToDo";
 
@@ -48,12 +49,7 @@ const REFUSALS: Record<RefusalKind, Refusal> = {
   },
 };
 
-export const REFUSAL_KINDS: readonly RefusalKind[] = [
-  "notConfigured",
-  "unreachable",
-  "versionCapability",
-  "nothingToDo",
-];
+export const REFUSAL_KINDS: readonly RefusalKind[] = membersOf(REFUSALS);
 
 export function describeRefusal(kind: RefusalKind): Refusal {
   return REFUSALS[kind];

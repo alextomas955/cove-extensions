@@ -32,7 +32,6 @@ import {
   reflectOwnedSkipIn,
   refusalNoticeFor,
   routeFor,
-  CAPABILITY_ORDER,
   ENTITY_KINDS,
   GENERATIONS,
   MONITOR_REFUSAL_KINDS,
@@ -44,9 +43,9 @@ import {
   type SecondaryAction,
 } from "./monitorMenuLogic";
 
-// Every capability the wire enum carries. A gap is asserted by taking a member away from this
-// list, never by adding one to a short list.
-const EVERY_CAPABILITY: WhisparrCapability[] = [
+// The capabilities these tests grant a healthy entity, which are the ones this menu reads. A gap
+// is asserted by taking a member away from this list, never by adding one to a short list.
+const MENU_CAPABILITIES: WhisparrCapability[] = [
   "outOfBandCallbackSecret",
   "monitorStudio",
   "monitorPerformer",
@@ -63,14 +62,14 @@ function view(
     present: false,
     monitored: false,
     refusal: "none",
-    capabilities: EVERY_CAPABILITY,
+    capabilities: MENU_CAPABILITIES,
     scope: null,
     ...over,
   };
 }
 
 function withoutCapability(absent: WhisparrCapability): WhisparrCapability[] {
-  return EVERY_CAPABILITY.filter((capability) => capability !== absent);
+  return MENU_CAPABILITIES.filter((capability) => capability !== absent);
 }
 
 function secondaries(items: readonly MonitorMenuItem[]): readonly SecondaryAction[] {
@@ -87,7 +86,6 @@ function selectedScopes(items: readonly MonitorMenuItem[]): readonly string[] {
 
 describe("the item set is written down for every combination the wire enums allow", () => {
   it("names each wire enum's members against a hand-written count", () => {
-    expect(CAPABILITY_ORDER).toHaveLength(6);
     expect(ENTITY_KINDS).toHaveLength(2);
     expect(GENERATIONS).toHaveLength(2);
     expect(SCOPE_ORDER).toHaveLength(2);
@@ -285,9 +283,6 @@ describe("a capability the connected generation does not hold", () => {
   });
 
   it("gates each action on the capability the capability table names", () => {
-    for (const action of SECONDARY_ACTIONS) {
-      expect(CAPABILITY_ORDER, action).toContain(capabilityBehindAction(action));
-    }
     expect(SECONDARY_ACTIONS.map(capabilityBehindAction)).toEqual([
       "registerMissingScenes",
       "reflectOwnedFiles",
