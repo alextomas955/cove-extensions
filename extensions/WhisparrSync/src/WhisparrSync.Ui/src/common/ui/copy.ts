@@ -1,23 +1,15 @@
-/**
- * The product's specified sentences.
- */
+/** The product's specified sentences. */
 
-/**
- * The library toolbar control's own name while the card badges are hidden.
- */
+/** The library toolbar control's own name while the card badges are hidden. */
 export const SHOW_WHISPARR_STATUS = "Show Whisparr status";
 
 /** The same control's name once the badges are on. */
 export const HIDE_WHISPARR_STATUS = "Hide Whisparr status";
 
-/**
- * The row of counts under a list toolbar, named for what it counts.
- */
+/** The row of counts under a list toolbar, named for what it counts. */
 export const WHISPARR_STATUS_ROW = "Whisparr";
 
-/**
- * What the row's counts are over, stated on the row itself.
- */
+/** What the row's counts are over, stated on the row itself. */
 export const LIBRARY_COUNTS_ARE_FOR_THIS_PAGE =
   "These counts are for the cards on this page, not for the whole library.";
 
@@ -27,33 +19,23 @@ export const NOT_ADDED_ON_THIS_PAGE = "not added on this page";
 /** The row while its cards are still being read. */
 export const CHECKING_WHISPARR = "Checking Whisparr…";
 
-/**
- * Nothing could be reached, said once for the page on the control that asked.
- */
+/** Nothing could be reached, said once for the page on the control that asked. */
 export const WHISPARR_STATUS_COULD_NOT_BE_READ =
   "Cove could not reach Whisparr, so no card can show a status. That is not the same as Whisparr holding nothing.";
 
-/**
- * Nothing is connected, so nothing was asked, said once for the page on the control that asked.
- */
+/** Nothing is connected, so nothing was asked, said once for the page on the control that asked. */
 export const NO_WHISPARR_CONNECTED =
   "No Whisparr is connected, so no card can show a status. Nothing was asked of Whisparr.";
 
-/**
- * The connected Whisparr keeps no record of the cards on this page, so it was not asked.
- */
+/** The connected Whisparr keeps no record of the cards on this page, so it was not asked. */
 export const WHISPARR_KEEPS_NO_RECORD_OF_THESE =
   "The connected Whisparr keeps no record of these, so no card can show a status. It was not asked.";
 
-/**
- * The status request itself never answered, said once for the page on the control that made it.
- */
+/** The status request itself never answered, said once for the page on the control that made it. */
 export const THE_STATUS_READ_DID_NOT_COMPLETE =
   "Cove could not complete the status read, so no card can show a status. Whisparr may not have been asked at all.";
 
-/**
- * The badges are on where the display mode draws none, said on the control that turned them on.
- */
+/** The badges are on where the display mode draws none, said on the control that turned them on. */
 export const NO_PLACE_FOR_A_CARD_STATUS_HERE =
   "This display mode has no place for a per-card status. Switch to the Grid display mode to see it.";
 
@@ -73,55 +55,39 @@ export const MENU_EXCLUDE = "Exclude";
 /** The scene tab's monitor control, while the instance is not monitoring the scene. */
 export const MONITOR_IN_WHISPARR = "Monitor in Whisparr";
 
-/**
- * The entity control's own name while the entity is not monitored in Whisparr.
- */
+/** The entity control's own name while the entity is not monitored in Whisparr. */
 export const WHISPARR_NOT_MONITORED = "Whisparr, not monitored";
 
 /** The same control's name once the connected instance monitors the entity. */
 export const WHISPARR_MONITORED = "Whisparr, monitored";
 
-/**
- * The entity's monitored state could not be read.
- */
+/** The entity's monitored state could not be read. */
 export const MONITORING_COULD_NOT_BE_READ =
   "Cove could not read what Whisparr monitors for this. That is not the same as Whisparr monitoring nothing.";
 
-/**
- * An action that never reached the instance.
- */
+/** An action that never reached the instance. */
 export const ACTION_DID_NOT_REACH_WHISPARR =
   "Cove could not carry that out. Nothing here was changed; try again shortly.";
 
-/**
- * An action this build of the extension does not carry out.
- */
+/** An action this build of the extension does not carry out. */
 export const ACTION_ABSENT_IN_THIS_VERSION =
   "This version of Whisparr Sync does not carry out this action.";
 
-/**
- * The narrower monitor scope.
- */
+/** The narrower monitor scope. */
 export const SCOPE_FUTURE_SCENES = "Monitor - new releases only";
 
 /** The wider monitor scope, named for what it does with what Whisparr already lists. */
 export const SCOPE_ALL_SCENES = "Monitor - all scenes (queue back-catalogue)";
 
-/**
- * What the wider scope costs, stated where the scope is chosen rather than after it is taken.
- */
+/** What the wider scope costs, stated where the scope is chosen rather than after it is taken. */
 export const ALL_SCENES_MARKS_THE_BACK_CATALOGUE =
   "Monitoring all scenes marks every scene Whisparr already lists for this entity as wanted, which spends indexer traffic and disk.";
 
-/**
- * That the wider scope is a one-way door, stated where the scope is chosen.
- */
+/** That the wider scope is a one-way door, stated where the scope is chosen. */
 export const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
   "Narrowing the scope back to new releases only does not undo this: a scene that is already wanted stays wanted.";
 
-/**
- * What the search costs, stated where it is chosen rather than after it is taken.
- */
+/** What the search costs, stated where it is chosen rather than after it is taken. */
 export const SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK =
   "Whisparr looks for everything these entities monitor and does not hold, and takes in what it finds, which spends indexer traffic and disk.";
 
@@ -129,9 +95,7 @@ export const SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK =
 export const REFLECT_OWNED_SKIPPED =
   "Skipped: with Whisparr's hard-link setting off each file would be copied rather than linked, and would use disk twice.";
 
-/**
- * Why nothing was linked when the setting itself could not be read.
- */
+/** Why nothing was linked when the setting itself could not be read. */
 export const REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE =
   "Skipped: Cove could not read Whisparr's hard-link setting, so it could not establish that linking these files would cost no extra disk.";
 
@@ -141,31 +105,21 @@ export const REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE =
  */
 export const STOP_MONITORING_IN_WHISPARR = "Stop monitoring in Whisparr";
 
-/**
- * Where the result of a selection appears.
- */
+/** Where the result of a selection appears. */
 export const BULK_REPORTS_IN_THE_JOB_DRAWER =
   "This runs in the background. Its progress, and its result for each entity, appear in Cove's job list.";
 
-/**
- * Nothing could be offered, because what the connected Whisparr can do was not read.
- */
+/** Nothing could be offered, because what the connected Whisparr can do was not read. */
 export const BULK_ACTIONS_COULD_NOT_BE_OFFERED =
   "Cove could not read what the connected Whisparr can do, so it offered nothing. Nothing was changed; try again shortly.";
 
-/**
- * How many entities one run may carry.
- */
+/** How many entities one run may carry. */
 export const MAX_ENTITY_IDS_PER_REQUEST = 1000;
 
-/**
- * Why a selection larger than the bound did nothing.
- */
+/** Why a selection larger than the bound did nothing. */
 export const BULK_SELECTION_IS_OVER_THE_BOUND = `Cove acts on at most ${String(MAX_ENTITY_IDS_PER_REQUEST)} entities in one run, and you selected more. Nothing was changed; select fewer and repeat over the rest.`;
 
-/**
- * Any other refusal of the whole gesture.
- */
+/** Any other refusal of the whole gesture. */
 export const RUN_WAS_NOT_STARTED =
   "Cove could not start this run. Nothing was changed; try again shortly.";
 
@@ -183,20 +137,14 @@ export const ACTION_ADD_ALL_MISSING = "Add all missing";
 export const ACTION_REFLECT_OWNED = "Reflect owned";
 export const ACTION_SEARCH_ALL_MONITORED = "Search all monitored";
 
-/**
- * Why a control is unavailable while the last thing asked for is still on its way.
- */
+/** Why a control is unavailable while the last thing asked for is still on its way. */
 export const WAITING_FOR_WHISPARR = "Waiting for Whisparr to answer the last thing you asked for.";
 
-/**
- * Nothing is connected, said on a page that is not the settings page.
- */
+/** Nothing is connected, said on a page that is not the settings page. */
 export const NO_INSTANCE_CONNECTED =
   "No Whisparr instance is connected. Connect one on the Whisparr Sync settings page.";
 
-/**
- * The entity carries no identifier the connected instance could be given.
- */
+/** The entity carries no identifier the connected instance could be given. */
 export const NO_IDENTITY_IN_THIS_NAMESPACE =
   "Cove holds no link for this entity that the connected Whisparr can identify it by.";
 
@@ -216,39 +164,27 @@ export const INSTANCE_OFFERS_NO_QUALITY_PROFILE =
 export const INSTANCE_OFFERS_NO_ROOT_FOLDER =
   "Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.";
 
-/**
- * The folder this entity's own files sit in has no agreed Whisparr spelling.
- */
+/** The folder this entity's own files sit in has no agreed Whisparr spelling. */
 export const NO_AGREED_ROOT_FOR_THIS_ENTITY =
   "Whisparr and Cove have not agreed on where this entity's files are, so nothing was sent. " +
   "Set the folder mapping for that library folder on this extension's settings page.";
 
-/**
- * The instance answered and declined.
- */
+/** The instance answered and declined. */
 export const INSTANCE_REFUSED = "Whisparr would not do this. Nothing here was changed.";
 
-/**
- * The instance answered, and the answer was past what this extension reads at once.
- */
+/** The instance answered, and the answer was past what this extension reads at once. */
 export const INSTANCE_ANSWER_WAS_TOO_LARGE_TO_READ =
   "Whisparr's answer was larger than this extension reads at once. Your Whisparr answered correctly. Reload the page for its current state.";
 
-/**
- * The instance answered, and holds no such entry.
- */
+/** The instance answered, and holds no such entry. */
 export const INSTANCE_HOLDS_NO_SUCH_ENTRY =
   "Whisparr no longer holds this entry, so there was nothing to act on. Reload the page for its current state.";
 
-/**
- * The change was accepted, and the read taken straight after it does not report it.
- */
+/** The change was accepted, and the read taken straight after it does not report it. */
 export const INSTANCE_DID_NOT_REPORT_THE_CHANGE =
   "Whisparr accepted the change but does not report it. Reload the page for its current state.";
 
-/**
- * The version-gap sentence, for a capability the connected generation does not have.
- */
+/** The version-gap sentence, for a capability the connected generation does not have. */
 export const CAP_UNAVAILABLE_ON_THIS_GENERATION = "Currently available on Whisparr v3 (Eros)";
 
 /**
@@ -282,9 +218,7 @@ export const SCENE_EXCLUDE = "Exclude from Whisparr";
 /** The removing half of the same control, which is what the reader sees once it is excluded. */
 export const SCENE_REMOVE_EXCLUSION = "Remove exclusion";
 
-/**
- * A search asked for on a scene the instance holds no entry for, on the scene's own tab.
- */
+/** A search asked for on a scene the instance holds no entry for, on the scene's own tab. */
 export const SCENE_SEARCH_NEEDS_AN_ENTRY =
   "Whisparr has no entry for this scene, so there is nothing to search for. Add it first.";
 
@@ -304,51 +238,35 @@ export const SCENE_IS_ALREADY_IN_WHISPARR =
 export const SCENE_IS_ON_THE_EXCLUSION_LIST =
   "This scene is on Whisparr's exclusion list, so Whisparr will not act on it. Remove the exclusion first.";
 
-/**
- * What confirms a search, read back off the instance by the command's own id.
- */
+/** What confirms a search, read back off the instance by the command's own id. */
 export const SCENE_SEARCH_IS_WITH_WHISPARR =
   "Whisparr has the search. What it finds arrives the same way every other import does.";
 
-/**
- * How many scenes one search run may carry.
- */
+/** How many scenes one search run may carry. */
 export const MAX_SCENE_SEARCH_IDS_PER_REQUEST = 100;
 
-/**
- * Why a selection larger than the search row's own bound did nothing.
- */
+/** Why a selection larger than the search row's own bound did nothing. */
 export const BATCH_SEARCH_IS_OVER_THE_BOUND = `A search runs against every indexer Whisparr has, so Cove searches at most ${String(MAX_SCENE_SEARCH_IDS_PER_REQUEST)} scenes in one run, and you selected more. Nothing was sent; select fewer and repeat over the rest.`;
 
-/**
- * What a `{provider}` slot reads as before any page has answered.
- */
+/** What a `{provider}` slot reads as before any page has answered. */
 export const THE_METADATA_SOURCE = "your metadata source";
 
-/**
- * A missing-check whose provider did not answer.
- */
+/** A missing-check whose provider did not answer. */
 export const PROVIDER_UNREACHABLE =
   "Couldn't reach {provider} to check what's missing for {entity}. This isn't the same as owning everything - try again shortly.";
 
 /** A missing-check that succeeded and found nothing missing. Only for a check that did succeed. */
 export const NOTHING_MISSING = "You own every scene {provider} lists for {entity}.";
 
-/**
- * A page whose scenes were all owned, in a catalogue that still holds others.
- */
+/** A page whose scenes were all owned, in a catalogue that still holds others. */
 export const EVERY_SCENE_ON_THIS_PAGE_IS_OWNED =
   "You own every scene on this page. Later pages hold the ones you do not.";
 
-/**
- * A parent studio read without its sub-studios, which the provider attributes every scene to.
- */
+/** A parent studio read without its sub-studios, which the provider attributes every scene to. */
 export const NO_SCENES_WITHOUT_SUB_STUDIOS =
   "{provider} lists this studio's scenes under its sub-studios. Turn on “Include sub-studio content” above to see them.";
 
-/**
- * Cove names no metadata source, so there is nothing to read a catalogue from.
- */
+/** Cove names no metadata source, so there is nothing to read a catalogue from. */
 export const NO_METADATA_PROVIDER_CONFIGURED =
   "Set up a {provider} metadata source in Cove (Settings → Scraping → Metadata servers) to discover {entity}'s catalogue.";
 
@@ -359,38 +277,26 @@ export const NO_PROVIDER_ID_FOR_ENTITY =
 /** A title search over the whole catalogue that matched nothing. Renders with a way to clear it. */
 export const NO_TITLES_MATCH = "No titles match that search.";
 
-/**
- * A filtered catalogue that matched nothing.
- */
+/** A filtered catalogue that matched nothing. */
 export const NO_SCENES_MATCH_THESE_FILTERS =
   "No scenes match these filters. Clear them to see the whole catalogue.";
 
-/**
- * The catalogue was read and Whisparr was not.
- */
+/** The catalogue was read and Whisparr was not. */
 export const WHISPARR_STATUS_NOT_READ =
   "Cove could not reach Whisparr, so it could not read a status for these. The catalogue below is still complete.";
 
-/**
- * The connected Whisparr holds no per-scene records at all.
- */
+/** The connected Whisparr holds no per-scene records at all. */
 export const WHISPARR_KEEPS_NO_SCENE_RECORDS =
   "The connected Whisparr keeps no per-scene records, so Cove cannot read a status for these. The catalogue below is still complete.";
 
-/**
- * What the figure beside a catalogue counts.
- */
+/** What the figure beside a catalogue counts. */
 export const COUNT_IS_THE_CATALOGUE_SIZE =
   "That total is the scenes {provider} lists for {entity}, not the number you are missing.";
 
-/**
- * The catalogue tab's own name, drawn at the left of its toolbar.
- */
+/** The catalogue tab's own name, drawn at the left of its toolbar. */
 export const MISSING_TAB_HEADING = "Missing";
 
-/**
- * The name of the card control that marks one scene wanted.
- */
+/** The name of the card control that marks one scene wanted. */
 export function monitorSceneName(title: string): string {
   return `Monitor ${title} in Whisparr`;
 }
@@ -400,37 +306,27 @@ export function searchSceneName(title: string): string {
   return `Search Whisparr for ${title}`;
 }
 
-/**
- * The name of the card link that opens one scene where its source shows it.
- */
+/** The name of the card link that opens one scene where its source shows it. */
 export function openSceneName(title: string): string {
   return `Open ${title} at your metadata source`;
 }
 
-/**
- * A control's name while its own request is unanswered.
- */
+/** A control's name while its own request is unanswered. */
 export function nameWhileWaiting(name: string): string {
   return `${name}. ${WAITING_FOR_WHISPARR}`;
 }
 
-/**
- * What a facet control reads while nothing is picked in it.
- */
+/** What a facet control reads while nothing is picked in it. */
 export function facetCoversEverything(menuLabel: string): string {
   return `All ${menuLabel.toLowerCase()}`;
 }
 
-/**
- * The range a page covers, out of the whole catalogue.
- */
+/** The range a page covers, out of the whole catalogue. */
 export function countLine(from: number, to: number, total: number, atCeiling: boolean): string {
   return `${String(from)}–${String(to)} of ${String(total)}${atCeiling ? "+" : ""}`;
 }
 
-/**
- * The placeholder in a facet menu's search box.
- */
+/** The placeholder in a facet menu's search box. */
 export const FACET_MENU_SEARCH = "Search values";
 
 /** What a facet menu reads when nothing it holds matches, its values having not been looked up. */
@@ -442,9 +338,7 @@ export const FACET_VALUES_ASKING = "Looking for matching values.";
 /** What a facet menu reads when the source answered and matched nothing. */
 export const FACET_VALUES_NONE_MATCH = "The metadata source lists no value matching this.";
 
-/**
- * What a facet menu reads when the lookup did not answer.
- */
+/** What a facet menu reads when the lookup did not answer. */
 export const FACET_VALUES_NOT_READ =
   "The values could not be read. That is not the same as the source listing none that match.";
 
@@ -458,9 +352,7 @@ export function selectionCount(n: number): string {
   return n === 1 ? "1 selected" : `${String(n)} selected`;
 }
 
-/**
- * What heads the selection popover, and the name the panel announces.
- */
+/** What heads the selection popover, and the name the panel announces. */
 export function selectionMenuHeader(n: number): string {
   return `Whisparr · ${selectionCount(n)}`;
 }
@@ -484,9 +376,7 @@ export function allScenesConfirmation(count: number, oneWayDoor: boolean): strin
   ].join(" ");
 }
 
-/**
- * What marking a catalogue does not do, stated where the whole catalogue is about to be marked.
- */
+/** What marking a catalogue does not do, stated where the whole catalogue is about to be marked. */
 export const MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF =
   "Marking a scene wanted downloads nothing by itself.";
 
@@ -517,9 +407,7 @@ export function searchAllMonitoredConfirmation(count: number): string {
 /** Imports Cove recorded but can no longer read. Self-clears on a success. */
 export const IMPORTS_UNREADABLE = "Sync problem - Cove can't find imported files";
 
-/**
- * A refresh that failed over content already on screen.
- */
+/** A refresh that failed over content already on screen. */
 export const READ_IS_STALE =
   "Cove couldn't check this just now. These are the last values it read.";
 
@@ -533,23 +421,17 @@ export const IMPORT_CAUSE_AMBIGUOUS =
 /** The file was found where it was reported and Cove's own import would not take it. */
 export const IMPORT_CAUSE_UNREADABLE = "Cove found this file and would not take it in.";
 
-/**
- * One Whisparr root folder's outstanding refusals.
- */
+/** One Whisparr root folder's outstanding refusals. */
 export function importRefusalsUnderRootSentence(root: string, count: number): string {
   return `${String(count)} ${count === 1 ? "file" : "files"} under ${root} ${count === 1 ? "has" : "have"} not reached your library since an import from it last worked.`;
 }
 
-/**
- * Refusals Whisparr reported under none of its own root folders.
- */
+/** Refusals Whisparr reported under none of its own root folders. */
 export function importRefusalsWithNoReportedRootSentence(count: number): string {
   return `${String(count)} ${count === 1 ? "file" : "files"} ${count === 1 ? "has" : "have"} not reached your library, and Whisparr reported ${count === 1 ? "it" : "them"} under none of its own root folders.`;
 }
 
-/**
- * Files Whisparr reported that Cove's catch-up could not take, and has already moved past.
- */
+/** Files Whisparr reported that Cove's catch-up could not take, and has already moved past. */
 export function importsPassedOverSentence(count: number, when: string | null): string {
   const files = count === 1 ? "file" : "files";
   const them = count === 1 ? "it" : "them";
@@ -632,16 +514,12 @@ export const FOLDER_SAVE_NOT_CONFIGURED =
 /** The save itself did not reach Cove, so nothing was established either way. */
 export const FOLDER_SAVE_DID_NOT_REACH = "Cove could not save that path. Nothing was changed.";
 
-/**
- * Which Cove folder one prompt is about.
- */
+/** Which Cove folder one prompt is about. */
 export function folderAgreementRootSentence(root: string): string {
   return `Cove holds ${root}.`;
 }
 
-/**
- * The paths the instance was asked about, or a statement that it was asked about none.
- */
+/** The paths the instance was asked about, or a statement that it was asked about none. */
 export function folderAgreementTriedSentence(tried: readonly string[]): string {
   if (tried.length === 0) {
     return "Cove asked Whisparr about no path at all.";
@@ -658,9 +536,7 @@ export function folderAgreementMappingSentence(mapping: string): string {
   return `Cove is using ${mapping} as Whisparr's path for this folder.`;
 }
 
-/**
- * What the default upgrade behaviour does, in the terms the reader sees the result in.
- */
+/** What the default upgrade behaviour does, in the terms the reader sees the result in. */
 export const UPGRADE_KEEPS_BOTH_FILES =
   "The new file joins the scene you already have, and Cove lists both until its own scan notices the old one is gone. Nothing is removed from disk.";
 
@@ -712,9 +588,7 @@ export const SYNC_ALREADY_IN_WHISPARR = "Already in Whisparr";
 /** @see SYNC_NOT_YET_IN_WHISPARR */
 export const SYNC_SKIPPED_CANNOT_BE_IDENTIFIED = "Skipped, cannot be identified";
 
-/**
- * What the skipped row means, and what a reader can do about it.
- */
+/** What the skipped row means, and what a reader can do about it. */
 export const SYNC_SKIPPED_CANNOT_BE_REGISTERED =
   "A scene with no metadata id cannot be registered. Identify more of your library and count again.";
 
@@ -730,14 +604,10 @@ export const SYNC_SITE_SKIPPED_CANNOT_BE_REGISTERED =
 /** While the count runs. */
 export const SYNC_COUNTING = "Counting what would sync.";
 
-/**
- * Before any count.
- */
+/** Before any count. */
 export const SYNC_NOTHING_COUNTED_YET = "Nothing has been counted yet.";
 
-/**
- * A count that did not finish, however it failed.
- */
+/** A count that did not finish, however it failed. */
 export const SYNC_COUNT_DID_NOT_FINISH =
   "Cove could not finish counting what would sync. Nothing was changed; try again shortly.";
 
@@ -774,9 +644,7 @@ export const SYNC_NEEDS_A_COUNT_FIRST =
 export const SYNC_SITE_NEEDS_A_COUNT_FIRST =
   "Count what would sync first, so this can say how many studios it will offer.";
 
-/**
- * Why there is nothing for the sync control to do.
- */
+/** Why there is nothing for the sync control to do. */
 export const SYNC_NOTHING_LEFT_TO_SYNC =
   "Whisparr already holds every scene in your library that carries a metadata id.";
 
@@ -795,15 +663,11 @@ export const SYNC_ALREADY_RUNNING =
 /** Why nothing on the sync side can act while the enqueue itself is in flight. */
 export const SYNC_IS_STARTING = "Cove is starting the sync.";
 
-/**
- * What the section says after the press, and the whole of what it says.
- */
+/** What the section says after the press, and the whole of what it says. */
 export const SYNC_RUNS_IN_THE_JOB_DRAWER =
   "This runs in the background. Its progress appears in Cove's job list.";
 
-/**
- * The reason the confirmation exists, stated at every size.
- */
+/** The reason the confirmation exists, stated at every size. */
 export const SYNC_DOWNLOADS_NOTHING = "Registering a scene in Whisparr downloads nothing.";
 
 /**

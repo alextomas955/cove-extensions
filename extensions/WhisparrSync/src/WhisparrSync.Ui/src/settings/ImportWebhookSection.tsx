@@ -1,13 +1,10 @@
 /**
- * The import callback: the address to hand Whisparr, the two ways of handing it over, and a status
- * that distinguishes never-checked from absent and registered-with-nothing-arriving from working.
+ * The import callback: the address to hand Whisparr, the two ways of handing it over, and the
+ * registration status.
  *
- * Presentational. Every value arrives as a prop and no request is issued here.
- *
- * The address the field shows is the form that carries the secret, because an address pasted into
- * Whisparr by hand has nowhere else to put one. Register sends the whole edited address and the
- * server honours only its scheme, host, port and path prefix - the route and the secret are always
- * this product's own.
+ * The address shown carries the secret, because an address pasted into Whisparr by hand has
+ * nowhere else to put one. Register sends the whole edited address, and the server honours only
+ * its scheme, host, port and path prefix.
  */
 import { Field, SectionCard, Spinner, StatusText, TextInput } from "@cove-extensions/ui-shared";
 
@@ -26,7 +23,6 @@ import {
 } from "./registrationLogic";
 
 export interface ImportWebhookSectionProps {
-  /** The callback as it stands, or null before the status read answers. */
   view: CallbackView | null;
   readFailed: boolean;
   address: string;
@@ -108,7 +104,6 @@ export function ImportWebhookSection({
   );
 }
 
-/** The status line, the refusal beneath it, and the standing note. */
 function Status({ view }: { view: CallbackView | null }) {
   if (view === null) {
     return null;
@@ -129,7 +124,7 @@ function Status({ view }: { view: CallbackView | null }) {
       )}
       {view.refusal === null ? null : (
         <div>
-          {/* The instance's own words, so a refusal reports what it said rather than a guess at why. */}
+          {/* Whisparr's own words, so the refusal reports what it said rather than a guess. */}
           <StatusText kind="error">Whisparr refused it: {view.refusal}</StatusText>
         </div>
       )}
@@ -142,7 +137,6 @@ function Status({ view }: { view: CallbackView | null }) {
   );
 }
 
-/** Copy's own confirmation, in proportion to the action: a line beside the control, never a toast. */
 function CopyOutcome({ result }: { result: CopyResult }) {
   if (result.status === "copied") {
     return <StatusText kind="success">Copied.</StatusText>;

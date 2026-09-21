@@ -6,12 +6,9 @@ using WhisparrSync.Options;
 namespace WhisparrSync.Tests.Options;
 
 // The options the settings page has no control for. Each expected default is written out by hand,
-// because a value read back off the record under test would agree with that record forever,
-// including after someone changes it. The page submits nothing for any of them, so the rest of the
-// claim is that a save leaves them alone.
+// because a value read back off the record under test would agree with it after someone changes it.
 public sealed class AdvancedOptionDefaultsTests
 {
-    // The host a request would arrive on, for the callback-host fallback below.
     private const string RequestHost = "http://cove.internal:5073";
 
     private const string ExtensionId = "com.alextomas955.whisparrsync";
@@ -62,8 +59,8 @@ public sealed class AdvancedOptionDefaultsTests
     public void ThereAreNoRefusalsByDefault()
         => Assert.Empty(new WhisparrSyncOptions().ImportRefusals);
 
-    // The host is taken from the default record rather than from a blank literal, so changing the
-    // default to anything non-blank fails here as well as above.
+    // The host comes from the default record, not from a blank literal, so a non-blank default
+    // fails here too.
     [Fact]
     public void AnUnsetCallbackHostFallsBackToTheRequestHost()
     {
@@ -75,10 +72,8 @@ public sealed class AdvancedOptionDefaultsTests
             CallbackAddress.WithoutSecret(resolved, ExtensionId));
     }
 
-    // The page submits no value for any of them, so a save that rebuilt the record from the request
-    // would silently return an operator's settings to their defaults and discard the import state
-    // with them. Both directions are asserted: an install that never set one keeps the default, and
-    // one that set every one keeps those values.
+    // The page submits no value for any of them. A save that rebuilt the record from the request
+    // would return an operator's settings to their defaults and discard the import state with them.
     [Theory]
     [MemberData(nameof(SavesThePageCanSubmit))]
     public void ASettingsSaveLeavesEveryOptionThePageHasNoControlForAlone(

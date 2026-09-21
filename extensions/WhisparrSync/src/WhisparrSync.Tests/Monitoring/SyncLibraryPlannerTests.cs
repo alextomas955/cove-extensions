@@ -7,16 +7,6 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// The run that offers the whole library's scenes one at a time, and the three progress calls a
-/// reader's experience of it depends on.
-/// </summary>
-/// <remarks>
-/// The order of the progress calls is the subject as much as the counts are. The host refuses a unit
-/// count declared once a unit has started, returns immediately from its progress refresh at a zero
-/// total, and writes its own aggregate sentence over the job's summary on every unit completion. Each
-/// of those is silent, so a run in the wrong order reports the wrong thing rather than failing.
-/// </remarks>
 public sealed class SyncLibraryPlannerTests
 {
     private const string AcceptedFixture = "whisparr-v3-3.3.8.1097-scene-add-accepted.json";
@@ -25,36 +15,21 @@ public sealed class SyncLibraryPlannerTests
 
     private const string RefusedFixture = "whisparr-v3-3.3.8.1097-scene-add-unknown-identifier.json";
 
-    /// <summary>A spelling of the connected namespace that differs from the stored one.</summary>
+    // A spelling of the connected namespace that differs from the stored one.
     private const string StandardStashDbAddress = "https://stashdb.org/graphql";
 
     private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
     private const string SecondScene = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
     private const string ThirdScene = "7b1e4d90-2c3a-4f81-95d6-0a8b7c6e5f43";
 
-    /// <summary>
-    /// Words a reader could take for a number of scenes, and the host's own aggregate phrasing.
-    /// </summary>
-    /// <remarks>
-    /// Listed here rather than in the source under test. A run reads correctly to a person only if
-    /// every figure it states is a count of scenes, and the host's own sentence counts its units.
-    /// </remarks>
+    // Words a reader could take for a number of scenes, plus the host's own aggregate phrasing.
     private static readonly string[] ForbiddenFragments =
         ["batch", "chunk", "unit", "slice", "succeeded"];
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// The declared count equals the number of ticks, over a library a count query would disagree
-    /// about.
-    /// </summary>
-    /// <remarks>
-    /// Read from a real relational library through the port the run itself walks. One scene carries
-    /// two spellings of one source, which the host's rule treats as one source and the stream answers
-    /// twice, so a distinct count taken in the database answers three where the run offers four. A
-    /// declared total from a second cheaper query would leave the bar arriving early and the host
-    /// writing its own summary at the wrong moment.
-    /// </remarks>
+    // One seeded scene carries two spellings of one source, so the stream answers it twice and a
+    // distinct count in the database answers three where the run offers four.
     [Fact]
     public async Task TheDeclaredCountEqualsTheNumberOfTicksOverALibraryACountQueryWouldDisagreeWith()
     {
@@ -85,10 +60,7 @@ public sealed class SyncLibraryPlannerTests
         Assert.Equal(3, instance.Offered.Distinct(StringComparer.Ordinal).Count());
     }
 
-    /// <summary>The count is declared before the first unit starts.</summary>
-    /// <remarks>
-    /// The host throws on a declaration made after that, which faults the whole job.
-    /// </remarks>
+    // The host throws on a unit count declared after the first unit starts, which faults the job.
     [Fact]
     public async Task TheCountIsDeclaredBeforeTheFirstUnitStarts()
     {
@@ -98,12 +70,8 @@ public sealed class SyncLibraryPlannerTests
         Assert.Single(progress.DeclaredUnitCounts);
     }
 
-    /// <summary>The run's last progress call is its own summary, and it reports nothing at all.</summary>
-    /// <remarks>
-    /// A report at fraction one is silently replaced: the host leaves the summary alone on a report,
-    /// writes its own over it on the last unit's completion, and then copies the summary over the
-    /// sub-task. So the run's ending has to be the summary member, after the final completion.
-    /// </remarks>
+    // The host writes its own summary on the last unit's completion, so the run states its ending
+    // through SetSummary after that completion rather than through a report at fraction one.
     [Fact]
     public async Task TheRunsLastProgressCallIsItsOwnSummaryAndItReportsNothing()
     {
@@ -114,15 +82,6 @@ public sealed class SyncLibraryPlannerTests
         Assert.Single(progress.Summaries);
     }
 
-    /// <summary>
-    /// Nothing a reader sees while the run works, or when it ends, counts anything but scenes and
-    /// sites.
-    /// </summary>
-    /// <remarks>
-    /// Both passes, because the site pass states a figure in each noun: what it registered is sites
-    /// and what it monitored under them is scenes. Whichever pass ran, no figure is stated in a word
-    /// a reader could take for either.
-    /// </remarks>
     [Fact]
     public async Task NothingARunSaysCountsAnythingButScenesAndSites()
     {
@@ -181,12 +140,8 @@ public sealed class SyncLibraryPlannerTests
             StringComparison.Ordinal);
     }
 
-    /// <summary>Every unit is disposed as well as completed.</summary>
-    /// <remarks>
-    /// The host removes a completed unit's state only on disposal, so a run that completed every unit
-    /// and disposed none would leave one entry per scene in a host dictionary - which on a library of
-    /// millions is the whole cost this shape exists to avoid.
-    /// </remarks>
+    // The host removes a completed unit's state only on disposal, so undisposed units leave one
+    // entry per scene in a host dictionary.
     [Fact]
     public async Task EveryUnitIsDisposedAsWellAsCompleted()
     {
@@ -203,14 +158,8 @@ public sealed class SyncLibraryPlannerTests
             progress.Units);
     }
 
-    /// <summary>
-    /// A second run over the same library registers nothing new and asks for no acquisition.
-    /// </summary>
-    /// <remarks>
-    /// Whether the instance already holds a scene is its own answer rather than a comparison this
-    /// product computes, so the second run offers every scene again and the instance declines every
-    /// one as already added. The scene is skipped rather than failed: nothing about it changed.
-    /// </remarks>
+    // Whether a scene is already held is the instance's own answer, so the second run offers every
+    // scene again and each is skipped rather than failed.
     [Fact]
     public async Task ASecondRunOverTheSameLibraryRegistersNothingAndSkipsEveryScene()
     {
@@ -226,7 +175,6 @@ public sealed class SyncLibraryPlannerTests
         Assert.All(progress.Units, unit => Assert.Equal(JobUnitOutcome.Skipped, unit.Outcome));
     }
 
-    /// <summary>A refusal does not end the run, and is counted apart from a scene already held.</summary>
     [Fact]
     public async Task ARefusalLeavesTheRestOfTheLibraryOfferedAndIsCounted()
     {
@@ -240,12 +188,8 @@ public sealed class SyncLibraryPlannerTests
         Assert.Equal(2, run.Registered);
     }
 
-    /// <summary>An instance nothing could be read from leaves every scene offered once, counted.</summary>
-    /// <remarks>
-    /// The contained outbound failure answers nothing rather than throwing, and an answer nothing can
-    /// be read out of is refused rather than held: reporting a scene as registered that never left
-    /// leaves a reader believing a catalogue is complete when it is empty.
-    /// </remarks>
+    // A contained outbound failure answers nothing rather than throwing, and an answer nothing can
+    // be read out of counts as refused rather than registered.
     [Fact]
     public async Task AnUnreachableInstanceLeavesEverySceneOfferedOnceAndAllOfThemRefused()
     {
@@ -258,14 +202,7 @@ public sealed class SyncLibraryPlannerTests
         Assert.Single(progress.Summaries);
     }
 
-    /// <summary>
-    /// A cancellation ends the run as cancelled, with what was registered before it still counted.
-    /// </summary>
-    /// <remarks>
-    /// Cancelled rather than failed. Those scenes are in the instance's catalogue and there is
-    /// nothing to undo, and the host stops a job by cancelling its token, so a failure here would
-    /// report a shutdown as a fault.
-    /// </remarks>
+    // The host stops a job by cancelling its token, so a cancellation is Cancelled and not Failed.
     [Fact]
     public async Task ACancellationIsCancelledWithWhatWasRegisteredBeforeItStillCounted()
     {
@@ -289,13 +226,8 @@ public sealed class SyncLibraryPlannerTests
         Assert.Contains("then stopped", progress.Summaries[0], StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A library carrying no identifier answers its own ending and declares no count at all.
-    /// </summary>
-    /// <remarks>
-    /// The host returns immediately from its progress refresh at a zero total, so a run that declared
-    /// zero would never derive a fraction and would never be given an ending.
-    /// </remarks>
+    // The host returns immediately from its progress refresh at a zero total, so a run that
+    // declared zero would never be given an ending.
     [Fact]
     public async Task ALibraryCarryingNoIdentifierDeclaresNoCountAndStatesWhy()
     {
@@ -309,15 +241,7 @@ public sealed class SyncLibraryPlannerTests
             Assert.Single(progress.Summaries));
     }
 
-    /// <summary>
-    /// With monitoring on, every scene the reader owns is monitored, including one the instance
-    /// already held.
-    /// </summary>
-    /// <remarks>
-    /// The choice means monitor what I own, not monitor what I just added. A run that monitored only
-    /// its own registrations would leave the scenes a previous run registered unwatched, which is
-    /// most of the library on any second press.
-    /// </remarks>
+    // Monitoring covers every scene in the library, not only the ones this run registered.
     [Fact]
     public async Task WithMonitoringOnASceneTheInstanceAlreadyHeldIsMonitoredToo()
     {
@@ -335,11 +259,8 @@ public sealed class SyncLibraryPlannerTests
         Assert.Equal(0, run.MonitorRefused);
     }
 
-    /// <summary>With monitoring off, nothing is monitored.</summary>
-    /// <remarks>
-    /// The instance would have answered. Nothing asked it, which is the difference between a choice
-    /// that is off and one that is on and failing.
-    /// </remarks>
+    // The instance is set up to answer, so an empty MonitorAsked separates monitoring being off
+    // from monitoring being on and failing.
     [Fact]
     public async Task WithMonitoringOffNothingIsMonitored()
     {
@@ -360,7 +281,6 @@ public sealed class SyncLibraryPlannerTests
         Assert.DoesNotContain("monitored", progress.Summaries[0], StringComparison.Ordinal);
     }
 
-    /// <summary>A refused scene is not monitored: there is no scene there to set a flag on.</summary>
     [Fact]
     public async Task ARefusedSceneIsNotMonitoredAndAMonitorRefusalIsItsOwnCount()
     {
@@ -377,7 +297,6 @@ public sealed class SyncLibraryPlannerTests
         Assert.Equal(1, run.Refused);
     }
 
-    /// <summary>The summary names what was monitored only where monitoring was asked for.</summary>
     [Fact]
     public async Task TheSummaryNamesMonitoringOnlyWhereItWasAskedFor()
     {
@@ -449,26 +368,19 @@ public sealed class SyncLibraryPlannerTests
         await Task.CompletedTask;
     }
 
-    /// <summary>An instance answering each offer, recording what it was asked about in order.</summary>
     private sealed class Instance(Func<string, WhisparrResponse?> answers)
     {
         public List<string> Offered { get; } = [];
 
         public List<string> MonitorAsked { get; } = [];
 
-        /// <summary>
-        /// The status of the offer's own answer each monitor call was handed, or null where the offer
-        /// answered nothing.
-        /// </summary>
-        /// <remarks>
-        /// What resolves the instance's own scene id. An accepted add names it in its answer; an
-        /// already-held one does not, so the caller has to read it back.
-        /// </remarks>
+        // The status of the offer's answer each monitor call was handed, null where the offer
+        // answered nothing. An accepted add names the instance's scene id in its answer; an
+        // already-held one does not, so the caller reads it back.
         public List<int?> MonitorHandedStatus { get; } = [];
 
         public Func<string, WhisparrResponse?>? MonitorAnswers { get; init; }
 
-        /// <summary>How many offers to take before the host stops the run.</summary>
         public int? StopAfter { get; init; }
 
         public CancellationTokenSource? Stopping { get; init; }
@@ -486,13 +398,8 @@ public sealed class SyncLibraryPlannerTests
             return Task.FromResult(SyncRegistration.Offered(answers(identity)));
         }
 
-        /// <summary>
-        /// One scene marked wanted, answered as the tally one scene makes.
-        /// </summary>
-        /// <remarks>
-        /// The run counts in scenes on both passes, so the monitor slot answers a tally rather than
-        /// one response. On this pass an entry IS a scene, so the tally is always one scene.
-        /// </remarks>
+        // The monitor slot answers a tally because the site pass counts scenes under each site.
+        // Here one entry is one scene, so the tally is always one scene.
         public Task<SceneMonitorTally> MonitorAsync(
             string identity, SyncRegistration offered, CancellationToken ct)
         {
@@ -503,15 +410,8 @@ public sealed class SyncLibraryPlannerTests
         }
     }
 
-    /// <summary>
-    /// The recording progress with one ordered log across all four of its members.
-    /// </summary>
-    /// <remarks>
-    /// The recorder keeps a list per member, which cannot answer whether a declaration came before
-    /// the first unit or whether the summary was the last thing said. Both of those are what the host
-    /// enforces silently, so the order is recorded here and the counts are still read off the
-    /// recorder underneath.
-    /// </remarks>
+    // The recorder keeps one list per member and cannot show call order across them, so the order
+    // the host enforces silently is recorded here.
     internal sealed class OrderedProgress(RecordingJobProgress inner) : IJobProgress
     {
         public List<string> Calls { get; } = [];

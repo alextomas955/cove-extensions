@@ -7,8 +7,8 @@
 import type { MissingSortOption } from "../wire/api";
 import type { WhisparrEntityKind } from "../wire/api";
 
-// Long enough that a typed word costs one provider read, short enough that the count line is not
-// left reporting the previous search while the reader looks at it.
+// Long enough that a typed word costs one provider read, short enough that the count line does
+// not sit reporting the previous search.
 export const searchSettleDelayMs = 300;
 
 export const SEARCH_PLACEHOLDER = "Search titles";
@@ -21,10 +21,8 @@ export const MONITOR_ALL_LABEL = "Monitor all";
  * Whether the toolbar offers the whole-catalogue marking control for `kind`.
  *
  * A studio's and a performer's catalogue is bounded by the entity, so the server can walk it. A
- * tag's spans the library and is unbounded by construction. The control is absent rather than
- * dimmed, because nothing the reader can do would make it available.
- *
- * @param kind which kind of entity page the tab is mounted on
+ * tag's spans the library and is unbounded. The control is absent rather than disabled, because
+ * nothing the reader can do would make it available.
  */
 export function monitorAllOffered(kind: WhisparrEntityKind): boolean {
   return kind !== "tag";
@@ -32,7 +30,7 @@ export function monitorAllOffered(kind: WhisparrEntityKind): boolean {
 
 export type MissingToolbarControl = "search" | "sort" | "facets" | "refresh";
 
-/** The controls to draw once a page has answered, in the order they are drawn. */
+/** In the order they are drawn. */
 export const MISSING_TOOLBAR_CONTROLS: readonly MissingToolbarControl[] = [
   "search",
   "sort",
@@ -48,11 +46,9 @@ export interface MissingSortRow {
 }
 
 /**
- * The ordering menu's rows.
+ * The ordering menu's rows. The options are the provider's own, so this decides nothing about
+ * which orderings exist.
  *
- * The options are the provider's own, so this decides nothing about which orderings exist.
- *
- * @param sorts the orderings the answered page offers
  * @param inForce the ordering the page was read under, or null for the provider's own
  */
 export function sortOptionsFor(

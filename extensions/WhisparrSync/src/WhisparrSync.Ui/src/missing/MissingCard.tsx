@@ -1,15 +1,15 @@
 /**
  * One catalogue scene the library does not hold.
  *
- * Hand-built on the host's own utility classes rather than through a host card component. The host's
- * video card takes a Cove entity and navigates to that entity's page, and a provider scene has no
- * page in Cove, so the cover and the title lead out to the source instead.
+ * Hand-built on the host's own utility classes. The host's video card takes a Cove entity and
+ * navigates to that entity's page, and a provider scene has no page in Cove, so the cover and the
+ * title lead out to the source instead.
  *
- * The link is scoped to those two and never wraps the card: the card holds a selection control and
- * two verbs, and a target around all of it would swallow them or fire behind them.
+ * The link is scoped to those two and never wraps the card: the card holds a selection control
+ * and two verbs, and a target around all of it would swallow them.
  *
- * The cover is fetched by the browser straight from the provider's own address: nothing is proxied
- * and nothing is stored. Every provider-supplied string renders as an escaped text node.
+ * The cover is fetched by the browser straight from the provider's address. Nothing is proxied
+ * and nothing is stored.
  */
 import type { ReactNode } from "react";
 import { Check, ImageOff, Loader, Radar, Search, User } from "lucide-react";
@@ -35,9 +35,8 @@ import {
   type CardActionState,
   type CardRows,
 } from "./missingCardLogic";
-// A type-only import, so it is erased at build and adds no runtime import of the host barrel. The
-// one-module rule the rest of this surface follows exists to bound what a wrong export name can take
-// down at bundle load, and an erased type cannot reach load at all.
+// Type-only, so it is erased at build and adds no runtime import of the host barrel. A wrong
+// export name in a runtime import throws at bundle load; an erased type cannot reach load.
 import type { MultiSelectToggleOptions } from "@cove/runtime/components";
 import {
   CARD_BODY_CLASS,
@@ -48,36 +47,21 @@ import {
   CARD_TITLE_CLASS,
 } from "./missingClasses";
 
-/**
- * The name this tab gives a monitored scene.
- *
- * The underlying state is unchanged and so are its glyph and tint; only the word differs, because a
- * scene the library does not hold is one the reader is waiting for rather than one being watched.
- */
+// This tab's word for a monitored scene. The state, glyph and tint are unchanged; only the word
+// differs.
 const MONITORED_LABEL = "Wanted";
 
-/** The focus state every control on the card carries, in the spelling the host stylesheet emits. */
+// `focus:` and not `focus-visible:`, which is the spelling the host stylesheet emits.
 const FOCUS_RING = "focus:outline-none focus:ring-2 focus:ring-accent";
 
-/**
- * The card's two verbs, as squares carrying a glyph.
- *
- * The glyph is the one each verb already draws in this product's menus, so the same action reads
- * the same wherever it is offered. Searching is the only action on this surface that downloads.
- */
 const ACTION_CLASS = `inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border text-secondary transition-colors hover:border-accent hover:text-foreground ${FOCUS_RING} disabled:cursor-not-allowed disabled:opacity-60`;
 const GLYPH_CLASS = "h-3.5 w-3.5";
 
-/** What the selection control is called, in each of the two states it can be pressed from. */
 const SELECT_LABEL = "Select scene";
 const DESELECT_LABEL = "Deselect scene";
 
-/**
- * The performer chip's own name width.
- *
- * Inline because the host's Tailwind JIT never scans this bundle, so an arbitrary-value width class
- * would contribute no declaration at all.
- */
+// Inline because the host's Tailwind JIT never scans this bundle, so an arbitrary-value width
+// class would contribute no declaration at all.
 const CHIP_NAME_WIDTH = { maxWidth: "80px" };
 
 export function MissingCard({
@@ -95,7 +79,6 @@ export function MissingCard({
   selecting?: boolean;
   /** Absent where the surface offers no selection, which draws no control rather than an inert one. */
   onToggleSelect?: (options?: MultiSelectToggleOptions<string>) => void;
-  /** What this card's own verbs are doing, and what the last press produced. */
   action?: CardActionState;
   /** Marks this scene wanted. Absent where the surface offers no verbs. */
   onMonitor?: (providerSceneId: string) => void;
@@ -167,16 +150,9 @@ export function MissingCard({
   );
 }
 
-/**
- * What the reader follows to see the scene where it came from.
- *
- * A real anchor, so middle-click, ctrl-click and the browser's own open-in-a-new-tab all work; a
- * click handler on a box gives a reader none of those. The name is stated because the cover carries
- * no text and the title alone does not say that following it leaves Cove.
- *
- * A source that named no address leaves the children exactly as they are, so a card nothing can be
- * opened from is not drawn as one that can.
- */
+// A real anchor, so middle-click, ctrl-click and open-in-a-new-tab all work. The name is stated
+// because the cover carries no text and the title does not say that following it leaves Cove. A
+// source that named no address leaves the children unwrapped.
 function AtTheSource({
   url,
   title,
@@ -205,13 +181,9 @@ function AtTheSource({
   );
 }
 
-/**
- * One of the card's verbs.
- *
- * A control with no text takes no accessible name from its contents, so the name is stated here and
- * arrives already composed. While its own request is unanswered the glyph turns and the control
- * cannot be pressed again, and the reason for that reaches a reader who cannot see the turning.
- */
+// A control with no text takes no accessible name from its contents, so the name is stated here.
+// While its request is unanswered the control is disabled, and the name carries that reason for
+// a reader who cannot see the spinner.
 function CardAction({
   name,
   glyph: Glyph,
@@ -277,9 +249,8 @@ function Cover({ coverUrl, title }: { coverUrl: string | null; title: string }) 
   return <img src={coverUrl} alt={title} loading="lazy" className="h-full w-full object-cover" />;
 }
 
-// The picture is the provider's and only the provider's: a provider performer carries no Cove id, so
-// there is nothing to look one up by and no page for a chip to lead to. The no-picture fallback is
-// the glyph Cove's own performer badge falls back to.
+// A provider performer carries no Cove id, so there is no page for a chip to lead to. The
+// no-picture fallback is the glyph Cove's own performer badge falls back to.
 function PerformerChips({ performers }: { performers: readonly MissingPerformerChip[] }) {
   const overflow = overflowChipCount(performers);
 
@@ -310,8 +281,8 @@ function PerformerChips({ performers }: { performers: readonly MissingPerformerC
   );
 }
 
-// Cove's own control is revealed on hover alone, which is invisible to someone who never hovers, so
-// the focus state reveals it too.
+// Cove's own control is revealed on hover alone, so the focus state reveals it too for a reader
+// who never hovers.
 function SelectionToggle({
   selected,
   selecting,

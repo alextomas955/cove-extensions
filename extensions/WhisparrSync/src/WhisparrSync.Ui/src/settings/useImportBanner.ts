@@ -1,9 +1,4 @@
-/**
- * The import banner's data layer: the only place that reads the refusals outstanding.
- *
- * Loading, answered and failed stay distinct all the way through, because a surface that is still
- * reading must never render the answer it does not have yet.
- */
+/** The import banner's data layer: the only place that reads the refusals outstanding. */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
@@ -22,8 +17,7 @@ function messageFor(err: unknown): string {
 }
 
 export function useImportBanner(): ImportBannerState {
-  // One store per page lifetime. A lazy useState initializer rather than a useMemo, because a memo is
-  // a cache React may legitimately discard.
+  // A lazy useState initializer rather than useMemo, because React may discard a memo.
   const [store] = useState<ImportBannerStore>(() => createImportBannerStore());
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
 

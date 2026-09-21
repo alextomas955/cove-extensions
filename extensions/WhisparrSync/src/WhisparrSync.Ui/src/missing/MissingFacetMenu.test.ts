@@ -1,11 +1,7 @@
 // @vitest-environment jsdom
-/**
- * What a facet menu draws, and what a typed fragment reaches.
- *
- * The overlay hook is the real one: which elements the arrow keys reach is the hook's decision, and
- * a stand-in for it would assert the stand-in. The lookup is a stub, so each test chooses what the
- * source answers, including answering nothing.
- */
+// The overlay hook is the real one: which elements the arrow keys reach is the hook's decision,
+// so a stand-in would assert the stand-in. The lookup is a stub, so each test chooses what the
+// source answers.
 import { afterEach, expect, test, vi } from "vitest";
 import { act, createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
@@ -88,13 +84,9 @@ function panelWith(
     });
 }
 
-/**
- * Types `text` into `input` the way a person does.
- *
- * React replaces the node's own `value` setter to track what it last rendered, so a plain assignment
- * is read back as no change and the dispatched event is dropped. Writing through the prototype's
- * setter is what a keystroke does.
- */
+// React replaces the node's own `value` setter to track what it last rendered, so a plain
+// assignment is read back as no change and the dispatched event is dropped. Writing through the
+// prototype's setter is what a keystroke does.
 function type(input: HTMLInputElement, text: string) {
   // eslint-disable-next-line @typescript-eslint/unbound-method -- called with `input` as its `this`.
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
@@ -104,19 +96,18 @@ function type(input: HTMLInputElement, text: string) {
   });
 }
 
-/** Types `word` one character at a time, as a reader does. */
+// One character at a time, as a reader types.
 function typeOut(input: HTMLInputElement, word: string) {
   for (let at = 1; at <= word.length; at += 1) type(input, word.slice(0, at));
 }
 
-/** Lets the typing settle and whatever it sent answer. */
 async function settle() {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(searchSettleDelayMs);
   });
 }
 
-/** An answer naming values no menu here carries. */
+// Values no menu in this file carries, so a row from here can only have come from the lookup.
 const MATCHED: MissingFacetSearchView = {
   values: [
     { value: "p-40", label: "Mia Malkova" },
@@ -240,7 +231,7 @@ test("an answer for a fragment the reader has typed past is not drawn under the 
   type(search, "miak");
   await settle();
 
-  // The first fragment's answer arrives last, which is the order that puts the wrong values under
+  // The first fragment's answer arrives last, the order that would put the wrong values under
   // the reader's fragment.
   await act(async () => {
     answers.get("miak")?.({ ...MATCHED, values: [{ value: "p-41", label: "Mia Khalifa" }] });

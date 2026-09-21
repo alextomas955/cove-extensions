@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { WhisparrSyncSettingsView } from "../wire/api";
 import { createConnectionStore, INITIAL_CONNECTION_STATE } from "./connectionStore";
 
-/** A settings answer in which nothing at all is stored: the genuinely-empty read. */
 const NOTHING_STORED: WhisparrSyncSettingsView = {
   selectedGeneration: "v3",
   v3: {
@@ -24,8 +23,7 @@ const NOTHING_STORED: WhisparrSyncSettingsView = {
 };
 
 describe("the state before a read and the state after an empty one", () => {
-  // The two must never coincide. An initial value equal to the loaded-and-empty value is how a
-  // momentary blank comes to read as a confident report that nothing is configured.
+  // If the two coincided, a momentary blank would read as a report that nothing is configured.
   it("are different states", () => {
     const store = createConnectionStore();
     store.beginRead();
@@ -40,8 +38,8 @@ describe("the state before a read and the state after an empty one", () => {
 });
 
 describe("a read that answers after the operator has started typing", () => {
-  // A first read is slow enough that someone can be mid-address when it lands. Typing over them
-  // would look like the field clearing itself.
+  // A first read can land while someone is mid-address. Overwriting the field would look like it
+  // clearing itself.
   it("leaves what they entered alone", () => {
     const store = createConnectionStore();
     store.editAddress("http://half-typed");
@@ -130,7 +128,6 @@ describe("the result an answer that lands late describes", () => {
       v3: { ...NOTHING_STORED.v3, address: "http://whisparr:6969" },
     });
     store.beginTest("http://whisparr:6969");
-    // The field moves while the request is in flight, then the answer lands.
     store.editAddress("http://elsewhere:6969");
     store.answered("http://whisparr:6969", {
       kind: "unreachable",
@@ -191,7 +188,7 @@ describe("switching to the other card", () => {
   });
 
   // No dialog and no save. The form is re-seeded from the card being shown, so an unsaved edit is
-  // gone rather than carried onto the other generation.
+  // dropped rather than carried onto the other generation.
   it("discards an unsaved edit silently", () => {
     const store = bothStored();
     store.editAddress("http://edited-but-never-saved:6969");
@@ -232,7 +229,7 @@ describe("switching to the other card", () => {
     expect(store.getSnapshot().draft.address).toBe("http://edited:6969");
   });
 
-  // Which generation is IN USE is only changed by a save. Switching moves what is being edited.
+  // Only a save changes which generation is in use. Switching moves what is being edited.
   it("leaves the stored selection alone", () => {
     const store = bothStored();
     store.showCard("v2");

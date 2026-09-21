@@ -26,8 +26,8 @@ public sealed class FolderMappingOptionsTests
         Assert.Equal(["/data/Blue Harbor/a.mp4"], entry.PathsTried);
     }
 
-    // The reason and the paths are what the last run established. An entry that accumulated would
-    // grow with the runs an operator makes and would report a reason that no longer holds.
+    // An entry that accumulated would grow with the runs an operator makes and would report a
+    // reason that no longer holds.
     [Fact]
     public void ASecondRunOverOneRootReplacesItsEntry()
     {
@@ -87,8 +87,6 @@ public sealed class FolderMappingOptionsTests
         Assert.Equal("/data/0.mp4", entry.PathsTried[0]);
     }
 
-    // Both roots are normalised, so a path typed with a trailing separator keys and rebuilds the
-    // same way one typed without it does.
     [Fact]
     public void AMappingsTwoRootsAreBothNormalised()
     {
@@ -110,11 +108,8 @@ public sealed class FolderMappingOptionsTests
         Assert.Empty(OutboundRefusalProjector.WithMapping(moved, CoveRoot, "  "));
     }
 
-    /// <summary>
-    /// A save followed by a load returns an equal record, including both collection members. Record
-    /// equality compares a list by reference, so a round-trip's fresh list is the case a default
-    /// implementation reports as changed.
-    /// </summary>
+    // Record equality compares a list by reference, so a round-trip's fresh list is the case a
+    // default implementation reports as changed.
     [Fact]
     public async Task ARoundTripThroughTheStoreReturnsAnEqualRecord()
     {
@@ -131,7 +126,6 @@ public sealed class FolderMappingOptionsTests
         Assert.Equal("/data", Assert.Single(loaded.OutboundMappings).InstanceRoot);
     }
 
-    /// <summary>The refusal reason survives the blob as its own spelling rather than an ordinal.</summary>
     [Fact]
     public async Task TheRefusalReasonRoundTripsAsAString()
     {
@@ -143,9 +137,6 @@ public sealed class FolderMappingOptionsTests
         Assert.Contains("\"nothingResolved\"", blob, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// Records differing only in how many entries a collection holds are not equal, at either level.
-    /// </summary>
     [Fact]
     public void RecordsDifferingOnlyInHowManyEntriesTheyHoldAreNotEqual()
     {
@@ -158,11 +149,8 @@ public sealed class FolderMappingOptionsTests
             saved.OutboundRefusals[0] with { PathsTried = [saved.OutboundRefusals[0].PathsTried[0]] });
     }
 
-    /// <summary>A stored blob naming either collection as null binds it as empty.</summary>
-    /// <remarks>
-    /// The accessor is what does this. An initialiser runs only for an ABSENT key, and a blob naming
-    /// the member as null binds it as null.
-    /// </remarks>
+    // The accessor is what does this. A property initialiser runs only for an absent key, and a
+    // blob naming the member as null binds it as null.
     [Fact]
     public async Task ABlobNamingEitherCollectionAsNullBindsItAsEmpty()
     {
@@ -176,10 +164,7 @@ public sealed class FolderMappingOptionsTests
         Assert.Empty(loaded.OutboundMappings);
     }
 
-    /// <summary>
-    /// A blob naming one entry's paths as null binds them as empty, which the outer restore does not
-    /// reach.
-    /// </summary>
+    // The outer non-null restore does not descend into a collection's elements.
     [Fact]
     public async Task ABlobNamingOneEntrysPathsAsNullBindsThemAsEmpty()
     {
@@ -194,10 +179,6 @@ public sealed class FolderMappingOptionsTests
         Assert.Empty(Assert.Single(loaded.OutboundRefusals).PathsTried);
     }
 
-    /// <summary>
-    /// The settings page reads one line per root the instance could not see, and nothing for a root
-    /// it could.
-    /// </summary>
     [Fact]
     public void TheViewCarriesOneLinePerRootTheInstanceCouldNotSee()
     {
@@ -219,11 +200,8 @@ public sealed class FolderMappingOptionsTests
         Assert.Null(line.Mapping);
     }
 
-    /// <summary>A root whose stored path is working reads as a line carrying that path alone.</summary>
-    /// <remarks>
-    /// The field that withdraws a path is offered beside the line. A root that vanished the moment
-    /// its path worked could not be reviewed or withdrawn through the product at all.
-    /// </remarks>
+    // A root that vanished the moment its path worked could not be reviewed or withdrawn through
+    // the product at all.
     [Fact]
     public void ARootWhoseStoredPathIsWorkingReadsAsALineCarryingThatPath()
     {
@@ -236,16 +214,12 @@ public sealed class FolderMappingOptionsTests
         Assert.Empty(line.PathsTried);
     }
 
-    /// <summary>A store holding neither a refusal nor a path reads as no lines at all.</summary>
     [Fact]
     public void AStoreHoldingNeitherARefusalNorAPathReadsAsNoLines()
         => Assert.Empty(FolderAgreementView.From([], []).Roots);
 
-    /// <summary>A refused root reads before a working one, whichever way round they are stored.</summary>
-    /// <remarks>
-    /// A page already showing refusals keeps them where the reader last saw them when a root below
-    /// starts working.
-    /// </remarks>
+    // A page already showing refusals keeps them where the reader last saw them when a root below
+    // starts working.
     [Fact]
     public void ARefusedRootReadsBeforeAWorkingOne()
     {
@@ -263,12 +237,8 @@ public sealed class FolderMappingOptionsTests
         Assert.Equal(FolderAgreementRefusal.InstanceDeclaresNoRoot, view.Roots[0].Refusal);
     }
 
-    /// <summary>The mapping in force travels beside the root it was supplied for.</summary>
-    /// <remarks>
-    /// A root with a mapping stored can still be refused: the instance's answer decides on every
-    /// run, so the operator has to see what was supplied beside what it came to. The two are one
-    /// line even where the spellings differ by a trailing separator.
-    /// </remarks>
+    // A root with a mapping stored can still be refused, because the instance's answer decides on
+    // every run. The two are one line even where the spellings differ by a trailing separator.
     [Fact]
     public void TheMappingInForceTravelsBesideTheRootItWasSuppliedFor()
     {
@@ -288,12 +258,8 @@ public sealed class FolderMappingOptionsTests
         Assert.Equal(FolderAgreementRefusal.NothingResolved, line.Refusal);
     }
 
-    /// <summary>A refusal naming no root at all has no line.</summary>
-    /// <remarks>
-    /// A folder under none of the library roots is refused with an empty root. A line for it would
-    /// ask for a path for nothing, and the only answer a save could give is that the empty root is
-    /// not a library root.
-    /// </remarks>
+    // A folder under none of the library roots is refused with an empty root. A line for it would
+    // ask for a path for nothing.
     [Fact]
     public void ARefusalNamingNoRootHasNoLine()
     {
@@ -319,12 +285,10 @@ public sealed class FolderMappingOptionsTests
         Assert.Equal(["/data/Blue Harbor/a.mp4"], line.PathsTried);
     }
 
-    /// <summary>One refusal a run reported, carrying the paths it asked the instance about.</summary>
     private static FolderAddressRefusal Refused(
         string coveRoot, FolderAgreementRefusal refusal, params string[] tried)
         => new(coveRoot, refusal, tried);
 
-    /// <summary>An options record with both outbound collections holding entries.</summary>
     private static WhisparrSyncOptions Populated()
         => new()
         {

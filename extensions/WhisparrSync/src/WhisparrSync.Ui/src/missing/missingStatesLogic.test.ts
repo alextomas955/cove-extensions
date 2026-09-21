@@ -88,9 +88,9 @@ describe("every situation the grid cannot show cards in says which one it is", (
   });
 
   it("says this page was owned, not that the catalogue is empty, when a size is still stated", () => {
-    // Owned scenes are removed after a page arrives and a page is never topped back up, so a page
-    // can empty while later pages still hold scenes. Every other empty reason claims the catalogue
-    // itself is empty, which contradicts the size rendered beside the grid.
+    // Owned scenes are removed after a page arrives and a page is never topped back up, so a
+    // page can empty while later pages still hold scenes. Every other empty reason claims the
+    // catalogue itself is empty, which the size beside the grid contradicts.
     const emptyPageOfALargeCatalogue = { ...pageOf([], "none"), catalogueSize: 665, lastPage: 17 };
 
     for (const narrowing of [
@@ -158,10 +158,9 @@ describe("every situation the grid cannot show cards in says which one it is", (
   });
 
   it("does not blame the sub-studios when nothing is connected", () => {
-    // A studio read without its sub-studios AND with no instance connected. Both situations are in
-    // force at once, and only one of them is the cause. The sub-studio sentence is named as the
-    // string that must not appear: a case asserting only the right sentence would have passed
-    // against a surface that reached both answers through different code.
+    // A studio read without its sub-studios and with no instance connected. Both are in force
+    // and only one is the cause, so the sub-studio sentence is named as the string that must
+    // not appear.
     const kind = deriveGridState(
       situation({
         view: pageOf([], "noInstanceConnected"),

@@ -1,13 +1,12 @@
 /**
- * The action handler behind the videos selection bar: it asks what to do with the selected scenes,
- * then hands the whole selection to one background run.
+ * The action handler behind the videos selection bar: it asks what to do with the selected
+ * scenes, then hands the whole selection to one background run.
  *
- * The choice is an imperatively mounted overlay because a selection-bar handler owns no React tree,
- * and a confirm dialog answers yes or no where this needs one of five verbs.
+ * The choice is an imperatively mounted overlay because a selection-bar handler owns no React
+ * tree, and a confirm dialog answers yes or no where this needs one of five verbs.
  *
- * Leaving without choosing, and every refusal, answer the cancelled result. That makes the host
- * suppress its own toast. The host never clears the selection, so a refused gesture leaves the
- * reader with the selection they made.
+ * Leaving without choosing, and every refusal, answer the cancelled result, which suppresses the
+ * host's own toast.
  */
 import { createElement } from "react";
 import type { ActionPayload, HandlerResult } from "@cove-extensions/ui-shared";

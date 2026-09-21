@@ -1,27 +1,19 @@
 /**
  * Whisparr's own mark, inline, for whichever generation the connected instance answered with.
  *
- * Each mark is that product's own `logo.svg` reduced to its shape set: presentation styles moved
- * onto attributes, an empty path dropped, and coordinates cut to three decimals, which is under one
- * pixel at any size a button draws at. Inline rather than an asset, because an asset needs a URL this
- * bundle cannot rely on. No stylesheet ships with it either: a bundle's CSS is page-global in this
- * host and would restyle pages this extension has nothing to do with.
+ * Each mark is that product's own `logo.svg` reduced to its shape set, with coordinates cut to
+ * three decimals. Inline rather than an asset, because an asset needs a URL this bundle cannot rely
+ * on, and a bundle's CSS is page-global in this host.
  *
- * The mark carries no accessible name of its own. A filled two-tone disc cannot inherit
- * `currentColor`, so it cannot signal a state either, and the control that draws it owns both the
- * name and the state.
+ * The mark carries no accessible name. A filled two-tone disc cannot inherit `currentColor`, so it
+ * cannot signal a state either, and the control that draws it owns both the name and the state.
  */
 import type { ReactElement } from "react";
 
 import type { WhisparrGeneration } from "../wire/api";
 
-/**
- * The letterform, and the matrix that places it.
- *
- * Both products draw it from the same coordinates through the same matrix, so it is declared once
- * and the caller supplies only the fill. The matrix carries the scale and the shear; without it the
- * glyph lands small and upright in a corner.
- */
+// Both products draw the letterform from the same coordinates through the same matrix, so only the
+// fill differs. The matrix carries the scale and the shear.
 const LETTERFORM_TRANSFORM =
   "matrix(7.986133, 0.000461, -0.135944, 8.98858, -961.198181, -1658.144775)";
 const LETTERFORM =
@@ -65,12 +57,8 @@ const OLDER_MARK = (
   </>
 );
 
-/**
- * Which mark each generation draws.
- *
- * Total by TYPE, so a generation added to the wire enum fails this build rather than drawing
- * whatever the last branch happened to return.
- */
+// Total by type, so a generation added to the wire enum fails this build rather than drawing
+// whatever the last branch returned.
 const MARK: Record<NonNullable<WhisparrGeneration>, ReactElement> = {
   v3: NEWER_MARK,
   v2: OLDER_MARK,
@@ -82,8 +70,8 @@ export function WhisparrMark({
 }: {
   /**
    * Undefined until the entity's own read has answered, and null where nothing is connected. Either
-   * way nothing is drawn: the mark is full colour and names its generation by that colour, so one
-   * painted before the generation is known would be a chance of showing the wrong product.
+   * way nothing is drawn: the mark names its generation by its colour, so one painted before the
+   * generation is known could show the wrong product.
    */
   generation: WhisparrGeneration | undefined;
   className?: string;

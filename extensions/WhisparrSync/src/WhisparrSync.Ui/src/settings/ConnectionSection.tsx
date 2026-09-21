@@ -1,12 +1,8 @@
 /**
- * The connection form: an address, a key, and the two recorded lines the instance's own answers
- * wrote.
+ * The connection form: an address, a key, and the recorded lines from the instance's own answers.
  *
- * Presentational. Every value arrives as a prop and no request is issued here, so the whole section
- * renders under a test with no host and no network.
- *
- * The key travels IN and never back out. Nothing in {@link ConnectionSectionProps} can carry a stored
- * key, so the pill below reports presence and could not disclose a value even if it tried.
+ * The API key travels in only. No prop can carry a stored key, so the pill reports presence and
+ * never a value.
  */
 import {
   Field,
@@ -36,15 +32,12 @@ import {
 } from "./connectLogic";
 import type { SaveState } from "./connectionStore";
 
-/** The placeholder the panel's own end-to-end specs locate the address field by. */
+/** The e2e specs locate the address field by this placeholder. */
 const ADDRESS_PLACEHOLDER = "http://whisparr:6969";
 
 export interface ConnectionSectionProps {
-  /** The generation this form is editing. */
   card: CardGeneration;
-  /** The generation's stored values, or null before the settings read answers. */
   stored: WhisparrSyncGenerationSettingsView | null;
-  /** Whether the settings read failed. */
   readFailed: boolean;
   draft: GenerationDraft;
   test: TransientTest;
@@ -53,10 +46,7 @@ export interface ConnectionSectionProps {
   noOpSave: boolean;
   /** Whether Test asks about the stored connection rather than about the pair in the form. */
   testsStored: boolean;
-  /**
-   * The one reason several controls on this page share, stated once by the page's own notice. It
-   * still reaches each control's accessible name, which is per-control by nature.
-   */
+  /** The one reason several controls on this page share, stated once by the page's own notice. */
   sharedReason: string | null;
   /** The instant the relative times are measured against. */
   now: number;
@@ -87,8 +77,8 @@ export function ConnectionSection({
   const testing = test.phase === "running";
   const saving = save.status === "saving";
 
-  // A key already stored cannot be sent back, so testing an address the form has changed needs one
-  // typed. Testing the address as stored does not: that test asks about the stored connection.
+  // A stored key cannot be sent back, so testing a changed address needs a typed key. Testing the
+  // address as stored does not, because that test asks about the stored connection.
   const testReason =
     sharedReason ??
     (testing
@@ -194,10 +184,6 @@ export function ConnectionSection({
   );
 }
 
-/**
- * The two lines §07 keeps apart, because they measure different things: a version verified last week
- * beside an instance reached a minute ago is honest rather than contradictory.
- */
 function RecordedLines({
   stored,
   now,
@@ -223,13 +209,8 @@ function RecordedLines({
   );
 }
 
-/**
- * Whether a key is stored, and what the next save would do to it. Never any part of the value.
- *
- * The four labels are distinct sentences rather than one label in four tints, so nothing here is
- * signalled by colour alone. The glyphs §16 fixes to the entity states are deliberately not reused:
- * one vocabulary means one meaning per glyph.
- */
+// Whether a key is stored, and what the next save would do to it. Never any part of the value.
+// Each state is a distinct sentence, so nothing here is signalled by colour alone.
 function KeyState({
   stored,
   draft,
@@ -253,12 +234,6 @@ function KeyState({
   );
 }
 
-/**
- * The one transient result line, always about the address that was in the field when it ran.
- *
- * A success that reached the OTHER generation names the version found and stops. Each generation's
- * connection is remembered separately, so nothing is written and the card is switched deliberately.
- */
 function TestResult({ test, card }: { test: TransientTest; card: CardGeneration }) {
   if (test.phase === "none") {
     return null;
@@ -282,8 +257,8 @@ function TestResult({ test, card }: { test: TransientTest; card: CardGeneration 
     );
   }
   if (result.kind === "connected") {
-    // The instance's own version string, character for character. A rendering that reformatted it
-    // would report a version no instance runs.
+    // The instance's own version string, unformatted. Reformatting it would report a version no
+    // instance runs.
     return (
       <StatusText kind="success">
         Connected to Whisparr {result.version} ({result.generation})
@@ -294,7 +269,6 @@ function TestResult({ test, card }: { test: TransientTest; card: CardGeneration 
   return <StatusText kind="error">{sentenceForKind(result.kind, valuesOf(result))}</StatusText>;
 }
 
-/** HON-9's third bullet: a settings save confirms inline, on the section that changed. */
 function SaveResult({ save }: { save: SaveState }) {
   if (save.status === "saved") {
     return <StatusText kind="success">Connection saved.</StatusText>;

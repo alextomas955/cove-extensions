@@ -1,18 +1,10 @@
-/**
- * The properties the coalescer exists to hold, each driven with an injected scheduler and an injected
- * fetch so no environment is involved.
- *
- * Two are the point of the module. An entry is dropped when its last holder releases, so nothing is
- * retained past the cards that asked for it: a library here reaches millions of entities, and a cache
- * that outlived the page would grow with how far someone scrolled. And a tick holding more keys than
- * the server answers for in one page reaches every one of them without the coalescer holding a page
- * size of its own, so the fake below is what decides how many one answer carries.
- */
+// The scheduler and the fetch are injected, so no environment is involved. The page size lives in
+// the fake below, not in the coalescer.
 import { expect, test } from "vitest";
 
 import { createBatchCoalescer, type FetchedBatch } from "./batchCoalescerLogic";
 
-/** A scheduler under the test's own control, so a flush happens where the test says it does. */
+// A scheduler under the test's own control, so a flush happens where the test says it does.
 function manualScheduler(): { schedule: (flush: () => void) => void; run: () => Promise<void> } {
   const pending: (() => void)[] = [];
   return {
@@ -28,11 +20,7 @@ function manualScheduler(): { schedule: (flush: () => void) => void; run: () => 
   };
 }
 
-/**
- * A fetch that answers at most `perPage` of the keys it is given and says when it was given more,
- * which is what the route does. The page size lives here rather than in the coalescer, so a
- * coalescer tuned to one figure fails against another.
- */
+// A fetch that answers at most `perPage` keys and says when it was given more, as the route does.
 function answering(value: string, perPage = Number.MAX_SAFE_INTEGER) {
   const calls: string[][] = [];
   return {
@@ -57,8 +45,7 @@ test("a page of keys requested in one tick costs exactly one fetch", async () =>
   for (const key of keys) coalescer.request(key);
   await scheduler.run();
 
-  // Counted on the injected function rather than read out of the module, so what is asserted is the
-  // number of requests a page actually costs.
+  // Counted on the injected function, so what is asserted is the number of requests a page costs.
   expect(fetching.calls, "a page of cards did not fold into one request").toHaveLength(1);
   expect(fetching.calls[0]).toHaveLength(keys.length);
   expect(coalescer.get("1")).toBe("held");
@@ -132,10 +119,7 @@ test("the last release drops the entry, so nothing is held between pages", async
   ).toHaveLength(2);
 });
 
-/**
- * Two page sizes, because the property is that every card is reached whatever the server answers
- * for. A coalescer carrying a figure of its own would pass at one size and fail at the other.
- */
+// Two page sizes: a coalescer carrying a figure of its own would pass at one and fail at the other.
 test.for([
   { perPage: 40, count: 81, fetches: 3 },
   { perPage: 7, count: 20, fetches: 3 },
@@ -150,11 +134,11 @@ test.for([
     for (const key of keys) coalescer.request(key);
     await scheduler.run();
 
-    // Counted on the injected function, so what is asserted is what the server was actually sent.
+    // Counted on the injected function, so what is asserted is what the server was sent.
     expect(fetching.calls, "the remainder was not asked about again").toHaveLength(fetches);
 
-    // Every key, not a count: a client that dropped the remainder would agree with a count of
-    // fetches.
+    // Every key, not a count: a client that dropped the remainder would still make the right
+    // number of fetches.
     const unanswered = keys.filter((key) => coalescer.get(key) !== "held");
     expect(unanswered, "a card past the first page was left with no answer").toEqual([]);
   },
@@ -172,8 +156,7 @@ test("a server answering nothing and naming no remainder is not asked again", as
   coalescer.request("2");
   await scheduler.run();
 
-  // A refused page answers no row and names no remainder. Asking again would loop forever against a
-  // server that has already said all it can.
+  // A refused page answers no row and names no remainder. Asking again would loop forever.
   expect(asked, "a refused page was asked about again").toHaveLength(1);
   expect(coalescer.settled("1"), "a refused card reads as still loading").toBe(true);
   expect(coalescer.get("1")).toBeNull();

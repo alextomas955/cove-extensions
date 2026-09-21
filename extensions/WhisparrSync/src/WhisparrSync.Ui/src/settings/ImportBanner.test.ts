@@ -114,7 +114,7 @@ test("the line no root was reported for reads as a sentence rather than a gap", 
   expect(view.rootLines.length).toBe(1);
   const heading = view.rootLines[0].querySelector("p")?.textContent ?? "";
   expect(heading).toBe(importRefusalsWithNoReportedRootSentence(5));
-  // The blank key reaching the reader as itself leaves a hole where a folder should be.
+  // A blank root key rendered as itself would leave a double space in the heading.
   expect(heading).not.toContain("  ");
 });
 

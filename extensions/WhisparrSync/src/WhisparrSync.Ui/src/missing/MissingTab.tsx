@@ -4,10 +4,8 @@
  * The host passes an entity id and a navigate callback and nothing else, so the kind is read from
  * the address. A route this tab does not recognise states that rather than guessing a kind.
  *
- * No stylesheet and no background of its own: an extension CSS bundle is page-global and would leak
- * onto every host page, so every visual here is a host-emitted utility class.
- *
- * Every sentence below is stated by the surface that derives it. This file composes none of its own.
+ * Every visual is a host-emitted utility class, because an extension CSS bundle is page-global
+ * and would leak onto every host page.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -22,18 +20,14 @@ import { MissingToolbar } from "./MissingToolbar";
 import { useMissing } from "./useMissing";
 import { useMissingUrlState } from "./useMissingUrlState";
 
-/** The host's own sub-studio toggle, which lives in the address and is operable beside this tab. */
+// The host's own sub-studio toggle, which lives in the address and is operable beside this tab.
 const INCLUDE_SUB_STUDIOS_KEY = "includeSubStudios";
 
-/** The host event fired when its own router changes the address. */
+// The host event fired when its own router changes the address.
 const HOST_LOCATION_CHANGE = "cove-locationchange";
 
-/**
- * Whether the host's own sub-studio toggle is on, tracked live.
- *
- * The toggle is not one of the keys the host deletes on a tab change, and it renders above this tab
- * while it is open, so its value has to be followed rather than read once at mount.
- */
+// The toggle is not one of the keys the host deletes on a tab change, and it renders above this
+// tab while it is open, so its value is followed rather than read once at mount.
 function useIncludeSubStudios(): boolean {
   const [included, setIncluded] = useState(
     () => new URLSearchParams(window.location.search).get(INCLUDE_SUB_STUDIOS_KEY) === "true",
@@ -78,8 +72,8 @@ function MissingTabFor({
 }) {
   const [view, setView] = useMissingUrlState();
 
-  // The toggle is the host's, so it is carried into the request rather than written into this tab's
-  // own keys: writing it back would make this tab a second owner of a control it does not own.
+  // The toggle is the host's, so it is carried into the request and never written into this
+  // tab's own keys.
   const filters =
     kind === "studio"
       ? { ...view.filters, [INCLUDE_SUB_STUDIOS_KEY]: String(includeSubStudios) }
@@ -103,8 +97,8 @@ function MissingTabFor({
   );
   const items = useMemo(() => loadedPageIds.map((id) => ({ id })), [loadedPageIds]);
 
-  // At the hook's own preserve-on-items-change default of false, so the selection clears when the
-  // page under it changes and a tick always means a scene currently on screen.
+  // At the hook's preserve-on-items-change default of false, so the selection clears when the
+  // page under it changes and a tick always means a scene on screen.
   const { selectedIds, toggle, selectIds, selectNone } = useMultiSelect(items);
 
   const onSelect = useCallback(
@@ -114,8 +108,8 @@ function MissingTabFor({
     [selectIds],
   );
 
-  // A started run reports in the job drawer and changes nothing on the page it was started from, so
-  // ticks left behind would invite a second run over the same scenes.
+  // A started run changes nothing on the page it was started from, so ticks left behind would
+  // invite a second run over the same scenes.
   const runStarted = state.bulk.kind === "started";
   useEffect(() => {
     if (runStarted) selectNone();

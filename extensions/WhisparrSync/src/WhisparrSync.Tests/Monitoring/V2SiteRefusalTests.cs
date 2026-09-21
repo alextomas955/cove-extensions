@@ -6,34 +6,22 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// Which refusal a reader is told when no site number is established for a v2 studio, at the routes
-/// a reader reaches rather than against the mapping itself.
-/// </summary>
-/// <remarks>
-/// The shipped client is stood over a byte-level stub, so each case exercises the real request, the
-/// real parse and the real classification. A case calling the mapping directly agrees with one the
-/// routes never consult.
-/// <para>
-/// A source that names no site and a source that was not reached are different answers, and a reader
-/// can act on only one of them: the identity the library holds is the thing to fix, and a read that
-/// arrived at nothing says nothing about that identity at all.
-/// </para>
-/// </remarks>
+// The shipped client is stood over a byte-level stub, so each case exercises the real request, the
+// real parse and the real classification. A case calling the mapping directly would assert a path
+// the routes never take.
 public sealed class V2SiteRefusalTests
 {
-    /// <summary>The spelling this library holds v2's identity rows under.</summary>
+    // The spelling this library holds v2's identity rows under.
     private const string V2Endpoint = "theporndb.net/graphql";
 
     private const string V2RemoteId = "5f7c1d90-2a3b-4c6d-8e91-0b2f4a6d8c13";
 
-    /// <summary>The number the metadata source names that site by.</summary>
+    // The number the metadata source names that site by.
     private const int V2SiteNumber = 3372;
 
-    /// <summary>The list, holding no row for the number the source named.</summary>
     private const string NoHeldSeries = "[]";
 
-    /// <summary>The list, holding the site the source named and monitored.</summary>
+    // The list, holding the site the source named, monitored.
     private const string HeldSeries =
         """[{"id":11,"tvdbId":3372,"title":"Vixen","monitored":true}]""";
 
@@ -55,14 +43,8 @@ public sealed class V2SiteRefusalTests
         params (HttpStatusCode Status, string Answer)[] answers)
         => V2StudioAsync(WhisparrSiteNumber.Numbered(V2SiteNumber), answers);
 
-    /// <summary>
-    /// A studio the metadata source names no site for is the no-identity refusal, at the read route.
-    /// </summary>
-    /// <remarks>
-    /// This is the common case rather than a rare one: roughly a third of the library's studios are
-    /// unreachable on this generation. Telling the reader the instance refused sends them to audit an
-    /// instance that was never asked.
-    /// </remarks>
+    // Roughly a third of the library's studios reach no site number on v2, so reporting this as an
+    // instance refusal would send readers to audit an instance that was never asked.
     [Fact]
     public async Task AStudioTheSourceNamesNoSiteForIsTheNoIdentityRefusal()
     {
@@ -74,11 +56,8 @@ public sealed class V2SiteRefusalTests
         Assert.Equal(MonitorRefusalKind.NoIdentityInThisNamespace, view.Refusal);
     }
 
-    /// <summary>A source that was not reached is a refusal of a different kind.</summary>
-    /// <remarks>
-    /// It establishes nothing about the studio, so reporting it as one the source names no site for
-    /// would send a reader to fix an identity that may be correct.
-    /// </remarks>
+    // An unreached source establishes nothing about the studio, so reporting it as one the source
+    // names no site for would send a reader to fix an identity that may be correct.
     [Fact]
     public async Task ASourceThatWasNotReachedIsHeldApartFromOneNamingNoSite()
     {
@@ -91,11 +70,8 @@ public sealed class V2SiteRefusalTests
         Assert.NotEqual(MonitorRefusalKind.None, view.Refusal);
     }
 
-    /// <summary>Every gesture a reader can make reports that same fact.</summary>
-    /// <remarks>
-    /// One fact whichever verb was pressed. A distinction holding on the read alone would still send
-    /// a reader who pressed the control to the wrong screen.
-    /// </remarks>
+    // The classification holding on the read alone would still send a reader who pressed a control
+    // to the wrong screen, so every acting route is checked.
     [Theory]
     [InlineData("monitor")]
     [InlineData("unmonitor")]
@@ -111,12 +87,8 @@ public sealed class V2SiteRefusalTests
         Assert.Equal(MonitorRefusalKind.NoIdentityInThisNamespace, view.Refusal);
     }
 
-    /// <summary>The verb that downloads reports it too, on the generation that serves it.</summary>
-    /// <remarks>
-    /// The one other mounted verb this generation reaches an entity read through. Registering the
-    /// scenes a catalogue lacks refuses earlier here, for the generation gap, which is the reason the
-    /// precedence puts ahead of the metadata link.
-    /// </remarks>
+    // The one other mounted verb that reaches an entity read on v2. The scene-registering verb
+    // refuses earlier, on the generation, so it cannot report this refusal.
     [Fact]
     public async Task TheVerbThatDownloadsReportsThatSameFact()
     {
@@ -130,7 +102,6 @@ public sealed class V2SiteRefusalTests
         Assert.Equal(MonitorRefusalKind.NoIdentityInThisNamespace, view!.Refusal);
     }
 
-    /// <summary>A list the instance itself failed stays the instance refusal.</summary>
     [Fact]
     public async Task AListTheInstanceFailedStaysTheInstanceRefusal()
     {
@@ -143,7 +114,6 @@ public sealed class V2SiteRefusalTests
         Assert.Equal(MonitorRefusalKind.InstanceRefused, view.Refusal);
     }
 
-    /// <summary>The site the source numbered still resolves, and the list still answers.</summary>
     [Fact]
     public async Task ANumberedSiteStillResolvesAndTheListStillAnswers()
     {
@@ -156,13 +126,8 @@ public sealed class V2SiteRefusalTests
         Assert.True(view.Monitored);
     }
 
-    /// <summary>
-    /// A site the instance does not hold resolves, and is read as one it does not hold.
-    /// </summary>
-    /// <remarks>
-    /// The case every registration is made of. A site the instance holds no row for has to read as
-    /// absent rather than as a refusal, or a library run refuses every site it was meant to register.
-    /// </remarks>
+    // A site the instance holds no row for reads as absent, not as a refusal. Classifying it as a
+    // refusal would make a library run refuse every site it was meant to register.
     [Fact]
     public async Task ASiteTheInstanceDoesNotHoldResolvesAndReadsAsAbsent()
     {
@@ -175,11 +140,8 @@ public sealed class V2SiteRefusalTests
         Assert.False(view.Present);
     }
 
-    /// <summary>No sentence a reader is shown is composed from what the instance answered.</summary>
-    /// <remarks>
-    /// The refusal is a kind and the words are chosen in the browser from that kind, so a body a
-    /// third party controls cannot reach a screen even on the failed path.
-    /// </remarks>
+    // The refusal travels as a kind and the browser chooses the words, so a body a third party
+    // controls cannot reach a screen even on the failed path.
     [Fact]
     public async Task NothingTheInstanceAnsweredReachesTheViewOnAFailedPath()
     {

@@ -2,8 +2,7 @@
  * One card's status data layer: the only place a card badge reads what the instance holds.
  *
  * `enabled` gates the subscription, the snapshot and the registration together. With it off nothing
- * is registered, so no request is sent at all and a card is byte-identical to one with no extension
- * behind it.
+ * is registered and no request is sent at all.
  */
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
@@ -15,7 +14,6 @@ import {
   subscribeCardStatus,
 } from "./cardStatusStore";
 
-/** What the hook hands the badge. */
 export interface CardStatus {
   /** What the instance holds, or null where nothing was established for this card. */
   readonly reading: LibraryCardReading | null;

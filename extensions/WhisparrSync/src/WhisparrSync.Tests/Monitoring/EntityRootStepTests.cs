@@ -4,20 +4,12 @@ using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// Which library root an entity is registered at when its files do not all sit under one.
-/// </summary>
-/// <remarks>
-/// The split case is the measured one: on the owner's library 197 of 199 studios with files sit
-/// under exactly one root, and the two that do not are 883 to 2 and 62 to 2. The rule is the same
-/// whatever the ratio, so the near-even case below runs through the same code path and not through a
-/// threshold.
-/// <para>
-/// How many times the agreement is asked is as much the subject as the root chosen. A step that
-/// asked about every root would establish one agreement per entity rather than one per root, which
-/// answers correctly and is unusable at the entity count a library reaches.
-/// </para>
-/// </remarks>
+// The split ratios come from a measured library: 197 of 199 studios with files sit under exactly
+// one root, and the two that do not split 883 to 2 and 62 to 2. The rule applies whatever the
+// ratio, so the near-even case takes the same path and no threshold exists.
+//
+// The cases also count how often the agreement is asked. Asking about every root would establish
+// one agreement per entity rather than one per root, which answers correctly and does not scale.
 public sealed class EntityRootStepTests
 {
     private const string FirstRoot = "G:/Downloads/P";
@@ -28,7 +20,6 @@ public sealed class EntityRootStepTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>883 files under one root and 2 under another takes the 883.</summary>
     [Fact]
     public async Task ALopsidedSplitTakesTheRootHoldingMostOfTheFiles()
     {
@@ -44,11 +35,8 @@ public sealed class EntityRootStepTests
         Assert.Equal([SecondRoot], asked);
     }
 
-    /// <summary>45 and 40 takes the 45 by the same rule, with no threshold anywhere.</summary>
-    /// <remarks>
-    /// Near enough to even that a rule with a majority threshold would refuse it. This product has
-    /// none: refusing a split studio would leave the 45 unlinked to avoid guessing about the 40.
-    /// </remarks>
+    // A 45 to 40 split is near enough to even that a majority threshold would refuse it. Refusing
+    // would leave the 45 unlinked to avoid guessing about the 40.
     [Fact]
     public async Task ANearlyEvenSplitTakesTheLargerSideByTheSameRule()
     {
@@ -63,12 +51,8 @@ public sealed class EntityRootStepTests
         Assert.Equal([SecondRoot], asked);
     }
 
-    /// <summary>An exact tie takes the root the supplied list names first, on every run.</summary>
-    /// <remarks>
-    /// The supplied order is the host's own configured order, so the choice does not vary between two
-    /// runs over one configuration. Run twice for exactly that: a tie broken by anything the counts
-    /// do not determine could answer differently the second time.
-    /// </remarks>
+    // The supplied order is the host's configured order. The resolution runs twice because a tie
+    // broken by anything the counts do not determine could answer differently the second time.
     [Fact]
     public async Task AnExactTieTakesTheFirstRootSuppliedAndDoesSoOnEveryRun()
     {
@@ -90,7 +74,6 @@ public sealed class EntityRootStepTests
         Assert.Equal([FirstRoot, FirstRoot], asked);
     }
 
-    /// <summary>Files under one root only leave nothing behind and name no other root.</summary>
     [Fact]
     public async Task FilesUnderOneRootOnlyLeaveNothingBehind()
     {
@@ -105,13 +88,8 @@ public sealed class EntityRootStepTests
         Assert.Equal([SecondRoot], asked);
     }
 
-    /// <summary>
-    /// An entity owning no file answers no root and no refusal, and nothing is asked about.
-    /// </summary>
-    /// <remarks>
-    /// Not a refusal: there is nothing to derive a root from, which is a different fact from a root
-    /// the instance would not agree to. A caller keeps its run-wide value for this reading.
-    /// </remarks>
+    // Nothing to derive a root from is a different fact from a root the instance would not agree
+    // to, so this is not a refusal and the caller keeps its run-wide value.
     [Fact]
     public async Task AnEntityOwningNoFileAnswersNoRootAndNoRefusal()
     {
@@ -126,7 +104,6 @@ public sealed class EntityRootStepTests
         Assert.Empty(asked);
     }
 
-    /// <summary>The chosen root's own instance spelling is what is answered.</summary>
     [Fact]
     public async Task TheAnsweredInstanceRootIsTheChosenRootsOwn()
     {
@@ -138,7 +115,6 @@ public sealed class EntityRootStepTests
         Assert.Equal([SecondRoot], asked);
     }
 
-    /// <summary>A chosen root the instance agreed no spelling for still names what was left.</summary>
     [Fact]
     public async Task AChosenRootThatAgreedOnNothingStillNamesWhatWasLeft()
     {
@@ -155,13 +131,11 @@ public sealed class EntityRootStepTests
         Assert.Equal([FirstRoot], resolved.RootsLeftBehind);
     }
 
-    /// <summary>That library root as the instance spells it.</summary>
+    // That library root as the instance spells it.
     private static string Agreed(string coveRoot)
         => "/on-the-instance" + coveRoot[2..].Replace('/', '-');
 
-    /// <summary>
-    /// One resolution over both roots, recording which of them the agreement was asked about.
-    /// </summary>
+    // Records which roots the agreement was asked about.
     private static Task<EntityRoot> ResolveAsync(
         Dictionary<string, int> counts, List<string> asked)
         => EntityRootStep.ResolveAsync(

@@ -7,30 +7,19 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// The external facts this product's monitoring rests on, pinned against documents the two measured
-/// builds produced.
-/// </summary>
-/// <remarks>
-/// The captured documents are INPUTS. Every expected value below was written out by hand, because one
-/// computed from the document it checks would agree with that document whatever either said.
-/// <para>
-/// Nothing here reads a status. One of these generations answers an identifier it does not know with a
-/// success and an empty list, and answers a body whose fields it dropped with a created status and an
-/// echo showing them gone, so a status is not evidence about either. Every assertion is on the parsed
-/// shape or on the content of a document.
-/// </para>
-/// <para>
-/// Whisparr v2 publishes no contract at all, so every shape it answers with is a hand
-/// transcription that survives only here: the ledger these were taken from is local and unversioned.
-/// </para>
-/// <para>
-/// WHAT AN IMAGE BUMP MEANS: a pin that goes red is reporting that the fact changed, and the fact is
-/// then re-measured against the new image and the code re-decided. The fixture is never edited to
-/// match. Every fixture file names the build it came from for exactly that reason, so a stale one is
-/// visible rather than silently authoritative.
-/// </para>
-/// </remarks>
+// The external facts this product's monitoring rests on, pinned against documents the two
+// measured builds produced. The captured documents are inputs. Every expected value below was
+// written out by hand, because one computed from the document it checks would agree with that
+// document whatever it said.
+// Nothing here reads a status. One generation answers an identifier it does not know with a
+// success and an empty list, and answers a body whose fields it dropped with a created status,
+// so a status is not evidence. Every assertion is on the parsed shape or on the content of a
+// document.
+// Whisparr v2 publishes no contract, so every shape it answers with is a hand transcription that
+// survives only here.
+// A pin that goes red reports that the fact changed. Re-measure it against the new image and
+// re-decide the code; never edit the fixture to match. Every fixture file names the build it came
+// from, so a stale one is visible.
 public sealed class MonitorBodyPinTests
 {
     private const string V3Build = "3.3.8.1097";
@@ -62,32 +51,25 @@ public sealed class MonitorBodyPinTests
     private const string V2ImportModesFixture = "whisparr-v2-2.2.0.231-import-modes.json";
     private const string V2CommandsFixture = "whisparr-v2-2.2.0.231-command-payloads.json";
 
-    /// <summary>The identifier the entity that was added is named by on v3.</summary>
+    // The identifier the entity that was added is named by on v3.
     private const string StudioForeignId = "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e";
 
-    /// <summary>The identifier the scene that was registered twice is named by.</summary>
+    // The identifier the scene that was registered twice is named by.
     private const string RegisteredSceneForeignId = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
 
-    /// <summary>The identifier the registration control used, which no provider lists.</summary>
+    // The identifier the registration control used, which no provider lists.
     private const string UnknownSceneForeignId = "00000000-0000-4000-8000-000000000000";
 
-    /// <summary>The number the metadata source names that site by.</summary>
+    // The number the metadata source names that site by.
     private const int SiteEntityId = 3372;
 
     private static readonly AddDefaults Defaults = new(4, "/config/library");
 
     private static readonly DateTimeOffset Now = new(2026, 9, 2, 0, 0, 0, TimeSpan.Zero);
 
-    /// <summary>
-    /// Whisparr v3 answers an add missing either of its two NOT NULL columns with a raw
-    /// database message and a stack trace, so a composed add always carries both.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 3.3.8.1097, from the document an add carrying only the identifier produced.
-    /// The add path has no validation rule set in front of it, so the database constraint is the
-    /// validator and the answer is unreadable. The second member of that answer is a stack trace: this
-    /// asserts it is one, which is why nothing anywhere reads it.
-    /// </remarks>
+    // Measured on 3.3.8.1097: an add missing either NOT NULL column answers a raw database
+    // message and a stack trace. The add path has no validation rule set in front of it, so the
+    // database constraint is the validator and the answer is unreadable. Nothing reads it.
     [Fact]
     public void TheNewerGenerationRefusesAnAddMissingEitherColumnItsDatabaseRequires()
     {
@@ -108,16 +90,9 @@ public sealed class MonitorBodyPinTests
         Assert.True(composed.ContainsKey("tags"), $"the add omits a column {V3Build} requires");
     }
 
-    /// <summary>
-    /// A scene registration carrying no title is refused by a validator, so every composed scene add
-    /// carries one.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 3.3.8.1097, from the document a registration carrying only the identifier and
-    /// the columns the studio add carries produced. The scene resource has a rule set in front of it
-    /// where the studio resource has none, and the rule it fails on is emptiness rather than absence:
-    /// a whitespace title is refused in the same words.
-    /// </remarks>
+    // Measured on 3.3.8.1097: the scene resource has a validation rule set the studio resource
+    // lacks, and it fails on emptiness rather than absence. A whitespace title is refused in the
+    // same words.
     [Fact]
     public void TheNewerGenerationRefusesASceneRegistrationCarryingNoTitle()
     {
@@ -133,17 +108,9 @@ public sealed class MonitorBodyPinTests
             $"the scene registration omits the member {V3Build} refuses an empty one on");
     }
 
-    /// <summary>
-    /// A scene the instance already holds is named by an error code, and the control that names no
-    /// scene at all carries no error code at all, so the two are told apart on that member.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 3.3.8.1097, from the documents a second registration of one scene and a
-    /// registration of a well-formed identifier no provider lists produced. Both answer the same
-    /// status and the same content type, so a classifier reading either would report a scene the
-    /// instance holds as a refusal and a scene nothing lists as held. The member that separates them
-    /// is what a run classifies on.
-    /// </remarks>
+    // Measured on 3.3.8.1097: a second registration of one scene and a registration of a
+    // well-formed identifier no provider lists answer the same status and the same content type.
+    // The error code member is what tells them apart, so a run classifies on it.
     [Fact]
     public void TheNewerGenerationNamesASceneItAlreadyHoldsByAnErrorCodeTheControlDoesNotCarry()
     {
@@ -166,15 +133,8 @@ public sealed class MonitorBodyPinTests
             $"{V3Build} names the control by an error code, so the two are no longer told apart on it");
     }
 
-    /// <summary>
-    /// The title a scene registration carried is replaced by the instance's own, so the value sent
-    /// reaches nothing a reader sees.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 3.3.8.1097, from the document a registration whose title member was the
-    /// identifier itself produced. The whole record is the instance's own resolution of that
-    /// identifier: the title, the folder it chose and the studio it attributed the scene to.
-    /// </remarks>
+    // Measured on 3.3.8.1097: the instance replaces the title a registration carried with its own
+    // resolution of the identifier, along with the folder it chose and the studio it attributed.
     [Fact]
     public void TheNewerGenerationReplacesTheTitleASceneRegistrationCarried()
     {
@@ -189,15 +149,8 @@ public sealed class MonitorBodyPinTests
             sentAsTitle, registered["title"]!.GetValue<string>(), StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A scene registration the instance accepted echoes the suppression flag back set, and echoes
-    /// back the monitor type covering the one scene.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 3.3.8.1097, from the document an accepted registration produced. The echo
-    /// drops the top-level suppression member entirely and keeps the add-options one, which is why a
-    /// composed body carries both spellings rather than whichever the echo shows.
-    /// </remarks>
+    // Measured on 3.3.8.1097: the echo drops the top-level suppression member and keeps the
+    // add-options one, so a composed body carries both spellings.
     [Fact]
     public void ASceneRegistrationTheNewerGenerationAcceptedEchoesTheSuppressionFlagSet()
     {
@@ -215,14 +168,8 @@ public sealed class MonitorBodyPinTests
             $"{V3Build} now echoes the top-level flag, so the echo is evidence about it");
     }
 
-    /// <summary>
-    /// The add-time date gate is held in a different spelling from the one it is sent in, so comparing
-    /// the two as strings reports a change that did not happen.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 3.3.8.1097. Sent as an instant and held as a date, and both spellings are
-    /// pinned because a caller that compares them has to compare dates.
-    /// </remarks>
+    // Measured on 3.3.8.1097: the date gate is sent as an instant and held as a date, so a caller
+    // comparing the two has to compare dates.
     [Fact]
     public void TheDateGateIsHeldInADifferentSpellingFromTheOneItIsSentIn()
     {
@@ -240,20 +187,10 @@ public sealed class MonitorBodyPinTests
             DateTime.Parse(held, CultureInfo.InvariantCulture).Date);
     }
 
-    /// <summary>
-    /// A plain read of v3's studio resource reports the date gate when one was
-    /// set and omits the member entirely when none was, so the read distinguishes the two scopes.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 3.3.8.1097, from two documents a GET of one studio produced: the same
-    /// identifier added once with the gate and once without it. Present-and-null was the third
-    /// possible answer and is not what was observed, which is what licenses reading an absent member
-    /// as the wider scope rather than as an unknown.
-    /// <para>
-    /// The gate's VALUE is transcribed here and read nowhere else. No shipped member compares it,
-    /// and this pin does not either: it asserts the spelling that was answered and stops.
-    /// </para>
-    /// </remarks>
+    // Measured on 3.3.8.1097 from two reads of one studio, added once with the date gate and once
+    // without it. Present-and-null was not what was observed, which is what licenses reading an
+    // absent member as the wider scope rather than as an unknown.
+    // The gate's value is transcribed here and read nowhere else.
     [Fact]
     public void TheNewerGenerationsStudioReadCarriesTheDateGateOnlyWhenOneWasSet()
     {
@@ -274,14 +211,9 @@ public sealed class MonitorBodyPinTests
             absent.Select(member => member.Key).Order());
     }
 
-    /// <summary>
-    /// Whisparr v3 accepts a quality profile it can never act on and echoes it back, so the
-    /// stop is this product's own.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 3.3.8.1097, from the document an add carrying a zero produced. An entity
-    /// stored under it monitors and then never acquires, and nothing in the answer says so.
-    /// </remarks>
+    // Measured on 3.3.8.1097: an add carrying a zero quality profile is accepted and echoed back.
+    // An entity stored under it monitors and then never acquires, and nothing in the answer says
+    // so, which is why the stop is this product's own.
     [Fact]
     public void TheNewerGenerationAcceptsAProfileItCanNeverActOnAndThisProductDoesNot()
     {
@@ -296,11 +228,8 @@ public sealed class MonitorBodyPinTests
                 SiteEntityId, MonitorScope.AllScenes, new AddDefaults(0, "/config/library")));
     }
 
-    /// <summary>
-    /// A freshly added entity reports a catalogue of zero before anything has read one, so a count
-    /// taken then would be a confident zero this product cannot support.
-    /// </summary>
-    /// <remarks>Claimed of build 3.3.8.1097, from the document a just-added entity read as.</remarks>
+    // Measured on 3.3.8.1097: a just-added entity reports a catalogue of zero before anything has
+    // read one, so a count taken then would be a confident zero this product cannot support.
     [Fact]
     public void AFreshlyAddedEntityReportsNoCatalogueAtAll()
     {
@@ -310,14 +239,8 @@ public sealed class MonitorBodyPinTests
         Assert.Equal(0, studio["totalSceneCount"]!.GetValue<int>());
     }
 
-    /// <summary>
-    /// Whisparr v3's editor route leaves every field the request does not name exactly as it
-    /// was, which is what makes a two-key flag flip safe.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 3.3.8.1097, from the entity read before and after a flip carrying the id array
-    /// and the flag. Compared member by member: the flag is the only difference.
-    /// </remarks>
+    // Measured on 3.3.8.1097 from the entity read before and after a flip carrying the id array
+    // and the flag: the flag is the only difference.
     [Fact]
     public void TheNewerGenerationsEditorLeavesEveryFieldTheRequestDoesNotName()
     {
@@ -330,15 +253,9 @@ public sealed class MonitorBodyPinTests
                 .Order());
     }
 
-    /// <summary>
-    /// The add-time date gate is declared on one resource and on no other in the whole contract, so a
-    /// future-only scope is not expressible for any other kind.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 3.3.8.1097, from the contract that build publishes. The editor resource does
-    /// not declare it either, which is why a scope change is the one case the editor route cannot
-    /// express.
-    /// </remarks>
+    // Measured against the contract 3.3.8.1097 publishes: the date gate is declared on one
+    // resource and on no other, the editor resource included, so a scope change is the one case
+    // the editor route cannot express.
     [Fact]
     public void TheDateGateIsDeclaredOnOneResourceAndOnNoOther()
     {
@@ -351,15 +268,9 @@ public sealed class MonitorBodyPinTests
         Assert.True(Declares(schemas, "PerformerResource", "monitored"));
     }
 
-    /// <summary>
-    /// Both generations offer the same three import modes, and neither offers one that registers a
-    /// file without transferring it.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of builds 3.3.8.1097 and 2.2.0.231, transcribed from the interface bundle each image
-    /// ships. The two arrays are compared with each other AND with a hand-written expectation, because
-    /// comparing them only with each other would pass if both changed the same way.
-    /// </remarks>
+    // Transcribed from the interface bundle each of 3.3.8.1097 and 2.2.0.231 ships. The two arrays
+    // are compared with each other and with a hand-written expectation, because comparing them
+    // only with each other would pass if both changed the same way.
     [Fact]
     public void BothGenerationsOfferTheSameThreeImportModesAndNoInPlaceOne()
     {
@@ -376,13 +287,8 @@ public sealed class MonitorBodyPinTests
         Assert.Equal("HardlinkCopyFiles", Array(V3ImportModesFixture)[2]!["label"]!.GetValue<string>());
     }
 
-    /// <summary>
-    /// Both generations link a file into place rather than copying it, by default.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of builds 3.3.8.1097 and 2.2.0.231, from the configuration each answered with. It is a
-    /// default rather than a guarantee, which is why it is read before acting rather than assumed.
-    /// </remarks>
+    // Measured on 3.3.8.1097 and 2.2.0.231 from the configuration each answered with. It is a
+    // default rather than a guarantee, so it is read before acting rather than assumed.
     [Fact]
     public void BothGenerationsLinkAFileIntoPlaceByDefault()
     {
@@ -390,15 +296,9 @@ public sealed class MonitorBodyPinTests
         Assert.True(Object(V2MediaManagementFixture)["copyUsingHardlinks"]!.GetValue<bool>());
     }
 
-    /// <summary>
-    /// Whisparr v2 refuses both a zero quality profile and a library root it has not been
-    /// given, and names each by property and by validator.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 2.2.0.231. Whisparr v3 accepts both, so neither generation's own
-    /// behaviour is what the product's guarantee rests on: the profile is stopped before it is sent,
-    /// and the root is read from the instance rather than chosen.
-    /// </remarks>
+    // Measured on 2.2.0.231. Whisparr v3 accepts both, so the product's guarantee rests on neither
+    // generation: the profile is stopped before it is sent, and the root is read from the instance
+    // rather than chosen.
     [Fact]
     public void TheOlderGenerationRefusesAProfileAndARootTheNewerOneAccepts()
     {
@@ -413,15 +313,9 @@ public sealed class MonitorBodyPinTests
         Assert.Equal("RootFolderExistsValidator", refused["RootFolderPath"]);
     }
 
-    /// <summary>
-    /// Whisparr v2's editor route leaves every field the request does not name exactly as it
-    /// was, including the flag on every one of the entity's catalogue years.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 2.2.0.231, from the entity read before and after a flip carrying the id array
-    /// and the flag. The per-year flags are what a wider body would silently overwrite, and the user
-    /// owns every one of them.
-    /// </remarks>
+    // Measured on 2.2.0.231 from the entity read before and after a flip carrying the id array and
+    // the flag. The per-year flags are what a wider body would silently overwrite, and the user
+    // owns every one of them.
     [Fact]
     public void TheOlderGenerationsEditorLeavesEveryPerYearFlagAsItWas()
     {
@@ -434,14 +328,8 @@ public sealed class MonitorBodyPinTests
                 .Order());
     }
 
-    /// <summary>
-    /// The entity's catalogue is divided into YEARS on v2, whatever its own wire
-    /// field is called.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 2.2.0.231. No wording a user reads may carry that field's name, which is why
-    /// nothing composed on this path spells it.
-    /// </remarks>
+    // Measured on 2.2.0.231: the catalogue is divided into years. No wording a user reads may
+    // carry that field's name, so nothing composed on this path spells it.
     [Fact]
     public void TheOlderGenerationsCatalogueIsDividedIntoYears()
     {
@@ -453,11 +341,8 @@ public sealed class MonitorBodyPinTests
         Assert.All(divisions, division => Assert.InRange(division, 2000, 2100));
     }
 
-    /// <summary>
-    /// The scope route on v2 refuses a request with no body, so naming the verb is
-    /// not enough to probe it and the body is what makes it work.
-    /// </summary>
-    /// <remarks>Claimed of build 2.2.0.231, from the answer a bodyless request produced.</remarks>
+    // Measured on 2.2.0.231: the scope route refuses a request with no body, so naming the verb is
+    // not enough to probe it and the body is what makes it work.
     [Fact]
     public void TheScopeRouteRefusesARequestWithNoBody()
     {
@@ -474,14 +359,9 @@ public sealed class MonitorBodyPinTests
             ComposedV2Body.Of(V2BodyProjector.SetScope(1, MonitorScope.AllScenes))["series"]);
     }
 
-    /// <summary>
-    /// Nothing the measured monitoring sequence did put anything in the acquisition queue.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 2.2.0.231, from the queue as it read after an add, a flag flip and two scope
-    /// changes. The composed-body assertions are what carry the never-acquire guarantee; this is the
-    /// instance agreeing with them once.
-    /// </remarks>
+    // Measured on 2.2.0.231 from the queue as it read after an add, a flag flip and two scope
+    // changes. The composed-body assertions carry the never-acquire guarantee; this is the
+    // instance agreeing with them once.
     [Fact]
     public void TheMeasuredSequencePutNothingInTheAcquisitionQueue()
     {
@@ -491,15 +371,8 @@ public sealed class MonitorBodyPinTests
         Assert.Empty(Assert.IsType<JsonArray>(queue["records"]));
     }
 
-    /// <summary>
-    /// A command payload names its entities in an array on one generation and as a scalar on the
-    /// other, and a payload written in the wrong one is accepted and does nothing.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of builds 3.3.8.1097 and 2.2.0.231, transcribed from the interface bundle each image
-    /// ships. All the shapes either generation uses are named, because the split is per generation and
-    /// not per command.
-    /// </remarks>
+    // Transcribed from the interface bundle each of 3.3.8.1097 and 2.2.0.231 ships. All the shapes
+    // either generation uses are named, because the split is per generation and not per command.
     [Fact]
     public void TheCommandPayloadsSplitBetweenAnArrayAndAScalar()
     {
@@ -527,15 +400,9 @@ public sealed class MonitorBodyPinTests
         Assert.Equal(1, v2["RefreshSeries"]["seriesId"]!.GetValue<int>());
     }
 
-    /// <summary>
-    /// Whisparr v2 offers eleven monitor options, four of which it renders to a user as the
-    /// key rather than a sentence, and this product composes two of the eleven.
-    /// </summary>
-    /// <remarks>
-    /// Claimed of build 2.2.0.231, transcribed from the interface bundle and the localization file
-    /// that image ships. The two this product uses are the two whose words are clean, and they are
-    /// that generation's own words rather than this product's.
-    /// </remarks>
+    // Transcribed from the interface bundle and the localization file 2.2.0.231 ships. The two
+    // this product composes are the two whose words are clean, and they are that generation's own
+    // words.
     [Fact]
     public void ElevenMonitorOptionsAreOfferedAndThisProductComposesTwoOfThem()
     {
@@ -573,10 +440,6 @@ public sealed class MonitorBodyPinTests
         Assert.Equal(["all", "future"], composed);
     }
 
-    /// <summary>
-    /// Every member but the flag is byte-identical across <paramref name="before"/> and
-    /// <paramref name="after"/>.
-    /// </summary>
     private static void AssertOnlyTheFlagChanged(JsonObject before, JsonObject after)
     {
         Assert.Equal(

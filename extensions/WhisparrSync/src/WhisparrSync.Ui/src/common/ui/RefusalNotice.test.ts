@@ -27,7 +27,6 @@ const { DisabledControl } = await import("./DisabledControl");
 
 const REASON = CAP_UNAVAILABLE_ON_THIS_GENERATION;
 
-// A screen holding `count` controls that all share one reason.
 function screenWith(count: number) {
   const names = Array.from({ length: count }, (_, i) => `Control ${String(i + 1)}`);
   return createElement(
@@ -80,7 +79,6 @@ test("the notice is stated once whichever order the controls render in", async (
   const forwards = await draw(screenWith(3));
   expect(forwards.notices.length).toBe(1);
   const first = forwards.notices[0].textContent;
-  // The same screen with the notice after its controls rather than before them.
   const reversed = await draw(
     createElement(
       "div",

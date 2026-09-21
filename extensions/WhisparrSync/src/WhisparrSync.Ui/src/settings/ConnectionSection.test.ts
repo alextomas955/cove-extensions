@@ -1,10 +1,4 @@
 // @vitest-environment jsdom
-/**
- * Three properties of the connection form that only a rendered DOM can settle: that a version never
- * verified and a version verified against an instance that has since failed do not read the same,
- * that a pressed control is both announced busy and no longer pressable, and that no part of a key
- * reaches the page.
- */
 import { expect, test } from "vitest";
 import { createElement } from "react";
 
@@ -72,8 +66,8 @@ test("a version never verified does not read the same as one verified against an
   );
 
   expect(never.textContent).toContain("not verified yet");
-  // The version and the instant it was read survive a failure that came after them: the reading was
-  // true when it was taken, and blanking it would replace a correct answer with none.
+  // A later failure does not blank the version or the instant it was read. Both were true when
+  // they were taken.
   expect(failing.textContent).toContain("3.3.8.1097");
   expect(failing.textContent).not.toContain("not verified yet");
 });
@@ -100,9 +94,8 @@ test("the key pill reports that a key is set without disclosing any of it", asyn
   const set = await render(section({ stored: NEVER_VERIFIED }));
   expect(set.textContent).toContain("Key is set");
 
-  // The only key value in scope anywhere on this page. That the response carries none is the
-  // server's own guarantee, asserted over the shipped projection in SettingsProjectionTests, so a
-  // leak here could only come from the field's own draft.
+  // The response carries no key; SettingsProjectionTests asserts that. So a leak here could only
+  // come from the field's own draft.
   const typed = "e2ewriteonly7c41b9a6d2f80e35a1c4";
   const withDraft = await render(
     section({ draft: { address: "http://whisparr:6969", apiKey: typed, keyCleared: false } }),

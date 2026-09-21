@@ -20,15 +20,11 @@ import { useRegistration } from "./useRegistration";
 /**
  * The component the host mounts inside the "Whisparr Sync" settings tab.
  *
- * The tab uses the host's page layout, so the host draws the tab header from the manifest and no
- * card chrome around this component: the cards below are the extension's own. No outer page heading
- * and no page gutter, or the tab name would be drawn twice.
+ * The host draws the tab header from the manifest and adds no card chrome. This component must add
+ * no outer page heading and no page gutter, or the tab name is drawn twice.
  *
  * The host passes `{ onNavigate }`; this surface does not navigate and ignores it. Styling is host
  * Tailwind token classes only, because the host's Tailwind JIT never scans this bundle.
- *
- * This component holds the data layer and hands each section what it renders, so a section can be
- * exercised with no host and no network.
  */
 export function WhisparrSyncPage() {
   const { state, editAddress, editKey, clearStoredKey, showCard, test, save } =
@@ -41,8 +37,7 @@ export function WhisparrSyncPage() {
   const stored = valuesForCard(state.settings, state.card);
   const now = useNow();
 
-  // One reason, stated once, for the controls that share it - rather than the same sentence repeated
-  // beside each of them.
+  // One reason stated once, rather than the same sentence beside each control that shares it.
   const sharedReason = state.settings === null ? reasonNothingIsReadable(state.readError) : null;
 
   return (
@@ -141,12 +136,8 @@ export function WhisparrSyncPage() {
   );
 }
 
-/**
- * How many controls the shared reason takes out while the settings are unreadable: the connection
- * test, the connection save, the registration, which acts on the stored connection rather than on the
- * form, the upgrade behaviour, whose save would write over the settings that could not be read, and
- * the library sync, whose run acts on the stored connection the shared reason says could not be read.
- */
+// The controls the shared reason disables: connection test, connection save, registration, upgrade
+// behaviour, library sync.
 const SHARED_REASON_CONTROLS = 5;
 
 function reasonNothingIsReadable(readError: string | null): string {
@@ -155,13 +146,9 @@ function reasonNothingIsReadable(readError: string | null): string {
     : "Cove could not read the stored connection, so nothing here can act on it yet.";
 }
 
-/**
- * A generation change is applied by re-entering the page rather than by re-reading each surface,
- * because every surface reads the connected generation's capabilities and there is no single place
- * that would know to tell them all.
- *
- * Declared once at module scope so the hook that calls it does not see a new function on each render.
- */
+// A generation change reloads the page rather than re-reading each surface: every surface reads
+// the connected generation's capabilities, and no single place knows to tell them all.
+// At module scope so the hook that calls it does not see a new function on each render.
 function reloadPage() {
   window.location.reload();
 }

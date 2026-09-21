@@ -1,9 +1,6 @@
 /**
  * The four-way split every read surface renders through: reading, loaded with content, loaded and
  * empty, failed.
- *
- * A surface still reading never returns its empty state, and a refresh that fails over content on
- * screen keeps the content.
  */
 
 export type AsyncRegionStatus = "reading" | "content" | "empty" | "failed";
@@ -29,7 +26,7 @@ export interface AsyncRead {
 export const INITIAL_ASYNC_READ: AsyncRead = { reading: true, failed: false, hasContent: false };
 
 /**
- * Which of the four `read` is in.
+ * Which of the four states `read` is in.
  *
  * A read in flight over content keeps the content, and a failed read over content keeps it and
  * raises the outage flag. Blanking on a failed refresh would replace a correct answer with none.

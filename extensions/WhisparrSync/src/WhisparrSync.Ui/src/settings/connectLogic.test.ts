@@ -22,7 +22,7 @@ import {
   type RefusalValues,
 } from "./connectLogic";
 
-// The values a real refusal carries, so a sentence that names one is exercised naming it.
+// All values present, so a sentence that names one is exercised naming it.
 const NAMED: RefusalValues = {
   address: "http://whisparr-v3:6969",
   version: "9.9.9.9999",
@@ -84,8 +84,8 @@ describe("what each refusal names", () => {
 });
 
 describe("what each refusal offers", () => {
-  // A generation gap is fixed by neither: asking again asks the same instance the same question, and
-  // no setting would enable it, so advice to change one sends the user to the wrong place.
+  // Neither helps a generation gap. Asking again asks the same instance the same question, and no
+  // setting would enable it.
   it("offers neither a retry nor a settings link for a version it does not manage", () => {
     expect(affordancesForKind("versionNotManaged")).toEqual({ retry: false, settingsLink: false });
   });
@@ -104,9 +104,9 @@ describe("what each refusal offers", () => {
 });
 
 describe("the version-gap sentence", () => {
-  // Transcribed by hand from the specification, character for character: lower-case v3, a space
-  // before the parenthesis, a capital E inside it, and no trailing full stop. An expectation computed
-  // from the constant would agree with whatever it said.
+  // Transcribed by hand from the specification: lower-case v3, a space before the parenthesis, a
+  // capital E inside it, no trailing full stop. A value computed from the constant would agree with
+  // whatever the constant said.
   it("reads exactly as specified", () => {
     expect(CAP_UNAVAILABLE_ON_THIS_GENERATION).toBe("Currently available on Whisparr v3 (Eros)");
   });
@@ -147,8 +147,7 @@ describe("normalising an address", () => {
     expect(normaliseAddress("http://whisparr:6969///")).toBe("http://whisparr:6969");
   });
 
-  // Nothing is added. An address with no scheme stays without one, so it is refused and named rather
-  // than turned into a guess at what the user meant.
+  // An address with no scheme stays without one, so it is refused and named rather than guessed at.
   it("adds nothing that was not typed", () => {
     expect(normaliseAddress("whisparr:6969")).toBe("whisparr:6969");
     expect(normaliseAddress("")).toBe("");
@@ -161,9 +160,8 @@ describe("deciding whether a result still describes the field", () => {
     expect(isAddressEdit("http://whisparr:6969", "  http://whisparr:6969 ")).toBe(false);
   });
 
-  // Letter case does not move an address, and the server's own same-address rule folds it. A browser
-  // that disagreed would discard a result the server would have kept, which reports a reading that
-  // still holds as absent.
+  // The server's same-address rule folds case. A browser that did not would discard a result the
+  // server would have kept.
   it("reports no edit for a change of letter case", () => {
     expect(isAddressEdit("http://whisparr:6969", "HTTP://WHISPARR:6969")).toBe(false);
     expect(isAddressEdit("HTTP://HOST:6969", "http://host:6969/")).toBe(false);
@@ -191,7 +189,6 @@ describe("what retires the transient result", () => {
   });
 });
 
-/** A connected answer from `generation`, in the shape the response carries it. */
 function connected(generation: "v3" | "v2", version: string): ConnectionTestView {
   return {
     kind: "connected",
@@ -211,8 +208,7 @@ describe("a successful test whose generation is not the card's", () => {
     const outcome = detectionOutcome(connected("v2", "2.0.0.1082"), "v3");
 
     expect(outcome).toEqual({ kind: "otherGeneration", detected: "v2", version: "2.0.0.1082" });
-    // The shape itself holds nothing a caller could act on as a write. Transcribed by hand, so a
-    // member added later has to be accounted for here before it can be acted on.
+    // The member list is written by hand, so a member added later has to be accounted for here.
     expect(Object.keys(outcome ?? {}).sort()).toEqual(["detected", "kind", "version"]);
   });
 
@@ -248,7 +244,7 @@ describe("whether a save changes which generation is selected", () => {
     expect(isGenerationChange("v2", "v3")).toBe(true);
   });
 
-  // Nothing is known about what is selected until the read answers, so nothing is claimed about it.
+  // Nothing is known about the selection until the read answers.
   it("reports no change before the settings read has said which is selected", () => {
     expect(isGenerationChange(null, "v3")).toBe(false);
   });
@@ -270,7 +266,6 @@ describe("whether a save would write nothing", () => {
     );
   });
 
-  // Only letter case and a trailing separator differ, and neither moves the address.
   it("is true for an address that differs only in ways that do not move it", () => {
     const stored = { ...NOTHING_STORED, address: "http://whisparr:6969" };
 
@@ -288,8 +283,8 @@ describe("whether Test asks about the stored connection", () => {
     keyCleared: false,
   };
 
-  // The browser never has the stored key to send back, so this is what lets a test run at all after
-  // a save, and it is the only test whose answer may update the recorded version.
+  // The browser never holds the stored key, so this is the only way a test can run after a save.
+  // It is also the only test whose answer may update the recorded version.
   it("asks about it when the form still describes what is stored", () => {
     expect(testsStoredConnection(stored, "v3", "v3", asStored)).toBe(true);
   });
@@ -301,8 +296,8 @@ describe("whether Test asks about the stored connection", () => {
     expect(testsStoredConnection(stored, "v3", "v3", { ...asStored, apiKey: "typed" })).toBe(false);
   });
 
-  // The stored test asks about whichever generation is selected, so running one from the other card
-  // would answer about an instance that card does not name.
+  // The stored test asks about the selected generation, so running one from the other card would
+  // answer about an instance that card does not name.
   it("never asks about it from a card that is not the one in use", () => {
     expect(testsStoredConnection(stored, "v2", "v3", asStored)).toBe(false);
   });
@@ -332,8 +327,6 @@ describe("the four-way read the recorded lines render through", () => {
     expect(recordedRead(null, true)).toEqual({ reading: false, failed: true, hasContent: false });
   });
 
-  // A card whose instance has never been reached and whose version has never been read is a true
-  // zero, not an absence of an answer.
   it("is the genuine zero for a generation nothing has ever reached", () => {
     expect(recordedRead(NOTHING_STORED, false).hasContent).toBe(false);
     expect(
@@ -345,8 +338,8 @@ describe("the four-way read the recorded lines render through", () => {
     ).toBe(true);
   });
 
-  // HON-7. A re-read that fails while the recorded lines are on screen has to reach the state
-  // machine as a failure, or the outage can never be raised and the staleness is silent.
+  // A re-read that fails while the recorded lines are on screen must reach the state machine as a
+  // failure, or the outage is never raised and the stale lines stand unmarked.
   it("carries a failed re-read through when there is content to keep", () => {
     const withContent = { ...NOTHING_STORED, recordedVersion: "3.3.8.1097" };
     const read = recordedRead(withContent, true);
@@ -355,9 +348,8 @@ describe("the four-way read the recorded lines render through", () => {
     expect(deriveAsyncRegionState(read)).toEqual({ status: "content", outage: true });
   });
 
-  // The control on the assertion above: with nothing to keep, a failed re-read must NOT become a
-  // failure state, because content and empty render the same stored lines and the failure branch
-  // replaces them with an error.
+  // The control on the assertion above. With nothing to keep, a failed re-read must not become a
+  // failure state: the failure branch would replace the stored lines with an error.
   it("does not turn a failed re-read into a failure when there is nothing to keep", () => {
     const read = recordedRead(NOTHING_STORED, true);
 

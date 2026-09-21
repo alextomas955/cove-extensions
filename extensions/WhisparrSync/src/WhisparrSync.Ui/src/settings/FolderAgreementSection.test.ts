@@ -1,15 +1,4 @@
 // @vitest-environment jsdom
-/**
- * What the settings page shows for a folder Whisparr could not be shown to hold and for one whose
- * stated path is working, and what pressing save puts to Cove.
- *
- * The hook and the section are mounted together, because the properties under test span both: which
- * lines are on screen after a save is what the re-read answers, and what the save carried is a
- * request rather than a value a component returns.
- *
- * The fake refuses a call it was not configured for, so a surface reaching a route nobody arranged
- * fails here rather than resolving to a convenient default.
- */
 import { afterEach, expect, test, vi } from "vitest";
 import { act, createElement, type ReactNode } from "react";
 
@@ -33,7 +22,7 @@ vi.mock("@cove-extensions/ui-shared", async () => {
     Spinner: () => h("span", { "data-spinner": "true" }, "…"),
     Field: (props: { label: string; helper?: string; children: ReactNode }) =>
       h("label", null, props.label, props.children, props.helper),
-    // The native attribute is what decides whether a press can act, so the button is a real one.
+    // A real button, because the native disabled attribute decides whether a press can act.
     Button: (props: { children: ReactNode; disabled?: boolean; onClick: () => void }) =>
       h("button", { disabled: props.disabled, onClick: props.onClick }, props.children),
     INPUT_CLASS: "",
@@ -49,10 +38,9 @@ interface Sent {
 
 const sent: Sent[] = [];
 
-/** The GET answers, taken in order, so a re-read can answer differently from the first read. */
+// GET answers taken in order, so a re-read can answer differently from the first read.
 let reads: (FolderAgreementView | Error)[] = [];
 
-/** What the PUT answers, keyed by the folder the request names. */
 let saves: Record<string, unknown> = {};
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
@@ -133,13 +121,8 @@ async function mount() {
   };
 }
 
-/**
- * Types `value` into `input` the way a person does.
- *
- * React replaces the node's own `value` setter to track what it last rendered, so a plain assignment
- * is read back as no change and the dispatched event is dropped. Writing through the prototype's
- * setter is what a keystroke does.
- */
+// React replaces the node's own value setter to track what it last rendered. A plain assignment
+// reads back as no change and the dispatched event is dropped, so write through the prototype setter.
 async function type(input: HTMLInputElement | null, value: string) {
   if (input === null) throw new Error("No path field found to type into");
   // eslint-disable-next-line @typescript-eslint/unbound-method -- called with `input` as its `this`.

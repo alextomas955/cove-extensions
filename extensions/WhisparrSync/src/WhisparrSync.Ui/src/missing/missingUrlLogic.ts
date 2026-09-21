@@ -20,21 +20,17 @@ export interface MissingView {
   /** Counted from one. */
   readonly page: number;
   /**
-   * One opaque ordering value the provider issued, or null for the provider's own order.
-   *
-   * Never an ordering plus a direction: one provider carries the direction inside each value and
-   * the other carries it separately, so a direction model of this product's own would be wrong for
-   * one of them.
+   * One opaque ordering value the provider issued, or null for the provider's own order. Never
+   * an ordering plus a direction: one provider carries the direction inside each value and the
+   * other carries it separately.
    */
   readonly sort: string | null;
   /** Keyed by the facet keys the provider issued. */
   readonly filters: Readonly<Record<string, string>>;
 }
 
-/** The view a URL carrying none of this tab's keys describes. */
 export const DEFAULT_MISSING_VIEW: MissingView = { q: "", page: 1, sort: null, filters: {} };
 
-/** What `search` says this tab is looking at. */
 export function readMissingView(search: string): MissingView {
   const params = new URLSearchParams(search);
   return {
@@ -46,10 +42,8 @@ export function readMissingView(search: string): MissingView {
 }
 
 /**
- * `search` rewritten to say that this tab is looking at `view`.
- *
- * A key at its default is absent rather than present and blank, and a key this tab does not own is
- * carried through untouched.
+ * `search` rewritten to say that this tab is looking at `view`. A key at its default is absent
+ * rather than blank, and a key this tab does not own is carried through untouched.
  */
 export function writeMissingView(search: string, view: MissingView): string {
   const params = new URLSearchParams(search);
@@ -68,8 +62,8 @@ function set(params: URLSearchParams, key: string, value: string | null): void {
   params.set(key, value);
 }
 
-// A value that is not a whole number above zero reads as the first page rather than as a failure.
-// A shared link is edited by hand, and a broken one should show the catalogue.
+// A value that is not a whole number above zero reads as the first page. A shared link is edited
+// by hand, and a broken one should still show the catalogue.
 function readPage(raw: string | null): number {
   const parsed = Number(raw);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_MISSING_VIEW.page;
@@ -102,7 +96,7 @@ function readFilters(raw: string | null): Readonly<Record<string, string>> {
 }
 
 function writeFilters(filters: Readonly<Record<string, string>>): string | null {
-  // Sorted, so one selection produces one address however the object was built up.
+  // Sorted, so one selection produces one address however the object was built.
   const pairs = Object.entries(filters)
     .filter(([key, value]) => key !== "" && value !== "")
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))

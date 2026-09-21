@@ -23,7 +23,6 @@ import {
   type MonitoringStore,
 } from "./monitoringStore";
 
-/** What the hook hands the control. */
 export interface Monitoring {
   readonly state: MonitoringState;
   /**
@@ -35,14 +34,13 @@ export interface Monitoring {
   readonly act: (verb: MonitorActionRoute, body: unknown) => void;
 }
 
-/** The route for one entity. Per entity, so it cannot be a module-scope constant. */
 function routeFor(entity: MonitoredEntity, verb: string): string {
   return api(`entity/${entity.kind}/${String(entity.coveId)}/${verb}`);
 }
 
 export function useMonitoring(kind: WhisparrEntityKind, coveId: number): Monitoring {
-  // One store per page lifetime. A lazy useState initializer rather than a useMemo, because a memo is
-  // a cache React may legitimately discard.
+  // One store per page lifetime. A lazy useState initializer rather than a useMemo, because a memo
+  // is a cache React may discard.
   const [store] = useState<MonitoringStore>(() => createMonitoringStore());
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
 
@@ -66,11 +64,10 @@ export function useMonitoring(kind: WhisparrEntityKind, coveId: number): Monitor
       store.beginAction(entity);
       postAction<MonitorActionAnswer>(routeFor(entity, verb), body)
         .then((answered) => {
-          // A refusal is read off the PRESS rather than off the read that follows it. The read route
-          // composes no add, so it can never answer either add-defaults kind, and its fresh view
-          // overwrites this one. What was carried out is still read back from the instance, because
-          // it decides what it now holds and its own catalogue refresh can move that between the
-          // answer and the next frame.
+          // A refusal is read off the press rather than off the read that follows it. The read
+          // route composes no add, so it can never answer either add-defaults kind, and its fresh
+          // view overwrites this one. The state is still read back, because the instance decides
+          // what it now holds.
           const refusal = monitorRefusalIn(answered);
           const skipped = reflectOwnedSkipIn(answered);
           if (refusal !== null && refusal !== "none") {

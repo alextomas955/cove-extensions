@@ -1,18 +1,11 @@
 /**
- * The folder agreement section's data layer: the folders whose Whisparr path is not Cove's own to
- * work out, the path typed under each, and the save that puts one to the instance.
+ * The folder agreement section's data layer: the folders whose Whisparr path Cove cannot work out,
+ * the path typed under each, and the save that puts one to the instance.
  *
- * No store beside it. Nothing here is shared with another surface, cached across a visit or
- * coordinated with anything, so the request lives in the hook the way the neighbouring sections keep
- * theirs.
- *
- * A save that settled a folder re-reads the lines rather than changing one locally: the server
- * decides which folders are listed, and a local change would be a second answer to that question.
- * A withdrawal is what takes a folder off the page, and it is the re-read that does it.
- *
- * That folder's draft is cleared with the re-read, so the field beside a path that has just started
- * working is blank and the blank save that withdraws it is one press. Its save answer stays, being
- * the reader's only confirmation the store worked.
+ * A save that settled a folder re-reads the list rather than changing it locally, because the
+ * server decides which folders are listed. That folder's draft is cleared with the re-read, so
+ * withdrawing the path again is one press. The save answer stays, as the only confirmation the
+ * store worked.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
@@ -29,19 +22,17 @@ import { saveSettled, type FolderSaveAnswer } from "./folderAgreementLogic";
 const FOLDER_MAPPINGS_PATH = api("addressing/folder-mappings");
 
 export interface UseFolderAgreement {
-  /** Which of the four states the prompts are in. */
   readonly read: AsyncRead;
-  /** The folders listed, or null before the read answers. */
   readonly view: FolderAgreementView | null;
-  /** The path typed under each folder, by folder. */
+  /** The path typed under each folder, keyed by folder. */
   readonly drafts: Readonly<Record<string, string>>;
   /** The folder whose save is in flight, or null when none is. */
   readonly saving: string | null;
-  /** What the last save under each folder came to, by folder. */
+  /** What the last save under each folder came to, keyed by folder. */
   readonly answers: Readonly<Record<string, FolderSaveAnswer>>;
   readonly editPath: (root: string, next: string) => void;
   readonly save: (root: string) => void;
-  /** Takes the path in force off <code>root</code>, without reading what is typed under it. */
+  /** Takes the path in force off `root`, ignoring what is typed under it. */
   readonly withdraw: (root: string) => void;
 }
 

@@ -8,37 +8,25 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// Every body v3 is sent for a monitor, an unmonitor, a scope change or a performer,
-/// asserted on the composed object rather than through a client.
-/// </summary>
-/// <remarks>
-/// The two editor bodies are asserted on their KEY SET and not only on their values. Every other
-/// field of the editor resource is nullable and an omitted one is not applied, so a key appearing here
-/// by accident is a value of the user's own that this product would overwrite.
-/// <para>
-/// Nothing here asserts what happens to a scene released exactly on the add-time boundary date.
-/// Whether that date is inclusive is the instance's to classify, no behaviour of this product depends
-/// on it, and an assertion either way would pin a fact this product does not own. The omission is
-/// deliberate.
-/// </para>
-/// </remarks>
+// The editor bodies are asserted on their key set, not only on their values. Every other field of
+// the v3 editor resource is nullable and an omitted one is not applied, so a key present by
+// accident overwrites a value the user chose.
+//
+// Nothing here asserts what happens to a scene released exactly on the add-time boundary date. The
+// instance classifies that date and no behaviour of this product depends on it.
 public sealed class V3BodyProjectorTests
 {
     private const string StudioForeignId = "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e";
 
     private const string PerformerForeignId = "9f0d6f27-1f3a-4a5f-8b21-6b2d3a5f9c10";
 
-    /// <summary>The fields a flag flip must leave alone, because the user owns each of them.</summary>
+    // Fields a flag flip leaves alone, because the user owns each of them.
     private static readonly string[] FieldsAFlagFlipMustNotCarry =
         ["qualityProfileId", "rootFolderPath", "tags", "afterDate", "searchOnAdd", "addOptions"];
 
-    /// <summary>A studio as the instance holds one, with a catalogue and values a user chose.</summary>
-    /// <remarks>
-    /// The search flag is TRUE, as an instance answers for a studio a person added in its own interface
-    /// with search-on-add ticked. The read echoes it and this resource's schema declares no add-options
-    /// member, so this is the whole of what a body cloned from a read can carry.
-    /// </remarks>
+    // A studio as the instance holds one. The search flag is true, as an instance answers for a
+    // studio added in its own interface with search-on-add ticked. The v3 studio resource declares
+    // no add-options member, so this is the whole of what a body cloned from a read can carry.
     private const string HeldStudio = """
         {"id":4,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","title":"1000 Facials",
          "monitored":true,"afterDate":"2026-09-02","qualityProfileId":4,
@@ -46,7 +34,7 @@ public sealed class V3BodyProjectorTests
          "sceneCount":4,"totalSceneCount":22}
         """;
 
-    /// <summary>A studio as a freshly added one reads, before any catalogue refresh has run.</summary>
+    // A studio as a freshly added one reads, before any catalogue refresh has run.
     private const string EmptyCatalogueStudio = """
         {"id":9,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","title":"Fresh",
          "monitored":true,"qualityProfileId":1,"rootFolderPath":"/config/library","tags":[],
@@ -57,7 +45,6 @@ public sealed class V3BodyProjectorTests
 
     private static readonly AddDefaults Defaults = new(4, "/config/library");
 
-    /// <summary>The studio flag flip names the entity and the flag, and says nothing else at all.</summary>
     [Fact]
     public void TheStudioFlagFlipCarriesTheIdArrayAndTheFlagAndNothingElse()
     {
@@ -70,7 +57,6 @@ public sealed class V3BodyProjectorTests
         Assert.False(body["monitored"]!.GetValue<bool>());
     }
 
-    /// <summary>The performer flag flip is the same body against the performer's own id array.</summary>
     [Fact]
     public void ThePerformerFlagFlipCarriesTheIdArrayAndTheFlagAndNothingElse()
     {
@@ -85,14 +71,8 @@ public sealed class V3BodyProjectorTests
         Assert.False(body["monitored"]!.GetValue<bool>());
     }
 
-    /// <summary>
-    /// No flag flip in either direction, for either kind, carries a field a user may have changed
-    /// inside Whisparr.
-    /// </summary>
-    /// <remarks>
-    /// Asserted as member ABSENCE. An omitted nullable field is not applied and a field sent as null
-    /// is, so the two cannot be told apart by a value.
-    /// </remarks>
+    // Asserted as member absence. An omitted nullable field is not applied and a field sent as null
+    // is, so the two cannot be told apart by a value.
     [Fact]
     public void NoFlagFlipCarriesAFieldTheUserOwns()
     {
@@ -110,13 +90,8 @@ public sealed class V3BodyProjectorTests
                 FieldsAFlagFlipMustNotCarry, field => Assert.False(body.ContainsKey(field))));
     }
 
-    /// <summary>
-    /// Asking for the flag an entity already has composes the same body and is not an error.
-    /// </summary>
-    /// <remarks>
-    /// Byte-identical rather than equivalent: a body carrying a value derived from the moment it was
-    /// composed would differ between two composes of the same request.
-    /// </remarks>
+    // Byte-identical rather than equivalent: a body carrying a value derived from the moment it was
+    // composed would differ between two composes of the same request.
     [Fact]
     public void FlippingTheSameFlagTwiceComposesByteIdenticalBodies()
     {
@@ -128,13 +103,8 @@ public sealed class V3BodyProjectorTests
             ComposedBody.Of(V3BodyProjector.SetPerformerMonitored(11, monitored: true)).ToJsonString());
     }
 
-    /// <summary>
-    /// The add-time gate is a present member for the narrower scope and an absent one for the wider.
-    /// </summary>
-    /// <remarks>
-    /// The gate's own help text says an empty value is ignored, so omission is how the wider scope is
-    /// expressed and there is no value that expresses it.
-    /// </remarks>
+    // The instance ignores an empty add-time gate, so omission is the only way to express the wider
+    // scope.
     [Fact]
     public void TheAddTimeGateIsPresentForTheNarrowerScopeAndAbsentForTheWider()
     {
@@ -149,13 +119,8 @@ public sealed class V3BodyProjectorTests
                 .ContainsKey("afterDate"));
     }
 
-    /// <summary>
-    /// A scope change is composed on the whole resource as read, keeping every value the user chose.
-    /// </summary>
-    /// <remarks>
-    /// The editor resource declares no add-time gate, so a scope sent there is accepted and applies
-    /// nothing. This is the one verb that reads before it writes.
-    /// </remarks>
+    // The v3 editor resource declares no add-time gate, so a scope sent there is accepted and
+    // applies nothing. A scope change reads the whole resource first and composes on that.
     [Fact]
     public void AScopeChangeIsComposedOnTheWholeResourceAndKeepsWhatTheUserChose()
     {
@@ -179,20 +144,10 @@ public sealed class V3BodyProjectorTests
         Assert.Equal("2026-09-02", held["afterDate"]!.GetValue<string>());
     }
 
-    /// <summary>
-    /// A scope change overwrites the search flag the instance answered with, and composes no
-    /// add-options member on a resource that carried none.
-    /// </summary>
-    /// <remarks>
-    /// The clone is the whole request, so a flag a user ticked in the instance's own interface would
-    /// otherwise be re-asserted on a change this product originated. Overwritten rather than removed:
-    /// an absent member's default is the instance's and was never measured.
-    /// <para>
-    /// The add-options member is what an add composes both spellings in, and this resource's schema
-    /// declares none of it. Composing one here would send a shape this route was never measured
-    /// accepting, and the spelling it holds cannot arrive on a body the instance did not answer with.
-    /// </para>
-    /// </remarks>
+    // The clone is the whole request, so a search flag the user ticked would otherwise be
+    // re-asserted on a change this product originated. It is overwritten rather than removed,
+    // because the instance's default for an absent member was never measured. The v3 studio
+    // resource declares no add-options member, so composing one would send an unmeasured shape.
     [Fact]
     public void AScopeChangeOverwritesTheSearchFlagAndComposesNoAddOptions()
     {
@@ -214,11 +169,8 @@ public sealed class V3BodyProjectorTests
         Assert.True(held["searchOnAdd"]!.GetValue<bool>());
     }
 
-    /// <summary>An entity whose catalogue is empty composes a scope body like any other.</summary>
-    /// <remarks>
-    /// A freshly added studio reads a catalogue of zero before its first refresh, so no scope path may
-    /// require a catalogue to exist.
-    /// </remarks>
+    // A freshly added studio reads a catalogue of zero before its first refresh, so no scope path
+    // can require a catalogue to exist.
     [Fact]
     public void AnEntityWithAnEmptyCatalogueStillComposesAValidScopeBody()
     {
@@ -232,11 +184,8 @@ public sealed class V3BodyProjectorTests
         Assert.False(V3BodyProjector.WithScope(fresh, MonitorScope.AllScenes, Now).ContainsKey("afterDate"));
     }
 
-    /// <summary>A scope value this product does not express resolves to no scope at all.</summary>
-    /// <remarks>
-    /// Both scope-taking paths, because the one that resolved by default would be the one that marks a
-    /// whole back catalogue wanted.
-    /// </remarks>
+    // Both scope-taking paths are checked, because a path that fell back to a default would be the
+    // one that marks a whole back catalogue wanted.
     [Fact]
     public void AnUnrecognisedScopeThrowsRatherThanResolvingToAScope()
     {
@@ -246,21 +195,10 @@ public sealed class V3BodyProjectorTests
             () => V3BodyProjector.WithScope(Parse(HeldStudio), (MonitorScope)(-1), Now));
     }
 
-    /// <summary>
-    /// Every add this product can compose carries the acquisition-suppressing flag its own resource
-    /// declares, present as a member and false.
-    /// </summary>
-    /// <remarks>
-    /// Presence is asserted apart from the value. An absent member and a false one read the same off a
-    /// deserialized object, and the instance's default for the absent case is what this product must
-    /// never depend on.
-    /// <para>
-    /// The studio and performer resources declare a top-level flag and no add-options member; the
-    /// scene resource declares the reverse. Transcribed from build 3.4.0.1387's own resources, so a
-    /// resource that gains the other spelling fails here rather than being sent one this product
-    /// composed for a different schema.
-    /// </para>
-    /// </remarks>
+    // Presence is asserted apart from the value, because an absent member and a false one read the
+    // same off a deserialized object. In v3 build 3.4.0.1387 the studio and performer resources
+    // declare a top-level suppression flag and no add-options member, and the scene resource
+    // declares the reverse.
     [Fact]
     public void EveryComposedAddCarriesTheSuppressionSpellingItsResourceDeclares()
     {
@@ -268,13 +206,8 @@ public sealed class V3BodyProjectorTests
         Assert.NotEmpty(EveryAdd());
     }
 
-    /// <summary>
-    /// Every add carries the two columns the instance's database requires and a usable profile.
-    /// </summary>
-    /// <remarks>
-    /// Both columns are NOT NULL with no rule set in front of them, so a missing value is answered
-    /// with a raw database message rather than a validation failure.
-    /// </remarks>
+    // Both columns are NOT NULL in the instance's database with no validation rule in front of
+    // them, so a missing value is answered with a raw database message.
     [Fact]
     public void EveryComposedAddCarriesTheColumnsTheInstanceRequiresAndANonZeroProfile()
         => Assert.All(
@@ -288,12 +221,8 @@ public sealed class V3BodyProjectorTests
                 Assert.True(body["monitored"]!.GetValue<bool>());
             });
 
-    /// <summary>An add composed with a profile the instance would accept and never act on.</summary>
-    /// <remarks>
-    /// This generation accepts a zero profile id, echoes it back, and the entity then monitors happily
-    /// and can never acquire anything. The stop that reads the instance's offered list is the first
-    /// guard; this is the last one before the request is composed.
-    /// </remarks>
+    // v3 accepts a zero profile id and echoes it back. The entity then monitors and can never
+    // acquire anything, so composing refuses the value.
     [Fact]
     public void AnAddComposedWithAProfileTheInstanceWouldNeverActOnIsRefused()
     {
@@ -305,14 +234,8 @@ public sealed class V3BodyProjectorTests
             () => ComposedBody.Of(V3BodyProjector.AddPerformer(PerformerForeignId, unusable)));
     }
 
-    /// <summary>
-    /// The performer add expresses no scope, because the field a future-only scope is expressed
-    /// through exists on the studio resource and on no other.
-    /// </summary>
-    /// <remarks>
-    /// Asserted on the signature as well as on the body: a parameter that existed would be a promise
-    /// no member could keep, whatever the body it composed.
-    /// </remarks>
+    // The add-time gate a future-only scope needs exists on the v3 studio resource and on no
+    // other, so the performer add takes no scope parameter and composes no gate.
     [Fact]
     public void ThePerformerAddExpressesNoScopeAtAll()
     {
@@ -328,7 +251,6 @@ public sealed class V3BodyProjectorTests
             add.GetParameters(), parameter => parameter.ParameterType == typeof(MonitorScope));
     }
 
-    /// <summary>Every add body this product can compose, over every kind and every scope.</summary>
     private static IReadOnlyList<JsonObject> EveryAdd() =>
     [
         ComposedBody.Of(V3BodyProjector.AddStudio(StudioForeignId, MonitorScope.FutureScenes, Defaults, Now)),
@@ -341,8 +263,8 @@ public sealed class V3BodyProjectorTests
         Assert.True(body.ContainsKey("searchOnAdd"));
         Assert.False(body["searchOnAdd"]!.GetValue<bool>());
 
-        // The resources these adds name declare no add-options member, so one here would be a member
-        // the instance discards and this product would be reading a suppression it never applied.
+        // These v3 resources declare no add-options member, so one here would be discarded and the
+        // suppression never applied.
         Assert.False(body.ContainsKey("addOptions"));
     }
 

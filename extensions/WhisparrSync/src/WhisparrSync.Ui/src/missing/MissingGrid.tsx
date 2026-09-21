@@ -1,8 +1,6 @@
 /**
- * The card grid, the count line above it, and the four-way read split around both.
- *
- * The first read draws a spinner and every later one keeps the previous page on screen, so the grid
- * never blanks between pages.
+ * The card grid and the count line above it. The first read draws a spinner and every later one
+ * keeps the previous page on screen, so the grid never blanks between pages.
  */
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { deriveAsyncRegionState, type AsyncRead } from "../common/ui/asyncRegionLogic";
@@ -21,11 +19,8 @@ import {
   type MissingGridStateKind,
 } from "./missingStatesLogic";
 
-/** What the grid needs to state its own reason and to say what the figure beside it counts. */
 export interface MissingGridSurroundings {
-  /** The metadata source the catalogue was read from, as a sentence names it. */
   readonly provider: string;
-  /** The entity the catalogue belongs to, as a sentence names it. */
   readonly entityName: string;
   readonly filtersActive: boolean;
   readonly searchActive: boolean;
@@ -36,7 +31,6 @@ export interface MissingGridSurroundings {
   readonly onClearSearch: (() => void) | null;
 }
 
-/** What each card is given, held at the tab beside the page the selection is a selection of. */
 export interface MissingGridCards {
   readonly selected: ReadonlySet<string>;
   /** A selection is in progress, so every card shows its control rather than only the hovered one. */
@@ -48,7 +42,7 @@ export interface MissingGridCards {
   readonly onSearch: (providerSceneId: string) => void;
 }
 
-/** The reasons no retry and no change of view could answer. */
+// The reasons no retry and no change of view could answer.
 const NEVER_ANSWERS: readonly MissingGridStateKind[] = [
   "noProviderIdForEntity",
   "noMetadataProviderConfigured",
@@ -63,7 +57,6 @@ export function MissingGrid({
 }: {
   read: AsyncRead;
   view: MissingPageView | null;
-  /** What the grid states its own reason from, and what the count line says it counts. */
   surroundings: MissingGridSurroundings;
   cards: MissingGridCards;
 }) {
@@ -86,12 +79,12 @@ export function MissingGrid({
       />
     );
 
-  // A surface with no possible answer is omitted rather than given an empty state, which would
-  // read as a factual zero.
+  // A surface with no possible answer is omitted, not given an empty state that would read as a
+  // factual zero.
   const canAnswer = kind === null || !NEVER_ANSWERS.includes(kind);
   const replacesTheGrid = state?.replacesTheGrid === true;
-  // The region carries the reason in its own empty, failed or outage slot wherever it has one; the
-  // rest are stated above it, and so is every reason whose region is omitted.
+  // The region carries the reason in its own empty, failed or outage slot where it has one. The
+  // rest are stated above it, as is every reason whose region is omitted.
   const statedAboveTheRegion =
     stated !== null && (!canAnswer || (!replacesTheGrid && kind !== "readIsStale"));
 
@@ -101,8 +94,8 @@ export function MissingGrid({
       <AsyncRegion
         available={canAnswer}
         state={deriveAsyncRegionState(
-          // A page that answered with no card is an empty answer rather than content, so the
-          // reason is stated instead of an empty grid being drawn.
+          // A page that answered with no card counts as empty, not as content, so the reason is
+          // stated instead of an empty grid.
           { ...read, hasContent: read.hasContent && cards.length > 0 },
         )}
         outageNotice={kind === "readIsStale" ? stated : null}

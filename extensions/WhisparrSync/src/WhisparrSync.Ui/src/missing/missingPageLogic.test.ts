@@ -7,9 +7,9 @@ import {
   pagerTotalFor,
 } from "./missingPageLogic";
 
-// Paging measured against the live providers. ThePornDB serves at most ten thousand rows for any
-// query and reports a total of `min(actual, 10000)`, so at the ceiling its reported size is a floor
-// while the set behind it is larger.
+// Paging measured against the live providers. ThePornDB serves at most ten thousand rows for
+// any query and reports a total of `min(actual, 10000)`, so at the ceiling its reported size is
+// a floor while the set behind it is larger.
 const RECORDED = {
   // `per_page=40&page=1` against tag 70: total 10,000, last_page 250. Page 251 re-serves page 250.
   thePornDbAtTheCeiling: { catalogueSize: 10000, lastPage: 250, perPage: 40 },
@@ -30,8 +30,8 @@ describe("the pager is sized from what the provider will serve", () => {
   it("answers the same for a catalogue size an order of magnitude apart", () => {
     const bounds = RECORDED.thePornDbAtTheCeiling;
 
-    // The reported size at the ceiling is a floor: the set behind it is larger and unknowable from
-    // the response. Nothing the pager is given may move with it.
+    // The reported size at the ceiling is a floor, so nothing the pager is given may move with
+    // it.
     expect(pagerTotalFor({ lastPage: bounds.lastPage, perPage: bounds.perPage })).toBe(10000);
     expect(pagerTotalFor(bounds)).toBe(10000);
   });

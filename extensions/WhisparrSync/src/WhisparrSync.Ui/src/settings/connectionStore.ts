@@ -1,13 +1,8 @@
 /**
- * The settings page's state: what the settings read said, which card is shown, what its form holds,
- * and what the last test and the last save did. State only - every request lives in
- * `useConnection.ts`.
+ * The settings page's state. State only - every request lives in `useConnection.ts`.
  *
  * An instance is created per page lifetime rather than at module scope, so a second visit starts
  * from a fresh read instead of rendering the previous visit's answer as though it had just arrived.
- *
- * The initial state is deliberately not reachable by loading: before the read answers there is no
- * settings view at all, which is a different thing from a read that answered with nothing stored.
  */
 import type { ConnectionTestView, WhisparrSyncSettingsView } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
@@ -21,7 +16,6 @@ import {
   type TransientTest,
 } from "./connectLogic";
 
-/** What the last save did. */
 export type SaveState =
   | { readonly status: "idle" }
   | { readonly status: "saving" }
@@ -30,7 +24,6 @@ export type SaveState =
 
 /** Everything the page renders from. */
 export interface ConnectionPageState {
-  /** The settings read itself. */
   readonly read: AsyncRead;
   readonly settings: WhisparrSyncSettingsView | null;
   readonly readError: string | null;
@@ -40,12 +33,12 @@ export interface ConnectionPageState {
   readonly save: SaveState;
 }
 
-/** A form holding nothing, which is what a card starts at and what a switch returns it to. */
+/** What a card starts at, and what a switch returns it to. */
 const EMPTY_DRAFT: GenerationDraft = { address: "", apiKey: "", keyCleared: false };
 
 /**
- * Before the first read completes. The settings are absent rather than empty, which is what keeps
- * "nothing has answered yet" from rendering as "nothing is stored".
+ * Before the first read completes. The settings are absent rather than empty, so "nothing has
+ * answered yet" does not render as "nothing is stored".
  */
 export const INITIAL_CONNECTION_STATE: ConnectionPageState = {
   read: INITIAL_ASYNC_READ,
@@ -84,9 +77,8 @@ function draftFor(view: WhisparrSyncSettingsView, card: CardGeneration): Generat
 
 export function createConnectionStore(): ConnectionStore {
   let state = INITIAL_CONNECTION_STATE;
-  // Once the form has been touched it is the operator's. A read that answers afterwards must not
-  // type over what they are in the middle of entering, which is what a slow first read would
-  // otherwise do to anyone who started typing straight away.
+  // Once the form has been touched, a read that answers afterwards must not overwrite it. A slow
+  // first read would otherwise type over anyone who started entering an address straight away.
   let touched = false;
   const listeners = new Set<() => void>();
 
@@ -126,7 +118,7 @@ export function createConnectionStore(): ConnectionStore {
     },
 
     readFailed(message) {
-      // Whatever was read earlier stays: it was true when it was served, and discarding it would
+      // Whatever was read earlier stays. It was true when it was served, and discarding it would
       // replace a correct answer with a blank one.
       emit({
         ...state,
@@ -145,8 +137,8 @@ export function createConnectionStore(): ConnectionStore {
     },
 
     editKey(next) {
-      // Typing a key takes back a pending removal: the two are contradictory requests and the one
-      // just made is the one meant.
+      // Typing a key takes back a pending removal. The two requests contradict each other, so the
+      // later one wins.
       touched = true;
       emit({ ...state, draft: { ...state.draft, apiKey: next, keyCleared: false } });
     },
@@ -158,8 +150,8 @@ export function createConnectionStore(): ConnectionStore {
 
     showCard(card) {
       if (card === state.card) return;
-      // Unsaved edits go with no dialog and no save. The form is re-seeded from the card being
-      // shown, so it never carries the other card's values across.
+      // Unsaved edits are dropped with no dialog and no save. The form is re-seeded from the card
+      // being shown, so it never carries the other card's values across.
       touched = false;
       emit({
         ...state,
@@ -200,7 +192,7 @@ export function createConnectionStore(): ConnectionStore {
 
     saveFailed(message) {
       // Back to the state it was pressed from, saying why. A control that returned to idle with
-      // nothing said would read as the click never registering.
+      // nothing said would read as a click that never registered.
       emit({ ...state, save: { status: "failed", message } });
     },
   };

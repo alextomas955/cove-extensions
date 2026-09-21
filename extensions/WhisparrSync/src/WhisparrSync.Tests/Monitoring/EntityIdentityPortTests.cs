@@ -9,43 +9,23 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// Where the outbound identifier comes from, on every action route a caller can reach.
-/// </summary>
-/// <remarks>
-/// Driven through the mapped routes rather than through the port, because the property being asserted
-/// is that a caller cannot influence it. A test calling the port directly would agree with a handler
-/// that read an identifier out of the request body and never called the port at all.
-/// <para>
-/// Each of the three identity refusals is asserted with an EMPTY outbound log, and each is paired in
-/// this class with a case that sends through the same double. An empty log read on its own agrees
-/// with itself whatever the code does.
-/// </para>
-/// </remarks>
+// Driven through the mapped routes rather than through the port: a handler that read an
+// identifier out of the request body would pass a test that called the port directly.
+// Each identity refusal asserts an empty outbound log, so each is paired with a case that sends
+// through the same double.
 public sealed class EntityIdentityPortTests
 {
-    /// <summary>
-    /// A second spelling of the stored source, which the host's own rule treats as the same one.
-    /// </summary>
-    /// <remarks>
-    /// The rule reduces a host name to its last two labels, so this and the stored spelling are one
-    /// source and an entity carrying both carries two matching rows.
-    /// </remarks>
+    // The host rule reduces a host name to its last two labels, so this and the stored spelling
+    // are one source.
     private const string SameSourceOtherSpelling = "https://www.stashdb.org/graphql";
 
-    /// <summary>The namespace the OTHER generation identifies entities in.</summary>
     private const string OtherNamespace = "theporndb.net/graphql";
 
-    /// <summary>A second identifier in the stored namespace, so two rows disagree.</summary>
+    // A second identifier in the stored namespace, so two rows disagree.
     private const string SecondIdentifier = "11111111-2222-3333-4444-555555555555";
 
-    /// <summary>
-    /// A body naming four plausible identifiers, every one of which reaches nothing.
-    /// </summary>
-    /// <remarks>
-    /// Four different member names rather than one, because a handler binding any of them would pass
-    /// a single-name assertion. Each is a spelling one generation or the other genuinely uses.
-    /// </remarks>
+    // Four different member names rather than one, because a handler binding any of them would
+    // pass a single-name assertion. Each is a spelling one generation or the other uses.
     private const string BodyCarryingFourIdentifiers = """
         {
           "scope": "futureScenes",
@@ -56,20 +36,12 @@ public sealed class EntityIdentityPortTests
         }
         """;
 
-    /// <summary>Every action route mounted on one entity, so a case can cover all of them.</summary>
-    /// <remarks>
-    /// Transcribed by hand. A set read from the route table would agree with it whatever it says, and
-    /// the point of this class is that every route a caller can reach behaves the same way.
-    /// </remarks>
+    // Transcribed by hand. A set read from the route table would agree with the route table
+    // whatever it says.
     public static TheoryData<string> ActionVerbs => new("monitor", "unmonitor", "scope");
 
-    /// <summary>
-    /// The identifier that leaves is the stored row's, whatever the request body says.
-    /// </summary>
-    /// <remarks>
-    /// The seeded value is asserted rather than the absence of the body's values: an assertion that
-    /// the body's identifiers are absent would hold for a path that sent nothing at all.
-    /// </remarks>
+    // Asserts the seeded value rather than the absence of the body's values, which would also hold
+    // for a path that sent nothing at all.
     [Fact]
     public async Task ABodyNamingFourIdentifiersStillSendsTheStoredRowsOwn()
     {
@@ -89,10 +61,8 @@ public sealed class EntityIdentityPortTests
         Assert.Equal(MonitorHost.StudioRemoteIdValue, add.ForeignId);
     }
 
-    /// <summary>
-    /// The control the emptiness assertions rest on: every action route DOES send through this
-    /// double when the entity carries one identity.
-    /// </summary>
+    // The control the emptiness assertions rest on: every action route does send through this
+    // double when the entity carries one identity.
     [Theory]
     [MemberData(nameof(ActionVerbs))]
     public async Task EveryActionRouteSendsWhenTheEntityCarriesOneIdentity(string verb)
@@ -115,7 +85,6 @@ public sealed class EntityIdentityPortTests
             call => Assert.Equal(MonitorHost.StudioRemoteIdValue, call.ForeignId));
     }
 
-    /// <summary>An entity with no identity row at all: nothing to name it by, and nothing sent.</summary>
     [Theory]
     [MemberData(nameof(ActionVerbs))]
     public async Task AnEntityWithNoIdentityRowRefusesBeforeAnythingIsSent(string verb)
@@ -129,15 +98,8 @@ public sealed class EntityIdentityPortTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// An entity identified only in the other generation's namespace, which is the ordinary case
-    /// rather than a rare one.
-    /// </summary>
-    /// <remarks>
-    /// The same kind as no row at all, on purpose: the namespace that counts is whichever the
-    /// connected instance identifies entities in, so from the reader's side the two are one fact and
-    /// one sentence.
-    /// </remarks>
+    // The same refusal kind as no row at all: the namespace that counts is whichever the connected
+    // instance identifies entities in.
     [Theory]
     [MemberData(nameof(ActionVerbs))]
     public async Task AnEntityIdentifiedOnlyInTheOtherNamespaceRefusesBeforeAnythingIsSent(string verb)
@@ -151,14 +113,8 @@ public sealed class EntityIdentityPortTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// Two rows matching this namespace and disagreeing is a refusal, not a first-row pick.
-    /// </summary>
-    /// <remarks>
-    /// The two spellings are one source under the host's own rule, so both rows match and which one
-    /// would be sent depends on row order. Taking either would aim the stored credential at whichever
-    /// entity that order happened to name.
-    /// </remarks>
+    // The two spellings are one source under the host rule, so both rows match and which one would
+    // be sent depends on row order.
     [Theory]
     [MemberData(nameof(ActionVerbs))]
     public async Task AnEntityCarryingTwoDisagreeingIdentitiesRefusesBeforeAnythingIsSent(string verb)
@@ -174,13 +130,7 @@ public sealed class EntityIdentityPortTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// Two rows naming the SAME identifier are one identity and no ambiguity.
-    /// </summary>
-    /// <remarks>
-    /// The refusal above is about disagreement rather than about row count. Refusing a duplicate that
-    /// names one entity would be a refusal with no hazard behind it.
-    /// </remarks>
+    // The refusal above is about disagreement, not about row count.
     [Fact]
     public async Task TwoRowsNamingTheSameIdentifierAreOneIdentityAndSend()
     {
@@ -198,12 +148,8 @@ public sealed class EntityIdentityPortTests
         Assert.Equal(MonitorHost.StudioRemoteIdValue, add.ForeignId);
     }
 
-    /// <summary>A tag with no identity row carries nothing to name it by.</summary>
-    /// <remarks>
-    /// The three tag cases read the port rather than a route: this product mounts no action route on
-    /// a tag, so a route-driven case would assert whichever refusal the missing route answers instead
-    /// of the resolution itself.
-    /// </remarks>
+    // The tag cases read the port rather than a route: no action route is mounted on a tag, so a
+    // route-driven case would assert the missing route's answer instead of the resolution.
     [Fact]
     public async Task ATagWithNoIdentityRowIsUnmatched()
     {
@@ -216,7 +162,6 @@ public sealed class EntityIdentityPortTests
         Assert.Equal(IdentityResolution.Unmatched, resolved);
     }
 
-    /// <summary>A tag carrying one identity resolves to it.</summary>
     [Fact]
     public async Task ATagCarryingOneIdentityResolvesToIt()
     {
@@ -229,7 +174,6 @@ public sealed class EntityIdentityPortTests
         Assert.Equal(IdentityResolution.At(MonitorHost.StudioRemoteIdValue), resolved);
     }
 
-    /// <summary>Two disagreeing identities on one tag is a refusal, not a first-row pick.</summary>
     [Fact]
     public async Task ATagCarryingTwoDisagreeingIdentitiesIsAmbiguous()
     {
@@ -243,18 +187,10 @@ public sealed class EntityIdentityPortTests
         Assert.Equal(IdentityResolution.Ambiguous, resolved);
     }
 
-    /// <summary>
-    /// The identity read projects only the two columns the endpoint rule compares.
-    /// </summary>
-    /// <remarks>
-    /// The projection is asserted rather than the row count. A read that loaded every row and
-    /// filtered afterwards would be linear in the library and would pass a count assertion, because
-    /// the count it answers is the count after the filter.
-    /// <para>
-    /// Read off the query's own translated text through the same base context the port binds, so what
-    /// is asserted is what the provider will run rather than what the expression tree looks like.
-    /// </para>
-    /// </remarks>
+    // Asserts the projection rather than the row count. A read that loaded every row and filtered
+    // afterwards would be linear in the library and would still pass a count assertion.
+    // Read off the query's translated text through the same base context the port binds, so what is
+    // asserted is what the provider will run.
     [Fact]
     public async Task TheIdentityReadIsNarrowedOnTheEntityAndProjectsOnlyTwoColumns()
     {
@@ -280,13 +216,7 @@ public sealed class EntityIdentityPortTests
         }
     }
 
-    /// <summary>
-    /// The port reads the namespace the CONNECTED generation identifies entities in.
-    /// </summary>
-    /// <remarks>
-    /// Asserted against the host's own same-source rule rather than against string equality, so the
-    /// stored spelling and the preferred one are one source here exactly as they are to the host.
-    /// </remarks>
+    // Asserted against the host's own same-source rule rather than string equality.
     [Fact]
     public void TheStoredSpellingAndThePreferredOneNameOneSource()
     {
@@ -294,11 +224,8 @@ public sealed class EntityIdentityPortTests
         Assert.False(EndpointMatchGuard.SameSource(MonitorHost.StoredEndpoint, OtherNamespace));
     }
 
-    /// <summary>Every action route refuses a caller without the tier it declares.</summary>
-    /// <remarks>
-    /// Paired with the sending control above: without it a 403 could equally mean the route is broken
-    /// for every caller.
-    /// </remarks>
+    // Paired with the sending control above: without it a 403 could equally mean the route is
+    // broken for every caller.
     [Theory]
     [MemberData(nameof(ActionVerbs))]
     public async Task EveryActionRouteRefusesACallerWithoutTheConfigureTier(string verb)
@@ -314,7 +241,6 @@ public sealed class EntityIdentityPortTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>A kind no route segment can be read as is malformed on every action route.</summary>
     [Theory]
     [MemberData(nameof(ActionVerbs))]
     public async Task EveryActionRouteRefusesAKindItCannotRead(string verb)
@@ -327,13 +253,8 @@ public sealed class EntityIdentityPortTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// A performer names no scope, so the scope route answers a malformed request for one.
-    /// </summary>
-    /// <remarks>
-    /// The field a narrower scope is carried in exists on one resource only, so a scope named for any
-    /// other kind is a request the contract cannot express rather than one an instance would refuse.
-    /// </remarks>
+    // The field a narrower scope is carried in exists on one resource only, so a scope named for
+    // any other kind is a request the contract cannot express.
     [Fact]
     public async Task TheScopeRouteRefusesAPerformerAsAMalformedRequest()
     {
@@ -346,14 +267,13 @@ public sealed class EntityIdentityPortTests
         Assert.Equal(HttpStatusCode.BadRequest, answered.StatusCode);
         Assert.Empty(host.Client.Verbs);
 
-        // The same performer IS reachable on the two routes it expresses, so the refusal above is
+        // The same performer is reachable on the two routes it expresses, so the refusal above is
         // about the scope rather than about the kind being unreachable.
         Assert.Equal(
             MonitorRefusalKind.None,
             (await host.ActRawAsync("performer", performerId, "unmonitor", "{}")).Refusal);
     }
 
-    /// <summary>Unmonitoring sends the flag false, and sends it once.</summary>
     [Fact]
     public async Task UnmonitoringAMonitoredStudioSendsTheFlagFalseOnce()
     {
@@ -375,9 +295,6 @@ public sealed class EntityIdentityPortTests
         Assert.Equal(1, flip.EntityId);
     }
 
-    /// <summary>
-    /// An entity the instance does not hold is already not monitored, so nothing is sent.
-    /// </summary>
     [Fact]
     public async Task UnmonitoringAnEntityTheInstanceDoesNotHoldSendsNothingThatChangesIt()
     {
@@ -393,11 +310,8 @@ public sealed class EntityIdentityPortTests
             nameof(IWhisparrStudioActing.SetStudioMonitoredAsync), host.Client.Verbs);
     }
 
-    /// <summary>A scope change carries the scope asked for and leaves the flag alone.</summary>
-    /// <remarks>
-    /// Widening a scope is not the same gesture as monitoring, so the flag the instance reports is
-    /// what is answered rather than a monitored state the caller did not ask for.
-    /// </remarks>
+    // Widening a scope is not the same gesture as monitoring, so the flag answered is the one the
+    // instance reports.
     [Fact]
     public async Task AScopeChangeSendsTheScopeAskedForAndLeavesTheFlagAsTheInstanceReportsIt()
     {
@@ -419,7 +333,6 @@ public sealed class EntityIdentityPortTests
         Assert.Equal(1, scoped.EntityId);
     }
 
-    /// <summary>The scope route names a scope or it names nothing this route can apply.</summary>
     [Fact]
     public async Task TheScopeRouteRefusesARequestNamingNoScope()
     {
@@ -433,6 +346,5 @@ public sealed class EntityIdentityPortTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>A body every action route accepts, so one case can cover all of them.</summary>
     private static string ScopedBody => """{"scope":"futureScenes"}""";
 }

@@ -7,8 +7,8 @@ import type { MissingCard as MissingCardView, MissingSceneState } from "../wire/
 import type { CardActionState } from "./missingCardLogic";
 
 // The shared primitives stand in, because their `react` and `lucide-react` imports resolve only
-// inside a consuming bundle. Each stand-in reproduces the real element's content in order, which is
-// what the chip's glyph and label are read from below.
+// inside a consuming bundle. Each stand-in reproduces the real element's content in order, which
+// is what the chip's glyph and label are read from below.
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
   return {
@@ -97,7 +97,6 @@ async function mountCard(
   return container;
 }
 
-/** The control whose accessible name is exactly `name`. */
 function named(container: Element, name: string) {
   return [...container.querySelectorAll("button")].find(
     (candidate) => candidate.getAttribute("aria-label") === name,
@@ -182,13 +181,8 @@ test("nothing on a settled card is dimmed", async () => {
   );
 });
 
-/**
- * The status chip's mark, label and tint, as one reading.
- *
- * The mark is drawn rather than written, so it is read off the shape the chip rendered. Reading only
- * the text would let two states that share a tint pass while drawing the same shape, which is the
- * one thing the mark is there to prevent.
- */
+// The chip's tint, mark and label as one string. The mark is read off the rendered shape: two
+// states that share a tint would pass a text-only check while drawing the same shape.
 function chip(container: Element) {
   const drawn = container.querySelector("[data-pill]");
   const mark = drawn?.querySelector("svg")?.getAttribute("class")?.split(" ")[1] ?? "no mark";
@@ -274,8 +268,7 @@ test("a card whose source named no address is not a link", async () => {
   expect(container.textContent).toContain(TITLE);
 });
 
-// A control inside the link would follow it on every press, and its own handler would run behind a
-// page the reader did not ask for.
+// A control inside the link would follow the link on every press.
 test("no control the card offers sits inside the link", async () => {
   const container = await mountCard({}, { onToggleSelect: () => undefined });
 
@@ -286,9 +279,8 @@ test("no control the card offers sits inside the link", async () => {
   expect(inside).toEqual([]);
 });
 
-// jsdom applies no host stylesheet, so what a control carries is read from its class list. The host
-// emits `focus:ring-*` and not `focus-visible:ring-*`, and a ring that is never emitted is a focus
-// state nobody can see.
+// jsdom applies no host stylesheet, so what a control carries is read from its class list. The
+// host emits `focus:ring-*` and not `focus-visible:ring-*`.
 test("every control takes the focus ring the host stylesheet emits", async () => {
   const container = await mountCard({}, { onToggleSelect: () => undefined });
 

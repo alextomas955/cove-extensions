@@ -1,14 +1,9 @@
 // @vitest-environment jsdom
-/**
- * What the row under a list toolbar draws, and what it refuses to draw.
- *
- * Rendered beside the card badges it counts, because the row's whole claim is that it reports the
- * page those badges are on. A test that fed the row its own numbers would agree with itself while
- * the two surfaces disagreed on screen.
- *
- * The shared primitives and the host's authenticated request stand in, because each resolves only
- * inside a consuming bundle.
- */
+// The row is rendered beside the card badges it counts. Feeding the row its own numbers would let
+// it agree with itself while the two surfaces disagreed on screen.
+//
+// The shared primitives and the host's authenticated request are mocked because each resolves only
+// inside a consuming bundle.
 import { afterEach, expect, test, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 
@@ -45,7 +40,6 @@ function showBadges(): void {
   if (!libraryStatusOn()) toggleLibraryStatus();
 }
 
-/** The page's answer for the cards it is about to be given. */
 function answering(readings: (LibraryCardReading | null)[]): void {
   requestJson.mockImplementation((_path, options) => {
     const body = JSON.parse((options as { body: string }).body) as { coveIds: number[] };
@@ -58,7 +52,7 @@ function answering(readings: (LibraryCardReading | null)[]): void {
   });
 }
 
-/** The row rendered over a page of `readings.length` cards, as the host mounts both. */
+// The row and the cards are mounted together, as the host mounts them.
 async function pageOf(readings: (LibraryCardReading | null)[]): Promise<HTMLDivElement> {
   answering(readings);
   return render(
@@ -104,7 +98,7 @@ test("the row asks for nothing of its own", async () => {
 
   await pageOf([{ excluded: false, present: true, monitored: true }]);
 
-  // One request for the whole page, which is the badges' own. A second is the row having asked.
+  // One request for the whole page, which is the badges' own. A second would be the row asking.
   expect(requestJson).toHaveBeenCalledTimes(1);
 });
 

@@ -11,24 +11,16 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Jobs;
 
-/// <summary>
-/// What one count reports, what it asks the instance, and what it leaves behind when it fails.
-/// </summary>
-/// <remarks>
-/// The batch bound is asserted as arithmetic over the transport's own ceiling rather than against a
-/// number written here, so a later batch size that breaks the bound reddens. Nothing about it can be
-/// observed against a small fixture, which is the reason it is pinned at all.
-/// </remarks>
+// The batch bound is asserted as arithmetic over the transport's own ceiling rather than against a
+// number written here, so a later batch size that breaks the bound reddens. Nothing about it can be
+// observed against a small fixture, which is why it is pinned at all.
 public sealed class SyncPreviewJobTests
 {
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>One batch's worst-case answer stays inside what the transport will read.</summary>
-    /// <remarks>
-    /// The transport refuses an answer past its bound outright rather than truncating it, so a batch
-    /// whose every identifier is held would answer nothing at all and the count would fail on a
-    /// library that is simply already synced.
-    /// </remarks>
+    // The transport refuses an answer past its bound outright rather than truncating it, so a batch
+    // whose every identifier is held would answer nothing at all and the count would fail on a
+    // library that is simply already synced.
     [Fact]
     public void OneBatchsWorstCaseAnswerStaysInsideWhatTheTransportWillRead()
     {
@@ -40,11 +32,8 @@ public sealed class SyncPreviewJobTests
                 + $"{WhisparrClient.MaxResponseBytes}-byte bound the transport reads within.");
     }
 
-    /// <summary>The composed body is a bare array of identifier strings.</summary>
-    /// <remarks>
-    /// Parsed rather than compared as text. An object naming the identifiers as a member is answered
-    /// 400 by a real instance and would satisfy any assertion made on the body's characters.
-    /// </remarks>
+    // Parsed rather than compared as text. An object naming the identifiers as a member is answered
+    // 400 by a real instance and would satisfy any assertion made on the body's characters.
     [Fact]
     public async Task TheComposedBodyIsABareArrayOfIdentifiers()
     {
@@ -62,14 +51,8 @@ public sealed class SyncPreviewJobTests
             body.RootElement.EnumerateArray().Select(id => id.GetString()));
     }
 
-    /// <summary>
-    /// An identifier the instance holds counts as already there, and one it does not counts as not
-    /// yet there, over more identifiers than one batch carries.
-    /// </summary>
-    /// <remarks>
-    /// Seeded past the batch size on purpose, so the flush of the final partial batch is exercised:
-    /// a run that only asked about full batches would silently drop the remainder.
-    /// </remarks>
+    // Seeded past the batch size, so the flush of the final partial batch is exercised. A run that
+    // only asked about full batches would silently drop the remainder.
     [Fact]
     public async Task EachIdentifierIsClassifiedAndThePartialFinalBatchIsAskedAboutToo()
     {
@@ -86,14 +69,8 @@ public sealed class SyncPreviewJobTests
         Assert.Equal(3, instance.Asked[1].Count);
     }
 
-    /// <summary>
-    /// A batch the instance did not answer ends the run and holds no count at all.
-    /// </summary>
-    /// <remarks>
-    /// The whole point of the count arriving in one piece. A partial count written to the slot would
-    /// be answered to the page as a complete one, and the reader would act on a figure that is a
-    /// fraction of the truth.
-    /// </remarks>
+    // A partial count written to the slot would be answered to the page as a complete one, and the
+    // reader would act on a figure that is a fraction of the truth.
     [Fact]
     public async Task ABatchTheInstanceDidNotAnswerEndsTheRunAndHoldsNoCount()
     {
@@ -106,14 +83,8 @@ public sealed class SyncPreviewJobTests
         Assert.Null(cache.Held(WhisparrGeneration.V3));
     }
 
-    /// <summary>
-    /// A count over a library the instance now holds more of reports fewer scenes left to send.
-    /// </summary>
-    /// <remarks>
-    /// The honesty the comparison exists for. A count derived from Cove's own rows would report the
-    /// same figure after a run as before it, and the reader would have no way to tell a sync that
-    /// worked from one that did nothing.
-    /// </remarks>
+    // A count derived from Cove's own rows would report the same figure after a run as before it,
+    // and the reader could not tell a sync that worked from one that did nothing.
     [Fact]
     public async Task ASecondCountAfterTheInstanceTookScenesReportsFewerLeftToSend()
     {
@@ -131,7 +102,6 @@ public sealed class SyncPreviewJobTests
         Assert.Equal(3, second.AlreadyThere);
     }
 
-    /// <summary>The count's answer is what the slot then holds.</summary>
     [Fact]
     public async Task TheCountsThreeNumbersAreWhatTheSlotThenHolds()
     {
@@ -143,7 +113,6 @@ public sealed class SyncPreviewJobTests
         Assert.Equal(counted, cache.Held(WhisparrGeneration.V3));
     }
 
-    /// <summary>A count reaching no instance holds nothing and reports nothing.</summary>
     [Fact]
     public async Task ACountThatCouldNotBeAimedHoldsNothing()
     {
@@ -160,10 +129,6 @@ public sealed class SyncPreviewJobTests
         Assert.Null(cache.Held(WhisparrGeneration.V3));
     }
 
-    /// <summary>
-    /// A library of three studios, two of which the instance holds, counts two and one from one
-    /// request.
-    /// </summary>
     [Fact]
     public async Task AThreeStudioLibraryCountsTwoHeldAndOneNotYetThereFromOneRequest()
     {
@@ -180,13 +145,8 @@ public sealed class SyncPreviewJobTests
         Assert.Equal(3, source.Resolved.Count);
     }
 
-    /// <summary>
-    /// A library larger than one batch asks once per batch and the totals are the sum.
-    /// </summary>
-    /// <remarks>
-    /// Seeded past the batch size on purpose, so the flush of the final partial batch is exercised:
-    /// a count that only asked about full batches would silently drop the remainder.
-    /// </remarks>
+    // Seeded past the batch size, so the flush of the final partial batch is exercised. A count
+    // that only asked about full batches would silently drop the remainder.
     [Fact]
     public async Task ALibraryPastOneBatchAsksOncePerBatchAndTheTotalsAddUp()
     {
@@ -204,10 +164,6 @@ public sealed class SyncPreviewJobTests
         Assert.Equal(studios.Count - 10, counted.NotYetThere);
     }
 
-    /// <summary>
-    /// A studio the library holds no identifier for is counted where it already was, and nothing is
-    /// asked about it.
-    /// </summary>
     [Fact]
     public async Task AStudioTheLibraryHoldsNoIdentifierForIsCountedWhereItWasAndAsksNothing()
     {
@@ -223,12 +179,9 @@ public sealed class SyncPreviewJobTests
         Assert.Equal(2, Assert.Single(instance.Asked).Count);
     }
 
-    /// <summary>No more than the bound's own number of metadata resolves is outstanding at once.</summary>
-    /// <remarks>
-    /// Over a batch twice the bound, and against a source that holds each resolve open until the
-    /// bound is reached. A count resolving one at a time never reaches the bound and a count
-    /// resolving the whole batch at once passes it, so the assertion reddens in both directions.
-    /// </remarks>
+    // Over a batch twice the bound, against a source that holds each resolve open until the bound
+    // is reached. A count resolving one at a time never reaches the bound and a count resolving the
+    // whole batch at once passes it, so the assertion reddens in both directions.
     [Fact]
     public async Task NoMoreThanTheBoundsMetadataResolvesAreOutstandingAtOnce()
     {
@@ -241,13 +194,8 @@ public sealed class SyncPreviewJobTests
         Assert.Equal(SyncPreviewJob.MetadataResolvesInFlight, source.MaxInFlight);
     }
 
-    /// <summary>
-    /// A metadata source that was not reached leaves no count held and counts no studio anywhere.
-    /// </summary>
-    /// <remarks>
-    /// Where a rate-limited answer arrives. Counted as a studio the instance does not hold, it would
-    /// offer that studio for registration with nothing saying so.
-    /// </remarks>
+    // Where a rate-limited answer arrives. Counted as a studio the instance does not hold, it would
+    // offer that studio for registration with nothing saying so.
     [Fact]
     public async Task AMetadataSourceThatWasNotReachedLeavesNoCountAndCountsNoStudio()
     {
@@ -264,7 +212,6 @@ public sealed class SyncPreviewJobTests
         Assert.Null(cache.Held(WhisparrGeneration.V2));
     }
 
-    /// <summary>An instance read that raised leaves no count held.</summary>
     [Fact]
     public async Task AnInstanceReadThatRaisedLeavesNoCountAtAll()
     {
@@ -282,11 +229,8 @@ public sealed class SyncPreviewJobTests
         Assert.Null(cache.Held(WhisparrGeneration.V2));
     }
 
-    /// <summary>A host stop during the site walk propagates as a stop.</summary>
-    /// <remarks>
-    /// A stop reported as a count that did not finish would be logged and answered as this
-    /// product's own failure, and the run would end Failed rather than Cancelled.
-    /// </remarks>
+    // A stop reported as a count that did not finish would be logged as this product's own
+    // failure, and the run would end Failed rather than Cancelled.
     [Fact]
     public async Task AHostStopDuringTheSiteWalkPropagatesAsAStop()
     {
@@ -299,15 +243,8 @@ public sealed class SyncPreviewJobTests
                 studios, new SiteNumbers(NumbersFor(studios)), instance, stopping.Token));
     }
 
-    /// <summary>
-    /// A studio the metadata source names no site for is counted with the studios carrying no
-    /// identifier, and in neither other count.
-    /// </summary>
-    /// <remarks>
-    /// Not a hypothetical column: some of the library's studios answer nothing at the metadata
-    /// source. Counted as not yet there, each would be offered for registration and the run could
-    /// compose no add for it.
-    /// </remarks>
+    // Some of the library's studios answer nothing at the metadata source. Counted as not yet
+    // there, each would be offered for registration and the run could compose no add for it.
     [Fact]
     public async Task AStudioTheSourceNamesNoSiteForIsCountedWithThoseCarryingNoIdentifier()
     {
@@ -324,9 +261,6 @@ public sealed class SyncPreviewJobTests
         Assert.Equal(UnidentifiedStudios + 1, counted.Skipped);
     }
 
-    /// <summary>
-    /// The studios the source names no site for are reported once with how many they were.
-    /// </summary>
     [Fact]
     public async Task TheStudiosTheSourceNamesNoSiteForAreReportedOnceWithHowManyTheyWere()
     {
@@ -342,7 +276,6 @@ public sealed class SyncPreviewJobTests
         Assert.Contains("2 of the library's studios", Assert.Single(recorded.Lines), StringComparison.Ordinal);
     }
 
-    /// <summary>The scene comparison's third count is what the library answers and nothing else.</summary>
     [Fact]
     public async Task TheSceneComparisonsThirdCountIsUnchanged()
     {
@@ -354,15 +287,9 @@ public sealed class SyncPreviewJobTests
         Assert.Equal(UnidentifiedScenes, counted.Skipped);
     }
 
-    /// <summary>
-    /// A read that timed out inside either comparison leaves no count held and is reported as a
-    /// count that did not finish.
-    /// </summary>
-    /// <remarks>
-    /// A timeout arrives in the shape a host stop does, so it reaches neither containment unless
-    /// it is named. Walked past, it would leave a count short by a whole batch and reading exactly
-    /// like a complete one.
-    /// </remarks>
+    // A timeout arrives in the shape a host stop does, so it reaches neither containment unless it
+    // is named. Walked past, it would leave a count short by a whole batch and reading exactly
+    // like a complete one.
     [Theory]
     [InlineData(SyncRegisters.Sites)]
     [InlineData(SyncRegisters.Scenes)]
@@ -380,7 +307,6 @@ public sealed class SyncPreviewJobTests
         Assert.Null(cache.Held(WhisparrGeneration.V3));
     }
 
-    /// <summary>A host stop inside either comparison propagates as a stop.</summary>
     [Theory]
     [InlineData(SyncRegisters.Sites)]
     [InlineData(SyncRegisters.Scenes)]
@@ -401,10 +327,8 @@ public sealed class SyncPreviewJobTests
 
     private const string SecondScene = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-    /// <summary>How many studios the library carries no identifier at all for.</summary>
     private const int UnidentifiedStudios = 7;
 
-    /// <summary>How many scenes the library carries no identifier at all for.</summary>
     private const int UnidentifiedScenes = 7;
 
     private const int NamesNoSiteEventId = 2129;
@@ -416,11 +340,8 @@ public sealed class SyncPreviewJobTests
 
     private static string Identity(int n) => $"{n:x8}-0000-4000-8000-000000000000";
 
-    /// <summary>The number the metadata source names the site of studio <paramref name="n"/> by.</summary>
-    /// <remarks>
-    /// Held apart from Cove's own id for the studio, so a count that compared the instance's answer
-    /// against the wrong one of the two would not pass against one shared value.
-    /// </remarks>
+    // The site number is held apart from Cove's own id for the studio, so a count that compared the
+    // instance's answer against the wrong one of the two would not pass against one shared value.
     private static int NumberOf(int n) => (n * 10) + 3;
 
     private static List<LibrarySiteIdentity> Studios(int count)
@@ -433,14 +354,8 @@ public sealed class SyncPreviewJobTests
             studio => WhisparrSiteNumber.Numbered(NumberOf(studio.StudioId)),
             StringComparer.Ordinal);
 
-    /// <summary>
-    /// One count of either kind, whose read either answers nothing or raises
-    /// <paramref name="failure"/>.
-    /// </summary>
-    /// <remarks>
-    /// Seeded past the batch size so a stop signalled on the first batch is met by the walk rather
-    /// than by the end of the library.
-    /// </remarks>
+    // Seeded past the batch size so a stop signalled on the first batch is met by the walk rather
+    // than by the end of the library.
     private static Task<SyncPreviewView?> RunEitherAsync(
         SyncRegisters registers,
         Exception? failure,
@@ -544,7 +459,6 @@ public sealed class SyncPreviewJobTests
             .AddSingleton(cache)
             .BuildServiceProvider();
 
-    /// <summary>Keeps one event id's lines, as a sink would write them.</summary>
     private sealed class RecordingLogger(int kept) : ILogger
     {
         public List<string> Lines { get; } = [];
@@ -570,7 +484,6 @@ public sealed class SyncPreviewJobTests
         }
     }
 
-    /// <summary>What an instance holds, recording every batch it was asked about.</summary>
     private sealed class HeldScenes(IEnumerable<string> held, int? failOnCall = null)
     {
         private readonly HashSet<string> _held = new(held, StringComparer.OrdinalIgnoreCase);
@@ -591,7 +504,6 @@ public sealed class SyncPreviewJobTests
         }
     }
 
-    /// <summary>Which sites an instance holds, recording every batch of numbers it was asked about.</summary>
     private sealed class HeldSites(
         IEnumerable<int> held, int? failOnCall = null, Action? onAsk = null)
     {
@@ -612,16 +524,10 @@ public sealed class SyncPreviewJobTests
         }
     }
 
-    /// <summary>
-    /// A metadata source answering each identifier, recording how many resolves were outstanding at
-    /// once.
-    /// </summary>
-    /// <remarks>
-    /// With <paramref name="waitsForCompany"/> a resolve is held open until as many are outstanding
-    /// as the bound allows, so what the caller bounds is observable rather than timed. The wait ends
-    /// on its own where that never happens, so a caller resolving one at a time fails the assertion
-    /// rather than hanging.
-    /// </remarks>
+    // With waitsForCompany a resolve is held open until as many are outstanding as the bound
+    // allows, so what the caller bounds is observable rather than timed. The wait ends on its own
+    // where that never happens, so a caller resolving one at a time fails the assertion rather
+    // than hanging.
     private sealed class SiteNumbers(
         IReadOnlyDictionary<string, WhisparrSiteNumber> answers, bool waitsForCompany = false)
         : ISiteNumberPort

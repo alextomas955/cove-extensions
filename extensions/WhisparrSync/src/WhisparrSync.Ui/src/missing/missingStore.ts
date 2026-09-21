@@ -1,12 +1,8 @@
 /**
- * One entity's catalogue page: the read itself and what it last answered. State only - every
- * request lives in `useMissing.ts`.
+ * One entity's catalogue page. State only - every request lives in `useMissing.ts`.
  *
- * An instance is created per page lifetime rather than at module scope, so a second visit starts
- * from a fresh read instead of rendering the previous visit's answer as though it had just arrived.
- *
- * Every settle names the entity AND the view it was started for. A page-three read settling after
- * the reader has moved to page four would otherwise paint the wrong page with no error anywhere.
+ * Every settle names the entity and the view it was started for. A page-three read settling
+ * after the reader has moved to page four would otherwise paint the wrong page.
  */
 import type { MissingPageView, MissingSceneActionResult } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
@@ -15,13 +11,11 @@ import type { WhisparrEntityKind } from "../wire/api";
 import { CARD_ACTION_AT_REST, type CardActionState, type CardVerb } from "./missingCardLogic";
 import { SELECTION_AT_REST, type SelectionOutcome } from "./missingSelectionLogic";
 
-/** Which entity a read was started for. */
 export interface MissingEntity {
   readonly kind: WhisparrEntityKind;
   readonly coveId: number;
 }
 
-/** Which page of that entity a read was started for. */
 export interface MissingViewKey {
   readonly page: number;
   readonly sort: string | null;
@@ -29,32 +23,24 @@ export interface MissingViewKey {
   readonly filters: string;
 }
 
-/** Everything the tab renders from. */
 export interface MissingState {
   readonly read: AsyncRead;
   /** Null before any read has answered. */
   readonly view: MissingPageView | null;
   /**
-   * What each card's own verbs are doing, keyed as the provider issued the scene identifier.
-   *
-   * Keyed per scene, so two cards mid-flight do not overwrite each other. A scene with no entry
-   * here has had no press.
+   * Keyed as the provider issued the scene identifier, so two cards mid-flight do not overwrite
+   * each other. A scene with no entry here has had no press.
    */
   readonly cardActions: Readonly<Record<string, CardActionState>>;
   /**
-   * What the last press of the selection's own verb produced.
-   *
-   * One value rather than a map, because there is one selection per page. It carries an outcome and
-   * no scene identifiers: the run reports counts and names no scene, so a list here would be a
-   * second thing that grows with the page and answers nothing the outcome does not.
+   * What the last press of the selection's own verb produced. One value, because there is one
+   * selection per page. It names no scene, so nothing here grows with the page.
    */
   readonly bulk: SelectionOutcome;
 }
 
-/**
- * Before the first read completes. The answer is absent rather than empty, which is what keeps
- * "nothing has answered yet" from rendering as a catalogue of zero scenes.
- */
+// The view is absent rather than empty, so nothing renders a catalogue of zero scenes before the
+// first read answers.
 export const INITIAL_MISSING_STATE: MissingState = {
   read: INITIAL_ASYNC_READ,
   view: null,
@@ -84,12 +70,10 @@ export interface MissingStore {
   bulkSettled: (entity: MissingEntity, outcome: SelectionOutcome) => void;
 }
 
-/** Whether two entity references name the same entity. */
 function sameEntity(a: MissingEntity | null, b: MissingEntity): boolean {
   return a !== null && a.kind === b.kind && a.coveId === b.coveId;
 }
 
-/** Whether two view references name the same page of the same catalogue. */
 function sameView(a: MissingViewKey | null, b: MissingViewKey): boolean {
   return (
     a !== null && a.page === b.page && a.sort === b.sort && a.q === b.q && a.filters === b.filters
@@ -107,7 +91,7 @@ export function createMissingStore(): MissingStore {
     for (const listener of listeners) listener();
   };
 
-  /** Applies `next` only when this entity and this view are the ones being awaited. */
+  // Applies `next` only when this entity and this view are the ones being awaited.
   const settle = (
     entity: MissingEntity,
     view: MissingViewKey,
@@ -152,8 +136,7 @@ export function createMissingStore(): MissingStore {
         view: page,
         cardActions: onlyOnScreen(current.cardActions, page),
 
-        // Pruned beside the per-scene state, and for the same reason: a selection does not survive
-        // the page it was made on, so neither does what pressing its verb answered.
+        // Pruned with the per-scene state: a selection does not survive the page it was made on.
         bulk: SELECTION_AT_REST,
       }));
     },
@@ -169,8 +152,7 @@ export function createMissingStore(): MissingStore {
       settleCard(entity, providerSceneId, () => ({
         inFlight: verb,
 
-        // The one state this tab's Monitor can establish. A press that does not take clears it,
-        // which is what puts the pill back where it was.
+        // The one state this tab's Monitor can establish. A press that does not take clears it.
         optimistic: verb === "monitor" ? "monitored" : null,
         refusal: null,
         failed: false,
@@ -206,7 +188,7 @@ export function createMissingStore(): MissingStore {
     },
   };
 
-  /** Applies `next` to one card, and only while that card is still on screen. */
+  // Applies `next` to one card, and only while that card is still on screen.
   function settleCard(
     entity: MissingEntity,
     providerSceneId: string,
@@ -223,12 +205,11 @@ export function createMissingStore(): MissingStore {
   }
 }
 
-/** Whether `page` carries the scene `providerSceneId` names. */
 function carries(page: MissingPageView | null, providerSceneId: string): boolean {
   return page?.cards.some((card) => card.providerSceneId === providerSceneId) ?? false;
 }
 
-/** `actions` with every entry for a scene `page` no longer carries dropped. */
+// Drops every entry for a scene the page no longer carries.
 function onlyOnScreen(
   actions: Readonly<Record<string, CardActionState>>,
   page: MissingPageView,

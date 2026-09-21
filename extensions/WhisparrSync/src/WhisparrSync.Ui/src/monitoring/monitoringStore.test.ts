@@ -1,12 +1,6 @@
-/**
- * The store's transitions, and the one property it has that the banner store does not: a read that
- * settles for an entity no longer on screen is dropped.
- *
- * The out-of-order case is the reason this store exists rather than a copy of the banner's. The host
- * keeps one slot component across a navigation between two entity pages, so the first entity's read
- * can settle after the second has mounted, and a store without the guard paints one studio's state
- * onto another studio's page.
- */
+// The host keeps one slot component across a navigation between two entity pages, so the first
+// entity's read can settle after the second has mounted. A store without the guard paints one
+// studio's state onto another studio's page.
 import { test, expect } from "vitest";
 
 import type { EntityMonitoringView } from "../wire/api";
