@@ -125,9 +125,8 @@ public sealed class SceneDetailProjectorTests
         Assert.False(view.ProfileReadDidNotComplete);
     }
 
-    // An answer that could not be read establishes as little as no answer, so both report the same
-    // way. Reporting the profile as absent would state the instance's contents from a read that
-    // never reached them.
+    // An unreadable answer establishes as little as no answer, so both report the same way.
+    // Reporting the profile as absent would state contents no read ever reached.
     [Fact]
     public void AProfileReadThatEstablishedNothingKeepsTheSceneFactsAndReportsItself()
     {

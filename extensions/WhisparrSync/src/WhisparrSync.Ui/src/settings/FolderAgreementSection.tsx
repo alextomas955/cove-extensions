@@ -1,13 +1,8 @@
 /**
- * One line per Cove library folder whose Whisparr path is not Cove's own to work out: what happened
- * to it, what path is in force, and a field for the path Whisparr really holds it at.
+ * One line per Cove library folder whose Whisparr path Cove cannot work out.
  *
- * Presentational. Every value arrives as a prop and no request is issued here.
- *
- * Nothing to show renders nothing at all. A folder whose stated path is working has a line because
- * the field is what withdraws that path, and the field is blank rather than carrying the path in
- * force, so withdrawing it is one press. Where no typed path could be stored at all the field goes
- * and the withdrawal gets a control of its own, rather than a save that state always refuses.
+ * The path field is blank even when a path is in force, because saving it blank is what withdraws
+ * that path. Where no typed path can be stored, the field is replaced by a withdraw control.
  */
 import { Field, INPUT_CLASS, SectionCard, StatusText } from "@cove-extensions/ui-shared";
 
@@ -38,13 +33,12 @@ import {
 
 export interface FolderAgreementSectionProps {
   read: AsyncRead;
-  /** The folders listed, or null before the read answers. */
   view: FolderAgreementView | null;
-  /** The path typed under each folder, by folder. */
+  /** The path typed under each folder, keyed by folder. */
   drafts: Readonly<Record<string, string>>;
   /** The folder whose save is in flight, or null when none is. */
   saving: string | null;
-  /** What the last save under each folder came to, by folder. */
+  /** What the last save under each folder came to, keyed by folder. */
   answers: Readonly<Record<string, FolderSaveAnswer>>;
   onPathChange: (root: string, next: string) => void;
   onSave: (root: string) => void;
@@ -65,8 +59,7 @@ export function FolderAgreementSection({
 
   return (
     <AsyncRegion
-      // A read that failed has to say so: a page drawing nothing reads as one with no folders
-      // outstanding, which is the opposite of what an unanswered read established.
+      // A failed read must still draw something. Drawing nothing reads as no folders outstanding.
       available={hasAnythingToShow(view) || read.failed}
       state={deriveAsyncRegionState(read)}
       reading={null}
@@ -112,7 +105,7 @@ function Prompt({
   line: FolderAgreementRootLine;
   draft: string;
   saving: boolean;
-  /** Another folder's save is in flight, so this one would be refused if it were pressed. */
+  /** Another folder's save is in flight, so this one would be refused. */
   blocked: boolean;
   answer: FolderSaveAnswer | null;
   onPathChange: (root: string, next: string) => void;

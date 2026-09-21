@@ -1,9 +1,6 @@
 /**
- * The settings page's data layer: the only place that reads the settings, writes them, or asks for a
- * connection test.
- *
- * Loading, answered and failed stay distinct all the way through, because a surface that is still
- * reading must never render the answer it does not have yet.
+ * The settings page's data layer: the only place that reads the settings, writes them, or asks for
+ * a connection test.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
@@ -42,18 +39,17 @@ export interface UseConnection {
 }
 
 /**
- * @param reload What a generation change does once the save has been persisted. Supplied by the
- * caller so this hook stays testable and so the reload cannot happen before the write lands.
+ * @param reload Called after a save that changes the selected generation, once the write has
+ * landed.
  */
 export function useConnection(reload: () => void): UseConnection {
-  // One store per page lifetime. A lazy useState initializer rather than a useMemo, because a memo
-  // is a cache React may legitimately discard, and a test result that vanished on a re-render would
-  // read as the click never registering.
+  // A lazy useState initializer rather than useMemo: React may discard a memo, and a test result
+  // that vanished on a re-render would read as the click never registering.
   const [store] = useState<ConnectionStore>(() => createConnectionStore());
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
 
-  // Changes without a render, and deciding which answer may land is not a rendering question. A
-  // fresh token would let a superseded response commit over a later one.
+  // A ref, not state: a token recreated on render would let a superseded response commit over a
+  // later one.
   const issued = useRef(0);
 
   const read = useCallback(() => {
@@ -86,13 +82,13 @@ export function useConnection(reload: () => void): UseConnection {
 
     issued.current += 1;
     const token = issued.current;
-    // Captured here rather than read back when the answer lands, so the result describes the address
-    // that was in the field when it ran.
+    // Captured now rather than when the answer lands, so the result names the address that was
+    // in the field when the test ran.
     const address = draft.address;
     store.beginTest(address);
 
-    // Naming neither is what asks about the stored connection. A pair is sent only when the form
-    // holds one, because the browser never has the stored key to send.
+    // Sending both as null asks about the stored connection. A pair is sent only when the form
+    // holds one, because the browser never has the stored key.
     const asked = asksAboutStored
       ? { address: null, apiKey: null }
       : { address, apiKey: draft.apiKey };
@@ -104,9 +100,8 @@ export function useConnection(reload: () => void): UseConnection {
       .then((result) => {
         if (token !== issued.current) return;
         store.answered(address, result);
-        // Only a test against the stored address records a version, so only that one changes what the
-        // recorded lines have to say. Re-read rather than derive it here: what was written is the
-        // server's answer, not this page's guess at it.
+        // Only a test against the stored address records a version. Re-read it rather than derive
+        // it here, because what was written is the server's answer.
         if (asksAboutStored) read();
       })
       .catch((err: unknown) => {
@@ -120,8 +115,8 @@ export function useConnection(reload: () => void): UseConnection {
     const reloads = isGenerationChange(settings?.selectedGeneration ?? null, card);
     store.beginSave();
 
-    // Only the card being shown is named. A generation this save omits is left as it stands, which is
-    // what lets the page write one connection without restating the other.
+    // Only the card being shown is named. The server leaves an omitted generation as it stands,
+    // so the page writes one connection without restating the other.
     const half = {
       address: draft.address,
       keyWrite: draft.keyCleared ? "clear" : draft.apiKey === "" ? "keep" : "replace",
@@ -138,8 +133,8 @@ export function useConnection(reload: () => void): UseConnection {
     })
       .then((view) => {
         store.saved(view);
-        // After the write has landed, never before: a reload issued alongside it would race the
-        // request it is meant to follow and could discard it.
+        // After the write has landed, never before. A reload issued alongside it would race the
+        // save and could discard it.
         if (reloads) reload();
       })
       .catch((err: unknown) => {

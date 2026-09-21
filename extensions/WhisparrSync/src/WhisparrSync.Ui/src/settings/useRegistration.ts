@@ -2,8 +2,8 @@
  * The import webhook's data layer: the only place that reads the callback status, registers the
  * callback, or puts the address on the clipboard.
  *
- * The status is read from what the last registration attempt recorded rather than by asking Whisparr,
- * so opening the page cannot turn an outbound failure into an apparent absence.
+ * The status comes from what the last registration attempt recorded, not from asking Whisparr, so
+ * opening the page cannot turn an outbound failure into an apparent absence.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
@@ -14,12 +14,11 @@ import { api } from "../common/lib/extension";
 const CALLBACK_STATUS_PATH = api("callback/status");
 const CALLBACK_REGISTER_PATH = api("callback/register");
 
-/** What the last press of Copy URL did. */
 export type CopyResult =
   { readonly status: "idle" } | { readonly status: "copied" } | { readonly status: "failed" };
 
 export interface UseRegistration {
-  /** Null while the read is still in flight, and after one that failed. */
+  /** Null while the read is in flight, and after one that failed. */
   readonly view: CallbackView | null;
   readonly readFailed: boolean;
   /** The address the field shows: the form carrying the secret, as edited. */
@@ -44,8 +43,7 @@ export function useRegistration(): UseRegistration {
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [copyResult, setCopyResult] = useState<CopyResult>({ status: "idle" });
 
-  // Once the field has been touched it is the user's, so a later answer never types over what they
-  // are in the middle of correcting.
+  // Once the field has been edited, a later answer must not type over it.
   const edited = useRef(false);
 
   const take = useCallback((answer: CallbackView) => {
@@ -82,8 +80,7 @@ export function useRegistration(): UseRegistration {
       body: JSON.stringify({ callbackAddress: address }),
     })
       .then((answer) => {
-        // The edit has been stored by now, so the answer's own address is the authority again and
-        // the field follows it.
+        // The edit is stored, so the answer's address is authoritative again.
         edited.current = false;
         take(answer);
       })
@@ -96,9 +93,8 @@ export function useRegistration(): UseRegistration {
   }, [address, take]);
 
   const copy = useCallback(() => {
-    // The DOM types declare the clipboard as always present, but a Cove reached over plain http on a
-    // LAN address is not a secure context and has none, so the property access itself can throw. The
-    // failure is reported rather than swallowed: the address sits in a field the user can select.
+    // The DOM types declare the clipboard as always present, but a Cove reached over plain http
+    // is not a secure context and has none, so the property access itself can throw.
     try {
       navigator.clipboard.writeText(address).then(
         () => {

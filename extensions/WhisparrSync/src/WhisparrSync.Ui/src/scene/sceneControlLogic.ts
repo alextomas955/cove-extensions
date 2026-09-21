@@ -1,13 +1,8 @@
 /**
- * Pure rules for the scene tab's four controls: what each is called, which one carries the accent
- * fill, and why a control that cannot act cannot act.
+ * Pure rules for the scene tab's four controls.
  *
- * Relative imports only, so this module runs with no environment and needs no doubles. The wire
- * types arrive as `import type`, which erases at runtime and so takes nothing with it.
- *
- * The invariant this module holds: a reason disables a control and a null reason enables it, so a
- * dimmed control with nothing to hear is unrepresentable, and at most one control answers the
- * primary variant for any input.
+ * A reason disables a control and a null reason enables it, so a disabled control with no stated
+ * reason is unrepresentable. At most one control takes the primary variant for any input.
  */
 import type { SceneDetailView, SceneRefusalKind } from "../wire/api";
 import type { WhisparrEntityState } from "../common/ui/stateVocabularyLogic";
@@ -39,10 +34,8 @@ import {
   WHISPARR_STATUS_COULD_NOT_BE_READ,
 } from "../common/ui/copy";
 
-/** One verb the tab can carry out, named as the route segment it is served at. */
 export type SceneVerb = "add" | "monitor" | "unmonitor" | "search" | "exclude" | "removeExclusion";
 
-/** The route segment each verb is served at, off the scene's own base. */
 const SCENE_VERB_ROUTES: Record<SceneVerb, string> = {
   add: "add",
   monitor: "monitor",
@@ -52,10 +45,10 @@ const SCENE_VERB_ROUTES: Record<SceneVerb, string> = {
   removeExclusion: "remove-exclusion",
 };
 
-/** Which of the four controls one face belongs to. Two verbs share the exclusion control. */
+/** Two verbs share the exclusion control. */
 export type SceneControlKey = "add" | "monitor" | "search" | "exclude";
 
-/** The four controls, in the order the tab draws them. */
+/** In the order the tab draws them. */
 export const SCENE_CONTROL_KEYS: readonly SceneControlKey[] = [
   "add",
   "monitor",
@@ -63,57 +56,45 @@ export const SCENE_CONTROL_KEYS: readonly SceneControlKey[] = [
   "exclude",
 ];
 
-/** One control as the tab draws it. */
 export interface SceneControl {
   readonly key: SceneControlKey;
-  /** What the control is called. Always a fixed constant; no instance-supplied text enters it. */
+  /** Always a fixed constant; no instance-supplied text enters it. */
   readonly label: string;
   readonly variant: "primary" | "ghost";
-  /** The one sentence saying why it cannot be pressed, or null when it can. */
+  /** Why it cannot be pressed, or null when it can. */
   readonly reason: string | null;
   readonly verb: SceneVerb;
 }
 
-/** What the tab draws beneath the fact block. */
 export interface SceneControlState {
   readonly add: SceneControl;
   readonly monitor: SceneControl;
   readonly search: SceneControl;
   readonly exclude: SceneControl;
   /**
-   * The one sentence to state above the controls for a reason two or more of them share, or null.
-   *
-   * A reason stopping a single control rides that control instead, so this is never a second place
-   * saying what one control already says.
+   * A reason two or more controls share, stated above them, or null. A reason stopping one control
+   * rides that control instead.
    */
   readonly sharedReason: string | null;
   /** How many controls {@link sharedReason} stops. Zero where there is none. */
   readonly affectedControls: number;
-  /** What the status line beneath the controls states, or null where there is nothing to say. */
   readonly statusLine: SceneStatusLine | null;
   readonly state: WhisparrEntityState;
 }
 
-/** What the status line beneath the controls says, and whether it reports a failure. */
 export interface SceneStatusLine {
   readonly sentence: string;
-  /** Whether the outcome failed, which is what decides the tone it reads in. */
+  /** Decides the tone the sentence reads in. */
   readonly failed: boolean;
 }
 
-/** What the read's own refusal states, and how many of the tab's surfaces it stops. */
 export interface SceneReadRefusal {
   readonly sentence: string | null;
   readonly affectedControls: number;
 }
 
-/**
- * What each refusal states when a READ answers it, or null where a read never answers it.
- *
- * Total by TYPE, so a member added to the wire enum fails this build rather than rendering a tab
- * with no decision made about it. The kinds mapped to null are the ones only a verb can answer, and
- * a verb's refusal is read through {@link deriveSceneControls} instead.
- */
+// Total by type, so a member added to the wire enum fails this build. Null is a kind only a verb
+// can answer, read through deriveSceneControls instead.
 const SENTENCE_FOR_A_READ_REFUSAL: Record<SceneRefusalKind, string | null> = {
   none: null,
   noInstanceConnected: NO_INSTANCE_CONNECTED,
@@ -130,16 +111,10 @@ const SENTENCE_FOR_A_READ_REFUSAL: Record<SceneRefusalKind, string | null> = {
   whisparrIsNotMonitoringThisScene: null,
 };
 
-/** Where a verb's own refusal is stated. */
 type VerbRefusalPlace = "sharedNotice" | "add" | "search" | "statusLine" | "theFactsSayIt";
 
-/**
- * Where each refusal is stated when a VERB answers it.
- *
- * Total by TYPE. `theFactsSayIt` is a refusal naming a state: every verb is followed by a re-read,
- * and the state it answers puts that fact on the controls themselves, so a fourth place stating it
- * would be a second copy of what the chip and the control reasons already say.
- */
+// Total by type. `theFactsSayIt` is a refusal naming a state: every verb is followed by a re-read,
+// which puts that state on the chip and the control reasons already.
 const PLACE_FOR_A_VERB_REFUSAL: Record<SceneRefusalKind, VerbRefusalPlace> = {
   none: "theFactsSayIt",
   noInstanceConnected: "sharedNotice",
@@ -156,12 +131,8 @@ const PLACE_FOR_A_VERB_REFUSAL: Record<SceneRefusalKind, VerbRefusalPlace> = {
   whisparrIsNotMonitoringThisScene: "theFactsSayIt",
 };
 
-/**
- * What each refusal states when a VERB answers it, or null where the verb answers no sentence.
- *
- * Held apart from the read's own table because the two questions differ: a read that never arrived
- * cannot state a status, and a verb that never arrived changed nothing.
- */
+// Held apart from the read's own table: a read that never arrived cannot state a status, and a
+// verb that never arrived changed nothing.
 const SENTENCE_FOR_A_VERB_REFUSAL: Record<SceneRefusalKind, string | null> = {
   none: null,
   noInstanceConnected: NO_INSTANCE_CONNECTED,
@@ -178,14 +149,8 @@ const SENTENCE_FOR_A_VERB_REFUSAL: Record<SceneRefusalKind, string | null> = {
   whisparrIsNotMonitoringThisScene: null,
 };
 
-/**
- * Which control the accent fill goes on in each state, or null where none takes it.
- *
- * Total by TYPE, so a sixth state fails this build rather than drawing a control set with no
- * decision made about it. Never the search control and never the excluding half: a search spends
- * the reader's indexer traffic and disk and can download a file, and an accent fill on the one
- * control with an external cost invites the press.
- */
+// Total by type, so a sixth state fails this build. Never search and never the excluding half: a
+// search can download a file, and an accent fill would invite that press.
 const ACCENT_FILL_IN: Record<WhisparrEntityState, SceneControlKey | null> = {
   notAdded: "add",
   unmonitored: "monitor",
@@ -194,7 +159,7 @@ const ACCENT_FILL_IN: Record<WhisparrEntityState, SceneControlKey | null> = {
   statusUnknown: null,
 };
 
-/** The reason each control gives in each state, or null where the state does not stop it. */
+// Null where the state does not stop the control.
 const REASON_IN: Record<WhisparrEntityState, Record<SceneControlKey, string | null>> = {
   notAdded: {
     add: null,
@@ -228,33 +193,28 @@ const REASON_IN: Record<WhisparrEntityState, Record<SceneControlKey, string | nu
   },
 };
 
-/** How many controls a reason all four share stops. */
 const EVERY_CONTROL = SCENE_CONTROL_KEYS.length;
 
-/** What the derivation is given: the answered read, and what the store holds about the last press. */
 export interface SceneControlInput {
   readonly view: SceneDetailView;
   /** A verb is on its way, so no control can be pressed. */
   readonly acting: boolean;
   /** The last verb produced no answer at all. */
   readonly actionFailed: boolean;
-  /** What the instance refused the last verb for, or null. */
   readonly actionRefusal: SceneRefusalKind | null;
   /** The last search was read back off the instance under its own command id. */
   readonly searchIsWithWhisparr: boolean;
 }
 
-/** How <code>kind</code> reads when a read of the scene answers it. */
 export function sceneReadRefusal(kind: SceneRefusalKind): SceneReadRefusal {
   const sentence = SENTENCE_FOR_A_READ_REFUSAL[kind];
   return { sentence, affectedControls: sentence === null ? 0 : EVERY_CONTROL };
 }
 
 /**
- * The refusal <code>answer</code> carries, or null where it carries none this build recognises.
- *
- * An answer with no such member is a live path rather than a guarded-against one: the POST helper
- * resolves an empty object for an empty 2xx body and for an unparseable one.
+ * The refusal `answer` carries, or null where it carries none this build recognises. An answer
+ * with no such member is a live path: the POST helper resolves an empty object for an empty 2xx
+ * body and for an unparseable one.
  */
 export function sceneVerbRefusalIn(answer: unknown): SceneRefusalKind | null {
   const value = memberOf(answer, "refusal");
@@ -263,26 +223,20 @@ export function sceneVerbRefusalIn(answer: unknown): SceneRefusalKind | null {
     : null;
 }
 
-/** Whether <code>answer</code> reports that the instance holds the search it was asked for. */
 export function searchIsWithWhisparrIn(answer: unknown): boolean {
   return memberOf(answer, "searchIsWithWhisparr") === true;
 }
 
-/** The route segment <code>verb</code> is carried out at. */
 export function routeSegmentFor(verb: SceneVerb): string {
   return SCENE_VERB_ROUTES[verb];
 }
 
-/** The four controls of <code>state</code>, in the order the tab draws them. */
+/** The four controls, in the order the tab draws them. */
 export function sceneControls(state: SceneControlState): readonly SceneControl[] {
   return SCENE_CONTROL_KEYS.map((key) => state[key]);
 }
 
-/**
- * What the tab draws beneath the fact block for one answered read.
- *
- * @param input the answered read, and what the store holds about the last press
- */
+/** What the tab draws beneath the fact block for one answered read. */
 export function deriveSceneControls(input: SceneControlInput): SceneControlState {
   const { view } = input;
   const state = deriveState({
@@ -299,9 +253,8 @@ export function deriveSceneControls(input: SceneControlInput): SceneControlState
   const stateReason = REASON_IN[state];
   const addReason = place === "add" ? refused : stateReason.add;
 
-  // The transient reason outranks every permanent one, and it rides all four rather than the
-  // pressed one alone: all four mutate the same state the tab reads back, so a second press while
-  // one is in flight is a race the reader cannot see.
+  // The in-flight reason outranks every permanent one and disables all four, not just the pressed
+  // one: all four mutate the same state the tab reads back.
   const reasonFor = (permanent: string | null) => (input.acting ? WAITING_FOR_WHISPARR : permanent);
 
   const control = (
@@ -331,8 +284,7 @@ export function deriveSceneControls(input: SceneControlInput): SceneControlState
       "search",
       place === "search" ? refused : stateReason.search,
     ),
-    // One control with two labels, so the tab never shows both and a mistake is fixed where it was
-    // made.
+    // One control with two labels, so the tab never shows both.
     exclude: excluded
       ? control("exclude", SCENE_REMOVE_EXCLUSION, "removeExclusion", stateReason.exclude)
       : control("exclude", SCENE_EXCLUDE, "exclude", stateReason.exclude),
@@ -343,12 +295,7 @@ export function deriveSceneControls(input: SceneControlInput): SceneControlState
   };
 }
 
-/**
- * The one sentence beneath the controls after the last press, or null where there is none.
- *
- * A failure reads ahead of a refusal: a verb that never arrived cannot also have been declined. A
- * confirmed search reads last, because it is the only outcome any verb states in words.
- */
+// A failure reads ahead of a refusal: a verb that never arrived cannot also have been declined.
 function statusLine(
   input: SceneControlInput,
   place: VerbRefusalPlace,

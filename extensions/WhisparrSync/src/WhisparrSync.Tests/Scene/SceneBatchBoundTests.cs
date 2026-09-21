@@ -8,8 +8,8 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Scene;
 
-// Every refusal is asserted against the job service as well as the answer, so a route that refused
-// a caller and enqueued the run anyway fails here.
+// Every refusal is asserted against the job service too, so a route that refused a caller and
+// enqueued the run anyway fails here.
 public sealed class SceneBatchBoundTests
 {
     // The spelling the host's selection bar passes for a video selection.
@@ -22,8 +22,8 @@ public sealed class SceneBatchBoundTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    // The selection is over both bounds, so a route that read the size first would answer a bound
-    // code instead. A caller told to split would send two halves each still naming no verb.
+    // The selection is over both bounds, so a route that read the size first answers a bound code
+    // instead and fails here.
     [Fact]
     public async Task ABodyNamingNoVerbIsRefusedBeforeTheSizeOfTheSelectionMatters()
     {
@@ -87,8 +87,8 @@ public sealed class SceneBatchBoundTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    // The browser chooses its sentence on the code and never on the text, so one code for both
-    // bounds leaves the lower one undescribable.
+    // The browser chooses its sentence on the code, so one code for both bounds leaves the lower
+    // one undescribable.
     [Fact]
     public async Task ASearchSelectionOverItsOwnBoundIsRefusedUnderItsOwnCodeAndNothingIsSent()
     {
@@ -133,8 +133,8 @@ public sealed class SceneBatchBoundTests
         Assert.Equal("ext:" + host.ExtensionId + ":scene-batch", enqueued.Type);
     }
 
-    // The selection bar normalizes the videos plural to the singular before it matches, so the
-    // route accepts the singular and the registration declares it.
+    // The selection bar normalizes the plural to the singular before it matches, so only the
+    // singular is addressed.
     [Theory]
     [InlineData("videos")]
     [InlineData("studios")]
@@ -154,8 +154,8 @@ public sealed class SceneBatchBoundTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
-    // The caller holds the tier the scene's own read sits at, so the refusal is about the configure
-    // gate rather than about holding no permission at all.
+    // The caller holds the tier the scene's own read sits at, so the refusal is the configure gate
+    // and not an absent permission.
     [Fact]
     public async Task TheRouteRefusesACallerWithoutTheConfigureTierAndEnqueuesNothing()
     {

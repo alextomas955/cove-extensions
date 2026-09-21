@@ -1,10 +1,3 @@
-/**
- * The banner's pure rules: its cause vocabulary, whether there is anything to say, the order the
- * roots read in, and that the line no root was reported for still reads as a sentence.
- *
- * The cause spellings are transcribed by hand from the server's own enum. An expectation computed
- * from the generated module agrees with it forever and reports nothing.
- */
 import { describe, expect, it } from "vitest";
 
 import type { ImportBannerRootLine, ImportBannerView, ImportRefusalCause } from "../wire/api";
@@ -20,7 +13,7 @@ import {
   pathsShownFor,
 } from "./importBannerLogic";
 
-/** The three spellings the server emits, written out rather than read off the wire module. */
+// Transcribed by hand from the server's enum. A list read off the wire module would always agree.
 const CAUSES: readonly ImportRefusalCause[] = [
   "notFoundUnderAnyRoot",
   "ambiguousCandidates",
@@ -42,12 +35,10 @@ function viewOf(...roots: ImportBannerRootLine[]): ImportBannerView {
   return { roots, recordsContained: 0, lastContainedAtUtc: null };
 }
 
-/** An answer carrying only a containment, which no root has a refusal recorded for. */
 function passedOver(count: number, at: string | null): ImportBannerView {
   return { roots: [], recordsContained: count, lastContainedAtUtc: at };
 }
 
-/** The instant the recorded ages below are measured against. */
 const NOW_MS = Date.parse("2026-08-31T09:00:00Z");
 
 describe("the cause vocabulary", () => {
@@ -145,7 +136,7 @@ describe("how a root's line is headed", () => {
 
     expect(heading.trim(), "the blank key reached the reader as itself").not.toBe("");
     expect(heading).toContain("4");
-    // The blank key would otherwise read as a heading with a hole in it.
+    // A blank key rendered as itself would leave a double space in the heading.
     expect(heading).not.toContain("  ");
   });
 

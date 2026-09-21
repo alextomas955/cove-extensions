@@ -1,10 +1,9 @@
 /**
- * The sync section's data layer: one cheap read on mount, the count it can start, the poll that
- * watches that count, and the run it can enqueue.
+ * The sync section's data layer: one read on mount, the count it can start, the poll that watches
+ * that count, and the run it can enqueue.
  *
- * Nothing counts on mount and nothing syncs on mount. The read is a local read of the counts the
- * server already holds, so a visitor who never presses anything has cost their library nothing, and
- * one who left and came back reaches the result they already paid for.
+ * The mount read only returns counts the server already holds. Nothing counts and nothing syncs
+ * on mount.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
@@ -16,20 +15,12 @@ import { INITIAL_ASYNC_READ, type AsyncRead } from "../common/ui/asyncRegionLogi
 const PREVIEW_PATH = api("sync/preview");
 const RUN_PATH = api("sync/run");
 
-/**
- * The monitor choice every load starts from.
- *
- * A constant rather than a stored preference: the choice is read at press time, and remembering it
- * would monitor a library on a visit where nobody chose to.
- */
+// A constant rather than a stored preference. Remembering the choice would monitor a library on a
+// visit where nobody chose to.
 const MONITOR_ALSO_ON_LOAD = false;
 
-/**
- * How often the count job is asked where it has got to.
- *
- * There is no client-side timeout beside it: the job's own failure is the terminal state, and a
- * timer that gave up first would report a failure the run had not had.
- */
+// No client-side timeout beside this. The job's own failure is the terminal state, and a timer
+// that gave up first would report a failure the run had not had.
 const POLL_MS = 1500;
 
 function jobStatusPath(jobId: string): string {
@@ -37,21 +28,17 @@ function jobStatusPath(jobId: string): string {
 }
 
 export interface UseSyncLibrary {
-  /** The counts held, or null when none are. */
   readonly read: SyncPreviewRead | null;
-  /** Which of the four states the preview region is in. */
   readonly preview: AsyncRead;
-  /** Whether a count is queued or running. */
   readonly counting: boolean;
   readonly count: () => void;
-  /** Whether a library sync is in flight, as the section's own read last answered. */
+  /** Whether a library sync is in flight, as the last read answered. */
   readonly syncRunning: boolean;
   /** The monitor choice as it stands, off on every load. */
   readonly monitorAlso: boolean;
   readonly chooseMonitorAlso: (checked: boolean) => void;
   /** Whether the enqueue request itself is in flight. */
   readonly starting: boolean;
-  /** Whether a run was started, which is the whole of what the section says afterwards. */
   readonly started: boolean;
   /** Whether the enqueue was refused, in which case nothing was changed. */
   readonly refused: boolean;
@@ -68,8 +55,7 @@ export function useSyncLibrary(): UseSyncLibrary {
   const [started, setStarted] = useState(false);
   const [refused, setRefused] = useState(false);
 
-  // Held in a ref as well as in state, so the interval below reads the live value rather than the
-  // one captured when it was created.
+  // A ref, so the interval reads the live handle rather than one captured on a render.
   const polling = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopPolling = useCallback(() => {
     if (polling.current !== null) {
@@ -89,13 +75,9 @@ export function useSyncLibrary(): UseSyncLibrary {
     [],
   );
 
-  /**
-   * Whether a run is in flight, without touching the counts on screen.
-   *
-   * The same read the counts come from, so the flag and the figures cannot come from two sources
-   * that disagree. A read that fails leaves the flag as it was: the run it would report on is the
-   * server's own fact, and the server refuses a second run regardless.
-   */
+  // Whether a run is in flight, without touching the counts on screen. The same read the counts
+  // come from, so the flag and the figures cannot disagree. A failed read leaves the flag as it
+  // was, because the server refuses a second run regardless.
   const readRunning = useCallback(
     () =>
       requestJson<SyncPreviewRead>(PREVIEW_PATH).then((answer) => {
@@ -115,8 +97,8 @@ export function useSyncLibrary(): UseSyncLibrary {
     if (primed.current) return;
     primed.current = true;
     readCounts().catch(() => {
-      // The page's own shared notice already says the settings could not be read, and this read
-      // answers the same absence. An empty preview is the honest state, not a failed one.
+      // The page's shared notice already says the settings could not be read. An empty preview is
+      // the correct state here, not a failed one.
       setRead(null);
       setPreview({ reading: false, failed: false, hasContent: false });
     });
@@ -129,8 +111,8 @@ export function useSyncLibrary(): UseSyncLibrary {
     (jobId: string) => {
       stopPolling();
       polling.current = setInterval(() => {
-        // Rides the count's own tick rather than a timer of its own: polling the run itself would
-        // duplicate the job list, which is already that surface.
+        // Rides the count's tick rather than a timer of its own. A separate poll of the run would
+        // duplicate the job list.
         readRunning().catch(() => undefined);
 
         requestJson<BulkJobStatus>(jobStatusPath(jobId))
@@ -149,8 +131,7 @@ export function useSyncLibrary(): UseSyncLibrary {
               .catch(failCount);
           })
           .catch(() => {
-            // A job the server can no longer find is a count that did not finish. There is nothing
-            // left to watch and nothing that says it succeeded.
+            // A job the server can no longer find is a count that did not finish.
             failCount();
           });
       }, POLL_MS);

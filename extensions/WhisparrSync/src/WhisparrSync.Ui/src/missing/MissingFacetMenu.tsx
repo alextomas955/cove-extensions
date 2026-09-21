@@ -2,8 +2,8 @@
  * The panel a toolbar menu opens: the ordering menu and every facet menu draw through this one.
  *
  * The rows a menu opens on arrive already decided. A facet menu given a way to ask replaces them
- * with the values the source itself matches while a fragment is typed, so a value the menu was never
- * handed is still reachable; a menu given none narrows the rows it holds.
+ * with the values the source matches while a fragment is typed, so a value the menu was never
+ * handed is still reachable. A menu given none narrows the rows it holds.
  */
 import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
@@ -22,7 +22,6 @@ import {
 import { facetPanelView, type MissingFacetNotice, type MissingFacetRow } from "./missingFacetLogic";
 import { useFacetValueLookup, type FacetValueSearch } from "./useFacetValueLookup";
 
-/** The sentence each state of a lookup reads as. */
 const NOTICES: Record<MissingFacetNotice, string> = {
   asking: FACET_VALUES_ASKING,
   noneHere: FACET_MENU_NO_MATCHES,
@@ -30,22 +29,13 @@ const NOTICES: Record<MissingFacetNotice, string> = {
   notRead: FACET_VALUES_NOT_READ,
 };
 
-/** The host's own gap between a control and the panel it opens. */
+// The host's own gap, viewport margin and minimum panel height.
 const OFFSET = 4;
-
-/** The host's own margin between a panel and the viewport edge. */
 const GUTTER = 8;
-
-/** The least room a panel is ever given, whatever the measurement says. */
 const MIN_ROOM = 160;
 
-/**
- * What the overlay's roving focus steps through.
- *
- * The search box joins the rows, in document order, so the panel opens with the caret in it and a
- * typed character is not swallowed by a focused row. The arrow keys step from it into the rows, and
- * Escape closes from anywhere because the overlay listens on the document.
- */
+// What the overlay's roving focus steps through. The search box joins the rows in document order,
+// so the panel opens with the caret in it and a typed character is not swallowed by a focused row.
 const NAV_ITEMS = '[data-menu-search], [role^="menuitem"]';
 
 interface AnchoredPlacement {
@@ -54,12 +44,8 @@ interface AnchoredPlacement {
   readonly availableHeight: number | null;
 }
 
-/**
- * Where to put the panel, given the control it belongs to.
- *
- * Fixed and portaled to the document: the host clips its entity hero with `overflow-hidden`, which
- * a `z-50` panel in the flow there does not escape.
- */
+// Fixed and portaled to the document: the host clips its entity hero with `overflow-hidden`,
+// which a `z-50` panel in the flow there does not escape.
 function useAnchoredTo(triggerRef: RefObject<HTMLElement | null>): AnchoredPlacement {
   const [placement, setPlacement] = useState<AnchoredPlacement>({
     at: { top: 0, left: 0 },
@@ -100,7 +86,7 @@ export function MissingFacetMenu({
   onPick,
   onClose,
 }: {
-  /** What the menu is called, which is the name it announces. */
+  /** The name the menu announces. */
   label: string;
   rows: readonly MissingFacetRow[];
   /** The control that opened it. */
@@ -122,8 +108,8 @@ export function MissingFacetMenu({
     onClose,
     nav: "menu",
     itemSelector: NAV_ITEMS,
-    // The trigger does not count as outside. Without it a press on the trigger closes the menu here
-    // and the trigger's own handler opens it again in the same gesture.
+    // The trigger does not count as outside. Without it a press on the trigger closes the menu
+    // here and the trigger's own handler reopens it in the same gesture.
     excludeRefs: [triggerRef],
     restoreFocus: true,
   });
@@ -132,8 +118,8 @@ export function MissingFacetMenu({
     <div
       ref={ref}
       style={{ ...placement.at, maxHeight: placement.availableHeight ?? undefined }}
-      // The host's own dropdown surface, which carries the background, the border, the radius its
-      // theme is set to, the shadow and the clip. A radius utility here would fight the theme.
+      // The host's own dropdown surface, which carries the background, border, radius, shadow
+      // and clip. A radius utility here would fight the theme.
       className="styled-dropdown-panel fixed z-50 flex w-64 flex-col"
     >
       <div className="relative border-b border-border p-1.5">
@@ -156,14 +142,13 @@ export function MissingFacetMenu({
       <div
         role="menu"
         aria-label={label}
-        // `min-h-0` is what lets the panel shrink below its own content, so every row is reachable
+        // `min-h-0` lets the panel shrink below its own content, so every row stays reachable
         // with a pointer at any trigger position.
         className="min-h-0 overflow-y-auto overflow-x-hidden py-1 text-left"
       >
         {panel.says === null ? null : (
-          // Carries no menu role either: what a lookup answered is a sentence to read, not a row to
-          // pick. It is stated beside the value in force rather than instead of it, so a value
-          // picked before the fragment was typed can still be unpicked.
+          // No menu role: a lookup's answer is a sentence to read, not a row to pick. It is
+          // stated beside the value in force, so that value can still be unpicked.
           <p className="px-3 py-2 text-xs text-secondary">{NOTICES[panel.says]}</p>
         )}
         {panel.rows.map((row) => (

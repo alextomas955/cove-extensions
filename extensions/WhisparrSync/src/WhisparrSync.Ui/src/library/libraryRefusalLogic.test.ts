@@ -1,10 +1,5 @@
-/**
- * That the page's four reasons stay four, and that neither of the two settled before anything left
- * Cove says a word about reaching Whisparr.
- *
- * The expectations are transcribed from the sentences rather than computed from the table, because a
- * check derived from the module it checks agrees with itself however the sentences are wired.
- */
+// The expectations are transcribed from the sentences, not computed from the table: a check
+// derived from the module it checks agrees with itself however the sentences are wired.
 import { expect, test } from "vitest";
 
 import {
@@ -15,7 +10,7 @@ import {
 } from "../common/ui/copy";
 import { libraryRefusalSentence, LIBRARY_PAGE_REFUSALS } from "./libraryRefusalLogic";
 
-/** The reasons for which nothing left Cove, so no claim about Whisparr can be made either way. */
+// The reasons for which nothing left Cove, so no claim about Whisparr can be made either way.
 const NOTHING_WAS_ASKED = ["noInstanceConnected", "whisparrCannotAnswerForThisKind"] as const;
 
 test("an answered page states nothing", () => {

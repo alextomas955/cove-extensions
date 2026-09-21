@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-// Two things this surface deliberately does not do. The second needs a recorded transport, because
-// what is under test is how many requests leave the browser between a press and the enqueue.
+// Two things this surface deliberately does not do. The second needs a recorded transport,
+// because what is under test is how many requests leave the browser between a press and the
+// enqueue.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 

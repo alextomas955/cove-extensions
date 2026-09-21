@@ -44,10 +44,8 @@ import {
   type SecondaryAction,
 } from "./monitorMenuLogic";
 
-/**
- * Every capability the wire enum carries, so a menu built from it offers everything it could offer.
- * The gaps are asserted by taking members away from this list, never by adding one to a short one.
- */
+// Every capability the wire enum carries. A gap is asserted by taking a member away from this
+// list, never by adding one to a short list.
 const EVERY_CAPABILITY: WhisparrCapability[] = [
   "outOfBandCallbackSecret",
   "monitorStudio",
@@ -358,16 +356,10 @@ describe("one refusal, one sentence", () => {
   });
 });
 
-/**
- * What each kind must state beneath the control, transcribed by hand from `common/ui/copy.ts`.
- *
- * Not derived from the record the functions under test read, and not assembled from the imported
- * constants either: a record entry pointing at the wrong constant satisfies every reader of that
- * record at once, and importing the constant here would make this table agree with it.
- *
- * Typed over the wire union, so a kind added to the enum fails the build here. That is the totality
- * an enumeration over the kinds was buying, without taking its expected value from the subject.
- */
+// What each kind must state beneath the control, transcribed by hand from `common/ui/copy.ts`.
+// Importing the constants would make this table agree with the record under test.
+//
+// Typed over the wire union, so a kind added to the enum fails the build here.
 const EXPECTED_NOTICE: Record<MonitorRefusalKind, string | null> = {
   none: null,
   notConfigured: null,
@@ -390,15 +382,9 @@ const EXPECTED_NOTICE: Record<MonitorRefusalKind, string | null> = {
 };
 
 describe("which refusal speaks beneath the control, and which speaks at it", () => {
-  /**
-   * The roster's own totality, derived from a record that has it by TYPE.
-   *
-   * The roster is `readonly MonitorRefusalKind[]`, so a subset of the wire enum type-checks and a
-   * count written here by hand would still pass after a kind was added and left out. Six of the
-   * enumerations in this file iterate the roster, so a kind missing from it drops silently out of
-   * all six. `EXPECTED_NOTICE` is `Record<MonitorRefusalKind, ...>` and cannot be a subset, which
-   * makes it the honest source for what the roster has to hold.
-   */
+  // The roster is `readonly MonitorRefusalKind[]`, so a subset of the wire enum type-checks and a
+  // kind left out drops silently out of every enumeration below. `EXPECTED_NOTICE` is a record
+  // over the union and cannot be a subset, so it is what the roster is measured against.
   it("holds every kind the wire enum declares, with nothing named twice", () => {
     expect([...MONITOR_REFUSAL_KINDS].sort()).toEqual(Object.keys(EXPECTED_NOTICE).sort());
   });
@@ -459,13 +445,9 @@ describe("which refusal speaks beneath the control, and which speaks at it", () 
     }
   });
 
-  /**
-   * The two kinds that carry a refusal and state nothing of their own, named rather than enumerated.
-   *
-   * The precedence is over the NOTICES, not over the refusals. An implementation that stopped at the
-   * first non-null refusal would silence every skip, because `none` is what every healthy answer
-   * carries.
-   */
+  // The precedence is over the sentences, not over the refusals. An implementation stopping at the
+  // first non-null refusal would silence every skip, because `none` is what a healthy answer
+  // carries.
   it("falls through to the skip where the refusal's own notice is null", () => {
     expect(controlNotice({ failed: false, refusal: "none", skip: "hardLinksOff" })).toBe(
       describeReflectOwnedSkip("hardLinksOff"),
@@ -475,12 +457,8 @@ describe("which refusal speaks beneath the control, and which speaks at it", () 
     );
   });
 
-  /**
-   * What the POST helper can really resolve.
-   *
-   * Its contract answers an empty object for an empty 2xx body and for any non-ApiError raised after
-   * a 2xx, which includes an unparseable one, so an answer carrying neither member is a live path.
-   */
+  // The POST helper resolves an empty object for an empty 2xx body and for an unparseable one, so
+  // an answer carrying neither member is a live path.
   it("answers no refusal and no skip for an answer that carries neither", () => {
     const answers: readonly unknown[] = [
       {},
@@ -570,12 +548,8 @@ describe("the verbs this build carries out", () => {
     expect(routeFor(addAllMissing, true)).toBe("add-all-missing");
   });
 
-  /**
-   * The absence from the selection bar is DERIVED.
-   *
-   * The entity menu can carry the verb out, so the bar leaving it out cannot be read as the row
-   * being unavailable. What excludes it is that the bulk route declares no verb reaching it.
-   */
+  // The entity menu can carry the verb out, so the bar leaving it out is not the row being
+  // unavailable. What excludes it is that the bulk route declares no verb reaching it.
   it("offers add all missing to no selection while carrying it out per entity", () => {
     for (const kind of ENTITY_KINDS) {
       const offer = bulkMonitorActions(view({ kind }));
@@ -599,12 +573,8 @@ describe("the verbs this build carries out", () => {
     ]);
   });
 
-  /**
-   * The search row reads LAST, on both generations that hold the capability.
-   *
-   * It is the one row here that makes Whisparr download, so it does not sit where the cursor lands
-   * on the way to a cheaper one.
-   */
+  // The search is the one row here that makes Whisparr download, so it does not sit where the
+  // cursor lands on the way to a cheaper one.
   it("offers the search verb to a selection, after the rows that only set flags", () => {
     for (const generation of GENERATIONS) {
       for (const kind of ENTITY_KINDS) {

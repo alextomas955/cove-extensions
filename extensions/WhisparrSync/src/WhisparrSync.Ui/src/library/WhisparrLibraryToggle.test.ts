@@ -1,14 +1,9 @@
 // @vitest-environment jsdom
-/**
- * What the toolbar control's accessible name states, and when it states nothing at all.
- *
- * A DOM is needed because the subject is the rendered element's own name. The control carries no
- * visible label, so its `aria-label` and its hover text are the only name it has, and a reason left
- * on it is a claim a reader is told.
- *
- * The host's route builder and its authenticated request both stand in, because each resolves only inside a
- * consuming bundle.
- */
+// The control carries no visible label, so its `aria-label` and hover text are the only name it
+// has.
+//
+// The host's route builder and its authenticated request are mocked because each resolves only
+// inside a consuming bundle.
 import { act, createElement, type ReactNode } from "react";
 import { afterEach, expect, test, vi } from "vitest";
 
@@ -43,7 +38,6 @@ afterEach(() => {
   requestJson.mockReset();
 });
 
-/** One blank card of the studio kind on screen, whose page read established a reason. */
 async function aBlankStudioCardOnScreen(): Promise<void> {
   requestJson.mockResolvedValue({
     kind: "studio",
@@ -62,7 +56,6 @@ async function render(node: ReactNode): Promise<() => HTMLButtonElement | null> 
   return () => container.querySelector("button");
 }
 
-/** Flips the shared boolean the way the control does, and lets every surface redraw. */
 async function flip(): Promise<void> {
   await act(() => {
     toggleLibraryStatus();
