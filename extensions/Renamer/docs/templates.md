@@ -136,11 +136,11 @@ percent of slack: 1920 x 1200 is `1080p`, and so is 1830 x 1030.
 
 Both edges count, so a portrait video gets the same label as the landscape video of the same
 shape: 1080 x 1920 is `1080p`, not `1440p`. A very wide frame is labelled for its long edge rather
-than its short one, so 2560 x 1080 is `1440p`. If Cove has no width stored for a file, Renamer
-reads the height alone, which labels a portrait video as though it were landscape.
+than its short one, so 2560 x 1080 is `1440p`.
 
-A frame under 144 pixels on its longer edge and under about 137 on its shorter gets no label at
-all. The `{ [$resolution]}` group in your template then drops whole, so the name carries no empty
+A label needs both a width and a height, so a file Cove has no width stored for gets none. Neither
+does a frame under 144 pixels on its longer edge and under about 137 on its shorter. The
+`{ [$resolution]}` group in your template then drops whole, so the name carries no empty
 brackets.
 
 If a title already ends with a resolution label (for example `My Movie [1080p]`) and your template
