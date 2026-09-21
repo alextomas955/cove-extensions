@@ -49,6 +49,14 @@ const test = base.extend({
   ],
 });
 
+// Serial for the fixture above, not for any order these tests need: every one of them is a
+// read-only probe that mints its own restricted user. `fullyParallel` would spread them across
+// workers, and the harness is worker-scoped, so each worker reached would stand up a second
+// auth-enabled Cove and Postgres pair.
+//
+// The cost is on failure: a serial describe re-runs from its first test, so under `retries: 2` one
+// flaky probe costs three passes over all of them. That is the trade accepted here — a container
+// pair saved on every green run against a longer red one.
 test.describe.configure({ mode: "serial" });
 
 // Read through the handle rather than captured: installExtension restarts the container, which
