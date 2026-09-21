@@ -129,12 +129,11 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(NothingWasSent(SceneRefusalKind.NoInstanceConnected));
         }
 
-        var identities = await sceneCards.ResolveAsync([coveId], target.Generation, ct)
+        var identity = await sceneCards.ResolveOneAsync(coveId, target.Generation, ct)
             .ConfigureAwait(false);
-        if (identities is not [{ RemoteId: { } remoteId }])
+        if (identity.RemoteId is not { } remoteId)
         {
-            return TypedResults.Ok(
-                NothingWasSent(SceneRefusalKind.NoIdentityInThisNamespace));
+            return TypedResults.Ok(NothingWasSent(identity.Refusal));
         }
 
         if (target.Capabilities.Obtain<IWhisparrSceneStatusReading>()
@@ -619,9 +618,14 @@ public sealed partial class WhisparrSync
             return (null, SceneRefusalKind.NoInstanceConnected);
         }
 
-        var identities = await sceneCards.ResolveAsync([coveId], target.Generation, ct)
+        var identity = await sceneCards.ResolveOneAsync(coveId, target.Generation, ct)
             .ConfigureAwait(false);
-        if (identities is not [{ RemoteId: { } remoteId }] || !IsBoundedSceneId(remoteId))
+        if (identity.RemoteId is not { } remoteId)
+        {
+            return (null, identity.Refusal);
+        }
+
+        if (!IsBoundedSceneId(remoteId))
         {
             return (null, SceneRefusalKind.NoIdentityInThisNamespace);
         }

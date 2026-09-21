@@ -127,10 +127,11 @@ can fix the instance and press again.
 | Whisparr offers no quality profile, so nothing was sent. Add one in Whisparr and try again. | On Add. Your Whisparr offers no profile to add the scene under. |
 | Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.     | On Add. Your Whisparr offers no library root.                   |
 
-Two reasons cover the whole tab rather than one control, and appear above the controls: no Whisparr
-instance is connected, and Cove holds no link for the scene that your Whisparr can identify it by. A
-scene carrying two links that name different scenes reads as the second of those, because Cove cannot
-choose between them and so has nothing to ask about.
+Three reasons cover the whole tab rather than one control, and appear above the controls: no
+Whisparr instance is connected, Cove holds no link for the scene that your Whisparr can identify it
+by, and Cove holds more than one conflicting link for the scene. The last two are stated apart
+because they ask different things of you: the first needs a link added, the second needs the links
+that do not belong on the scene's page in Cove removed.
 
 **Nothing is said about your Whisparr's indexers.** Cove does not read your indexer list and disables
 no control for it. With no indexer configured, a search reaches your Whisparr and finds nothing, and
