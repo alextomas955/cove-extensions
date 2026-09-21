@@ -27,8 +27,8 @@ describe("selectionActionsFor", () => {
   it("offers three gestures and no fourth", () => {
     expect(selectionActionsFor(PAGE, new Set()).map((action) => action.key)).toEqual([
       "selectAll",
-      "selectNone",
       "invert",
+      "selectNone",
     ]);
   });
 
@@ -58,8 +58,8 @@ describe("selectionActionsFor", () => {
       selectionActionsFor(PAGE, new Set()).map((action) => [action.shortcutId, action.keys]),
     ).toEqual([
       ["list.select.all", "s a"],
-      ["list.select.none", "s n"],
       ["list.select.invert", "s i"],
+      ["list.select.none", "s n"],
     ]);
   });
 });
