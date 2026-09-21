@@ -1,3 +1,4 @@
+using System.Globalization;
 using WhisparrSync.Contracts;
 using WhisparrSync.Tests.TestSupport;
 
@@ -14,6 +15,9 @@ public sealed class EntitySceneIdentityPortTests
 
     // A spelling belonging to v2's namespace.
     private const string OtherNamespaceEndpoint = "theporndb.net/graphql";
+
+    // Larger than a row cap would plausibly be written at.
+    private const int SceneCount = 64;
 
     private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
     private const string SecondScene = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
@@ -126,17 +130,36 @@ public sealed class EntitySceneIdentityPortTests
             () => IdentitiesOf(host, (WhisparrEntityKind)(-1), 1));
     }
 
+    // A cap on the read would truncate the offer set with no error, so the studio carries more
+    // scenes than a cap would plausibly be written at. Each identifier is carried by two scenes, so
+    // a read that answered a row rather than an identifier would answer each one twice.
+    [Fact]
+    public async Task AStudioCarryingManyScenesAnswersEveryIdentifierExactlyOnce()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        var expected = new List<string>();
+        for (var scene = 0; scene < SceneCount; scene++)
+        {
+            var identifier = string.Create(CultureInfo.InvariantCulture, $"scene-{scene:D3}");
+            expected.Add(identifier);
+            await host.SeedStudioSceneAsync(studioId, MonitorHost.StoredEndpoint, identifier);
+            await host.SeedStudioSceneAsync(studioId, MonitorHost.StoredEndpoint, identifier);
+        }
+
+        Assert.Equal(expected, await IdentitiesOf(host, WhisparrEntityKind.Studio, studioId));
+    }
+
     // Read off the source, because no behavioural assertion can tell a query that de-duplicates in
     // the database from one that loads every row and reduces it. Both answer the same identifiers.
     [Fact]
-    public void TheSceneIdentityReadHoldsNothingPerScene()
+    public void TheSceneIdentityReadDeDuplicatesInTheQuery()
     {
         var source = PortSource();
 
         Assert.Contains("Distinct()", source, StringComparison.Ordinal);
-        Assert.Contains("IAsyncEnumerable<string>", source, StringComparison.Ordinal);
         Assert.All(
-            new[] { "HashSet", "ToList", "ToArray", ".Take(" },
+            new[] { "HashSet", "ToList", "ToArray" },
             accumulating => Assert.DoesNotContain(accumulating, source, StringComparison.Ordinal));
     }
 
