@@ -251,33 +251,6 @@ describe("the confirmation names what the choice covers and what it costs", () =
   });
 });
 
-describe("the bound the over-the-bound sentence names is the server's own", () => {
-  // Read as text: the bound is a C# constant with no wire spelling.
-  const ROUTES = path.resolve(SRC, "../../WhisparrSync/WhisparrSync.MonitoringBulk.cs");
-
-  it("names the number the route refuses above", () => {
-    const declared = /MaxEntityIdsPerRequest\s*=\s*(\d+)/.exec(readFileSync(ROUTES, "utf8"));
-
-    expect(declared, "the route declares no MaxEntityIdsPerRequest").not.toBeNull();
-    expect(copy.MAX_ENTITY_IDS_PER_REQUEST).toBe(Number(declared?.[1]));
-    expect(copy.BULK_SELECTION_IS_OVER_THE_BOUND).toContain(
-      String(copy.MAX_ENTITY_IDS_PER_REQUEST),
-    );
-  });
-
-  it("names the lower number the route refuses the search verb above", () => {
-    // Its own pin, not a second read of the first. This catches the search row reusing the other
-    // sentence, which names a different limit.
-    const declared = /MaxSceneSearchIdsPerRequest\s*=\s*(\d+)/.exec(readFileSync(ROUTES, "utf8"));
-
-    expect(declared, "the route declares no MaxSceneSearchIdsPerRequest").not.toBeNull();
-    expect(copy.MAX_SCENE_SEARCH_IDS_PER_REQUEST).toBe(Number(declared?.[1]));
-    expect(copy.BATCH_SEARCH_IS_OVER_THE_BOUND).toContain(
-      String(copy.MAX_SCENE_SEARCH_IDS_PER_REQUEST),
-    );
-  });
-});
-
 // Every sentence the sync section renders, grouped by whether it names what a run registers.
 // A run registers scenes or studios, and the monitor choice marks scenes either way. A `SYNC_`
 // constant in none of the three lists reddens the suite below.

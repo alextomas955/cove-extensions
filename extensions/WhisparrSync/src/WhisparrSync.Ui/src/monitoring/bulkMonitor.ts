@@ -11,11 +11,12 @@ import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionReque
 import type { ActionPayload, HandlerResult } from "@cove-extensions/ui-shared";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 
+import { errorCodeIn } from "../common/lib/errorCodeLogic";
 import { api } from "../common/lib/extension";
 import {
   allScenesConfirmation,
   BULK_ACTIONS_COULD_NOT_BE_OFFERED,
-  BULK_SELECTION_IS_OVER_THE_BOUND,
+  bulkSelectionIsOverTheBoundSentence,
   RUN_WAS_NOT_STARTED,
   searchAllMonitoredConfirmation,
 } from "../common/ui/copy";
@@ -122,24 +123,16 @@ async function confirmed(action: BulkMonitorAction, message: string): Promise<bo
 }
 
 // The instance answers a refusal with a body carrying a full stack trace, so the body is read for
-// its code alone and the reader sees a sentence from the copy module.
+// its declared members alone and the reader sees a sentence from the copy module. The bound is the
+// one the route refused above; a refusal naming no bound falls through, because a number invented
+// here would read as the server's.
 function refusalSentenceFor(refusal: unknown): string {
-  return refusal instanceof ApiError && codeNamedIn(refusal.body) === "TOO_MANY_IDS"
-    ? BULK_SELECTION_IS_OVER_THE_BOUND
-    : RUN_WAS_NOT_STARTED;
-}
+  if (!(refusal instanceof ApiError)) return RUN_WAS_NOT_STARTED;
 
-function codeNamedIn(answer: string): string | null {
-  try {
-    const named: unknown = JSON.parse(answer);
-    return typeof named === "object" && named !== null && "code" in named
-      ? typeof named.code === "string"
-        ? named.code
-        : null
-      : null;
-  } catch {
-    return null;
-  }
+  const named = errorCodeIn(refusal.body);
+  return named?.code === "TOO_MANY_IDS" && named.max != null
+    ? bulkSelectionIsOverTheBoundSentence(named.max)
+    : RUN_WAS_NOT_STARTED;
 }
 
 // Shows one sentence over the selection, with a way out and nothing to choose between. The same
