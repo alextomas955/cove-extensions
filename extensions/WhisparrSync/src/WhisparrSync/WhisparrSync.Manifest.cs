@@ -92,9 +92,8 @@ public sealed partial class WhisparrSync
                 label: "Whisparr Sync",
                 componentName: "WhisparrSyncPage")
             .AddSlot("studio-detail-actions", componentName: "WhisparrStudioActions", order: 100)
-            .AddSlot("performer-detail-actions", componentName: "WhisparrPerformerActions", order: 100)
 
-            // Both unconditional. A studio monitors as a series matched by ThePornDB on v2 too, and
+            // Unconditional. A studio monitors as a site matched by ThePornDB on v2 too, and
             // MonitorStudio is in both capability tables, so the studio surfaces work whichever
             // generation is connected.
             .AddSlot("studios-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
@@ -103,6 +102,9 @@ public sealed partial class WhisparrSync
 
             // One component, registered once per page type. The host passes a tab component only the
             // entity id and a navigate callback, so the component reads its own kind from its route.
+            //
+            // A tag names no entity either metadata source publishes a catalogue for, so the tab
+            // had nothing to list under one and is registered on no tag page.
             //
             // Each countEndpoint bakes its own kind: the host substitutes the literal {entityId} and
             // nothing else, so the kind cannot travel as a second placeholder.
@@ -113,20 +115,6 @@ public sealed partial class WhisparrSync
                 componentName: MissingTabComponentName,
                 order: MissingTabOrder,
                 countEndpoint: MissingCountEndpointFor("studio"))
-            .AddTab(
-                pageType: "performer",
-                key: MissingTabKey,
-                label: MissingTabLabel,
-                componentName: MissingTabComponentName,
-                order: MissingTabOrder,
-                countEndpoint: MissingCountEndpointFor("performer"))
-            .AddTab(
-                pageType: "tag",
-                key: MissingTabKey,
-                label: MissingTabLabel,
-                componentName: MissingTabComponentName,
-                order: MissingTabOrder,
-                countEndpoint: MissingCountEndpointFor("tag"))
             .AddAction(
                 id: "whisparr-monitor-selected-studios",
                 label: "Whisparr",
@@ -140,23 +128,13 @@ public sealed partial class WhisparrSync
                 // The work reports into the host's own job drawer, so its queued-success alert would
                 // say the same thing twice.
                 suppressSuccessAlert: true)
-            .AddAction(
-                id: "whisparr-monitor-selected-performers",
-                label: "Whisparr",
-                actionType: "bulk",
-                entityTypes: [PerformersSelectionType],
-                icon: "eye",
-                apiEndpoint: null,
-                handlerName: BulkHandlerName,
-                order: 100,
-                requiredPermission: Permissions.ExtensionsConfigure,
-                suppressSuccessAlert: true)
             .WithJsBundle("index.mjs");
 
         // Whisparr v2 offers no route addressing one scene without its site, and holds no performer
-        // entity, so these surfaces cannot be answered there and are hidden by omission. Its scene
-        // rows do carry an identifier, the number ThePornDB issued, reachable only by listing the
-        // site that holds them.
+        // entity, so these surfaces cannot be answered there and are hidden by omission. A control
+        // that draws and then refuses is worse than an absent one: it offers a gesture no answer
+        // can follow. Its scene rows do carry an identifier, the number ThePornDB issued, reachable
+        // only by listing the site that holds them.
         //
         // The scene tab carries neither a countEndpoint nor an icon: the video detail page maps a
         // contributed tab into its own list keeping only the key, the label and the manual contexts,
@@ -167,6 +145,14 @@ public sealed partial class WhisparrSync
                 .AddSlot("videos-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
                 .AddSlot("video-card-content", componentName: "WhisparrVideoCardBadge", order: 100)
                 .AddSlot("videos-list-row", componentName: "WhisparrVideoLibraryRow", order: 100)
+                .AddSlot("performer-detail-actions", componentName: "WhisparrPerformerActions", order: 100)
+                .AddTab(
+                    pageType: "performer",
+                    key: MissingTabKey,
+                    label: MissingTabLabel,
+                    componentName: MissingTabComponentName,
+                    order: MissingTabOrder,
+                    countEndpoint: MissingCountEndpointFor("performer"))
                 .AddSlot(
                     "performers-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
                 .AddSlot(
@@ -179,6 +165,18 @@ public sealed partial class WhisparrSync
                     label: SceneTabLabel,
                     componentName: SceneTabComponentName,
                     order: SceneTabOrder)
+
+                .AddAction(
+                    id: "whisparr-monitor-selected-performers",
+                    label: "Whisparr",
+                    actionType: "bulk",
+                    entityTypes: [PerformersSelectionType],
+                    icon: "eye",
+                    apiEndpoint: null,
+                    handlerName: BulkHandlerName,
+                    order: 100,
+                    requiredPermission: Permissions.ExtensionsConfigure,
+                    suppressSuccessAlert: true)
 
                 // No icon: the host draws its own glyph on this button whatever an action declares,
                 // so a glyph named here would be a claim nothing renders.
