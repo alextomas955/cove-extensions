@@ -27,9 +27,10 @@ export interface SelectionAction {
   readonly resulting: readonly string[];
 }
 
+// Worded as Cove's own list selection bar words them, so the two bars read alike.
 const SELECT_ALL_LABEL = "Select all";
-const SELECT_NONE_LABEL = "Select none";
-const INVERT_SELECTION_LABEL = "Invert selection";
+const SELECT_NONE_LABEL = "Deselect all";
+const INVERT_SELECTION_LABEL = "Invert";
 
 export const MONITOR_SELECTION_LABEL = "Monitor";
 
@@ -58,18 +59,18 @@ export function selectionActionsFor(
       resulting: [...loadedPageIds],
     },
     {
-      key: "selectNone",
-      label: SELECT_NONE_LABEL,
-      shortcutId: "list.select.none",
-      keys: "s n",
-      resulting: [],
-    },
-    {
       key: "invert",
       label: INVERT_SELECTION_LABEL,
       shortcutId: "list.select.invert",
       keys: "s i",
       resulting: invertSelection(loadedPageIds, selected),
+    },
+    {
+      key: "selectNone",
+      label: SELECT_NONE_LABEL,
+      shortcutId: "list.select.none",
+      keys: "s n",
+      resulting: [],
     },
   ];
 }

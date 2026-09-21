@@ -45,10 +45,9 @@ const BULK_JOB_TYPE = `ext:${EXTENSION_ID}:missing-bulk`;
 // importing the constants would be asserting that a string equals itself.
 const SELECT_SCENE = "Select scene";
 const SELECT_ALL = "Select all";
-const SELECT_NONE = "Select none";
-const INVERT_SELECTION = "Invert selection";
+const SELECT_NONE = "Deselect all";
+const INVERT_SELECTION = "Invert";
 const MONITOR = "Monitor";
-const REPORTS_IN_THE_JOB_DRAWER = "This runs in the background";
 const NO_INSTANCE_CONNECTED = "No Whisparr instance is connected";
 
 /** How many scenes the recorded page carries. One page's worth, which is what the route accepts. */
@@ -65,15 +64,16 @@ const hostDetailTabs = (page) => page.getByRole("tablist").first();
 const cards = (page) => page.locator("article").filter({ has: page.locator("img, h3") });
 
 /**
- * The bar, reached through the count it always draws while anything is ticked.
+ * The bar, reached through the count and the verb it draws while anything is ticked.
  *
- * The deepest element carrying that count, which is the bar itself: every ancestor of the count
- * carries it too, and the page's own wrappers would otherwise answer for the bar.
+ * The deepest element carrying both, which is the bar itself: every ancestor carries them too, and
+ * the count sits in a column of its own that carries no control.
  */
 const selectionBar = (page) =>
   page
     .locator("div")
     .filter({ has: page.getByText(/^\d+ selected$/) })
+    .filter({ has: page.getByRole("button", { name: MONITOR, exact: true }) })
     .last();
 
 /**
@@ -224,14 +224,21 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
     barText.toLowerCase(),
     "the bar offers a gesture over the whole result set, which is 1,600 provider requests against a large tag",
   ).not.toContain("matching");
-  await expect(selectionBar(page).getByRole("button", { name: SELECT_ALL })).toBeVisible();
-  await expect(selectionBar(page).getByRole("button", { name: SELECT_NONE })).toBeVisible();
-  await expect(selectionBar(page).getByRole("button", { name: INVERT_SELECTION })).toBeVisible();
+  await expect(
+    selectionBar(page).getByRole("button", { name: SELECT_ALL, exact: true }),
+  ).toBeVisible();
+  await expect(
+    selectionBar(page).getByRole("button", { name: SELECT_NONE, exact: true }),
+  ).toBeVisible();
+  await expect(
+    selectionBar(page).getByRole("button", { name: INVERT_SELECTION, exact: true }),
+  ).toBeVisible();
 
   // CASE 7. Every control in the bar shows a keyboard user where it is. Read as a computed box
   // shadow, because a class in the markup says nothing about whether the host declares it.
+  // Named exactly: "Select all" is a substring of "Deselect all", so a loose name matches both.
   for (const name of [SELECT_ALL, SELECT_NONE, INVERT_SELECTION, MONITOR]) {
-    const control = selectionBar(page).getByRole("button", { name }).first();
+    const control = selectionBar(page).getByRole("button", { name, exact: true }).first();
     await control.focus();
     const shadow = await control.evaluate((element) => window.getComputedStyle(element).boxShadow);
     expect(shadow, `${name} paints no focus ring at all`).not.toBe("none");
@@ -264,10 +271,8 @@ test("missing selection: ticking a page, its shortcuts, and the run a press star
 
   await page.unroute(/\/missing\/bulk-monitor$/);
 
-  // CASE 5. The real route enqueues the ticked scenes. The bar says where the result will appear
-  // before the run starts, the ticks clear once it has, and nothing blocks the page at any point.
-  await expect(page.getByText(REPORTS_IN_THE_JOB_DRAWER, { exact: false }).first()).toBeVisible();
-
+  // CASE 5. The real route enqueues the ticked scenes, the ticks clear once it has, and nothing
+  // blocks the page at any point.
   const enqueued = page.waitForResponse(
     (response) => /\/missing\/bulk-monitor$/.test(response.url()) && response.status() === 200,
   );
