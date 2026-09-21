@@ -366,6 +366,13 @@ public sealed class EndpointPermissionTests
             Resolved.AddRange(coveIds);
             return Task.FromResult<IReadOnlyList<LibraryCardIdentity>>([]);
         }
+
+        public Task<SceneCardIdentity> ResolveOneAsync(
+            int coveId, WhisparrGeneration generation, CancellationToken ct)
+        {
+            Resolved.Add(coveId);
+            return Task.FromResult(SceneCardIdentity.Unmatched);
+        }
     }
 
     private static (FakeStore Store, OptionsStore Options) NewStore()
