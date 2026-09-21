@@ -93,20 +93,24 @@ export function useRegistration(): UseRegistration {
   }, [address, take]);
 
   const copy = useCallback(() => {
-    // The DOM types declare the clipboard as always present, but a Cove reached over plain http
-    // is not a secure context and has none, so the property access itself can throw.
+    // The DOM types declare the clipboard as always present, but a Cove reached over plain http is
+    // not a secure context and has none, so the property access itself can throw. Only that access
+    // sits in the try; the write states its own rejection path.
+    let clipboard;
     try {
-      navigator.clipboard
-        .writeText(address)
-        .then(() => {
-          setCopyResult({ status: "copied" });
-        })
-        .catch(() => {
-          setCopyResult({ status: "failed" });
-        });
+      clipboard = navigator.clipboard;
     } catch {
       setCopyResult({ status: "failed" });
+      return;
     }
+    clipboard
+      .writeText(address)
+      .then(() => {
+        setCopyResult({ status: "copied" });
+      })
+      .catch(() => {
+        setCopyResult({ status: "failed" });
+      });
   }, [address]);
 
   return {
