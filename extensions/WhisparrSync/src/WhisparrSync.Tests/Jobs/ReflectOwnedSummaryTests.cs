@@ -1,4 +1,3 @@
-using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Monitoring;

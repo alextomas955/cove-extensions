@@ -4,7 +4,6 @@ using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Microsoft.Extensions.DependencyInjection;
-using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Tests.TestSupport;
 

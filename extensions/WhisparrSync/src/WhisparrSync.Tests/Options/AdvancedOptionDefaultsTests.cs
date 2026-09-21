@@ -1,6 +1,5 @@
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
-using WhisparrSync.Import;
 using WhisparrSync.Options;
 
 namespace WhisparrSync.Tests.Options;
