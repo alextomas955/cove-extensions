@@ -5,6 +5,7 @@
  * Every action answers a set drawn from the loaded page alone, so no gesture here reaches the
  * whole result set and no selection grows with the library.
  */
+import { membersOf } from "../common/lib/totalTableLogic";
 import {
   RUN_WAS_NOT_STARTED,
   NO_INSTANCE_CONNECTED,
@@ -91,11 +92,7 @@ const REFUSAL_LINES: Record<SelectionRefusalKind, string> = {
   notStarted: RUN_WAS_NOT_STARTED,
 };
 
-export const SELECTION_REFUSAL_KINDS: readonly SelectionRefusalKind[] = [
-  "noInstanceConnected",
-  "whisparrKeepsNoSceneRecords",
-  "notStarted",
-];
+export const SELECTION_REFUSAL_KINDS: readonly SelectionRefusalKind[] = membersOf(REFUSAL_LINES);
 
 export function selectionRefusalLine(kind: SelectionRefusalKind): string {
   return REFUSAL_LINES[kind];
