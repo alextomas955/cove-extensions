@@ -153,13 +153,15 @@ public sealed partial class WhisparrSync
                 suppressSuccessAlert: true)
             .WithJsBundle("index.mjs");
 
-        // Whisparr v2 publishes no per-scene identity and holds no performer entity, so these
-        // surfaces have no meaning there and are hidden by omission.
+        // Whisparr v2 offers no route addressing one scene without its site, and holds no performer
+        // entity, so these surfaces cannot be answered there and are hidden by omission. Its scene
+        // rows do carry an identifier, the number ThePornDB issued, reachable only by listing the
+        // site that holds them.
         //
         // The scene tab carries neither a countEndpoint nor an icon: the video detail page maps a
         // contributed tab into its own list keeping only the key, the label and the manual contexts,
         // so either would be fetched and drawn by nothing.
-        if (!SelectedGenerationIsOlder)
+        if (!SelectedGenerationIsV2)
         {
             manifest
                 .AddSlot("videos-list-toolbar-end", componentName: "WhisparrLibraryToggle", order: 100)
@@ -198,7 +200,7 @@ public sealed partial class WhisparrSync
 
     // False for anything but a positive v2 reading, a generation nothing established included, so an
     // unreadable store and an unbindable blob both keep every surface.
-    private bool SelectedGenerationIsOlder
+    private bool SelectedGenerationIsV2
         => string.Equals(
             _selectedGeneration,
             nameof(WhisparrGeneration.V2),
