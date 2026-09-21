@@ -99,6 +99,22 @@ public static class TemplateEngine
             map[kv.Key] = kv.Value;
         }
 
+        // A caller-supplied $resolution wins over the derived one. Deriving it needs both dimensions,
+        // as Cove's own badge does, and Cove stores an unknown dimension as 0, so a non-positive one
+        // is an absent one. With either missing the token stays out of the map, so its group drops.
+        // The dimensions read here are the ones Cove stored: a field rewrite on $width or $height is
+        // presentation, and a label derived from a rewritten dimension would contradict Cove's badge.
+        if (!map.ContainsKey(Tokens.Resolution)
+            && map.TryGetValue(Tokens.Width, out var w)
+            && int.TryParse(w, out var width)
+            && width > 0
+            && map.TryGetValue(Tokens.Height, out var h)
+            && int.TryParse(h, out var height)
+            && height > 0)
+        {
+            map[Tokens.Resolution] = ResolutionLabel.FromDimensions(width, height);
+        }
+
         // Field rewrites run before the multi-value overrides and the render. The keys are
         // materialized so the dictionary is not mutated while enumerating it.
         foreach (var key in map.Keys.ToList())
@@ -135,20 +151,6 @@ public static class TemplateEngine
         else if (TryGetMulti(multiValues, Tokens.Tags, out var tags))
         {
             map[Tokens.Tags] = MultiValue.Resolve(tags, options.Tags);
-        }
-
-        // A caller-supplied $resolution wins over the derived one. Deriving it needs both dimensions,
-        // as Cove's own badge does, and Cove stores an unknown dimension as 0, so a non-positive one
-        // is an absent one. With either missing the token stays out of the map, so its group drops.
-        if (!map.ContainsKey(Tokens.Resolution)
-            && map.TryGetValue(Tokens.Width, out var w)
-            && int.TryParse(w, out var width)
-            && width > 0
-            && map.TryGetValue(Tokens.Height, out var h)
-            && int.TryParse(h, out var height)
-            && height > 0)
-        {
-            map[Tokens.Resolution] = ResolutionLabel.FromDimensions(width, height);
         }
 
         return map;

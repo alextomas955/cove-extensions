@@ -266,6 +266,70 @@ public class TemplateEngineTests
     }
 
     [Fact]
+    public void Resolution_DerivedFromTheStoredDimensions_NotTheRewrittenOnes()
+    {
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie",
+            ["width"] = "1920",
+            ["height"] = "1080",
+        };
+        var options = new RenamerOptions
+        {
+            FieldReplacers =
+            [
+                new FieldReplaceRule { TargetToken = "width", Find = "1920", Replace = "1920px" },
+            ],
+        };
+        Assert.Equal("1920px", TemplateEngine.ResolveField(tokens, NoMulti, options, "width"));
+        Assert.Equal("1080p", TemplateEngine.ResolveField(tokens, NoMulti, options, "resolution"));
+    }
+
+    [Fact]
+    public void Resolution_HeightReplacementRule_DoesNotChangeTheLabel()
+    {
+        // A label read off the rewritten height would be 1440p, which is the label Cove shows for a
+        // 1920 x 2160 frame and not the one it shows for this file.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie",
+            ["width"] = "1920",
+            ["height"] = "1080",
+        };
+        var options = new RenamerOptions
+        {
+            FieldReplacers =
+            [
+                new FieldReplaceRule { TargetToken = "height", Find = "1080", Replace = "2160" },
+            ],
+        };
+        var r = Render("$title{ [$resolution]}", tokens, options: options);
+        Assert.Equal("Movie [1080p]", r.Filename);
+    }
+
+    [Fact]
+    public void Resolution_ReplacementRule_RewritesTheDerivedLabel()
+    {
+        // The strip asks whether this render writes a label, not whether the label is one the fixed
+        // vocabulary names, so a rewritten label still displaces the title's own tag.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie [1080p]",
+            ["width"] = "1920",
+            ["height"] = "1080",
+        };
+        var options = new RenamerOptions
+        {
+            FieldReplacers =
+            [
+                new FieldReplaceRule { TargetToken = "resolution", Find = "1080p", Replace = "FHD" },
+            ],
+        };
+        var r = Render("$title{ [$resolution]}", tokens, options: options);
+        Assert.Equal("Movie [FHD]", r.Filename);
+    }
+
+    [Fact]
     public void CoreTokens_Performers_FromMultiValueSideInput()
     {
         var multi = new Dictionary<string, IReadOnlyList<string>>
