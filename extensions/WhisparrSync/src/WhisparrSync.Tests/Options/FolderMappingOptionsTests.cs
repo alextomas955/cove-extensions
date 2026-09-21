@@ -1,4 +1,5 @@
 using WhisparrSync.Addressing;
+using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 

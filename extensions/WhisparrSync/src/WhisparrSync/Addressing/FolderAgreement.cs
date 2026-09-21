@@ -1,41 +1,7 @@
-using System.Text.Json.Serialization;
-using Cove.Extensions.Shared;
+using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 
 namespace WhisparrSync.Addressing;
-
-/// <summary>Why one Cove library root has no agreed spelling on the connected instance.</summary>
-/// <remarks>
-/// Stored in the options blob and served to the settings page, so the wire spelling is declared on
-/// the type. An equivalent converter on a serializer options object would outrank this one.
-/// </remarks>
-[JsonConverter(typeof(CamelCaseStringEnumConverter))]
-public enum FolderAgreementRefusal
-{
-    /// <summary>The instance declares no root to rebuild a tail under.</summary>
-    InstanceDeclaresNoRoot,
-
-    /// <summary>The library holds no file under this root to establish an agreement from.</summary>
-    NoFileToProbeWith,
-
-    /// <summary>No candidate held a file of the size the library holds.</summary>
-    NothingResolved,
-
-    /// <summary>Several candidates held one, so which of them the root means is not established.</summary>
-    MoreThanOneResolved,
-
-    /// <summary>
-    /// The instance was asked and its answer could not be read, so nothing was established either
-    /// way. Distinct from <see cref="NothingResolved"/>, which is an answer.
-    /// </summary>
-    ProbeCouldNotBeRead,
-
-    /// <summary>The connected generation holds no role to ask the instance through.</summary>
-    InstanceCannotBeAsked,
-
-    /// <summary>The folder sits under none of the host's configured library roots.</summary>
-    FolderUnderNoLibraryRoot,
-}
 
 /// <summary>The paths to ask the instance about for one Cove root, or why there are none.</summary>
 /// <remarks>

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Cove.Core.Auth;
 using Microsoft.AspNetCore.Http;
+using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Options;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
