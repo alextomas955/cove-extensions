@@ -143,11 +143,16 @@ does a frame under 144 pixels on its longer edge and under about 137 on its shor
 `{ [$resolution]}` group in your template then drops whole, so the name carries no empty
 brackets.
 
+Renamer reads the label off the width and height Cove stored, so a per-token replacement rule on
+`$width` or `$height` changes only that token in the name and leaves the label alone. A rule on
+`$resolution` rewrites the label itself, and the name then reads differently from the badge.
+
 If a title already ends with a resolution label (for example `My Movie [1080p]`) and your template
 also renders `$resolution`, Renamer removes the duplicate from the title so the label isn't repeated.
-Renamer only removes the title's label when it has one of its own to write in its place. Where the
-file has no width stored, where the frame is too small for any label, or where the name was too long
-and `$resolution` was dropped to make it fit, the label already in your title stays.
+Where the file has no width stored, or the frame is too small for any label, Renamer has no label to
+write and the one already in your title stays. Where the name was too long and `$resolution` was
+dropped to make it fit, the title's label goes with it, so the drop shortens the name instead of
+lengthening it.
 
 ## Shaping multi-value tokens
 
