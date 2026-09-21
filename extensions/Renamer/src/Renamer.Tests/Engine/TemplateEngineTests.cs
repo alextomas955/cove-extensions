@@ -229,20 +229,42 @@ public class TemplateEngineTests
         Assert.Equal("Clip [100p]", r.Filename);
     }
 
-    [Fact]
-    public void TitleHasResolution_LengthReducerDropsResolution_PreservesExistingTag()
+    [Theory]
+    [InlineData("Movie [4K]", "1920", "1080", 12)]
+    // This row's title tag is longer than the label the reducer drops, so keeping it would push the
+    // name back over the budget and into a hard truncation.
+    [InlineData("Movie [1080p]", "3840", "2160", 9)]
+    public void TitleHasResolution_LengthReducerDropsResolution_DropsTheTitleTagToo(
+        string title, string width, string height, int cap)
     {
-        // The caps are the premise: "Movie [4K] [1080p]" against a 12-character budget walks DropOrder
-        // as far as resolution, so the render that survives writes no label of its own.
+        // The caps are the premise: the first render is over budget, so DropOrder is walked as far as
+        // resolution and the render that survives writes no label of its own.
         var tokens = new Dictionary<string, string>
         {
-            ["title"] = "Movie [4K]",
-            ["width"] = "1920",
-            ["height"] = "1080",
+            ["title"] = title,
+            ["width"] = width,
+            ["height"] = height,
         };
-        var options = new RenamerOptions { FilenameMax = 12, FullPathMax = 12 };
+        var options = new RenamerOptions { FilenameMax = cap, FullPathMax = cap };
         var r = Render("$title{ [$resolution]}", tokens, options: options);
-        Assert.Equal("Movie [4K]", r.Filename);
+        Assert.Equal("Movie", r.Filename);
+    }
+
+    [Fact]
+    public void TitleHasResolution_LengthReducerDropsResolution_FolderTemplate_DropsTheTitleTagToo()
+    {
+        // The filename template never renders $resolution, so nothing de-duplicated its title and the
+        // drop reaches only the folder.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie [1080p]",
+            ["width"] = "3840",
+            ["height"] = "2160",
+        };
+        var options = new RenamerOptions { FilenameMax = 20, FullPathMax = 20 };
+        var r = Render("$title", tokens, options: options, folder: "$title{ [$resolution]}");
+        Assert.Equal("Movie", r.FolderPath);
+        Assert.Equal("Movie [1080p]", r.Filename);
     }
 
     [Theory]

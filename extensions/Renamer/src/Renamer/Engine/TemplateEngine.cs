@@ -63,9 +63,11 @@ public static class TemplateEngine
         // empty during the filename render, and the extension is appended as RenamerResult.Ext.
         string ext = NormalizeExt(Resolve(resolved, Tokens.Ext));
 
-        string filename = RenderFilename(options.FilenameTemplate, resolved, options, logUnbalanced);
+        string filename = RenderFilename(
+            options.FilenameTemplate, resolved, options, logUnbalanced, resolutionDropped: false);
 
-        string folder = RenderFolder(options.FolderTemplate, resolved, options, logUnbalanced);
+        string folder = RenderFolder(
+            options.FolderTemplate, resolved, options, logUnbalanced, resolutionDropped: false);
 
         return LengthReducer.FitWithDropped(
             folder, filename, ext, options,
@@ -78,9 +80,14 @@ public static class TemplateEngine
                     reduced[f] = string.Empty;
                 }
 
+                // DropOrder is user-supplied text and the reduced map is case-insensitive, so the
+                // membership test has to agree with the write that emptied the field.
+                bool resolutionDropped =
+                    droppedFields.Contains(Tokens.Resolution, StringComparer.OrdinalIgnoreCase);
+
                 return (
-                    RenderFolder(options.FolderTemplate, reduced, options, null),
-                    RenderFilename(options.FilenameTemplate, reduced, options, null));
+                    RenderFolder(options.FolderTemplate, reduced, options, null, resolutionDropped),
+                    RenderFilename(options.FilenameTemplate, reduced, options, null, resolutionDropped));
             });
     }
 
@@ -290,23 +297,24 @@ public static class TemplateEngine
         var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tags);
         string raw = RenderRaw(
             options.FilenameTemplate,
-            WithDeDupedTitle(resolved, options.FilenameTemplate),
+            WithDeDupedTitle(resolved, options.FilenameTemplate, resolutionDropped: false),
             suppressExt: true,
             null);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options) != raw;
     }
 
-    // A render removes the title's own trailing resolution tag only where it writes a label of its
-    // own, so the title keeps its tag when the template omits $resolution, when no label was derived
-    // and when the length reducer dropped the field. The map is read-only because the filename and
-    // folder templates render from it independently.
+    // A render removes the title's own trailing resolution tag where it writes a label of its own,
+    // and where the length reducer dropped $resolution to fit the budget. The title keeps its tag
+    // where the template omits $resolution and where no label could be derived. The map is read-only
+    // because the filename and folder templates render from it independently.
     private static IReadOnlyDictionary<string, string> WithDeDupedTitle(
         IReadOnlyDictionary<string, string> resolved,
-        string template)
+        string template,
+        bool resolutionDropped)
     {
         if (!TemplateRendersResolution(template)
-            || Resolve(resolved, Tokens.Resolution).Length == 0
+            || (!resolutionDropped && Resolve(resolved, Tokens.Resolution).Length == 0)
             || !resolved.TryGetValue(Tokens.Title, out var title))
         {
             return resolved;
@@ -330,9 +338,14 @@ public static class TemplateEngine
         string template,
         IReadOnlyDictionary<string, string> resolved,
         RenamerOptions options,
-        Action<string>? logUnbalanced)
+        Action<string>? logUnbalanced,
+        bool resolutionDropped)
     {
-        string raw = RenderRaw(template, WithDeDupedTitle(resolved, template), suppressExt: true, logUnbalanced);
+        string raw = RenderRaw(
+            template,
+            WithDeDupedTitle(resolved, template, resolutionDropped),
+            suppressExt: true,
+            logUnbalanced);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options);
     }
@@ -343,14 +356,19 @@ public static class TemplateEngine
         string template,
         IReadOnlyDictionary<string, string> resolved,
         RenamerOptions options,
-        Action<string>? logUnbalanced)
+        Action<string>? logUnbalanced,
+        bool resolutionDropped)
     {
         if (string.IsNullOrEmpty(template))
         {
             return string.Empty;
         }
 
-        string raw = RenderRaw(template, WithDeDupedTitle(resolved, template), suppressExt: false, logUnbalanced);
+        string raw = RenderRaw(
+            template,
+            WithDeDupedTitle(resolved, template, resolutionDropped),
+            suppressExt: false,
+            logUnbalanced);
         raw = ApplyTransforms(raw, options);
 
         var cleaned = raw
