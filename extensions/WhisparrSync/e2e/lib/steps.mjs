@@ -48,8 +48,15 @@ export function whisparrCaller(baseUrl, generation, { secret, headers = {} } = {
   });
 }
 
-/** How long one navigation is given to render what the caller named, and how many are tried. */
-const PAGE_BUDGET_MS = 60_000;
+/**
+ * How long one navigation is given to render what the caller named, and how many are tried.
+ *
+ * The product of the two stays well inside the 180s per-test timeout in playwright.config.mjs. At
+ * one minute an attempt it equalled that timeout exactly, so a page that never rendered was killed
+ * by the runner one instant before the throw below, and the diagnostic naming the label, the
+ * attempts and the final URL never printed.
+ */
+const PAGE_BUDGET_MS = 30_000;
 const PAGE_ATTEMPTS = 3;
 
 /**
@@ -70,16 +77,22 @@ export async function visit(
   label,
   { attempts = PAGE_ATTEMPTS, budgetMs = PAGE_BUDGET_MS } = {},
 ) {
+  // Held rather than discarded: a locator that matches nothing and a chunk that never fetched both
+  // time out here, and without the last failure the two are one message.
+  let lastFailure = null;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     await page.goto(`${baseUrl}${path}`);
     const rendered = await present
       .waitFor({ state: "visible", timeout: budgetMs })
       .then(() => true)
-      .catch(() => false);
+      .catch((failure) => {
+        lastFailure = failure;
+        return false;
+      });
     if (rendered) return;
   }
   throw new Error(
-    `${label}: nothing rendered at ${baseUrl}${path} across ${String(attempts)} navigation(s) of ${String(budgetMs)}ms each; the page is now at ${page.url()}`,
+    `${label}: nothing rendered at ${baseUrl}${path} across ${String(attempts)} navigation(s) of ${String(budgetMs)}ms each; the page is now at ${page.url()}. The last attempt failed with: ${String(lastFailure?.message ?? lastFailure)}`,
   );
 }
 
