@@ -93,11 +93,14 @@ public sealed class GatewayBudgetTests
         Assert.DoesNotContain(WhisparrClient.RequestTimeout, builtWith);
     }
 
-    private static Task<V2Api.IGetHistoryApiResponse> ReadThroughAsync(
+    private static async Task<V2Api.IGetHistoryApiResponse> ReadThroughAsync(
         Whisparr2Gateway gateway, TimeSpan budget)
-        => gateway.For(new Whisparr2Target(SomeAddress, SomeKey, budget))
+    {
+        using var apis = gateway.For(new Whisparr2Target(SomeAddress, SomeKey, budget));
+        return await apis
             .Api<V2Api.IHistoryApi>()
             .GetHistoryAsync(cancellationToken: TestContext.Current.CancellationToken);
+    }
 
     private sealed class SlowHandler(TimeSpan delay) : HttpMessageHandler
     {

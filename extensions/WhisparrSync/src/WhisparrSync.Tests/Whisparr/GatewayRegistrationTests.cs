@@ -89,44 +89,80 @@ public sealed class GatewayRegistrationTests
             "v3 reused a registration bound to the key that was replaced");
     }
 
+    // A discarded pair reached again is registered from nothing, so it asks the factory for another
+    // handler. Counting handlers reads the cache the way a request does.
     [Fact]
-    public void ANinthPairDiscardsTheLeastRecentlyReachedOnTheOlderGeneration()
+    public async Task ANinthPairDiscardsTheLeastRecentlyReachedOnTheOlderGeneration()
     {
-        using var gateway = new Whisparr2Gateway();
-
-        var discarded = gateway.For(new Whisparr2Target(AddressNumbered(1), SomeKey));
-        for (var pair = 2; pair <= 9; pair++)
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "{}");
+        var askedFor = 0;
+        using var gateway = new Whisparr2Gateway(() =>
         {
-            gateway.For(new Whisparr2Target(AddressNumbered(pair), SomeKey));
+            askedFor++;
+            return handler;
+        });
+
+        for (var pair = 1; pair <= 9; pair++)
+        {
+            await ReadThroughAsync(gateway, AddressNumbered(pair), SomeKey);
         }
 
-        var held = gateway.For(new Whisparr2Target(AddressNumbered(9), SomeKey));
-        Assert.Throws<ObjectDisposedException>(() => discarded.Api<V2Api.IHistoryApi>());
-        Assert.NotNull(held.Api<V2Api.IHistoryApi>());
+        var afterNinePairs = askedFor;
+        await ReadThroughAsync(gateway, AddressNumbered(1), SomeKey);
+
+        Assert.True(askedFor > afterNinePairs, "the least recently reached pair was kept");
     }
 
     [Fact]
-    public void ANinthPairDiscardsTheLeastRecentlyReachedOnTheNewerGeneration()
+    public async Task ANinthPairDiscardsTheLeastRecentlyReachedOnTheNewerGeneration()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "{}");
+        var askedFor = 0;
+        using var gateway = new Whisparr3Gateway(() =>
+        {
+            askedFor++;
+            return handler;
+        });
+
+        for (var pair = 1; pair <= 9; pair++)
+        {
+            await ReadThroughAsync(gateway, AddressNumbered(pair), SomeKey);
+        }
+
+        var afterNinePairs = askedFor;
+        await ReadThroughAsync(gateway, AddressNumbered(1), SomeKey);
+
+        Assert.True(askedFor > afterNinePairs, "the least recently reached pair was kept");
+    }
+
+    // The cap may not discard a registration a caller is still holding: that caller resolves its api
+    // after the reach, and its request sends after that again. One registry serves both gateways, so
+    // the lifetime is covered once.
+    [Fact]
+    public void ARegistrationAPairIsHoldingOutlivesTheCap()
     {
         using var gateway = new Whisparr3Gateway();
 
-        var discarded = gateway.For(new Whisparr3Target(AddressNumbered(1), SomeKey));
+        using var held = gateway.For(new Whisparr3Target(AddressNumbered(1), SomeKey));
         for (var pair = 2; pair <= 9; pair++)
         {
-            gateway.For(new Whisparr3Target(AddressNumbered(pair), SomeKey));
+            gateway.For(new Whisparr3Target(AddressNumbered(pair), SomeKey)).Dispose();
         }
 
-        var held = gateway.For(new Whisparr3Target(AddressNumbered(9), SomeKey));
-        Assert.Throws<ObjectDisposedException>(() => discarded.Api<V3Api.IHistoryApi>());
         Assert.NotNull(held.Api<V3Api.IHistoryApi>());
     }
 
+    // Each pair is released first, as a finished request releases it. What the caller keeps is then a
+    // spent handle, and that handle answering nothing is how disposal shows it discarded the provider
+    // rather than leaking it.
     [Fact]
     public void DisposalDiscardsEveryRegistrationAndRefusesAFurtherReachOnTheOlderGeneration()
     {
         var gateway = new Whisparr2Gateway();
         var first = gateway.For(new Whisparr2Target(AddressNumbered(1), SomeKey));
         var second = gateway.For(new Whisparr2Target(AddressNumbered(2), SomeKey));
+        first.Dispose();
+        second.Dispose();
 
         gateway.Dispose();
 
@@ -142,6 +178,8 @@ public sealed class GatewayRegistrationTests
         var gateway = new Whisparr3Gateway();
         var first = gateway.For(new Whisparr3Target(AddressNumbered(1), SomeKey));
         var second = gateway.For(new Whisparr3Target(AddressNumbered(2), SomeKey));
+        first.Dispose();
+        second.Dispose();
 
         gateway.Dispose();
 
@@ -153,15 +191,21 @@ public sealed class GatewayRegistrationTests
 
     private static Uri AddressNumbered(int pair) => new($"http://whisparr{pair}:6969");
 
-    private static Task<V2Api.IGetHistoryApiResponse> ReadThroughAsync(
+    private static async Task<V2Api.IGetHistoryApiResponse> ReadThroughAsync(
         Whisparr2Gateway gateway, Uri address, string apiKey)
-        => gateway.For(new Whisparr2Target(address, apiKey))
+    {
+        using var apis = gateway.For(new Whisparr2Target(address, apiKey));
+        return await apis
             .Api<V2Api.IHistoryApi>()
             .GetHistoryAsync(cancellationToken: TestContext.Current.CancellationToken);
+    }
 
-    private static Task<V3Api.IGetHistoryApiResponse> ReadThroughAsync(
+    private static async Task<V3Api.IGetHistoryApiResponse> ReadThroughAsync(
         Whisparr3Gateway gateway, Uri address, string apiKey)
-        => gateway.For(new Whisparr3Target(address, apiKey))
+    {
+        using var apis = gateway.For(new Whisparr3Target(address, apiKey));
+        return await apis
             .Api<V3Api.IHistoryApi>()
             .GetHistoryAsync(cancellationToken: TestContext.Current.CancellationToken);
+    }
 }
