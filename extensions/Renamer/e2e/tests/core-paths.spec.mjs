@@ -76,6 +76,14 @@ test("dry-run preview matches the template and touches neither disk nor the DB r
   const video = await seedVideo({ container: harness.container, baseUrl });
   const originalPath = video.files[0].path;
 
+  // An untitled item falls back to its own basename as $title, so the default template renders the
+  // name the file already has and the planner correctly reports a no-op. The title is set on the
+  // item this test seeded rather than in the extension's settings, so nothing leaks into a sibling
+  // test sharing this worker's Cove instance.
+  const title = "Dry Run Preview Test";
+  const setTitle = await api.put(`/api/videos/${video.id}`, { Title: title });
+  expect(setTitle.ok).toBe(true);
+
   // /preview has no UI trigger of its own (it's what "Rename selected" calls internally before
   // showing its confirm() dialog) — the API is the only way to exercise it in isolation, without
   // also triggering the actual mutation the UI action performs. This one test stays API-driven.
@@ -87,6 +95,10 @@ test("dry-run preview matches the template and touches neither disk nor the DB r
   expect(preview.json.items).toHaveLength(1);
   expect(preview.json.items[0].status).toBe("renamer");
   expect(preview.json.items[0].oldFullPath).toBe(originalPath);
+  // The rendered name is pinned on the title and the extension rather than compared whole, because
+  // the default template's date and resolution groups render from metadata this test does not set.
+  expect(preview.json.items[0].newBasename).toContain(title);
+  expect(preview.json.items[0].newBasename).toMatch(/\.mp4$/);
 
   const afterPreview = await api.get(`/api/videos/${video.id}`);
   expect(afterPreview.json.files[0].path).toBe(originalPath);
