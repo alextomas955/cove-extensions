@@ -19,8 +19,12 @@ export { createApiClient };
  * Use it for a test that changes a global extension setting, or the extension's installed state. The
  * worker-scoped `harness` is shared, so such a change leaks into every other test in that worker and
  * silently alters its behaviour. This costs a container boot per test.
+ *
+ * `env` reaches the compose invocation, so it can set any variable docker-compose.yml substitutes —
+ * including one an extension reads for itself. An extension passes its own through a wrapper of its
+ * own, so the value is decided once rather than at each fixture that names it.
  */
-export function isolatedHarnessFixture(extension) {
+export function isolatedHarnessFixture(extension, env) {
   return [
     async ({}, use, testInfo) => {
       // The container pair exists from startHarness() onward, so every later step belongs inside the
@@ -28,7 +32,7 @@ export function isolatedHarnessFixture(extension) {
       // Postgres instance and their compose network until Ryuk reaps them. Enough of those in one run
       // exhausts Docker's address pool, and the tests that then fail name neither this fixture nor
       // the one that actually broke.
-      const isolatedHarness = await startHarness();
+      const isolatedHarness = await startHarness({ env });
       try {
         isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
         await isolatedHarness.installExtension(extension);

@@ -66,10 +66,21 @@ export const THEPORNDB_ENDPOINT = "https://theporndb.net/graphql";
 
 /**
  * The floor this product clamps the backstop interval to, so a pass follows a restart without a
- * long wait. Transcribed from `WhisparrSyncOptions.BackstopIntervalFloorSeconds`; a stored value
- * below it is read as it.
+ * long wait. A stored value below it is read as it, and the worker wakes on it.
+ *
+ * The product's own floor is thirty seconds. That is a wake period paid per pass, and the backstop
+ * specs wait through three or four, so this suite asks the extension for a shorter one through
+ * `WHISPARRSYNC_BACKSTOP_FLOOR_SECONDS`. The variable is honoured downward only, so naming a larger
+ * number here would silently leave the thirty standing rather than raise it.
+ *
+ * Transcribed from `WhisparrSyncOptions.ShortenedFloorSeconds`, and passed to the Cove container by
+ * `startHarness`. Both readers take it from here, so the interval a spec stores and the floor the
+ * container clamps to cannot disagree.
  */
-export const BACKSTOP_INTERVAL_FLOOR_SECONDS = 30;
+export const BACKSTOP_INTERVAL_FLOOR_SECONDS = 2;
+
+/** The variable the extension reads that floor from. */
+export const BACKSTOP_FLOOR_VARIABLE = "WHISPARRSYNC_BACKSTOP_FLOOR_SECONDS";
 
 /** The library root a seeded Whisparr entity is registered under, where a spec needs no volume. */
 export const WHISPARR_ROOT = "/whisparr-media";

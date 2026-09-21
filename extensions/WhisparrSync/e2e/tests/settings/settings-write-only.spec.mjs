@@ -11,14 +11,9 @@
 // correctly withholds it does.
 //
 // Its own instance: this writes settings, which are instance-global.
-import {
-  test as base,
-  expect,
-  createApiClient,
-  isolatedHarnessFixture,
-} from "@cove-extensions/e2e";
+import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { DATA_ROUTE, SETTINGS_ROUTE } from "../../lib/contract.mjs";
-import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
+import { isolatedCoveFixture } from "../../lib/whisparr-sync-fixtures.mjs";
 
 // Synthetic and authorises nothing: no instance is reached in this spec. Distinctive enough that a
 // substring search for it cannot match anything else the responses carry.
@@ -27,7 +22,7 @@ const V2_SAVED_KEY = "e2ewriteonlyv2b3d95f10a7c284e6d1";
 const SAVED_ADDRESS = "http://whisparr-v3-not-started:6969";
 
 const test = base.extend({
-  isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
+  isolatedHarness: isolatedCoveFixture(),
 });
 
 test("a saved key reaches neither the settings response nor the host's bulk data route", async ({

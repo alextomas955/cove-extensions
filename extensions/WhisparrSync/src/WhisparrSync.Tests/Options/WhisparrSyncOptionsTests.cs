@@ -415,6 +415,31 @@ public sealed class WhisparrSyncOptionsTests
             loaded.BackstopInterval);
     }
 
+    [Theory]
+    [InlineData("1", 1)]
+    [InlineData("2", 2)]
+    [InlineData("29", 29)]
+    public void AVariableNamingAShorterFloorShortensIt(string named, int expected)
+        => Assert.Equal(expected, WhisparrSyncOptions.ShortenedFloorSeconds(named));
+
+    // Only downward, so nothing an operator sets can make a deployment sweep less often than it
+    // does with the variable absent.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("0")]
+    [InlineData("-5")]
+    [InlineData("30")]
+    [InlineData("900")]
+    [InlineData("twenty")]
+    [InlineData("2.5")]
+    [InlineData("0x2")]
+    public void AVariableThatNamesNoShorterFloorLeavesTheStandardOneStanding(string? named)
+        => Assert.Equal(
+            WhisparrSyncOptions.StandardBackstopIntervalFloorSeconds,
+            WhisparrSyncOptions.ShortenedFloorSeconds(named));
+
     [Fact]
     public async Task AStoredIntervalAboveTheFloorIsHonoured()
     {

@@ -10,15 +10,10 @@
 //
 // Every "nothing was written" claim is read back through the extension's own settings route rather
 // than off the page, because the page is what is under test.
-import {
-  test as base,
-  expect,
-  createApiClient,
-  isolatedHarnessFixture,
-} from "@cove-extensions/e2e";
+import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { EXTENSION_ID, SETTINGS_ROUTE } from "../../lib/contract.mjs";
-import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
+import { isolatedCoveFixture } from "../../lib/whisparr-sync-fixtures.mjs";
 
 const PANEL_PATH = "/settings/whisparr-sync";
 const STATUS_PATH = "/api/v3/system/status";
@@ -33,7 +28,7 @@ const ATTEMPT_BUDGET_MS = 60_000;
 const ATTEMPTS = 3;
 
 const test = base.extend({
-  isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
+  isolatedHarness: isolatedCoveFixture(),
 
   // Both generations, on the isolated Cove's own network. Started here rather than through the
   // shared `whisparr` fixture, which binds to the worker harness this spec deliberately does not use.
