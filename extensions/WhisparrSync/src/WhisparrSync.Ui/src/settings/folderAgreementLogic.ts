@@ -5,9 +5,9 @@ import type {
   FolderMappingSaveResult,
 } from "../wire/api";
 import {
-  folderAgreementMappingSentence,
-  folderAgreementRootSentence,
   folderAgreementTriedSentence,
+  FOLDER_AGREEMENT_NEEDS_A_PATH,
+  FOLDER_AGREEMENT_NOTHING_TO_SETTLE,
   FOLDER_AGREEMENT_SETTLED,
   FOLDER_INSTANCE_CANNOT_BE_ASKED,
   FOLDER_INSTANCE_DECLARES_NO_ROOT,
@@ -94,23 +94,33 @@ export function hasAnythingToShow(view: FolderAgreementView | null): boolean {
   return agreementLines(view).length > 0;
 }
 
+/** What a folder's own row says about it at a glance. */
+export type FolderAgreementState = "settled" | "needsAPath" | "nothingToSettle";
+
 /**
- * The whole of what `line` says. A line with no refusal names no paths tried, because the instance
- * was asked about nothing this run.
+ * Which of the three states `line` is in. A line carrying no refusal is settled whether Cove worked
+ * its path out or a reader stated one, because neither leaves anything to do.
  */
-export function sentenceFor(line: FolderAgreementRootLine): string {
+export function stateOf(line: FolderAgreementRootLine): FolderAgreementState {
   if (line.refusal === null) {
-    return [folderAgreementRootSentence(line.root), FOLDER_AGREEMENT_SETTLED].join(" ");
+    return "settled";
   }
-  return [
-    folderAgreementRootSentence(line.root),
-    describeFolderRefusal(line.refusal),
-    folderAgreementTriedSentence(line.pathsTried),
-  ].join(" ");
+  return NOTHING_TO_STATE.includes(line.refusal) ? "nothingToSettle" : "needsAPath";
 }
 
-export function mappingSentenceFor(line: FolderAgreementRootLine): string | null {
-  return line.mapping === null ? null : folderAgreementMappingSentence(line.mapping);
+const STATE_LABELS: Record<FolderAgreementState, string> = {
+  settled: FOLDER_AGREEMENT_SETTLED,
+  needsAPath: FOLDER_AGREEMENT_NEEDS_A_PATH,
+  nothingToSettle: FOLDER_AGREEMENT_NOTHING_TO_SETTLE,
+};
+
+export function stateLabel(state: FolderAgreementState): string {
+  return STATE_LABELS[state];
+}
+
+/** Why the folder is not settled, or null where it is. */
+export function reasonFor(line: FolderAgreementRootLine): string | null {
+  return line.refusal === null ? null : describeFolderRefusal(line.refusal);
 }
 
 export function saveAnswerSentence(answer: FolderSaveAnswer): string {

@@ -184,10 +184,6 @@ describe("the whole-catalogue confirmation names the figure and what it is not",
 
 describe("a folder Whisparr could not be shown to hold names what was asked", () => {
   // A composer that dropped the path would still read as a complete sentence.
-  it("names the folder the prompt is about", () => {
-    expect(copy.folderAgreementRootSentence("/media")).toContain("/media");
-  });
-
   it("names every path the instance was asked about", () => {
     const sentence = copy.folderAgreementTriedSentence(["/data/media", "/mnt/media"]);
 
@@ -199,8 +195,8 @@ describe("a folder Whisparr could not be shown to hold names what was asked", ()
     expect(copy.folderAgreementTriedSentence([]).length).toBeGreaterThan(0);
   });
 
-  it("names the path in force where one is already stated", () => {
-    expect(copy.folderAgreementMappingSentence("/data/media")).toContain("/data/media");
+  it("counts the paths on the disclosure that holds them", () => {
+    expect(copy.folderAgreementTriedSummary(3)).toContain("3");
   });
 });
 

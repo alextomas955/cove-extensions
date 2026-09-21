@@ -7,6 +7,8 @@ import type {
   FolderMappingSaveResult,
 } from "../wire/api";
 import {
+  FOLDER_AGREEMENT_NEEDS_A_PATH,
+  FOLDER_AGREEMENT_NOTHING_TO_SETTLE,
   FOLDER_AGREEMENT_SETTLED,
   FOLDER_INSTANCE_CANNOT_BE_ASKED,
   FOLDER_MORE_THAN_ONE_RESOLVED,
@@ -25,10 +27,11 @@ import {
   describeFolderRefusal,
   FOLDER_AGREEMENT_REFUSALS,
   hasAnythingToShow,
-  mappingSentenceFor,
+  reasonFor,
   saveAnswerSentence,
   saveSettled,
-  sentenceFor,
+  stateLabel,
+  stateOf,
   withdrawsOnly,
   type FolderSaveAnswer,
 } from "./folderAgreementLogic";
@@ -71,31 +74,34 @@ describe("a page with every folder settled has nothing to show", () => {
 });
 
 describe("each folder says what happened to it", () => {
-  it("names the folder and the path that was tried where nothing resolved", () => {
-    const sentence = sentenceFor(
-      lineFor("/media", "nothingResolved", ["/data/media/scene/clip.mp4"]),
+  it("gives the reason where nothing resolved", () => {
+    expect(reasonFor(lineFor("/media", "nothingResolved", ["/data/media/scene/clip.mp4"]))).toBe(
+      FOLDER_NOTHING_RESOLVED,
     );
-
-    expect(sentence).toContain("/media");
-    expect(sentence).toContain(FOLDER_NOTHING_RESOLVED);
-    expect(sentence).toContain("/data/media/scene/clip.mp4");
+    expect(stateOf(lineFor("/media", "nothingResolved"))).toBe("needsAPath");
   });
 
   it("says the places cannot be told apart, and that a stated path settles it", () => {
-    const sentence = sentenceFor(
-      lineFor("/media", "moreThanOneResolved", ["/data/media", "/mnt/media"]),
+    expect(reasonFor(lineFor("/media", "moreThanOneResolved", ["/data/media", "/mnt/media"]))).toBe(
+      FOLDER_MORE_THAN_ONE_RESOLVED,
     );
-
-    expect(sentence).toContain(FOLDER_MORE_THAN_ONE_RESOLVED);
-    expect(sentence).toContain("/data/media");
-    expect(sentence).toContain("/mnt/media");
+    expect(stateOf(lineFor("/media", "moreThanOneResolved"))).toBe("needsAPath");
   });
 
   it("states a folder with no file to ask about, and asks for nothing", () => {
-    expect(sentenceFor(lineFor("/media", "noFileToProbeWith"))).toContain(
-      FOLDER_NO_FILE_TO_PROBE_WITH,
-    );
+    expect(reasonFor(lineFor("/media", "noFileToProbeWith"))).toBe(FOLDER_NO_FILE_TO_PROBE_WITH);
+    expect(stateOf(lineFor("/media", "noFileToProbeWith"))).toBe("nothingToSettle");
     expect(asksForAPath(lineFor("/media", "noFileToProbeWith"))).toBe(false);
+  });
+
+  it("gives each state a label of its own", () => {
+    const labels = (["settled", "needsAPath", "nothingToSettle"] as const).map(stateLabel);
+
+    expect(labels).toEqual([
+      FOLDER_AGREEMENT_SETTLED,
+      FOLDER_AGREEMENT_NEEDS_A_PATH,
+      FOLDER_AGREEMENT_NOTHING_TO_SETTLE,
+    ]);
   });
 
   it("separates an answer that could not be read from an answer of no", () => {
@@ -134,21 +140,9 @@ describe("each folder says what happened to it", () => {
 });
 
 describe("a folder whose stated path is working", () => {
-  it("names the folder and says nothing about it is outstanding", () => {
-    const sentence = sentenceFor(settledLineFor("/media", "/data/media"));
-
-    expect(sentence).toContain("/media");
-    expect(sentence).toContain(FOLDER_AGREEMENT_SETTLED);
-  });
-
-  it("names no path the instance was asked about", () => {
-    expect(sentenceFor(settledLineFor("/media", "/data/media"))).not.toContain("asked Whisparr");
-  });
-
-  it("names the path in force beneath the folder", () => {
-    const sentence = mappingSentenceFor(settledLineFor("/media", "/data/media"));
-
-    expect(sentence ?? "").toContain("/data/media");
+  it("reads as settled, with nothing left to say about it", () => {
+    expect(stateOf(settledLineFor("/media", "/data/media"))).toBe("settled");
+    expect(reasonFor(settledLineFor("/media", "/data/media"))).toBeNull();
   });
 
   it("asks for a path, so the stated one can be withdrawn", () => {
@@ -181,21 +175,6 @@ describe("a folder carrying a stated path and a reason at once", () => {
 
     expect(asksForAPath(line)).toBe(false);
     expect(withdrawsOnly(line)).toBe(false);
-  });
-});
-
-describe("a folder with a path already stated shows it", () => {
-  it("names the path in force", () => {
-    const sentence = mappingSentenceFor(
-      lineFor("/media", "nothingResolved", ["/data/media"], "/data/media"),
-    );
-
-    expect(sentence).not.toBeNull();
-    expect(sentence ?? "").toContain("/data/media");
-  });
-
-  it("says nothing where no path is stated", () => {
-    expect(mappingSentenceFor(lineFor("/media", "nothingResolved", ["/data/media"]))).toBeNull();
   });
 });
 
