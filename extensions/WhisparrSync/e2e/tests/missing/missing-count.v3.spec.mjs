@@ -78,10 +78,6 @@ const countLine = (page) =>
 /** Any sentence the tab stated in place of a grid. */
 const statedReasons = (page) => page.locator("p").filter({ hasText: /\S/ });
 
-function note(description) {
-  test.info().annotations.push({ type: "skipped-assertion", description });
-}
-
 /** The identifiers of the cards on screen, in the order the grid drew them. */
 async function firstCardTitle(page) {
   return (await cards(page).first().innerText()).trim();
@@ -160,25 +156,20 @@ test("the grid never blanks between reads, and the pager offers no page that rep
   const drawn = await cards(page).count();
   expect(drawn, "a page of this catalogue is capped at forty cards").toBeLessThanOrEqual(40);
 
-  // Whether the grid was given the provider and entity names its own sentences are filled with. The
-  // tab shell is what supplies them, and until it does the grid states no reason of its own.
-  const gridStatesItsOwnReasons = (await countLine(page).count()) > 0;
-
-  if (gridStatesItsOwnReasons) {
-    const stated = await rangeInTheBar(page).first().innerText();
-    expect(
-      stated,
-      "the bar names a range and a total taken from the provider, so it cannot be the number of cards left after ownership was subtracted",
-    ).toMatch(/\d+.*of\s+\d/);
-    expect(
-      await countLine(page).first().innerText(),
-      "the line under the bar says what that total counts, the badge beside it having no room to",
-    ).toContain("not the number you are missing");
-  } else {
-    note(
-      "the count-line assertions did not run: the tab shell does not yet pass the grid the provider and entity names its sentences are filled with",
-    );
-  }
+  // The grid draws this line whenever it has a view, and the cards above are that view, so an
+  // absence here is the tab shell failing to pass the grid what its sentences are filled with.
+  await expect(
+    countLine(page).first(),
+    "the grid drew cards but stated nothing about what its total counts, so the tab shell passed it no provider and entity name",
+  ).toBeVisible({ timeout: REGION_BUDGET_MS });
+  await expect(
+    rangeInTheBar(page).first(),
+    "the bar states no range and total at all, so nothing says the figure came from the provider rather than from the cards left after ownership was subtracted",
+  ).toBeVisible({ timeout: REGION_BUDGET_MS });
+  await expect(
+    countLine(page).first(),
+    "the line under the bar says what that total counts, the badge beside it having no room to",
+  ).toContainText("not the number you are missing");
 
   // A page change keeps the previous page on screen. The read is held in flight deliberately, so the
   // assertion is about what the grid does while it waits rather than about how fast it answers.
@@ -242,16 +233,10 @@ test("the grid never blanks between reads, and the pager offers no page that rep
   await page.route(/\/missing\?/, (route) => route.abort());
   await page.getByRole("button", { name: "Refresh" }).first().click();
 
-  if (gridStatesItsOwnReasons) {
-    await expect(
-      page.getByText(READ_IS_STALE).first(),
-      "a failed refresh did not say the values on screen may have moved",
-    ).toBeVisible({ timeout: REGION_BUDGET_MS });
-  } else {
-    note(
-      "the stale-read sentence did not run: the tab shell does not yet pass the grid the provider and entity names its sentences are filled with",
-    );
-  }
+  await expect(
+    page.getByText(READ_IS_STALE).first(),
+    "a failed refresh did not say the values on screen may have moved",
+  ).toBeVisible({ timeout: REGION_BUDGET_MS });
 
   // The property that holds either way: a failed refresh keeps the answer it has rather than
   // replacing a correct one with an error.
