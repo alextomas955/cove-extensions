@@ -60,7 +60,7 @@ internal sealed class EntityNamePort(DbContext db) : IEntityNamePort
 // Two exact name matches counts as no identifier: choosing between them would leave the answer to
 // match order.
 internal sealed class MissingIdentityResolver(
-    IEntityIdentityPort identities, IProviderCatalogue catalogue, IEntityNamePort names)
+    IEntityIdentityPort identities, ProviderCatalogueSource catalogues, IEntityNamePort names)
 {
     internal async Task<ProviderIdentityLookup> ResolveAsync(
         WhisparrEntityKind kind,
@@ -88,6 +88,7 @@ internal sealed class MissingIdentityResolver(
             return ProviderIdentityLookup.Unmatched;
         }
 
+        var catalogue = await catalogues(ct).ConfigureAwait(false);
         return await catalogue
             .LookUpByNameAsync(kind, named.Name, named.Aliases, ct)
             .ConfigureAwait(false);

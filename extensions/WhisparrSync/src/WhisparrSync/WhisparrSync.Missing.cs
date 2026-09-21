@@ -93,8 +93,9 @@ public sealed partial class WhisparrSync
         if (context is null)
         {
             return TypedResults.Ok(
-                RefusedPage(
-                    readPage, readPerPage, MissingRefusalKind.NoInstanceConnected, planner));
+                await RefusedPageAsync(
+                        readPage, readPerPage, MissingRefusalKind.NoInstanceConnected, planner, ct)
+                    .ConfigureAwait(false));
         }
 
         var request = new MissingPageRequest(
@@ -115,8 +116,9 @@ public sealed partial class WhisparrSync
         {
             WhisparrSyncLog.CatalogueReadContained(log, WhisparrSyncLog.Classify(failure));
             return TypedResults.Ok(
-                RefusedPage(
-                    readPage, readPerPage, MissingRefusalKind.ProviderUnreachable, planner));
+                await RefusedPageAsync(
+                        readPage, readPerPage, MissingRefusalKind.ProviderUnreachable, planner, ct)
+                    .ConfigureAwait(false));
         }
     }
 
@@ -279,8 +281,12 @@ public sealed partial class WhisparrSync
             exclusions);
     }
 
-    private static MissingPageView RefusedPage(
-        int page, int perPage, MissingRefusalKind refusal, MissingPagePlanner planner)
+    private static async Task<MissingPageView> RefusedPageAsync(
+        int page,
+        int perPage,
+        MissingRefusalKind refusal,
+        MissingPagePlanner planner,
+        CancellationToken ct)
         => new(
             Cards: [],
             CatalogueSize: 0,
@@ -296,7 +302,7 @@ public sealed partial class WhisparrSync
             SortInForce: null,
             StatusWasRead: false,
             StatusIsPermanentlyAbsent: false,
-            planner.ProviderName);
+            await planner.ProviderNameAsync(ct).ConfigureAwait(false));
 
     private static string? Blank(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value;

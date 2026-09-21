@@ -2,7 +2,6 @@ using Cove.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using WhisparrSync.Contracts;
 using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 
@@ -46,13 +45,12 @@ internal static class ProviderServiceRegistration
                 provider.GetService<ILogger<ThePornDbCatalogue>>() as ILogger
                     ?? NullLogger.Instance));
 
-        // One registration of the seam. A second registration of either catalogue under this
-        // service would be shadowed by this one, so it would be dead wiring a reader takes for the
-        // live path.
-        services.AddScoped<IProviderCatalogue>(provider => new ProviderCatalogueSelector(
-            provider.GetRequiredService<OptionsStore>(),
-            provider.GetRequiredService<StashDbCatalogue>(),
-            provider.GetRequiredService<ThePornDbCatalogue>()));
+        // One registration of the choice. The seam itself is not registered: a catalogue is
+        // asked for by the source below rather than injected, so no call site can hold one before
+        // the stored choice has been read.
+        services.AddScoped<ProviderCatalogueChoice>();
+        services.AddScoped<ProviderCatalogueSource>(
+            provider => provider.GetRequiredService<ProviderCatalogueChoice>().ChooseAsync);
 
         return services;
     }
@@ -63,87 +61,4 @@ internal static class ProviderServiceRegistration
             AllowAutoRedirect = true,
             MaxAutomaticRedirections = WhisparrClient.MaxRedirects,
         };
-}
-
-// Which generation is connected is a stored setting, so the choice is made per scope rather than at
-// container build time. The seam's ordering and capability members carry no cancellation and no
-// result to await, so reading one blocks on the load the constructor started.
-internal sealed class ProviderCatalogueSelector : IProviderCatalogue
-{
-    private readonly Task<IProviderCatalogue> _selected;
-
-    internal ProviderCatalogueSelector(
-        OptionsStore options, StashDbCatalogue stashDb, ThePornDbCatalogue thePornDb)
-        => _selected = SelectAsync(options, stashDb, thePornDb);
-
-    public IReadOnlyList<ProviderSortOption> Sorts => Selected.Sorts;
-
-    public string DefaultSort => Selected.DefaultSort;
-
-    public ProviderCapabilitySet Capabilities => Selected.Capabilities;
-
-    private IProviderCatalogue Selected => _selected.GetAwaiter().GetResult();
-
-    public string? SceneAddress(string providerSceneId) => Selected.SceneAddress(providerSceneId);
-
-    public async Task<ProviderCatalogueAnswer> ReadPageAsync(
-        ProviderCatalogueRequest request, CancellationToken ct)
-    {
-        var catalogue = await _selected.ConfigureAwait(false);
-        return await catalogue.ReadPageAsync(request, ct).ConfigureAwait(false);
-    }
-
-    public async Task<int?> ReadCatalogueSizeAsync(
-        ProviderCatalogueRequest request, CancellationToken ct)
-    {
-        var catalogue = await _selected.ConfigureAwait(false);
-        return await catalogue.ReadCatalogueSizeAsync(request, ct).ConfigureAwait(false);
-    }
-
-    public async Task<ProviderIdentityLookup> LookUpByNameAsync(
-        WhisparrEntityKind kind, string name, IReadOnlyList<string> aliases, CancellationToken ct)
-    {
-        var catalogue = await _selected.ConfigureAwait(false);
-        return await catalogue.LookUpByNameAsync(kind, name, aliases, ct).ConfigureAwait(false);
-    }
-
-    public async Task<int?> ResolveNumericSceneIdAsync(string providerSceneId, CancellationToken ct)
-    {
-        var catalogue = await _selected.ConfigureAwait(false);
-        return await catalogue.ResolveNumericSceneIdAsync(providerSceneId, ct).ConfigureAwait(false);
-    }
-
-    public async Task<ProviderSiteNumber> ResolveNumericSiteIdAsync(
-        string providerSiteId, CancellationToken ct)
-    {
-        var catalogue = await _selected.ConfigureAwait(false);
-        return await catalogue.ResolveNumericSiteIdAsync(providerSiteId, ct).ConfigureAwait(false);
-    }
-
-    public async Task<IReadOnlyList<ProviderFacetMenu>> ListFacetMenusAsync(
-        WhisparrEntityKind kind, string providerEntityId, CancellationToken ct)
-    {
-        var catalogue = await _selected.ConfigureAwait(false);
-        return await catalogue.ListFacetMenusAsync(kind, providerEntityId, ct).ConfigureAwait(false);
-    }
-
-    public async Task<ProviderFacetSearch> SearchFacetValuesAsync(
-        WhisparrEntityKind kind,
-        string providerEntityId,
-        string facetKey,
-        string fragment,
-        CancellationToken ct)
-    {
-        var catalogue = await _selected.ConfigureAwait(false);
-        return await catalogue
-            .SearchFacetValuesAsync(kind, providerEntityId, facetKey, fragment, ct)
-            .ConfigureAwait(false);
-    }
-
-    private static async Task<IProviderCatalogue> SelectAsync(
-        OptionsStore options, StashDbCatalogue stashDb, ThePornDbCatalogue thePornDb)
-    {
-        var stored = await options.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-        return stored.SelectedGeneration == WhisparrGeneration.V2 ? thePornDb : stashDb;
-    }
 }
