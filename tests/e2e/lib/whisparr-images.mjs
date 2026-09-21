@@ -43,11 +43,11 @@ export const WHISPARR_IMAGES = Object.freeze(
  * @returns {string}
  */
 export function whisparrImage(generation) {
-  const image = WHISPARR_IMAGES[generation];
-  if (image === undefined) {
+  if (!Object.hasOwn(WHISPARR_IMAGES, generation)) {
     throw new Error(
       `whisparrImage: unknown generation "${generation}"; declared generations are ${Object.keys(WHISPARR_IMAGES).join(", ")}.`,
     );
   }
+  const image = WHISPARR_IMAGES[generation];
   return image;
 }

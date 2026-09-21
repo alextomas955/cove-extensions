@@ -125,12 +125,12 @@ const GENERATIONS = {
  * @param {"v2"|"v3"} generation
  */
 export function adapterFor(generation) {
-  const own = GENERATIONS[generation];
-  if (own === undefined) {
+  if (!Object.hasOwn(GENERATIONS, generation)) {
     throw new Error(
       `adapterFor: no adapter is written for the generation "${generation}"; written are ${Object.keys(GENERATIONS).join(", ")}.`,
     );
   }
+  const own = GENERATIONS[generation];
 
   return {
     /** The source this generation stamps an imported item's identity under. */

@@ -24,6 +24,7 @@ import { createApiClient } from "../../lib/apiClient.mjs";
 import { resolveCoveImage, startHarness } from "../../lib/harness.mjs";
 import { resolveExtensionPaths } from "../../lib/resolve-extension.mjs";
 import { whisparrImage } from "../../lib/whisparr-images.mjs";
+import { byText } from "../lib/ordering.mjs";
 
 // The compose service name, which is also the hostname a container on that network addresses, and
 // the port the application listens on inside its own container rather than the published one.
@@ -121,7 +122,7 @@ function parseCallerOutput(output) {
     contentType: contentType.join(" "),
     byteLength: Number(field("BYTES")) || 0,
     markerPresent: Number(field("MARKER")) > 0,
-    headerNames: [...new Set(headerNames)].sort().join(" "),
+    headerNames: [...new Set(headerNames)].sort(byText).join(" "),
     transportError: exit === 0 ? "" : field("ERR") || `curl exited ${exit}`,
   };
 }

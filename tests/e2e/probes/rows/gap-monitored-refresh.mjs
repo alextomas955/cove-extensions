@@ -16,6 +16,7 @@
 // candidate that populates nothing is not evidence of truncation, so the row moves on rather than
 // recording it as the answer.
 import { attemptUntil } from "../../lib/poll.mjs";
+import { byText } from "../lib/ordering.mjs";
 
 const COMMAND_PATH = "/api/v3/command";
 const STUDIO_PATH = "/api/v3/studio";
@@ -197,7 +198,7 @@ async function settleRefresh(api, { studioId, foreignId, idsBefore, startedAt })
         count: fresh.length,
         failed: fresh.filter((command) => String(command.status).toLowerCase() !== "completed")
           .length,
-        names: [...new Set(fresh.map((command) => command.name))].sort().join(" "),
+        names: [...new Set(fresh.map((command) => command.name))].sort(byText).join(" "),
         refreshRan: fresh.some((command) => command.name === REFRESH_COMMAND),
       },
     },

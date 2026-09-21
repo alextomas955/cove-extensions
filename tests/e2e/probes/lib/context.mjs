@@ -117,11 +117,11 @@ export function judgeBinding(configured, observed) {
     });
   }
   configured.forEach((want, index) => {
-    const got = observed[index];
-    if (got === undefined) {
+    if (index >= observed.length) {
       mismatches.push({ index, field: "entry", configured: want.name, observed: null });
       return;
     }
+    const got = observed[index];
     for (const field of ["endpoint", "name", "maxRequestsPerMinute"]) {
       if (got[field] !== want[field]) {
         mismatches.push({ index, field, configured: want[field], observed: got[field] });

@@ -204,11 +204,11 @@ const ACQUIRABLE = {
  * @returns {Promise<{ entryId: number, folder: string, releaseQuery: string, grabFields: object }>}
  */
 export async function seedAcquirableScene({ generation, whisparr, rootFolder, run }) {
-  const seed = ACQUIRABLE[generation];
-  if (seed === undefined) {
+  if (!Object.hasOwn(ACQUIRABLE, generation)) {
     throw new Error(
       `seedAcquirableScene: no seed is written for the generation "${generation}"; written are ${Object.keys(ACQUIRABLE).join(", ")}.`,
     );
   }
+  const seed = ACQUIRABLE[generation];
   return seed({ whisparr, rootFolder, run });
 }

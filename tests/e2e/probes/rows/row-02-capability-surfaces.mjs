@@ -12,6 +12,8 @@
 //   - a route refuses GET and accepts a POST carrying a body, so a verb-blind probe misses it;
 //   - a lookup faults with no term and answers with one, so an input-blind probe misses it too.
 // The statuses each of those actually produced belong in the record, not here.
+import { byText } from "../lib/ordering.mjs";
+
 const OPENAPI_PATH = "/docs/v3/openapi.json";
 
 // A term the vendor's metadata service answers for, so the lookups below exercise the route rather
@@ -153,7 +155,7 @@ async function configuredHosts(instance) {
   const { output } = await instance.container.exec(["cat", "/config/config.xml"]);
   const hosts = new Set();
   for (const [, host] of output.matchAll(/https?:\/\/([A-Za-z0-9.-]+)/g)) hosts.add(host);
-  return [...hosts].sort();
+  return [...hosts].sort(byText);
 }
 
 /** The top-level API areas a document's own path keys describe. */
@@ -163,7 +165,7 @@ function areasOf(paths) {
     const area = /^\/api\/v3\/([^/{]+)/.exec(path)?.[1];
     if (area !== undefined) areas.add(area);
   }
-  return [...areas].sort();
+  return [...areas].sort(byText);
 }
 
 async function readV3Document(api) {
@@ -300,14 +302,14 @@ export const row = {
             status: v3Lookup.status,
             contentType: v3Lookup.contentType,
             resultCount: v3Lookup.json.length,
-            hosts: [...remoteHosts(v3Lookup.json[0])].sort(),
+            hosts: [...remoteHosts(v3Lookup.json[0])].sort(byText),
           },
           v2: {
             path: V2_LOOKUP_PATH,
             status: v2Lookup.status,
             contentType: v2Lookup.contentType,
             resultCount: v2Lookup.json.length,
-            hosts: [...remoteHosts(v2Lookup.json[0])].sort(),
+            hosts: [...remoteHosts(v2Lookup.json[0])].sort(byText),
           },
         },
         externalDependency: {

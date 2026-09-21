@@ -157,12 +157,12 @@ export async function startWhisparr({
      * re-read per call rather than captured, matching the shared client's own contract.
      */
     apiFor(generation) {
-      const instance = instances[generation];
-      if (instance === undefined) {
+      if (!Object.hasOwn(instances, generation)) {
         throw new Error(
           `startWhisparr: apiFor("${generation}") — this call started ${handle.generations.join(", ") || "nothing"}.`,
         );
       }
+      const instance = instances[generation];
       return createApiClient(() => instance.baseUrl, undefined, {
         headers: { "X-Api-Key": apiKey },
       });
@@ -173,12 +173,12 @@ export async function startWhisparr({
      * event type it now holds — also reachable afterwards as `handle[generation].history`.
      */
     async seedHistory(generation, options = {}) {
-      const instance = instances[generation];
-      if (instance === undefined) {
+      if (!Object.hasOwn(instances, generation)) {
         throw new Error(
           `startWhisparr: seedHistory("${generation}") — this call started ${handle.generations.join(", ") || "nothing"}.`,
         );
       }
+      const instance = instances[generation];
       instance.history = await seedHistory({
         container: instance.container,
         api: handle.apiFor(generation),
@@ -195,12 +195,12 @@ export async function startWhisparr({
      * NULL and a root the instance never accepted is not a value it will project an entity under.
      */
     async seedEntity(generation, options = {}) {
-      const instance = instances[generation];
-      if (instance === undefined) {
+      if (!Object.hasOwn(instances, generation)) {
         throw new Error(
           `startWhisparr: seedEntity("${generation}") — this call started ${handle.generations.join(", ") || "nothing"}.`,
         );
       }
+      const instance = instances[generation];
       return seedEntity({
         container: instance.container,
         api: handle.apiFor(generation),
