@@ -4,9 +4,8 @@ using Renamer.Options;
 namespace Renamer.Tests.Engine;
 
 /// <summary>
-/// Pins every label <see cref="ResolutionLabel"/> emits against the label Cove's own resolution
-/// badge shows for the same dimensions, and pins the width-absent fallback's two known
-/// disagreements with the two-dimension answer.
+/// Pins the labels <see cref="ResolutionLabel"/> emits against constants transcribed from running
+/// Cove's own resolution-badge function, which this file does not execute.
 /// </summary>
 public class ResolutionLabelTests
 {
@@ -32,47 +31,19 @@ public class ResolutionLabelTests
     [InlineData(256, 144, "144p")]
     [InlineData(6000, 4000, "7K")]
     [InlineData(12000, 6000, "HUGE")]
-    public void FromDimensions_MatchesCoveBadge(int width, int height, string expected)
+    [InlineData(143, 137, "144p")]
+    public void FromDimensions_ReturnsExpectedLabel(int width, int height, string expected)
     {
         Assert.Equal(expected, ResolutionLabel.FromDimensions(width, height));
     }
 
-    // The portrait heights are the fallback's known limit: one dimension cannot tell a tall video
-    // from a wide one, so 1920 and 1280 answer as the landscape file of that height.
     [Theory]
-    [InlineData(4320, "8K")]
-    [InlineData(3384, "6K")]
-    [InlineData(2880, "5K")]
-    [InlineData(2160, "4K")]
-    [InlineData(1920, "1440p")]
-    [InlineData(1440, "1440p")]
-    [InlineData(1280, "1080p")]
-    [InlineData(1200, "1080p")]
-    [InlineData(1080, "1080p")]
-    [InlineData(720, "720p")]
-    [InlineData(576, "540p")]
-    [InlineData(540, "540p")]
-    [InlineData(480, "480p")]
-    [InlineData(432, "360p")]
-    [InlineData(368, "360p")]
-    [InlineData(360, "360p")]
-    [InlineData(240, "240p")]
-    [InlineData(144, "144p")]
-    [InlineData(143, "144p")]
-    [InlineData(137, "144p")]
-    public void FromHeight_MatchesCoveBadgeForTheLandscapeFileOfThatHeight(int height, string expected)
+    [InlineData(143, 136)]
+    [InlineData(136, 136)]
+    [InlineData(100, 100)]
+    public void FromDimensions_TooSmallForAnyLabel_ReturnsEmpty(int width, int height)
     {
-        Assert.Equal(expected, ResolutionLabel.FromHeight(height));
-    }
-
-    [Theory]
-    [InlineData(136)]
-    [InlineData(100)]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void FromHeight_TooSmallOrNonPositive_ReturnsEmpty(int height)
-    {
-        Assert.Equal(string.Empty, ResolutionLabel.FromHeight(height));
+        Assert.Equal(string.Empty, ResolutionLabel.FromDimensions(width, height));
     }
 
     [Theory]
@@ -105,7 +76,7 @@ public class ResolutionLabelTests
             new RenamerOptions { FilenameTemplate = "$title{ [$resolution]}", FolderTemplate = "" });
 
     [Fact]
-    public void Render_BothDimensionTokens_LabelsThePortraitVideoByItsShortEdge()
+    public void Render_BothDimensionTokens_LabelsThePortraitVideoLikeItsLandscapeTwin()
     {
         var r = Render(new Dictionary<string, string>
         {
@@ -118,7 +89,7 @@ public class ResolutionLabelTests
     }
 
     [Fact]
-    public void Render_HeightTokenOnly_FallsBackToTheHeightAsShortEdge()
+    public void Render_HeightTokenOnly_DropsTheResolutionGroup()
     {
         var r = Render(new Dictionary<string, string>
         {
@@ -126,13 +97,13 @@ public class ResolutionLabelTests
             ["height"] = "1920",
         });
 
-        Assert.Equal("Upright [1440p]", r.Filename);
+        Assert.Equal("Upright", r.Filename);
     }
 
-    // Cove stores an unknown width as 0, so the projector emits a "0" width token for any file whose
-    // width was never probed. Such a file still gets the label its height gives.
+    // Cove stores an unknown width as 0, so a "0" width token is the shape a file Cove never probed
+    // takes.
     [Fact]
-    public void Render_ZeroWidthToken_FallsBackToTheHeight()
+    public void Render_ZeroWidthToken_DropsTheResolutionGroup()
     {
         var r = Render(new Dictionary<string, string>
         {
@@ -141,7 +112,7 @@ public class ResolutionLabelTests
             ["height"] = "2160",
         });
 
-        Assert.Equal("Unprobed [4K]", r.Filename);
+        Assert.Equal("Unprobed", r.Filename);
     }
 
     [Fact]

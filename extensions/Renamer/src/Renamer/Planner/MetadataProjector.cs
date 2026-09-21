@@ -10,8 +10,8 @@ namespace Renamer.Planner;
 //
 // Pure: no System.IO, no DB. A media token is emitted only when the file kind actually carries it, and
 // an absent token is omitted from the dictionary rather than emitted as "", so the engine's {} groups
-// collapse cleanly. $resolution is not derived here; the engine derives it from $width and $height,
-// falling back to the height alone, so a heightless kind never gets it.
+// collapse cleanly. $resolution is not derived here; the engine derives it from $width and $height
+// together, so a kind carrying only one of them, or neither, never gets it.
 public static class MetadataProjector
 {
     // Projects one file into the engine's token inputs: the case-insensitive single-value token map, the

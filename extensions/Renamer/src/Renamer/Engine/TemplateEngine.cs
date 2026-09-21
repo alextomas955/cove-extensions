@@ -146,17 +146,18 @@ public static class TemplateEngine
             map[Tokens.Tags] = MultiValue.Resolve(tags, options.Tags);
         }
 
-        // A caller-supplied $resolution wins over the derived one. Both dimensions give the label
-        // Cove's badge shows; with only a height, the label assumes that height is the short edge.
-        // Cove stores an unknown width as 0, so a non-positive width is no width.
+        // A caller-supplied $resolution wins over the derived one. Deriving it needs both dimensions,
+        // as Cove's own badge does, and Cove stores an unknown dimension as 0, so a non-positive one
+        // is an absent one. With either missing the token stays out of the map, so its group drops.
         if (!map.ContainsKey(Tokens.Resolution)
+            && map.TryGetValue(Tokens.Width, out var w)
+            && int.TryParse(w, out var width)
+            && width > 0
             && map.TryGetValue(Tokens.Height, out var h)
-            && int.TryParse(h, out var height))
+            && int.TryParse(h, out var height)
+            && height > 0)
         {
-            map[Tokens.Resolution] =
-                map.TryGetValue(Tokens.Width, out var w) && int.TryParse(w, out var width) && width > 0
-                    ? ResolutionLabel.FromDimensions(width, height)
-                    : ResolutionLabel.FromHeight(height);
+            map[Tokens.Resolution] = ResolutionLabel.FromDimensions(width, height);
         }
 
         return map;

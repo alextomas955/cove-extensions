@@ -1,7 +1,8 @@
 namespace Renamer.Engine;
 
-// Cove's own resolution tables, transcribed so a label written into a filename reads the same as
-// the badge Cove shows on the item. The bucketing is fixed, not configurable.
+// Cove's own resolution table, transcribed from ui/src/utils/resolutionBuckets.ts so a label
+// written into a filename reads the same as the badge Cove shows on the item. The bucketing is
+// fixed, not configurable.
 public static class ResolutionLabel
 {
     // A frame a little short of a standard resolution still carries that resolution's label.
@@ -26,32 +27,22 @@ public static class ResolutionLabel
         ("HUGE", 9999, 9840, int.MaxValue),
     ];
 
-    // Matched against the short edge.
+    // Matched against the short edge: every bucket except the unbounded top one, which names no
+    // standard resolution.
     private static readonly (string Label, int Value)[] StandardLabels =
-    [
-        ("144p", 144),
-        ("240p", 240),
-        ("360p", 360),
-        ("480p", 480),
-        ("540p", 540),
-        ("720p", 720),
-        ("1080p", 1080),
-        ("1440p", 1440),
-        ("4K", 2160),
-        ("5K", 2880),
-        ("6K", 3384),
-        ("7K", 4032),
-        ("8K", 4320),
-    ];
+        Buckets.Where(b => b.MaxDimensionExclusive != int.MaxValue)
+            .Select(b => (b.Label, b.Value))
+            .ToArray();
 
-    // Every label the two entry points can emit. The trailing-resolution de-duplication in
-    // TemplateEngine reads this list.
+    // Every label FromDimensions can emit. The trailing-resolution de-duplication in TemplateEngine
+    // reads this list.
     public static readonly IReadOnlyList<string> KnownLabels =
         Buckets.Select(b => b.Label).Union(StandardLabels.Select(s => s.Label), StringComparer.Ordinal).ToArray();
 
     // The larger of the two labels wins, so a portrait file reads the same as the landscape file of
-    // the same shape while a very wide frame keeps its long-edge label. A frame below the smallest
-    // bucket has no label and renders empty.
+    // the same shape while a very wide frame keeps its long-edge label. A frame renders empty only
+    // when its long edge falls below the smallest bucket and its short edge below the smallest
+    // standard label's margin.
     public static string FromDimensions(int width, int height)
     {
         if (width <= 0 || height <= 0)
@@ -74,10 +65,6 @@ public static class ResolutionLabel
 
         return Buckets[bucket].Label;
     }
-
-    // For a caller that stored only one dimension. It reads that height as both edges, so a
-    // portrait file of unknown width gets the label of the landscape file of that height.
-    public static string FromHeight(int height) => FromDimensions(height, height);
 
     private static int FindBucket(int longEdge)
     {
