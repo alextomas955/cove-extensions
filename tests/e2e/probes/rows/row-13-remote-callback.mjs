@@ -26,6 +26,7 @@ const COVE_PORT = 5073;
 
 // Files inside the container the client writes to, so a response body is never carried back through
 // the exec's stdout.
+const HARNESS_DIR = "/opt/harness";
 const BODY_FILE = "/opt/harness/rc-body";
 const HEADER_FILE = "/opt/harness/rc-headers";
 const META_FILE = "/opt/harness/rc-meta";
@@ -98,6 +99,7 @@ function curlCommand({ verb, path, body }) {
   const payload =
     body === undefined ? "" : ` -H 'Content-Type: application/json' --data ${shellQuote(body)}`;
   return [
+    `mkdir -p ${HARNESS_DIR};`,
     `curl -sS -X ${verb}${payload} -D ${HEADER_FILE} -o ${BODY_FILE}`,
     `-w '%{http_code} %{content_type}' ${url} > ${META_FILE} 2> ${ERROR_FILE};`,
     `printf 'EXIT=%s\\n' "$?";`,
