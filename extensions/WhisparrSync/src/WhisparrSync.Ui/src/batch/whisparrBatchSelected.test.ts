@@ -59,9 +59,9 @@ vi.mock("@cove-extensions/ui-shared/postAction", () => ({
 
 const { sceneBatchSelected } = await import("./whisparrBatchSelected");
 const {
-  BATCH_SEARCH_IS_OVER_THE_BOUND,
+  batchSearchIsOverTheBoundSentence,
   BULK_CANCEL,
-  BULK_SELECTION_IS_OVER_THE_BOUND,
+  bulkSelectionIsOverTheBoundSentence,
   RUN_WAS_NOT_STARTED,
   MENU_ADD,
   MENU_EXCLUDE,
@@ -187,16 +187,29 @@ test("a chosen row posts once, in the spelling the route binds", async () => {
 test("a refusal at the shipped bound states the sentence naming that bound", async () => {
   const stated = await refusedWith(400, '{"code":"TOO_MANY_IDS","max":1000}');
 
-  expect(stated).toContain(BULK_SELECTION_IS_OVER_THE_BOUND);
+  expect(stated).toContain(bulkSelectionIsOverTheBoundSentence(1000));
 });
 
 test("a refusal at the search bound states the sentence naming its own lower limit", async () => {
   const stated = await refusedWith(400, '{"code":"TOO_MANY_SEARCH_IDS","max":100}');
 
-  expect(stated).toContain(BATCH_SEARCH_IS_OVER_THE_BOUND);
-  expect(stated).not.toContain(BULK_SELECTION_IS_OVER_THE_BOUND);
+  expect(stated).toContain(batchSearchIsOverTheBoundSentence(100));
+  expect(stated).not.toContain(bulkSelectionIsOverTheBoundSentence(1000));
   // The same overlay, reopened: once to offer the rows and once to state the refusal.
   expect(opened).toBe(2);
+});
+
+test("the sentence names the bound the route refused above, not one this bundle holds", async () => {
+  const stated = await refusedWith(400, '{"code":"TOO_MANY_IDS","max":250}');
+
+  expect(stated).toContain(bulkSelectionIsOverTheBoundSentence(250));
+  expect(stated).not.toContain(bulkSelectionIsOverTheBoundSentence(1000));
+});
+
+test("a bound the refusal does not name states the plain refusal", async () => {
+  const stated = await refusedWith(400, '{"code":"TOO_MANY_IDS"}');
+
+  expect(stated).toContain(RUN_WAS_NOT_STARTED);
 });
 
 test("any other refusal states that the run was not started", async () => {

@@ -88,7 +88,7 @@ const {
   BULK_ACTIONS_COULD_NOT_BE_OFFERED,
   BULK_CANCEL,
   BULK_CLOSE,
-  BULK_SELECTION_IS_OVER_THE_BOUND,
+  bulkSelectionIsOverTheBoundSentence,
   RUN_WAS_NOT_STARTED,
   CAP_UNAVAILABLE_ON_THIS_GENERATION,
   MENU_UNMONITOR,
@@ -98,7 +98,8 @@ const {
   selectionMenuHeader,
 } = await import("../common/ui/copy");
 
-const EVERY_CAPABILITY: WhisparrCapability[] = [
+// The capabilities these tests grant a healthy entity, which are the ones this menu reads.
+const MENU_CAPABILITIES: WhisparrCapability[] = [
   "outOfBandCallbackSecret",
   "monitorStudio",
   "monitorPerformer",
@@ -114,7 +115,7 @@ function viewOf(over: Partial<EntityMonitoringView> = {}): EntityMonitoringView 
     present: false,
     monitored: false,
     refusal: "none",
-    capabilities: EVERY_CAPABILITY,
+    capabilities: MENU_CAPABILITIES,
     scope: null,
     ...over,
   };
@@ -324,7 +325,7 @@ test("a selection over the bound is refused in this product's own sentence", asy
   const { running } = await open("studios", [7, 8]);
   await press(SCOPE_FUTURE_SCENES);
 
-  expect(document.body.textContent).toContain(BULK_SELECTION_IS_OVER_THE_BOUND);
+  expect(document.body.textContent).toContain(bulkSelectionIsOverTheBoundSentence(1000));
   expect(labels()).toEqual([BULK_CLOSE]);
   await press(BULK_CLOSE);
   await running;
