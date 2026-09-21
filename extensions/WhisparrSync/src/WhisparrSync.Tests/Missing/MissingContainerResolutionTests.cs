@@ -51,13 +51,20 @@ public sealed class MissingContainerResolutionTests : IAsyncLifetime
             second.ServiceProvider.GetRequiredService<ProviderPacer>());
     }
 
+    // One catalogue per request. Transient, each reader of the seam inside a request would start
+    // the stored-generation read again and two arms of one request could answer against different
+    // sources. Singleton, a host reconfigured between requests would keep the source the container
+    // was built with.
     [Fact]
-    public void TheCatalogueIsNeverSharedBetweenScopes()
+    public void TheCatalogueIsOnePerScopeAndNotSharedBetweenScopes()
     {
         using var provider = BuildProvider();
         using var first = provider.CreateScope();
         using var second = provider.CreateScope();
 
+        Assert.Same(
+            first.ServiceProvider.GetRequiredService<IProviderCatalogue>(),
+            first.ServiceProvider.GetRequiredService<IProviderCatalogue>());
         Assert.NotSame(
             first.ServiceProvider.GetRequiredService<IProviderCatalogue>(),
             second.ServiceProvider.GetRequiredService<IProviderCatalogue>());
