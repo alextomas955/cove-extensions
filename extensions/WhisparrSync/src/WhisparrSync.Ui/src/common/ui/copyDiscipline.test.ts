@@ -255,7 +255,7 @@ describe("the confirmation names what the choice covers and what it costs", () =
 
 describe("the bound the over-the-bound sentence names is the server's own", () => {
   // Read as text: the bound is a C# constant with no wire spelling.
-  const ROUTES = path.resolve(SRC, "../../WhisparrSync/WhisparrSync.Api.cs");
+  const ROUTES = path.resolve(SRC, "../../WhisparrSync/WhisparrSync.MonitoringBulk.cs");
 
   it("names the number the route refuses above", () => {
     const declared = /MaxEntityIdsPerRequest\s*=\s*(\d+)/.exec(readFileSync(ROUTES, "utf8"));
