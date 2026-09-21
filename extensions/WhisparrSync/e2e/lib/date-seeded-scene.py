@@ -20,14 +20,17 @@ import sqlite3
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    # The caller names the database; this file chooses none.
-    parser.add_argument("--db", required=True)
+    # The generation, not a path. Where each generation keeps its catalogue is a fact about the
+    # image this runs inside, so it is stated here rather than passed in from a caller that would
+    # hold a second copy of it.
+    parser.add_argument("--generation", required=True, choices=["v2", "v3"])
     parser.add_argument("--foreign-id", required=True)
     parser.add_argument("--release-date", required=True, help="ISO-8601, the date the search uses")
     parser.add_argument("--studio-title", required=True, help="the site the search names")
     args = parser.parse_args()
 
-    connection = sqlite3.connect(args.db)
+    database = "/config/whisparr2.db" if args.generation == "v2" else "/config/whisparr3.db"
+    connection = sqlite3.connect(database)
     try:
         declared = {
             row[1] for row in connection.execute("PRAGMA table_info(MovieMetadata)").fetchall()
