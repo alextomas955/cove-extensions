@@ -13,9 +13,9 @@ import { join } from "node:path";
 const DATABASES = { v3: "/config/whisparr3.db", v2: "/config/whisparr2.db" };
 
 const DATER_SOURCE = join(import.meta.dirname, "date-seeded-scene.py");
-const DATER_TARGET = "/tmp/date-seeded-scene.py";
+const DATER_TARGET = "/opt/harness/date-seeded-scene.py";
 const V2_SEEDER_SOURCE = join(import.meta.dirname, "seed-v2-scene.py");
-const V2_SEEDER_TARGET = "/tmp/seed-v2-scene.py";
+const V2_SEEDER_TARGET = "/opt/harness/seed-v2-scene.py";
 
 /** The app's own user, which a copied file has to be handed to before the app can run it. */
 const APP_USER = "1000:1000";

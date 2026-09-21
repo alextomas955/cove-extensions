@@ -20,7 +20,7 @@ import { whisparrImage } from "../../lib/whisparr-images.mjs";
 // heredoc-written script carries CRLF into every path it handles, and the failure then blames the
 // path.
 const SCRIPT_SOURCE = join(import.meta.dirname, "webhook-listener.py");
-const SCRIPT_TARGET = "/tmp/webhook-listener.py";
+const SCRIPT_TARGET = "/opt/harness/webhook-listener.py";
 
 const SENTINEL = "@@WEBHOOK@@";
 const READY_LINE = "@@LISTENER-READY@@";

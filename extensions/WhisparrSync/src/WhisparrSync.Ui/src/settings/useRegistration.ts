@@ -96,14 +96,14 @@ export function useRegistration(): UseRegistration {
     // The DOM types declare the clipboard as always present, but a Cove reached over plain http
     // is not a secure context and has none, so the property access itself can throw.
     try {
-      navigator.clipboard.writeText(address).then(
-        () => {
+      navigator.clipboard
+        .writeText(address)
+        .then(() => {
           setCopyResult({ status: "copied" });
-        },
-        () => {
+        })
+        .catch(() => {
           setCopyResult({ status: "failed" });
-        },
-      );
+        });
     } catch {
       setCopyResult({ status: "failed" });
     }
