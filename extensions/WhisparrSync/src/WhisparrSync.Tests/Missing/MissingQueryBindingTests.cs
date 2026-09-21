@@ -250,8 +250,11 @@ public sealed class MissingQueryBindingTests
 
     private static MissingPagePlanner PlannerOver(RecordingCatalogue catalogue)
         => new(
-            new MissingIdentityResolver(new StubIdentities(), catalogue, new StubEntityNames()),
-            catalogue,
+            new MissingIdentityResolver(
+                new StubIdentities(),
+                TestProviderCatalogues.Naming(catalogue),
+                new StubEntityNames()),
+            TestProviderCatalogues.Naming(catalogue),
             new StubOwned());
 
     private sealed class StubIdentities : IEntityIdentityPort

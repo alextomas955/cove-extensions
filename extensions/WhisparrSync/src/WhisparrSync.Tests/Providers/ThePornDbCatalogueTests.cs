@@ -477,7 +477,8 @@ public sealed class ThePornDbCatalogueTests
         services.AddMissingProviders();
 
         Assert.Single(
-            services, registration => registration.ServiceType == typeof(IProviderCatalogue));
+            services,
+            registration => registration.ServiceType == typeof(ProviderCatalogueSource));
     }
 
     // Every other case answers from a recording, so this is the only one that reports a parameter

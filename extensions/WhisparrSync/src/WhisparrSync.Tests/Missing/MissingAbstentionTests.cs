@@ -142,9 +142,9 @@ public sealed class MissingAbstentionTests
         var view = await new MissingPagePlanner(
             new MissingIdentityResolver(
                 new StubEntityIdentities(null),
-                catalogue,
+                TestProviderCatalogues.Naming(catalogue),
                 new StubEntityNames(new EntityName("Brazzers", []))),
-            catalogue,
+            TestProviderCatalogues.Naming(catalogue),
             new StubOwnedScenes())
             .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
 
@@ -161,9 +161,9 @@ public sealed class MissingAbstentionTests
         var view = await new MissingPagePlanner(
             new MissingIdentityResolver(
                 new StubEntityIdentities(null),
-                catalogue,
+                TestProviderCatalogues.Naming(catalogue),
                 new StubEntityNames(new EntityName("Brazzers", []))),
-            catalogue,
+            TestProviderCatalogues.Naming(catalogue),
             new StubOwnedScenes())
             .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
 
@@ -179,8 +179,10 @@ public sealed class MissingAbstentionTests
 
         var view = await new MissingPagePlanner(
             new MissingIdentityResolver(
-                new StubEntityIdentities("an-entity"), catalogue, new StubEntityNames()),
-            catalogue,
+                new StubEntityIdentities("an-entity"),
+                TestProviderCatalogues.Naming(catalogue),
+                new StubEntityNames()),
+            TestProviderCatalogues.Naming(catalogue),
             owned)
             .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
 
@@ -225,8 +227,10 @@ public sealed class MissingAbstentionTests
 
         return new MissingPagePlanner(
             new MissingIdentityResolver(
-                new StubEntityIdentities("an-entity"), catalogue, new StubEntityNames()),
-            catalogue,
+                new StubEntityIdentities("an-entity"),
+                TestProviderCatalogues.Naming(catalogue),
+                new StubEntityNames()),
+            TestProviderCatalogues.Naming(catalogue),
             new StubOwnedScenes());
     }
 

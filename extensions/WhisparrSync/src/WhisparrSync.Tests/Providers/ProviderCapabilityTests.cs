@@ -185,9 +185,10 @@ public sealed class ProviderCapabilityTests
             new WhisparrSyncOptions { SelectedGeneration = generation },
             TestContext.Current.CancellationToken);
 
-        var selected = new ProviderCatalogueSelector(options, StashDb(), ThePornDb());
+        var chosen = await new ProviderCatalogueChoice(options, StashDb(), ThePornDb())
+            .ChooseAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(named, selected.Capabilities.Provider);
+        Assert.Equal(named, chosen.Capabilities.Provider);
     }
 
     // The site-scene monitor pass runs on v2 alone and addresses a row by its scene number.
@@ -202,11 +203,12 @@ public sealed class ProviderCapabilityTests
             new WhisparrSyncOptions { SelectedGeneration = generation },
             TestContext.Current.CancellationToken);
 
-        var selected = new ProviderCatalogueSelector(options, StashDb(), ThePornDb());
+        var chosen = await new ProviderCatalogueChoice(options, StashDb(), ThePornDb())
+            .ChooseAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(
             issuesANumber,
-            selected.Capabilities.Obtain<IResolvesNumericSceneId>().Match(_ => true, _ => false));
+            chosen.Capabilities.Obtain<IResolvesNumericSceneId>().Match(_ => true, _ => false));
     }
 
     private static CoveConfiguration Configured(string endpoint)

@@ -126,8 +126,11 @@ public sealed class MissingKindCoverageTests
     private static MissingPagePlanner PlannerOver(
         StubProviderCatalogue catalogue, string? identity, StubEntityNames names)
         => new(
-            new MissingIdentityResolver(new StubEntityIdentities(identity), catalogue, names),
-            catalogue,
+            new MissingIdentityResolver(
+                new StubEntityIdentities(identity),
+                TestProviderCatalogues.Naming(catalogue),
+                names),
+            TestProviderCatalogues.Naming(catalogue),
             new StubOwnedScenes());
 
     private static List<ProviderScene> ScenesNamed(params string[] ids)
