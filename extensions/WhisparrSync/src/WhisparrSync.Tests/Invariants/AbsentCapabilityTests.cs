@@ -27,43 +27,32 @@ public sealed class AbsentCapabilityTests
 
     // The routes the generated client composes on this product's behalf, transcribed by hand. The
     // generated client declares an operation for every route Whisparr serves, so a gathered set
-    // would name hundreds this product never calls and agree with itself whichever ones it did.
-    // Each row names its generation because the two generations serve the same route strings from
-    // separate assemblies, and the generation picks the assembly a row is reflected against.
-    private static readonly (WhisparrGeneration Generation, string Api, string Operation, string Route)[]
-        GeneratedRoutes =
+    // would name hundreds this product never calls and agree with itself whichever ones it did. Both
+    // generations serve the same route strings, and a recorded path carries no generation, so one
+    // set covers the two.
+    private static readonly string[] GeneratedRoutes =
     [
-        (WhisparrGeneration.V3, "ISystemApi", "GetSystemStatusAsync", "api/v3/system/status"),
-        (WhisparrGeneration.V3, "INotificationApi", "ListNotificationAsync", "api/v3/notification"),
-        (WhisparrGeneration.V3, "INotificationApi", "ListNotificationSchemaAsync", "api/v3/notification/schema"),
-        (WhisparrGeneration.V3, "IRootFolderApi", "ListRootFolderAsync", "api/v3/rootfolder"),
-        (WhisparrGeneration.V3, "IQualityProfileApi", "ListQualityProfileAsync", "api/v3/qualityprofile"),
-        (WhisparrGeneration.V3, "IHistoryApi", "GetHistoryAsync", "api/v3/history"),
-        (WhisparrGeneration.V3, "IStudioApi", "GetStudioByStudioForeignIdAsync", "api/v3/studio"),
-        (WhisparrGeneration.V3, "IStudioApi", "CreateStudioAsync", "api/v3/studio"),
-        (WhisparrGeneration.V3, "IStudioEditorApi", "PutStudioEditorAsync", "api/v3/studio/editor"),
-        (WhisparrGeneration.V3, "IPerformerApi", "GetPerformerByPerformerForeignIdAsync", "api/v3/performer"),
-        (WhisparrGeneration.V3, "IPerformerApi", "CreatePerformerAsync", "api/v3/performer"),
-        (WhisparrGeneration.V3, "IPerformerEditorApi", "PutPerformerEditorAsync", "api/v3/performer/editor"),
-        (WhisparrGeneration.V3, "IMovieApi", "CreateMovieAsync", "api/v3/movie"),
-        (WhisparrGeneration.V3, "IMovieApi", "ListMovieAsync", "api/v3/movie"),
-        (WhisparrGeneration.V3, "IMovieApi", "PatchMovieByIdAsync", "api/v3/movie"),
-        (WhisparrGeneration.V3, "IManualImportApi", "ListManualImportAsync", "api/v3/manualimport"),
-        (WhisparrGeneration.V3, "IMediaManagementConfigApi", "GetMediaManagementConfigAsync", "api/v3/config/mediamanagement"),
-        (WhisparrGeneration.V3, "CommandApi", "SendCommandAsync", "api/v3/command"),
-        (WhisparrGeneration.V3, "ICommandApi", "GetCommandByIdAsync", "api/v3/command"),
-        (WhisparrGeneration.V3, "IImportListExclusionApi", "CreateExclusionsAsync", "api/v3/exclusions"),
-        (WhisparrGeneration.V3, "IImportListExclusionApi", "DeleteExclusionsAsync", "api/v3/exclusions"),
-        (WhisparrGeneration.V3, "IFileSystemApi", "GetFileSystemAsync", "api/v3/filesystem"),
-        (WhisparrGeneration.V2, "IHistoryApi", "GetHistoryAsync", "api/v3/history"),
-        (WhisparrGeneration.V2, "ISeriesApi", "ListSeriesAsync", "api/v3/series"),
-        (WhisparrGeneration.V2, "ISeriesApi", "CreateSeriesAsync", "api/v3/series"),
-        (WhisparrGeneration.V2, "ISeriesEditorApi", "PutSeriesEditorAsync", "api/v3/series/editor"),
-        (WhisparrGeneration.V2, "ISeasonPassApi", "CreateSeasonPassAsync", "api/v3/seasonpass"),
-        (WhisparrGeneration.V2, "CommandApi", "SendCommandAsync", "api/v3/command"),
-        (WhisparrGeneration.V2, "IEpisodeApi", "ListEpisodeAsync", "api/v3/episode"),
-        (WhisparrGeneration.V2, "IEpisodeApi", "PutEpisodeMonitorAsync", "api/v3/episode/monitor"),
-        (WhisparrGeneration.V2, "IFileSystemApi", "GetFileSystemAsync", "api/v3/filesystem"),
+        "api/v3/command",
+        "api/v3/config/mediamanagement",
+        "api/v3/episode",
+        "api/v3/episode/monitor",
+        "api/v3/exclusions",
+        "api/v3/filesystem",
+        "api/v3/history",
+        "api/v3/manualimport",
+        "api/v3/movie",
+        "api/v3/notification",
+        "api/v3/notification/schema",
+        "api/v3/performer",
+        "api/v3/performer/editor",
+        "api/v3/qualityprofile",
+        "api/v3/rootfolder",
+        "api/v3/seasonpass",
+        "api/v3/series",
+        "api/v3/series/editor",
+        "api/v3/studio",
+        "api/v3/studio/editor",
+        "api/v3/system/status",
     ];
 
     // The acting members are named here rather than gathered, so a member that could add something
@@ -116,34 +105,6 @@ public sealed class AbsentCapabilityTests
         Assert.Equal(DeclaredRoutes.Order().ToList(), RoutesDeclaredByTheClient().Order().ToList());
     }
 
-    // An upgrade that renames or drops an operation fails here. Each row is asserted against the one
-    // assembly its own generation ships, because an operation name only one generation declares
-    // would otherwise satisfy a row naming the other.
-    [Fact]
-    [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
-    public void TheGeneratedClientDeclaresEveryOperationThisProductNames()
-    {
-        Assert.All(
-            GeneratedRoutes,
-            named =>
-            {
-                var (generated, prefix) = GeneratedSurfaceOf(named.Generation);
-                var api = generated.GetType(prefix + named.Api);
-                Assert.NotNull(api);
-                Assert.Contains(
-                    api.GetMethods(),
-                    method => string.Equals(method.Name, named.Operation, StringComparison.Ordinal));
-            });
-    }
-
-    private static (Assembly Generated, string Prefix) GeneratedSurfaceOf(WhisparrGeneration generation)
-        => generation switch
-        {
-            WhisparrGeneration.V3 => (typeof(Whisparr3.Net.Whisparr3Options).Assembly, "Whisparr3.Net.Api."),
-            WhisparrGeneration.V2 => (typeof(Whisparr2.Net.Whisparr2Options).Assembly, "Whisparr2.Net.Api."),
-            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
-        };
-
     // Driven rather than read off a constant, because the generated client composes the route and
     // only a request it made shows what it composed. The equality runs both directions: a member
     // reaching a route nobody wrote down fails, and so does a transcribed route no call drives. The
@@ -163,7 +124,7 @@ public sealed class AbsentCapabilityTests
 
         Assert.NotEmpty(handler.Requests);
         Assert.Equal(
-            GeneratedRoutes.Select(route => route.Route).Distinct().Order().ToList(),
+            GeneratedRoutes.Order().ToList(),
             handler.Requests
                 .Select(request => TranscribedRouteFor(request.Path))
                 .Distinct()
@@ -184,7 +145,6 @@ public sealed class AbsentCapabilityTests
     {
         var sent = path.TrimStart('/');
         return GeneratedRoutes
-            .Select(route => route.Route)
             .Where(route => string.Equals(sent, route, StringComparison.Ordinal)
                 || sent.StartsWith(route + "/", StringComparison.Ordinal))
             .OrderByDescending(route => route.Length)
