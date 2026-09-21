@@ -148,13 +148,15 @@ public static class TemplateEngine
 
         // A caller-supplied $resolution wins over the derived one. Both dimensions give the label
         // Cove's badge shows; with only a height, the label assumes that height is the short edge.
+        // Cove stores an unknown width as 0, so a non-positive width is no width.
         if (!map.ContainsKey(Tokens.Resolution)
             && map.TryGetValue(Tokens.Height, out var h)
             && int.TryParse(h, out var height))
         {
-            map[Tokens.Resolution] = map.TryGetValue(Tokens.Width, out var w) && int.TryParse(w, out var width)
-                ? ResolutionLabel.FromDimensions(width, height)
-                : ResolutionLabel.FromHeight(height);
+            map[Tokens.Resolution] =
+                map.TryGetValue(Tokens.Width, out var w) && int.TryParse(w, out var width) && width > 0
+                    ? ResolutionLabel.FromDimensions(width, height)
+                    : ResolutionLabel.FromHeight(height);
         }
 
         return map;

@@ -54,7 +54,7 @@ public sealed class PlanFixedPointTests
             Entity(null, FileRow(1, "raw clip.mkv")));
 
         Assert.True(replay.How == Settled.FixedPoint, replay.ToString());
-        Assert.Equal([$"{FolderPath}/2021-03-14 - raw clip [4k].mkv"], replay.Trace);
+        Assert.Equal([$"{FolderPath}/2021-03-14 - raw clip [4K].mkv"], replay.Trace);
     }
 
     /// <summary>
@@ -76,8 +76,8 @@ public sealed class PlanFixedPointTests
         Assert.True(replay.How == Settled.FixedPoint, replay.ToString());
         Assert.Equal(
             [
-                $"{FolderPath}/2021-03-14 - raw clip [4k].mkv",
-                $"{FolderPath}/2021-03-14 - raw clip [4k].mp4",
+                $"{FolderPath}/2021-03-14 - raw clip [4K].mkv",
+                $"{FolderPath}/2021-03-14 - raw clip [4K].mp4",
             ],
             replay.Trace);
         Assert.Equal(["raw clip", "raw clip"], replay.FirstDerivedTitles);
@@ -117,7 +117,7 @@ public sealed class PlanFixedPointTests
             Entity("My Film", FileRow(1, "raw clip.mkv")));
 
         Assert.True(replay.How == Settled.FixedPoint, replay.ToString());
-        Assert.Equal([$"{FolderPath}/2021-03-14 - My Film [4k].mkv"], replay.Trace);
+        Assert.Equal([$"{FolderPath}/2021-03-14 - My Film [4K].mkv"], replay.Trace);
         Assert.Equal([null], replay.FirstDerivedTitles);
     }
 

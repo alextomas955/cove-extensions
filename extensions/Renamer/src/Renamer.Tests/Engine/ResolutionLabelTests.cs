@@ -129,6 +129,21 @@ public class ResolutionLabelTests
         Assert.Equal("Upright [1440p]", r.Filename);
     }
 
+    // Cove stores an unknown width as 0, so the projector emits a "0" width token for any file whose
+    // width was never probed. Such a file still gets the label its height gives.
+    [Fact]
+    public void Render_ZeroWidthToken_FallsBackToTheHeight()
+    {
+        var r = Render(new Dictionary<string, string>
+        {
+            ["title"] = "Unprobed",
+            ["width"] = "0",
+            ["height"] = "2160",
+        });
+
+        Assert.Equal("Unprobed [4K]", r.Filename);
+    }
+
     [Fact]
     public void Render_CallerSuppliedResolution_WinsOverTheDerivedOne()
     {

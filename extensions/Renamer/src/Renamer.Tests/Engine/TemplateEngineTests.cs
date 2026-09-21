@@ -67,19 +67,17 @@ public class TemplateEngineTests
     {
         var tokens = new Dictionary<string, string> { ["height"] = "2160", ["title"] = "X" };
         var r = Render("$title $resolution", tokens);
-        Assert.Equal("X 4k", r.Filename);
+        Assert.Equal("X 4K", r.Filename);
     }
 
     [Theory]
-    [InlineData("2160", "4k")]
+    [InlineData("2160", "4K")]
     [InlineData("1440", "1440p")]
     [InlineData("1080", "1080p")]
     [InlineData("720", "720p")]
     [InlineData("480", "480p")]
-    // Sub-480 is progressive-scan-labelled ("{height}p"), not a bare number — otherwise an
-    // already-correct "[368p]" filename would be rewritten down to "[368]" (a needless rename).
-    [InlineData("432", "432p")]
-    [InlineData("368", "368p")]
+    [InlineData("432", "360p")]
+    [InlineData("368", "360p")]
     [InlineData("240", "240p")]
     public void CoreTokens_ResolutionBuckets(string height, string label)
     {
@@ -136,7 +134,7 @@ public class TemplateEngineTests
             ["height"] = "2160",
         };
         var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Shot in [1080p] Glory [4k]", r.Filename);
+        Assert.Equal("Shot in [1080p] Glory [4K]", r.Filename);
     }
 
     [Fact]
@@ -150,23 +148,37 @@ public class TemplateEngineTests
             ["height"] = "2160",
         };
         var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Old Rip [4k]", r.Filename);
+        Assert.Equal("Old Rip [4K]", r.Filename);
     }
 
     [Fact]
-    public void TrailingResolution_SubBucketTag_NotDoubled()
+    public void TrailingResolution_ArbitraryScanTag_NotDoubled()
     {
-        // The doubled-tag regression: a title imported with a sub-480 "[368p]" tag (which the fixed
-        // KnownLabels list does not carry) plus a template that appends { [$resolution]} (now "368p")
-        // would yield "Nikki [368p] [368p]". The generic trailing-[<digits>p] strip de-dupes it.
+        // The doubled-tag regression: a title imported with a "[368p]" tag, which no bucket is named
+        // for, plus a template that appends { [$resolution]} would yield "Nikki [368p] [360p]". The
+        // generic trailing-[<digits>p] strip removes the imported tag and leaves one.
         var tokens = new Dictionary<string, string> { ["title"] = "Nikki [368p]", ["height"] = "368" };
         var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Nikki [368p]", r.Filename);
+        Assert.Equal("Nikki [360p]", r.Filename);
+    }
+
+    [Theory]
+    // The stripper matches case-insensitively, so a title carrying either spelling of a K label is
+    // stripped before the derived tag is appended.
+    [InlineData("Old Rip [4k]", "Old Rip [4K]")]
+    [InlineData("Old Rip [4K]", "Old Rip [4K]")]
+    // The widest label is in the stripper's vocabulary too.
+    [InlineData("Old Rip [HUGE]", "Old Rip [4K]")]
+    public void TrailingResolution_KLabel_StrippedInEitherCase(string title, string expected)
+    {
+        var tokens = new Dictionary<string, string> { ["title"] = title, ["height"] = "2160" };
+        var r = Render("$title{ [$resolution]}", tokens);
+        Assert.Equal(expected, r.Filename);
     }
 
     [Theory]
     // A bracketed number with no 'p' is a serial/index/scene number, not a resolution — never stripped.
-    [InlineData("Calendar Audition [28]", "2160", "Calendar Audition [28] [4k]")]
+    [InlineData("Calendar Audition [28]", "2160", "Calendar Audition [28] [4K]")]
     // A hash-like bracketed token is not a resolution tag.
     [InlineData("Blowjob [caufkb2cd9]", "1080", "Blowjob [caufkb2cd9] [1080p]")]
     // A resolution mid-title with a real serial at the end: only a trailing res-tag is stripped, and
