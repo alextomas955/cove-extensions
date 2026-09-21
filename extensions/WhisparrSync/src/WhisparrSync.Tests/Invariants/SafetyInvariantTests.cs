@@ -895,8 +895,10 @@ public sealed class SafetyInvariantTests
         var catalogue = new StubProviderCatalogue(scenes);
         var planner = new MissingPagePlanner(
             new MissingIdentityResolver(
-                new StubEntityIdentities("an-entity"), catalogue, new StubEntityNames()),
-            catalogue,
+                new StubEntityIdentities("an-entity"),
+                TestProviderCatalogues.Naming(catalogue),
+                new StubEntityNames()),
+            TestProviderCatalogues.Naming(catalogue),
             new StubOwnedScenes(owned));
 
         return planner.PlanAsync(
