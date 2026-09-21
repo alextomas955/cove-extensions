@@ -4,13 +4,10 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Scene;
 
-// The refusal order is fixed: no connection, then no identity, then an absent capability, then no
-// entry, then not monitoring. Each case sets up the step under test together with every step
-// beneath it, so a handler asking in another order answers a refusal further down and fails.
-//
-// The several-identities step cannot be reached. The identity source keeps only a video whose rows
-// agree on one identifier, so a video with conflicting links is absent from its answer and reads
-// the same as a video with no link.
+// The refusal order is fixed: no connection, then no identity or several identities, then an
+// absent capability, then no entry, then not monitoring. Each case sets up the step under test
+// together with every step beneath it, so a handler asking in another order answers a refusal
+// further down and fails.
 public sealed class SceneRefusalPrecedenceTests
 {
     private const string SceneId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
@@ -50,10 +47,10 @@ public sealed class SceneRefusalPrecedenceTests
         Assert.Empty(host.Client.SceneStatuses);
     }
 
-    // The vocabulary declares a value for conflicting links and nothing answers it. A resolution
-    // that starts telling the two apart fails here rather than changing the surface silently.
+    // Conflicting links and no link at all send a reader to different places, so the two carry
+    // different refusals. The third row is in another namespace and takes no part in the conflict.
     [Fact]
-    public async Task SeveralConflictingLinksAnswerNoIdentityRatherThanAStepAboveIt()
+    public async Task SeveralConflictingLinksAnswerTheirOwnRefusal()
     {
         await using var host = await MonitorHost.CreateAsync();
         var coveId = await SeedSceneAsync(host, MonitorHost.StoredEndpoint, SceneId);
@@ -62,9 +59,26 @@ public sealed class SceneRefusalPrecedenceTests
 
         var result = await host.SceneActionAsync(coveId, Search);
 
-        Assert.Equal(SceneRefusalKind.NoIdentityInThisNamespace, result.Refusal);
-        Assert.NotEqual(SceneRefusalKind.SeveralIdentitiesInThisNamespace, result.Refusal);
+        Assert.Equal(SceneRefusalKind.SeveralIdentitiesInThisNamespace, result.Refusal);
         Assert.Empty(host.Client.SceneStatuses);
+    }
+
+    // Two rows naming the same scene are one link, not a conflict, so the identity step passes and
+    // the refusal comes from a step below it.
+    [Fact]
+    public async Task TwoRowsNamingTheSameSceneAreNotAConflict()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var coveId = await SeedSceneAsync(host, MonitorHost.StoredEndpoint, SceneId);
+        await host.AddSceneIdentityAsync(coveId, MonitorHost.StoredEndpoint, SceneId);
+        host.Client.Answering(
+            nameof(IWhisparrSceneStatusReading.ReadSceneByRemoteIdAsync),
+            MonitorHost.Json(200, "[]"));
+
+        var result = await host.SceneActionAsync(coveId, Search);
+
+        Assert.NotEqual(SceneRefusalKind.SeveralIdentitiesInThisNamespace, result.Refusal);
+        Assert.NotEqual(SceneRefusalKind.NoIdentityInThisNamespace, result.Refusal);
     }
 
     // Whisparr v2 keeps no scene records, so it registers neither the read nor the grab. The scene
