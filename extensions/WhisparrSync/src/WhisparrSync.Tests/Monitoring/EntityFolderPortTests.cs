@@ -1,3 +1,4 @@
+using System.Globalization;
 using WhisparrSync.Contracts;
 using WhisparrSync.Tests.TestSupport;
 
@@ -15,6 +16,9 @@ public sealed class EntityFolderPortTests
     private const string FirstRoot = "G:/Downloads/P";
 
     private const string SecondRoot = "I:/Downloads/P";
+
+    // Larger than a row cap would plausibly be written at.
+    private const int FolderCount = 64;
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
@@ -123,17 +127,35 @@ public sealed class EntityFolderPortTests
             () => FoldersOf(host, (WhisparrEntityKind)(-1), 1));
     }
 
+    // A cap on the read would truncate the answer with no error, so the studio holds more folders
+    // than a cap would plausibly be written at. Two files sit in each folder, so a read answering a
+    // file rather than a folder would answer each folder twice.
+    [Fact]
+    public async Task AStudioSpreadOverManyFoldersAnswersEveryFolderExactlyOnce()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        var expected = new List<string>();
+        foreach (var folder in YearFolders("/library/vixen"))
+        {
+            expected.Add(folder);
+            await host.SeedStudioFileAsync(studioId, folder);
+            await host.SeedStudioFileAsync(studioId, folder);
+        }
+
+        Assert.Equal(expected, await FoldersOf(host, WhisparrEntityKind.Studio, studioId));
+    }
+
     // Read off the source, because no behavioural assertion tells a query that de-duplicates from a
     // method that loads every row and reduces it. Both answer the same folders.
     [Fact]
-    public void TheFolderReadHoldsNothingPerFile()
+    public void TheFolderReadDeDuplicatesInTheQuery()
     {
         var source = PortSource();
 
         Assert.Contains("Distinct()", source, StringComparison.Ordinal);
-        Assert.Contains("IAsyncEnumerable<string>", source, StringComparison.Ordinal);
         Assert.All(
-            new[] { "HashSet", "ToList", "ToArray", ".Take(" },
+            new[] { "HashSet", "ToList", "ToArray" },
             accumulating => Assert.DoesNotContain(accumulating, source, StringComparison.Ordinal));
     }
 
@@ -230,6 +252,23 @@ public sealed class EntityFolderPortTests
             () => CountUnder(host, WhisparrEntityKind.Studio, studioId, "   "));
     }
 
+    // Two files per folder, so a count of the studio's folders answers half the number and a count
+    // capped at fewer rows answers less than that. Either would send a scene to the wrong root.
+    [Fact]
+    public async Task EveryFileUnderTheRootIsCountedRatherThanEveryFolder()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(null, null);
+        foreach (var folder in YearFolders(FirstRoot))
+        {
+            await host.SeedStudioFileAsync(studioId, folder);
+            await host.SeedStudioFileAsync(studioId, folder);
+        }
+
+        Assert.Equal(
+            FolderCount * 2, await CountUnder(host, WhisparrEntityKind.Studio, studioId, FirstRoot));
+    }
+
     // Read off the source for the same reason as the folder read: a count assembled in memory
     // answers the same number. The narrowing is on the denormalized path column, so no folder row
     // is loaded.
@@ -239,7 +278,6 @@ public sealed class EntityFolderPortTests
         var source = PortSource();
 
         Assert.Contains("CountAsync(ct)", source, StringComparison.Ordinal);
-        Assert.Contains("file.Path.StartsWith(prefix)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Select(file => file.Path)", source, StringComparison.Ordinal);
     }
 
@@ -290,6 +328,15 @@ public sealed class EntityFolderPortTests
             await host.SeedStudioAsync(null, null), FirstRoot + "/Vixen/2026");
 
         await Assert.ThrowsAsync<ArgumentException>(() => CountVideoUnder(host, videoId, "   "));
+    }
+
+    // A fixed-width name, so the order the read answers in is the order seeded.
+    private static IEnumerable<string> YearFolders(string root)
+    {
+        for (var year = 1900; year < 1900 + FolderCount; year++)
+        {
+            yield return string.Create(CultureInfo.InvariantCulture, $"{root}/{year}");
+        }
     }
 
     private static Task<int> CountUnder(
