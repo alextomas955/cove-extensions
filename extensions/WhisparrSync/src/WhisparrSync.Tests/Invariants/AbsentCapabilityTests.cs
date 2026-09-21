@@ -68,8 +68,7 @@ public sealed class AbsentCapabilityTests
 
     // The acting members are named here rather than gathered, so a member that could add something
     // and was not written down fails. Keeping them off the read-and-configure interface lets a
-    // reader of that interface hold it without holding an add. This says which members can add, not
-    // what they send.
+    // reader of that interface hold it without holding an add.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryAddIsNonGrabbing)]
     public void EveryMemberThatCanAddToAnInstanceIsAnActingMember()
@@ -145,11 +144,10 @@ public sealed class AbsentCapabilityTests
             _ => throw new ArgumentOutOfRangeException(nameof(generation)),
         };
 
-    // Driven rather than read off a constant. The generated client composes the route, so the only
-    // honest source for what it composes is a request it made. The equality runs both directions: a
-    // member reaching a route nobody wrote down fails, and so does a transcribed route no call
-    // drives. This says nothing about which generation issued a request, because both serve the same
-    // route strings and the recorded path carries no generation.
+    // Driven rather than read off a constant, because the generated client composes the route and
+    // only a request it made shows what it composed. The equality runs both directions: a member
+    // reaching a route nobody wrote down fails, and so does a transcribed route no call drives. The
+    // recorded path carries no generation, so this says nothing about which one issued a request.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
     public async Task EveryRouteTheGeneratedClientSendsOnWasTranscribed()
@@ -240,8 +238,8 @@ public sealed class AbsentCapabilityTests
         await client.SearchMonitoredAsync(
             address, key, WhisparrGeneration.V3, WhisparrEntityKind.Studio, [4], ct);
 
-        // The scope change is driven on v2 only. v3 reads and replaces
-        // the resource through the hand-composed date gate, whose route belongs to DeclaredRoutes.
+        // The scope change is driven on v2 only. v3 reads and replaces the resource through the
+        // hand-composed date gate, whose route belongs to DeclaredRoutes.
         await client.ReadHistoryAsync(address, key, WhisparrGeneration.V2, 1, 10, ct);
         await client.ReadStudioAsync(address, key, WhisparrGeneration.V2, "studio-1", ct);
         await client.AddMonitoredStudioAsync(
@@ -321,8 +319,8 @@ public sealed class AbsentCapabilityTests
     // Scans each body for the string-load opcode and resolves the token after it against the
     // declaring module. A token that resolves to something else, or to nothing, is skipped, so a
     // byte that only looks like the opcode contributes nothing. Async bodies and lambdas are
-    // reported under the member a reader wrote, not the emitted name, so the assertion is about
-    // source and not about compiler output.
+    // reported under the member a reader wrote, so the assertion is about source and not about
+    // compiler output.
     private static IEnumerable<string> MembersNaming(string literal)
         => typeof(IWhisparrClient).Assembly
             .GetTypes()

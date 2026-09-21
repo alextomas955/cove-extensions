@@ -69,8 +69,7 @@ test("the control cannot be used before the stored value has arrived", async () 
   const read = await renderNode(section({ behavior: "add" }));
 
   expect(unread.querySelector("select")?.disabled).toBe(true);
-  // The control: it is enabled once the read has answered, so the disabling above is about the
-  // missing value rather than about a control that is never usable.
+  // The control: without this, the check above would pass for a select that is never enabled.
   expect(read.querySelector("select")?.disabled).toBe(false);
 });
 

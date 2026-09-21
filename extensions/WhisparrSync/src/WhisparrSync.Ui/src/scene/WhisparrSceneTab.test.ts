@@ -1,27 +1,18 @@
 // @vitest-environment jsdom
-/**
- * What the tab draws for one scene: a header, a fact row for each value the instance named, and one
- * full-width bar per control.
- *
- * A DOM is needed because the property under test is the SHAPE of what renders. A projection that
- * answers three nulls and a block that draws one row both pass a value-level check on either half.
- *
- * The host's authenticated fetch and its shared primitives stand in, because each resolves only inside a
- * consuming bundle.
- */
+// A DOM is needed because what is under test is the shape of what renders, not a value. The
+// host's authenticated fetch and its shared primitives stand in, because each resolves only
+// inside a consuming bundle.
 import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 
 import { render } from "../common/lib/testRender";
 import type { SceneDetailView } from "../wire/api";
 
-/** What each shared primitive this tab reaches for is handed. */
 interface Slotted {
   icon?: ReactNode;
   children?: ReactNode;
 }
 
-/** What the button primitive is handed, which is what a control's own name is asserted through. */
 interface Pressable extends Slotted {
   disabled?: boolean;
   onClick?: () => void;
@@ -33,8 +24,8 @@ let answer: Promise<SceneDetailView> = Promise.resolve(null as unknown as SceneD
 
 vi.mock("@cove-extensions/ui-shared", () => ({
   extensionApi: (extensionId: string) => (route: string) => `/extensions/${extensionId}/${route}`,
-  // Stand-ins drawing their own slots and nothing else. What each primitive renders belongs to its
-  // own suite; what this one asserts is which slot each value lands in.
+  // Stand-ins drawing their own slots and nothing else, so what is asserted below is which slot
+  // each value lands in.
   StatusPill: ({ icon, children }: Slotted) => createElement("span", null, icon, children),
   StatusText: ({ children }: Slotted) => createElement("span", null, children),
   Spinner: () => createElement("span", null, "reading"),
@@ -76,11 +67,9 @@ async function mount(answered: SceneDetailView): Promise<HTMLElement> {
   return render(createElement(WhisparrSceneTab, { entityId: 1 }));
 }
 
-/** The label of each fact row the block drew, in the order it drew them. */
 const labels = (container: HTMLElement) =>
   [...container.querySelectorAll("dt")].map((label) => label.textContent);
 
-/** The value each fact row drew, in the same order. */
 const values = (container: HTMLElement) =>
   [...container.querySelectorAll("dd")].map((value) => value.textContent);
 
@@ -122,7 +111,7 @@ test("the instance's own names are drawn verbatim, with the full text reachable"
   expect(values(container)[1]).toBe("Any but the very worst thing an indexer ever listed");
   expect(values(container)[2]).toBe("WEBDL-1080p");
 
-  // The value truncates, so the whole of it has to stay reachable without it.
+  // The value truncates, so the whole of it stays reachable in the title.
   const wide = [...container.querySelectorAll("dd")][1];
   expect(wide.className).toContain("truncate");
   expect(wide.getAttribute("title")).toBe("Any but the very worst thing an indexer ever listed");
@@ -138,7 +127,6 @@ test("a profile read that established nothing keeps the named fact and says so",
   expect(values(container)[0]).toBe("WEBDL-1080p");
 });
 
-/** The name each control announces, in the order the tab drew them. */
 const controlNames = (container: HTMLElement) =>
   [...container.querySelectorAll("button")].map((control) => control.textContent);
 
@@ -153,12 +141,11 @@ test("the four controls draw as bars, each announcing its own name", async () =>
     copy.SCENE_EXCLUDE,
   ]);
 
-  // All four go through the wrapper that takes a nullable reason, which is the only shape in which
-  // a dimmed control with nothing to hear is unrepresentable.
+  // All four go through the wrapper that takes a nullable reason, so a disabled control with no
+  // stated reason is unrepresentable.
   expect(container.querySelectorAll("span.flex.w-full > button")).toHaveLength(4);
 
-  // Each fills its row, which is the property the shared button's own suite cannot check: the
-  // primitive is mocked here.
+  // Each fills its row.
   expect(container.querySelectorAll("button[data-fill]")).toHaveLength(4);
 
   expect(container.querySelectorAll("p")).toHaveLength(0);

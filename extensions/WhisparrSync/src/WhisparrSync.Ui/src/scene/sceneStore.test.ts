@@ -1,11 +1,6 @@
-/**
- * The store's transitions, and the property the tab's read states depend on: no successful read can
- * leave the region in its empty state.
- *
- * The out-of-order case is why this store exists rather than a bare hook. The host keeps the tab
- * component across a navigation between two video pages, so the first video's read can settle after
- * the second has mounted, and a store without the guard paints one scene's facts onto another.
- */
+// The host keeps the tab component across a navigation between two video pages, so the first
+// video's read can settle after the second has mounted. That is what the out-of-order case
+// covers.
 import { test, expect } from "vitest";
 
 import type { SceneDetailView } from "../wire/api";
@@ -52,8 +47,8 @@ test("the empty region state is unreachable for a read that answered", () => {
   const store = createSceneStore();
   store.mounted(FIRST);
 
-  // Every answer a successful read can carry, including the one naming nothing about the instance.
-  // Each names its absent values instead of leaving them out, so each is content.
+  // Every answer a successful read can carry. Each names its absent values instead of leaving
+  // them out, so each is content.
   for (const answered of [
     view(),
     view({ present: false, monitored: null }),
@@ -65,7 +60,7 @@ test("the empty region state is unreachable for a read that answered", () => {
     expect(deriveAsyncRegionState(store.getSnapshot().read).status).toBe("content");
   }
 
-  // And once content is on screen nothing takes it back off, so no later transition reaches empty.
+  // Once content is on screen nothing takes it back off, so no later transition reaches empty.
   store.beginRead(FIRST);
   expect(deriveAsyncRegionState(store.getSnapshot().read).status).toBe("content");
   store.readFailed(FIRST);

@@ -1,11 +1,9 @@
 /**
  * The import-behaviour control's data layer: the only place that writes the upgrade behaviour.
  *
- * It reads the settings itself rather than sharing the connection form's answer, because a save here
- * must not re-seed a connection form the operator is in the middle of editing.
- *
- * A save names only this member. The generations are omitted, so the connection this page shows is
- * left exactly as it stands.
+ * It reads the settings itself rather than sharing the connection form's answer, so a save here
+ * cannot re-seed a connection form that is being edited. A save omits both generations, leaving
+ * the stored connections as they stand.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
@@ -20,7 +18,6 @@ function messageFor(err: unknown): string {
 }
 
 export interface UseImportBehavior {
-  /** The stored behaviour, or null until the read answers. */
   readonly behavior: UpgradeBehavior | null;
   readonly saving: boolean;
   readonly saveError: string | null;
@@ -29,7 +26,7 @@ export interface UseImportBehavior {
 
 export function useImportBehavior(): UseImportBehavior {
   // The whole view rather than the one member, because a save has to restate the selected
-  // generation: the request applies it, so a save that named a fixed one would move it.
+  // generation. The request applies it, so a save naming a fixed one would move it.
   const [view, setView] = useState<WhisparrSyncSettingsView | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -41,8 +38,7 @@ export function useImportBehavior(): UseImportBehavior {
     requestJson<WhisparrSyncSettingsView>(SETTINGS_PATH)
       .then(setView)
       .catch(() => {
-        // The page's own shared notice already says the settings could not be read, and a second
-        // sentence beside this control would say it twice.
+        // The page's shared notice already says the settings could not be read.
         setView(null);
       });
   }, []);

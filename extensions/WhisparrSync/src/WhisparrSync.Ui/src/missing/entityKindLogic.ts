@@ -17,19 +17,16 @@ const SEGMENTS: Record<string, WhisparrEntityKind | undefined> = {
 };
 
 /**
- * The kind `pathname` names, or null for a route this tab does not recognise.
- *
- * Null rather than a guess: a guess would read one entity's catalogue on another entity's page.
- *
- * @param pathname the address the tab is mounted at
+ * The kind `pathname` names, or null for a route this tab does not recognise. Null rather than
+ * a guess: a guess would read one entity's catalogue on another entity's page.
  */
 export function readEntityKind(pathname: string): WhisparrEntityKind | null {
   const segments = pathname.split("/").filter((segment) => segment !== "");
   for (let at = 0; at < segments.length; at++) {
     const kind = SEGMENTS[segments[at].toLowerCase()];
 
-    // The segment after the kind has to be the entity's own id, so a route merely containing the
-    // word does not read as an entity page.
+    // The segment after the kind has to be the entity's own id, so a route merely containing
+    // the word does not read as an entity page.
     if (kind !== undefined && /^\d+$/.test(segments[at + 1] ?? "")) {
       return kind;
     }

@@ -3,29 +3,16 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// Which identifiers one entity's own scenes carry, read from a real relational library.
-/// </summary>
-/// <remarks>
-/// The streaming shape is as much the subject as the identifiers are. A library reaches millions of
-/// files, so a set assembled by loading every row and reducing it in memory would answer correctly
-/// and be unusable, which is why the shape of the read is asserted beside the answer.
-/// <para>
-/// The namespace rule is the other half. A video carrying a link only in the other generation's
-/// namespace is not an identified scene at all here, and a read comparing endpoint spellings as
-/// strings would answer that an identified video carries no identity.
-/// </para>
-/// </remarks>
+// A library reaches millions of files, so a set assembled by loading every row and reducing it in
+// memory answers correctly and is unusable. The shape of the read is asserted beside the answer
+// for that reason.
 public sealed class EntitySceneIdentityPortTests
 {
-    /// <summary>The standard spelling of the source v3 identifies against.</summary>
-    /// <remarks>
-    /// A different spelling from the one <see cref="MonitorHost.StoredEndpoint"/> stores, and
-    /// deliberately: the two name one source under the host's own rule.
-    /// </remarks>
+    // The standard spelling of the source v3 identifies against. It differs from the spelling
+    // MonitorHost.StoredEndpoint stores, and the host's rule treats the two as one source.
     private const string StandardStashDbAddress = "https://stashdb.org/graphql";
 
-    /// <summary>A spelling belonging to the OTHER generation's namespace.</summary>
+    // A spelling belonging to v2's namespace.
     private const string OtherNamespaceEndpoint = "theporndb.net/graphql";
 
     private const string FirstScene = "023bacff-8d1d-4f27-bac5-bdaf833f5616";
@@ -33,9 +20,6 @@ public sealed class EntitySceneIdentityPortTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// A studio's identified scenes are answered and its unidentified one is not.
-    /// </summary>
     [Fact]
     public async Task AStudioAnswersOnlyTheScenesCarryingAnIdentifier()
     {
@@ -50,13 +34,9 @@ public sealed class EntitySceneIdentityPortTests
             await IdentitiesOf(host, WhisparrEntityKind.Studio, studioId));
     }
 
-    /// <summary>
-    /// A row written under a different spelling of the same source IS answered.
-    /// </summary>
-    /// <remarks>
-    /// The host's own same-source rule decides it. Comparing the two as strings would answer that an
-    /// identified video carries no identity, and its scene would then be offered to nothing.
-    /// </remarks>
+    // The host's same-source rule decides this. Comparing endpoint spellings as strings would
+    // answer that an identified video carries no identity, and its scene would be offered to
+    // nothing.
     [Fact]
     public async Task ASpellingOfTheSameSourceIsAnsweredRatherThanComparedAsAString()
     {
@@ -67,9 +47,7 @@ public sealed class EntitySceneIdentityPortTests
         Assert.Equal([FirstScene], await IdentitiesOf(host, WhisparrEntityKind.Studio, studioId));
     }
 
-    /// <summary>
-    /// A row in the other generation's namespace names nothing the connected instance could take.
-    /// </summary>
+    // A row in v2's namespace names nothing a connected v3 instance could take.
     [Fact]
     public async Task ARowInTheOtherGenerationsNamespaceIsNotAnswered()
     {
@@ -80,9 +58,6 @@ public sealed class EntitySceneIdentityPortTests
         Assert.Empty(await IdentitiesOf(host, WhisparrEntityKind.Studio, studioId));
     }
 
-    /// <summary>
-    /// A blank identifier is not an identifier, so nothing is offered for the scene carrying it.
-    /// </summary>
     [Fact]
     public async Task ABlankOrWhitespaceIdentifierIsNotAnswered()
     {
@@ -94,10 +69,8 @@ public sealed class EntitySceneIdentityPortTests
         Assert.Empty(await IdentitiesOf(host, WhisparrEntityKind.Studio, studioId));
     }
 
-    /// <summary>
-    /// A performer's scenes reach it through the join row, which is a different table from the
-    /// column a studio's scenes carry.
-    /// </summary>
+    // A performer's scenes reach it through a join table, not through the column a studio's scenes
+    // carry.
     [Fact]
     public async Task APerformersScenesAreAnsweredThroughTheJoinRow()
     {
@@ -109,9 +82,6 @@ public sealed class EntitySceneIdentityPortTests
             [FirstScene], await IdentitiesOf(host, WhisparrEntityKind.Performer, performerId));
     }
 
-    /// <summary>
-    /// One entity's scenes are not another's, in both directions.
-    /// </summary>
     [Fact]
     public async Task NeitherKindAnswersTheOthersScenes()
     {
@@ -135,9 +105,7 @@ public sealed class EntitySceneIdentityPortTests
         Assert.Empty(await IdentitiesOf(host, WhisparrEntityKind.Studio, studioId));
     }
 
-    /// <summary>
-    /// An id below one answers nothing rather than every scene carrying no entity.
-    /// </summary>
+    // An id below one answers nothing rather than every scene carrying no entity.
     [Fact]
     public async Task AnIdBelowOneAnswersNothing()
     {
@@ -149,9 +117,6 @@ public sealed class EntitySceneIdentityPortTests
         Assert.Empty(await IdentitiesOf(host, WhisparrEntityKind.Performer, -1));
     }
 
-    /// <summary>
-    /// A kind this product does not express is a fault, matching how the sibling sources treat it.
-    /// </summary>
     [Fact]
     public async Task AKindThisProductDoesNotExpressIsAFaultRatherThanAnEmptyAnswer()
     {
@@ -161,14 +126,8 @@ public sealed class EntitySceneIdentityPortTests
             () => IdentitiesOf(host, (WhisparrEntityKind)(-1), 1));
     }
 
-    /// <summary>
-    /// The answer is streamed and the de-duplication is the database's.
-    /// </summary>
-    /// <remarks>
-    /// Read off the source, because no behavioural assertion can tell a query that de-duplicates
-    /// from a method that loads every row and reduces it: both answer the same identifiers, and only
-    /// one of them still works on a library of millions.
-    /// </remarks>
+    // Read off the source, because no behavioural assertion can tell a query that de-duplicates in
+    // the database from one that loads every row and reduces it. Both answer the same identifiers.
     [Fact]
     public void TheSceneIdentityReadHoldsNothingPerScene()
     {

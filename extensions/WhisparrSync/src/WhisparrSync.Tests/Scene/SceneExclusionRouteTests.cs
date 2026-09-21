@@ -4,27 +4,14 @@ using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Scene;
 
-/// <summary>
-/// One control with two labels, driven through both of its routes against the instance's own
-/// exclusion list.
-/// </summary>
-/// <remarks>
-/// Both halves read the list before they act, and each case states what that read answered. The
-/// removing route takes the exclusion row's own identifier rather than the scene's, so the read is
-/// what makes the request addressable at all.
-/// <para>
-/// What the instance answers to an exclusion it already holds was never measured against a real
-/// build, and that is why the excluding half asks the list first instead of sending and reading the
-/// answer: a duplicate that answered a conflict and a duplicate that answered a success would
-/// otherwise put two different labels on one control.
-/// </para>
-/// </remarks>
+// Both halves read the instance's exclusion list before they act. What the instance answers to an
+// exclusion it already holds was never measured against a real build, so the excluding half asks
+// the list first instead of sending and reading the answer.
 public sealed class SceneExclusionRouteTests
 {
-    /// <summary>A scene as the provider issues its identifier.</summary>
     private const string SceneId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-    /// <summary>The exclusion row's own identifier, which is what the removing route names.</summary>
+    // The exclusion row's own identifier, which is what the removing route names.
     private const int ExclusionOnTheInstance = 57;
 
     private const string Exclude = "exclude";
@@ -90,14 +77,8 @@ public sealed class SceneExclusionRouteTests
         Assert.Empty(host.Client.Acting);
     }
 
-    /// <summary>
-    /// A list read that produced no whole answer is neither half's own answer.
-    /// </summary>
-    /// <remarks>
-    /// Held apart from a list naming no exclusion, which is the assertion the pair above makes.
-    /// Reporting an unread list as naming no exclusion would tell a reader the instance stated an
-    /// absence it never stated.
-    /// </remarks>
+    // A list read that produced no whole answer is not a list naming no exclusion. Reporting it as
+    // such would state an absence the instance never stated.
     [Theory]
     [InlineData(Exclude)]
     [InlineData(RemoveExclusion)]
@@ -113,15 +94,9 @@ public sealed class SceneExclusionRouteTests
         Assert.Empty(host.Client.Acting);
     }
 
-    /// <summary>
-    /// The read reports the exclusion the instance's own list names, in both directions.
-    /// </summary>
-    /// <remarks>
-    /// This is the fact the tab's control set turns on: the state vocabulary tests exclusion ahead
-    /// of everything else, and one control carries both the excluding and the removing label. The
-    /// scene's own row carries no exclusion member, so the list is the only thing that establishes
-    /// it.
-    /// </remarks>
+    // The scene's own row carries no exclusion member, so the list is the only thing that
+    // establishes it. Both directions are asserted, because a read answering a constant would
+    // agree with one.
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -142,14 +117,8 @@ public sealed class SceneExclusionRouteTests
         Assert.Equal([SceneId], host.Client.ExclusionLookups);
     }
 
-    /// <summary>
-    /// A list read that produced no whole answer refuses the read rather than reporting no
-    /// exclusion.
-    /// </summary>
-    /// <remarks>
-    /// Reporting the scene as not excluded would let an excluded scene read as monitored, because
-    /// the vocabulary tests exclusion first and would never reach the flag it was given.
-    /// </remarks>
+    // Reporting the scene as not excluded would let an excluded scene read as monitored, because
+    // the state vocabulary tests exclusion first.
     [Fact]
     public async Task AListReadThatDidNotCompleteRefusesTheRead()
     {
@@ -165,7 +134,6 @@ public sealed class SceneExclusionRouteTests
         Assert.Null(view.Monitored);
     }
 
-    /// <summary>Neither half claims anything about a search.</summary>
     [Theory]
     [InlineData(Exclude)]
     [InlineData(RemoveExclusion)]

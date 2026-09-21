@@ -1,10 +1,7 @@
 /**
- * What a redelivery naming a different file does to the scene you already have.
+ * What a redelivery naming a different file does to the scene Cove already holds.
  *
- * Presentational. Every value arrives as a prop and no request is issued here.
- *
- * Neither choice moves, renames or deletes a file in either system's storage, so both sentences say
- * what happens on disk rather than leaving one of them to be read as the exception.
+ * Neither choice moves, renames or deletes a file on disk, so both consequence sentences say so.
  */
 import { Field, SectionCard, Select, Spinner, StatusText } from "@cove-extensions/ui-shared";
 
@@ -12,7 +9,6 @@ import type { UpgradeBehavior } from "../wire/api";
 import { UPGRADE_DROPS_THE_SUPERSEDED_FILE, UPGRADE_KEEPS_BOTH_FILES } from "../common/ui/copy";
 
 export interface ImportBehaviorSectionProps {
-  /** The stored behaviour, or null before the settings read answers. */
   behavior: UpgradeBehavior | null;
   saving: boolean;
   saveError: string | null;
@@ -21,7 +17,6 @@ export interface ImportBehaviorSectionProps {
   onChange: (next: UpgradeBehavior) => void;
 }
 
-/** The consequence of each choice, in the order the control offers them. */
 const CHOICES: readonly { value: UpgradeBehavior; label: string; consequence: string }[] = [
   { value: "add", label: "Keep both files", consequence: UPGRADE_KEEPS_BOTH_FILES },
   {

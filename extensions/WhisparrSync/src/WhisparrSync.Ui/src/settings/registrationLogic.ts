@@ -1,21 +1,13 @@
-/**
- * Pure rules for the import callback: what its status reads as, which setting a refused registration
- * points at, and when the note about the less private form is standing.
- *
- * Relative imports only, so this module runs with no environment and needs no doubles.
- */
 import type { CallbackView, ConnectionSetting } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 
 /**
  * The query parameter a hand-pasted address carries its secret in.
  *
- * Transcribed by hand from the server's own constant. A value read back off the address it is used
- * to inspect would agree with whatever that address said.
+ * Transcribed by hand from the server's own constant.
  */
 const SECRET_QUERY_PARAMETER = "s";
 
-/** Whether <code>address</code> carries the callback secret in its query. */
 export function carriesSecretInAddress(address: string): boolean {
   const separator = address.indexOf("?");
   if (separator === -1) {
@@ -27,26 +19,19 @@ export function carriesSecretInAddress(address: string): boolean {
 /**
  * The four ways the status reads.
  *
- * Registered-with-no-events is its own rendering rather than a shade of registered: that combination
- * is the tell for the whole class of address-confusion failure, and reading it as plain success is
- * the failure mode.
+ * Registered with no events is its own rendering, not a shade of registered. That combination is
+ * the tell for an address mismatch, and plain success would hide it.
  */
 export type RegistrationRendering =
   "notCheckedYet" | "notRegistered" | "registeredWithNoEvents" | "registeredAndDelivering";
 
-/** How one rendering reads. */
 export interface RegistrationDescription {
   readonly rendering: RegistrationRendering;
   readonly sentence: string;
   readonly tone: "success" | "warning" | "muted";
 }
 
-/**
- * Every rendering's sentence and tone.
- *
- * Total by TYPE, so a rendering added to the union fails this build rather than compiling with no
- * decision made about it.
- */
+// Total by type, so a rendering added to the union fails the build instead of compiling silently.
 const DESCRIPTIONS: Record<RegistrationRendering, Omit<RegistrationDescription, "rendering">> = {
   notCheckedYet: {
     sentence: "Cove has not checked this instance for its callback yet.",
@@ -67,10 +52,10 @@ const DESCRIPTIONS: Record<RegistrationRendering, Omit<RegistrationDescription, 
 };
 
 /**
- * How <code>view</code>'s status reads.
+ * How the view's status reads.
  *
- * Never-checked and not-registered are kept apart: "we have not looked" and "it is not there" send a
- * user somewhere different, and the first is what a generation nothing has asked yet answers.
+ * Never-checked and not-registered stay apart. "Not looked yet" and "not there" send a user
+ * somewhere different.
  */
 export function describeRegistration(view: CallbackView): RegistrationDescription {
   switch (view.status) {
@@ -86,11 +71,9 @@ export function describeRegistration(view: CallbackView): RegistrationDescriptio
 }
 
 /**
- * The standing note, shown while deliveries are still carrying the secret where intermediaries record
- * it.
+ * The standing note, shown while deliveries still carry the secret in the address.
  *
- * There is no dismiss control anywhere: the note goes when the fact goes, so it never tells a user
- * about a problem they have already fixed.
+ * There is no dismiss control. The note goes when the fact goes.
  */
 export const LESS_PRIVATE_FORM_NOTE =
   "Imports are arriving with the callback secret in the address, where proxies and load balancers record it. Registering again from here moves it out of the address.";
@@ -98,9 +81,8 @@ export const LESS_PRIVATE_FORM_NOTE =
 /**
  * Whether the note above is standing.
  *
- * Keyed on where a delivery ACTUALLY carried its secret rather than on which generation answered: an
- * instance reached through an address a user pasted by hand carries it in the address whatever the
- * generation is able to do.
+ * Keyed on where a delivery carried its secret, not on which generation answered. A hand-pasted
+ * address carries it in the address whatever the generation supports.
  */
 export function shouldShowLessPrivateFormNote(view: CallbackView): boolean {
   return view.lastEventSecretPosition === "address";
@@ -119,16 +101,15 @@ export function missingSettingSentence(setting: ConnectionSetting): string | nul
 }
 
 /**
- * The four-way read the status renders through.
+ * The read state the status renders through.
  *
- * A status nothing has checked is the genuine zero here - there is no answer about this instance yet,
- * which is not the same as an answer that says the callback is absent.
+ * Never-checked is the genuine zero here. It is not an answer saying the callback is absent.
  */
 export function registrationRead(view: CallbackView | null, failed: boolean): AsyncRead {
   if (view === null) {
     return { reading: !failed, failed, hasContent: false };
   }
   const hasContent = view.status !== "notCheckedYet";
-  // Carried only where the state machine keeps the content, for the reason recordedRead states.
+  // A failure is carried only where there is content to keep, as recordedRead does.
   return { reading: false, failed: hasContent && failed, hasContent };
 }

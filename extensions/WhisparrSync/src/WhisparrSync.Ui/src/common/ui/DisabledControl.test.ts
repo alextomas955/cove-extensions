@@ -8,7 +8,7 @@ import { render } from "../lib/testRender";
 import { CAP_UNAVAILABLE_ON_THIS_GENERATION } from "./copy";
 
 // The shared primitives stand in because their `react` import resolves only inside a consuming
-// bundle. The stand-in keeps a real `<button>` with `disabled` and its children.
+// bundle.
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
   return {
@@ -26,7 +26,6 @@ const { DisabledControl, OptionallyDisabled } = await import("./DisabledControl"
 const NAME = "Monitor";
 const REASON = CAP_UNAVAILABLE_ON_THIS_GENERATION;
 
-// The element's text in order, minus the off-screen carriers.
 function visibleText(element: Element): string {
   return [...element.childNodes]
     .map((node) => {

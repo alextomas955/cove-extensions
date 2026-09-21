@@ -171,10 +171,8 @@ describe("the whole-catalogue confirmation names the figure and what it is not",
     expect(copy.monitorAllConfirmation(1, "a source")).toContain("the 1 scene a source lists here");
   });
 
-  /**
-   * The point of confirming at all. A gesture reaching a whole catalogue reads as a download of that
-   * size, and the sentence is the only thing that says it is not.
-   */
+  // A gesture reaching a whole catalogue reads as a download of that size, and this sentence is
+  // the only thing that says it is not.
   it("says the marking downloads nothing, at every size", () => {
     for (const count of [0, 1, 665]) {
       expect(copy.monitorAllConfirmation(count, "a source")).toContain(

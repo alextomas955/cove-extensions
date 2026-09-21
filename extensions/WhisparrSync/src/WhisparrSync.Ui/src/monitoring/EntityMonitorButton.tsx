@@ -1,9 +1,8 @@
 /**
  * The Whisparr control in a detail page's own action row, and the menu it opens.
  *
- * The host spreads its slot context as top-level props, so each exported component's props are
- * exactly what that context carries. Only the Cove id is declared and read: the identifier the
- * instance is given is re-resolved on the server.
+ * The host spreads its slot context as top-level props. Only the Cove id is read; the identifier
+ * Whisparr is given is re-resolved on the server.
  *
  * The host's `Studio` and `Performer` types cannot be generated into this bundle's wire types, so
  * these two prop shapes are hand-declared and pinned in a test against the host source.
@@ -37,12 +36,12 @@ import { WhisparrMark } from "./WhisparrMark";
 import { useMonitoring } from "./useMonitoring";
 
 /**
- * Cove's own action-row button styling, copied verbatim from the host because it cannot be imported
- * across repositories. Every class in it is one the host's source writes, so the host emits it.
+ * Cove's own action-row button styling, copied from the host because it cannot be imported across
+ * repositories. Every class in it is one the host's source writes, so the host emits it.
  *
  * `border-border` is held out. The host's stylesheet declares that class twice, and the later rule
  * sets the `border` shorthand, which resets the colour. `border-accent` alongside it would compute
- * grey, so the monitored state carries `border-accent` in its place.
+ * grey.
  */
 const HERO_ACTION_BUTTON_CLASS =
   "inline-flex h-10 w-10 items-center justify-center rounded-lg border bg-card transition-colors hover:border-accent hover:text-foreground disabled:cursor-not-allowed";
@@ -80,8 +79,7 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
   const menu = view === null ? null : monitorMenu(view, inFlight);
 
   // A reason disables and an absent reason enables, so the control cannot be dimmed with nothing
-  // to hear. A failed read says so rather than falling back to the unmonitored look, which would
-  // report a fact nobody established.
+  // to hear. A failed read says so rather than falling back to the unmonitored look.
   const unavailable =
     region.status === "failed"
       ? MONITORING_COULD_NOT_BE_READ
@@ -96,8 +94,7 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
   const spoken = unavailable === null ? name : `${name}, ${unavailable}`;
 
   // A press refusal outranks the view's own, and a failed read contributes none: the control
-  // already says the read failed. The rule for which refusal speaks where lives in `controlNotice`
-  // alone, so nothing is filtered here.
+  // already says the read failed. Which refusal speaks where is decided in `controlNotice` alone.
   const outcome = controlNotice({
     failed: state.actionFailed,
     refusal: state.actionRefusal ?? (region.status === "failed" ? null : (view?.refusal ?? null)),
@@ -135,8 +132,8 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
         <AsyncRegion
           state={region}
           // The bordered shell alone until the read answers. The mark names the connected
-          // generation by its colour, so painting one before the read could show the wrong product.
-          // A failed read draws no mark for the same reason and says so through the control's name.
+          // generation by its colour, so painting one before the read could show the wrong
+          // product. A failed read draws none for the same reason.
           reading={null}
           empty={null}
           failed={null}
@@ -223,7 +220,7 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
         : // Beneath the control rather than in place of it: the control reports what the entity is
           // and this reports what the last gesture did. Portaled for the reason the menu is, since
           // `z-50` does not escape the clipping hero. With the menu open its container holds this
-          // instead, so the two do not stack on one another.
+          // instead.
           createPortal(
             <p
               role="status"

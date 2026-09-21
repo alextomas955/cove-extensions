@@ -94,8 +94,7 @@ describe("what the figure counts is said once", () => {
     expect(COUNT_IS_THE_CATALOGUE_SIZE).toContain("{provider}");
   });
 
-  // The sentence renders on its own, under a toolbar that states the range. A sentence written to
-  // continue from a range would read as a fragment here.
+  // The sentence renders on its own, under a toolbar that states the range.
   it("stands as a sentence with no range in front of it", () => {
     const label = catalogueSizeLabel("StashDB", "this studio");
 

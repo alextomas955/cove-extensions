@@ -1,12 +1,8 @@
 /**
- * One red block for the files Whisparr reported and Cove could not take: a line per Whisparr root,
- * the count since that root last worked, and its newest offending paths, each naming its own cause —
- * followed by the files the catch-up could not take at all and has already moved past.
+ * One block for the files Whisparr reported and Cove could not take.
  *
- * Presentational. Every value arrives as a prop and no request is issued here.
- *
- * Nothing to report renders nothing at all, rather than an empty block reporting a healthy zero. The
- * heading belongs to the root list and is drawn with it; either half can appear without the other.
+ * Nothing to report renders nothing. The root list and the passed-over line each appear on their
+ * own.
  */
 import { StatusText } from "@cove-extensions/ui-shared";
 
@@ -26,7 +22,6 @@ import {
 
 export interface ImportBannerProps {
   read: AsyncRead;
-  /** The refusals outstanding, or null before the read answers. */
   view: ImportBannerView | null;
   /** The instant the recorded ages are measured against, in epoch milliseconds. */
   now: number;
@@ -58,8 +53,8 @@ export function ImportBanner({ read, view, now }: ImportBannerProps) {
                     <ul className="list-none space-y-1">
                       {pathsShownFor(line).map((path) => (
                         <li key={path.path} className="text-xs text-red-300">
-                          {/* Two blocks rather than one line: a path carries spaces of its own, so
-                              a space is not a boundary a reader can see between it and the prose. */}
+                          {/* Two blocks rather than one line: a path can contain spaces, so a
+                              space does not read as a boundary between it and the cause. */}
                           <p className="break-all font-mono">{path.path}</p>
                           <p className="pl-4">{describeCause(path.cause)}</p>
                         </li>

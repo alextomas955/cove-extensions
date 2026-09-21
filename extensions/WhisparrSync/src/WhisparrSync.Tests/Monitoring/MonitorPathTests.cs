@@ -11,44 +11,28 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// The whole studio monitor path, driven through the mapped route rather than through a handler
-/// method: the stored identity row, the add defaults read from the instance, the composed body and
-/// the ordered list of what left for the instance.
-/// </summary>
-/// <remarks>
-/// Every case runs against the double that records the ARGUMENTS of every outbound request, and each
-/// emptiness assertion is paired with a send through the SAME double, so an empty log is evidence
-/// rather than the only thing this class could report.
-/// <para>
-/// The route is driven over a test server, so the route pattern, the kind parse, the body binding and
-/// the declared gate are the shipped ones. A test calling the handler method directly would agree
-/// with a route mounted at the wrong pattern, bound to a body the browser cannot send, or reachable
-/// by a caller the declaration excludes.
-/// </para>
-/// <para>
-/// What the instance received is read off a stub message handler under a real client, not off the
-/// recording double: the double stands in at the role seam, above the point the body is composed, so
-/// a body assertion taken there would be an assertion about the test.
-/// </para>
-/// </remarks>
+// The whole studio monitor path, driven through the mapped route rather than through a handler
+// method. Every case runs against the double that records the arguments of every outbound
+// request, and each emptiness assertion is paired with a send through the same double.
+// The route is driven over a test server, so the route pattern, the kind parse, the body binding
+// and the declared gate are the shipped ones. A test calling the handler method directly would
+// agree with a route mounted at the wrong pattern or reachable by a caller the declaration
+// excludes.
+// What the instance received is read off a stub message handler under a real client, not off the
+// recording double: the double stands in above the point the body is composed, so a body
+// assertion taken there would be an assertion about the test.
 public sealed class MonitorPathTests
 {
-    /// <summary>A stored identifier of the shape v2's source mints.</summary>
+    // A stored identifier of the shape v2's source mints.
     private const string V2StoredIdentifier = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-    /// <summary>The number the metadata source names that site by.</summary>
+    // The number the metadata source names that site by.
     private const int V2SiteNumber = 3372;
 
-    /// <summary>The shipped client, with the one site number v2's paths are driven for.</summary>
     private static WhisparrClient V2Client(HttpClient http, BodyRecordingHandler handler)
         => TestWhisparrClient.Over(
             http, handler, siteNumbers: TestSiteNumbers.Numbering(V2StoredIdentifier, V2SiteNumber));
 
-    /// <summary>
-    /// The whole gesture: one stored identity row in, one monitored studio out, and nothing that
-    /// could make the instance acquire anything at any position in the sequence.
-    /// </summary>
     [Fact]
     public async Task OneStoredIdentityRowMonitorsTheStudioAndStartsNoSearch()
     {
@@ -88,15 +72,9 @@ public sealed class MonitorPathTests
         Assert.Equal("/config/library", add.Defaults?.RootFolderPath);
     }
 
-    /// <summary>
-    /// Both of this generation's search-suppressing spellings are PRESENT and false in the bytes the
-    /// instance receives, and the fields its database requires are there too.
-    /// </summary>
-    /// <remarks>
-    /// Presence is asserted separately from value. An absent member and a false one read the same off
-    /// a deserialized object, and the generation's own default for the absent case is what this
-    /// product must never depend on.
-    /// </remarks>
+    // Presence is asserted separately from value. An absent member and a false one read the same
+    // off a deserialized object, and the generation's own default for the absent case is what
+    // this product must never depend on.
     [Fact]
     public async Task TheAddTheInstanceReceivesCarriesTheSuppressionFlagItsResourceDeclares()
     {
@@ -135,15 +113,8 @@ public sealed class MonitorPathTests
         Assert.Equal(4, body["qualityProfileId"]!.GetValue<int>());
     }
 
-    /// <summary>
-    /// A monitor request naming no scope is carried out at the STORED default, not at a literal in
-    /// the acting path.
-    /// </summary>
-    /// <remarks>
-    /// Presence of the date gate is the whole assertion, because its absence is how the wider scope
-    /// is expressed: this generation's own help text says an empty value is ignored, so there is no
-    /// value that states the wider scope and omission is the statement.
-    /// </remarks>
+    // Presence of the date gate is the whole assertion, because its absence is how the wider
+    // scope is expressed. This generation ignores an empty value, so omission is the statement.
     [Theory]
     [InlineData(MonitorScope.AllScenes, false)]
     [InlineData(MonitorScope.FutureScenes, true)]
@@ -166,7 +137,6 @@ public sealed class MonitorPathTests
         Assert.Equal(carriesTheDateGate, body.ContainsKey("afterDate"));
     }
 
-    /// <summary>A scope the request names wins over the stored default.</summary>
     [Fact]
     public async Task AScopeTheRequestNamesWinsOverTheStoredDefault()
     {
@@ -186,10 +156,8 @@ public sealed class MonitorPathTests
         Assert.True(Assert.IsType<JsonObject>(JsonNode.Parse(add.Body)).ContainsKey("afterDate"));
     }
 
-    /// <summary>
-    /// The bulk path's per-entity step reads the same stored default, so a selection cannot behave
-    /// differently from a click.
-    /// </summary>
+    // The bulk path's per-entity step reads the same stored default, so a selection cannot behave
+    // differently from a click.
     [Theory]
     [InlineData(MonitorScope.AllScenes, false)]
     [InlineData(MonitorScope.FutureScenes, true)]
@@ -215,17 +183,11 @@ public sealed class MonitorPathTests
         Assert.Equal(carriesTheDateGate, body.ContainsKey("afterDate"));
     }
 
-    /// <summary>
-    /// An accepted add whose read-back finds nothing says the change was not reported, not that the
-    /// instance holds no such entry.
-    /// </summary>
-    /// <remarks>
-    /// Every other site that answers the not-held kind reads BEFORE anything is sent, so its sentence
-    /// says there was nothing to act on. Here the add left and was accepted, so that sentence would
-    /// tell a reader nothing happened when the entity may well now exist. This is the one refusal
-    /// reachable only after a write, and it is driven through the mounted route because the function
-    /// that chooses it is private to the API.
-    /// </remarks>
+    // Every other site that answers the not-held kind reads before anything is sent, so its
+    // sentence says there was nothing to act on. Here the add left and was accepted, so that
+    // sentence would tell a reader nothing happened when the entity may now exist. This refusal is
+    // reachable only after a write, and it is driven through the mounted route because the
+    // function that chooses it is private to the API.
     [Fact]
     public async Task AnAcceptedAddWhoseReadBackFindsNothingSaysTheChangeWasNotReported()
     {
@@ -242,14 +204,9 @@ public sealed class MonitorPathTests
         Assert.Contains(nameof(IWhisparrStudioActing.AddMonitoredStudioAsync), host.Client.Verbs);
     }
 
-    /// <summary>
-    /// The same site keeps a refusal the answering seam read for itself, rather than replacing it.
-    /// </summary>
-    /// <remarks>
-    /// An answer past this product's own read bound names this product as the party that stopped, and
-    /// that stays true after an accepted write: it is a fact about the read, not about what the
-    /// instance now holds. Collapsing every read-back disagreement into one kind would lose it.
-    /// </remarks>
+    // An answer past this product's own read bound names this product as the party that stopped,
+    // and that stays true after an accepted write. Collapsing every read-back disagreement into
+    // one kind would lose it.
     [Fact]
     public async Task AnAcceptedAddWhoseReadBackIsPastTheReadBoundKeepsThatReason()
     {
@@ -269,15 +226,9 @@ public sealed class MonitorPathTests
         Assert.Equal(MonitorRefusalKind.AnswerTooLargeToRead, view.Refusal);
     }
 
-    /// <summary>
-    /// An answer past the read bound on v2's site read keeps its own reason, rather than being
-    /// parsed as an absence.
-    /// </summary>
-    /// <remarks>
-    /// An answer past the bound arrives with the success status the instance gave and an empty body.
-    /// Parsing that body reports the site as one the instance does not hold, which is the reason this
-    /// generation's path needs its own case rather than resting on the transport one.
-    /// </remarks>
+    // An answer past the bound arrives with the success status the instance gave and an empty
+    // body. Parsing that body reports the site as one the instance does not hold, so this
+    // generation's path needs its own case rather than resting on the transport one.
     [Fact]
     public async Task AnAnswerPastTheBoundOnTheOlderGenerationReadKeepsItsOwnReason()
     {
@@ -298,20 +249,12 @@ public sealed class MonitorPathTests
         Assert.Empty(read.Body);
     }
 
-    /// <summary>
-    /// However large an answer v2's listing gives, only the matched entry is
-    /// carried onward.
-    /// </summary>
-    /// <remarks>
-    /// The answer is generated here rather than captured, because it is an INPUT for a size property
-    /// and not a response any instance sent. A fabricated document in the fixtures directory would
-    /// break that directory's own contract, which is that every file in it is verbatim.
-    /// <para>
-    /// Driven through the transport double rather than through the role seam, so the two-request
-    /// assembly itself is what runs. A double standing in at the seam answers the assembled reading
-    /// and never assembles one.
-    /// </para>
-    /// </remarks>
+    // The answer is generated here rather than captured, because it is an input for a size
+    // property and not a response any instance sent. Every file in the fixtures directory is
+    // verbatim.
+    // Driven through the transport double rather than through the role seam, so the two-request
+    // assembly itself is what runs. A double standing in at the seam answers the assembled reading
+    // and never assembles one.
     [Fact]
     public async Task TheOlderGenerationsHeldReadIsNotGivenTheWholeCatalogueToParse()
     {
@@ -363,15 +306,8 @@ public sealed class MonitorPathTests
             $"the read carried {read.Body.Length} characters onward out of a {listing.ToJsonString().Length}-character answer.");
     }
 
-    /// <summary>
-    /// An entity the instance does not hold reads as not held on the narrowed read exactly as it did
-    /// on the unfiltered one, which is not a refusal.
-    /// </summary>
-    /// <remarks>
-    /// The listing answer is the one the pinned build sent for an entity id it holds nothing under.
-    /// Pinning the client's own answer here keeps a later change to this reading's CALLERS honest:
-    /// the reading itself is the precondition for adding the entity, not a report about the instance.
-    /// </remarks>
+    // The listing answer is the one the pinned build sent for an entity id it holds nothing under.
+    // The reading is the precondition for adding the entity, not a report about the instance.
     [Fact]
     public async Task TheOlderGenerationsHeldReadOfAnEntityTheInstanceDoesNotHoldIsTheFilteredAnswer()
     {
@@ -394,15 +330,9 @@ public sealed class MonitorPathTests
         Assert.Equal(MonitorRefusalKind.None, MonitoringProjector.Classify(read).Refusal);
     }
 
-    /// <summary>
-    /// The flag flip and the scope change reach this generation's own routes with its own bodies, and
-    /// neither reads anything first.
-    /// </summary>
-    /// <remarks>
-    /// The scope change is one request here and a read-then-replace on the other generation, because
-    /// this one re-applies the option over what the instance already holds while the other's editor
-    /// resource declares no gate at all.
-    /// </remarks>
+    // The scope change is one request here and a read-then-replace on the other generation,
+    // because this one re-applies the option over what the instance already holds while the
+    // other's editor resource declares no gate at all.
     [Fact]
     public async Task TheOlderGenerationsFlipAndScopeChangeReachItsOwnRoutes()
     {
@@ -436,11 +366,8 @@ public sealed class MonitorPathTests
             "all", ((JsonObject)scope["monitoringOptions"]!)["monitor"]!.GetValue<string>());
     }
 
-    /// <summary>An identifier a caller put in the body reaches nothing.</summary>
-    /// <remarks>
-    /// The request shape declares no identifier field at all, so this drives the wire rather than the
-    /// record: a member the model drops is exactly what a caller would try.
-    /// </remarks>
+    // The request shape declares no identifier field at all, so this drives the wire rather than
+    // the record: a member the model drops is exactly what a caller would try.
     [Fact]
     public async Task AnIdentifierInTheRequestBodyIsIgnoredAndTheStoredRowIsWhatIsSent()
     {
@@ -461,7 +388,6 @@ public sealed class MonitorPathTests
         Assert.Equal(MonitorHost.StudioRemoteIdValue, add.ForeignId);
     }
 
-    /// <summary>A studio carrying no identity in the connected generation's namespace.</summary>
     [Fact]
     public async Task AStudioWithNoStoredRowRefusesBeforeAnythingIsSent()
     {
@@ -480,7 +406,6 @@ public sealed class MonitorPathTests
         Assert.NotEmpty(host.Client.Verbs);
     }
 
-    /// <summary>An identity row in the OTHER generation's namespace is not one in this one.</summary>
     [Fact]
     public async Task AStudioIdentifiedOnlyInTheOtherNamespaceRefusesBeforeAnythingIsSent()
     {
@@ -493,11 +418,8 @@ public sealed class MonitorPathTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>An instance offering no profile at all.</summary>
-    /// <remarks>
-    /// The stop is the only guard on this generation: it accepts a zero profile id, echoes it back,
-    /// and the studio then monitors happily and can never acquire anything.
-    /// </remarks>
+    // The stop is the only guard on this generation: it accepts a zero profile id, echoes it back,
+    // and the studio then monitors and can never acquire anything.
     [Fact]
     public async Task AnInstanceOfferingNoProfileRefusesWithTheAddNeverSent()
     {
@@ -515,7 +437,6 @@ public sealed class MonitorPathTests
             call => call.Verb == nameof(IWhisparrStudioActing.AddMonitoredStudioAsync));
     }
 
-    /// <summary>An instance whose first offered profile carries the id its own add would accept.</summary>
     [Fact]
     public async Task AProfileIdOfZeroIsRefusedRatherThanSent()
     {
@@ -530,7 +451,7 @@ public sealed class MonitorPathTests
         Assert.DoesNotContain(nameof(IWhisparrStudioActing.AddMonitoredStudioAsync), host.Client.Verbs);
     }
 
-    /// <summary>An instance offering no root folder, which a fresh one does.</summary>
+    // A fresh instance offers no root folder.
     [Fact]
     public async Task AnInstanceOfferingNoRootFolderRefusesWithTheAddNeverSent()
     {
@@ -545,11 +466,8 @@ public sealed class MonitorPathTests
         Assert.DoesNotContain(nameof(IWhisparrStudioActing.AddMonitoredStudioAsync), host.Client.Verbs);
     }
 
-    /// <summary>The profile chosen is the first the instance offered, in the order received.</summary>
-    /// <remarks>
-    /// The offered list is deliberately not in id order, so a sort anywhere on the path changes the
-    /// answer and is reported here.
-    /// </remarks>
+    // The offered list is deliberately not in id order, so a sort anywhere on the path changes the
+    // answer and is reported here.
     [Fact]
     public void TheProfileChosenIsTheFirstOfferedAndNotTheLowestId()
     {
@@ -560,7 +478,6 @@ public sealed class MonitorPathTests
         Assert.Equal("/config/library", resolved.Defaults?.RootFolderPath);
     }
 
-    /// <summary>An entity the instance already holds keeps its own defaults, which are never read.</summary>
     [Fact]
     public async Task AStudioTheInstanceAlreadyHoldsIsNotReadForDefaultsAndIsNotAddedAgain()
     {
@@ -575,10 +492,8 @@ public sealed class MonitorPathTests
         Assert.Equal([nameof(IWhisparrStudioActing.ReadStudioAsync)], host.Client.Verbs);
     }
 
-    /// <summary>
-    /// The mount read answers what the entity's state IS, and which capabilities the connected
-    /// generation holds, so the browser carries no generation table of its own.
-    /// </summary>
+    // The read answers which capabilities the connected generation holds, so the browser carries
+    // no generation table of its own.
     [Fact]
     public async Task TheMountReadAnswersTheLiveStateAndTheHeldCapabilities()
     {
@@ -595,7 +510,6 @@ public sealed class MonitorPathTests
         Assert.Equal([nameof(IWhisparrStudioActing.ReadStudioAsync)], host.Client.Verbs);
     }
 
-    /// <summary>A studio the instance does not hold reads as not monitored rather than as a failure.</summary>
     [Fact]
     public async Task AStudioTheInstanceDoesNotHoldReadsAsNotMonitored()
     {
@@ -609,14 +523,8 @@ public sealed class MonitorPathTests
         Assert.Null(view.Scope);
     }
 
-    /// <summary>
-    /// The mount read carries the scope the instance's own answer reported, and carries none where
-    /// that answer reported nothing.
-    /// </summary>
-    /// <remarks>
-    /// Driven through the mapped route rather than through the projection, because the defect this
-    /// closes was the browser reading a scope the read never carried.
-    /// </remarks>
+    // Driven through the mapped route rather than through the projection, because the defect this
+    // closes was the browser reading a scope the read never carried.
     [Theory]
     [InlineData("""{"id":1,"monitored":true,"afterDate":"2026-09-03"}""", MonitorScope.FutureScenes)]
     [InlineData("""{"id":1,"monitored":true}""", MonitorScope.AllScenes)]
@@ -632,10 +540,6 @@ public sealed class MonitorPathTests
         Assert.Equal(scope, view.Scope);
     }
 
-    /// <summary>
-    /// A studio the instance holds and does not monitor reports no scope, whatever date gate its
-    /// record still carries.
-    /// </summary>
     [Fact]
     public async Task AnUnmonitoredStudioReadCarriesNoScope()
     {
@@ -651,7 +555,7 @@ public sealed class MonitorPathTests
         Assert.Null(view.Scope);
     }
 
-    /// <summary>A performer reports no scope, because it expresses none on either generation.</summary>
+    // A performer expresses no scope on either generation.
     [Fact]
     public async Task APerformerReadCarriesNoScope()
     {
@@ -672,7 +576,6 @@ public sealed class MonitorPathTests
         Assert.Null(view.Scope);
     }
 
-    /// <summary>The scope-change route answers the scope it just applied.</summary>
     [Fact]
     public async Task TheScopeChangeAnswersTheScopeItApplied()
     {
@@ -688,7 +591,6 @@ public sealed class MonitorPathTests
         Assert.Equal(MonitorScope.AllScenes, view.Scope);
     }
 
-    /// <summary>Unmonitoring leaves no scope in force to report.</summary>
     [Fact]
     public async Task UnmonitoringAnswersNoScope()
     {
@@ -705,11 +607,8 @@ public sealed class MonitorPathTests
         Assert.Null(view.Scope);
     }
 
-    /// <summary>An instance refusing the add is reported as a kind, never as its own words.</summary>
-    /// <remarks>
-    /// This generation answers a failed add with a body carrying a full stack trace under
-    /// <c>description</c>. Nothing here reads that member, so nothing it holds can reach a user.
-    /// </remarks>
+    // This generation answers a failed add with a body carrying a full stack trace under
+    // "description". Nothing here reads that member, so nothing it holds can reach a user.
     [Fact]
     public async Task AnInstanceRefusingTheAddIsReportedAsAKindAndNotAsItsOwnWords()
     {
@@ -726,16 +625,9 @@ public sealed class MonitorPathTests
         Assert.DoesNotContain("Whisparr.Api.V3", JsonSerializer.Serialize(view));
     }
 
-    /// <summary>
-    /// The same two routes serve a performer, and the kind on the route selects both the identity
-    /// table read and the acting member sent.
-    /// </summary>
-    /// <remarks>
-    /// A studio is seeded beside the performer, in the same namespace, under a DIFFERENT stored
-    /// identifier and carrying the same cove id: the two kinds number their rows independently. A
-    /// path reading the wrong identity table would therefore find a row and send that studio's
-    /// identifier, which is what the identifier assertion below refuses.
-    /// </remarks>
+    // A studio is seeded beside the performer, in the same namespace, under a different stored
+    // identifier and carrying the same cove id: the two kinds number their rows independently. A
+    // path reading the wrong identity table would find a row and send that studio's identifier.
     [Fact]
     public async Task TheKindOnTheRouteSelectsThePerformerTableAndThePerformerAdd()
     {
@@ -773,11 +665,7 @@ public sealed class MonitorPathTests
         Assert.Null(add.Scope);
     }
 
-    /// <summary>A performer carrying no identity row refuses before anything is sent.</summary>
-    /// <remarks>
-    /// Paired with a send through the same double, so the empty log is evidence rather than the only
-    /// thing this case could report.
-    /// </remarks>
+    // Paired with a send through the same double, so the empty log is evidence.
     [Fact]
     public async Task APerformerWithNoStoredRowRefusesBeforeAnythingIsSent()
     {
@@ -795,7 +683,6 @@ public sealed class MonitorPathTests
         Assert.NotEmpty(host.Client.Verbs);
     }
 
-    /// <summary>A kind no route segment can be read as is a malformed request, never a default.</summary>
     [Fact]
     public async Task AKindTheRouteCannotBeReadAsIsRefusedAsABadRequest()
     {
@@ -808,7 +695,6 @@ public sealed class MonitorPathTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>Neither monitoring route answers a caller without the tier it declares.</summary>
     [Fact]
     public async Task NeitherMonitoringRouteAnswersACallerWithoutItsTier()
     {
@@ -827,7 +713,6 @@ public sealed class MonitorPathTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>An unconfigured connection refuses before anything is sent.</summary>
     [Fact]
     public async Task AnUnconfiguredConnectionRefusesBeforeAnythingIsSent()
     {
@@ -840,14 +725,8 @@ public sealed class MonitorPathTests
         Assert.Empty(host.Client.Verbs);
     }
 
-    /// <summary>
-    /// Future Scenes puts the add-time gate in the body and All Scenes leaves it out, and an
-    /// unrecognised scope resolves to neither.
-    /// </summary>
-    /// <remarks>
-    /// The instant is supplied rather than read inside the projector, so the spelling under test is
-    /// the one the instance was measured accepting rather than whatever today produces.
-    /// </remarks>
+    // The instant is supplied rather than read inside the projector, so the spelling under test is
+    // the one the instance was measured accepting rather than whatever today produces.
     [Fact]
     public void TheAddTimeGateIsPresentForFutureScenesAndAbsentForAllScenes()
     {

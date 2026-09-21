@@ -38,10 +38,7 @@ import {
   type SceneControlKey,
 } from "./sceneControlLogic";
 
-/**
- * The three booleans each state is derived from. Named by the state they produce, so a case reads
- * as the state under test rather than as a triple the reader has to decode.
- */
+// The three booleans each state is derived from, keyed by the state they produce.
 const FACTS_FOR: Record<
   WhisparrEntityState,
   Pick<SceneDetailView, "excluded" | "present" | "monitored">
@@ -53,7 +50,7 @@ const FACTS_FOR: Record<
   statusUnknown: { excluded: false, present: null, monitored: null },
 };
 
-/** Every state in the vocabulary, transcribed by hand so a sixth one has no row here. */
+// Transcribed by hand, so a sixth state has no row here.
 const EVERY_STATE: readonly WhisparrEntityState[] = [
   "notAdded",
   "unmonitored",
@@ -83,15 +80,12 @@ function input(
   };
 }
 
-/** The label of each control, in the order the tab draws them. */
 const labels = (state: WhisparrEntityState, over?: Partial<Omit<SceneControlInput, "view">>) =>
   sceneControls(deriveSceneControls(input(state, over))).map((control) => control.label);
 
-/** The reason each control gives, in the same order. */
 const reasons = (state: WhisparrEntityState, over?: Partial<Omit<SceneControlInput, "view">>) =>
   sceneControls(deriveSceneControls(input(state, over))).map((control) => control.reason);
 
-/** Which controls carry the accent fill. */
 const primaries = (state: WhisparrEntityState) =>
   sceneControls(deriveSceneControls(input(state)))
     .filter((control) => control.variant === "primary")
@@ -369,10 +363,8 @@ describe("each verb names the route it is served at", () => {
   });
 });
 
-/**
- * The refusal members, transcribed by hand from the server's enum. A list computed from the
- * generated module would agree with it whatever it says.
- */
+// Transcribed by hand from the server's enum. A list computed from the generated module would
+// agree with it whatever it says.
 const EVERY_REFUSAL: readonly SceneRefusalKind[] = [
   "none",
   "noInstanceConnected",

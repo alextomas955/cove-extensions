@@ -1,13 +1,8 @@
-/**
- * The shared boolean's two promises: it starts off, and separately created subscribers observe one
- * flip.
- *
- * Off by default is what keeps a card identical to a card with no extension registered. One shared
- * value is what lets the control in a toolbar reach the badges on the cards below it, which are
- * separate host slot instances with no React tree in common.
- *
- * The store is at module scope, so each test leaves the boolean as it found it.
- */
+// Off by default keeps a card identical to a card with no extension registered. One shared value
+// is what lets a toolbar control reach the badges below it, which are separate host slot instances
+// with no React tree in common.
+//
+// The store is at module scope, so each test leaves the boolean as it found it.
 import { afterEach, expect, test } from "vitest";
 
 import { libraryStatusOn, subscribeLibraryStatus, toggleLibraryStatus } from "./libraryToggleStore";
@@ -16,7 +11,6 @@ afterEach(() => {
   if (libraryStatusOn()) toggleLibraryStatus();
 });
 
-/** One subscriber, counting what it was told. */
 function observe(): { seen: () => number; unsubscribe: () => void } {
   let changes = 0;
   const unsubscribe = subscribeLibraryStatus(() => {

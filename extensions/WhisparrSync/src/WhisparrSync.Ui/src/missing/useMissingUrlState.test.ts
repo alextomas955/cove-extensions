@@ -1,11 +1,7 @@
 // @vitest-environment jsdom
-/**
- * That one write reaches every mounted reader, which the browser will not do on its own.
- *
- * `history.replaceState` fires no `popstate` and this hook dispatches no host location event, so a
- * second instance would otherwise never learn that the first one wrote. The two instances here are
- * the toolbar and the tab shell in miniature.
- */
+// `history.replaceState` fires no `popstate` and this hook dispatches no host location event, so
+// a second instance would never learn that the first one wrote. The two instances here stand for
+// the toolbar and the tab shell.
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -16,11 +12,9 @@ import { useMissingUrlState } from "./useMissingUrlState";
 type HookState = [MissingView, (view: MissingView) => void];
 
 interface Probe {
-  /** What the last committed render saw. */
   view: () => MissingView;
-  /** The writer the last committed render was handed. Returns once every reader has redrawn. */
+  // The writer the last committed render was handed. Returns once every reader has redrawn.
   write: (view: MissingView) => Promise<void>;
-  /** How many times this instance has rendered. */
   renders: () => number;
   unmount: () => Promise<void>;
 }
@@ -69,7 +63,6 @@ async function mount(): Promise<Probe> {
   };
 }
 
-/** Fires a window event the way the browser does, and lets every reader redraw. */
 async function fire(event: Event): Promise<void> {
   await act(() => {
     window.dispatchEvent(event);

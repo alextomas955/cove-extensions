@@ -1,16 +1,8 @@
 /**
- * The Whisparr status on one library card, drawn in the host's own clipped in-card box.
+ * The Whisparr status on one library card, for all three card kinds.
  *
- * One component behind all three card kinds, taking the kind and the Cove id its caller declared.
- * The exported slot components sit beside it and each declares its own host prop at its narrowest.
- *
- * A card the extension cannot speak for draws nothing at all, and so does a card whose read has not
- * answered. Nothing here is a spinner and nothing here is a second row: the host clips this box, and
- * a wrapped label disappears below the clip with no error.
- *
- * The unknown state is the Missing tab's, and a badge here never draws it: a read that established
- * nothing draws nothing, and the reason is stated once for the page on the toolbar control that
- * asked for it.
+ * The host clips this box, so the badge is one row and never wraps. A card with no reading draws
+ * nothing; the reason is stated once for the page on the toolbar control.
  */
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
@@ -38,9 +30,8 @@ export function CardStatusBadge({ kind, coveId }: { kind: LibraryCardKind; coveI
     <AsyncRegion
       state={region}
       available={on}
-      // Nothing while the batch is in flight. Forty placeholders inside forty clipped boxes is noise
-      // on a surface whose whole purpose is a glance, and the cost is one reflow at a moment the
-      // reader asked for.
+      // Nothing while the batch is in flight. A placeholder in every clipped box is noise on a
+      // surface meant to be read at a glance.
       reading={null}
       empty={null}
       failed={null}

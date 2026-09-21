@@ -5,46 +5,35 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Scene;
 
-/// <summary>
-/// What a per-scene search claims, and what it has to read off the instance before it may claim it.
-/// </summary>
-/// <remarks>
-/// A success status is not the evidence. The command's own identifier is taken off the answer to the
-/// post and read back off the instance, and only that read licenses the sentence saying the instance
-/// holds the search. Nothing here claims a download.
-/// <para>
-/// The command bodies below carry the member set the pinned instance's own command resource
-/// declares, read from that server's source. Which status a just-posted command reports on a live
-/// build is not measured and is deliberately not read: confirmation is identifier equality alone.
-/// </para>
-/// </remarks>
+// A success status is not the evidence. The command's identifier is taken off the answer to the
+// post and read back off the instance, and only that read licenses the sentence saying the
+// instance holds the search.
+//
+// The command bodies below carry the member set the pinned instance's command resource declares,
+// read from that server's source. Which status a just-posted command reports is not measured, so
+// confirmation is identifier equality alone.
 public sealed class SceneSearchReadBackTests
 {
-    /// <summary>A scene as the provider issues its identifier.</summary>
     private const string SceneId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
-    /// <summary>The instance's own identifier for the scene, as its row carries one.</summary>
     private const int SceneOnTheInstance = 812;
 
-    /// <summary>The command's own identifier, which the instance issues.</summary>
     private const int CommandOnTheInstance = 9001;
 
     private const string Search = "search";
 
-    /// <summary>One row, as the instance answers a per-scene read for a scene it holds.</summary>
     private static string HeldSceneRow(bool monitored)
         => $$"""[{"id":{{SceneOnTheInstance}},"monitored":{{(monitored ? "true" : "false")}}}]""";
 
-    /// <summary>A scene the instance holds no entry for.</summary>
+    // A scene the instance holds no entry for.
     private const string NoSceneRow = "[]";
 
-    /// <summary>The command as the instance reports it, under the identifier it issued.</summary>
     private static string CommandRow(int commandId)
         => $$"""
         {"id":{{commandId}},"name":"MoviesSearch","commandName":"Movies Search","priority":"normal","status":"queued","result":"unknown","trigger":"manual","queued":"2026-01-01T00:00:00Z"}
         """;
 
-    /// <summary>A success carrying no identifier a caller could ask about afterwards.</summary>
+    // A success carrying no identifier a caller could ask about afterwards.
     private const string CommandRowWithNoReadableId =
         """{"name":"MoviesSearch","status":"queued"}""";
 
@@ -110,13 +99,8 @@ public sealed class SceneSearchReadBackTests
         Assert.Equal(CommandOnTheInstance, asked.Id);
     }
 
-    /// <summary>
-    /// A read-back naming another command confirms nothing.
-    /// </summary>
-    /// <remarks>
-    /// The instance answers with a whole command resource under a success, so this is the case a
-    /// status assertion cannot tell from the confirmed one.
-    /// </remarks>
+    // The instance answers a whole command resource under a success, so a status assertion cannot
+    // tell this case from the confirmed one.
     [Fact]
     public async Task AReadBackNamingAnotherCommandIsRefusedRatherThanConfirmed()
     {
@@ -168,14 +152,8 @@ public sealed class SceneSearchReadBackTests
         Assert.False(result.SearchIsWithWhisparr);
     }
 
-    /// <summary>
-    /// One command read per search, counted off the answers consumed.
-    /// </summary>
-    /// <remarks>
-    /// Counted rather than read off the result, because a loop that settles after one iteration
-    /// produces the same result as a single read. No wait, no queue read and no poll to completion
-    /// is what this asserts.
-    /// </remarks>
+    // The calls are counted rather than read off the result, because a loop that settles after one
+    // iteration produces the same result as a single read.
     [Fact]
     public async Task OneCommandReadPerSearchAndNoSecond()
     {
@@ -194,11 +172,8 @@ public sealed class SceneSearchReadBackTests
         Assert.Single(host.Client.SceneStatuses);
     }
 
-    /// <summary>The Missing tab's own search confirms the same way.</summary>
-    /// <remarks>
-    /// Held in this class rather than beside the card's other cases, so the two surfaces' evidence
-    /// for one verb is stated in one place and a divergence between them is visible.
-    /// </remarks>
+    // The Missing tab's cases sit here rather than beside the card's, so the two surfaces' evidence
+    // for one verb is stated in one place and a divergence is visible.
     [Fact]
     public async Task TheMissingTabsSearchConfirmsFromTheSameReadBack()
     {
@@ -248,13 +223,8 @@ public sealed class SceneSearchReadBackTests
         Assert.Equal(MissingSceneActionRefusal.DidNotReachWhisparr, result.Refusal);
     }
 
-    /// <summary>
-    /// Neither surface reports a search the instance does not hold as a success.
-    /// </summary>
-    /// <remarks>
-    /// Asserted per route rather than once. The two answer in different vocabularies, and a read-back
-    /// added to one and not the other is exactly the inconsistency this pairing exists to catch.
-    /// </remarks>
+    // Asserted per route rather than once. The two answer in different vocabularies, and a
+    // read-back added to one and not the other is the inconsistency this pairing catches.
     [Fact]
     public async Task NeitherSurfaceReportsASearchWhisparrDoesNotHoldAsASuccess()
     {
@@ -279,7 +249,7 @@ public sealed class SceneSearchReadBackTests
         Assert.Equal(MissingSceneActionRefusal.InstanceRefused, onTheMissingTab.Refusal);
     }
 
-    /// <summary>A post and a read-back that both name <paramref name="commandId"/>.</summary>
+    // A post and a read-back that both name the same command.
     private static void Confirming(MonitorHost host, int commandId)
         => host.Client
             .Answering(

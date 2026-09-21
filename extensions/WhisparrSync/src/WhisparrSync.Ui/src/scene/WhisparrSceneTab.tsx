@@ -1,17 +1,9 @@
 /**
  * The scene tab, mounted on the video detail page.
  *
- * The host passes an entity id and nothing else, and the page type is fixed, so nothing here reads
- * the address.
- *
- * A header naming Whisparr and carrying the state chip, a card of the facts the instance named, and
- * one full-width control bar per row.
- *
- * No outer padding and no max-width wrapper: the host already pads the tab panel it mounts this in.
- * No stylesheet and no background of its own either, because an extension CSS bundle is page-global
- * and would leak onto every host page, so every visual here is a host-emitted utility class.
- *
- * Every sentence below is declared in the copy module. This file composes none of its own.
+ * No outer padding and no max-width wrapper: the host already pads the tab panel. Every visual is
+ * a host-emitted utility class, because an extension CSS bundle is page-global and would leak
+ * onto every host page.
  */
 import { StatusText } from "@cove-extensions/ui-shared";
 
@@ -51,9 +43,8 @@ export function WhisparrSceneTab({ entityId }: { entityId: number }) {
         content={
           state.view === null ? null : <SceneSurface scene={state} view={state.view} act={act} />
         }
-        // Unreachable, and given the failed node so that reaching it states something. Every
-        // successful read carries a view and sets `hasContent`, so the derivation answers `content`
-        // for a success and `reading` or `failed` for everything else.
+        // Unreachable: every successful read carries a view and sets `hasContent`. It is given
+        // the failed node so that reaching it states something.
         empty={couldNotBeRead}
         failed={couldNotBeRead}
       />
@@ -92,8 +83,8 @@ function SceneSurface({
     <>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {/* The logo declares its own accessible name, and the word beside it is that same name, so
-              the pair would otherwise announce twice. */}
+          {/* The logo declares the same accessible name as the word beside it, so the pair would
+              otherwise announce twice. */}
           <span aria-hidden="true" className="flex">
             <WhisparrLogo className="h-4 w-4" />
           </span>
@@ -166,8 +157,8 @@ function FactRow({ label, named }: { label: string; named: string }) {
   return (
     <div className="flex items-center gap-3">
       <dt className="text-xs text-secondary">{label}</dt>
-      {/* An instance-supplied name has no bound, so it truncates and carries the whole of itself on
-          the element. */}
+      {/* An instance-supplied name has no length bound, so it truncates and carries the whole of
+          itself in the title. */}
       <dd className="min-w-0 flex-1 truncate text-right text-sm text-foreground" title={named}>
         {named}
       </dd>

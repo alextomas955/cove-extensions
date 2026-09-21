@@ -1,14 +1,13 @@
 /**
- * One entity's monitoring state: the read itself, what it last answered, and whether an action is in
- * flight. State only - every request lives in `useMonitoring.ts`.
+ * One entity's monitoring state: the read itself, what it last answered, and whether an action is
+ * in flight. State only - every request lives in `useMonitoring.ts`.
  *
- * An instance is created per page lifetime rather than at module scope, so a second visit starts from
- * a fresh read instead of rendering the previous visit's answer as though it had just arrived.
+ * An instance is created per page lifetime rather than at module scope, so a second visit starts
+ * from a fresh read.
  *
  * Every settle names the entity it was started for and is dropped when that is not the entity now
- * mounted. The host keeps one slot component across a navigation between two entity pages, so a read
- * for the first can settle after the second has mounted and would otherwise paint one entity's state
- * onto the other.
+ * mounted. The host keeps one slot component across a navigation between two entity pages, so a
+ * read for the first can settle after the second has mounted.
  */
 import type { EntityMonitoringView, MonitorRefusalKind, WhisparrEntityKind } from "../wire/api";
 import type { ReflectOwnedSkip } from "./monitorMenuLogic";
@@ -31,24 +30,23 @@ export interface MonitoringState {
   /**
    * The last action produced no answer at all.
    *
-   * Records THAT it produced none, and deliberately not what the answer would have been. The text an
-   * instance sends back is its own, one generation answers a refused add with a stack trace inside
-   * it, and a field holding that is a standing invitation for something to render it.
+   * Records that it produced none, never what the answer said. One generation answers a refused add
+   * with a stack trace in the body, and a field holding that invites something to render it.
    */
   readonly actionFailed: boolean;
   /**
    * The reason the last action was answered and did nothing, or null.
    *
-   * Held apart from the failure. A skip is a settled answer from the instance and a failure is no
-   * answer at all, and the two send the reader somewhere different.
+   * Held apart from the failure: a skip is a settled answer from the instance and a failure is no
+   * answer at all.
    */
   readonly actionSkip: ReflectOwnedSkip | null;
   /**
    * What the instance refused the last action for, or null.
    *
-   * Held apart from the view's own refusal, and outranking it: the read route composes no add, so it
-   * can never answer the two add-defaults kinds, and the read that follows every action overwrites
-   * the view with an answer that names no refusal at all.
+   * Held apart from the view's own refusal, and outranking it: the read route composes no add, so
+   * it can never answer the two add-defaults kinds, and the read that follows every action
+   * overwrites the view with an answer naming no refusal.
    */
   readonly actionRefusal: MonitorRefusalKind | null;
 }

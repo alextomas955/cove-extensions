@@ -2,9 +2,8 @@
  * Which pages the pager may offer.
  *
  * The pager is fed the size of the set the provider will actually serve, never its reported
- * catalogue size. One provider clamps a page number past its own last page and re-serves that page,
- * echoing the clamped number back, so a pager sized from the reported total would offer pages that
- * silently repeat rather than erroring.
+ * catalogue size. One provider clamps a page number past its own last page and re-serves that
+ * page, so a pager sized from the reported total would offer pages that silently repeat.
  */
 
 export interface PageBounds {

@@ -1,7 +1,4 @@
-/**
- * The choice the videos selection bar opens: the five scene rows in their fixed order, and a way
- * out that sends nothing.
- */
+/** The choice the videos selection bar opens: the five scene rows, plus cancel. */
 import { Ban, CircleSlash, Plus, Radar, Search } from "lucide-react";
 
 import { BULK_CANCEL, BULK_CLOSE } from "../common/ui/copy";
@@ -25,12 +22,12 @@ export function WhisparrBatchChooser({
   reason,
   onChoose,
 }: {
-  /** The rows offered, in the order they read. Empty when a refusal is being stated. */
+  /** Empty when a refusal is being stated. */
   rows: readonly BatchMenuRow[];
   count: number;
-  /** The sentence stating a refusal, or null when rows are being offered. */
+  /** A refusal sentence, or null when rows are being offered. */
   reason: string | null;
-  /** Called with the chosen row, or with null when the reader leaves without choosing. */
+  /** Called with null when the overlay is left without a choice. */
   onChoose: (row: BatchMenuRow | null) => void;
 }) {
   return (

@@ -33,8 +33,7 @@ const SCENES = syncSentences("scenes");
 const SITES = syncSentences("sites");
 
 describe("a count reads the same wherever it is rendered", () => {
-  // Hand-transcribed. An expectation computed from the module would agree with whatever grouping
-  // the module produced, and the point of grouping by hand is that the rendering is fixed.
+  // Hand-transcribed. An expectation computed from the module would always agree with it.
   it("groups every three digits and leaves shorter numbers alone", () => {
     expect(groupThousands(0)).toBe("0");
     expect(groupThousands(1)).toBe("1");
@@ -60,10 +59,7 @@ describe("the count control's name and its one reason", () => {
     expect(countControl(true, true).reason).toBe(SYNC_IS_COUNTING);
   });
 
-  /**
-   * A failed count is not a reason. The failure belongs in the preview region beside the control,
-   * and a control dimmed after a failure would leave the reader nothing to retry with.
-   */
+  // A failed count is not a reason to dim the control, or the reader has nothing to retry with.
   it("is pressable whenever no count is in flight", () => {
     expect(countControl(false, false).reason).toBeNull();
     expect(countControl(false, true).reason).toBeNull();
@@ -86,8 +82,7 @@ const PRESSABLE: SyncControlState = {
 };
 
 describe("the confirmation names the figures and the consequence", () => {
-  // Every expectation below is transcribed by hand. One composed from the module's own clauses would
-  // agree with whatever the module produced.
+  // Transcribed by hand. One composed from the module's own clauses would always agree with it.
   it("names what it covers and what it skips, and that it monitors nothing", () => {
     expect(syncConfirmation(LIBRARY, false, SCENES)).toBe(
       "This offers all 5,898 scenes you own to Whisparr, and skips 1,648 that cannot be registered. " +
@@ -117,10 +112,7 @@ describe("the confirmation names the figures and the consequence", () => {
     );
   });
 
-  /**
-   * The reason the dialog exists. Three assertions rather than one loop, because a loop over a table
-   * of sizes states the property once and this is the one clause that has to hold at each of them.
-   */
+  // This clause has to hold at every size, so three assertions rather than one loop over sizes.
   it("says registering downloads nothing where nothing is offered", () => {
     expect(syncConfirmation(NOTHING, false, SCENES)).toContain(SYNC_DOWNLOADS_NOTHING);
   });
@@ -153,10 +145,8 @@ describe("the confirmation reads in studios where the run registers studios", ()
     );
   });
 
-  /**
-   * The one clause in this set that names a scene, because a scene is what monitoring marks here:
-   * the studios are registered, and the scenes the reader owns on them are what carries the flag.
-   */
+  // Monitoring marks scenes, not studios. The studios are registered and the scenes on them
+  // carry the flag.
   it("names the scenes monitoring reaches on those studios", () => {
     expect(syncConfirmation(STUDIOS, true, SITES)).toBe(
       "This offers all 412 studios in your library to Whisparr, and skips 12 that cannot be " +
@@ -207,7 +197,7 @@ describe("the set is chosen by what the read says the run registers", () => {
     expect(syncSentences("scenes").nothingLeftToSync).toBe(SYNC_NOTHING_LEFT_TO_SYNC);
   });
 
-  /** Before any read has answered there is nothing to choose on, and the scene set stands. */
+  // Before any read has answered there is nothing to choose on, so the scene set stands.
   it("states scenes before any read has answered", () => {
     expect(syncSentences(null)).toEqual(syncSentences("scenes"));
   });
@@ -253,10 +243,8 @@ describe("the sync control states one reason at a time", () => {
     expect(syncDisabledReason(PRESSABLE)).toBeNull();
   });
 
-  /**
-   * The run marks every scene the reader owns monitored, including one the instance already holds,
-   * so the same counts leave real work to do with the choice on and none with it off.
-   */
+  // The run marks every scene the reader owns monitored, including ones the instance already
+  // holds, so the same counts leave work to do with the choice on and none with it off.
   it("has nothing left to do on a fully held library with monitoring off", () => {
     expect(syncDisabledReason({ ...PRESSABLE, counts: FULLY_HELD, monitorAlso: false })).toBe(
       SYNC_NOTHING_LEFT_TO_SYNC,
@@ -289,7 +277,7 @@ describe("the monitor choice states one reason at a time", () => {
     expect(monitorToggleReason({ ...PRESSABLE, starting: true })).toBe(SYNC_IS_STARTING);
   });
 
-  /** Nothing else disables it: it issues no request and it is read at press time. */
+  // Nothing else disables it: it issues no request and it is read at press time.
   it("can be made whatever else the page could not do", () => {
     expect(monitorToggleReason(PRESSABLE)).toBeNull();
     expect(

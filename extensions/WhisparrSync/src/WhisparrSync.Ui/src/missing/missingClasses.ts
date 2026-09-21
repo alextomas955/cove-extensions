@@ -5,11 +5,8 @@
  * leak onto every host page.
  */
 
-/**
- * `rounded` and not `rounded-xl`: under the glass component style the host declares a `border`
- * shorthand on `.rounded-xl.border.border-border`, which resets border colour and box shadow and
- * would clobber both the accent border and the selection ring.
- */
+// `rounded` and not `rounded-xl`: under the glass component style the host declares a `border`
+// shorthand on `.rounded-xl.border.border-border`, which resets border colour and box shadow.
 export const CARD_CLASS =
   "video-card group relative flex h-full flex-col overflow-hidden rounded border border-border bg-card text-left";
 
@@ -18,7 +15,7 @@ export const CARD_CLASS =
 export const CARD_SELECTED_CLASS =
   "video-card group relative flex h-full flex-col overflow-hidden rounded border border-accent bg-card text-left ring-2 ring-accent";
 
-/** The cover box, which reserves its space before the image arrives. */
+// Reserves the cover's space before the image arrives.
 export const CARD_MEDIA_CLASS = "card-media relative aspect-video overflow-hidden bg-black";
 
 export const CARD_BODY_CLASS =
@@ -31,7 +28,6 @@ export const CARD_META_CLASS = "mt-1 flex items-center gap-2 text-[11px] text-mu
 
 export const GRID_CLASS = "grid gap-3";
 
-// Inline rather than a utility: the responsive column classes Cove's own grid uses are absent from
-// the host stylesheet and would render nothing. The minimum is the width the host sets on its own
-// card.
+// Inline rather than a utility: the responsive column classes Cove's own grid uses are absent
+// from the host stylesheet and would render nothing. The minimum is the host's own card width.
 export const GRID_TEMPLATE_COLUMNS = "repeat(auto-fill, minmax(var(--card-min-width, 240px), 1fr))";

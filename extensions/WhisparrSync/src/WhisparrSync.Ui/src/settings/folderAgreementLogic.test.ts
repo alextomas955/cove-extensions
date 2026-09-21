@@ -42,7 +42,6 @@ function lineFor(
   return { root, refusal, pathsTried, mapping };
 }
 
-/** A folder whose stated path is working: a path in force, no reason and nothing asked about. */
 function settledLineFor(root: string, mapping: string): FolderAgreementRootLine {
   return { root, refusal: null, pathsTried: [], mapping };
 }

@@ -1,10 +1,8 @@
 /**
  * How much of the library Whisparr already knows about, and the control that finds out.
  *
- * Presentational. Every value arrives as a prop and no request is issued here.
- *
- * No progress readout of any kind: Cove's job list is the progress surface, and a second one here
- * would be the one that goes stale. Nothing from a job-status read reaches this component.
+ * No progress readout here. Cove's job list is the progress surface, and nothing from a job-status
+ * read reaches this component.
  */
 import { useState } from "react";
 import { createPortal } from "react-dom";
@@ -41,13 +39,10 @@ import {
 } from "./syncLibraryLogic";
 
 export interface SyncLibrarySectionProps {
-  /** The counts held, or null when none are. */
   counts: SyncPreviewView | null;
-  /** Which of the four slots the preview region renders. */
   preview: AsyncRegionState;
-  /** Whether a count is queued or running. */
   counting: boolean;
-  /** The instant the page re-reads on an interval, which the counts' age is measured against. */
+  /** The instant the counts' age is measured against. */
   now: number;
   onCount: () => void;
   /** The page's own reason nothing here can act on the stored connection, or null. */
@@ -58,13 +53,11 @@ export interface SyncLibrarySectionProps {
   syncRunning: boolean;
   /** Whether the enqueue request itself is in flight. */
   starting: boolean;
-  /** Whether a run was started, which is the whole of what this section says afterwards. */
   started: boolean;
   /** Whether the enqueue was refused, in which case nothing was changed. */
   refused: boolean;
-  /** The monitor choice as it stands. */
   monitorAlso: boolean;
-  /** The sentences to state, resolved by the caller from what the read says the run registers. */
+  /** The sentences to state, resolved by the caller from what the run registers. */
   sentences: SyncSentences;
   onMonitorAlso: (checked: boolean) => void;
   onSync: () => void;
@@ -160,14 +153,13 @@ export function SyncLibrarySection({
 
       {!confirming || counts === null
         ? null
-        : // Portaled to the document, so no ancestor of this tab can become the containing block of a
-          // dialog that positions against the viewport and clip it to the settings column.
+        : // Portaled to the document body. Otherwise an ancestor of this tab becomes the containing
+          // block of a dialog positioned against the viewport, and clips it to the settings column.
           createPortal(
             <ConfirmDialog
               open
               // The host defaults this to true and paints the confirm button red. Registering
-              // scenes creates nothing a reader loses and triggers no download, so a red button
-              // would contradict the sentence this dialog exists to state.
+              // scenes deletes nothing and starts no download, so red would be wrong.
               destructive={false}
               title={SYNC_LIBRARY}
               confirmLabel={SYNC_LIBRARY}
@@ -186,13 +178,6 @@ export function SyncLibrarySection({
   );
 }
 
-/**
- * The three counts, their age, and what the skipped one means.
- *
- * The three arrive on one value, so a partial set is unrepresentable here. Each row puts its noun in
- * the label and its number in the value, so no row has a plural to disagree with and a zero still
- * renders its own label.
- */
 function Counts({ counts, now, remedy }: { counts: SyncPreviewView; now: number; remedy: string }) {
   const age = describeInstant(counts.countedAt, now);
 

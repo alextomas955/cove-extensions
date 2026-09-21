@@ -7,48 +7,30 @@ using WhisparrSync.Options;
 
 namespace WhisparrSync.Tests.Options;
 
-/// <summary>
-/// The one gate every write to the stored options blob goes through, and what it guarantees when two
-/// writers meet.
-/// </summary>
-/// <remarks>
-/// The interleave is constructed rather than waited for: the store's load parks on a signal this file
-/// releases, so the moment one writer has loaded and not yet saved is a moment the test chooses.
-/// </remarks>
+// The interleave is constructed rather than waited for. The store's load parks on a signal this
+// file releases, so the moment one writer has loaded and not yet saved is one the test chooses.
 public sealed class OptionsWriteGateTests
 {
     private const string MovedHost = "http://cove.example:8080";
     private const string StoredAddress = "http://whisparr.example:6969";
     private const string StoredWatermark = "2026-01-01T00:00:00+00:00";
 
-    /// <summary>A stored blob carrying a configured connection that the model cannot bind.</summary>
-    /// <remarks>
-    /// The interval is a string where the model declares an int, which is what fails the bind. The
-    /// address and the watermark are the members a save built on the fallback would replace.
-    /// </remarks>
+    // The interval is a string where the model declares an int, which is what fails the bind. The
+    // address and the watermark are the members a save built on the fallback would replace.
     private const string UnbindableBlob = $$"""
         {"v3":{"address":"{{StoredAddress}}","backstopWatermarkUtc":"{{StoredWatermark}}"},"backstopIntervalSeconds":"every so often"}
         """;
 
-    /// <summary>How long a mutation that is not blocked on the store may take.</summary>
     private static readonly TimeSpan Budget = TimeSpan.FromSeconds(10);
 
-    /// <summary>
-    /// How long a second writer is given to reach the store, before it is taken to be parked
-    /// somewhere the store cannot see.
-    /// </summary>
+    // How long a second writer is given to reach the store, before it is taken to be parked
+    // somewhere the store cannot see.
     private static readonly TimeSpan Lapse = TimeSpan.FromMilliseconds(500);
 
-    /// <summary>The instant the health fold records, standing in for a clock reading.</summary>
     private static readonly DateTimeOffset WorkedAt = new(2026, 2, 3, 4, 5, 6, TimeSpan.Zero);
 
-    /// <summary>
-    /// Two mutations that meet both survive, because the second folds onto what the first stored.
-    /// </summary>
-    /// <remarks>
-    /// The final blob is the subject, not a call count: a gate that serialised the saves and still
-    /// let the second one carry a value read before the first would satisfy any count.
-    /// </remarks>
+    // The final blob is the subject, not a call count. A gate that serialised the saves and still
+    // let the second one carry a value read before the first would satisfy any count.
     [Fact]
     public async Task TwoMutationsThatMeetBothSurviveInTheStoredBlob()
     {
@@ -61,7 +43,7 @@ public sealed class OptionsWriteGateTests
         var behavior = gate.MutateAsync(
             options, stored => stored with { UpgradeBehavior = UpgradeBehavior.Replace }, TestCt);
 
-        // Both writers are now as far as they can get: one inside the gate at its load, and the other
+        // Both writers are now as far as they can get: one inside the gate at its load, the other
         // either waiting for the gate or, with no gate, at a load of its own.
         await store.LoadsBegunOrLapse(2, Lapse);
         store.ReleaseLoads();
@@ -109,13 +91,8 @@ public sealed class OptionsWriteGateTests
         Assert.Equal(MovedHost, answered.CallbackHost);
     }
 
-    /// <summary>
-    /// A caller that gave up waiting is cancelled, and the writer it was queued behind still lands.
-    /// </summary>
-    /// <remarks>
-    /// The store here does not honour cancellation, so the wait for the gate is the only thing in the
-    /// call that can answer a cancelled token.
-    /// </remarks>
+    // The store here does not honour cancellation, so the wait for the gate is the only thing in
+    // the call that can answer a cancelled token.
     [Fact]
     public async Task ACancelledWaitIsCancelledAndTakesNothingWithIt()
     {
@@ -146,10 +123,7 @@ public sealed class OptionsWriteGateTests
         Assert.Equal(UpgradeBehavior.Add, after.UpgradeBehavior);
     }
 
-    /// <summary>
-    /// One entry point, taking a fold that cannot await, which is what keeps an outbound request and
-    /// a host import outside the lock.
-    /// </summary>
+    // A fold that cannot await keeps an outbound request and a host import outside the lock.
     [Fact]
     public void TheGateOffersOneMutationAndItTakesASynchronousFold()
     {
@@ -163,14 +137,8 @@ public sealed class OptionsWriteGateTests
         Assert.Equal(typeof(Func<WhisparrSyncOptions, WhisparrSyncOptions>), fold.ParameterType);
     }
 
-    /// <summary>
-    /// A blob the model cannot bind loads as defaults, and a mutation folded onto those defaults is
-    /// not written over it.
-    /// </summary>
-    /// <remarks>
-    /// The fold is the one the import channel performs on every success, which writes an instant that
-    /// always differs, so the equal-value short circuit never stands in for the refusal.
-    /// </remarks>
+    // The fold writes an instant that always differs, so the equal-value short circuit never stands
+    // in for the refusal.
     [Fact]
     public async Task AMutationOnABlobTheModelCannotBindIsNotSavedOverIt()
     {
@@ -192,13 +160,8 @@ public sealed class OptionsWriteGateTests
         Assert.Equal(1, log.Refusals);
     }
 
-    /// <summary>
-    /// A store with nothing under the key still loads defaults, and the same mutation is written.
-    /// </summary>
-    /// <remarks>
-    /// An absent blob and an unbindable one are different states. Without this, a gate that refused
-    /// every write would satisfy the refusal above.
-    /// </remarks>
+    // An absent blob and an unbindable one are different states. Without this, a gate that refused
+    // every write would satisfy the refusal above.
     [Fact]
     public async Task AnEmptyStoreLoadsDefaultsAndTheSameMutationIsSaved()
     {
@@ -216,13 +179,12 @@ public sealed class OptionsWriteGateTests
         Assert.Equal(0, log.Refusals);
     }
 
-    /// <summary>The fold the import channel runs on every successful import.</summary>
+    // The fold the import channel runs on every successful import.
     private static WhisparrSyncOptions RecordAnImport(WhisparrSyncOptions stored)
         => stored with { ImportHealth = stored.ImportHealth with { LastWorkedAtUtc = WorkedAt } };
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>Counts the one refused-mutation line, by its event id.</summary>
     private sealed class CountingLogger : ILogger
     {
         private const int RefusedMutationEventId = 2116;
@@ -248,14 +210,8 @@ public sealed class OptionsWriteGateTests
         }
     }
 
-    /// <summary>
-    /// A store whose load parks until the test releases it, so the window between one writer's load
-    /// and its save is one the test opens.
-    /// </summary>
-    /// <remarks>
-    /// Cancellation is deliberately not honoured, so a cancelled call can only be answered by the
-    /// gate's own wait.
-    /// </remarks>
+    // A store whose load parks until the test releases it. Cancellation is deliberately not
+    // honoured, so a cancelled call can only be answered by the gate's own wait.
     private sealed class ParkingStore : IExtensionStore
     {
         private readonly ConcurrentDictionary<string, string> _values = new(StringComparer.Ordinal);
@@ -264,21 +220,12 @@ public sealed class OptionsWriteGateTests
         private int _loads;
         private int _saves;
 
-        /// <summary>Completes once a load has begun.</summary>
         public Task LoadBegun => _firstLoad.Task;
 
         public int Saves => Volatile.Read(ref _saves);
 
         public void ReleaseLoads() => _released.TrySetResult();
 
-        /// <summary>
-        /// Waits until <paramref name="count"/> loads have begun, or until <paramref name="lapse"/>
-        /// has passed.
-        /// </summary>
-        /// <remarks>
-        /// The lapse is the answer for a writer parked somewhere this store cannot see, which is
-        /// where a second one sits while the gate holds the first.
-        /// </remarks>
         public async Task LoadsBegunOrLapse(int count, TimeSpan lapse)
         {
             var step = TimeSpan.FromMilliseconds(10);

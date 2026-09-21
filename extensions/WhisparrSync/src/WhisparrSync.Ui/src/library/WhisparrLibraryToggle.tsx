@@ -1,12 +1,9 @@
 /**
  * The control in a list toolbar that shows or hides the Whisparr status on every card of the page.
  *
- * One component serves all three list-page registrations. It reads no slot context and takes no
- * props, so there is nothing to differentiate, and three registered names would be three chances at
- * a control that never renders and reports nothing.
- *
- * It is never disabled. An unreachable instance changes what it says, not whether it works, and
- * pressing it again re-issues the batch.
+ * One component serves all three list-page registrations; it reads no slot context and takes no
+ * props. It is never disabled: an unreachable instance changes what it says, not whether it works,
+ * and pressing it again re-issues the batch.
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
 
@@ -27,12 +24,8 @@ import {
 } from "./libraryClasses";
 import { toggleLibraryStatus, useLibraryStatusOn } from "./libraryToggleStore";
 
-/**
- * Whether enough time has passed for every badge on the page to have registered.
- *
- * A badge registers in its own effect and the coalescer folds the registrations one tick later, so a
- * count read as the control turns on is the count of badges that had not mounted yet.
- */
+// A badge registers in its own effect and the coalescer folds the registrations one tick later, so
+// a count read as the control turns on is the count of badges that had not mounted yet.
 function useRegistrationsSettled(on: boolean): boolean {
   const [settled, setSettled] = useState(false);
 
@@ -56,19 +49,17 @@ export function WhisparrLibraryToggle() {
 
   const name = on ? HIDE_WHISPARR_STATUS : SHOW_WHISPARR_STATUS;
 
-  // A control that is off makes no claim about any card, so it states no reason. Every reason here
-  // is about cards drawn from a read this control triggered, and with it off there are no such
-  // cards on screen: one left on it survives a page turn, because nothing registers to clear it.
+  // A control that is off makes no claim about any card, so it states no reason. A reason left on
+  // it would survive a page turn, because nothing registers to clear it.
   //
-  // The control cannot ask whether the instance is reachable: the connection test is at a tier this
-  // control's reader does not hold. The fact arrives only as a refusal from the batch the control
-  // itself triggered, so there is no unreachable state before it is pressed.
+  // The control cannot ask whether the instance is reachable: the connection test is at a tier its
+  // reader does not hold. The fact arrives only as a refusal from the batch it triggered.
   //
-  // The host mounts a card slot in its grid display mode only and this control sits in the toolbar
-  // of every mode, so a mode where no badge can appear is a mode where no card registered.
+  // The host mounts a card slot in its grid display mode only, so a mode where no badge can appear
+  // is a mode where no card registered.
   //
-  // With no visible label the accessible name is the only name it has, so the name leads and the
-  // reason follows it, matching the order the entity control uses.
+  // With no visible label the accessible name is the only name there is, so the name leads and the
+  // reason follows it.
   const pageReason =
     settled && registered === 0 ? NO_PLACE_FOR_A_CARD_STATUS_HERE : libraryRefusalSentence(refusal);
   const reason = on ? pageReason : null;

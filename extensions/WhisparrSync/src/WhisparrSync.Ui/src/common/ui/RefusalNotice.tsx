@@ -1,8 +1,6 @@
 /**
- * The one notice a screen shows for a reason its controls share.
- *
- * The props take the reason once and the number of controls it affects, so a caller cannot express
- * one notice per control.
+ * The one notice a screen shows for a reason its controls share. The props take the reason once
+ * and the number of controls it affects, so a caller cannot express one notice per control.
  *
  * No affected control means no element at all. An empty notice would state a constraint that is
  * not in force.

@@ -1,19 +1,11 @@
-/**
- * The entity verbs the rules module offers, against the entity verbs the server actually mounts.
- *
- * Both surfaces read their routes from that one module: the entity menu renders a row disabled when
- * it answers null, and the selection overlay does not offer the row at all. Whether a route exists
- * is a fact about the SERVER, and the browser cannot see it: an item wired to a route nobody mounted
- * posts into a 404, and a route mounted with no item is a verb no reader can reach. Both read as
- * nothing happening.
- *
- * The wire document is emitted from the shipped route registrations, so it is the one place that
- * knows. A source pin rather than a DOM test, and in its own file for that reason: the rendering
- * tests run under jsdom, where the filesystem is not reachable.
- *
- * The same document also declares what each of those verbs ANSWERS, which the browser has to type
- * to read anything off it, so that pairing is pinned here too.
- */
+// The entity verbs the rules module offers, against the entity verbs the server mounts. Whether a
+// route exists is a fact about the server that the browser cannot see: an item wired to a route
+// nobody mounted posts into a 404, and a route with no item is a verb no reader can reach. Both
+// read as nothing happening.
+//
+// The wire document is emitted from the shipped route registrations, so it is the one place that
+// knows. In its own file because the rendering tests run under jsdom, where the filesystem is not
+// reachable. The document also declares what each verb answers, so that pairing is pinned here.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { test, expect } from "vitest";
@@ -32,7 +24,6 @@ const wireDocument = path.resolve(
 
 const rules = path.join(import.meta.dirname, "monitorMenuLogic.ts");
 
-/** Every verb the server mounts a POST for on one entity, read from the emitted document. */
 function mountedVerbs(): string[] {
   const document = JSON.parse(readFileSync(wireDocument, "utf8")) as {
     paths: Record<string, Record<string, unknown>>;
@@ -44,7 +35,6 @@ function mountedVerbs(): string[] {
     .sort();
 }
 
-/** Each declared route constant, by the name it is declared under. */
 function declaredRoutes(source: string): Map<string, string> {
   return new Map(
     [...source.matchAll(/^const ([A-Z_]+)_ROUTE = "([a-z-]+)";$/gm)].map((match) => [
@@ -54,14 +44,8 @@ function declaredRoutes(source: string): Map<string, string> {
   );
 }
 
-/**
- * The token each non-null entry of the secondary map is written as, verbatim.
- *
- * The entries are read rather than the whole file, so a value written as a bare string literal is a
- * token of its own here instead of disappearing into the constant scan above. That is the edit the
- * one-assertion form of this pin could be slipped past: a literal keeps the offered set correct
- * while the map stops naming the constant every other reader resolves through.
- */
+// The map's entries are read rather than the whole file, so an entry written as a bare string
+// literal is a token of its own here instead of disappearing into the constant scan above.
 function secondaryRouteTokens(source: string): string[] {
   const map = /const SECONDARY_ACTION_ROUTES[^{]*\{([\s\S]*?)^};$/m.exec(source);
   if (map === null) return [];
@@ -70,7 +54,6 @@ function secondaryRouteTokens(source: string): string[] {
     .filter((token) => token !== "null");
 }
 
-/** The component each mounted entity POST route declares for its 200 answer, by verb. */
 function mountedAnswers(): Map<string, string> {
   const document = JSON.parse(readFileSync(wireDocument, "utf8")) as {
     paths: Record<
@@ -123,12 +106,9 @@ test("every verb the secondary map serves names a declared route constant", () =
   ).toEqual([]);
 });
 
-/**
- * Both sides are read, so neither is a transcribed literal.
- *
- * Goes red if a route's answer type moves on the server, if a verb is mounted with no browser
- * decision made about what it answers, or if a route is folded into a shape it does not answer.
- */
+// Both sides are read, so neither is a transcribed literal. Goes red if a route's answer type
+// moves on the server, if a verb is mounted with no browser decision about what it answers, or if
+// a route is folded into a shape it does not answer.
 test("each acting route is typed as the answer the emitted document declares for it", () => {
   const answers = mountedAnswers();
   const declared: Record<string, string> = MONITOR_ACTION_ANSWER_SCHEMAS;

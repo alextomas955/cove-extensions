@@ -1,14 +1,8 @@
 /**
  * One card per Whisparr generation, each holding that generation's own stored connection.
  *
- * The two cards are never merged into one form. Each generation's connection is remembered
- * separately, so a card always shows the values stored under the generation it names.
- *
- * Two facts are shown separately because they can differ: which generation Cove is set to use, and
- * which card the form below is editing. They diverge from the moment Switch is pressed until the
- * next save.
- *
- * Presentational. Every value arrives as a prop and no request is issued here.
+ * "In use" and "Editing" are separate states. They differ from the moment Switch is pressed until
+ * the next save.
  */
 import { SectionCard, StatusPill, StatusText } from "@cove-extensions/ui-shared";
 
@@ -23,7 +17,6 @@ import {
 } from "./connectLogic";
 
 export interface GenerationCardsProps {
-  /** Both generations side by side, or null before the settings read answers. */
   settings: WhisparrSyncSettingsView | null;
   /** The card the form below is editing. */
   card: CardGeneration;
@@ -102,9 +95,8 @@ function GenerationCard({
             {stored === null ? "" : stored.keyIsSet ? "Key is set" : "Key not stored"}
           </StatusText>
         </div>
-        {/* Only for a card the form is not showing. The section below states the same reading in
-            full for the card it is editing, and saying it twice on one screen teaches the reader to
-            skip both. */}
+        {/* Only for a card the form is not showing. The section below already states this for the
+            card it is editing. */}
         {lines === null || showing ? null : (
           <div>
             <StatusText kind="muted">{lines.version}</StatusText>

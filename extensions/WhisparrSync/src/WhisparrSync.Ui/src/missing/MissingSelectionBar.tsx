@@ -1,12 +1,11 @@
 /**
- * The bar above the grid while scenes are ticked, and the one thing this tab does with a selection.
+ * The bar above the grid while scenes are ticked.
  *
  * Mounted whether or not anything is ticked, because the three key sequences are registered here.
  *
  * No control carries a border of its own: the host declares `border-border` twice and the later
- * `border` shorthand resets the colour, so a bordered control in this bundle draws its border in
- * the text colour it inherits. Focus uses `focus:ring-*` rather than the focus-visible pair,
- * because the host stylesheet emits no `focus-visible` ring utility.
+ * `border` shorthand resets the colour. Focus uses `focus:ring-*`, because the host stylesheet
+ * emits no `focus-visible` ring utility.
  */
 import { useMemo } from "react";
 import { Bookmark, Loader2 } from "lucide-react";
@@ -30,7 +29,7 @@ const BAR_CLASS =
 
 const FOCUS_RING = "focus:outline-none focus:ring-2 focus:ring-accent";
 
-// The first gesture is tinted and the rest are not, so the row has something leading it.
+// The first gesture is tinted and the rest are not.
 const LEADING_GESTURE_CLASS = `rounded text-xs text-accent hover:underline ${FOCUS_RING}`;
 const GESTURE_CLASS = `rounded text-xs text-secondary hover:text-foreground ${FOCUS_RING}`;
 
@@ -49,7 +48,7 @@ export function MissingSelectionBar({
   loadedPageIds: readonly string[];
   selected: ReadonlySet<string>;
   outcome: SelectionOutcome;
-  /** Applies one gesture's answer, which is always a subset of the loaded page. */
+  /** The ids are always a subset of the loaded page. */
   onSelect: (ids: readonly string[]) => void;
   onMonitorSelection: () => void;
 }) {
@@ -88,8 +87,8 @@ export function MissingSelectionBar({
               {action.label}
             </button>
           ))}
-          {/* The name leads and the reason follows it off screen, so a dimmed control still has
-              something to read out. */}
+          {/* The name leads and the reason follows it off screen, so a disabled control still
+              announces why. */}
           <button
             type="button"
             className={VERB_CLASS}
@@ -105,7 +104,7 @@ export function MissingSelectionBar({
             {MONITOR_SELECTION_LABEL}
             {inFlight ? <span style={OFF_SCREEN}>{WAITING_FOR_WHISPARR}</span> : null}
           </button>
-          {/* Its own full-width row. Beside the verbs it reads as a run-on against them. */}
+          {/* Its own full-width row, so it does not read as a run-on against the verbs. */}
           <span className="w-full text-xs text-secondary">{BULK_REPORTS_IN_THE_JOB_DRAWER}</span>
         </div>
       )}

@@ -13,7 +13,6 @@ const LABEL = "Monitor";
 const REASON = CAP_UNAVAILABLE_ON_THIS_GENERATION;
 const HELPER = "Marking a scene wanted downloads nothing by itself.";
 
-// The element's text in order, minus the off-screen carriers.
 function visibleText(element: Element): string {
   return [...element.childNodes]
     .map((node) => {

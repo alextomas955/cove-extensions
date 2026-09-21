@@ -4,8 +4,7 @@
  * Reads the answers the card badges already fetched rather than asking for anything of its own, so
  * the row costs no request and cannot disagree with the badges beside it.
  *
- * `enabled` gates the count the way it gates a badge's read: with the toolbar control off no card
- * has registered anything, so there is nothing to count.
+ * `enabled` gates the count the way it gates a badge's read.
  */
 import { useSyncExternalStore } from "react";
 
@@ -18,7 +17,6 @@ import {
 } from "./cardStatusStore";
 import { tallyReadings, type LibraryTally } from "./libraryTallyLogic";
 
-/** The tally, and what it is a tally of. */
 export interface LibraryTallyState {
   readonly tally: LibraryTally;
   /** How many cards of this kind are on the page, answered or not. */
@@ -46,8 +44,8 @@ export function useLibraryTally(kind: LibraryCardKind, enabled: boolean): Librar
     return NOTHING;
   }
 
-  // Counted on each render rather than held between them. It is a pass over one page of cards, and
-  // a held count is one more thing that can be a page behind what the badges are drawing.
+  // Counted on each render rather than held between them: a held count can be a page behind what
+  // the badges are drawing.
   const answers = readAnsweredCardStatuses(kind);
   return {
     tally: tallyReadings(answers),

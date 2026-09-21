@@ -1,10 +1,5 @@
-/**
- * What the catalogue store does with an answer that arrives after the reader has moved on.
- *
- * The settle guard is keyed on the entity AND the page. Keyed on the entity alone, a page-three read
- * settling after a move to page four paints page three's cards under page four's address, with
- * nothing on screen saying so.
- */
+// The settle guard is keyed on the entity and the page. Keyed on the entity alone, a page-three
+// read settling after a move to page four paints page three's cards under page four's address.
 import { describe, expect, it } from "vitest";
 
 import { createMissingStore, INITIAL_MISSING_STATE, type MissingViewKey } from "./missingStore";
@@ -14,7 +9,7 @@ const OTHER_STUDIO = { kind: "studio", coveId: 8 } as const;
 
 const pageOf = (page: number): MissingViewKey => ({ page, sort: null, q: "", filters: "" });
 
-/** A page carrying one card, named so a settle can be told apart from another. */
+// One card, named after its page so one settle can be told apart from another.
 const answerFor = (page: number) =>
   ({
     cards: [{ providerSceneId: `scene-on-page-${String(page)}` }],
@@ -90,7 +85,7 @@ describe("createMissingStore", () => {
     expect(store.getSnapshot()).toEqual(INITIAL_MISSING_STATE);
   });
 
-  /** A read in flight over content keeps the content, so the grid never blanks between pages. */
+  // A read in flight over content keeps the content, so the grid never blanks between pages.
   it("keeps the previous page on screen while the next one is read", () => {
     const store = createMissingStore();
     store.mounted(STUDIO);

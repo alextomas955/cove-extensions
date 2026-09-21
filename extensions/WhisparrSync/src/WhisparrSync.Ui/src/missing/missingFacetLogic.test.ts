@@ -13,7 +13,7 @@ import {
   type MissingFacetLookup,
 } from "./missingFacetLogic";
 
-/** A menu carrying every value the source reported. */
+// Every value the source reported.
 const YEAR: MissingFacetMenu = {
   key: "year",
   label: "Year",
@@ -24,7 +24,7 @@ const YEAR: MissingFacetMenu = {
   ],
 };
 
-/** A menu carrying part of what the source reported, because the source serves one page. */
+// Part of what the source reported, because the source serves one page.
 const PERFORMER: MissingFacetMenu = {
   key: "performer",
   label: "Performer",
@@ -261,10 +261,8 @@ describe("the value in force survives every answer, so it can always be unpicked
 });
 
 describe("the fragment floor is the one the route refuses below", () => {
-  /**
-   * The floor is a C# constant with no wire spelling, and a browser holding a different one either
-   * spends a request to be refused or refuses a fragment the route would have answered.
-   */
+  // The floor is a C# constant with no wire spelling. A browser holding a different one either
+  // spends a request to be refused or refuses a fragment the route would have answered.
   it("holds the number the route declares", () => {
     const routes = path.resolve(
       import.meta.dirname,

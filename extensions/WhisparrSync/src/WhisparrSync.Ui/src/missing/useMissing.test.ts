@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-// A DOM is needed because the property under test is what a mounted hook sends, not what a helper
-// returns. The host's authenticated fetch and its POST helper stand in, because each resolves only
-// inside a consuming bundle.
+// A DOM is needed because what is under test is what a mounted hook sends, not what a helper
+// returns. The host's authenticated fetch and its POST helper stand in, because each resolves
+// only inside a consuming bundle.
 import { test, expect, vi, afterEach } from "vitest";
 import { act, createElement } from "react";
 
@@ -57,7 +57,7 @@ async function mount(coveId: number) {
   return latest as unknown as ReturnType<typeof useMissing>;
 }
 
-// Lets everything the verb set off run, rather than waiting a number of milliseconds.
+// Lets everything the verb set off run, rather than waiting a fixed number of milliseconds.
 async function pressing(verb: () => void): Promise<void> {
   await act(() => {
     verb();

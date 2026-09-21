@@ -1,9 +1,5 @@
-/**
- * What the row's figures count, and what they leave out.
- *
- * Each expectation is written from what the row promises a reader, not derived from the module: a
- * count computed the same way twice agrees with itself whatever it is counting.
- */
+// Each expectation is written out, not derived from the module: a count computed the same way
+// twice agrees with itself whatever it is counting.
 import { expect, test } from "vitest";
 
 import { tallyReadings } from "./libraryTallyLogic";

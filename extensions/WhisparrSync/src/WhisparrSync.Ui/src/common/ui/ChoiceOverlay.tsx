@@ -2,8 +2,6 @@
  * The panel a selection's handler opens: one row per thing it can do, and a way out that sends
  * nothing.
  *
- * The rows arrive already decided, so this module issues no request and needs no host.
- *
  * It is mounted imperatively, because a selection-bar handler has no tree to render into.
  */
 import { useRef, type ReactNode } from "react";

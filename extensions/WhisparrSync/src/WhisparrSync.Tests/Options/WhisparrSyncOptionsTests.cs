@@ -8,18 +8,8 @@ using WhisparrSync.Options;
 
 namespace WhisparrSync.Tests.Options;
 
-/// <summary>
-/// The options blob: what a default carries, that a round-trip through the store returns an equal
-/// record, that a blob written before the record's current shape still loads, and that the two
-/// generations' connections are independent of one another.
-/// </summary>
-/// <remarks>
-/// Everything the settings page has no control for has its own file, which pins the defaults beside
-/// what the shipped code does while they stay at them.
-/// </remarks>
 public sealed class WhisparrSyncOptionsTests
 {
-    /// <summary>Neither generation is configured until something configures it.</summary>
     [Fact]
     public void ADefaultRecordHasNoConnectionForEitherGeneration()
     {
@@ -29,11 +19,8 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Null(options.V2);
     }
 
-    /// <summary>
-    /// A save followed by a load returns an equal record, including the collection member. Record
-    /// equality compares a list by reference, so a round-trip's fresh list is exactly the case a
-    /// default implementation would report as changed.
-    /// </summary>
+    // Record equality compares a list by reference, so a round-trip's fresh list is the case a
+    // default implementation would report as changed.
     [Fact]
     public async Task ARoundTripThroughTheStoreReturnsAnEqualRecord()
     {
@@ -49,15 +36,9 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(2, loaded.ImportRefusals[0].NewestPaths.Count);
     }
 
-    /// <summary>
-    /// Two records that differ only in how many entries a collection holds are not equal, at either
-    /// level of the refusal aggregate.
-    /// </summary>
-    /// <remarks>
-    /// The discriminating case for the count that precedes the elements in each component stream: a
-    /// stream that yielded only the elements would let a shorter list line up against a longer one
-    /// whose extra member happens to match the next component.
-    /// </remarks>
+    // The discriminating case for the count that precedes the elements in each component stream. A
+    // stream that yielded only the elements would let a shorter list line up against a longer one
+    // whose extra member happens to match the next component.
     [Fact]
     public void RecordsDifferingOnlyInHowManyRefusalsTheyHoldAreNotEqual()
     {
@@ -81,10 +62,8 @@ public sealed class WhisparrSyncOptionsTests
         Assert.NotEqual(saved.ImportRefusals[0], onePathFewer.ImportRefusals[0]);
     }
 
-    /// <summary>
-    /// The enums survive the round trip as their own spelling rather than as an ordinal, which is
-    /// what keeps a stored blob readable after a member is inserted into any of them.
-    /// </summary>
+    // Storing a spelling rather than an ordinal is what keeps a stored blob readable after a member
+    // is inserted into any of these enums.
     [Fact]
     public async Task TheEnumsRoundTripAsStrings()
     {
@@ -105,10 +84,6 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Contains("\"ambiguousCandidates\"", blob, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// Writing one generation's connection leaves the other's at the value it already had. Selecting
-    /// the other generation and coming back has to return the first one unchanged.
-    /// </summary>
     [Fact]
     public async Task WritingOneGenerationLeavesTheOtherUntouched()
     {
@@ -128,10 +103,8 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal("http://moved:6969/", after.V3?.Address);
     }
 
-    /// <summary>
-    /// A generation nothing configured reads as absent. It must never read back the other
-    /// generation's address, which would send a test at an instance the user did not name.
-    /// </summary>
+    // Reading back the other generation's address would send a test at an instance the user did
+    // not name.
     [Fact]
     public async Task AGenerationNeverConfiguredReadsAsAbsent()
     {
@@ -148,10 +121,8 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal("http://v3-host:6969/", loaded.V3?.Address);
     }
 
-    /// <summary>
-    /// The two recorded instants are stored apart, because they measure different things: when the
-    /// version was read, and when the instance last answered anything at all.
-    /// </summary>
+    // The two instants measure different things: when the version was read, and when the instance
+    // last answered anything at all.
     [Fact]
     public async Task TheTwoRecordedInstantsSurviveIndependently()
     {
@@ -165,9 +136,6 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(ReachableAt, loaded.V3?.LastReachableAtUtc);
     }
 
-    /// <summary>
-    /// The watermark belongs to the generation it was read from, and each generation has its own.
-    /// </summary>
     [Fact]
     public async Task EachGenerationCarriesItsOwnWatermark()
     {
@@ -180,14 +148,9 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(V2Watermark, loaded.V2?.BackstopWatermarkUtc);
     }
 
-    /// <summary>
-    /// Replacing the stored API key keeps the watermark; moving the address starts it again.
-    /// </summary>
-    /// <remarks>
-    /// A key belongs to a table this record knows nothing about, so a save that rotates one leaves
-    /// the connection where it was. An address that moves is a different instance with its own
-    /// history, and a mark that survived it would name a position in someone else's past.
-    /// </remarks>
+    // A key belongs to a table this record knows nothing about, so a save that rotates one leaves
+    // the connection where it was. An address that moves is a different instance, and a mark that
+    // survived it would name a position in someone else's past.
     [Fact]
     public void AKeyRotationKeepsTheWatermarkAndAnAddressChangeDoesNot()
     {
@@ -214,20 +177,14 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(V2Watermark, moved.V2?.BackstopWatermarkUtc);
     }
 
-    /// <summary>A blob nothing ever wrote loads as the defaults rather than throwing.</summary>
     [Fact]
     public async Task AnEmptyStoreLoadsTheDefaults()
         => Assert.Equal(new WhisparrSyncOptions(), await new OptionsStore(new FakeStore()).LoadAsync());
 
-    /// <summary>
-    /// Every refusal-cause spelling an installed blob may carry still binds to its member.
-    /// </summary>
-    /// <remarks>
-    /// A value the model cannot bind makes the WHOLE load answer with the defaults object, so a
-    /// renamed member would discard the user's connection and watermarks with nothing observable
-    /// happening. The blob is a literal and the spellings are transcribed by hand from the server's
-    /// enum: a list computed from the enum would agree with it whatever it says.
-    /// </remarks>
+    // A value the model cannot bind makes the whole load answer with the defaults object, so a
+    // renamed member would discard the user's connection and watermarks with nothing observable
+    // happening. The spellings are transcribed by hand from the server's enum, because a list
+    // computed from the enum would agree with it whatever it says.
     [Fact]
     public async Task ABlobCarryingEachStoredRefusalCauseBindsRatherThanLoadingTheDefaults()
     {
@@ -265,14 +222,8 @@ public sealed class WhisparrSyncOptionsTests
             Assert.Single(loaded.ImportRefusals).NewestPaths.Select(entry => entry.Cause));
     }
 
-    /// <summary>
-    /// A blob written before this record's current shape still loads: the member it carries that no
-    /// longer exists is ignored, and the members it does not carry read as their defaults.
-    /// </summary>
-    /// <remarks>
-    /// Written as a literal rather than produced by serializing anything, so it stays the blob an
-    /// install actually holds rather than one this assembly can still describe.
-    /// </remarks>
+    // A literal rather than something serialized here, so it stays the blob an install holds rather
+    // than one this assembly can still describe.
     [Fact]
     public async Task ABlobFromBeforeThisShapeLoadsWithTheNewMembersAtTheirDefaults()
     {
@@ -308,13 +259,9 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Empty(loaded.ImportRefusals);
     }
 
-    /// <summary>Exactly one exported type in the assembly is named MonitorScope.</summary>
-    /// <remarks>
-    /// Two of them, held apart by a file-scoped using alias, is a defect a legal edit triggers in
-    /// silence: dropping or reordering that one line compiles and changes which enum an outbound
-    /// body is composed from. Asserted by reflection so a second one added later goes red here
-    /// rather than needing a reviewer to notice it.
-    /// </remarks>
+    // Two types of this name, held apart by a file-scoped using alias, is a defect a legal edit
+    // triggers in silence. Dropping or reordering that one line compiles and changes which enum an
+    // outbound body is composed from.
     [Fact]
     public void ExactlyOneExportedTypeIsNamedMonitorScope()
     {
@@ -327,10 +274,6 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(["WhisparrSync.Contracts.MonitorScope"], named);
     }
 
-    /// <summary>
-    /// The one surviving enum spells the two scopes in the words both generations use, and carries
-    /// no member under the vocabulary that was withdrawn.
-    /// </summary>
     [Fact]
     public void TheOneScopeEnumSpellsBothScopesAndNothingElse()
     {
@@ -339,7 +282,6 @@ public sealed class WhisparrSyncOptionsTests
             Enum.GetNames<MonitorScope>().Order(StringComparer.Ordinal).ToArray());
     }
 
-    /// <summary>The stored default is that enum, and it defaults to the narrower scope.</summary>
     [Fact]
     public void TheStoredDefaultIsTheActingEnumAtTheNarrowerScope()
     {
@@ -350,15 +292,9 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(MonitorScope.FutureScenes, new WhisparrSyncOptions().DefaultMonitorScope);
     }
 
-    /// <summary>
-    /// A stored blob naming the withdrawn scope spelling still binds WHOLE, so collapsing the enum
-    /// does not reset an install's address, endpoints and callback host to their defaults.
-    /// </summary>
-    /// <remarks>
-    /// The store reports a blob it cannot bind as not bound and every layer above then reads
-    /// defaults, so one unrecognised word is not a local problem. The withdrawn spelling named the
-    /// narrower scope, which is what it loads as.
-    /// </remarks>
+    // The store reports a blob it cannot bind as not bound and every layer above then reads
+    // defaults, so one unrecognised word costs the install its address, endpoints and callback
+    // host. The withdrawn spelling named the narrower scope, which is what it loads as.
     [Fact]
     public async Task ABlobNamingTheWithdrawnScopeSpellingStillBindsWhole()
     {
@@ -374,7 +310,6 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(MonitorScope.FutureScenes, load.Options.DefaultMonitorScope);
     }
 
-    /// <summary>The current spelling of the wider scope loads as the wider scope.</summary>
     [Fact]
     public async Task ABlobNamingTheWiderScopeLoadsAsTheWiderScope()
     {
@@ -387,14 +322,9 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(MonitorScope.AllScenes, load.Options.DefaultMonitorScope);
     }
 
-    /// <summary>
-    /// A spelling nothing recognises loads as the narrower scope, and never as the wider one.
-    /// </summary>
-    /// <remarks>
-    /// Choosing the narrow scope wrongly costs one more gesture. Choosing the wide one wrongly marks
-    /// a whole back catalogue wanted, which spends indexer traffic and disk, and on v3 narrowing the
-    /// scope again does not undo it.
-    /// </remarks>
+    // Choosing the narrow scope wrongly costs one more gesture. Choosing the wide one wrongly marks
+    // a whole back catalogue wanted, which spends indexer traffic and disk, and on v3 narrowing the
+    // scope again does not undo it.
     [Theory]
     [InlineData("\"somethingElse\"")]
     [InlineData("\"\"")]
@@ -415,7 +345,6 @@ public sealed class WhisparrSyncOptionsTests
         Assert.NotEqual(MonitorScope.AllScenes, load.Options.DefaultMonitorScope);
     }
 
-    /// <summary>A save writes the current spelling, never the withdrawn one.</summary>
     [Fact]
     public async Task ASaveWritesTheCurrentSpellingAndNotTheWithdrawnOne()
     {
@@ -430,12 +359,9 @@ public sealed class WhisparrSyncOptionsTests
         Assert.DoesNotContain("newReleasesOnly", written, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>The tolerance for the withdrawn spelling is declared on the property alone.</summary>
-    /// <remarks>
-    /// The enum type's own attribute is the wire spelling for every OTHER use of the enum and must
-    /// not be widened to accept a word no wire document declares. An entry in the shared options
-    /// collection would OUTRANK the type attribute rather than agree with it.
-    /// </remarks>
+    // The enum type's own attribute is the wire spelling for every other use of the enum and must
+    // not be widened to accept a word no wire document declares. An entry in the shared options
+    // collection would outrank the type attribute rather than agree with it.
     [Fact]
     public void TheWithdrawnSpellingIsToleratedOnThePropertyAlone()
     {
@@ -449,13 +375,8 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Empty(WhisparrSyncOptions.JsonOptions.Converters);
     }
 
-    /// <summary>
-    /// A stored blob carrying the withdrawn scope spelling alongside a configured address.
-    /// </summary>
-    /// <remarks>
-    /// Written as a literal rather than produced by serializing anything, so it stays the blob an
-    /// install actually holds rather than one this assembly can still describe.
-    /// </remarks>
+    // A literal rather than something serialized here, so it stays the blob an install holds rather
+    // than one this assembly can still describe.
     private const string WithdrawnSpellingBlob =
         """
         {
@@ -475,14 +396,8 @@ public sealed class WhisparrSyncOptionsTests
             .Cast<JsonConverterAttribute>()
             .Select(attribute => attribute.ConverterType!)];
 
-    /// <summary>
-    /// A stored interval below the floor is honoured as the floor, and the stored value is left as
-    /// it was found.
-    /// </summary>
-    /// <remarks>
-    /// Both cases arrive as a hand-written blob, because the point of flooring on the read is that a
-    /// value that never passed through a save is still floored.
-    /// </remarks>
+    // The blob is hand-written, because the point of flooring on the read is that a value which
+    // never passed through a save is still floored.
     [Theory]
     [InlineData(0)]
     [InlineData(-5)]
@@ -500,7 +415,6 @@ public sealed class WhisparrSyncOptionsTests
             loaded.BackstopInterval);
     }
 
-    /// <summary>A stored interval at or above the floor is honoured as it stands.</summary>
     [Fact]
     public async Task AStoredIntervalAboveTheFloorIsHonoured()
     {
@@ -511,9 +425,6 @@ public sealed class WhisparrSyncOptionsTests
             TimeSpan.FromSeconds(45), (await new OptionsStore(store).LoadAsync()).BackstopInterval);
     }
 
-    /// <summary>
-    /// Two spellings of one Whisparr root differing only by a trailing separator are one entry.
-    /// </summary>
     [Fact]
     public void ARootIsHeldUnderOneSpellingWhateverSeparatorItArrivesWith()
     {
@@ -526,10 +437,8 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(@"C:\whisparr\media", backslash.Root);
     }
 
-    /// <summary>
-    /// A root that is nothing but a separator keeps one, so the root of a filesystem stays
-    /// addressable rather than folding into the blank key a delivery with no root uses.
-    /// </summary>
+    // The root of a filesystem stays addressable rather than folding into the blank key a delivery
+    // with no root uses.
     [Fact]
     public void ARootOfNothingButSeparatorsKeepsOne()
     {
@@ -539,10 +448,8 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal("", ImportRootRefusals.NormaliseRoot(null));
     }
 
-    /// <summary>
-    /// A reported path is shortened where it is stored, so one delivery naming an arbitrarily long
-    /// path cannot make the whole blob the host serves in one piece too large to serve.
-    /// </summary>
+    // A path is shortened where it is stored, so one delivery naming an arbitrarily long path
+    // cannot make the whole blob the host serves in one piece too large to serve.
     [Fact]
     public void AReportedPathIsShortenedWhereItIsStored()
     {
@@ -561,14 +468,8 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal("/whisparr/media/scene-a/file.mp4", underIt.Path);
     }
 
-    /// <summary>
-    /// A stored path longer than the maximum loads shortened, so a blob an earlier build wrote
-    /// cannot reintroduce a value with no ceiling.
-    /// </summary>
-    /// <remarks>
-    /// Written as a literal rather than produced by serializing anything: the model can no longer
-    /// hold the value this asks the load path to bind.
-    /// </remarks>
+    // A blob an earlier build wrote cannot reintroduce a value with no ceiling. Written as a
+    // literal, because the model can no longer hold the value the load path is asked to bind.
     [Fact]
     public async Task AnOverLongStoredPathLoadsShortened()
     {
@@ -597,15 +498,9 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(ImportRefusalCause.Unreadable, entry.Cause);
     }
 
-    /// <summary>
-    /// A stored refusal entry naming its path list as an explicit null loads with an empty list, and
-    /// both the projector and the banner run over what loaded.
-    /// </summary>
-    /// <remarks>
-    /// Written as a literal because the serializer never emits this shape, and nothing else on the
-    /// load path reaches it: a property initialiser runs only for an ABSENT key, and the store's
-    /// non-null restore does not descend into a collection's elements.
-    /// </remarks>
+    // Written as a literal because the serializer never emits this shape, and nothing else on the
+    // load path reaches it. A property initialiser runs only for an absent key, and the store's
+    // non-null restore does not descend into a collection's elements.
     [Fact]
     public async Task AnExplicitlyNullNewestPathsLoadsAsAnEmptyList()
     {
@@ -646,15 +541,9 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Empty(line.NewestPaths);
     }
 
-    /// <summary>
-    /// A reported version is shortened where it is stored, so an instance at the configured address
-    /// cannot make the whole blob the host serves in one piece too large to serve.
-    /// </summary>
-    /// <remarks>
-    /// The ordinary reading is the control: a bound that blanked every value would satisfy the two
-    /// length assertions on their own. Null is kept as null, which is what distinguishes a connection
-    /// no test has read a version from.
-    /// </remarks>
+    // A version is shortened where it is stored, so an instance at the configured address cannot
+    // make the whole blob the host serves in one piece too large to serve. The ordinary reading is
+    // the control: a bound that blanked every value would satisfy the length assertions alone.
     [Fact]
     public void AReportedVersionIsShortenedWhereItIsStored()
     {
@@ -676,14 +565,8 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Null(neverRead.RecordedVersion);
     }
 
-    /// <summary>
-    /// A stored version longer than the maximum loads shortened, so a blob an earlier build wrote
-    /// cannot reintroduce a value with no ceiling.
-    /// </summary>
-    /// <remarks>
-    /// Written as a literal rather than produced by serializing anything: the model can no longer
-    /// hold the value this asks the load path to bind.
-    /// </remarks>
+    // A blob an earlier build wrote cannot reintroduce a value with no ceiling. Written as a
+    // literal, because the model can no longer hold the value the load path is asked to bind.
     [Fact]
     public async Task AnOverLongStoredVersionLoadsShortened()
     {
@@ -710,10 +593,8 @@ public sealed class WhisparrSyncOptionsTests
             connection.RecordedVersion?.Length);
     }
 
-    /// <summary>
-    /// A recorded failure text is shortened where it is stored, so one exception message cannot make
-    /// the whole blob the host serves in one piece too large to serve.
-    /// </summary>
+    // A failure text is shortened where it is stored, so one exception message cannot make the
+    // whole blob the host serves in one piece too large to serve.
     [Fact]
     public void ARecordedFailureTextIsShortenedWhereItIsStored()
     {
@@ -724,15 +605,13 @@ public sealed class WhisparrSyncOptionsTests
 
         Assert.Equal(ImportHealthAggregate.LastErrorMaxLength, health.LastError.Length);
 
-        // Storing the already-shortened text again yields the same record, which is what keeps a
+        // Shortening the already-shortened text yields the same record, which is what keeps a
         // round-trip through the store equal to what went into it.
         Assert.Equal(health, new ImportHealthAggregate { LastError = health.LastError });
     }
 
-    /// <summary>
-    /// The API key has no home in this record. It is in a table this extension owns, so the host's
-    /// bulk extension-data route has nothing of it to return.
-    /// </summary>
+    // The API key has no home in this record. It is in a table this extension owns, so the host's
+    // bulk extension-data route has nothing of it to return.
     [Fact]
     public async Task TheStoredBlobCarriesNothingNamedLikeAKey()
     {
