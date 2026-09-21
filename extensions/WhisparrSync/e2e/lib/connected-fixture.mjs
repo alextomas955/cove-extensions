@@ -13,7 +13,7 @@
 //
 // WHY NOT THE `whisparr` FIXTURE. It destructures the worker harness, so naming it starts a second
 // Cove pair beside the isolated one. This file calls startWhisparr directly instead.
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 
 import { createApiClient } from "@cove-extensions/e2e";
 import { seedVideo } from "@cove-extensions/e2e/seed-media";
@@ -193,7 +193,7 @@ const SEEDERS = {
 
   v2: {
     async seedInstance({ network, run, cleanup, media }) {
-      const siteId = Math.floor(Math.random() * 500_000) + 1;
+      const siteId = randomInt(1, 500_001);
 
       // Started before the instance: the element naming it is read out of the config at startup and
       // never again. Without it every identifier resolves against a hosted service no sealed run
