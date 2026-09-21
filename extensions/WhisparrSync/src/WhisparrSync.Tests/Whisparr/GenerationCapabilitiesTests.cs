@@ -86,7 +86,7 @@ public sealed class GenerationCapabilitiesTests
     // Whisparr v2 addresses no performer at all. The refusal is the absence of a registration
     // rather than a check.
     [Fact]
-    public void TheOlderGenerationHoldsNoPerformerCapabilityAndRefusesTheRoleByName()
+    public void V2HoldsNoPerformerCapabilityAndRefusesTheRoleByName()
     {
         var capabilities = GenerationCapabilities.For(
             WhisparrGeneration.V2,
@@ -105,7 +105,7 @@ public sealed class GenerationCapabilitiesTests
     }
 
     [Fact]
-    public void TheNewerGenerationHoldsThePerformerCapabilityAndHandsOutTheRole()
+    public void V3HoldsThePerformerCapabilityAndHandsOutTheRole()
     {
         var capabilities = GenerationCapabilities.For(
             WhisparrGeneration.V3,
@@ -174,7 +174,7 @@ public sealed class GenerationCapabilitiesTests
     // over one client implementing every role, so the answers differ by generation rather than by
     // what each set was built with.
     [Fact]
-    public void OnlyTheNewerGenerationObtainsThePerSceneSearchRole()
+    public void OnlyV3ObtainsThePerSceneSearchRole()
     {
         var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"));
 
@@ -193,7 +193,7 @@ public sealed class GenerationCapabilitiesTests
     // v3 answers presence for a site through a route naming the site, so it needs no list and has
     // nothing to implement here.
     [Fact]
-    public void OnlyTheOlderGenerationObtainsTheHeldSiteReadRole()
+    public void OnlyV2ObtainsTheHeldSiteReadRole()
     {
         var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"));
 
@@ -223,7 +223,7 @@ public sealed class GenerationCapabilitiesTests
     // v2's catalogue arrives only by re-reading its own metadata source, so there is no way to
     // register an item this library holds and the instance does not.
     [Fact]
-    public void TheOlderGenerationHoldsNoMissingSceneCapabilityAndRefusesTheRoleByName()
+    public void V2HoldsNoMissingSceneCapabilityAndRefusesTheRoleByName()
     {
         var capabilities = GenerationCapabilities.For(
             WhisparrGeneration.V2,
@@ -238,7 +238,7 @@ public sealed class GenerationCapabilitiesTests
     }
 
     [Fact]
-    public void TheOlderGenerationHoldsTheStudioCapabilityAndHandsOutTheRole()
+    public void V2HoldsTheStudioCapabilityAndHandsOutTheRole()
     {
         var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"));
         var capabilities = GenerationCapabilities.For(
