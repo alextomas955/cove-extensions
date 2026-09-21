@@ -41,6 +41,10 @@ EPISODE_REQUIRED = {
 }
 
 
+# This seeder writes v2's catalogue and no other, so the path is stated here rather than passed in.
+V2_DATABASE = "/config/whisparr2.db"
+
+
 def insert(connection, table, values):
     names = ", ".join(f'"{column}"' for column in values)
     placeholders = ", ".join("?" for _ in values)
@@ -52,7 +56,6 @@ def insert(connection, table, values):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--db", required=True)
     # The site's own identifier in the instance's namespace. Declared NOT NULL and UNIQUE, so two
     # seeds under one id fail here rather than leaving the second silently unwritten.
     parser.add_argument("--site-id", required=True, type=int)
@@ -70,7 +73,7 @@ def main():
     parser.add_argument("--monitored", default="true")
     args = parser.parse_args()
 
-    connection = sqlite3.connect(args.db)
+    connection = sqlite3.connect(V2_DATABASE)
     try:
         series_id = insert(
             connection,

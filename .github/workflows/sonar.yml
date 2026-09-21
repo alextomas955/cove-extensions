@@ -136,6 +136,14 @@ jobs:
       # scanAll is on because this repository is not only C#: left at the .NET scanner's default the
       # analysis covers the MSBuild graph alone and no TypeScript is examined at all, which reads as a
       # clean frontend rather than an unanalysed one.
+      #
+      # sonar.test.inclusions, and NOT sonar.sources or sonar.tests: the Scanner for .NET computes
+      # those two itself and prints a warning that it ignores them, so naming them here decided
+      # nothing while reading as though it did. Without this the e2e harness and the probes are
+      # measured as shipped code. That is wrong about what they are, and wrong in what it reports:
+      # most rules are scoped to main code, so a seeder writing into a throwaway container's
+      # database was judged as if it were a production database call. The .NET test projects need
+      # no pattern here, the scanner reads those off the MSBuild graph.
       - name: Begin analysis
         working-directory: extensions
         env:
@@ -149,7 +157,7 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.token="$SONAR_TOKEN" \
             /d:sonar.scanner.scanAll=true \
-            /d:sonar.sources="extensions,shared,scripts" \
+            /d:sonar.test.inclusions="tests/**,extensions/*/e2e/**" \
             /d:sonar.exclusions="**/node_modules/**,**/dist/**,**/bin/**,**/obj/**,**/vendor/**,**/artifacts/**,**/coverage/**,**/src/wire/**,website/build/**,website/.docusaurus/**" \
             /d:sonar.coverage.exclusions="scripts/**,tests/**,**/e2e/**,website/**,**/*.config.*,shared/ui-shared/vite/**,shared/ui-shared/scripts/**,**/*.d.ts" \
             /d:sonar.cpd.exclusions="**/*.test.ts,**/*.test.tsx,**/*.test.mjs,**/*.spec.mjs,**/*.spec.ts,**/*Tests.cs" \
