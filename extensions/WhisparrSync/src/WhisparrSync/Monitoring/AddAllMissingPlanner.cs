@@ -45,7 +45,7 @@ internal sealed record AddAllMissingRun(
 internal static class AddAllMissingPlanner
 {
     // Transcribed from what the instance answered, pinned in
-    // TheNewerGenerationNamesASceneItAlreadyHoldsByAnErrorCodeTheControlDoesNotCarry.
+    // V3NamesASceneItAlreadyHoldsByAnErrorCodeTheControlDoesNotCarry.
     internal const string AlreadyHeldErrorCode = "MovieExistsValidator";
 
     // The answering seam's own refusal is read before the status, because the bounded read states a

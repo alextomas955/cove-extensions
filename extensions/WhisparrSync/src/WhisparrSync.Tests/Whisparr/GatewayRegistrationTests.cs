@@ -17,7 +17,7 @@ public sealed class GatewayRegistrationTests
     private static readonly Uri SomeAddress = new("http://whisparr:6969");
 
     [Fact]
-    public async Task APairReachedTwiceAsksForNoSecondHandlerOnTheOlderGeneration()
+    public async Task APairReachedTwiceAsksForNoSecondHandlerOnV2()
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "{}");
         var askedFor = 0;
@@ -36,7 +36,7 @@ public sealed class GatewayRegistrationTests
     }
 
     [Fact]
-    public async Task APairReachedTwiceAsksForNoSecondHandlerOnTheNewerGeneration()
+    public async Task APairReachedTwiceAsksForNoSecondHandlerOnV3()
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "{}");
         var askedFor = 0;
@@ -92,7 +92,7 @@ public sealed class GatewayRegistrationTests
     // A discarded pair reached again is registered from nothing, so it asks the factory for another
     // handler. Counting handlers reads the cache the way a request does.
     [Fact]
-    public async Task ANinthPairDiscardsTheLeastRecentlyReachedOnTheOlderGeneration()
+    public async Task ANinthPairDiscardsTheLeastRecentlyReachedOnV2()
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "{}");
         var askedFor = 0;
@@ -114,7 +114,7 @@ public sealed class GatewayRegistrationTests
     }
 
     [Fact]
-    public async Task ANinthPairDiscardsTheLeastRecentlyReachedOnTheNewerGeneration()
+    public async Task ANinthPairDiscardsTheLeastRecentlyReachedOnV3()
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "{}");
         var askedFor = 0;
@@ -156,7 +156,7 @@ public sealed class GatewayRegistrationTests
     // spent handle, and that handle answering nothing is how disposal shows it discarded the provider
     // rather than leaking it.
     [Fact]
-    public void DisposalDiscardsEveryRegistrationAndRefusesAFurtherReachOnTheOlderGeneration()
+    public void DisposalDiscardsEveryRegistrationAndRefusesAFurtherReachOnV2()
     {
         var gateway = new Whisparr2Gateway();
         var first = gateway.For(new Whisparr2Target(AddressNumbered(1), SomeKey));
@@ -173,7 +173,7 @@ public sealed class GatewayRegistrationTests
     }
 
     [Fact]
-    public void DisposalDiscardsEveryRegistrationAndRefusesAFurtherReachOnTheNewerGeneration()
+    public void DisposalDiscardsEveryRegistrationAndRefusesAFurtherReachOnV3()
     {
         var gateway = new Whisparr3Gateway();
         var first = gateway.For(new Whisparr3Target(AddressNumbered(1), SomeKey));

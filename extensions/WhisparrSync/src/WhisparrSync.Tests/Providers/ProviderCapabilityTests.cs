@@ -195,7 +195,7 @@ public sealed class ProviderCapabilityTests
     [Theory]
     [InlineData(WhisparrGeneration.V2, true)]
     [InlineData(WhisparrGeneration.V3, false)]
-    public async Task TheCatalogueAGenerationReadsThroughIssuesASceneNumberOnlyOnTheOlderOne(
+    public async Task TheCatalogueAGenerationReadsThroughIssuesASceneNumberOnlyOnV2(
         WhisparrGeneration generation, bool issuesANumber)
     {
         var options = new OptionsStore(new FakeStore());

@@ -230,7 +230,7 @@ public sealed class MonitorPathTests
     // body. Parsing that body reports the site as one the instance does not hold, so this
     // generation's path needs its own case rather than resting on the transport one.
     [Fact]
-    public async Task AnAnswerPastTheBoundOnTheOlderGenerationReadKeepsItsOwnReason()
+    public async Task AnAnswerPastTheBoundOnV2ReadKeepsItsOwnReason()
     {
         var past = $"[\"{new string('a', (int)WhisparrClient.MaxResponseBytes)}\"]";
         var handler = BodyRecordingHandler.AnsweringInTurn((HttpStatusCode.OK, past));
@@ -256,7 +256,7 @@ public sealed class MonitorPathTests
     // assembly itself is what runs. A double standing in at the seam answers the assembled reading
     // and never assembles one.
     [Fact]
-    public async Task TheOlderGenerationsHeldReadIsNotGivenTheWholeCatalogueToParse()
+    public async Task V2HeldReadIsNotGivenTheWholeCatalogueToParse()
     {
         var listing = new JsonArray();
         for (var entry = 1; entry <= 20_000; entry += 1)
@@ -309,7 +309,7 @@ public sealed class MonitorPathTests
     // The listing answer is the one the pinned build sent for an entity id it holds nothing under.
     // The reading is the precondition for adding the entity, not a report about the instance.
     [Fact]
-    public async Task TheOlderGenerationsHeldReadOfAnEntityTheInstanceDoesNotHoldIsTheFilteredAnswer()
+    public async Task V2HeldReadOfAnEntityTheInstanceDoesNotHoldIsTheFilteredAnswer()
     {
         var handler = BodyRecordingHandler.AnsweringInTurn(
             (HttpStatusCode.OK,
@@ -334,7 +334,7 @@ public sealed class MonitorPathTests
     // because this one re-applies the option over what the instance already holds while the
     // other's editor resource declares no gate at all.
     [Fact]
-    public async Task TheOlderGenerationsFlipAndScopeChangeReachItsOwnRoutes()
+    public async Task V2FlipAndScopeChangeReachItsOwnRoutes()
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Accepted, "{}");
         using var http = new HttpClient(handler);
