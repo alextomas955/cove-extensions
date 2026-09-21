@@ -313,7 +313,12 @@ export async function registerRootFolder(container, api, generation, path) {
  */
 export function libraryRootsContaining(path, roots) {
   return roots.filter((root) => {
-    const trimmed = root.replace(/\/+$/, "");
+    // Trimmed by slicing rather than by `/\/+$/`, whose backtracking is quadratic in a run of
+    // trailing slashes.
+    let trimmed = root;
+    while (trimmed.endsWith("/")) {
+      trimmed = trimmed.slice(0, -1);
+    }
     return path === trimmed || path.startsWith(`${trimmed}/`);
   });
 }

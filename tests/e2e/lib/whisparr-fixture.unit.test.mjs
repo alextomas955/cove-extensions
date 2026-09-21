@@ -33,6 +33,12 @@ test("a root does not contain a sibling whose name merely extends its own", () =
   assert.deepEqual(libraryRootsContaining("/data22/scene.mp4", HOST_ROOTS), []);
 });
 
+test("a root is matched however many trailing slashes it was declared with", () => {
+  assert.deepEqual(libraryRootsContaining("/data/scene.mp4", ["/data///"]), ["/data///"]);
+  assert.deepEqual(libraryRootsContaining("/data", ["/data/"]), ["/data/"]);
+  assert.deepEqual(libraryRootsContaining("/data22/scene.mp4", ["/data//"]), []);
+});
+
 // Transcribed the same way: the root the Whisparr fixture declares for itself, and the nested root
 // the ambiguous branch needs declared on the Cove side.
 const WHISPARR_ROOT = "/whisparr-media";
