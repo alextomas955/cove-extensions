@@ -6,9 +6,13 @@
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 
-const captured = JSON.parse(readFileSync(process.argv[2], "utf8"));
+// The one place the copied-in path is written. It was passed as an argument as well, which meant
+// two statements of it free to disagree, and a file read off an argument this never needed.
+const CAPTURED_PAGE = "/stub/page.json";
+
+const captured = JSON.parse(readFileSync(CAPTURED_PAGE, "utf8"));
 const PAGE = captured.response;
-const PORT = Number(process.argv[3] ?? 80);
+const PORT = Number(process.argv[2] ?? 80);
 
 // This provider serves its catalogue as REST rows under a paging envelope, and stamps identity under
 // a GraphQL spelling on another host of the same registrable domain. Both are answered here because

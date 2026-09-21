@@ -74,7 +74,7 @@ export async function startProviderStub({ networkName }) {
       { source: SERVER_SOURCE, target: "/stub/server.mjs" },
       { source: CAPTURED_PAGE, target: "/stub/page.json" },
     ])
-    .withCommand(["node", "/stub/server.mjs", "/stub/page.json", String(PORT)])
+    .withCommand(["node", "/stub/server.mjs", String(PORT)])
     .withWaitStrategy(Wait.forLogMessage(/provider-stub serving/))
     .withStartupTimeout(60_000)
     .start();
