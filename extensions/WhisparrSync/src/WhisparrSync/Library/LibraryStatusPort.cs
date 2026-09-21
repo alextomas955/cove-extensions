@@ -24,21 +24,59 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
     public async Task<(IReadOnlyList<LibraryStatusRow> Rows, bool AnyReadDropped)>
         ReadEntityCardsAsync(
             Func<string, CancellationToken, Task<WhisparrResponse>> reading,
+            Capability<IWhisparrEntityBatchReading> batch,
             WhisparrEntityKind kind,
             WhisparrGeneration generation,
             Uri baseAddress,
+            string apiKey,
             IReadOnlyList<int> coveIds,
             CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(reading);
+        ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(baseAddress);
         ArgumentNullException.ThrowIfNull(coveIds);
 
-        var rows = new List<LibraryStatusRow>(coveIds.Count);
-        var dropped = false;
+        var named = new List<(int CoveId, string? ForeignId)>(coveIds.Count);
         foreach (var coveId in coveIds)
         {
-            var read = await ReadOneAsync(reading, kind, generation, baseAddress, coveId, ct)
+            var identity = await identities.ResolveAsync(kind, coveId, generation, ct)
+                .ConfigureAwait(false);
+            named.Add((coveId, identity.ForeignId));
+        }
+
+        var batched = await BatchedAsync(
+            batch, kind, generation, baseAddress, apiKey, named, ct).ConfigureAwait(false);
+
+        var rows = new List<LibraryStatusRow>(coveIds.Count);
+        var dropped = batched.Dropped;
+        foreach (var (coveId, foreignId) in named)
+        {
+            // A library naming no single identifier in the connected namespace answers null rather
+            // than a state: no state in the vocabulary means "cannot be asked about".
+            if (foreignId is null)
+            {
+                rows.Add(new LibraryStatusRow(coveId, null));
+                continue;
+            }
+
+            if (batched.Cards is { } cards && !cards.NotAnswered.Contains(foreignId))
+            {
+                rows.Add(new LibraryStatusRow(coveId, EntityReading(cards, foreignId)));
+                continue;
+            }
+
+            // A batch that dropped speaks for no card, and sending a read per card behind it would
+            // cost the page exactly what the batch was there to avoid.
+            if (batched.Dropped)
+            {
+                rows.Add(new LibraryStatusRow(coveId, Unestablished));
+                continue;
+            }
+
+            // Either the generation registers no batch role, or the batch could not speak for this
+            // identifier. Both are asked about one at a time.
+            var read = await ReadOneAsync(reading, generation, baseAddress, foreignId, ct)
                 .ConfigureAwait(false);
             dropped |= read.Dropped;
             rows.Add(new LibraryStatusRow(coveId, read.Reading));
@@ -47,14 +85,68 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
         return (rows, dropped);
     }
 
-    // Costs one exclusion read for the whole set plus one status read per identifier. The exclusion
-    // read comes first, because a scene that is both excluded and unheld reads as excluded.
-    // exclusions is a capability, not a role, so a generation registering none sends nothing and no
-    // card is reported as excluded on a fact no instance answered.
+    // One read for the whole page where the generation registers the role. A contained failure
+    // reports no card rather than sending a read per card behind it: the page would then cost what
+    // the batch was there to avoid, against an instance that just failed to answer.
+    private async Task<(WhisparrHeldCards? Cards, bool Dropped)> BatchedAsync(
+        Capability<IWhisparrEntityBatchReading> batch,
+        WhisparrEntityKind kind,
+        WhisparrGeneration generation,
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyList<(int CoveId, string? ForeignId)> named,
+        CancellationToken ct)
+    {
+        if (batch.Match<IWhisparrEntityBatchReading?>(role => role, _ => null) is not { } reading)
+        {
+            return (null, false);
+        }
+
+        List<string> asked = [.. named.Select(row => row.ForeignId).OfType<string>().Distinct()];
+        if (asked.Count == 0)
+        {
+            return (WhisparrHeldCards.Empty, false);
+        }
+
+        try
+        {
+            return (
+                await reading
+                    .ReadHeldEntitiesAsync(baseAddress, apiKey, generation, kind, asked, ct)
+                    .ConfigureAwait(false),
+                false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
+        {
+            WhisparrSyncLog.MonitoringRequestContained(
+                log, generation, WhisparrSyncLog.Classify(failure), baseAddress.Host);
+            return (null, true);
+        }
+    }
+
+    // An identifier the answer carries no row for is the instance stating it holds none. Never
+    // excluded on this path: no entity exclusion reading role exists, so a true here would be a fact
+    // no instance answered.
+    private static LibraryCardReading EntityReading(WhisparrHeldCards cards, string foreignId)
+        => cards.Held.TryGetValue(foreignId, out var held)
+            ? new LibraryCardReading(false, true, held.Monitored)
+            : new LibraryCardReading(false, false, null);
+
+    // Costs one exclusion read for the whole set, plus either one batch read for the page or one
+    // status read per identifier where the generation registers no batch role. The exclusion read
+    // comes first, because a scene that is both excluded and unheld reads as excluded. exclusions is
+    // a capability, not a role, so a generation registering none sends nothing and no card is
+    // reported as excluded on a fact no instance answered.
     public async Task<(IReadOnlyDictionary<int, LibraryCardReading> Readings, bool AnyReadDropped)>
         ReadSceneCardsAsync(
             IWhisparrSceneStatusReading reading,
             Capability<IWhisparrSceneExclusionReading> exclusions,
+            Capability<IWhisparrSceneBatchReading> batch,
             Uri baseAddress,
             string apiKey,
             WhisparrGeneration generation,
@@ -63,17 +155,35 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
     {
         ArgumentNullException.ThrowIfNull(reading);
         ArgumentNullException.ThrowIfNull(exclusions);
+        ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(baseAddress);
         ArgumentNullException.ThrowIfNull(identities);
 
         var excluded = await ExcludedAmongAsync(exclusions, baseAddress, apiKey, identities, ct)
             .ConfigureAwait(false);
 
+        var batched = await BatchedScenesAsync(
+            batch, generation, baseAddress, apiKey, identities, ct).ConfigureAwait(false);
+
         var readings = new Dictionary<int, LibraryCardReading>(identities.Count);
-        var dropped = false;
+        var dropped = batched.Dropped;
         foreach (var identity in identities)
         {
             var onList = excluded.Contains(identity.RemoteId);
+
+            if (batched.Dropped)
+            {
+                readings[identity.CoveId] = new LibraryCardReading(onList, null, null);
+                continue;
+            }
+
+            if (batched.Cards is { } cards && !cards.NotAnswered.Contains(identity.RemoteId))
+            {
+                readings[identity.CoveId] = cards.Held.TryGetValue(identity.RemoteId, out var held)
+                    ? new LibraryCardReading(onList, true, held.Monitored, held.HasFile)
+                    : NotHeld(onList);
+                continue;
+            }
 
             WhisparrResponse answered;
             try
@@ -104,6 +214,47 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
         }
 
         return (readings, dropped);
+    }
+
+    // One read for the whole page where the generation registers the role, contained for the reason
+    // the entity path's batch gives.
+    private async Task<(WhisparrHeldCards? Cards, bool Dropped)> BatchedScenesAsync(
+        Capability<IWhisparrSceneBatchReading> batch,
+        WhisparrGeneration generation,
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyList<LibraryCardIdentity> identities,
+        CancellationToken ct)
+    {
+        if (batch.Match<IWhisparrSceneBatchReading?>(role => role, _ => null) is not { } reading)
+        {
+            return (null, false);
+        }
+
+        List<string> asked = [.. identities.Select(identity => identity.RemoteId).Distinct()];
+        if (asked.Count == 0)
+        {
+            return (WhisparrHeldCards.Empty, false);
+        }
+
+        try
+        {
+            return (
+                await reading.ReadHeldSceneCardsAsync(baseAddress, apiKey, asked, ct)
+                    .ConfigureAwait(false),
+                false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception failure)
+            when (failure is HttpRequestException or IOException or TaskCanceledException)
+        {
+            WhisparrSyncLog.MonitoringRequestContained(
+                log, generation, WhisparrSyncLog.Classify(failure), baseAddress.Host);
+            return (null, true);
+        }
     }
 
     private static async Task<IReadOnlySet<string>> ExcludedAmongAsync(
@@ -170,23 +321,13 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
     private static IReadOnlySet<string> NothingExcluded { get; }
         = new HashSet<string>(StringComparer.Ordinal);
 
-    // A library naming no single identifier in the connected namespace answers null rather than a
-    // state: no state in the vocabulary means "cannot be asked about".
     private async Task<(LibraryCardReading? Reading, bool Dropped)> ReadOneAsync(
         Func<string, CancellationToken, Task<WhisparrResponse>> reading,
-        WhisparrEntityKind kind,
         WhisparrGeneration generation,
         Uri baseAddress,
-        int coveId,
+        string foreignId,
         CancellationToken ct)
     {
-        var identity = await identities.ResolveAsync(kind, coveId, generation, ct)
-            .ConfigureAwait(false);
-        if (identity.ForeignId is not { } foreignId)
-        {
-            return (null, false);
-        }
-
         WhisparrResponse answered;
         try
         {
@@ -211,8 +352,7 @@ internal sealed class LibraryStatusPort(IEntityIdentityPort identities, ILogger 
         var presence = MonitoringProjector.PresenceOf(
             MonitoringProjector.Classify(answered).Reading, answered.Body);
 
-        // Never excluded on this path: no entity exclusion reading role exists, so a true here would
-        // be a fact no instance answered.
+        // Never excluded on this path, for the reason EntityReading gives.
         return (new LibraryCardReading(false, presence.Present, presence.Monitored), false);
     }
 

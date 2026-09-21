@@ -243,11 +243,18 @@ describe("the vocabulary itself", () => {
     }
   });
 
+  // Named one by one rather than matched on the name: a kind is stated above the cards only when a
+  // page of cards can exist alongside it, which is a fact about the kind and not about its spelling.
   it("never both replaces the grid and keeps cards", () => {
+    const statedAboveCards = new Set([
+      "readIsStale",
+      "whisparrStatusNotRead",
+      "whisparrKeepsNoSceneRecords",
+    ]);
+
     for (const kind of MISSING_GRID_STATE_KINDS) {
       const state = describeGridState(kind);
-      const keepsCards = kind === "readIsStale" || kind.startsWith("whisparr");
-      expect(state.replacesTheGrid, kind).toBe(!keepsCards);
+      expect(state.replacesTheGrid, kind).toBe(!statedAboveCards.has(kind));
     }
   });
 

@@ -61,6 +61,10 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         IWhisparrSceneExclusionActing,
         IWhisparrSiteSceneReading,
         IWhisparrHeldSiteReading,
+        IWhisparrEntityBatchReading,
+        IWhisparrSceneBatchReading,
+        IWhisparrEntityCatalogueReading,
+        IWhisparrEntityTrackingActing,
         IWhisparrInstanceFilesystemReading
 {
     private const string JsonContentType = "application/json; charset=utf-8";
@@ -82,6 +86,30 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     public Dictionary<int, int> SiteSceneRowIds { get; } = [];
 
     public List<IReadOnlyCollection<int>> HeldSiteReads { get; } = [];
+
+    // What each batch read was asked about, so a page's cost is read off the list's length rather
+    // than off a counter that cannot say which identifiers reached the instance.
+    public List<IReadOnlyCollection<string>> EntityBatchReads { get; } = [];
+
+    public List<IReadOnlyCollection<string>> SceneBatchReads { get; } = [];
+
+    // What the instance lists for each entity, which is what the missing surface is composed from.
+    // An entity absent from this map is one the instance holds no entry for.
+    public Dictionary<string, IReadOnlyList<WhisparrCatalogueScene>> EntityCatalogues { get; }
+        = new(StringComparer.OrdinalIgnoreCase);
+
+    public List<string> EntityCatalogueReads { get; } = [];
+
+    // The entities and scenes this instance holds, keyed as the answering row would spell them. An
+    // identifier absent from these is one the batch answers no row for.
+    public Dictionary<string, WhisparrHeldCard> HeldEntityCards { get; }
+        = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, WhisparrHeldCard> HeldSceneCards { get; }
+        = new(StringComparer.OrdinalIgnoreCase);
+
+    // Identifiers the batch cannot speak for at all, which the caller then asks about one at a time.
+    public HashSet<string> BatchCannotSpeakFor { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public HashSet<int> HeldSites { get; } = [];
 
@@ -486,6 +514,97 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
 
         return Task.FromResult<IReadOnlySet<string>>(
             foreignIds.Where(HeldScenes.Contains).ToHashSet(StringComparer.Ordinal));
+    }
+
+    public Task<WhisparrHeldCards> ReadHeldEntitiesAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        WhisparrEntityKind kind,
+        IReadOnlyList<string> foreignIds,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(foreignIds);
+        EntityBatchReads.Add([.. foreignIds]);
+        Verbs.Add(nameof(ReadHeldEntitiesAsync));
+
+        if (Unreachable.Contains(nameof(ReadHeldEntitiesAsync)))
+        {
+            throw new HttpRequestException("nothing answered");
+        }
+
+        return Task.FromResult(HeldAmong(foreignIds, HeldEntityCards));
+    }
+
+    public Task<WhisparrHeldCards> ReadHeldSceneCardsAsync(
+        Uri baseAddress, string apiKey, IReadOnlyList<string> foreignIds, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(foreignIds);
+        SceneBatchReads.Add([.. foreignIds]);
+        Verbs.Add(nameof(ReadHeldSceneCardsAsync));
+
+        if (Unreachable.Contains(nameof(ReadHeldSceneCardsAsync)))
+        {
+            throw new HttpRequestException("nothing answered");
+        }
+
+        return Task.FromResult(HeldAmong(foreignIds, HeldSceneCards));
+    }
+
+    private WhisparrHeldCards HeldAmong(
+        IReadOnlyList<string> asked, Dictionary<string, WhisparrHeldCard> held)
+    {
+        var found = new Dictionary<string, WhisparrHeldCard>(StringComparer.Ordinal);
+        foreach (var id in asked)
+        {
+            if (!BatchCannotSpeakFor.Contains(id) && held.TryGetValue(id, out var card))
+            {
+                found[id] = card;
+            }
+        }
+
+        return new WhisparrHeldCards(
+            found,
+            new HashSet<string>(asked.Where(BatchCannotSpeakFor.Contains), StringComparer.Ordinal));
+    }
+
+    public Task<WhisparrResponse> TrackEntityAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        WhisparrEntityKind kind,
+        string foreignId,
+        AddDefaults defaults,
+        CancellationToken ct)
+        => RecordActing(
+            new ActingCall(nameof(TrackEntityAsync), baseAddress, apiKey)
+            {
+                Kind = kind,
+                Generation = generation,
+                ForeignId = foreignId,
+                Defaults = defaults,
+            });
+
+    public Task<WhisparrEntityCatalogue> ReadEntityCatalogueAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        WhisparrEntityKind kind,
+        string foreignId,
+        CancellationToken ct)
+    {
+        EntityCatalogueReads.Add(foreignId);
+        Verbs.Add(nameof(ReadEntityCatalogueAsync));
+
+        if (Unreachable.Contains(nameof(ReadEntityCatalogueAsync)))
+        {
+            throw new HttpRequestException("nothing answered");
+        }
+
+        return Task.FromResult(
+            EntityCatalogues.TryGetValue(foreignId, out var scenes)
+                ? WhisparrEntityCatalogue.Listing(scenes)
+                : WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.EntityNotHeld));
     }
 
     public Task<IReadOnlyDictionary<int, int>> ReduceSiteSceneRowsAsync(

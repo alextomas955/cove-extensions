@@ -16,36 +16,43 @@ public sealed class MissingQueryBindingTests
 {
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
+    // The query string is what a shared link carries, so each value has to reach the page a reader
+    // is served. The narrowing is applied over the instance's own list, so it is read off the cards
+    // rather than off a request composed for a source.
     [Fact]
-    public async Task ThePageNumberReachesTheComposedProviderRequest()
+    public async Task ThePageNumberReachesThePageServed()
     {
-        var catalogue = await DriveAsync(page: 3);
+        var view = await PlanOverAsync(Listing("a", "b", "c"), page: 2, perPage: 2);
 
-        Assert.Equal(3, Composed(catalogue).Page);
+        Assert.Equal(2, view.Page);
+        Assert.Equal(["c"], view.Cards.Select(card => card.ProviderSceneId));
     }
 
     [Fact]
-    public async Task TheSortValueReachesTheComposedProviderRequest()
+    public async Task TheSortValueReachesTheOrderingApplied()
     {
-        var catalogue = await DriveAsync(sort: "TITLE");
+        var view = await PlanOverAsync(
+            Listing(("later", "2024-01-01"), ("earlier", "2020-01-01")),
+            sort: InstanceCatalogueLogic.OldestFirst);
 
-        Assert.Equal("TITLE", Composed(catalogue).Sort);
+        Assert.Equal(InstanceCatalogueLogic.OldestFirst, view.SortInForce);
+        Assert.Equal(["earlier", "later"], view.Cards.Select(card => card.ProviderSceneId));
     }
 
     [Fact]
-    public async Task TheTitleSearchReachesTheComposedProviderRequest()
+    public async Task TheTitleSearchNarrowsThePage()
     {
-        var catalogue = await DriveAsync(q: "pool");
+        var view = await PlanOverAsync(Listing("poolside", "kitchen"), q: "pool");
 
-        Assert.Equal("pool", Composed(catalogue).TitleSearch);
+        Assert.Equal(["poolside"], view.Cards.Select(card => card.ProviderSceneId));
     }
 
     [Fact]
-    public async Task AFacetSelectionReachesTheComposedProviderRequest()
+    public async Task AFacetSelectionNarrowsThePage()
     {
-        var catalogue = await DriveAsync(filters: "performer:mia");
+        var view = await PlanOverAsync(WithPerformers(), filters: "performer:mia");
 
-        Assert.Equal("mia", Composed(catalogue).Filters["performer"]);
+        Assert.Equal(["hers"], view.Cards.Select(card => card.ProviderSceneId));
     }
 
     [Theory]
@@ -57,51 +64,35 @@ public sealed class MissingQueryBindingTests
         var written = MissingFilterForm.Write(
             new Dictionary<string, string>(StringComparer.Ordinal) { [key] = value });
 
-        var catalogue = await DriveAsync(filters: written);
-
-        Assert.Equal(value, Composed(catalogue).Filters[key]);
+        Assert.Equal(value, MissingFilterForm.Read(written)[key]);
     }
 
     [Fact]
-    public async Task SeveralSelectionsAllReachTheComposedProviderRequest()
+    public async Task AFacetTheCatalogueCarriesNoValueForNarrowsToNothing()
     {
-        var written = MissingFilterForm.Write(
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["performer"] = "mia",
-                ["year"] = "2024",
-            });
+        var view = await PlanOverAsync(WithPerformers(), filters: "performer:nobody");
 
-        var catalogue = await DriveAsync(filters: written);
-
-        Assert.Equal("mia", Composed(catalogue).Filters["performer"]);
-        Assert.Equal("2024", Composed(catalogue).Filters["year"]);
+        Assert.Empty(view.Cards);
+        Assert.Equal(0, view.CatalogueSize);
     }
 
     [Fact]
-    public async Task TheAnswerCarriesTheMenusTheCatalogueFilledAndTheSortsItOffers()
+    public async Task TheAnswerCarriesTheMenusTheScenesFillAndTheSortsOffered()
     {
-        var catalogue = new RecordingCatalogue
-        {
-            Menus =
-            [
-                new ProviderFacetMenu(
-                    "performer", "Performer", [new ProviderFacetValue("mia", "Mia")], 1),
-            ],
-        };
-
-        var view = await PlanOverAsync(catalogue);
+        var view = await PlanOverAsync(WithPerformers());
 
         var menu = Assert.Single(view.Facets);
         Assert.Equal("performer", menu.Key);
         Assert.Equal("mia", Assert.Single(menu.Values).Value);
-        Assert.Equal("DATE", Assert.Single(view.Sorts).Value);
+        Assert.Equal(
+            [.. InstanceCatalogueLogic.Sorts.Select(sort => sort.Value)],
+            view.Sorts.Select(sort => sort.Value));
     }
 
     [Fact]
-    public async Task ACatalogueOfferingNoMenuAnswersAnEmptyList()
+    public async Task ACatalogueCarryingNoFacetValueAnswersAnEmptyList()
     {
-        var view = await PlanOverAsync(new RecordingCatalogue());
+        var view = await PlanOverAsync(Listing("a"));
 
         Assert.Empty(view.Facets);
     }
@@ -207,31 +198,46 @@ public sealed class MissingQueryBindingTests
         Assert.Empty(catalogue.Fragments);
     }
 
-    private static ProviderCatalogueRequest Composed(RecordingCatalogue catalogue)
-        => Assert.Single(catalogue.Requests);
+    private static StubInstanceCatalogue Listing(params string[] ids)
+        => new(ids);
+
+    private static StubInstanceCatalogue Listing(params (string Id, string Date)[] dated)
+        => new([.. dated.Select(scene => StubInstanceCatalogue.Scene(scene.Id, date: scene.Date))]);
+
+    // One scene a performer is named on and one they are not, so a facet narrowing is observable.
+    private static StubInstanceCatalogue WithPerformers()
+        => new(
+        [
+            new WhisparrCatalogueScene(
+                "hers",
+                "hers",
+                null,
+                null,
+                null,
+                null,
+                [new WhisparrCataloguePerformer("mia", "Mia", null)],
+                [],
+                Monitored: false,
+                HasFile: false),
+            StubInstanceCatalogue.Scene("theirs"),
+        ]);
 
     // The planner is driven directly rather than through the route, because the route resolves a
     // connection from stored options and the claim here is about what the query string becomes.
-    private static async Task<RecordingCatalogue> DriveAsync(
-        int page = 1, string? sort = null, string? q = null, string? filters = null)
-    {
-        var catalogue = new RecordingCatalogue();
-        await PlanOverAsync(catalogue, page, sort, q, filters);
-        return catalogue;
-    }
-
     private static async Task<MissingPageView> PlanOverAsync(
-        RecordingCatalogue catalogue,
+        StubInstanceCatalogue instance,
         int page = 1,
+        int perPage = 40,
         string? sort = null,
         string? q = null,
         string? filters = null)
     {
+        var catalogue = new RecordingCatalogue();
         var request = new MissingPageRequest(
             WhisparrEntityKind.Studio,
             7,
             page,
-            PerPage: 40,
+            perPage,
             sort,
             q,
             MissingFilterForm.Read(filters),
@@ -243,7 +249,8 @@ public sealed class MissingQueryBindingTests
             WhisparrGeneration.V3,
             new ResolvedProvider("https://stashdb.org/graphql", "a-key", 240),
             StatusReading: null,
-            ExclusionReading: null);
+            ExclusionReading: null,
+            instance);
 
         return await PlannerOver(catalogue).PlanAsync(request, context, NullLogger.Instance, TestCt);
     }
@@ -255,7 +262,8 @@ public sealed class MissingQueryBindingTests
                 TestProviderCatalogues.Naming(catalogue),
                 new StubEntityNames()),
             TestProviderCatalogues.Naming(catalogue),
-            new StubOwned());
+            new StubOwned(),
+            new InstanceCatalogueCache(TimeProvider.System));
 
     private sealed class StubIdentities : IEntityIdentityPort
     {

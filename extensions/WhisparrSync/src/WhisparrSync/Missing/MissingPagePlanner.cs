@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Providers;
 using WhisparrSync.Whisparr;
@@ -27,7 +28,8 @@ internal sealed record MissingPageContext(
     WhisparrGeneration Generation,
     ResolvedProvider? Provider,
     IWhisparrSceneStatusReading? StatusReading,
-    IWhisparrSceneExclusionReading? ExclusionReading);
+    IWhisparrSceneExclusionReading? ExclusionReading,
+    IWhisparrEntityCatalogueReading? CatalogueReading);
 
 // A page is never topped back up: the provider's scenes arrive, the owned ones leave, and what
 // remains is what renders. Fetching more to fill the gap is unbounded where a reader owns most of
@@ -36,8 +38,13 @@ internal sealed record MissingPageContext(
 internal sealed class MissingPagePlanner(
     MissingIdentityResolver identities,
     ProviderCatalogueSource catalogues,
-    IOwnedScenePort owned)
+    IOwnedScenePort owned,
+    InstanceCatalogueCache cache)
 {
+    // One query's worth of identifiers. The whole catalogue is asked about, so it travels in
+    // batches rather than as one parameter list whose length is the entity's catalogue.
+    private const int OwnedQueryBatch = 500;
+
     // Named by the catalogue the stored choice points at, so reading the name is the same read as
     // choosing the catalogue.
     internal async Task<string> ProviderNameAsync(CancellationToken ct)
@@ -74,63 +81,126 @@ internal sealed class MissingPagePlanner(
                 catalogue);
         }
 
-        // Every value the surface sent travels unchanged: the ordering and each filter value are
-        // strings the provider itself issued.
-        var catalogueRequest = new ProviderCatalogueRequest(
-            request.Kind,
-            providerEntityId,
+        var listed = await CatalogueAsync(
+            request.Kind, providerEntityId, context, log, ct).ConfigureAwait(false);
+        if (listed.Scenes is not { } scenes)
+        {
+            return Refused(request, RefusalFor(listed.Refusal), catalogue);
+        }
+
+        // What the library already holds has left the missing set, and so has anything the reader
+        // excluded on the instance. Both are applied over the whole catalogue rather than one page,
+        // so the figure beside the tab is the number missing and not the catalogue's size.
+        var missing = await MissingAmongAsync(provider.IdentityEndpoint, scenes, ct)
+            .ConfigureAwait(false);
+        var excluded = await ReadExcludedAsync(context, missing, ct).ConfigureAwait(false);
+        var remaining = excluded.Count == 0
+            ? missing
+            : [.. missing.Where(scene => !excluded.Contains(scene.ProviderSceneId))];
+
+        var page = InstanceCatalogueLogic.PageOf(
+            remaining,
             request.Page,
             request.PerPage,
             request.Sort,
             request.TitleSearch,
             request.Filters);
 
-        var answer = await catalogue.ReadPageAsync(catalogueRequest, ct).ConfigureAwait(false);
-
-        // No instance is asked about scenes that were never read.
-        if (answer.Page is not { } page)
-        {
-            return Refused(request, MissingRefusalKind.ProviderUnreachable, catalogue);
-        }
-
-        var pageIds = page.Scenes.Select(scene => scene.ProviderSceneId).ToArray();
-        var held = await owned
-            .ReadOwnedAsync(provider.IdentityEndpoint, pageIds, ct)
-            .ConfigureAwait(false);
-
-        var kept = page.Scenes.Where(scene => !held.Contains(scene.ProviderSceneId)).ToArray();
-
-        // An excluded scene has left the missing set, so it is removed before any status is read.
-        var excluded = await ReadExcludedAsync(context, kept, ct).ConfigureAwait(false);
-        var remaining = excluded.Count == 0
-            ? kept
-            : [.. kept.Where(scene => !excluded.Contains(scene.ProviderSceneId))];
-
-        var (states, statusWasRead, statusPermanentlyAbsent) = await ReadStatesAsync(
-            request, context, providerEntityId, remaining, log, ct).ConfigureAwait(false);
-
         var menus = request.MenusAlreadyHeld
             ? []
-            : await catalogue
-                .ListFacetMenusAsync(request.Kind, providerEntityId, ct)
-                .ConfigureAwait(false);
+            : InstanceCatalogueLogic.FacetsOf(remaining);
 
         return new MissingPageView(
-            [.. remaining.Select(scene => CardFor(scene, states, catalogue))],
+            [.. page.Scenes.Select(scene => CardFor(scene, catalogue))],
             page.CatalogueSize,
-            page.SizeIsLowerBound,
+            // The instance listed its whole catalogue for the entity, so the figure is a count and
+            // never a floor the source would not serve past.
+            false,
             request.Page,
             request.PerPage,
             page.LastPage,
             page.RangeFrom,
             page.RangeTo,
-            statusWasRead ? MissingRefusalKind.None : StatusRefusal(statusPermanentlyAbsent),
+            MissingRefusalKind.None,
             [.. menus.Select(MenuFor)],
-            [.. catalogue.Sorts.Select(sort => new MissingSortOption(sort.Value, sort.Label))],
-            request.Sort is { Length: > 0 } sort ? sort : catalogue.DefaultSort,
-            statusWasRead,
-            statusPermanentlyAbsent,
+            [.. InstanceCatalogueLogic.Sorts.Select(
+                sort => new MissingSortOption(sort.Value, sort.Label))],
+            request.Sort is { Length: > 0 } sort ? sort : InstanceCatalogueLogic.NewestFirst,
+            // Every card came off an entry the instance holds, so its state is read rather than
+            // asked for, and no per-scene status read is issued at all.
+            true,
+            false,
             catalogue.Capabilities.Provider);
+    }
+
+    // The instance's own list for one entity, held briefly so the count beside the tab and the page
+    // under it are one read. A transport failure is contained and reported as not read: the tab
+    // states it and offers a retry.
+    private async Task<WhisparrEntityCatalogue> CatalogueAsync(
+        WhisparrEntityKind kind,
+        string providerEntityId,
+        MissingPageContext context,
+        ILogger log,
+        CancellationToken ct)
+    {
+        if (context.CatalogueReading is not { } reading || context.BaseAddress is not { } baseAddress)
+        {
+            return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
+        }
+
+        if (cache.Held(context.Generation, kind, providerEntityId) is { } held)
+        {
+            return WhisparrEntityCatalogue.Listing(held);
+        }
+
+        WhisparrEntityCatalogue answered;
+        try
+        {
+            answered = await reading
+                .ReadEntityCatalogueAsync(
+                    baseAddress, context.ApiKey, context.Generation, kind, providerEntityId, ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception failure) when (failure is HttpRequestException or IOException)
+        {
+            WhisparrSyncLog.SceneStatusReadContained(log, WhisparrSyncLog.Classify(failure));
+            return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
+        }
+
+        if (answered.Scenes is { } scenes)
+        {
+            cache.Hold(context.Generation, kind, providerEntityId, scenes);
+        }
+
+        return answered;
+    }
+
+    private static MissingRefusalKind RefusalFor(WhisparrCatalogueRefusal refusal)
+        => refusal == WhisparrCatalogueRefusal.EntityNotHeld
+            ? MissingRefusalKind.EntityNotInWhisparr
+            : MissingRefusalKind.WhisparrCatalogueNotRead;
+
+    // Asked in batches, so one query's parameter list is bounded by the batch and not by the
+    // entity's catalogue.
+    private async Task<List<WhisparrCatalogueScene>> MissingAmongAsync(
+        string identityEndpoint,
+        IReadOnlyList<WhisparrCatalogueScene> scenes,
+        CancellationToken ct)
+    {
+        var inLibrary = new HashSet<string>(StringComparer.Ordinal);
+        for (var at = 0; at < scenes.Count; at += OwnedQueryBatch)
+        {
+            var batch = scenes.Skip(at).Take(OwnedQueryBatch)
+                .Select(scene => scene.ProviderSceneId)
+                .ToArray();
+            var held = await owned.ReadOwnedAsync(identityEndpoint, batch, ct).ConfigureAwait(false);
+            foreach (var id in held)
+            {
+                inLibrary.Add(id);
+            }
+        }
+
+        return [.. scenes.Where(scene => !inLibrary.Contains(scene.ProviderSceneId))];
     }
 
     // The catalogue's own size, never the number missing. Null and zero are different answers: zero
@@ -146,6 +216,7 @@ internal sealed class MissingPagePlanner(
             return new MissingCountView(null);
         }
 
+
         var identity = await identities
             .ResolveAsync(request.Kind, request.CoveId, context.Generation, ct)
             .ConfigureAwait(false);
@@ -155,19 +226,18 @@ internal sealed class MissingPagePlanner(
             return new MissingCountView(null);
         }
 
-        var catalogue = await catalogues(ct).ConfigureAwait(false);
-        var size = await catalogue
-            .ReadCatalogueSizeAsync(
-                new ProviderCatalogueRequest(
-                    request.Kind,
-                    providerEntityId,
-                    1,
-                    request.PerPage,
-                    request.Sort,
-                    request.TitleSearch,
-                    request.Filters),
-                ct)
+        // The instance's own list, minus what the library holds: the figure beside the tab is the
+        // number missing rather than the size of a catalogue.
+        var listed = await CatalogueAsync(
+            request.Kind, providerEntityId, context, NullLogger.Instance, ct).ConfigureAwait(false);
+        if (listed.Scenes is not { } scenes)
+        {
+            return new MissingCountView(null);
+        }
+
+        var missing = await MissingAmongAsync(context.Provider.IdentityEndpoint, scenes, ct)
             .ConfigureAwait(false);
+        int? size = missing.Count;
 
         return new MissingCountView(size);
     }
@@ -211,61 +281,13 @@ internal sealed class MissingPagePlanner(
     internal static MissingFacetSearchView NoFacetValues(MissingFacetSearchOutcome outcome)
         => new([], 0, outcome);
 
-    private static async Task<(IReadOnlyDictionary<string, MissingSceneState> States, bool WasRead, bool PermanentlyAbsent)>
-        ReadStatesAsync(
-            MissingPageRequest request,
-            MissingPageContext context,
-            string providerEntityId,
-            ProviderScene[] remaining,
-            ILogger log,
-            CancellationToken ct)
-    {
-        // A generation holding no scene-status role keeps no per-scene record at all, so no retry
-        // could establish one.
-        if (context.StatusReading is null)
-        {
-            return (Unknown(remaining), false, true);
-        }
-
-        if (context.BaseAddress is not { } baseAddress)
-        {
-            return (Unknown(remaining), false, false);
-        }
-
-        IReadOnlyDictionary<string, MissingSceneState> states;
-        try
-        {
-            states = await SceneStatusPort
-                .ReadStatesAsync(
-                    context.StatusReading,
-                    baseAddress,
-                    context.ApiKey,
-                    request.Kind,
-                    providerEntityId,
-                    [.. remaining.Select(scene => scene.ProviderSceneId)],
-                    ct)
-                .ConfigureAwait(false);
-        }
-        catch (Exception failure) when (failure is HttpRequestException or IOException)
-        {
-            // An instance that was not reached says nothing about the catalogue, which was read, so
-            // the page renders in full and states that no status was read.
-            WhisparrSyncLog.SceneStatusReadContained(log, WhisparrSyncLog.Classify(failure));
-            return (Unknown(remaining), false, false);
-        }
-
-        var read = states.Values.Any(state => state != MissingSceneState.StatusUnknown)
-            || remaining.Length == 0;
-        return (states, read, false);
-    }
-
     // A generation holding no exclusion role keeps no scene exclusions, so no request is issued.
     private static async Task<IReadOnlySet<string>> ReadExcludedAsync(
-        MissingPageContext context, ProviderScene[] kept, CancellationToken ct)
+        MissingPageContext context, List<WhisparrCatalogueScene> kept, CancellationToken ct)
     {
         if (context.ExclusionReading is not { } reading
             || context.BaseAddress is not { } baseAddress
-            || kept.Length == 0)
+            || kept.Count == 0)
         {
             return new HashSet<string>(StringComparer.Ordinal);
         }
@@ -280,22 +302,9 @@ internal sealed class MissingPagePlanner(
             .ConfigureAwait(false);
     }
 
-    private static MissingRefusalKind StatusRefusal(bool permanentlyAbsent)
-        => permanentlyAbsent
-            ? MissingRefusalKind.WhisparrKeepsNoSceneRecords
-            : MissingRefusalKind.WhisparrStatusNotRead;
-
-    private static Dictionary<string, MissingSceneState> Unknown(
-        ProviderScene[] scenes)
-        => scenes.ToDictionary(
-            scene => scene.ProviderSceneId,
-            _ => MissingSceneState.StatusUnknown,
-            StringComparer.Ordinal);
-
-    private static MissingCard CardFor(
-        ProviderScene scene,
-        IReadOnlyDictionary<string, MissingSceneState> states,
-        IProviderCatalogue catalogue)
+    // Every card came off an entry the instance holds, so its state is the row's own monitored flag
+    // and never a status asked for afterwards.
+    private static MissingCard CardFor(WhisparrCatalogueScene scene, IProviderCatalogue catalogue)
         => new(
             scene.ProviderSceneId,
             scene.Title,
@@ -306,11 +315,11 @@ internal sealed class MissingPagePlanner(
             scene.Description,
             [.. scene.Performers.Select(
                 performer => new MissingPerformerChip(
-                    performer.ProviderPerformerId, performer.Name, performer.ImageUrl))],
+                    performer.ForeignId, performer.Name, performer.ImageUrl))],
             scene.Tags,
             scene.Performers.Count,
             scene.Tags.Count,
-            states.GetValueOrDefault(scene.ProviderSceneId, MissingSceneState.StatusUnknown));
+            scene.Monitored ? MissingSceneState.Monitored : MissingSceneState.Unmonitored);
 
     private static MissingFacetMenu MenuFor(ProviderFacetMenu menu)
         => new(

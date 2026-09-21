@@ -1,6 +1,6 @@
 /**
- * The bar above the grid: the tab's name and range, the search, the ordering, the facet menus,
- * Refresh and the whole-catalogue control.
+ * The bar above the grid: the tab's name and range, the search, the ordering, the facet
+ * dropdowns, Refresh and the whole-catalogue control.
  *
  * Every control writes through the tab's own URL hook, so a change reaches the tab shell that
  * refetches. This file parses no query string of its own.
@@ -12,9 +12,9 @@
  * `ui/src/components/listToolbarStyles.ts`, `DetailListToolbar.tsx` and `ListSearchControl.tsx`.
  * No stylesheet ships with this bundle, so a class the host does not emit renders nothing.
  */
-import { useCallback, useEffect, useId, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Radar, RefreshCw, Search } from "lucide-react";
+import { Radar, RefreshCw, Search } from "lucide-react";
 
 import {
   ACTION_REFRESH,
@@ -23,18 +23,11 @@ import {
   facetCoversEverything,
   monitorAllConfirmation,
 } from "../common/ui/copy";
-import { OFF_SCREEN } from "../common/ui/offScreen";
 import type { MissingFacetMenu as FacetMenuView, MissingPageView } from "../wire/api";
 import type { WhisparrEntityKind } from "../wire/api";
 import { ConfirmDialog } from "./hostComponents";
 import { countLineParts } from "./missingCountLogic";
-import {
-  facetMenuRows,
-  toggleFacetValue,
-  type MissingFacetChoice,
-  type MissingFacetRow,
-} from "./missingFacetLogic";
-import { MissingFacetMenu } from "./MissingFacetMenu";
+import { facetMenuRows, toggleFacetValue } from "./missingFacetLogic";
 import {
   MISSING_TOOLBAR_CONTROLS,
   MONITOR_ALL_LABEL,
@@ -44,7 +37,6 @@ import {
   searchSettleDelayMs,
   sortOptionsFor,
 } from "./missingToolbarLogic";
-import type { FacetValueSearch } from "./useFacetValueLookup";
 import { useMissingUrlState } from "./useMissingUrlState";
 
 // Cove's own list toolbar surface.
@@ -67,9 +59,10 @@ const SELECT_CLASS =
 const ACTION_CLASS =
   "inline-flex min-h-10 items-center gap-1.5 rounded-md border border-transparent px-2.5 py-2 text-sm text-secondary hover:bg-card/80 hover:text-foreground focus:outline-none focus:border-accent sm:min-h-0 sm:px-2 sm:py-1.5 sm:text-xs";
 
-// The same control as a menu trigger, capped at Cove's own width. The cap is what makes the
-// value truncate: an uncapped trigger would stretch the bar to the longest source value.
-const MENU_TRIGGER_CLASS = `inline-flex max-w-[10rem] items-center gap-1.5 ${SELECT_CLASS}`;
+// Capped at Cove's own width, so a long source value cannot stretch the bar. The ring is added
+// because the host redeclares a border colour outside any pseudo-class, so the focused border
+// Cove's own field relies on is painted over and a keyboard user is left with nothing to see.
+const DROPDOWN_CLASS = `max-w-[10rem] focus:ring-2 focus:ring-accent ${SELECT_CLASS}`;
 
 // Cove's own search field, which dodges the glass rule the same way.
 const SEARCH_INPUT_CLASS =
@@ -86,21 +79,16 @@ export interface MissingToolbarCatalogue {
 export function MissingToolbar({
   onRefresh,
   onMonitorAll,
-  onSearchFacetValues,
   catalogue,
 }: {
   onRefresh: () => void;
   /** Marks everything the narrowing in the address covers, once the reader has confirmed. */
   onMonitorAll: () => void;
-  /** How a facet menu asks the source which of its values match a typed fragment. */
-  onSearchFacetValues: FacetValueSearch;
   catalogue?: MissingToolbarCatalogue;
 }) {
   const [view, setView] = useMissingUrlState();
   const [text, setText] = useState(() => view.q);
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const openTrigger = useRef<HTMLElement | null>(null);
   const headingId = useId();
 
   // Written by replacement once typing settles, so the back button leaves the tab and does not
@@ -115,15 +103,6 @@ export function MissingToolbar({
       clearTimeout(timer);
     };
   }, [text, view, setView]);
-
-  const openFrom = useCallback((name: string, trigger: HTMLElement) => {
-    openTrigger.current = trigger;
-    setOpenMenu((current) => (current === name ? null : name));
-  }, []);
-
-  const closeMenu = useCallback(() => {
-    setOpenMenu(null);
-  }, []);
 
   const controls =
     catalogue === undefined ? (["search", "refresh"] as const) : MISSING_TOOLBAR_CONTROLS;
@@ -167,20 +146,21 @@ export function MissingToolbar({
       </div>
 
       {controls.includes("sort") && sortRows.length > 0 ? (
-        <MenuControl
-          name="sort"
-          label={SORT_MENU_LABEL}
-          trigger={sortInForce?.label ?? SORT_MENU_LABEL}
-          rows={sortRows}
-          open={openMenu === "sort"}
-          openTrigger={openTrigger}
-          onOpen={openFrom}
-          onClose={closeMenu}
-          onPick={(value) => {
-            setView({ ...view, sort: view.sort === value ? null : value, page: 1 });
-            closeMenu();
+        <select
+          aria-label={SORT_MENU_LABEL}
+          value={sortInForce?.value ?? ""}
+          onChange={(event) => {
+            setView({ ...view, sort: event.target.value || null, page: 1 });
           }}
-        />
+          className={DROPDOWN_CLASS}
+        >
+          {sortInForce === undefined ? <option value="">{SORT_MENU_LABEL}</option> : null}
+          {sortRows.map((row) => (
+            <option key={row.value} value={row.value}>
+              {row.label}
+            </option>
+          ))}
+        </select>
       ) : null}
 
       {controls.includes("facets") && catalogue !== undefined
@@ -189,18 +169,12 @@ export function MissingToolbar({
               key={menu.key}
               menu={menu}
               selected={view.filters[menu.key] ?? null}
-              open={openMenu === menu.key}
-              openTrigger={openTrigger}
-              onOpen={openFrom}
-              onClose={closeMenu}
-              onSearchValues={onSearchFacetValues}
               onPick={(value) => {
                 setView({
                   ...view,
                   filters: toggleFacetValue(view.filters, menu.key, value),
                   page: 1,
                 });
-                closeMenu();
               }}
             />
           ))
@@ -258,110 +232,44 @@ export function MissingToolbar({
   );
 }
 
-// The trigger draws the value in force. Its own name leads that off screen, so a reader hears
-// which menu they are on before they hear what it is set to.
-function MenuControl({
-  name,
-  label,
-  trigger,
-  rows,
-  open,
-  openTrigger,
-  facetKey,
-  search,
-  onOpen,
-  onClose,
-  onPick,
-}: {
-  name: string;
-  label: string;
-  trigger: string;
-  rows: readonly MissingFacetRow[];
-  open: boolean;
-  openTrigger: RefObject<HTMLElement | null>;
-  facetKey?: string;
-  search?: FacetValueSearch;
-  onOpen: (name: string, trigger: HTMLElement) => void;
-  onClose: () => void;
-  onPick: (value: string, valueLabel: string) => void;
-}) {
-  return (
-    <div className={SEGMENT_CLASS}>
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={(event) => {
-          onOpen(name, event.currentTarget);
-        }}
-        className={MENU_TRIGGER_CLASS}
-      >
-        <span style={OFF_SCREEN}>{label}</span>
-        <span className="min-w-0 truncate">{trigger}</span>
-        <ChevronDown aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
-      </button>
-      {open ? (
-        <MissingFacetMenu
-          label={label}
-          rows={rows}
-          triggerRef={openTrigger}
-          facetKey={facetKey}
-          search={search}
-          onPick={onPick}
-          onClose={onClose}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-// The control names the value in force, or what the menu covers when nothing is picked. Picking
-// the value in force again clears it.
+// The dropdown names the value in force, or what the facet covers while nothing is picked.
+// Choosing that first entry clears the facet.
 function FacetControl({
   menu,
   selected,
-  open,
-  openTrigger,
-  onOpen,
-  onClose,
   onPick,
-  onSearchValues,
 }: {
   menu: FacetMenuView;
   selected: string | null;
-  open: boolean;
-  openTrigger: RefObject<HTMLElement | null>;
-  onOpen: (name: string, trigger: HTMLElement) => void;
-  onClose: () => void;
   onPick: (value: string) => void;
-  onSearchValues: FacetValueSearch;
 }) {
-  // The label for a value found by a lookup. A menu carries only a page of the source's list, so
-  // a value picked out of a lookup usually has no label anywhere else.
-  const [picked, setPicked] = useState<MissingFacetChoice | null>(null);
-
-  const inForce: MissingFacetChoice | null =
+  // A value in force the served list does not carry leads the options, so it can still be cleared.
+  const rows = facetMenuRows(
+    menu,
     selected === null
       ? null
-      : (menu.values.find((value) => value.value === selected) ??
-        (picked?.value === selected ? picked : { value: selected, label: selected }));
+      : (menu.values.find((value) => value.value === selected) ?? {
+          value: selected,
+          label: selected,
+        }),
+  );
 
   return (
-    <MenuControl
-      name={menu.key}
-      label={menu.label}
-      trigger={inForce === null ? facetCoversEverything(menu.label) : inForce.label}
-      rows={facetMenuRows(menu, inForce)}
-      open={open}
-      openTrigger={openTrigger}
-      facetKey={menu.key}
-      search={onSearchValues}
-      onOpen={onOpen}
-      onClose={onClose}
-      onPick={(value, valueLabel) => {
-        setPicked({ value, label: valueLabel });
-        onPick(value);
+    <select
+      aria-label={menu.label}
+      value={selected ?? ""}
+      onChange={(event) => {
+        // The handler toggles, so clearing means naming the value that is already in force.
+        onPick(event.target.value === "" ? (selected ?? "") : event.target.value);
       }}
-    />
+      className={DROPDOWN_CLASS}
+    >
+      <option value="">{facetCoversEverything(menu.label)}</option>
+      {rows.map((row) => (
+        <option key={row.value} value={row.value}>
+          {row.label}
+        </option>
+      ))}
+    </select>
   );
 }
