@@ -33,12 +33,12 @@ import {
  * @param {{secret?: string, headers?: Record<string, string>}} presenting
  */
 export function whisparrCaller(baseUrl, generation, { secret, headers = {} } = {}) {
-  const agent = USER_AGENT[generation];
-  if (agent === undefined) {
+  if (!Object.hasOwn(USER_AGENT, generation)) {
     throw new Error(
       `whisparrCaller: no agent is transcribed for "${generation}"; transcribed are ${Object.keys(USER_AGENT).join(", ")}.`,
     );
   }
+  const agent = USER_AGENT[generation];
   return createApiClient(baseUrl, undefined, {
     headers: {
       "User-Agent": agent,
