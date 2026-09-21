@@ -61,7 +61,7 @@ public sealed class AddAllMissingRouteTests
     // The capability table is the evidence. A handler asking which generation is connected would
     // answer the same refusal here and go on answering it after the generation gained a route.
     [Fact]
-    public async Task TheOlderGenerationRefusesFromTheAbsentRegistrationRatherThanAVersionCheck()
+    public async Task V2RefusesFromTheAbsentRegistrationRatherThanAVersionCheck()
     {
         Assert.DoesNotContain(
             WhisparrCapability.RegisterMissingScenes,

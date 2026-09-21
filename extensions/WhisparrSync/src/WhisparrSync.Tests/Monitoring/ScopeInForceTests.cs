@@ -85,7 +85,7 @@ public sealed class ScopeInForceTests
     // What v2 answers a studio read with was never measured, so there is nothing to read even for a
     // body carrying v3's member.
     [Fact]
-    public void TheOlderGenerationReportsNoScopeForAStudio()
+    public void V2ReportsNoScopeForAStudio()
     {
         Assert.Null(MonitoringProjector.ScopeIn(
             WhisparrEntityKind.Studio, WhisparrGeneration.V2, monitored: true, DateGateSet));

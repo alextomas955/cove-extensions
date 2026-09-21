@@ -251,7 +251,7 @@ public sealed class AddAllMissingPlannerTests
         var source = PlannerSource();
 
         Assert.Contains(
-            nameof(MonitorBodyPinTests.TheNewerGenerationNamesASceneItAlreadyHoldsByAnErrorCodeTheControlDoesNotCarry),
+            nameof(MonitorBodyPinTests.V3NamesASceneItAlreadyHoldsByAnErrorCodeTheControlDoesNotCarry),
             source,
             StringComparison.Ordinal);
     }
