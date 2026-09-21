@@ -19,15 +19,30 @@ internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProv
 
     // Throws once disposed: a gateway is a container singleton, so a request still in flight at
     // teardown would otherwise register against a cleared cache and leak the provider it built.
-    public ServiceProvider Reach(TTarget target)
+    public Lease Reach(TTarget target)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        var registration = _registrations.GetOrAdd(target, key => new Registration(key, register));
-        registration.ReachedAt = Interlocked.Increment(ref _reachCount);
-        var provider = registration.Provider;
+        Lease? lease;
+        while (true)
+        {
+            var registration = _registrations.GetOrAdd(
+                target, key => new Registration(key, register));
+            registration.ReachedAt = Interlocked.Increment(ref _reachCount);
+            lease = registration.TryLease();
+            if (lease is not null)
+            {
+                break;
+            }
+
+            // Discarded between the lookup and the lease. Only that exact entry is removed, so a
+            // registration another thread has since added in its place is left alone.
+            _registrations.TryRemove(
+                new KeyValuePair<TTarget, Registration>(target, registration));
+        }
+
         DiscardBeyondCap(target);
-        return provider;
+        return lease;
     }
 
     public void Dispose()
@@ -46,9 +61,9 @@ internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProv
         _registrations.Clear();
     }
 
-    // The reached entry is excluded: discarding it while the calling thread is about to hand its
-    // provider back would return a disposed provider. A concurrent discard can also empty the
-    // candidate set between the count and the pick.
+    // The reached entry is excluded so that traffic against one pair cannot discard the registration
+    // it is itself building on. A concurrent discard can also empty the candidate set between the
+    // count and the pick.
     private void DiscardBeyondCap(TTarget reached)
     {
         while (_registrations.Count > MaxRegistrations)
@@ -66,23 +81,76 @@ internal sealed class GeneratedClientRegistry<TTarget>(Func<TTarget, ServiceProv
         }
     }
 
-    // A concurrent first reach of one target runs the add factory twice and keeps one result, so the
-    // factory builds a provider lazily: the result the dictionary drops never creates one.
-    private sealed class Registration(TTarget target, Func<TTarget, ServiceProvider> register)
+    // A request holds one of these for as long as it is sending. A registration discarded while a
+    // lease is out stays alive until the lease is released, so a provider is never disposed under a
+    // request that is using it.
+    internal sealed class Lease(Registration registration, ServiceProvider provider) : IDisposable
     {
-        private readonly Lazy<ServiceProvider> _provider = new(
-            () => register(target), LazyThreadSafetyMode.ExecutionAndPublication);
+        private int _released;
+
+        public ServiceProvider Provider { get; } = provider;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _released, 1) == 0)
+            {
+                registration.Release();
+            }
+        }
+    }
+
+    // A concurrent first reach of one target runs the add factory twice and keeps one result, so the
+    // provider is built at the first lease: the registration the dictionary drops never builds one.
+    internal sealed class Registration(TTarget target, Func<TTarget, ServiceProvider> register)
+    {
+        private readonly Lock _gate = new();
+        private ServiceProvider? _provider;
+        private int _leases;
+        private bool _discarded;
 
         public long ReachedAt { get; set; }
 
-        public ServiceProvider Provider => _provider.Value;
+        // Answers null once discarded, which tells the caller to reach again rather than lease a
+        // registration that is on its way out.
+        public Lease? TryLease()
+        {
+            lock (_gate)
+            {
+                if (_discarded)
+                {
+                    return null;
+                }
+
+                _provider ??= register(target);
+                _leases++;
+                return new Lease(this, _provider);
+            }
+        }
+
+        public void Release()
+        {
+            ServiceProvider? finished;
+            lock (_gate)
+            {
+                _leases--;
+                finished = _discarded && _leases == 0 ? _provider : null;
+                _provider = finished is null ? _provider : null;
+            }
+
+            finished?.Dispose();
+        }
 
         public void Discard()
         {
-            if (_provider.IsValueCreated)
+            ServiceProvider? finished;
+            lock (_gate)
             {
-                _provider.Value.Dispose();
+                _discarded = true;
+                finished = _leases == 0 ? _provider : null;
+                _provider = finished is null ? _provider : null;
             }
+
+            finished?.Dispose();
         }
     }
 }

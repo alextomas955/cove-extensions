@@ -29,10 +29,10 @@ internal sealed class InstanceSiteNumberPort(Whisparr2Gateway v2Gateway) : ISite
         }
 
         IApiResponse answered;
+        using var apis = v2Gateway.For(new Whisparr2Target(baseAddress, apiKey));
         try
         {
-            answered = await v2Gateway
-                .For(new Whisparr2Target(baseAddress, apiKey))
+            answered = await apis
                 .Api<V2Api.ISeriesLookupApi>()
                 .ListSeriesLookupAsync(storedSiteId, ct)
                 .ConfigureAwait(false);
