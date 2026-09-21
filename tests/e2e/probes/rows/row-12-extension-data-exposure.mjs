@@ -50,6 +50,7 @@ const AUTH_SWITCH = "COVE_E2E_AUTH_ENABLED";
 
 // Files inside the caller container, so a store response is never carried back through the exec's
 // stdout.
+const HARNESS_DIR = "/opt/harness";
 const BODY_FILE = "/opt/harness/r12-body";
 const HEADER_FILE = "/opt/harness/r12-headers";
 const META_FILE = "/opt/harness/r12-meta";
@@ -89,6 +90,7 @@ const shellQuote = (value) => `'${String(value).replaceAll("'", `'\\''`)}'`;
 function curlCommand(path) {
   const url = shellQuote(`http://${COVE_HOST}:${COVE_PORT}${path}`);
   return [
+    `mkdir -p ${HARNESS_DIR};`,
     `curl -sS -X GET -D ${HEADER_FILE} -o ${BODY_FILE}`,
     `-w '%{http_code} %{content_type}' ${url} > ${META_FILE} 2> ${ERROR_FILE};`,
     `printf 'EXIT=%s\\n' "$?";`,
