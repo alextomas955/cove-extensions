@@ -40,7 +40,7 @@ public sealed class PlanFixedPointTests
 
     private static RenamerFile FileRow(int id, string basename) => new(
         FileId: id, Kind: RenamerFileKind.Video, Basename: basename, ParentFolderId: 5,
-        ParentFolderPath: FolderPath, Height: 2160);
+        ParentFolderPath: FolderPath, Width: 3840, Height: 2160);
 
     private static RenamerEntity Entity(string? title, params RenamerFile[] files) => new(
         EntityId: 10, Kind: RenamerFileKind.Video, Title: title, Code: null, StudioName: null,

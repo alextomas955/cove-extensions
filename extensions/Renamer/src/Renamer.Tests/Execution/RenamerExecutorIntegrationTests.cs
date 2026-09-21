@@ -417,9 +417,10 @@ public sealed class RenamerExecutorIntegrationTests
 
             var date = new DateOnly(2021, 3, 14);
             var (_, titlelessId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, folderPath, "raw clip.mkv", title: null!, date: date, height: 2160);
+                db, folderPath, "raw clip.mkv", title: null!, date: date, height: 2160, width: 3840);
             var (_, titledId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, siblingDir.Replace('\\', '/'), "other raw.mkv", "Kept Title", date: date, height: 2160);
+                db, siblingDir.Replace('\\', '/'), "other raw.mkv", "Kept Title", date: date,
+                height: 2160, width: 3840);
             File.WriteAllText(Path.Combine(dir.Root, "raw clip.mkv"), "a");
             File.WriteAllText(Path.Combine(siblingDir, "other raw.mkv"), "b");
 

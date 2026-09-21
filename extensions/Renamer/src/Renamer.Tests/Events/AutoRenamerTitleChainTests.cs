@@ -41,9 +41,9 @@ public sealed class AutoRenamerTitleChainTests
             string folderFwd = dir.Root.Replace('\\', '/');
             var (folderId, videoId, mkvFileId) = await ExecutorTestSeed.SeedVideoAsync(
                 db, folderFwd, "raw clip.mkv", title: null!,
-                date: new DateOnly(2021, 3, 14), height: 2160);
+                date: new DateOnly(2021, 3, 14), height: 2160, width: 3840);
             int mp4FileId = await ExecutorTestSeed.SeedAdditionalFileAsync(
-                db, folderId, videoId, "raw clip.mp4", height: 2160);
+                db, folderId, videoId, "raw clip.mp4", height: 2160, width: 3840);
 
             File.WriteAllText(Path.Combine(dir.Root, "raw clip.mkv"), "one");
             File.WriteAllText(Path.Combine(dir.Root, "raw clip.mp4"), "two");

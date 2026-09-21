@@ -28,6 +28,7 @@ public static class SampleTokenSets
                 [Tokens.StudioCode] = "ACM-042",
                 [Tokens.Date] = "2021-03-14",
                 [Tokens.Year] = "2021",
+                [Tokens.Width] = "3840",
                 [Tokens.Height] = "2160",
                 [Tokens.VideoCodec] = "h264",
                 [Tokens.AudioCodec] = "aac",

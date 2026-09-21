@@ -63,34 +63,23 @@ public class TemplateEngineTests
     }
 
     [Fact]
-    public void CoreTokens_Resolution_DerivedFromHeight()
+    public void CoreTokens_Resolution_DerivedFromBothDimensions()
     {
-        var tokens = new Dictionary<string, string> { ["height"] = "2160", ["title"] = "X" };
+        var tokens = new Dictionary<string, string>
+        {
+            ["width"] = "3840",
+            ["height"] = "2160",
+            ["title"] = "X",
+        };
         var r = Render("$title $resolution", tokens);
         Assert.Equal("X 4K", r.Filename);
-    }
-
-    [Theory]
-    [InlineData("2160", "4K")]
-    [InlineData("1440", "1440p")]
-    [InlineData("1080", "1080p")]
-    [InlineData("720", "720p")]
-    [InlineData("480", "480p")]
-    [InlineData("432", "360p")]
-    [InlineData("368", "360p")]
-    [InlineData("240", "240p")]
-    public void CoreTokens_ResolutionBuckets(string height, string label)
-    {
-        var tokens = new Dictionary<string, string> { ["height"] = height };
-        var r = Render("$resolution", tokens);
-        Assert.Equal(label, r.Filename);
     }
 
     [Fact]
     public void CoreTokens_Resolution_ZeroOrMissingHeight_RendersEmpty()
     {
-        // A zero/absent height must render no resolution tag (empty), not a garbage "[0]" — the
-        // "{ [$resolution]}" group collapses when the token is empty.
+        // A zero/absent height must render no resolution tag, not a garbage "[0]": the token stays
+        // out of the map, so the "{ [$resolution]}" group collapses.
         var zero = Render("X{ [$resolution]}", new Dictionary<string, string> { ["height"] = "0" });
         Assert.Equal("X", zero.Filename);
     }
@@ -104,6 +93,7 @@ public class TemplateEngineTests
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "Bootie From Beijing [1080p]",
+            ["width"] = "1920",
             ["height"] = "1080",
         };
         var r = Render("$title{ [$resolution]}", tokens);
@@ -117,6 +107,7 @@ public class TemplateEngineTests
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "Bootie From Beijing [1080p]",
+            ["width"] = "1920",
             ["height"] = "1080",
         };
         var r = Render("$title", tokens);
@@ -131,6 +122,7 @@ public class TemplateEngineTests
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "Shot in [1080p] Glory",
+            ["width"] = "3840",
             ["height"] = "2160",
         };
         var r = Render("$title{ [$resolution]}", tokens);
@@ -145,6 +137,7 @@ public class TemplateEngineTests
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "Old Rip [720p]",
+            ["width"] = "3840",
             ["height"] = "2160",
         };
         var r = Render("$title{ [$resolution]}", tokens);
@@ -157,7 +150,12 @@ public class TemplateEngineTests
         // The doubled-tag regression: a title imported with a "[368p]" tag, which no bucket is named
         // for, plus a template that appends { [$resolution]} would yield "Nikki [368p] [360p]". The
         // generic trailing-[<digits>p] strip removes the imported tag and leaves one.
-        var tokens = new Dictionary<string, string> { ["title"] = "Nikki [368p]", ["height"] = "368" };
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Nikki [368p]",
+            ["width"] = "654",
+            ["height"] = "368",
+        };
         var r = Render("$title{ [$resolution]}", tokens);
         Assert.Equal("Nikki [360p]", r.Filename);
     }
@@ -171,22 +169,33 @@ public class TemplateEngineTests
     [InlineData("Old Rip [HUGE]", "Old Rip [4K]")]
     public void TrailingResolution_KLabel_StrippedInEitherCase(string title, string expected)
     {
-        var tokens = new Dictionary<string, string> { ["title"] = title, ["height"] = "2160" };
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = title,
+            ["width"] = "3840",
+            ["height"] = "2160",
+        };
         var r = Render("$title{ [$resolution]}", tokens);
         Assert.Equal(expected, r.Filename);
     }
 
     [Theory]
     // A bracketed number with no 'p' is a serial/index/scene number, not a resolution — never stripped.
-    [InlineData("Calendar Audition [28]", "2160", "Calendar Audition [28] [4K]")]
+    [InlineData("Calendar Audition [28]", "3840", "2160", "Calendar Audition [28] [4K]")]
     // A hash-like bracketed token is not a resolution tag.
-    [InlineData("Blowjob [caufkb2cd9]", "1080", "Blowjob [caufkb2cd9] [1080p]")]
+    [InlineData("Blowjob [caufkb2cd9]", "1920", "1080", "Blowjob [caufkb2cd9] [1080p]")]
     // A resolution mid-title with a real serial at the end: only a trailing res-tag is stripped, and
     // there is none here, so nothing is stripped and the derived tag is appended.
-    [InlineData("Shot [720p] Take [5]", "1080", "Shot [720p] Take [5] [1080p]")]
-    public void TrailingResolution_NonResolutionBrackets_NotStripped(string title, string height, string expected)
+    [InlineData("Shot [720p] Take [5]", "1920", "1080", "Shot [720p] Take [5] [1080p]")]
+    public void TrailingResolution_NonResolutionBrackets_NotStripped(
+        string title, string width, string height, string expected)
     {
-        var tokens = new Dictionary<string, string> { ["title"] = title, ["height"] = height };
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = title,
+            ["width"] = width,
+            ["height"] = height,
+        };
         var r = Render("$title{ [$resolution]}", tokens);
         Assert.Equal(expected, r.Filename);
     }
@@ -424,6 +433,7 @@ public class TemplateEngineTests
             ["title"] = "The Movie",
             ["studio"] = "Acme Studio",
             ["year"] = "2026",
+            ["width"] = "1920",
             ["height"] = "1080",
         };
         var o = new RenamerOptions
