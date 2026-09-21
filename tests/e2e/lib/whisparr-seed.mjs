@@ -138,12 +138,12 @@ export async function seedHistory({
   eventTypes,
   expectedTotal = count,
 }) {
-  const database = DATABASES[generation];
-  if (database === undefined) {
+  if (!Object.hasOwn(DATABASES, generation)) {
     throw new Error(
       `seedHistory: no database is declared for generation "${generation}"; declared generations are ${Object.keys(DATABASES).join(", ")}.`,
     );
   }
+  const database = DATABASES[generation];
 
   await container.copyFilesToContainer([{ source: SEEDER_SOURCE, target: SEEDER_TARGET }]);
   // A copied file arrives root-owned, and the chown is the only step here that needs root. The
@@ -218,12 +218,12 @@ export async function seedEntity({
       `seedEntity: no catalogue seed is wired for generation "${generation}"; it is wired for ${ENTITY_GENERATIONS.join(", ")}.`,
     );
   }
-  const readBack = ENTITY_READ_BACK[kind];
-  if (readBack === undefined) {
+  if (!Object.hasOwn(ENTITY_READ_BACK, kind)) {
     throw new Error(
       `seedEntity: no resource is declared for kind "${kind}"; declared kinds are ${Object.keys(ENTITY_READ_BACK).join(", ")}.`,
     );
   }
+  const readBack = ENTITY_READ_BACK[kind];
   if (!rootFolderPath) {
     throw new Error(
       "seedEntity: no rootFolderPath given; the column is NOT NULL and a registered root is the only value the instance accepts.",

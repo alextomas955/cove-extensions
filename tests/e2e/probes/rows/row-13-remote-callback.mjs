@@ -17,6 +17,7 @@
 import { Buffer } from "node:buffer";
 
 import { resolveCoveImage } from "../../lib/harness.mjs";
+import { byText } from "../lib/ordering.mjs";
 
 // The compose service name, which is also the hostname a container on that network addresses, and
 // the port the application listens on inside its own container rather than the published one.
@@ -81,7 +82,7 @@ function summarise({
     contentType,
     byteLength: bytes,
     bodyShape: shapeOf(firstByte, bytes),
-    headerNames: [...new Set(headers)].sort().join(" "),
+    headerNames: [...new Set(headers)].sort(byText).join(" "),
     wwwAuthenticate: challenge,
     // Present only for a non-success, so a configuration body cannot arrive here.
     ...(bodyHead === null ? {} : { refusalBodyHead: bodyHead }),
