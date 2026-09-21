@@ -227,9 +227,8 @@ test("the ordering control names the ordering in force rather than what it opens
   expect(menuNamed(container, "Sort")?.textContent).toBe("SortNewest first");
 });
 
-// Whichever fill and shadow utilities a control carries. jsdom applies no host stylesheet, so what a
-// control draws is only readable from its classes; naming none of them keeps this true of whatever
-// Cove spells them.
+// jsdom applies no host stylesheet, so what a control draws is only readable from its classes.
+// Naming no utility keeps this true whatever Cove spells them.
 function fillUtilities(drawn: Element): string[] {
   return [...drawn.classList].filter(
     (name) => name.startsWith("bg-") || name.startsWith("shadow-"),

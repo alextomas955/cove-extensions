@@ -2,17 +2,14 @@
  * Folds every key requested within one scheduler tick into as few fetches as the server answers for,
  * so a page of cards costs one request per answered page rather than one per card.
  *
- * The invariant this module holds: nothing is retained past the cards that asked for it. Each key is
- * held for as long as at least one caller holds its release, and the entry is dropped when the last
- * one lets go. A library here reaches millions of entities, so a cache that outlived the page would
- * grow with how far someone scrolled.
+ * Nothing is retained past the cards that asked for it: a key is held while at least one caller
+ * holds its release, and the entry is dropped when the last one lets go. A library here reaches
+ * millions of entities, so a cache that outlived the page would grow with how far someone scrolled.
  *
- * Import-free apart from its own relative siblings, so it runs with no environment and no mocks. The
- * injected `fetchBatch` owns the wire shape; a rejection from it resolves every key still waiting to
- * `null`, which is a card with no badge and never a thrown card.
+ * The injected `fetchBatch` owns the wire shape. A rejection from it resolves every key still
+ * waiting to `null`, which is a card with no badge and never a thrown card.
  */
 
-/** What one fetch answered, and whether it was given more keys than it answered for. */
 export interface FetchedBatch<V> {
   /** One entry per key answered for. A key absent here was not answered, which is not the same as answered with nothing. */
   readonly answers: Map<string, V | null>;
@@ -32,12 +29,7 @@ export interface BatchCoalescer<V> {
   settled: (key: string) => boolean;
   /** How many keys are held right now. */
   registered: () => number;
-  /**
-   * Every answer for a key still held, in no particular order.
-   *
-   * Only the keys a card still holds, so what this returns leaves with the cards that asked for it
-   * and never describes a page that has been scrolled past.
-   */
+  /** Every answer for a key still held, in no particular order. */
   answered: () => (V | null)[];
   subscribe: (listener: () => void) => () => void;
 }
@@ -45,12 +37,9 @@ export interface BatchCoalescer<V> {
 /**
  * @param fetchBatch answers as many of the keys it is given as one page holds, and says whether it
  * was given more. Its second argument is true only when no key this coalescer holds had an answer as
- * the fetch began, so a caller holding a fact about the answers so far has nothing left for that fact
- * to describe. The next fetch of the same flush and the first fetch of a key requested while one is
- * in flight are both told false.
- *
- * How many keys one page holds is the server's own figure and is never held here: a tick holding
- * more than one page is asked again for what came back unanswered.
+ * the fetch began. The next fetch of the same flush, and the first fetch of a key requested while
+ * one is in flight, are both told false. How many keys one page holds is the server's figure and is
+ * never held here.
  * @param schedule defers the flush one tick; a test injects a manual scheduler in its place.
  */
 export function createBatchCoalescer<V>(
@@ -75,8 +64,7 @@ export function createBatchCoalescer<V>(
     queued = new Set();
     if (need.length === 0) return;
 
-    // One fetch at a time: the reads behind each one are sequential against a third party, and a
-    // page's worth issued together would multiply that by however many fetches the page takes.
+    // One fetch at a time: the reads behind each one are sequential against a third party.
     let sending = need;
     while (sending.length > 0) {
       let answered: FetchedBatch<V> | null = null;
@@ -86,9 +74,8 @@ export function createBatchCoalescer<V>(
         answered = null;
       }
 
-      // Every key this fetch answered for is stored. What it was not able to answer for is asked
-      // again only where it said there was more; a fetch that answered nothing and claimed no
-      // remainder has said all it can, and the rest resolve to no badge.
+      // What the fetch could not answer for is asked again only where it said there was more. A
+      // fetch that answered nothing and claimed no remainder has said all it can.
       const again = new Set(
         answered?.moreNotAnswered === true
           ? sending.filter((key) => !answered.answers.has(key))
@@ -96,8 +83,7 @@ export function createBatchCoalescer<V>(
       );
 
       for (const key of sending) {
-        // A key every holder released while the fetch was in flight is not stored, so its card
-        // leaves nothing behind.
+        // A key every holder released while the fetch was in flight is not stored.
         if (!holders.has(key) || again.has(key)) continue;
         values.set(key, answered?.answers.get(key) ?? null);
       }

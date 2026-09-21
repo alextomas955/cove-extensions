@@ -2,12 +2,8 @@
  * Pure rules for the entity monitor menu: which items exist at all, which of them can be pressed,
  * and what each one is called.
  *
- * Relative imports only, so this module runs with no environment and needs no doubles. The wire types
- * arrive as `import type`, which erases at runtime and so takes nothing with it.
- *
- * Nothing here is decided from a table of what a generation can do. The view carries the capabilities
- * the connected instance holds, and that list is the authority, so a capability registered later
- * needs no edit here.
+ * Nothing here is decided from a table of what a generation can do. The view carries the
+ * capabilities the connected instance holds, so a capability registered later needs no edit here.
  *
  * Every row is labelled from the menu set rather than from the scene tab's, because the menu above
  * the rows is already headed with the product's name.
@@ -65,8 +61,8 @@ export type SecondaryAction = "addAllMissing" | "reflectOwned" | "searchAllMonit
  * What every row carries, however it is pressed.
  *
  * The reason is the only representation of whether the row can be pressed: a reason disables it and
- * an absent reason enables it. There is deliberately no second boolean, so a row that is dimmed with
- * nothing to hear cannot be expressed.
+ * an absent reason enables it. There is no second boolean, so a row that is dimmed with nothing to
+ * hear cannot be expressed.
  */
 interface MenuItemFace {
   readonly label: string;
@@ -108,9 +104,8 @@ export interface MonitorRefusal {
 /**
  * Every refusal kind the server can answer.
  *
- * Total by TYPE, so a kind added to the wire enum fails this build rather than compiling with no
- * decision made about it. Exactly one sentence per kind and never two combined: the server has
- * already chosen which reason the user reads by answering one kind.
+ * Total by type, so a kind added to the wire enum fails this build. One sentence per kind and never
+ * two combined: the server has already chosen which reason the reader gets.
  */
 const REFUSALS: Record<MonitorRefusalKind, MonitorRefusal> = {
   none: { sentence: null, leavesNothingToOffer: false },
@@ -151,9 +146,8 @@ const REFUSALS: Record<MonitorRefusalKind, MonitorRefusal> = {
 /**
  * Which capability monitoring each kind of entity needs, or null where nothing monitors one.
  *
- * Total by TYPE, so an entity kind added to the wire enum fails this build rather than rendering a
- * menu with no decision made about it. Null is a kind Whisparr monitors through no capability at
- * all, which leaves this menu with nothing to offer for it.
+ * Total by type, so an entity kind added to the wire enum fails this build. Null is a kind Whisparr
+ * monitors through no capability, which leaves this menu nothing to offer for it.
  */
 const MONITOR_CAPABILITY: Record<WhisparrEntityKind, WhisparrCapability | null> = {
   studio: "monitorStudio",
@@ -164,7 +158,7 @@ const MONITOR_CAPABILITY: Record<WhisparrEntityKind, WhisparrCapability | null> 
 /**
  * Which kinds express a narrower scope, and so are offered the pair rather than one plain toggle.
  *
- * Total by TYPE. A performer expresses no date gate on either generation, so monitoring one is
+ * Total by type. A performer expresses no date gate on either generation, so monitoring one is
  * All-Scenes behaviour and a pair would offer a choice that does not exist.
  */
 const OFFERS_A_SCOPE_PAIR: Record<WhisparrEntityKind, boolean> = {
@@ -176,9 +170,8 @@ const OFFERS_A_SCOPE_PAIR: Record<WhisparrEntityKind, boolean> = {
 /**
  * Whether changing the scope on this generation rewrites what is already monitored.
  *
- * Total by TYPE, so a generation added to the wire enum fails this build rather than compiling with
- * no decision made about it. Where it does not, the wider scope is a one-way door and the
- * confirmation says so.
+ * Total by type, so a generation added to the wire enum fails this build. Where a change is not
+ * retroactive, the wider scope is a one-way door and the confirmation says so.
  */
 const A_SCOPE_CHANGE_IS_RETROACTIVE: Record<ConnectedGeneration, boolean> = {
   v3: false,
@@ -188,8 +181,7 @@ const A_SCOPE_CHANGE_IS_RETROACTIVE: Record<ConnectedGeneration, boolean> = {
 /**
  * Which item of this menu each capability gates, or null where it gates none.
  *
- * Total by TYPE, so a capability added to the wire enum fails this build rather than compiling with
- * no decision made about whether this menu offers it.
+ * Total by type, so a capability added to the wire enum fails this build.
  */
 const ITEM_BEHIND_CAPABILITY: Record<WhisparrCapability, SecondaryAction | null> = {
   outOfBandCallbackSecret: null,
@@ -218,9 +210,8 @@ const ITEM_BEHIND_CAPABILITY: Record<WhisparrCapability, SecondaryAction | null>
 /**
  * The capability each secondary action needs.
  *
- * Transcribed rather than derived from {@link ITEM_BEHIND_CAPABILITY}, which is the other direction
- * of the same fact. A derived pair agrees with itself; two written-down ones disagree out loud, and
- * a test reads them against each other.
+ * Transcribed rather than derived from {@link ITEM_BEHIND_CAPABILITY}, the other direction of the
+ * same fact. A derived pair agrees with itself; a test reads these two against each other.
  */
 const CAPABILITY_BEHIND_ITEM: Record<SecondaryAction, WhisparrCapability> = {
   addAllMissing: "registerMissingScenes",
@@ -235,32 +226,28 @@ const SECONDARY_LABEL: Record<SecondaryAction, string> = {
   searchAllMonitored: ACTION_SEARCH_ALL_MONITORED,
 };
 
-/** Turning monitoring on, at a chosen scope. Only reached for an entity not yet monitored. */
+// Only reached for an entity not yet monitored.
 const MONITOR_ROUTE = "monitor";
 
-/** Turning monitoring off. */
 const UNMONITOR_ROUTE = "unmonitor";
 
-/** Changing the scope of something already monitored, which is not the same verb as monitoring. */
+// Changing the scope of something already monitored, which is not the monitor verb.
 const SCOPE_ROUTE = "scope";
 
-/** Registering the scenes the library holds that the instance's own catalogue does not. */
 const ADD_ALL_MISSING_ROUTE = "add-all-missing";
 
-/** Linking the files the library already holds into place on the instance. */
 const REFLECT_OWNED_ROUTE = "reflect-owned";
 
-/** The one verb here that makes the instance go and download. Its own row and its own route. */
+// The one verb here that makes the instance go and download.
 const SEARCH_ALL_MONITORED_ROUTE = "search-all-monitored";
 
 /**
  * Which answer each acting route serves, named as the component the emitted wire document declares
  * for that route's 200 response.
  *
- * Four of the six answer the entity's own state and two answer an enqueued job, so one stand-in type
- * for all six typechecks only while every answer happens to spell one member the same way. Every key
- * is the declared route constant rather than its text, and <code>monitorRoutes.test.ts</code> reads
- * these values against the document itself.
+ * Four of the six answer the entity's own state and two answer an enqueued job, so one stand-in
+ * type for all six would typecheck only while every answer spells one member the same way.
+ * `monitorRoutes.test.ts` reads these values against the document itself.
  */
 export const MONITOR_ACTION_ANSWER_SCHEMAS = {
   [MONITOR_ROUTE]: "EntityMonitoringView",
@@ -281,13 +268,11 @@ export type MonitorActionAnswer =
 /**
  * Which route each secondary action is served at, or null where this build serves none.
  *
- * The ONE place either surface learns whether a verb is reachable. The entity menu renders a row
+ * The one place either surface learns whether a verb is reachable. The entity menu renders a row
  * disabled when the answer is null and the selection overlay does not offer it at all, so the two
- * cannot come to disagree about which verbs this build carries out.
+ * cannot disagree about which verbs this build carries out.
  *
- * Total by TYPE, so a secondary action added later has to be classified here. Every non-null value
- * names one of the route constants above rather than repeating its text, and a pin reads the two
- * against each other.
+ * Total by type, so a secondary action added later has to be classified here.
  */
 const SECONDARY_ACTION_ROUTES: Record<SecondaryAction, MonitorActionRoute | null> = {
   addAllMissing: ADD_ALL_MISSING_ROUTE,
@@ -295,18 +280,13 @@ const SECONDARY_ACTION_ROUTES: Record<SecondaryAction, MonitorActionRoute | null
   searchAllMonitored: SEARCH_ALL_MONITORED_ROUTE,
 };
 
-/**
- * What each skip reason states at the control.
- *
- * Total by TYPE, so a reason added to the wire enum fails this build rather than rendering a
- * sentence about a setting nobody read.
- */
+// Total by type, so a reason added to the wire enum fails this build rather than rendering a
+// sentence about a setting nobody read.
 const REFLECT_OWNED_SKIP_SENTENCE: Record<ReflectOwnedSkip, string> = {
   hardLinksOff: REFLECT_OWNED_SKIPPED,
   hardLinkSettingUnreadable: REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE,
 };
 
-/** What each scope row is called, named for what pressing it does. */
 const SCOPE_LABEL: Record<MonitorScopeChoice, string> = {
   futureScenes: SCOPE_FUTURE_SCENES,
   allScenes: SCOPE_ALL_SCENES,
@@ -336,8 +316,8 @@ export const MONITOR_REFUSAL_KINDS: readonly MonitorRefusalKind[] = [
 /**
  * The scopes, in the order they render.
  *
- * The order is fixed rather than derived from the state, because an order that varies puts the cheap
- * option under the cursor sometimes and the expensive one others.
+ * The order is fixed rather than derived from the state: a varying order puts the cheap option
+ * under the cursor sometimes and the expensive one others.
  */
 export const SCOPE_ORDER: readonly MonitorScopeChoice[] = ["futureScenes", "allScenes"];
 
@@ -367,13 +347,13 @@ export const CAPABILITY_ORDER: readonly WhisparrCapability[] = [
   "searchMonitored",
 ];
 
-/** How <code>kind</code> reads, and whether it leaves anything to offer. */
+/** How `kind` reads, and whether it leaves anything to offer. */
 export function describeMonitorRefusal(kind: MonitorRefusalKind): MonitorRefusal {
   return REFUSALS[kind];
 }
 
 /**
- * Whether the wider scope cannot be taken back on <code>generation</code>.
+ * Whether the wider scope cannot be taken back on `generation`.
  *
  * A null generation is nothing connected, which settles no scope behaviour either way.
  */
@@ -382,7 +362,7 @@ export function allScenesIsAOneWayDoor(generation: WhisparrGeneration): boolean 
 }
 
 /**
- * Whether pressing <code>item</code> marks every scene the instance already lists as wanted.
+ * Whether pressing `item` marks every scene the instance already lists as wanted.
  *
  * True of the wider scope row, and of the standalone monitor row, which is what a kind expressing no
  * scope pair is offered and covers the back catalogue with no scope to name.
@@ -391,17 +371,17 @@ export function marksTheBackCatalogue(item: MonitorMenuItem): boolean {
   return item.item === "monitor" || (item.item === "scope" && item.scope === "allScenes");
 }
 
-/** Which capability <code>action</code> needs the connected generation to hold. */
+/** Which capability `action` needs the connected generation to hold. */
 export function capabilityBehindAction(action: SecondaryAction): WhisparrCapability {
   return CAPABILITY_BEHIND_ITEM[action];
 }
 
-/** Which item of this menu <code>capability</code> gates, or null where it gates none. */
+/** Which item of this menu `capability` gates, or null where it gates none. */
 export function actionBehindCapability(capability: WhisparrCapability): SecondaryAction | null {
   return ITEM_BEHIND_CAPABILITY[capability];
 }
 
-/** What <code>reason</code> states at the control when reflect owned linked nothing. */
+/** What `reason` states at the control when reflect owned linked nothing. */
 export function describeReflectOwnedSkip(reason: ReflectOwnedSkip): string {
   return REFLECT_OWNED_SKIP_SENTENCE[reason];
 }
@@ -413,12 +393,12 @@ function memberOf(answer: unknown, member: string): unknown {
 }
 
 /**
- * The refusal <code>answer</code> carries, or null where it carries none this build recognises.
+ * The refusal `answer` carries, or null where it carries none this build recognises.
  *
- * An answer with no such member is a live path rather than a guarded-against one: the POST helper
- * resolves an empty object for an empty 2xx body and for an unparseable one. Validated against the
- * key set of the sentence record, which is total by TYPE, so a kind added to the wire enum is
- * accepted here and still forces a sentence decision in that record.
+ * An answer with no such member is a live path, not a guarded-against one: the POST helper resolves
+ * an empty object for an empty 2xx body and for an unparseable one. Validated against the key set
+ * of the sentence record, so a kind added to the wire enum is accepted here and still forces a
+ * sentence decision there.
  */
 export function monitorRefusalIn(answer: unknown): MonitorRefusalKind | null {
   const value = memberOf(answer, "refusal");
@@ -427,7 +407,7 @@ export function monitorRefusalIn(answer: unknown): MonitorRefusalKind | null {
     : null;
 }
 
-/** The skip reason <code>answer</code> carries, or null where it carries none this build recognises. */
+/** The skip reason `answer` carries, or null where it carries none this build recognises. */
 export function reflectOwnedSkipIn(answer: unknown): ReflectOwnedSkip | null {
   const value = memberOf(answer, "skipped");
   return typeof value === "string" && Object.hasOwn(REFLECT_OWNED_SKIP_SENTENCE, value)
@@ -436,11 +416,10 @@ export function reflectOwnedSkipIn(answer: unknown): ReflectOwnedSkip | null {
 }
 
 /**
- * What <code>kind</code> states beneath the control, or null where it states nothing there.
+ * What `kind` states beneath the control, or null where it states nothing there.
  *
  * The same flag decides both surfaces. A refusal that leaves nothing to offer speaks in the
- * control's own name and is silent here, so the two cannot come to disagree about which reason a
- * reader is given where.
+ * control's own name and is silent here, so the two cannot disagree about where a reason is given.
  */
 export function refusalNoticeFor(kind: MonitorRefusalKind): string | null {
   const refusal = describeMonitorRefusal(kind);
@@ -450,14 +429,12 @@ export function refusalNoticeFor(kind: MonitorRefusalKind): string | null {
 /**
  * The one sentence beneath the control after the last gesture, or null where there is none.
  *
- * The precedence is over the NOTICES rather than over the inputs, which is what keeps a healthy
- * answer from silencing a skip: <code>none</code> is a refusal kind and is what every healthy read
- * answers, so a branch that stopped at a non-null refusal would answer null for the common case and
- * never reach the skip. Falling through on a null notice also covers the kinds that empty the menu,
- * with no second list of which those are.
+ * The precedence is over the sentences rather than over the inputs, which is what keeps a healthy
+ * answer from silencing a skip: `none` is a refusal kind and is what every healthy read answers, so
+ * a branch stopping at a non-null refusal would answer null for the common case and never reach the
+ * skip. Falling through on a null sentence also covers the kinds that empty the menu.
  *
- * A failure reads ahead of both: an action that never arrived cannot also have been refused or
- * passed over.
+ * A failure reads ahead of both: an action that never arrived cannot also have been refused.
  */
 export function controlNotice({
   failed,
@@ -487,8 +464,8 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
   const monitorCapability = MONITOR_CAPABILITY[view.kind];
   const cannotMonitorThisKind = monitorCapability === null || !held.has(monitorCapability);
 
-  // One sentence, and the server's kind chooses it: it has already decided which reason the user
-  // reads. The held list answers only where the server named nothing.
+  // One sentence, and the server's kind chooses it. The held list answers only where the server
+  // named nothing.
   const reason =
     refusal.sentence ?? (cannotMonitorThisKind ? CAP_UNAVAILABLE_ON_THIS_GENERATION : null);
   const available = !refusal.leavesNothingToOffer && !cannotMonitorThisKind;
@@ -499,15 +476,14 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
   const transient = inFlight ? WAITING_FOR_WHISPARR : null;
   const face = (label: string, unavailable: string | null) => ({
     label,
-    // A permanent reason reads ahead of the transient one: a control that will never work should not
-    // say it is waiting.
+    // A permanent reason reads ahead of the transient one: a control that will never work should
+    // not say it is waiting.
     reason: unavailable ?? transient,
   });
 
-  // The same two rows mean two different things. On an entity nothing monitors they are the monitor
-  // gesture, and the mark is the choice this menu will carry out, which defaults to the cheaper
-  // scope. On a monitored entity they are a report of what Whisparr holds, and a mark is a claim
-  // about the instance: an answer that named no scope must leave every row unmarked.
+  // The same two rows mean two different things. On an unmonitored entity they are the monitor
+  // gesture and the mark is the choice this menu will carry out. On a monitored entity they report
+  // what Whisparr holds, so an answer that named no scope must leave every row unmarked.
   const offersAScopePair = OFFERS_A_SCOPE_PAIR[view.kind];
   const scopes: MonitorMenuItem[] = offersAScopePair
     ? SCOPE_ORDER.map((scope) => ({
@@ -550,14 +526,11 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
 }
 
 /**
- * The route <code>item</code> is carried out at, or null where this build serves none.
+ * The route `item` is carried out at, or null where this build serves none.
  *
- * A scope row is two different verbs depending on the state: on an entity not yet monitored it is
- * the monitor gesture carrying that scope, and on one already monitored it changes the scope and
- * leaves the flag alone.
- *
- * <code>monitorRoutes.test.ts</code> reads the route constants above against the routes the shipped
- * wire document declares, so a verb mounted later cannot be left out here in silence.
+ * A scope row is two different verbs depending on the state: on an unmonitored entity it is the
+ * monitor gesture carrying that scope, and on a monitored one it changes the scope and leaves the
+ * flag alone.
  *
  * @param item the menu item pressed
  * @param monitored whether the connected instance already monitors the entity
@@ -619,19 +592,15 @@ export interface BulkMonitorOffer {
 }
 
 /**
- * What the selection bar offers for a selection of <code>view</code>'s kind.
+ * What the selection bar offers for a selection of `view`'s kind.
  *
- * Derived from {@link monitorMenu} and {@link routeFor}, so the overlay offers exactly the verbs the
- * entity menu can carry out: whatever that menu renders disabled is not offered here at all.
+ * Derived from {@link monitorMenu} and {@link routeFor}, so the overlay offers exactly the verbs
+ * the entity menu can carry out.
  *
- * Only what is true of the CONNECTION decides the offer. A refusal the sampled entity earned - no
- * link, or several conflicting ones - is a fact about that one entity, and a selection can hold a
- * hundred others it is not true of, so it is deliberately not read here. Nothing connected is the
- * exception, because that one is about the connection.
- *
- * The entity's own monitored state is not read either, for the same reason: a selection can mix
- * monitored and unmonitored entities, and each entity's own state is settled per entity on the
- * server.
+ * Only what is true of the connection decides the offer. A refusal the sampled entity earned is a
+ * fact about that one entity, and a selection can hold a hundred others it is not true of, so it is
+ * not read here. Nothing connected is the exception, because that is about the connection. The
+ * entity's own monitored state is not read either, for the same reason.
  *
  * @param view what a read of one selected entity answered
  */
@@ -652,8 +621,8 @@ export function bulkMonitorActions(view: EntityMonitoringView): BulkMonitorOffer
   return {
     actions: [
       ...offered(notYetMonitored.items, false),
-      // The scope rows of a monitored entity are the scope-change verb, which the bulk route does not
-      // carry: this offers the gestures D-14 names and not a third one.
+      // The scope rows of a monitored entity are the scope-change verb, which the bulk route does
+      // not carry.
       ...offered(
         alreadyMonitored.items.filter((item) => item.item !== "scope"),
         true,

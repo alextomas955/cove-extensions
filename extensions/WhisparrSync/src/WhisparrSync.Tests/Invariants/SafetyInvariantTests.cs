@@ -244,12 +244,10 @@ public sealed class SafetyInvariantTests
                 WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor(member.Value)));
     }
 
-    // The case list is derived from the per-generation capability table rather than transcribed.
-    // The failure to catch is a generation-and-kind combination that becomes registered and is
-    // never covered, and a transcribed list would go on agreeing with itself while that combination
-    // composed whatever it liked. Presence is asserted apart from the value, because an absent
-    // member and a false one read the same off a value and the instance's default for the absent
-    // case is not this product's to rely on.
+    // The case list is derived from the per-generation capability table rather than transcribed,
+    // so a generation-and-kind combination registered later is covered rather than uncovered.
+    // Presence is asserted apart from the value, because an absent member and a false one read the
+    // same off a value and the instance's default is not this product's to rely on.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryAddIsNonGrabbing)]
     public void EveryAddThisProductCanComposeSuppressesAcquisitionWhereItsResourceDeclaresIt()
@@ -450,11 +448,10 @@ public sealed class SafetyInvariantTests
         Assert.True(ingest.Paths.Operations.Count > probesAfterTheFirst);
     }
 
-    // The pass set is asserted exactly, so a third pass added later reaches this rather than
-    // travelling under an enumeration written for two. Each pass's own body is composed here and
-    // read for its generation's suppressing flags and for every grabbing command name, because a
-    // run reaching a whole library is the one gesture whose acquisition cost would be the size of
-    // the library.
+    // The pass set is asserted exactly, so a third pass added later fails here rather than
+    // travelling under an enumeration written for two. Each pass's body is read for its
+    // generation's suppressing flags and for every grabbing command name, because a run reaching a
+    // whole library is the one gesture whose acquisition cost would be the size of the library.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryAddIsNonGrabbing)]
     public void NeitherPassALibraryRunMakesRegistersThroughAnythingButANonGrabbingAdd()
@@ -486,10 +483,9 @@ public sealed class SafetyInvariantTests
             });
     }
 
-    // The composition is compared as text so a re-run is proved to send what the first run sent
-    // rather than a second variant of it. The run is then driven twice against an instance that
-    // answers a repeated offer with its own already-held document, so the counts report the
-    // classification the shipped code makes of a real answer. The already-held count is the
+    // The composition is compared as text, so a re-run is proved to send what the first run sent
+    // rather than a variant of it. The run is then driven twice against an instance answering a
+    // repeated offer with its own already-held document. The already-held count is the
     // load-bearing one: a second offer counted as registered would be a duplicate this product
     // created and then reported as work.
     [Fact]
@@ -533,9 +529,9 @@ public sealed class SafetyInvariantTests
     }
 
     // Asserted on the declared shapes rather than on what one run put in them: a run observed at
-    // one library size says nothing about the next one. Every one of these travels to a reader
-    // whole, and a library reaches millions of files. A member bounded by something other than the
-    // library is allowed only by naming it below with its bound.
+    // one library size says nothing about the next. Each of these travels to a reader whole, and a
+    // library reaches millions of files. A member bounded by something other than the library is
+    // allowed only by naming it below with its bound.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
     public void NeitherTheCountAnswerNorEitherRunsResultCarriesAMemberThatGrowsWithTheLibrary()
@@ -791,9 +787,8 @@ public sealed class SafetyInvariantTests
 
     // Transcribed, so a collection member added without a decision about what bounds it fails here.
     // What each is bounded by is asserted by driving the derivation below: a declared type says
-    // nothing about the count an implementation puts in it. The facet menus are the one member not
-    // bounded by the page. They are bounded by the provider's own declared menu size and are read
-    // once for the tab rather than per card.
+    // nothing about the count an implementation puts in it. The facet menus are bounded by the
+    // provider's own declared menu size rather than by the page, and are read once for the tab.
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
     public void EveryCollectionACatalogueRouteAnswersWithWasWrittenDown()

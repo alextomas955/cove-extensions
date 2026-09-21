@@ -255,14 +255,8 @@ public sealed class EntityFolderPortTests
         Assert.Equal(1, await CountVideoUnder(host, videoId, SecondRoot));
     }
 
-    /// <summary>
-    /// One video's count holds none of another video's files, even under the same studio and root.
-    /// </summary>
-    /// <remarks>
-    /// The two videos share a studio on purpose: a count narrowed by the studio rather than by the
-    /// video answers both videos' files and would send a scene to the root holding its studio's
-    /// other files rather than its own.
-    /// </remarks>
+    // The two videos share a studio on purpose: a count narrowed by the studio rather than by the
+    // video answers both videos' files and would send a scene to the wrong root.
     [Fact]
     public async Task OneVideosCountHoldsNoneOfAnothersFiles()
     {
@@ -276,7 +270,7 @@ public sealed class EntityFolderPortTests
         Assert.Equal(1, await CountVideoUnder(host, videoId, SecondRoot));
     }
 
-    /// <summary>A video id below one counts nothing rather than every file in the library.</summary>
+    // A video id below one counts nothing rather than every file in the library.
     [Fact]
     public async Task AVideoIdBelowOneCountsNothing()
     {
@@ -288,7 +282,6 @@ public sealed class EntityFolderPortTests
         Assert.Equal(0, await CountVideoUnder(host, -1, FirstRoot));
     }
 
-    /// <summary>A blank root is refused for a video too.</summary>
     [Fact]
     public async Task ABlankRootIsRefusedForAVideo()
     {

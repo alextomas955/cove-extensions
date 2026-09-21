@@ -9,24 +9,16 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// The root each add doorway composes with, driven through the shipped routes in process.
-/// </summary>
-/// <remarks>
-/// Every case declares two library roots and two instance roots, and the instance's first declared
-/// root is never the one the entity's files sit under. A doorway that fell back to the instance's own
-/// first answer is therefore visible rather than coincidentally right.
-/// <para>
-/// Asserted on the body the instance received, not on the values a seam was handed: the add body is
-/// composed below the level a call site can see.
-/// </para>
-/// </remarks>
+// Every case declares two library roots and two instance roots, and the instance's first declared
+// root is never the one the entity's files sit under, so a fallback to the instance's first answer
+// shows up rather than passing by coincidence. Assertions read the body the instance received,
+// because the add body is composed below the level a call site can see.
 public sealed class EntityRootOnEveryAddTests
 {
-    /// <summary>The library root the instance lists first, holding none of the entity's files.</summary>
+    // The library root the instance lists first, holding none of the entity's files.
     private const string FirstCoveRoot = "G:/Downloads/P";
 
-    /// <summary>The library root the entity's own files sit under.</summary>
+    // The library root the entity's own files sit under.
     private const string SecondCoveRoot = "I:/Downloads/P";
 
     private const string FirstInstanceRoot = "/g-downloads-p/videos";
@@ -35,7 +27,7 @@ public sealed class EntityRootOnEveryAddTests
 
     private const string Folder = SecondCoveRoot + "/Exploited College Girls";
 
-    /// <summary>The profile the instance offers first, which is not the lowest numbered.</summary>
+    // The profile the instance offers first, which is not the lowest numbered.
     private const int OfferedProfileId = 4;
 
     private const long SampleSize = 41;
@@ -44,15 +36,12 @@ public sealed class EntityRootOnEveryAddTests
     private const string SecondScene = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
     private const string ThirdScene = "b4d1e7c0-5a62-4f19-9d3e-0c8a7f26b514";
 
-    /// <summary>The entity read answering that the instance already holds the studio.</summary>
+    // The entity read answering that the instance already holds the studio.
     private const string HeldStudio =
         """{"id":9,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","monitored":true}""";
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// Monitoring one studio from the entity menu adds it at the root its own files sit under.
-    /// </summary>
     [Fact]
     public async Task TheMonitorAddCarriesTheRootTheStudiosOwnFilesSitUnder()
     {
@@ -63,14 +52,8 @@ public sealed class EntityRootOnEveryAddTests
         Assert.Equal(SecondInstanceRoot, RootOn(fixture.SingleAdd(WhisparrClient.StudioPath)));
     }
 
-    /// <summary>
-    /// That studio, with the instance agreeing no spelling for its root, has no add sent for it.
-    /// </summary>
-    /// <remarks>
-    /// The reason names this entity's own library root rather than the instance's root list. The two
-    /// send a reader to different places: the instance's list is perfectly good here, and what is
-    /// unsettled is which of those roots holds this studio's files.
-    /// </remarks>
+    // The refusal names this entity's own library root, not the instance's root list. The
+    // instance's list is fine here; what is unsettled is which root holds this studio's files.
     [Fact]
     public async Task AStudioWhoseRootAgreedOnNothingIsNotAdded()
     {
@@ -82,15 +65,9 @@ public sealed class EntityRootOnEveryAddTests
         Assert.DoesNotContain(fixture.Sent, call => call.Method == HttpMethod.Post);
     }
 
-    /// <summary>
-    /// That refusal puts the studio's own library root on the settings page, where its sentence
-    /// sends the reader to state a path for it.
-    /// </summary>
-    /// <remarks>
-    /// The refusal's sentence names the settings page as the remedy, and that page offers a root
-    /// only once something has recorded a reading for it. Without this the reader is sent to a page
-    /// that does not list the folder, and no studio under that root can ever acquire a root at all.
-    /// </remarks>
+    // The refusal names the settings page as the remedy, and that page lists a root only once
+    // something has recorded a reading for it. Without this the reader reaches a page that does not
+    // list the folder.
     [Fact]
     public async Task AStudioWhoseRootAgreedOnNothingPutsThatRootOnTheSettingsPage()
     {
@@ -104,13 +81,8 @@ public sealed class EntityRootOnEveryAddTests
         Assert.NotNull(listed.Refusal);
     }
 
-    /// <summary>
-    /// A studio the library holds no file for is still added, at the root the instance offered first.
-    /// </summary>
-    /// <remarks>
-    /// It has nothing to derive a root from, which is a different fact from a root the instance would
-    /// not agree to. Refusing it would stop adds that work today for a defect they do not have.
-    /// </remarks>
+    // A studio with no file has nothing to derive a root from, which is a different fact from a
+    // root the instance would not agree to, so it is added rather than refused.
     [Fact]
     public async Task AStudioOwningNoFileIsAddedAtTheRootTheInstanceOfferedFirst()
     {
@@ -121,7 +93,6 @@ public sealed class EntityRootOnEveryAddTests
         Assert.Equal(FirstInstanceRoot, RootOn(fixture.SingleAdd(WhisparrClient.StudioPath)));
     }
 
-    /// <summary>Adding every missing scene for that studio composes with the studio's own root.</summary>
     [Fact]
     public async Task AddingEveryMissingSceneComposesWithTheStudiosRoot()
     {
@@ -135,7 +106,6 @@ public sealed class EntityRootOnEveryAddTests
         Assert.Equal(SecondInstanceRoot, RootOn(fixture.SingleAdd(MoviePath)));
     }
 
-    /// <summary>A selection of missing scenes composes with the studio's own root.</summary>
     [Fact]
     public async Task ASelectionOfMissingScenesComposesWithTheStudiosRoot()
     {
@@ -148,14 +118,8 @@ public sealed class EntityRootOnEveryAddTests
             body => Assert.Equal(SecondInstanceRoot, RootOn(body)));
     }
 
-    /// <summary>
-    /// The selection composes its root once for the run rather than once for each scene in it.
-    /// </summary>
-    /// <remarks>
-    /// Counted on the library reads the composition takes, one per configured root. The agreement
-    /// behind it is cached per root, so a per-scene composition would still repeat the counts for
-    /// every scene on a page.
-    /// </remarks>
+    // Counted on the library reads the composition takes, one per configured root. A per-scene
+    // composition would repeat those reads for every scene on a page.
     [Fact]
     public async Task ASelectionComposesItsRootOnceForTheRun()
     {
@@ -167,7 +131,6 @@ public sealed class EntityRootOnEveryAddTests
         Assert.Equal([FirstCoveRoot, SecondCoveRoot], fixture.Host.RootCounts);
     }
 
-    /// <summary>Adding one missing scene from a card composes with the route entity's root.</summary>
     [Fact]
     public async Task OneMissingSceneFromACardComposesWithTheRouteEntitysRoot()
     {
@@ -182,13 +145,8 @@ public sealed class EntityRootOnEveryAddTests
         Assert.Equal(SecondInstanceRoot, RootOn(fixture.SingleAdd(MoviePath)));
     }
 
-    /// <summary>
-    /// Adding one scene composes with the root that scene's own Cove file sits under.
-    /// </summary>
-    /// <remarks>
-    /// The studio's other files sit under the first root, so a composition keyed on the owning
-    /// entity rather than on the video would send this scene to the wrong one.
-    /// </remarks>
+    // The studio's other files sit under the first root, so a composition keyed on the owning
+    // entity rather than on the video would send this scene to the wrong root.
     [Fact]
     public async Task OneSceneIsAddedAtTheRootItsOwnFileSitsUnder()
     {
@@ -204,9 +162,6 @@ public sealed class EntityRootOnEveryAddTests
         Assert.Equal(SecondInstanceRoot, RootOn(fixture.SingleAdd(MoviePath)));
     }
 
-    /// <summary>
-    /// A scene the library holds no file for is still added, at the root the instance offered first.
-    /// </summary>
     [Fact]
     public async Task ASceneOwningNoFileIsAddedAtTheRootTheInstanceOfferedFirst()
     {
@@ -219,14 +174,7 @@ public sealed class EntityRootOnEveryAddTests
         Assert.Equal(FirstInstanceRoot, RootOn(fixture.SingleAdd(MoviePath)));
     }
 
-    /// <summary>
-    /// A scene whose root agreed on nothing names its own library folder as the cause, not the
-    /// instance.
-    /// </summary>
-    /// <remarks>
-    /// Nothing was sent, so a reason saying the instance declined would name the wrong party and
-    /// send a reader to an instance whose own settings are perfectly good.
-    /// </remarks>
+    // Nothing was sent, so a refusal saying the instance declined would name the wrong party.
     [Fact]
     public async Task ASceneWhoseRootAgreedOnNothingNamesItsOwnFolderAsTheCause()
     {
@@ -241,7 +189,6 @@ public sealed class EntityRootOnEveryAddTests
         Assert.DoesNotContain(fixture.Sent, call => call.Method == HttpMethod.Post);
     }
 
-    /// <summary>The card's own add names it the same way.</summary>
     [Fact]
     public async Task AMissingSceneCardWhoseRootAgreedOnNothingNamesItsOwnFolderAsTheCause()
     {
@@ -258,21 +205,12 @@ public sealed class EntityRootOnEveryAddTests
         Assert.DoesNotContain(fixture.Sent, call => call.Method == HttpMethod.Post);
     }
 
-    /// <summary>The path a v3 instance takes a scene add on.</summary>
+    // The path a v3 instance takes a scene add on.
     private const string MoviePath = "api/v3/movie";
 
-    /// <summary>The root member of one serialized add body.</summary>
     private static string RootOn(string body)
         => Assert.IsType<JsonObject>(JsonNode.Parse(body))["rootFolderPath"]!.GetValue<string>();
 
-    /// <summary>
-    /// One host over one studio holding one file under the second of two library roots.
-    /// </summary>
-    /// <remarks>
-    /// The listing the folder probe reads is composed from the file the library really seeded, so the
-    /// instance is asked about the path the product really asked about rather than one this case
-    /// guessed at.
-    /// </remarks>
     private sealed class StudioFixture : IAsyncDisposable
     {
         private readonly BodyRecordingHandler _bytes;
@@ -287,11 +225,8 @@ public sealed class EntityRootOnEveryAddTests
             StudioId = studioId;
         }
 
-        /// <summary>States that the instance holds <paramref name="covePath"/> under its own root.</summary>
-        /// <remarks>
-        /// The probe's listing is composed from a path the library really seeded, so the instance is
-        /// asked about the path the product really asked about rather than one this case guessed at.
-        /// </remarks>
+        // The probe's listing is composed from a path the library really seeded, so the instance is
+        // asked about the path the product asked about rather than one this case guessed at.
         public void InstanceHolds(string covePath)
             => _listing[0] = ListingHolding(
                 covePath.Replace(SecondCoveRoot, SecondInstanceRoot, StringComparison.Ordinal));
@@ -333,9 +268,9 @@ public sealed class EntityRootOnEveryAddTests
                     return (HttpStatusCode.OK, listing[0]);
                 }
 
-                // The entity read's STATUS is what says whether the instance holds the studio, so a
-                // read answering a success would describe an instance holding every entity asked about
-                // and the monitor path would never compose an add at all.
+                // The entity read's status is what says whether the instance holds the studio, so a
+                // read answering a success would describe an instance holding every entity asked
+                // about and the monitor path would never compose an add.
                 if (method == HttpMethod.Get
                     && path.Contains("/studio/", StringComparison.Ordinal))
                 {
@@ -375,7 +310,6 @@ public sealed class EntityRootOnEveryAddTests
             return fixture;
         }
 
-        /// <summary>Marks <paramref name="providerSceneIds"/> wanted, and runs the enqueued pass.</summary>
         public async Task MarkSelectedAsync(params string[] providerSceneIds)
         {
             var ticked = string.Join(",", providerSceneIds.Select(id => $"\"{id}\""));
@@ -388,17 +322,14 @@ public sealed class EntityRootOnEveryAddTests
             await Host.RunEnqueuedBatchAsync(new RecordingJobProgress());
         }
 
-        /// <summary>The bodies posted to <paramref name="path"/>, in order.</summary>
         public IReadOnlyList<string> Adds(string path)
             => [.. _bytes.Requests
                 .Where(sent => sent.Method == HttpMethod.Post
                     && sent.Path.EndsWith(path, StringComparison.Ordinal))
                 .Select(sent => sent.Body)];
 
-        /// <summary>The one body posted to <paramref name="path"/>.</summary>
         public string SingleAdd(string path) => Assert.Single(Adds(path));
 
-        /// <summary>One folder listing holding <paramref name="instancePath"/> and nothing else.</summary>
         private static string ListingHolding(string instancePath)
             => $$"""
                 {"parent":"{{SecondInstanceRoot}}/","directories":[],

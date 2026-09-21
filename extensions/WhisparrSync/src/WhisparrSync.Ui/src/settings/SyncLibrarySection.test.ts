@@ -35,8 +35,7 @@ import { syncSentences } from "./syncLibraryLogic";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
-  // The switch is the real primitive: whether a press can act rests on the native attribute it
-  // carries, which a stand-in would only imitate.
+  // The real Toggle, because whether a press can act rests on the native attribute it carries.
   const shared = await vi.importActual<typeof import("@cove-extensions/ui-shared")>(
     "@cove-extensions/ui-shared",
   );
@@ -120,14 +119,13 @@ function section(overrides: {
     started: overrides.started ?? false,
     refused: overrides.refused ?? false,
     monitorAlso: overrides.monitorAlso ?? false,
-    // Resolved from the counts the render is given, the one way the page resolves it.
+    // Derived from the counts given, the one way the page derives them.
     sentences: syncSentences(overrides.counts?.registers ?? null),
     onMonitorAlso: overrides.onMonitorAlso ?? (() => undefined),
     onSync: overrides.onSync ?? (() => undefined),
   });
 }
 
-/** Every count row this section can draw, as a reader sees it: the label beside its number. */
 function countRows(host: HTMLElement): { label: string; value: string }[] {
   return [...host.querySelectorAll(".items-baseline")].map((row) => ({
     label: row.firstElementChild?.textContent ?? "",
@@ -140,7 +138,7 @@ describe("the preview's four slots", () => {
     const host = await renderNode(section({ preview: { status: "empty", outage: false } }));
 
     expect(host.textContent).toContain(SYNC_NOTHING_COUNTED_YET);
-    // The absence is the claim. Three zeros would read as a factual report that nothing would sync.
+    // No row at all. Three zeros would read as a report that nothing would sync.
     expect(countRows(host)).toEqual([]);
     expect(host.textContent).not.toContain(SYNC_NOT_YET_IN_WHISPARR);
   });
@@ -228,7 +226,6 @@ describe("the count control", () => {
   });
 });
 
-/** The four requests this surface can make, named by what they are for. */
 type Route = "readPreview" | "startCount" | "readJob" | "startRun";
 
 function routeOf(path: string, method: string): Route {
@@ -237,12 +234,6 @@ function routeOf(path: string, method: string): Route {
   return method === "POST" ? "startCount" : "readPreview";
 }
 
-/**
- * Answers the shared request fake from a route table.
- *
- * A route the table does not name is refused, so a request the hook was not expected to make
- * reddens the test that made it rather than reading as a silent success.
- */
 function serve(answers: Map<Route, () => Promise<unknown>>): void {
   requestJson.mockImplementation((path, init) => {
     const route = routeOf(path, init?.method ?? "GET");
@@ -264,11 +255,6 @@ describe("every way a count can fail leaves the same failed state", () => {
     vi.useRealTimers();
   });
 
-  /**
-   * The hook drives the section's state, and the three ways a count can fail are decided here. A
-   * branch that left the region reading, or content, would show the reader a success the run never
-   * had.
-   */
   async function harness(): Promise<{ read: () => ReturnType<typeof useSyncLibrary> }> {
     let latest: ReturnType<typeof useSyncLibrary> | null = null;
     function Probe() {
@@ -391,13 +377,11 @@ describe("every way a count can fail leaves the same failed state", () => {
 
 const CONTENT: AsyncRegionState = { status: "content", outage: false };
 
-/** The counts a fully identified library answers with, as the other generation reports them. */
 const COUNTS_ON_THE_OTHER_GENERATION: SyncPreviewView = { ...COUNTS, registers: "sites" };
 
 const PAGE_COULD_NOT_READ_THE_CONNECTION =
   "Cove could not read the stored connection, so nothing here can act on it yet.";
 
-/** Every sentence the sync control can state, so a test can count how many of them it states. */
 const EVERY_SYNC_REASON = [
   PAGE_COULD_NOT_READ_THE_CONNECTION,
   CONNECT_NOT_CONFIGURED,
@@ -413,7 +397,6 @@ function switchButton(host: HTMLElement): HTMLButtonElement {
   return button;
 }
 
-/** The monitor group as a reader meets it: what it is called, what it says, and whether it can act. */
 function monitorGroup(host: HTMLElement): {
   name: string;
   helper: string;
@@ -438,7 +421,6 @@ function syncButton(host: HTMLElement): HTMLButtonElement {
   return control;
 }
 
-/** Which of the sync control's reasons its accessible name states. */
 function reasonsStated(host: HTMLElement): string[] {
   const name = syncButton(host).textContent;
   return EVERY_SYNC_REASON.filter((reason) => name.includes(reason));
@@ -654,10 +636,8 @@ describe("after the press the section says the run started, and nothing else", (
 describe("nothing the host says about the run reaches a reader", () => {
   const answers = new Map<Route, () => Promise<unknown>>();
 
-  /**
-   * The host writes its own unit line into every unit-mode job's status, and the wire carries it
-   * through unaltered. Built as data here rather than as text, so the section cannot match on it.
-   */
+  // The host writes its own unit line into a unit-mode job's status and the wire carries it
+  // through unaltered. Built as data so the section cannot match on it.
   const HOST_SAID = {
     summary: "4,132 of 5,898 units succeeded",
     subTask: "unit 4,132 of 5,898",

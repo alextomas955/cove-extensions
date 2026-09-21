@@ -1,13 +1,11 @@
 /**
  * Whether the library card badges are shown. One boolean, at module scope.
  *
- * Module scope is the deliberate exception to the per-entity store rule stated in
- * `monitoring/monitoringStore.ts`: each list toolbar renders its own component instance and every
- * one of them has to observe the same boolean, so a store created per component lifetime could not
- * carry it.
+ * Module scope is the deliberate exception to the per-entity store rule in
+ * `monitoring/monitoringStore.ts`: the toolbar control and the card badges are separate host slot
+ * instances and every one of them has to observe the same boolean.
  *
- * Nothing is persisted. A reload starts the page off again, and nothing of this extension's is
- * written into the host page's browser storage.
+ * Nothing is persisted, so a reload starts the page off again.
  */
 import { useSyncExternalStore } from "react";
 
@@ -20,12 +18,10 @@ export function toggleLibraryStatus(): void {
   for (const listener of listeners) listener();
 }
 
-/** Whether the badges are shown right now. */
 export function libraryStatusOn(): boolean {
   return statusOn;
 }
 
-/** Subscribes to the boolean, and returns the unsubscribe. */
 export function subscribeLibraryStatus(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
@@ -33,7 +29,6 @@ export function subscribeLibraryStatus(listener: () => void): () => void {
   };
 }
 
-/** Subscribes a component to the shared boolean. */
 export function useLibraryStatusOn(): boolean {
   return useSyncExternalStore(subscribeLibraryStatus, libraryStatusOn);
 }

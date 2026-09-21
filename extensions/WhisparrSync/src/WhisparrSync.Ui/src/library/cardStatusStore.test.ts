@@ -1,14 +1,5 @@
-/**
- * What the store answers before, during and after a batch, and the two facts it holds for the page
- * rather than for a card.
- *
- * The reading is handed back unchanged. Which state a card draws is derived in the browser from
- * those three members, so a store that reshaped them would put a second derivation in front of the
- * one the vocabulary owns.
- *
- * The request goes through the shared extension request, which is replaced here: the module is at
- * module scope and a real one would need a host.
- */
+// The shared extension request is mocked because the store is at module scope and a real request
+// would need a host.
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import type { LibraryStatusView } from "../wire/api";
@@ -29,20 +20,18 @@ const {
   subscribeCardStatus,
 } = await import("./cardStatusStore");
 
-/** Held so each test leaves the module-scope store empty. */
+// Held so each test leaves the module-scope store empty.
 let releases: (() => void)[] = [];
 
 function register(coveId: number): void {
   releases.push(requestCardStatus("studio", coveId));
 }
 
-/** Every identifier one call carried, read off the request the store made. */
 function idsSent(call: number): number[] {
   const [, options] = requestJson.mock.calls[call] as unknown as [string, { body: string }];
   return (JSON.parse(options.body) as { coveIds: number[] }).coveIds;
 }
 
-/** Lets the coalescer's microtask flush and every request it makes settle. */
 async function settle(): Promise<void> {
   for (let turn = 0; turn < 16; turn++) await Promise.resolve();
 }
@@ -56,7 +45,6 @@ afterEach(() => {
   releases = [];
 });
 
-/** One answer for every request. A view naming no remainder is the default, as most tests want. */
 function answering(
   view: Partial<LibraryStatusView> & Pick<LibraryStatusView, "rows" | "refusal">,
 ): void {
@@ -196,11 +184,8 @@ test("a page whose cards all answered states no reason after a page that failed"
   expect(cardStatusRefusal(), "the new page carried the previous page's reason").toBe("none");
 });
 
-/**
- * A page holding more cards than the route answers for in one go. The route answers a page and says
- * there is more; the store asks again for what came back with no row. How many one page holds is the
- * route's own figure and is never held here, so the fake below is what decides it.
- */
+// The route answers `perPage` cards and says there is more. How many one page holds is the route's
+// own figure, so this fake is what decides it.
 function truncatingAt(perPage: number, refusal: LibraryStatusView["refusal"] = "none") {
   return (_path: string, options: unknown) => {
     const asked = (JSON.parse((options as { body: string }).body) as { coveIds: number[] }).coveIds;
@@ -219,8 +204,7 @@ function truncatingAt(perPage: number, refusal: LibraryStatusView["refusal"] = "
 }
 
 test("a page holding more cards than one answer carries reaches every one of them", async () => {
-  // A host page size above what the route answers for, which is a size the list pages offer and
-  // remember.
+  // A host page size above what the route answers for, which the list pages offer.
   const coveIds = Array.from({ length: 41 }, (_, index) => index + 100);
   requestJson.mockImplementation(truncatingAt(40));
 
@@ -243,9 +227,8 @@ test("a page holding more cards than one answer carries reaches every one of the
 });
 
 test("a reason the instance established is not displaced by a request that never answered", async () => {
-  // One page, two requests, two reasons. The page states one sentence, and it is the first reason
-  // established: the reason changing under the reader as later requests answer would say the page
-  // had been read twice.
+  // One page, two requests, two reasons. The page states the first reason established; a reason
+  // changing under the reader would say the page had been read twice.
   const coveIds = Array.from({ length: 41 }, (_, index) => index + 600);
   const first = truncatingAt(40, "instanceUnreachable");
   let sent = 0;
@@ -266,8 +249,8 @@ test("a reason the instance established is not displaced by a request that never
 });
 
 test("a card that mounts while a failed page is still on screen leaves its reason standing", async () => {
-  // Cove mounts a card on a scroll, so a card is asked about on its own while the cards of a request
-  // that never answered are still on screen drawing nothing. The page still has its reason.
+  // Cove mounts a card on a scroll, so a card is asked about on its own while the cards of a
+  // request that never answered are still on screen.
   const coveIds = Array.from({ length: 41 }, (_, index) => index + 300);
   requestJson.mockRejectedValue(new Error("the route answered nothing"));
 

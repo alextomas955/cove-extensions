@@ -3,8 +3,8 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Scene;
 
-// Every body here is a raw answer, because the instance composes it. A builder composing the value
-// under test would agree with itself whatever the projection did.
+// Every body here is a raw answer. A builder composing the value under test would agree with
+// itself whatever the projection did.
 public sealed class CommandProjectorTests
 {
     private const string JsonContentType = "application/json; charset=utf-8";
@@ -32,8 +32,7 @@ public sealed class CommandProjectorTests
     public void AnAnswerWhoseIdentifierIsNotANumberNamesNoCommand()
         => Assert.Null(CommandProjector.IdIn(Json("""{"id":"8123","name":"MoviesSearch"}""")));
 
-    // Which status a just-posted command reports is the instance's own and unmeasured, so every
-    // status is asserted from the identifier alone.
+    // A just-posted command's status is unmeasured, so confirmation is identifier equality alone.
     [Fact]
     public void AReadBackNamingThePostedCommandConfirmsItWhateverProgressItReports()
     {

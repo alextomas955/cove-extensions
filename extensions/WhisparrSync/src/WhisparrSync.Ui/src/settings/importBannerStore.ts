@@ -1,15 +1,13 @@
 /**
- * The import banner's state: the read itself and what it last answered. State only - the request
- * lives in `useImportBanner.ts`.
+ * The import banner's state. The request lives in `useImportBanner.ts`.
  *
- * An instance is created per page lifetime rather than at module scope, so a second visit starts from
- * a fresh read instead of rendering the previous visit's answer as though it had just arrived.
+ * An instance is created per page lifetime, not at module scope, so a second visit starts from a
+ * fresh read instead of showing the previous visit's answer.
  */
 import type { ImportBannerView } from "../wire/api";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import { INITIAL_ASYNC_READ } from "../common/ui/asyncRegionLogic";
 
-/** Everything the banner renders from. */
 export interface ImportBannerState {
   readonly read: AsyncRead;
   /** Null before any read has answered. */
@@ -18,8 +16,8 @@ export interface ImportBannerState {
 }
 
 /**
- * Before the first read completes. The answer is absent rather than empty, which is what keeps
- * "nothing has answered yet" from rendering as "nothing is wrong".
+ * Before the first read completes. The answer is absent rather than empty, so "nothing has
+ * answered yet" does not render as "nothing is wrong".
  */
 export const INITIAL_IMPORT_BANNER_STATE: ImportBannerState = {
   read: INITIAL_ASYNC_READ,
@@ -71,8 +69,7 @@ export function createImportBannerStore(): ImportBannerStore {
     },
 
     readFailed(message) {
-      // Whatever was read earlier stays: it was true when it was served, and discarding it would
-      // take a standing problem off the screen because the page could not ask about it again.
+      // The earlier answer stays. Discarding it would take a standing problem off the screen.
       emit({
         ...state,
         read: { reading: false, failed: true, hasContent: state.view !== null },

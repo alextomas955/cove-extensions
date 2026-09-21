@@ -1,15 +1,6 @@
 // @vitest-environment jsdom
-/**
- * What a card badge asks the server for, and what it draws once the answer arrives.
- *
- * The host spreads the whole library object into the slot, so the property under test is what leaves
- * the browser: the request names the Cove id and nothing else. Which identity row names the entity
- * in Whisparr is re-resolved on the server, so a browser sending one would be naming the entity a
- * third party is asked about.
- *
- * The shared primitives and the host's authenticated request stand in, because each resolves only
- * inside a consuming bundle.
- */
+// The shared primitives and the host's authenticated request are mocked because each resolves only
+// inside a consuming bundle.
 import { afterEach, expect, test, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 
@@ -19,7 +10,7 @@ import type { LibraryStatusView } from "../wire/api";
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
   return {
-    // The real builder, because the address the browser asks for is one of the things under test.
+    // The real builder, because the address the browser asks for is under test.
     extensionApi: (extensionId: string) => (route: string) => `/extensions/${extensionId}/${route}`,
     Spinner: () => h("span", null, "…"),
     StatusPill: (props: { children: ReactNode; icon?: ReactNode }) =>
@@ -39,10 +30,8 @@ const { WhisparrPerformerCardBadge, WhisparrStudioCardBadge } =
 const { WhisparrVideoCardBadge } = await import("./WhisparrVideoCardBadge");
 const { libraryStatusOn, toggleLibraryStatus } = await import("./libraryToggleStore");
 
-/**
- * A host object as the slot delivers one: the Cove id, and beside it the identity rows and title the
- * browser must not send anywhere.
- */
+// A host object as the slot delivers one. The identity rows and title beside the Cove id are what
+// the browser must not send anywhere.
 const HOST_OBJECT = {
   id: 7,
   name: "A studio nobody outside this library knows about",
@@ -50,7 +39,6 @@ const HOST_OBJECT = {
   providerIds: ["another-identity-row-value"],
 };
 
-/** What one request carried: the address, and the body as the route reads it. */
 function asked(call = 0): { path: string; body: Record<string, unknown> } {
   const [path, options] = requestJson.mock.calls[call] as unknown as [string, { body: string }];
   return { path, body: JSON.parse(options.body) as Record<string, unknown> };
@@ -61,12 +49,10 @@ afterEach(() => {
   requestJson.mockReset();
 });
 
-/** One answer for every request, with the members no test here is about left at their quiet value. */
 function answering(rows: LibraryStatusView["rows"]): void {
   requestJson.mockResolvedValue({ kind: "studio", rows, refusal: "none", moreNotAnswered: false });
 }
 
-/** Turns the badges on, which is what a reader does on the toolbar before any card asks anything. */
 function showBadges(): void {
   if (!libraryStatusOn()) toggleLibraryStatus();
 }

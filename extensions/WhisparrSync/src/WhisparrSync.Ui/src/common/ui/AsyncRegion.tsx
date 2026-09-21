@@ -1,8 +1,6 @@
 /**
- * A read surface's four slots, chosen by the pure derivation beside it.
- *
- * A surface that can never answer renders nothing, because an empty state there would read as a
- * factual zero.
+ * A read surface's four slots, chosen by the pure derivation beside it. A surface that can never
+ * answer renders nothing, because an empty state there would read as a factual zero.
  */
 import type { ReactNode } from "react";
 import { Spinner } from "@cove-extensions/ui-shared";

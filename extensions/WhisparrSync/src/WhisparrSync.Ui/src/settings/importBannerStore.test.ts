@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { ImportBannerView } from "../wire/api";
 import { createImportBannerStore, INITIAL_IMPORT_BANNER_STATE } from "./importBannerStore";
 
-/** An answer with nothing outstanding and nothing passed over: the genuinely-empty read. */
 const NOTHING_OUTSTANDING: ImportBannerView = {
   roots: [],
   recordsContained: 0,
@@ -23,8 +22,7 @@ const ONE_ROOT: ImportBannerView = {
 };
 
 describe("the state before a read and the state after an empty one", () => {
-  // The two must never coincide. An initial value equal to the loaded-and-empty value is how a
-  // momentary blank comes to read as a confident report that nothing is wrong.
+  // If the two coincided, a momentary blank would read as a report that nothing is wrong.
   it("are different states", () => {
     const store = createImportBannerStore();
     store.beginRead();

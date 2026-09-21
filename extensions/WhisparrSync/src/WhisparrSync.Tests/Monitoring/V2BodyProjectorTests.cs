@@ -6,28 +6,20 @@ using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Monitoring;
 
-/// <summary>
-/// Every body v2 is sent for a monitor, an unmonitor or a scope change, and the reading of the list
-/// that says what the instance holds.
-/// </summary>
-/// <remarks>
-/// This generation publishes no contract at all, so every shape asserted here is a hand transcription
-/// of a measurement rather than a derivation from a document. The expected values are written out by
-/// hand for that reason: one computed from the composer would agree with it whatever either said.
-/// <para>
-/// Nothing here reads a status: this generation answers a body whose fields it dropped with a created
-/// status and an echo, so every case is on the parsed shape.
-/// </para>
-/// </remarks>
+// v2 publishes no contract document, so every shape asserted here is transcribed from a
+// measurement. The expected values are written out by hand for that reason: one computed from the
+// composer would agree with it whatever either said.
+//
+// Nothing here reads a status. v2 answers a body whose fields it dropped with a created status and
+// an echo, so every case asserts on the parsed shape.
 public sealed class V2BodyProjectorTests
 {
-    /// <summary>The fields a flag flip must leave alone, because the user owns each of them.</summary>
+    // Fields a flag flip leaves alone, because the user owns each of them.
     private static readonly string[] FieldsAFlagFlipMustNotCarry =
         ["qualityProfileId", "rootFolderPath", "tags", "monitorNewItems", "seasons", "addOptions"];
 
     private static readonly AddDefaults Defaults = new(1, "/config/library");
 
-    /// <summary>Each scope this product expresses composes this generation's own key for it.</summary>
     [Theory]
     [InlineData(MonitorScope.FutureScenes, "future")]
     [InlineData(MonitorScope.AllScenes, "all")]
@@ -39,13 +31,8 @@ public sealed class V2BodyProjectorTests
         Assert.Equal(key, ((JsonObject)body["addOptions"]!)["monitor"]!.GetValue<string>());
     }
 
-    /// <summary>
-    /// No key beyond those two is composable, over every scope this product expresses.
-    /// </summary>
-    /// <remarks>
-    /// This generation's own dropdown offers nine more, four of which it renders to a user as raw
-    /// localization keys. Mimicry stops there.
-    /// </remarks>
+    // v2's own dropdown offers nine more monitor keys, four of which it renders as raw localization
+    // keys. This product composes only these two.
     [Fact]
     public void NoMonitorKeyBeyondTheTwoThisProductExpressesIsEverComposed()
     {
@@ -59,13 +46,8 @@ public sealed class V2BodyProjectorTests
         Assert.Equal(["all", "future"], composed);
     }
 
-    /// <summary>
-    /// Both of this generation's suppression spellings are present as members and both are false.
-    /// </summary>
-    /// <remarks>
-    /// Presence is asserted apart from the value, and v2's pair is not v3's: a rule stated in v3's
-    /// spellings leaves every body here unguarded.
-    /// </remarks>
+    // Presence is asserted apart from the value. v2's suppression pair is not v3's, so a rule
+    // stated in v3's spellings leaves every body here unguarded.
     [Theory]
     [InlineData(MonitorScope.FutureScenes)]
     [InlineData(MonitorScope.AllScenes)]
@@ -85,7 +67,6 @@ public sealed class V2BodyProjectorTests
             });
     }
 
-    /// <summary>Whisparr v3's spellings reach no body composed here.</summary>
     [Fact]
     public void NoAddCarriesTheOtherGenerationsSuppressionSpellings()
     {
@@ -97,7 +78,7 @@ public sealed class V2BodyProjectorTests
         Assert.DoesNotContain("searchForMovie", body, StringComparison.Ordinal);
     }
 
-    /// <summary>The add is this generation's own form, field for field.</summary>
+    // The key set is v2's own add form, field for field.
     [Fact]
     public void TheAddCarriesEveryFieldThisGenerationsOwnFormSends()
     {
@@ -128,14 +109,8 @@ public sealed class V2BodyProjectorTests
         Assert.Empty(Assert.IsType<JsonArray>(body["tags"]));
     }
 
-    /// <summary>
-    /// No composed add names a quality profile the instance would never act on.
-    /// </summary>
-    /// <remarks>
-    /// This generation refuses a zero with a validation failure naming the property, and v3
-    /// accepts it and echoes it back. The stop is this product's own so neither generation's behaviour
-    /// is what the guarantee rests on.
-    /// </remarks>
+    // v2 refuses a zero profile id with a validation failure naming the property and v3 accepts it
+    // and echoes it back, so the refusal is this product's own and rests on neither.
     [Fact]
     public void AnAddComposedWithAProfileTheInstanceWouldNeverActOnIsRefused()
     {
@@ -151,14 +126,12 @@ public sealed class V2BodyProjectorTests
                     .GetValue<int>() > 0));
     }
 
-    /// <summary>An add with no library root is refused before it can be composed.</summary>
     [Fact]
     public void AnAddWithNoLibraryRootIsRefused()
         => Assert.Throws<ArgumentException>(
             () => V2BodyProjector.AddStudio(
                 3372, MonitorScope.AllScenes, new AddDefaults(1, "  ")));
 
-    /// <summary>The flag flip names the entity and the flag, and says nothing else at all.</summary>
     [Fact]
     public void TheFlagFlipCarriesTheIdArrayAndTheFlagAndNothingElse()
     {
@@ -170,13 +143,8 @@ public sealed class V2BodyProjectorTests
         Assert.All(FieldsAFlagFlipMustNotCarry, field => Assert.False(body.ContainsKey(field)));
     }
 
-    /// <summary>
-    /// The scope change nests the entity inside an array of objects rather than naming it as a scalar.
-    /// </summary>
-    /// <remarks>
-    /// The route answers a body it cannot read with a server failure and an empty body, so the shape is
-    /// the whole of what makes the request expressible.
-    /// </remarks>
+    // The v2 route answers a body it cannot read with a server failure and an empty body, so the
+    // nested array shape is the only expressible form of the request.
     [Theory]
     [InlineData(MonitorScope.FutureScenes, "future")]
     [InlineData(MonitorScope.AllScenes, "all")]
@@ -190,13 +158,8 @@ public sealed class V2BodyProjectorTests
         Assert.Equal(key, ((JsonObject)body["monitoringOptions"]!)["monitor"]!.GetValue<string>());
     }
 
-    /// <summary>
-    /// A scope value this product does not express throws rather than resolving to one it does.
-    /// </summary>
-    /// <remarks>
-    /// Resolving to a default would resolve to whichever key came first, and one of the two marks a
-    /// whole back catalogue wanted.
-    /// </remarks>
+    // Falling back to a default would pick whichever key came first, and one of the two marks a
+    // whole back catalogue wanted.
     [Fact]
     public void AnUnrecognisedScopeThrowsRatherThanResolvingToAnyScope()
     {
@@ -205,11 +168,8 @@ public sealed class V2BodyProjectorTests
         Assert.Throws<ArgumentOutOfRangeException>(() => V2BodyProjector.SetScope(1, (MonitorScope)7));
     }
 
-    /// <summary>What the instance holds is read out of its own list, by the site number.</summary>
-    /// <remarks>
-    /// The row the list answers with is the only place the instance-side id appears, so the match is
-    /// what carries it.
-    /// </remarks>
+    // The listed row is the only place the instance-side id appears, so the match by site number is
+    // what carries it.
     [Fact]
     public void TheHeldEntryIsTheListedRowCarryingTheSiteNumber()
     {
