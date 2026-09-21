@@ -35,10 +35,13 @@ internal sealed record MissingPageContext(
 // count.
 internal sealed class MissingPagePlanner(
     MissingIdentityResolver identities,
-    IProviderCatalogue catalogue,
+    ProviderCatalogueSource catalogues,
     IOwnedScenePort owned)
 {
-    internal string ProviderName => catalogue.Capabilities.Provider;
+    // Named by the catalogue the stored choice points at, so reading the name is the same read as
+    // choosing the catalogue.
+    internal async Task<string> ProviderNameAsync(CancellationToken ct)
+        => (await catalogues(ct).ConfigureAwait(false)).Capabilities.Provider;
 
     internal async Task<MissingPageView> PlanAsync(
         MissingPageRequest request, MissingPageContext context, ILogger log, CancellationToken ct)
@@ -46,9 +49,13 @@ internal sealed class MissingPagePlanner(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
 
+        // Chosen once for the whole plan. A page composed against two catalogues would carry one
+        // source's scenes under the other's orderings.
+        var catalogue = await catalogues(ct).ConfigureAwait(false);
+
         if (context.Provider is not { } provider)
         {
-            return Refused(request, MissingRefusalKind.NoMetadataProviderConfigured);
+            return Refused(request, MissingRefusalKind.NoMetadataProviderConfigured, catalogue);
         }
 
         var identity = await identities
@@ -63,7 +70,8 @@ internal sealed class MissingPagePlanner(
                 request,
                 identity.WasReached
                     ? MissingRefusalKind.NoProviderIdForEntity
-                    : MissingRefusalKind.ProviderUnreachable);
+                    : MissingRefusalKind.ProviderUnreachable,
+                catalogue);
         }
 
         // Every value the surface sent travels unchanged: the ordering and each filter value are
@@ -82,7 +90,7 @@ internal sealed class MissingPagePlanner(
         // No instance is asked about scenes that were never read.
         if (answer.Page is not { } page)
         {
-            return Refused(request, MissingRefusalKind.ProviderUnreachable);
+            return Refused(request, MissingRefusalKind.ProviderUnreachable, catalogue);
         }
 
         var pageIds = page.Scenes.Select(scene => scene.ProviderSceneId).ToArray();
@@ -108,7 +116,7 @@ internal sealed class MissingPagePlanner(
                 .ConfigureAwait(false);
 
         return new MissingPageView(
-            [.. remaining.Select(scene => CardFor(scene, states))],
+            [.. remaining.Select(scene => CardFor(scene, states, catalogue))],
             page.CatalogueSize,
             page.SizeIsLowerBound,
             request.Page,
@@ -122,7 +130,7 @@ internal sealed class MissingPagePlanner(
             request.Sort is { Length: > 0 } sort ? sort : catalogue.DefaultSort,
             statusWasRead,
             statusPermanentlyAbsent,
-            ProviderName);
+            catalogue.Capabilities.Provider);
     }
 
     // The catalogue's own size, never the number missing. Null and zero are different answers: zero
@@ -147,6 +155,7 @@ internal sealed class MissingPagePlanner(
             return new MissingCountView(null);
         }
 
+        var catalogue = await catalogues(ct).ConfigureAwait(false);
         var size = await catalogue
             .ReadCatalogueSizeAsync(
                 new ProviderCatalogueRequest(
@@ -179,6 +188,7 @@ internal sealed class MissingPagePlanner(
             return NoFacetValues(MissingFacetSearchOutcome.NoAnswer);
         }
 
+        var catalogue = await catalogues(ct).ConfigureAwait(false);
         var answer = await catalogue
             .SearchFacetValuesAsync(
                 request.Kind, providerEntityId, request.FacetKey, request.Fragment, ct)
@@ -282,8 +292,10 @@ internal sealed class MissingPagePlanner(
             _ => MissingSceneState.StatusUnknown,
             StringComparer.Ordinal);
 
-    private MissingCard CardFor(
-        ProviderScene scene, IReadOnlyDictionary<string, MissingSceneState> states)
+    private static MissingCard CardFor(
+        ProviderScene scene,
+        IReadOnlyDictionary<string, MissingSceneState> states,
+        IProviderCatalogue catalogue)
         => new(
             scene.ProviderSceneId,
             scene.Title,
@@ -308,7 +320,8 @@ internal sealed class MissingPagePlanner(
             menu.ReportedValueCount);
 
     // The range is empty and no ordering is in force, because no provider was asked.
-    private MissingPageView Refused(MissingPageRequest request, MissingRefusalKind refusal)
+    private static MissingPageView Refused(
+        MissingPageRequest request, MissingRefusalKind refusal, IProviderCatalogue catalogue)
         => new(
             [],
             0,
@@ -324,5 +337,5 @@ internal sealed class MissingPagePlanner(
             SortInForce: null,
             StatusWasRead: false,
             StatusIsPermanentlyAbsent: false,
-            ProviderName);
+            catalogue.Capabilities.Provider);
 }

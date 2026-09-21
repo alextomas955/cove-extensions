@@ -576,13 +576,16 @@ public sealed partial class WhisparrSync
             return null;
         }
 
-        var catalogue = services.GetRequiredService<IProviderCatalogue>();
+        var catalogues = services.GetRequiredService<ProviderCatalogueSource>();
         var scenes = services.GetRequiredService<IEntitySceneIdentityPort>();
 
         var ports = new SiteSceneMonitorPorts(
             (studioId, ct) => scenes.SceneIdentitiesFor(
                 WhisparrEntityKind.Studio, studioId, target.Generation, ct),
-            catalogue.ResolveNumericSceneIdAsync,
+            async (providerSceneId, ct) =>
+                await (await catalogues(ct).ConfigureAwait(false))
+                    .ResolveNumericSceneIdAsync(providerSceneId, ct)
+                    .ConfigureAwait(false),
             (siteId, numbers, ct) => rows.ReduceSiteSceneRowsAsync(
                 target.BaseAddress, target.ApiKey, siteId, numbers, ct),
             (rowId, ct) => ContainedAsync(

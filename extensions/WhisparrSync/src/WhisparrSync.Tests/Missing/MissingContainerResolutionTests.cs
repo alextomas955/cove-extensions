@@ -24,7 +24,7 @@ public sealed class MissingContainerResolutionTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(typeof(IProviderCatalogue))]
+    [InlineData(typeof(ProviderCatalogueSource))]
     [InlineData(typeof(MissingPagePlanner))]
     [InlineData(typeof(IOwnedScenePort))]
     [InlineData(typeof(ProviderEndpointPort))]
@@ -51,23 +51,38 @@ public sealed class MissingContainerResolutionTests : IAsyncLifetime
             second.ServiceProvider.GetRequiredService<ProviderPacer>());
     }
 
-    // One catalogue per request. Transient, each reader of the seam inside a request would start
-    // the stored-generation read again and two arms of one request could answer against different
+    // One choice per request. Transient, each reader inside a request would start the
+    // stored-generation read again and two arms of one request could answer against different
     // sources. Singleton, a host reconfigured between requests would keep the source the container
     // was built with.
     [Fact]
-    public void TheCatalogueIsOnePerScopeAndNotSharedBetweenScopes()
+    public void TheChoiceIsOnePerScopeAndNotSharedBetweenScopes()
     {
         using var provider = BuildProvider();
         using var first = provider.CreateScope();
         using var second = provider.CreateScope();
 
         Assert.Same(
-            first.ServiceProvider.GetRequiredService<IProviderCatalogue>(),
-            first.ServiceProvider.GetRequiredService<IProviderCatalogue>());
+            first.ServiceProvider.GetRequiredService<ProviderCatalogueChoice>(),
+            first.ServiceProvider.GetRequiredService<ProviderCatalogueChoice>());
         Assert.NotSame(
-            first.ServiceProvider.GetRequiredService<IProviderCatalogue>(),
-            second.ServiceProvider.GetRequiredService<IProviderCatalogue>());
+            first.ServiceProvider.GetRequiredService<ProviderCatalogueChoice>(),
+            second.ServiceProvider.GetRequiredService<ProviderCatalogueChoice>());
+    }
+
+    // The choice a source answers with is the one its own scope holds, so a catalogue read in one
+    // arm of a request is the catalogue the other arm reads from.
+    [Fact]
+    public async Task ASourceAnswersTheCatalogueItsOwnScopeChose()
+    {
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+        var source = scope.ServiceProvider.GetRequiredService<ProviderCatalogueSource>();
+
+        var first = await source(TestContext.Current.CancellationToken);
+        var second = await source(TestContext.Current.CancellationToken);
+
+        Assert.Same(first, second);
     }
 
     [Fact]

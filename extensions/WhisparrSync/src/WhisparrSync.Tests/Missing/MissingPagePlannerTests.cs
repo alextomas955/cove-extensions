@@ -308,8 +308,11 @@ public sealed class MissingPagePlannerTests
         StubOwned? owned = null,
         string? identity = "a-studio")
         => new(
-            new MissingIdentityResolver(new StubIdentities(identity), catalogue, new StubEntityNames()),
-            catalogue,
+            new MissingIdentityResolver(
+                new StubIdentities(identity),
+                TestProviderCatalogues.Naming(catalogue),
+                new StubEntityNames()),
+            TestProviderCatalogues.Naming(catalogue),
             owned ?? new StubOwned());
 
     private sealed class StubIdentities(string? foreignId) : IEntityIdentityPort
