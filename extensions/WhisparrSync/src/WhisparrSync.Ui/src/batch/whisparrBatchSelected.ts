@@ -14,10 +14,11 @@ import { ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 import { presentOverlay } from "@cove-extensions/ui-shared/overlay";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 
+import { errorCodeIn } from "../common/lib/errorCodeLogic";
 import { api } from "../common/lib/extension";
 import {
-  BATCH_SEARCH_IS_OVER_THE_BOUND,
-  BULK_SELECTION_IS_OVER_THE_BOUND,
+  batchSearchIsOverTheBoundSentence,
+  bulkSelectionIsOverTheBoundSentence,
   RUN_WAS_NOT_STARTED,
 } from "../common/ui/copy";
 import { BATCH_MENU_ROWS, type BatchMenuRow } from "./batchMenuLogic";
@@ -68,30 +69,22 @@ export async function sceneBatchSelected(
 }
 
 // Chosen on the code the answer names, never on its text: a refusal body can carry a full stack
-// trace.
+// trace. The bound is the one the route refused above, so the sentence cannot name a limit the
+// server does not hold. A refusal naming no bound falls through: a number invented here would read
+// as the server's.
 function refusalSentenceFor(refusal: unknown): string {
   if (!(refusal instanceof ApiError)) return RUN_WAS_NOT_STARTED;
 
-  switch (codeNamedIn(refusal.body)) {
+  const named = errorCodeIn(refusal.body);
+  if (named?.max == null) return RUN_WAS_NOT_STARTED;
+
+  switch (named.code) {
     case "TOO_MANY_IDS":
-      return BULK_SELECTION_IS_OVER_THE_BOUND;
+      return bulkSelectionIsOverTheBoundSentence(named.max);
     case "TOO_MANY_SEARCH_IDS":
-      return BATCH_SEARCH_IS_OVER_THE_BOUND;
+      return batchSearchIsOverTheBoundSentence(named.max);
     default:
       return RUN_WAS_NOT_STARTED;
-  }
-}
-
-function codeNamedIn(answer: string): string | null {
-  try {
-    const named: unknown = JSON.parse(answer);
-    return typeof named === "object" && named !== null && "code" in named
-      ? typeof named.code === "string"
-        ? named.code
-        : null
-      : null;
-  } catch {
-    return null;
   }
 }
 
