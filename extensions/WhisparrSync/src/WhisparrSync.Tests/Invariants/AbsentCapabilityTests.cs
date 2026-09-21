@@ -275,6 +275,7 @@ public sealed class AbsentCapabilityTests
             [
                 typeof(GeneratedClientRegistry<Whisparr3Target>).Name,
                 nameof(InstanceSiteNumberPort),
+                "Lease",
                 "Registration",
                 nameof(StashDbCatalogue),
                 nameof(ThePornDbCatalogue),

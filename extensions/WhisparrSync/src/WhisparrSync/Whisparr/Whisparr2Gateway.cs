@@ -80,10 +80,14 @@ internal readonly record struct Whisparr2Target(Uri BaseAddress, string ApiKey, 
 }
 
 // Bound to one instance rather than taking it per call, so a call site cannot name one instance for
-// the read and another for the write that follows it.
-internal readonly struct Whisparr2Apis(IServiceProvider provider)
+// the read and another for the write that follows it. Held open for as long as the request it serves
+// is sending, so the registration behind it is not discarded from under that request.
+internal sealed class Whisparr2Apis(
+    GeneratedClientRegistry<Whisparr2Target>.Lease lease) : IDisposable
 {
     public TApi Api<TApi>()
         where TApi : notnull
-        => provider.GetRequiredService<TApi>();
+        => lease.Provider.GetRequiredService<TApi>();
+
+    public void Dispose() => lease.Dispose();
 }
