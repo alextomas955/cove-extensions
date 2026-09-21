@@ -123,8 +123,7 @@ export function pacer({ requestsPerMinute, label }) {
  */
 export function liftProvider(name) {
   const lifted = liftMetadataServers({ names: [name] });
-  const entry = lifted.servers[0];
-  if (entry === undefined) {
+  if (lifted.servers.length === 0) {
     return {
       entry: null,
       described: null,
@@ -132,6 +131,7 @@ export function liftProvider(name) {
       skip: `${name}: ${lifted.skip ?? `${CONFIG_FILE} declares no metadata server named ${name}`}`,
     };
   }
+  const entry = lifted.servers[0];
   if (typeof entry.apiKey !== "string" || entry.apiKey.length === 0) {
     return {
       entry: null,
