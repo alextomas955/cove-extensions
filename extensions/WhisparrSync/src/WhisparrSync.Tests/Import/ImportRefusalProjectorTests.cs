@@ -1,4 +1,5 @@
 using System.Text.Json;
+using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Options;
 

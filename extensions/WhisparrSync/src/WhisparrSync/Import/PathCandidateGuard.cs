@@ -1,3 +1,5 @@
+using WhisparrSync.Contracts;
+
 namespace WhisparrSync.Import;
 
 /// <summary>Why a reported path produced no candidate to probe.</summary>
