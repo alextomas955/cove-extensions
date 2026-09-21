@@ -21,7 +21,7 @@ import {
   startWhisparr,
   WHISPARR_APP_USER,
 } from "@cove-extensions/e2e/whisparr";
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 
 import { cleanupStack } from "./connected-fixture.mjs";
 import { seedV2Scene } from "./seed-scene.mjs";
@@ -83,7 +83,7 @@ export const test = base.extend({
       const run = randomUUID().slice(0, 8);
       // Two sites the stub can answer for: the one the instance already holds, and one it does not,
       // which is what a registration has to create.
-      const heldSiteId = Math.floor(Math.random() * 500_000) + 1;
+      const heldSiteId = randomInt(1, 500_001);
       const unheldSiteId = heldSiteId + 500_000;
       const heldTitle = `Held ${run}`;
       const unheldTitle = `Unheld ${run}`;

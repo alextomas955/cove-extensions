@@ -174,7 +174,14 @@ async function main(argv) {
     }
   }
 
-  if (json) console.log(JSON.stringify(records.map(redactRecord), null, 2));
+  if (json)
+    console.log(
+      JSON.stringify(
+        records.map((record) => redactRecord(record)),
+        null,
+        2,
+      ),
+    );
 
   return failed === 0 ? 0 : 1;
 }

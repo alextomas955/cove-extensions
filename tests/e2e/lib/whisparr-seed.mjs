@@ -26,12 +26,15 @@ export const SEEDED_EPISODE_TVDB_ID = "4149372";
 // A committed file copied in, never a heredoc and never a string assembled in shell: a
 // heredoc-written script carries CRLF into every path it handles, and the failure then blames the
 // path.
+//
+// Placed under /opt/harness rather than /tmp. The copy creates that directory root-owned, so no
+// other user in the container can put a file where one of these is about to be read from and run.
 const SEEDER_SOURCE = join(import.meta.dirname, "whisparr-seed-history.py");
-const SEEDER_TARGET = "/tmp/whisparr-seed-history.py";
+const SEEDER_TARGET = "/opt/harness/whisparr-seed-history.py";
 
 /** @see SEEDER_SOURCE */
 const ENTITY_SEEDER_SOURCE = join(import.meta.dirname, "whisparr-seed-entities.py");
-const ENTITY_SEEDER_TARGET = "/tmp/whisparr-seed-entities.py";
+const ENTITY_SEEDER_TARGET = "/opt/harness/whisparr-seed-entities.py";
 
 // How each seeded kind is read back, addressed the way the extension itself addresses it. An entity
 // answers under its own foreign id as a path segment; a scene answers under the one query key that
