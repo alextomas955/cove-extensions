@@ -37,7 +37,7 @@ public static class ResolutionLabel
     // Every label FromDimensions can emit. The trailing-resolution de-duplication in TemplateEngine
     // reads this list.
     public static readonly IReadOnlyList<string> KnownLabels =
-        Buckets.Select(b => b.Label).Union(StandardLabels.Select(s => s.Label), StringComparer.Ordinal).ToArray();
+        Buckets.Select(b => b.Label).ToArray();
 
     // The larger of the two labels wins, so a portrait file reads the same as the landscape file of
     // the same shape while a very wide frame keeps its long-edge label. A frame renders empty only
