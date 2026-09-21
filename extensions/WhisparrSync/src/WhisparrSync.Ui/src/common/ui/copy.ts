@@ -113,11 +113,14 @@ export const BULK_REPORTS_IN_THE_JOB_DRAWER =
 export const BULK_ACTIONS_COULD_NOT_BE_OFFERED =
   "Cove could not read what the connected Whisparr can do, so it offered nothing. Nothing was changed; try again shortly.";
 
-/** How many entities one run may carry. */
-export const MAX_ENTITY_IDS_PER_REQUEST = 1000;
-
-/** Why a selection larger than the bound did nothing. */
-export const BULK_SELECTION_IS_OVER_THE_BOUND = `Cove acts on at most ${String(MAX_ENTITY_IDS_PER_REQUEST)} entities in one run, and you selected more. Nothing was changed; select fewer and repeat over the rest.`;
+/**
+ * Why a selection larger than the bound did nothing.
+ *
+ * @param bound the count the route refused above, read off its own refusal
+ */
+export function bulkSelectionIsOverTheBoundSentence(bound: number): string {
+  return `Cove acts on at most ${String(bound)} entities in one run, and you selected more. Nothing was changed; select fewer and repeat over the rest.`;
+}
 
 /** Any other refusal of the whole gesture. */
 export const RUN_WAS_NOT_STARTED =
@@ -242,11 +245,14 @@ export const SCENE_IS_ON_THE_EXCLUSION_LIST =
 export const SCENE_SEARCH_IS_WITH_WHISPARR =
   "Whisparr has the search. What it finds arrives the same way every other import does.";
 
-/** How many scenes one search run may carry. */
-export const MAX_SCENE_SEARCH_IDS_PER_REQUEST = 100;
-
-/** Why a selection larger than the search row's own bound did nothing. */
-export const BATCH_SEARCH_IS_OVER_THE_BOUND = `A search runs against every indexer Whisparr has, so Cove searches at most ${String(MAX_SCENE_SEARCH_IDS_PER_REQUEST)} scenes in one run, and you selected more. Nothing was sent; select fewer and repeat over the rest.`;
+/**
+ * Why a selection larger than the search row's own bound did nothing.
+ *
+ * @param bound the count the route refused above, read off its own refusal
+ */
+export function batchSearchIsOverTheBoundSentence(bound: number): string {
+  return `A search runs against every indexer Whisparr has, so Cove searches at most ${String(bound)} scenes in one run, and you selected more. Nothing was sent; select fewer and repeat over the rest.`;
+}
 
 /** What a `{provider}` slot reads as before any page has answered. */
 export const THE_METADATA_SOURCE = "your metadata source";
