@@ -223,7 +223,7 @@ public sealed class ReflectOwnedPlannerTests
     }
 
     [Fact]
-    public void AnOlderGenerationRowNamingNoEpisodeIsExcluded()
+    public void AV2RowNamingNoEpisodeIsExcluded()
     {
         var row = (JsonObject)JsonNode.Parse(V2MatchedRow)!;
         row["episodes"] = new JsonArray();

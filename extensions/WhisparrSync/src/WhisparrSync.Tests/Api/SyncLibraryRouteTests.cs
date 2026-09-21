@@ -99,7 +99,7 @@ public sealed class SyncLibraryRouteTests
     // check. It registers no scene-status read and does register the site add, so the run is a site
     // pass. A target obtaining neither role is what the keeps-no-scene-records refusal is for.
     [Fact]
-    public async Task TheOlderGenerationIsAimedAtItsOwnPassRatherThanRefused()
+    public async Task V2IsAimedAtItsOwnPassRatherThanRefused()
     {
         await using var host = await MonitorHost.CreateAsync(generation: WhisparrGeneration.V2);
 

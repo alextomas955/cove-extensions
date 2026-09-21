@@ -114,7 +114,7 @@ public sealed class SecondaryVerbTests
     // differently. Redefining it there as a catalogue refresh would read as an action that did
     // nothing.
     [Fact]
-    public void TheOlderGenerationRefusesTheSceneRegistrationRoleByName()
+    public void V2RefusesTheSceneRegistrationRoleByName()
     {
         var refusal = CapabilitiesOn(WhisparrGeneration.V2, Recorder())
             .Obtain<IWhisparrMissingSceneActing>()
@@ -129,7 +129,7 @@ public sealed class SecondaryVerbTests
     }
 
     [Fact]
-    public void TheNewerGenerationHandsOutTheSceneRegistrationRole()
+    public void V3HandsOutTheSceneRegistrationRole()
     {
         var client = Recorder();
 
@@ -272,7 +272,7 @@ public sealed class SecondaryVerbTests
 
     // The command names and the id array are transcribed from v3's own interface bundle.
     [Fact]
-    public void TheNewerGenerationsSearchNamesEachCommandWithAnIdArray()
+    public void V3SearchNamesEachCommandWithAnIdArray()
     {
         var studio = V3BodyProjector.SearchMonitored(WhisparrEntityKind.Studio, 1);
         var performer = V3BodyProjector.SearchMonitored(WhisparrEntityKind.Performer, 1);
@@ -289,7 +289,7 @@ public sealed class SecondaryVerbTests
     }
 
     [Fact]
-    public void TheOlderGenerationsSearchNamesItsCommandWithAScalarIdAndNoArrayReachesIt()
+    public void V2SearchNamesItsCommandWithAScalarIdAndNoArrayReachesIt()
     {
         var series = V2BodyProjector.SearchMonitored(1);
 

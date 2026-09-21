@@ -23,7 +23,7 @@ function Letterform({ fill }: { fill: string }) {
   return <path fill={fill} transform={LETTERFORM_TRANSFORM} d={LETTERFORM} />;
 }
 
-const NEWER_MARK = (
+const V3_MARK = (
   <>
     <ellipse cx="600" cy="600" rx="566" ry="566" fill="#241c1f" stroke="#333333" strokeWidth="60" />
     <Letterform fill="#170b28" />
@@ -50,7 +50,7 @@ const NEWER_MARK = (
   </>
 );
 
-const OLDER_MARK = (
+const V2_MARK = (
   <>
     <ellipse cx="600" cy="600" rx="566" ry="566" fill="#ff69b4" stroke="#333333" strokeWidth="60" />
     <Letterform fill="#333333" />
@@ -60,8 +60,8 @@ const OLDER_MARK = (
 // Total by type, so a generation added to the wire enum fails this build rather than drawing
 // whatever the last branch returned.
 const MARK: Record<NonNullable<WhisparrGeneration>, ReactElement> = {
-  v3: NEWER_MARK,
-  v2: OLDER_MARK,
+  v3: V3_MARK,
+  v2: V2_MARK,
 };
 
 export function WhisparrMark({
