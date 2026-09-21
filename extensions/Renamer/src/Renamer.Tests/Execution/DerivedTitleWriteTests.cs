@@ -115,7 +115,7 @@ public sealed class DerivedTitleWriteTests
             // from the restored filename.
             var again = Assert.Single(
                 (await planner.PlanAsync(RenamerFileKind.Video, videoId, options, default)).Items);
-            Assert.Equal("2021-03-14 - raw clip [4k].mkv", again.NewBasename);
+            Assert.Equal("2021-03-14 - raw clip [4K].mkv", again.NewBasename);
             Assert.Null(again.DerivedTitle);
         }
         finally

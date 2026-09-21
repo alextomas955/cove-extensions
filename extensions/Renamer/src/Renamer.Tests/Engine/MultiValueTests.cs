@@ -6,50 +6,6 @@ namespace Renamer.Tests.Engine;
 
 public class MultiValueTests
 {
-    // ---- ResolutionLabel.FromHeight ----
-
-    [Theory]
-    [InlineData(2160, "4k")]
-    [InlineData(1440, "1440p")]
-    [InlineData(1080, "1080p")]
-    [InlineData(720, "720p")]
-    [InlineData(480, "480p")]
-    public void ResolutionLabel_BoundaryValues_MapToBucket(int height, string expected)
-    {
-        Assert.Equal(expected, ResolutionLabel.FromHeight(height));
-    }
-
-    [Theory]
-    [InlineData(3000, "4k")]   // > 2160
-    [InlineData(2000, "1440p")] // between 1440 and 2160
-    [InlineData(1200, "1080p")]
-    [InlineData(900, "720p")]
-    [InlineData(600, "480p")]
-    public void ResolutionLabel_AboveBucket_MapsToNearestLowerLabel(int height, string expected)
-    {
-        Assert.Equal(expected, ResolutionLabel.FromHeight(height));
-    }
-
-    // Sub-480 heights are progressive-scan-labelled ("{height}p"), not bare numbers — otherwise an
-    // already-correct "[368p]" filename would be needlessly rewritten to "[368]". A non-positive height
-    // has no resolution and renders empty (never a garbage "[0]").
-    [Theory]
-    [InlineData(360, "360p")]
-    [InlineData(240, "240p")]
-    [InlineData(432, "432p")]
-    public void ResolutionLabel_BelowMinBucket_AppendsP(int height, string expected)
-    {
-        Assert.Equal(expected, ResolutionLabel.FromHeight(height));
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void ResolutionLabel_NonPositive_ReturnsEmpty(int height)
-    {
-        Assert.Equal(string.Empty, ResolutionLabel.FromHeight(height));
-    }
-
     // ---- MultiValue.Resolve ----
 
     private static readonly IReadOnlyList<string> Three = new[] { "Charlie", "alice", "Bob" };

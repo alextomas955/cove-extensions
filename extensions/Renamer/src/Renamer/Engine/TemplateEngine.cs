@@ -85,7 +85,7 @@ public static class TemplateEngine
     }
 
     // Copies the caller's scalar tokens, overrides $performers and $tags with the joined
-    // multi-value resolution, and derives $resolution from the height token when present.
+    // multi-value resolution, and derives $resolution from the dimension tokens when present.
     private static Dictionary<string, string> BuildResolvedMap(
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
@@ -146,12 +146,17 @@ public static class TemplateEngine
             map[Tokens.Tags] = MultiValue.Resolve(tags, options.Tags);
         }
 
-        // A caller-supplied $resolution wins over the height-derived one.
+        // A caller-supplied $resolution wins over the derived one. Both dimensions give the label
+        // Cove's badge shows; with only a height, the label assumes that height is the short edge.
+        // Cove stores an unknown width as 0, so a non-positive width is no width.
         if (!map.ContainsKey(Tokens.Resolution)
             && map.TryGetValue(Tokens.Height, out var h)
             && int.TryParse(h, out var height))
         {
-            map[Tokens.Resolution] = ResolutionLabel.FromHeight(height);
+            map[Tokens.Resolution] =
+                map.TryGetValue(Tokens.Width, out var w) && int.TryParse(w, out var width) && width > 0
+                    ? ResolutionLabel.FromDimensions(width, height)
+                    : ResolutionLabel.FromHeight(height);
         }
 
         return map;
@@ -207,13 +212,14 @@ public static class TemplateEngine
     }
 
     // Removes one trailing resolution tag: a bracketed ResolutionLabel.KnownLabels entry such as
-    // [1080p] or [4k], or a bare numeric progressive-scan label such as [368p], which is the sub-480
-    // form FromHeight emits. Only a tag at the end is removed, so a resolution named mid-title stays.
+    // [1080p] or [4K], or an arbitrary progressive-scan label such as [368p], which an imported title
+    // can carry at a height no bucket is named for. Only a tag at the end is removed, so a resolution
+    // named mid-title stays.
     private static string StripTrailingResolutionTag(string value)
     {
         string trimmed = value.TrimEnd();
 
-        // The fixed labels cover "4k" and the 480-and-above buckets.
+        // Case-insensitive, so a title carrying an older spelling of a label still matches.
         foreach (var label in ResolutionLabel.KnownLabels)
         {
             string tag = "[" + label + "]";
@@ -223,7 +229,7 @@ public static class TemplateEngine
             }
         }
 
-        // The sub-480 form, such as "[368p]", which the fixed list does not carry.
+        // A progressive-scan tag the fixed list does not carry, such as "[368p]".
         if (trimmed.EndsWith(']') && TryStripTrailingNumericResTag(trimmed, out var stripped))
         {
             return stripped.TrimEnd();

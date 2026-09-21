@@ -2,6 +2,25 @@
 
 User-facing changes, newest first.
 
+## 0.6.0 - Resolution labels that match what Cove shows
+
+**Do a dry run before your first rename after upgrading.** Files you already renamed under the old
+labels will compute a different name if you rename them again, because the label they carry is no
+longer the one Renamer produces. Nothing renames on its own, and the dry run shows you every name
+that would change before anything touches disk.
+
+- **`$resolution` now reads the same as the resolution shown on the item.** The filename and the
+  badge no longer disagree.
+- **More resolutions get their own label.** Sizes that were rounded down to the nearest of five
+  labels now have their own: `144p`, `240p`, `360p`, `540p`, `5K`, `6K`, `7K`, and `HUGE` for
+  anything wider than 8K. A very small frame still gets no label, so the bracketed group in your
+  template drops as before.
+- **A portrait video is no longer labelled as if it were landscape.** A 1080 x 1920 video is
+  `1080p`, matching the landscape video of the same shape, rather than `1440p`. This needs a width
+  stored for the file; without one Renamer still reads the height alone.
+- **The top label is spelled `4K`.** It was `4k`. A title that already ends in either spelling is
+  still de-duplicated, so a name does not end up with two labels.
+
 ## 0.5.0 - Text documents, and each kind settled on its own
 
 **Needs Cove 1.4.1.** An older host does not load Renamer at all - no Rename tab under Settings ->

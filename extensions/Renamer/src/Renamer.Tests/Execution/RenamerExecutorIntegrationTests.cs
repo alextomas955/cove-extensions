@@ -447,7 +447,7 @@ public sealed class RenamerExecutorIntegrationTests
 
             // Transcribed by hand from the arrangement above, never computed from the engine.
             Assert.True(
-                File.Exists(Path.Combine(dir.Root, "2021-03-14 - raw clip [4k].mkv")),
+                File.Exists(Path.Combine(dir.Root, "2021-03-14 - raw clip [4K].mkv")),
                 "the title-less item was not renamed to the name its derived title produces");
 
             Assert.Equal("raw clip", await ExecutorTestSeed.ReadVideoTitleAsync(db, titlelessId));

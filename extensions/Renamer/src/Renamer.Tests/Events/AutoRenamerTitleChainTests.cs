@@ -79,15 +79,15 @@ public sealed class AutoRenamerTitleChainTests
                 $"the chain kept going: {bus.Published.Count} events across {generations} generations,"
                     + $" leaving {string.Join(", ", Directory.GetFiles(dir.Root).Select(Path.GetFileName).Order())}");
 
-            Assert.True(File.Exists(Path.Combine(dir.Root, "2021-03-14 - raw clip [4k].mkv")));
-            Assert.True(File.Exists(Path.Combine(dir.Root, "2021-03-14 - raw clip [4k].mp4")));
+            Assert.True(File.Exists(Path.Combine(dir.Root, "2021-03-14 - raw clip [4K].mkv")));
+            Assert.True(File.Exists(Path.Combine(dir.Root, "2021-03-14 - raw clip [4K].mp4")));
             Assert.False(File.Exists(Path.Combine(dir.Root, "raw clip.mkv")));
             Assert.False(File.Exists(Path.Combine(dir.Root, "raw clip.mp4")));
 
             var (mkvBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, mkvFileId);
             var (mp4Basename, _) = await ExecutorTestSeed.ReadFileAsync(db, mp4FileId);
-            Assert.Equal("2021-03-14 - raw clip [4k].mkv", mkvBasename);
-            Assert.Equal("2021-03-14 - raw clip [4k].mp4", mp4Basename);
+            Assert.Equal("2021-03-14 - raw clip [4K].mkv", mkvBasename);
+            Assert.Equal("2021-03-14 - raw clip [4K].mp4", mp4Basename);
 
             // The title the rename derived is now stored, which is why the second round found nothing.
             Assert.Equal("raw clip", await ExecutorTestSeed.ReadVideoTitleAsync(db, videoId));
