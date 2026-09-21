@@ -106,15 +106,6 @@ public static class TemplateEngine
             map[key] = FieldRewriter.RewriteScalar(key, map[key], options);
         }
 
-        // Titles imported from filenames often already end in a resolution tag. When the template
-        // also appends $resolution, that trailing tag is stripped so the name carries one tag. A
-        // template without $resolution keeps whatever the title carries.
-        if (map.TryGetValue(Tokens.Title, out var titleValue)
-            && TemplateRendersResolution(options.FilenameTemplate))
-        {
-            map[Tokens.Title] = StripTrailingResolutionTag(titleValue);
-        }
-
         if (TryGetMulti(multiValues, Tokens.Performers, out var performers))
         {
             // Performers already named in the resolved title are dropped before MultiValue.Resolve
@@ -295,9 +286,40 @@ public static class TemplateEngine
         IReadOnlyList<(int Id, string Name)>? tags = null)
     {
         var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tags);
-        string raw = RenderRaw(options.FilenameTemplate, resolved, suppressExt: true, null);
+        string raw = RenderRaw(
+            options.FilenameTemplate,
+            WithDeDupedTitle(resolved, options.FilenameTemplate),
+            suppressExt: true,
+            null);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options) != raw;
+    }
+
+    // A render removes the title's own trailing resolution tag only where it writes a label of its
+    // own, so the title keeps its tag when the template omits $resolution, when no label was derived
+    // and when the length reducer dropped the field. The map is read-only because the filename and
+    // folder templates render from it independently.
+    private static IReadOnlyDictionary<string, string> WithDeDupedTitle(
+        IReadOnlyDictionary<string, string> resolved,
+        string template)
+    {
+        if (!TemplateRendersResolution(template)
+            || Resolve(resolved, Tokens.Resolution).Length == 0
+            || !resolved.TryGetValue(Tokens.Title, out var title))
+        {
+            return resolved;
+        }
+
+        string stripped = StripTrailingResolutionTag(title);
+        if (string.Equals(stripped, title, StringComparison.Ordinal))
+        {
+            return resolved;
+        }
+
+        return new Dictionary<string, string>(resolved, StringComparer.OrdinalIgnoreCase)
+        {
+            [Tokens.Title] = stripped,
+        };
     }
 
     // Renders with $ext suppressed and {} groups collapsed, then sanitizes the whole result as one
@@ -308,7 +330,7 @@ public static class TemplateEngine
         RenamerOptions options,
         Action<string>? logUnbalanced)
     {
-        string raw = RenderRaw(template, resolved, suppressExt: true, logUnbalanced);
+        string raw = RenderRaw(template, WithDeDupedTitle(resolved, template), suppressExt: true, logUnbalanced);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options);
     }
@@ -326,7 +348,7 @@ public static class TemplateEngine
             return string.Empty;
         }
 
-        string raw = RenderRaw(template, resolved, suppressExt: false, logUnbalanced);
+        string raw = RenderRaw(template, WithDeDupedTitle(resolved, template), suppressExt: false, logUnbalanced);
         raw = ApplyTransforms(raw, options);
 
         var cleaned = raw

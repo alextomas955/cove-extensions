@@ -201,6 +201,71 @@ public class TemplateEngineTests
     }
 
     [Fact]
+    public void TitleHasResolution_MissingWidth_PreservesExistingTag()
+    {
+        // A height with no stored width derives no label, so the title's own tag is the only
+        // resolution the name can carry.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie [1080p]",
+            ["height"] = "1080",
+        };
+        var r = Render("$title{ [$resolution]}", tokens);
+        Assert.Equal("Movie [1080p]", r.Filename);
+    }
+
+    [Fact]
+    public void TitleHasResolution_DerivedResolutionEmpty_PreservesExistingTag()
+    {
+        // 120 x 100 sits below the smallest bucket on its long edge and below the smallest standard
+        // label's margin on its short one, so Cove names that frame no resolution at all.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Clip [100p]",
+            ["width"] = "120",
+            ["height"] = "100",
+        };
+        var r = Render("$title{ [$resolution]}", tokens);
+        Assert.Equal("Clip [100p]", r.Filename);
+    }
+
+    [Fact]
+    public void TitleHasResolution_LengthReducerDropsResolution_PreservesExistingTag()
+    {
+        // The caps are the premise: "Movie [4K] [1080p]" against a 12-character budget walks DropOrder
+        // as far as resolution, so the render that survives writes no label of its own.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie [4K]",
+            ["width"] = "1920",
+            ["height"] = "1080",
+        };
+        var options = new RenamerOptions { FilenameMax = 12, FullPathMax = 12 };
+        var r = Render("$title{ [$resolution]}", tokens, options: options);
+        Assert.Equal("Movie [4K]", r.Filename);
+    }
+
+    [Theory]
+    // The filename template renders the label and the folder template does not.
+    [InlineData("$title{ [$resolution]}", "$title")]
+    // The folder template renders the label and the filename template does not.
+    [InlineData("$title", "$title{ [$resolution]}")]
+    public void TitleHasResolution_FolderTemplate_CarriesTheLabelExactlyOnce(
+        string filenameTemplate, string folderTemplate)
+    {
+        // Each template decides the de-duplication against its own text, so neither render's decision
+        // reaches the other.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie [1080p]",
+            ["width"] = "1920",
+            ["height"] = "1080",
+        };
+        var r = Render(filenameTemplate, tokens, folder: folderTemplate);
+        Assert.Equal("Movie [1080p]", r.FolderPath);
+    }
+
+    [Fact]
     public void CoreTokens_Performers_FromMultiValueSideInput()
     {
         var multi = new Dictionary<string, IReadOnlyList<string>>
