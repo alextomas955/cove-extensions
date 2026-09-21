@@ -145,6 +145,9 @@ brackets.
 
 If a title already ends with a resolution label (for example `My Movie [1080p]`) and your template
 also renders `$resolution`, Renamer removes the duplicate from the title so the label isn't repeated.
+Renamer only removes the title's label when it has one of its own to write in its place. Where the
+file has no width stored, where the frame is too small for any label, or where the name was too long
+and `$resolution` was dropped to make it fit, the label already in your title stays.
 
 ## Shaping multi-value tokens
 

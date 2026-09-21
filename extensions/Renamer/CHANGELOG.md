@@ -25,6 +25,10 @@ that would change before anything touches disk.
   bracketed group in your template drops instead of rendering.
 - **`4K` is spelled with a capital K.** It was `4k`. A title that already ends in either spelling
   is still de-duplicated, so a name does not end up with two labels.
+- **A title's own resolution label survives when Renamer has none to write.** Where the file has no
+  width stored, the frame is too small for any label, or the name was too long and the label was
+  dropped to make it fit, the label already in your title is left alone. It used to be removed with
+  nothing put back.
 
 ## 0.5.0 - Text documents, and each kind settled on its own
 
