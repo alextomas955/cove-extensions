@@ -9,15 +9,10 @@
 //
 // Its own instance per test: disabling and re-enabling is the extension's installed state, which is
 // instance-global.
-import {
-  test as base,
-  expect,
-  createApiClient,
-  isolatedHarnessFixture,
-} from "@cove-extensions/e2e";
+import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { DISABLE_ROUTE, ENABLE_ROUTE, HOST_CONFIGURATION_ROUTE } from "../../lib/contract.mjs";
-import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
+import { isolatedCoveFixture } from "../../lib/whisparr-sync-fixtures.mjs";
 
 // The bound on the host's own stop. Far below the spec timeout, so a worker that ignored its token
 // fails here naming the stop rather than as a whole-test timeout naming nothing.
@@ -28,7 +23,7 @@ const STOP_BUDGET_MS = 20_000;
 const PROBE_BUDGET_MS = 60_000;
 
 const test = base.extend({
-  isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
+  isolatedHarness: isolatedCoveFixture(),
 });
 
 /** The probe as the owner reads it, once it answers with a body. */

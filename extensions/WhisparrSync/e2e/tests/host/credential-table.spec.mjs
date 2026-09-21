@@ -15,14 +15,9 @@
 // per receipt and the second load is the one that meets an existing table.
 //
 // Its own instance per test: this restarts the host, which is instance-global.
-import {
-  test as base,
-  expect,
-  createApiClient,
-  isolatedHarnessFixture,
-} from "@cove-extensions/e2e";
+import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
-import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
+import { isolatedCoveFixture } from "../../lib/whisparr-sync-fixtures.mjs";
 import { EXTENSION_ID } from "../../lib/contract.mjs";
 
 const TABLE_NAME = "whisparrsync_credentials";
@@ -33,7 +28,7 @@ const MIGRATION_NAME = "001_create_whisparrsync_credentials";
 const COLUMNS = "api_key,generation,updated_at_utc_ticks";
 
 const test = base.extend({
-  isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
+  isolatedHarness: isolatedCoveFixture(),
 });
 
 /**

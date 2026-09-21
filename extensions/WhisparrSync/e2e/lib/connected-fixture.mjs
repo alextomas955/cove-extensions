@@ -15,7 +15,7 @@
 // Cove pair beside the isolated one. This file calls startWhisparr directly instead.
 import { randomUUID } from "node:crypto";
 
-import { createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
+import { createApiClient } from "@cove-extensions/e2e";
 import { seedVideo } from "@cove-extensions/e2e/seed-media";
 import { startWhisparr, WHISPARR_APP_USER } from "@cove-extensions/e2e/whisparr";
 
@@ -30,7 +30,7 @@ import {
   STASHDB_ENDPOINT,
   test as base,
   WHISPARR_ROOT,
-  WHISPARR_SYNC_EXTENSION,
+  isolatedCoveFixture,
   whisparrEntity,
 } from "./whisparr-sync-fixtures.mjs";
 
@@ -337,7 +337,7 @@ export const test = base.extend({
   // element Cove holds is the whole server list, so every wanted source is registered in one call.
   providers: [[], { option: true }],
 
-  isolatedCove: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
+  isolatedCove: isolatedCoveFixture(),
 
   baseUrl: async ({ isolatedCove }, use) => {
     await use(isolatedCove.baseUrl);

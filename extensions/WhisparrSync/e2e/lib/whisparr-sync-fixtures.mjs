@@ -6,13 +6,26 @@
 //
 // This file must stay at e2e/lib/: resolveExtensionPaths walks a fixed number of parents from the
 // caller's own module URL, so moving it silently relocates every path it derives.
-import { test as baseTest } from "@cove-extensions/e2e";
+import { isolatedHarnessFixture, test as baseTest } from "@cove-extensions/e2e";
 import { resolveExtensionPaths } from "@cove-extensions/e2e/resolve-extension";
 import { whisparrFixtures } from "@cove-extensions/e2e/whisparr";
 
 export const WHISPARR_SYNC_EXTENSION = resolveExtensionPaths(import.meta.url, {
   srcProject: "WhisparrSync",
 });
+
+/**
+ * An isolated Cove with this extension installed, and its backstop floor shortened.
+ *
+ * Every spec that needs its own instance takes this rather than the shared
+ * `isolatedHarnessFixture`, so the floor the container clamps to is decided once. A spec reaching
+ * past it gets the shipped thirty seconds and waits a wake period on every backstop pass.
+ */
+export function isolatedCoveFixture() {
+  return isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION, {
+    [BACKSTOP_FLOOR_VARIABLE]: String(BACKSTOP_INTERVAL_FLOOR_SECONDS),
+  });
+}
 
 // The Whisparr fixtures are taken here rather than offered by the shared harness. Nothing outside
 // this extension starts a Whisparr, and a fixture on the shared `test` would be loaded by every
@@ -25,7 +38,11 @@ export const test = baseTest.extend({
 export { expect } from "@cove-extensions/e2e";
 
 // Used below as well as re-exported, and `export ... from` binds nothing locally.
-import { extensionRoute } from "./contract.mjs";
+import {
+  BACKSTOP_FLOOR_VARIABLE,
+  BACKSTOP_INTERVAL_FLOOR_SECONDS,
+  extensionRoute,
+} from "./contract.mjs";
 
 // Re-exported so a spec has one import site for everything the fixtures module offers. The values
 // themselves live in contract.mjs, written once.

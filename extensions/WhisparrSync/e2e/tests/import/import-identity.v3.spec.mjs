@@ -17,17 +17,12 @@
 // resolution of the stamp's spelling falls back to the provider's standard address, which is the same
 // answer the option's value alone would have given. So this spec does NOT discriminate between those
 // two rules. What discriminates them is the unit test that configures a source at another spelling.
-import {
-  test as base,
-  expect,
-  createApiClient,
-  isolatedHarnessFixture,
-} from "@cove-extensions/e2e";
+import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
-import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
+import { isolatedCoveFixture } from "../../lib/whisparr-sync-fixtures.mjs";
 import {
   CALLBACK_ROUTE,
   COVE_ROOT,
@@ -45,7 +40,7 @@ const STASHDB_ENDPOINT = "https://stashdb.org/graphql";
 const IMPORT_BUDGET_MS = 120_000;
 
 const test = base.extend({
-  isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
+  isolatedHarness: isolatedCoveFixture(),
 });
 
 async function configure(api, whisparr) {
