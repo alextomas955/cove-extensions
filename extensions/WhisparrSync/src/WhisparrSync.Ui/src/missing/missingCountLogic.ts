@@ -5,9 +5,7 @@
  * removed after a page arrives, so a page can hold thirty-one cards while the range still reads
  * one to forty.
  */
-import { COUNT_IS_THE_CATALOGUE_SIZE } from "../common/ui/copy";
 import type { MissingPageView } from "../wire/api";
-import { fillNames } from "./missingStatesLogic";
 
 export interface CountLineParts {
   readonly from: number;
@@ -37,9 +35,4 @@ export function countLineParts(view: {
  */
 export function ceilingIsDisclosed(view: Pick<MissingPageView, "sizeIsLowerBound">): boolean {
   return view.sizeIsLowerBound;
-}
-
-/** The rest of the count line: the figure is the catalogue's size, not the number missing. */
-export function catalogueSizeLabel(provider: string, entity: string): string {
-  return fillNames(COUNT_IS_THE_CATALOGUE_SIZE, provider, entity);
 }

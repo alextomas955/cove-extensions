@@ -6,9 +6,13 @@ using WhisparrSync.Missing;
 using WhisparrSync.Options;
 using WhisparrSync.Providers;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.Missing;
 
+// An absence has to say which absence it is. A catalogue that was never read, an entity the instance
+// has not been told about and an entity the source names no identifier for send a reader somewhere
+// different, so none of them may collapse into an empty page.
 public sealed class MissingAbstentionTests
 {
     private const string SomeKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
@@ -19,119 +23,48 @@ public sealed class MissingAbstentionTests
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task AGenerationKeepingNoSceneRecordsIsAPermanentAbsenceOverAFullPage()
+    public async Task AnInstanceThatDidNotAnswerIsNeverReadAsAnEmptyCatalogue()
     {
-        var view = await PlannerOver(ScenesNamed("one", "two", "three"))
+        var view = await PlannerOver()
             .PlanAsync(
                 Request(),
-                new MissingPageContext(
-                    SomeInstance,
-                    SomeKey,
-                    WhisparrGeneration.V2,
-                    new ResolvedProvider(StashDb, "a-key", 240),
-                    StatusReading: null,
-                    ExclusionReading: null),
+                Context(new StubCatalogueReading(WhisparrCatalogueRefusal.NotReached)),
                 NullLogger.Instance,
                 TestCt);
 
-        Assert.Equal(3, view.Cards.Count);
-        Assert.False(view.StatusWasRead);
-        Assert.True(view.StatusIsPermanentlyAbsent);
-        Assert.Equal(MissingRefusalKind.WhisparrKeepsNoSceneRecords, view.Refusal);
-        Assert.All(
-            view.Cards, card => Assert.Equal(MissingSceneState.StatusUnknown, card.State));
-    }
-
-    [Fact]
-    public async Task AnInstanceThatDidNotAnswerIsATransientAbsenceOverAFullPage()
-    {
-        var view = await PlannerOver(ScenesNamed("one", "two", "three"))
-            .PlanAsync(
-                Request(),
-                Context(new StubSceneStatusReading(unreachable: true)),
-                NullLogger.Instance,
-                TestCt);
-
-        Assert.Equal(3, view.Cards.Count);
-        Assert.False(view.StatusWasRead);
-        Assert.False(view.StatusIsPermanentlyAbsent);
-        Assert.Equal(MissingRefusalKind.WhisparrStatusNotRead, view.Refusal);
-        Assert.All(
-            view.Cards, card => Assert.Equal(MissingSceneState.StatusUnknown, card.State));
-    }
-
-    [Fact]
-    public async Task AnInstanceAnsweringNoUsableStatusIsAlsoTransient()
-    {
-        var view = await PlannerOver(ScenesNamed("one", "two"))
-            .PlanAsync(
-                Request(),
-                Context(new StubSceneStatusReading(presence: 500)),
-                NullLogger.Instance,
-                TestCt);
-
-        Assert.Equal(2, view.Cards.Count);
-        Assert.False(view.StatusWasRead);
-        Assert.False(view.StatusIsPermanentlyAbsent);
-        Assert.Equal(MissingRefusalKind.WhisparrStatusNotRead, view.Refusal);
-    }
-
-    [Fact]
-    public async Task ThePermanentAndTheTransientAbsenceAreDifferentAnswers()
-    {
-        var permanent = await PlannerOver(ScenesNamed("one"))
-            .PlanAsync(
-                Request(),
-                new MissingPageContext(
-                    SomeInstance,
-                    SomeKey,
-                    WhisparrGeneration.V2,
-                    new ResolvedProvider(StashDb, "a-key", 240),
-                    StatusReading: null,
-                    ExclusionReading: null),
-                NullLogger.Instance,
-                TestCt);
-
-        var transient = await PlannerOver(ScenesNamed("one"))
-            .PlanAsync(
-                Request(),
-                Context(new StubSceneStatusReading(unreachable: true)),
-                NullLogger.Instance,
-                TestCt);
-
-        Assert.NotEqual(permanent.Refusal, transient.Refusal);
-        Assert.NotEqual(
-            permanent.StatusIsPermanentlyAbsent, transient.StatusIsPermanentlyAbsent);
-        Assert.Equal(permanent.Cards.Count, transient.Cards.Count);
-    }
-
-    [Fact]
-    public async Task AProviderThatAnsweredNothingIsNeverReadAsAnEmptyCatalogue()
-    {
-        var view = await PlannerOver(ScenesNamed("one"), unreachableProvider: true)
-            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
-
-        Assert.Equal(MissingRefusalKind.ProviderUnreachable, view.Refusal);
+        Assert.Equal(MissingRefusalKind.WhisparrCatalogueNotRead, view.Refusal);
         Assert.Empty(view.Cards);
         Assert.Equal(0, view.CatalogueSize);
     }
 
     [Fact]
-    public async Task AnInstanceFailureIsContainedAndAProviderFailureIsNot()
+    public async Task AnEntityTheInstanceDoesNotHoldIsItsOwnAnswer()
     {
-        var kept = await PlannerOver(ScenesNamed("one", "two"))
+        var view = await PlannerOver()
             .PlanAsync(
                 Request(),
-                Context(new StubSceneStatusReading(unreachable: true)),
+                Context(new StubCatalogueReading(WhisparrCatalogueRefusal.EntityNotHeld)),
                 NullLogger.Instance,
                 TestCt);
 
-        var replaced = await PlannerOver(ScenesNamed("one"), unreachableProvider: true)
-            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+        Assert.Equal(MissingRefusalKind.EntityNotInWhisparr, view.Refusal);
+        Assert.Empty(view.Cards);
+    }
 
-        Assert.NotEmpty(kept.Cards);
-        Assert.Empty(replaced.Cards);
-        Assert.Equal(MissingRefusalKind.ProviderUnreachable, replaced.Refusal);
+    // A transport failure reaching the instance is contained here, so the tab states it and offers a
+    // retry rather than the request failing outright.
+    [Fact]
+    public async Task AFailureReachingTheInstanceIsContained()
+    {
+        var view = await PlannerOver()
+            .PlanAsync(
+                Request(),
+                Context(StubCatalogueReading.Failing()),
+                NullLogger.Instance,
+                TestCt);
+
+        Assert.Equal(MissingRefusalKind.WhisparrCatalogueNotRead, view.Refusal);
+        Assert.Empty(view.Cards);
     }
 
     [Fact]
@@ -145,18 +78,18 @@ public sealed class MissingAbstentionTests
                 TestProviderCatalogues.Naming(catalogue),
                 new StubEntityNames(new EntityName("Brazzers", []))),
             TestProviderCatalogues.Naming(catalogue),
-            new StubOwnedScenes())
-            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+            new StubOwnedScenes(),
+            new InstanceCatalogueCache(TimeProvider.System))
+            .PlanAsync(Request(), Context(Listing()), NullLogger.Instance, TestCt);
 
         Assert.Equal(MissingRefusalKind.ProviderUnreachable, view.Refusal);
-        Assert.NotEqual(MissingRefusalKind.NoProviderIdForEntity, view.Refusal);
         Assert.Empty(view.Cards);
     }
 
     [Fact]
     public async Task ASourceThatNamesNoSuchEntityIsStillTheEntityRefusal()
     {
-        var catalogue = new StubProviderCatalogue(ScenesNamed("one"));
+        var catalogue = new StubProviderCatalogue([]);
 
         var view = await new MissingPagePlanner(
             new MissingIdentityResolver(
@@ -164,8 +97,9 @@ public sealed class MissingAbstentionTests
                 TestProviderCatalogues.Naming(catalogue),
                 new StubEntityNames(new EntityName("Brazzers", []))),
             TestProviderCatalogues.Naming(catalogue),
-            new StubOwnedScenes())
-            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+            new StubOwnedScenes(),
+            new InstanceCatalogueCache(TimeProvider.System))
+            .PlanAsync(Request(), Context(Listing()), NullLogger.Instance, TestCt);
 
         Assert.Equal(MissingRefusalKind.NoProviderIdForEntity, view.Refusal);
         Assert.Empty(view.Cards);
@@ -174,17 +108,9 @@ public sealed class MissingAbstentionTests
     [Fact]
     public async Task NoPartOfTheDerivationWritesAPerSceneValue()
     {
-        var catalogue = new StubProviderCatalogue(ScenesNamed("one", "two"));
-        var owned = new StubOwnedScenes();
-
-        var view = await new MissingPagePlanner(
-            new MissingIdentityResolver(
-                new StubEntityIdentities("an-entity"),
-                TestProviderCatalogues.Naming(catalogue),
-                new StubEntityNames()),
-            TestProviderCatalogues.Naming(catalogue),
-            owned)
-            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+        var view = await PlannerOver()
+            .PlanAsync(
+                Request(), Context(Listing("one", "two")), NullLogger.Instance, TestCt);
 
         // The derivation is delegate-driven and performs no I/O of its own, so the only writes it
         // could make are through a port it was handed. None of the ports it takes can write.
@@ -209,33 +135,60 @@ public sealed class MissingAbstentionTests
             Filters: new Dictionary<string, string>(),
             MenusAlreadyHeld: true);
 
-    private static MissingPageContext Context(StubSceneStatusReading? reading = null)
+    private static MissingPageContext Context(IWhisparrEntityCatalogueReading reading)
         => new(
             SomeInstance,
             SomeKey,
             WhisparrGeneration.V3,
             new ResolvedProvider(StashDb, "a-key", 240),
-            reading ?? new StubSceneStatusReading(presence: 404),
-            ExclusionReading: null);
+            StatusReading: null,
+            ExclusionReading: null,
+            reading);
 
-    private static MissingPagePlanner PlannerOver(
-        List<ProviderScene> scenes, bool unreachableProvider = false)
-    {
-        var catalogue = unreachableProvider
-            ? RefusingCatalogue()
-            : (IProviderCatalogue)new StubProviderCatalogue(scenes);
+    private static StubCatalogueReading Listing(params string[] ids)
+        => new(
+        [
+            .. ids.Select(
+                id => new WhisparrCatalogueScene(
+                    id, id, null, null, null, null, [], [], Monitored: false, HasFile: false)),
+        ]);
 
-        return new MissingPagePlanner(
+    private static MissingPagePlanner PlannerOver()
+        => new(
             new MissingIdentityResolver(
                 new StubEntityIdentities("an-entity"),
-                TestProviderCatalogues.Naming(catalogue),
+                TestProviderCatalogues.Naming(new StubProviderCatalogue([])),
                 new StubEntityNames()),
-            TestProviderCatalogues.Naming(catalogue),
-            new StubOwnedScenes());
-    }
+            TestProviderCatalogues.Naming(new StubProviderCatalogue([])),
+            new StubOwnedScenes(),
+            new InstanceCatalogueCache(TimeProvider.System));
 
-    private static List<ProviderScene> ScenesNamed(params string[] ids)
-        => [.. ids.Select(id => new ProviderScene(id, id, null, null, null, null, [], []))];
+    private sealed class StubCatalogueReading : IWhisparrEntityCatalogueReading
+    {
+        private readonly WhisparrEntityCatalogue? _answer;
+
+        internal StubCatalogueReading(IReadOnlyList<WhisparrCatalogueScene> scenes)
+            => _answer = WhisparrEntityCatalogue.Listing(scenes);
+
+        internal StubCatalogueReading(WhisparrCatalogueRefusal refusal)
+            => _answer = WhisparrEntityCatalogue.Refused(refusal);
+
+        private StubCatalogueReading() => _answer = null;
+
+        /// <summary>Answers nothing at all, as a transport that dropped does.</summary>
+        internal static StubCatalogueReading Failing() => new();
+
+        public Task<WhisparrEntityCatalogue> ReadEntityCatalogueAsync(
+            Uri baseAddress,
+            string apiKey,
+            WhisparrGeneration generation,
+            WhisparrEntityKind kind,
+            string foreignId,
+            CancellationToken ct)
+            => _answer is { } answer
+                ? Task.FromResult(answer)
+                : throw new HttpRequestException("nothing answered");
+    }
 
     // The shipped catalogue over a transport that refuses the credential. A stub could report a
     // failure the shipped catalogue never reports, leaving this file asserting the stub.

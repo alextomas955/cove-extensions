@@ -1009,6 +1009,67 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/track": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceCatalogueCache"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingTrackResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/monitor-all": {
       "post": {
         "tags": [
@@ -2387,6 +2448,9 @@
           "unreadable"
         ]
       },
+      "InstanceCatalogueCache": {
+        "type": "object"
+      },
       "JobEnqueued": {
         "required": [
           "jobId"
@@ -2827,6 +2891,8 @@
           "noMetadataProviderConfigured",
           "noProviderIdForEntity",
           "providerUnreachable",
+          "entityNotInWhisparr",
+          "whisparrCatalogueNotRead",
           "whisparrStatusNotRead",
           "whisparrKeepsNoSceneRecords"
         ]
@@ -2878,6 +2944,28 @@
           },
           "label": {
             "type": "string"
+          }
+        }
+      },
+      "MissingTrackOutcome": {
+        "enum": [
+          "added",
+          "noInstanceConnected",
+          "generationCannotTrackThisKind",
+          "noIdentifier",
+          "noAddDefaults",
+          "refused",
+          "notStarted"
+        ]
+      },
+      "MissingTrackResult": {
+        "required": [
+          "outcome"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/MissingTrackOutcome"
           }
         }
       },
@@ -3289,6 +3377,10 @@
           "registerOwnedSites",
           "readSiteSceneRows",
           "readHeldSites",
+          "readEntityCardsInBatch",
+          "readSceneCardsInBatch",
+          "trackEntityCatalogue",
+          "readEntityCatalogue",
           "readInstanceFilesystem"
         ]
       },

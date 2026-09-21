@@ -15,143 +15,241 @@ public sealed class MissingPagePlannerTests
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task OnePageIsOneProviderRead()
+    public async Task OnePageIsOneInstanceRead()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a", "b", "c"));
-        var planner = PlannerOver(catalogue);
+        var instance = new RecordingInstance(ScenesNamed("a", "b", "c"));
 
-        await planner.PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+        await PlannerOver()
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
 
-        Assert.Equal(1, catalogue.PageReads);
+        Assert.Equal(1, instance.Reads);
     }
 
+    // The count beside the tab and the page under it are the same read, so opening a tab costs the
+    // instance one request rather than two.
     [Fact]
-    public async Task OwnedScenesLeaveThePageAndTheRangeStaysTheProvidersOwn()
+    public async Task TheCountAndThePageShareOneRead()
     {
-        var scenes = ScenesNamed([.. Enumerable.Range(0, 40).Select(index => $"scene-{index}")]);
-        var catalogue = new RecordingCatalogue(scenes, catalogueSize: 3941, rangeFrom: 1, rangeTo: 40);
-        var owned = new StubOwned("scene-0", "scene-1", "scene-2", "scene-3", "scene-4");
-        var planner = PlannerOver(catalogue, owned);
+        var instance = new RecordingInstance(ScenesNamed("a", "b"));
+        var planner = PlannerOver();
 
-        var view = await planner.PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+        await planner.CountAsync(Request(), Context(instance), TestCt);
+        await planner.PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
+
+        Assert.Equal(1, instance.Reads);
+    }
+
+    // The figure is what is missing, not the size of a catalogue: what the library already holds has
+    // left the set before anything is counted.
+    [Fact]
+    public async Task ScenesTheLibraryHoldsLeaveTheSetAndTheCount()
+    {
+        var instance = new RecordingInstance(
+            ScenesNamed([.. Enumerable.Range(0, 40).Select(index => $"scene-{index}")]));
+        var owned = new StubOwned("scene-0", "scene-1", "scene-2", "scene-3", "scene-4");
+        var planner = PlannerOver(owned: owned);
+
+        var view = await planner.PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
+        var count = await planner.CountAsync(Request(), Context(instance), TestCt);
 
         Assert.Equal(35, view.Cards.Count);
+        Assert.Equal(35, view.CatalogueSize);
+        Assert.Equal(35, count.Count);
         Assert.Equal(1, view.RangeFrom);
-        Assert.Equal(40, view.RangeTo);
-        Assert.Equal(3941, view.CatalogueSize);
-        Assert.Equal(1, catalogue.PageReads);
+        Assert.Equal(35, view.RangeTo);
+    }
+
+    // An entity the instance has never been told about is a different answer from one it holds and
+    // lists nothing under.
+    [Fact]
+    public async Task AnEntityTheInstanceDoesNotHoldSaysSoRatherThanListingNothing()
+    {
+        var instance = new RecordingInstance(WhisparrCatalogueRefusal.EntityNotHeld);
+
+        var view = await PlannerOver()
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
+
+        Assert.Equal(MissingRefusalKind.EntityNotInWhisparr, view.Refusal);
+        Assert.Empty(view.Cards);
     }
 
     [Fact]
-    public async Task AnUnresolvedIdentityRefusesAndAsksTheProviderNothing()
+    public async Task AnInstanceThatDidNotAnswerIsHeldApartFromAnEntityItDoesNotHold()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a"));
-        var planner = PlannerOver(catalogue, identity: null);
+        var instance = new RecordingInstance(WhisparrCatalogueRefusal.NotReached);
 
-        var view = await planner.PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+        var view = await PlannerOver()
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
+
+        Assert.Equal(MissingRefusalKind.WhisparrCatalogueNotRead, view.Refusal);
+        Assert.Empty(view.Cards);
+    }
+
+    [Fact]
+    public async Task AnEmptyCatalogueIsAMeasurementAndNotARefusal()
+    {
+        var instance = new RecordingInstance([]);
+
+        var view = await PlannerOver()
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
+
+        Assert.Equal(MissingRefusalKind.None, view.Refusal);
+        Assert.Empty(view.Cards);
+        Assert.Equal(0, view.CatalogueSize);
+    }
+
+    // The state is the instance's own flag on the row the card came from, so no status is asked for
+    // afterwards and no card can carry one read for a different scene.
+    [Fact]
+    public async Task ACardCarriesTheMonitoredFlagOffItsOwnRow()
+    {
+        var instance = new RecordingInstance(
+        [
+            Scene("a", monitored: true),
+            Scene("b", monitored: false),
+        ]);
+
+        var view = await PlannerOver()
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
+
+        Assert.Equal(
+            [MissingSceneState.Monitored, MissingSceneState.Unmonitored],
+            view.Cards.Select(card => card.State));
+        Assert.True(view.StatusWasRead);
+        Assert.False(view.StatusIsPermanentlyAbsent);
+    }
+
+    [Fact]
+    public async Task AnUnresolvedIdentityRefusesAndAsksTheInstanceNothing()
+    {
+        var instance = new RecordingInstance(ScenesNamed("a"));
+
+        var view = await PlannerOver(identity: null)
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
 
         Assert.Equal(MissingRefusalKind.NoProviderIdForEntity, view.Refusal);
         Assert.Empty(view.Cards);
-        Assert.Equal(0, catalogue.PageReads);
+        Assert.Equal(0, instance.Reads);
     }
 
     [Fact]
     public async Task AnUnresolvableEntitysCountIsNullRatherThanZero()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a"));
-        var planner = PlannerOver(catalogue, identity: null);
+        var instance = new RecordingInstance(ScenesNamed("a"));
 
-        var count = await planner.CountAsync(Request(), Context(), TestCt);
+        var count = await PlannerOver(identity: null)
+            .CountAsync(Request(), Context(instance), TestCt);
 
         Assert.Null(count.Count);
-        Assert.Equal(0, catalogue.SizeReads);
+        Assert.Equal(0, instance.Reads);
     }
 
     [Fact]
     public async Task AHostNamingNoProviderRefusesWithoutAskingAnything()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a"));
-        var planner = PlannerOver(catalogue);
+        var instance = new RecordingInstance(ScenesNamed("a"));
 
-        var view = await planner.PlanAsync(Request(), Context(withProvider: false), NullLogger.Instance, TestCt);
+        var view = await PlannerOver()
+            .PlanAsync(
+                Request(), Context(instance, withProvider: false), NullLogger.Instance, TestCt);
 
         Assert.Equal(MissingRefusalKind.NoMetadataProviderConfigured, view.Refusal);
-        Assert.Equal(0, catalogue.PageReads);
+        Assert.Equal(0, instance.Reads);
     }
 
     [Fact]
-    public async Task MenusTheCallerAlreadyHoldsAreNotReadAgain()
+    public async Task MenusComeOffTheScenesAndAreOmittedWhenTheCallerHoldsThem()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a"));
-        var planner = PlannerOver(catalogue);
+        var instance = new RecordingInstance(
+        [
+            Scene("a", performer: "Ada Byron", tag: "Drama"),
+            Scene("b", performer: "Ada Byron", tag: "Comedy"),
+        ]);
+        var planner = PlannerOver();
 
-        await planner.PlanAsync(Request() with { MenusAlreadyHeld = true }, Context(), NullLogger.Instance, TestCt);
+        var view = await planner.PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
+        var held = await planner.PlanAsync(
+            Request() with { MenusAlreadyHeld = true },
+            Context(instance),
+            NullLogger.Instance,
+            TestCt);
 
-        Assert.Equal(0, catalogue.MenuReads);
+        Assert.Equal(["performer", "tag"], view.Facets.Select(menu => menu.Key));
+        Assert.Equal(["Ada Byron"], view.Facets[0].Values.Select(value => value.Label));
+        Assert.Equal(["Comedy", "Drama"], view.Facets[1].Values.Select(value => value.Label));
+        Assert.Empty(held.Facets);
     }
 
     [Fact]
-    public async Task TheViewCarriesWhatTheCatalogueOfferedAsMenusAndSorts()
+    public async Task APageUnderNoNamedOrderingLeadsWithTheNewestScene()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a"))
-        {
-            Menus = [new ProviderFacetMenu("year", "Year", [new ProviderFacetValue("2024", "2024")], 1)],
-        };
-        var planner = PlannerOver(catalogue);
+        var instance = new RecordingInstance(
+        [
+            Scene("older", date: "2021-01-01"),
+            Scene("newer", date: "2024-06-01"),
+            Scene("undated"),
+        ]);
 
-        var view = await planner.PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+        var view = await PlannerOver()
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
 
-        Assert.Equal("year", Assert.Single(view.Facets).Key);
-        Assert.Equal("DATE", Assert.Single(view.Sorts).Value);
+        Assert.Equal(["newer", "older", "undated"], view.Cards.Select(card => card.ProviderSceneId));
+        Assert.Equal(InstanceCatalogueLogic.NewestFirst, view.SortInForce);
     }
 
     [Fact]
-    public async Task APageReadUnderNoNamedOrderingReportsTheProvidersOwn()
+    public async Task AnOrderingTheCallerNamedIsTheOneApplied()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a"));
-        var planner = PlannerOver(catalogue);
+        var instance = new RecordingInstance(
+        [
+            Scene("b-scene", date: "2024-06-01"),
+            Scene("a-scene", date: "2021-01-01"),
+        ]);
 
-        var view = await planner.PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+        var view = await PlannerOver().PlanAsync(
+            Request() with { Sort = InstanceCatalogueLogic.TitleAscending },
+            Context(instance),
+            NullLogger.Instance,
+            TestCt);
 
-        Assert.Equal(catalogue.DefaultSort, view.SortInForce);
-        Assert.Contains(view.Sorts, offered => offered.Value == view.SortInForce);
+        Assert.Equal(["a-scene", "b-scene"], view.Cards.Select(card => card.ProviderSceneId));
+        Assert.Equal(InstanceCatalogueLogic.TitleAscending, view.SortInForce);
     }
 
     [Fact]
-    public async Task AnOrderingTheCallerNamedIsTheOneReported()
+    public async Task APageTurnMovesThroughTheSetWithoutRepeatingIt()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a"));
-        var planner = PlannerOver(catalogue);
+        var instance = new RecordingInstance(ScenesNamed("a", "b", "c", "d", "e"));
+        var planner = PlannerOver();
 
-        var view = await planner.PlanAsync(
-            Request() with { Sort = "TITLE:ASC" }, Context(), NullLogger.Instance, TestCt);
+        var first = await planner.PlanAsync(
+            Request() with { PerPage = 2 }, Context(instance), NullLogger.Instance, TestCt);
+        var second = await planner.PlanAsync(
+            Request() with { Page = 2, PerPage = 2 }, Context(instance), NullLogger.Instance, TestCt);
+        var past = await planner.PlanAsync(
+            Request() with { Page = 9, PerPage = 2 }, Context(instance), NullLogger.Instance, TestCt);
 
-        Assert.Equal("TITLE:ASC", view.SortInForce);
+        Assert.Equal(3, first.LastPage);
+        Assert.Equal(2, first.Cards.Count);
+        Assert.Empty(
+            first.Cards.Select(card => card.ProviderSceneId)
+                .Intersect(second.Cards.Select(card => card.ProviderSceneId)));
+        Assert.Empty(past.Cards);
     }
 
     [Fact]
     public async Task ARefusedPageNamesNoOrdering()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a"));
-        var planner = PlannerOver(catalogue, identity: null);
+        var instance = new RecordingInstance(ScenesNamed("a"));
 
-        var view = await planner.PlanAsync(
-            Request() with { Sort = "TITLE:ASC" }, Context(), NullLogger.Instance, TestCt);
+        var view = await PlannerOver(identity: null).PlanAsync(
+            Request() with { Sort = InstanceCatalogueLogic.TitleAscending },
+            Context(instance),
+            NullLogger.Instance,
+            TestCt);
 
         Assert.Equal(MissingRefusalKind.NoProviderIdForEntity, view.Refusal);
         Assert.Null(view.SortInForce);
-    }
-
-    [Fact]
-    public async Task AGenerationHoldingNoStatusRoleStatesThatNothingCanEstablishOne()
-    {
-        var planner = PlannerOver(new RecordingCatalogue(ScenesNamed("a")));
-
-        var view = await planner.PlanAsync(Request(), Context(withStatusRole: false), NullLogger.Instance, TestCt);
-
-        Assert.True(view.StatusIsPermanentlyAbsent);
-        Assert.False(view.StatusWasRead);
-        Assert.Equal(MissingRefusalKind.WhisparrKeepsNoSceneRecords, view.Refusal);
     }
 
     private static MissingPageRequest Request()
@@ -165,28 +263,30 @@ public sealed class MissingPagePlannerTests
             Filters: new Dictionary<string, string>(),
             MenusAlreadyHeld: false);
 
-    // The two absences are named rather than passed as null, so a case asking for "no provider"
-    // cannot silently get the default one.
+    // The absence is named rather than passed as null, so a case asking for "no provider" cannot
+    // silently get the default one.
     private static MissingPageContext Context(
-        bool withProvider = true, bool withStatusRole = true)
+        IWhisparrEntityCatalogueReading instance, bool withProvider = true)
         => new(
             new Uri("http://whisparr.invalid:6969"),
             "0e2e0e2e0e2e0e2e",
             WhisparrGeneration.V3,
             withProvider ? new ResolvedProvider(StashDb, "a-key", 240) : null,
-            withStatusRole ? new StubStatusReading() : null,
-            ExclusionReading: null);
+            StatusReading: null,
+            ExclusionReading: null,
+            instance);
 
     [Fact]
     public async Task ACardCarriesTheAddressTheSourceNamedForItsScene()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a", "b"))
+        var catalogue = new RecordingCatalogue([])
         {
             Address = id => $"https://a.source.invalid/scenes/{id}",
         };
+        var instance = new RecordingInstance([Scene("a"), Scene("b")]);
 
         var view = await PlannerOver(catalogue)
-            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
 
         Assert.Equal(
             ["https://a.source.invalid/scenes/a", "https://a.source.invalid/scenes/b"],
@@ -196,27 +296,30 @@ public sealed class MissingPagePlannerTests
     [Fact]
     public async Task ACardFromASourceThatNamesNoAddressCarriesNone()
     {
-        var view = await PlannerOver(new RecordingCatalogue(ScenesNamed("a")))
-            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+        var instance = new RecordingInstance(ScenesNamed("a"));
+
+        var view = await PlannerOver(new RecordingCatalogue([]))
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
 
         Assert.Null(Assert.Single(view.Cards).SceneUrl);
     }
 
-    private static List<ProviderScene> ScenesNamed(params string[] ids)
-        => [.. ids.Select(id => new ProviderScene(id, id, null, null, null, null, [], []))];
+    private static List<WhisparrCatalogueScene> ScenesNamed(params string[] ids)
+        => [.. ids.Select(id => Scene(id))];
 
     [Fact]
     public async Task EveryPageNamesTheSourceItWasReadFrom()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a"))
+        var catalogue = new RecordingCatalogue([])
         {
             Capabilities = ProviderCapabilities.ForThePornDb(new object()),
         };
+        var instance = new RecordingInstance(ScenesNamed("a"));
 
         var answered = await PlannerOver(catalogue)
-            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
         var refused = await PlannerOver(catalogue, identity: null)
-            .PlanAsync(Request(), Context(), NullLogger.Instance, TestCt);
+            .PlanAsync(Request(), Context(instance), NullLogger.Instance, TestCt);
 
         Assert.Equal("ThePornDB", answered.ProviderName);
         Assert.Equal(MissingRefusalKind.NoProviderIdForEntity, refused.Refusal);
@@ -226,7 +329,7 @@ public sealed class MissingPagePlannerTests
     [Fact]
     public async Task AFragmentReachesTheSourceAndItsValuesComeBackAsMenuRows()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a"))
+        var catalogue = new RecordingCatalogue([])
         {
             FacetSearch = ProviderFacetSearch.Matched(
                 [new ProviderFacetValue("t-1", "Anal Sex")], 64),
@@ -249,11 +352,11 @@ public sealed class MissingPagePlannerTests
     [Fact]
     public async Task ALookupThatAnsweredNothingIsHeldApartFromAMatchOfNothing()
     {
-        var unread = new RecordingCatalogue(ScenesNamed("a"))
+        var unread = new RecordingCatalogue([])
         {
             FacetSearch = ProviderFacetSearch.NotReached,
         };
-        var matched = new RecordingCatalogue(ScenesNamed("a"))
+        var matched = new RecordingCatalogue([])
         {
             FacetSearch = ProviderFacetSearch.Matched([], 0),
         };
@@ -275,7 +378,7 @@ public sealed class MissingPagePlannerTests
     [Fact]
     public async Task AFacetTheSourceCannotSearchSaysSo()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a"))
+        var catalogue = new RecordingCatalogue([])
         {
             FacetSearch = ProviderFacetSearch.NotSearchable,
         };
@@ -292,7 +395,7 @@ public sealed class MissingPagePlannerTests
     [Fact]
     public async Task AnUnresolvedIdentityAsksTheSourceNothingAndStatesNoAbsence()
     {
-        var catalogue = new RecordingCatalogue(ScenesNamed("a"));
+        var catalogue = new RecordingCatalogue([]);
 
         var answer = await PlannerOver(catalogue, identity: null).SearchFacetValuesAsync(
             new MissingFacetSearchRequest(WhisparrEntityKind.Studio, 7, "tags", "ana"),
@@ -303,17 +406,67 @@ public sealed class MissingPagePlannerTests
         Assert.Null(catalogue.SearchedFor);
     }
 
+    // The instance's catalogue reaches the planner through the context, so it is not named here.
     private static MissingPagePlanner PlannerOver(
-        RecordingCatalogue catalogue,
+        RecordingCatalogue? catalogue = null,
         StubOwned? owned = null,
         string? identity = "a-studio")
-        => new(
+    {
+        var source = TestProviderCatalogues.Naming(catalogue ?? new RecordingCatalogue([]));
+        return new MissingPagePlanner(
             new MissingIdentityResolver(
-                new StubIdentities(identity),
-                TestProviderCatalogues.Naming(catalogue),
-                new StubEntityNames()),
-            TestProviderCatalogues.Naming(catalogue),
-            owned ?? new StubOwned());
+                new StubIdentities(identity), source, new StubEntityNames()),
+            source,
+            owned ?? new StubOwned(),
+            new InstanceCatalogueCache(TimeProvider.System));
+    }
+
+    private static WhisparrCatalogueScene Scene(
+        string id,
+        bool monitored = false,
+        string? date = null,
+        string? performer = null,
+        string? tag = null)
+        => new(
+            id,
+            id,
+            date,
+            null,
+            null,
+            null,
+            performer is null ? [] : [new WhisparrCataloguePerformer(performer, performer, null)],
+            tag is null ? [] : [tag],
+            monitored,
+            HasFile: false);
+
+    // Answers one list, or one refusal, and counts what it was asked.
+    private sealed class RecordingInstance : IWhisparrEntityCatalogueReading
+    {
+        private readonly WhisparrEntityCatalogue _answer;
+
+        public RecordingInstance(IReadOnlyList<WhisparrCatalogueScene> scenes)
+            => _answer = WhisparrEntityCatalogue.Listing(scenes);
+
+        public RecordingInstance(WhisparrCatalogueRefusal refusal)
+            => _answer = WhisparrEntityCatalogue.Refused(refusal);
+
+        public int Reads { get; private set; }
+
+        public string? AskedAbout { get; private set; }
+
+        public Task<WhisparrEntityCatalogue> ReadEntityCatalogueAsync(
+            Uri baseAddress,
+            string apiKey,
+            WhisparrGeneration generation,
+            WhisparrEntityKind kind,
+            string foreignId,
+            CancellationToken ct)
+        {
+            Reads++;
+            AskedAbout = foreignId;
+            return Task.FromResult(_answer);
+        }
+    }
 
     private sealed class StubIdentities(string? foreignId) : IEntityIdentityPort
     {
@@ -328,29 +481,6 @@ public sealed class MissingPagePlannerTests
         public Task<IReadOnlySet<string>> ReadOwnedAsync(
             string identityEndpoint, IReadOnlyList<string> providerSceneIds, CancellationToken ct)
             => Task.FromResult<IReadOnlySet<string>>(owned.ToHashSet(StringComparer.Ordinal));
-    }
-
-    private sealed class StubStatusReading : IWhisparrSceneStatusReading
-    {
-        public Task<WhisparrResponse> ReadEntityPresenceAsync(
-            Uri baseAddress,
-            string apiKey,
-            WhisparrEntityKind kind,
-            string foreignId,
-            CancellationToken ct)
-            => Task.FromResult(new WhisparrResponse(404, "application/json", "{}"));
-
-        public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
-            Uri baseAddress, string apiKey, string remoteId, CancellationToken ct)
-            => Task.FromResult(new WhisparrResponse(200, "application/json", "[]"));
-
-        public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
-            Uri baseAddress,
-            string apiKey,
-            IReadOnlyCollection<string> foreignIds,
-            CancellationToken ct)
-            => throw new InvalidOperationException(
-                "This surface asks about one scene at a time and never about a batch of them.");
     }
 
     private sealed class RecordingCatalogue(

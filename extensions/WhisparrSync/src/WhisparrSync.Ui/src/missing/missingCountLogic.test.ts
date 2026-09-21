@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { COUNT_IS_THE_CATALOGUE_SIZE, countLine, selectionCount } from "../common/ui/copy";
-import { catalogueSizeLabel, ceilingIsDisclosed, countLineParts } from "./missingCountLogic";
+import { countLine, selectionCount } from "../common/ui/copy";
+import { ceilingIsDisclosed, countLineParts } from "./missingCountLogic";
 
 // Provider responses recorded against the live services, transcribed rather than invented. The
 // ceiling case cannot be produced by hand: it needs a set larger than the ten thousand rows
@@ -81,24 +81,5 @@ describe("one answer about the ceiling", () => {
   it("agrees with the count line's own mark", () => {
     expect(ceilingIsDisclosed(RECORDED.thePornDbAtTheCeiling)).toBe(true);
     expect(ceilingIsDisclosed(RECORDED.thePornDbBelowTheCeiling)).toBe(false);
-  });
-});
-
-describe("what the figure counts is said once", () => {
-  it("names the provider and the entity the placeholders stand for", () => {
-    const label = catalogueSizeLabel("StashDB", "this studio");
-
-    expect(label).toBe(
-      "That total is the scenes StashDB lists for this studio, not the number you are missing.",
-    );
-    expect(COUNT_IS_THE_CATALOGUE_SIZE).toContain("{provider}");
-  });
-
-  // The sentence renders on its own, under a toolbar that states the range.
-  it("stands as a sentence with no range in front of it", () => {
-    const label = catalogueSizeLabel("StashDB", "this studio");
-
-    expect(label.startsWith("That total is")).toBe(true);
-    expect(label).not.toMatch(/\d/);
   });
 });

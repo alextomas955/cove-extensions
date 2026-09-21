@@ -191,9 +191,16 @@ const ITEM_BEHIND_CAPABILITY: Record<WhisparrCapability, SecondaryAction | null>
   registerMissingScenes: "addAllMissing",
   reflectOwnedFiles: "reflectOwned",
   searchMonitored: "searchAllMonitored",
-  // A read, so this menu offers nothing for it.
+  // Reads, so this menu offers nothing for them.
+  readEntityCardsInBatch: null,
+  readSceneCardsInBatch: null,
+  readEntityCatalogue: null,
+
   readSceneStatus: null,
   readSceneExclusions: null,
+
+  // The catalogue tab offers this add beside the reason it clears, so the menu carries none.
+  trackEntityCatalogue: null,
   // Offered on a catalogue card rather than in this menu.
   searchScene: null,
   // Offered on one scene's own surface rather than in this menu.

@@ -71,10 +71,6 @@ const cards = (page) => page.locator("article").filter({ has: page.locator("img,
 /** The range, which the toolbar states above the grid. */
 const rangeInTheBar = (page) => page.getByRole("status").filter({ hasText: /\d+.*of\s+\d/ });
 
-/** What the total counts, which the line under the bar states. */
-const countLine = (page) =>
-  page.getByRole("status").filter({ hasText: "not the number you are missing" });
-
 /** Any sentence the tab stated in place of a grid. */
 const statedReasons = (page) => page.locator("p").filter({ hasText: /\S/ });
 
@@ -156,21 +152,10 @@ test("the grid never blanks between reads, and the pager offers no page that rep
   const drawn = await cards(page).count();
   expect(drawn, "a page of this catalogue is capped at forty cards").toBeLessThanOrEqual(40);
 
-  // The grid draws this line whenever it has a view, and the cards above are that view, so an
-  // absence here is the tab shell failing to pass the grid what its sentences are filled with.
-  await expect(
-    countLine(page).first(),
-    "the grid drew cards but stated nothing about what its total counts, so the tab shell passed it no provider and entity name",
-  ).toBeVisible({ timeout: REGION_BUDGET_MS });
   await expect(
     rangeInTheBar(page).first(),
     "the bar states no range and total at all, so nothing says the figure came from the provider rather than from the cards left after ownership was subtracted",
   ).toBeVisible({ timeout: REGION_BUDGET_MS });
-  await expect(
-    countLine(page).first(),
-    "the line under the bar says what that total counts, the badge beside it having no room to",
-  ).toContainText("not the number you are missing");
-
   // A page change keeps the previous page on screen. The read is held in flight deliberately, so the
   // assertion is about what the grid does while it waits rather than about how fast it answers.
   let held = null;

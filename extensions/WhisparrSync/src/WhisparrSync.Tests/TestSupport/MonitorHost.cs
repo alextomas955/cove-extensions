@@ -226,6 +226,10 @@ internal sealed class MonitorHost : IAsyncDisposable
         host.LibraryScenes = new LibrarySceneIdentityPort(host._db, options);
         builder.Services.AddSingleton(host.LibraryScenes);
         builder.Services.AddSingleton(new SyncPreviewCache(TimeProvider.System));
+
+        // The catalogue tab's add takes it, and a route parameter the container cannot resolve is
+        // bound from the request body instead, which answers a route input guard something else.
+        builder.Services.AddSingleton(new InstanceCatalogueCache(TimeProvider.System));
         host.Options = options;
         builder.Services.AddSingleton(options);
 
@@ -251,7 +255,8 @@ internal sealed class MonitorHost : IAsyncDisposable
                 new MissingIdentityResolver(
                     host.Identities, catalogues, new EntityNamePort(host._db)),
                 catalogues,
-                new OwnedScenePort(host._db)));
+                new OwnedScenePort(host._db),
+                new InstanceCatalogueCache(TimeProvider.System)));
 
         host._app = builder.Build();
         var extension = WhisparrSyncFixture.Create();

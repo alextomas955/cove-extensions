@@ -242,9 +242,11 @@ public sealed class LibraryStatusPortTests
             async () => await new LibraryStatusPort(Resolving, NullLogger.Instance)
                 .ReadEntityCardsAsync(
                     reading.AnswerAsync,
+                    NoEntityBatch,
                     WhisparrEntityKind.Studio,
                     WhisparrGeneration.V3,
                     Instance,
+                    ApiKey,
                     [1],
                     stopping.Token));
     }
@@ -261,6 +263,7 @@ public sealed class LibraryStatusPortTests
                 .ReadSceneCardsAsync(
                     reading,
                     new Capability<IWhisparrSceneExclusionReading>(reading, null),
+                    NoSceneBatch,
                     Instance,
                     ApiKey,
                     WhisparrGeneration.V3,
@@ -334,6 +337,14 @@ public sealed class LibraryStatusPortTests
 
     private static string ApiKey => "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
+    // The generation registers no batch role, so every card is asked about on its own. What the
+    // batch path does instead has tests of its own.
+    private static Capability<IWhisparrEntityBatchReading> NoEntityBatch { get; } = new(
+        null, new CapabilityRefusal(WhisparrCapability.ReadEntityCardsInBatch, WhisparrGeneration.V2));
+
+    private static Capability<IWhisparrSceneBatchReading> NoSceneBatch { get; } = new(
+        null, new CapabilityRefusal(WhisparrCapability.ReadSceneCardsInBatch, WhisparrGeneration.V2));
+
     private static async Task<IReadOnlyList<LibraryStatusRow>> ReadAsync(
         RecordingEntityReading reading,
         IEntityIdentityPort identities,
@@ -342,9 +353,11 @@ public sealed class LibraryStatusPortTests
         => (await new LibraryStatusPort(identities, log ?? NullLogger.Instance)
             .ReadEntityCardsAsync(
                 reading.AnswerAsync,
+                NoEntityBatch,
                 WhisparrEntityKind.Studio,
                 WhisparrGeneration.V3,
                 Instance,
+                ApiKey,
                 coveIds,
                 TestCt)).Rows;
 
@@ -363,6 +376,7 @@ public sealed class LibraryStatusPortTests
         => (await new LibraryStatusPort(Nothing, log ?? NullLogger.Instance).ReadSceneCardsAsync(
             reading,
             exclusions,
+            NoSceneBatch,
             Instance,
             ApiKey,
             WhisparrGeneration.V3,

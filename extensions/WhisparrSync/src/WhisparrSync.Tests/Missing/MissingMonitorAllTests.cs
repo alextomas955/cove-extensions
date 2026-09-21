@@ -21,7 +21,26 @@ public sealed class MissingMonitorAllTests
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
-    private static Task<MonitorHost> HostOverAsync(PagedProviderCatalogue catalogue)
+    // The instance's own list is what a run walks now, so the host is given the same scenes the
+    // paged source stands for.
+    private static async Task<MonitorHost> HostOverAsync(PagedProviderCatalogue catalogue)
+    {
+        var host = await HostWithProviderAsync(catalogue);
+        host.Client.EntityCatalogues[MonitorHost.StudioRemoteIdValue] =
+        [
+            .. CatalogueSceneIds().Select(
+                id => new WhisparrCatalogueScene(
+                    id, id, null, null, null, null, [], [], Monitored: false, HasFile: false)),
+        ];
+        return host;
+    }
+
+    private static IEnumerable<string> CatalogueSceneIds()
+        => Enumerable.Range(0, Catalogue).Select(at => string.Create(
+            CultureInfo.InvariantCulture,
+            $"{(at % 3 == 0 ? "pool" : "room")}-scene-{at}"));
+
+    private static Task<MonitorHost> HostWithProviderAsync(PagedProviderCatalogue catalogue)
     {
         var config = new CoveConfiguration();
         config.Scraping.MetadataServers.Add(
@@ -37,12 +56,7 @@ public sealed class MissingMonitorAllTests
     }
 
     private static PagedProviderCatalogue PagedCatalogue()
-        => new(
-            [.. Enumerable.Range(0, Catalogue).Select(at => SceneNamed(
-                string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{(at % 3 == 0 ? "pool" : "room")}-scene-{at}")))],
-            perPage: 40);
+        => new([.. CatalogueSceneIds().Select(SceneNamed)], perPage: 40);
 
     private static ProviderScene SceneNamed(string id)
         => new(id, id, null, null, null, null, [], []);
@@ -202,9 +216,12 @@ public sealed class MissingMonitorAllTests
         host.Client.Verbs.Clear();
         await host.RunEnqueuedBatchAsync(new RecordingJobProgress());
 
+        // The catalogue read is the run's own source of scenes, and the two defaults reads compose
+        // the add. Nothing else reaches the instance, and in particular no search.
         Assert.Equal(
             [
                 nameof(IWhisparrMissingSceneActing.AddSceneAsync),
+                nameof(IWhisparrEntityCatalogueReading.ReadEntityCatalogueAsync),
                 nameof(IWhisparrClient.ReadQualityProfilesAsync),
                 nameof(IWhisparrClient.ReadRootFoldersAsync),
             ],

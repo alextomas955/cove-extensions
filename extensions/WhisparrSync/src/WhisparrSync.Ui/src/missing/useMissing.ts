@@ -5,16 +5,16 @@ import { postAction } from "@cove-extensions/ui-shared/postAction";
 
 import type {
   MissingBulkEnqueued,
-  MissingFacetSearchView,
   MissingPageView,
   MissingSceneActionResult,
+  MissingTrackOutcome,
+  MissingTrackResult,
 } from "../wire/api";
 import { api } from "../common/lib/extension";
 import type { WhisparrEntityKind } from "../wire/api";
 import { sceneActionIn, type CardVerb } from "./missingCardLogic";
 import { selectionOutcomeIn } from "./missingSelectionLogic";
 import type { MissingView } from "./missingUrlLogic";
-import type { FacetValueSearch } from "./useFacetValueLookup";
 import {
   createMissingStore,
   type MissingEntity,
@@ -22,6 +22,17 @@ import {
   type MissingStore,
   type MissingViewKey,
 } from "./missingStore";
+
+/**
+ * What the add that makes an entity's catalogue exist is doing.
+ *
+ * A refusal carries the outcome the instance named, so the surface states which refusal it was.
+ */
+type TrackState =
+  | { readonly kind: "atRest" }
+  | { readonly kind: "inFlight" }
+  | { readonly kind: "added" }
+  | { readonly kind: "refused"; readonly outcome: MissingTrackOutcome };
 
 export interface Missing {
   readonly state: MissingState;
@@ -38,8 +49,15 @@ export interface Missing {
    * scene identifiers; the server re-derives the set from the search and the facets in force.
    */
   readonly monitorAll: () => void;
-  /** Asks for the values of one facet matching a fragment, reaching past the menus the page filled. */
-  readonly searchFacetValues: FacetValueSearch;
+
+  /**
+   * Adds the entity so the instance lists its scenes, wanting none of them. Answers through
+   * <see cref="MissingReads.track" />: nothing is claimed about the add until it has answered.
+   */
+  readonly trackEntity: () => void;
+
+  /** What the add is doing, which the surface states beside the reason it clears. */
+  readonly track: TrackState;
 }
 
 // The settle guard compares views by value, so the filter map travels as one string. An object
@@ -69,14 +87,6 @@ function sceneRouteFor(entity: MissingEntity, providerSceneId: string, verb: Car
   return api(
     `entity/${entity.kind}/${String(entity.coveId)}/missing/` +
       `${encodeURIComponent(providerSceneId)}/${verb}`,
-  );
-}
-
-function facetValuesRouteFor(entity: MissingEntity, facetKey: string, fragment: string): string {
-  const query = new URLSearchParams({ q: fragment });
-  return api(
-    `entity/${entity.kind}/${String(entity.coveId)}/missing/facet/` +
-      `${encodeURIComponent(facetKey)}?${query.toString()}`,
   );
 }
 
@@ -190,6 +200,25 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
     [store, kind, coveId],
   );
 
+  const [track, setTrack] = useState<TrackState>({ kind: "atRest" });
+
+  const trackEntity = useCallback(() => {
+    setTrack({ kind: "inFlight" });
+
+    postAction<MissingTrackResult>(api(`entity/${kind}/${String(coveId)}/missing/track`))
+      .then((answered) => {
+        const outcome = answered.outcome;
+        setTrack(outcome === "added" ? { kind: "added" } : { kind: "refused", outcome });
+
+        // The instance now holds the entity, so the page is read again rather than left on the
+        // reason the add cleared.
+        if (outcome === "added") refresh();
+      })
+      .catch(() => {
+        setTrack({ kind: "refused", outcome: "notStarted" });
+      });
+  }, [kind, coveId, refresh]);
+
   const monitorAll = useCallback(() => {
     const entity: MissingEntity = { kind, coveId };
     store.beginBulk(entity);
@@ -203,14 +232,6 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
       });
   }, [store, kind, coveId, page, sort, q, filters]);
 
-  const searchFacetValues = useCallback<FacetValueSearch>(
-    (facetKey, fragment) =>
-      requestJson<MissingFacetSearchView>(
-        facetValuesRouteFor({ kind, coveId }, facetKey, fragment),
-      ),
-    [kind, coveId],
-  );
-
   return {
     state,
     refresh,
@@ -218,6 +239,7 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
     searchScene,
     monitorSelection,
     monitorAll,
-    searchFacetValues,
+    trackEntity,
+    track,
   };
 }

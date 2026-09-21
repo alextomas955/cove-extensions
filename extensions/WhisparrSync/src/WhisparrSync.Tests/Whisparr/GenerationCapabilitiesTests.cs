@@ -32,6 +32,10 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.SearchScene,
                 WhisparrCapability.MonitorScene,
                 WhisparrCapability.ExcludeScene,
+                WhisparrCapability.ReadEntityCardsInBatch,
+                WhisparrCapability.ReadSceneCardsInBatch,
+                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
@@ -53,6 +57,9 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.RegisterOwnedSites,
                 WhisparrCapability.ReadSiteSceneRows,
                 WhisparrCapability.ReadHeldSites,
+                WhisparrCapability.ReadEntityCardsInBatch,
+                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);
@@ -137,6 +144,10 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.SearchScene,
                 WhisparrCapability.MonitorScene,
                 WhisparrCapability.ExcludeScene,
+                WhisparrCapability.ReadEntityCardsInBatch,
+                WhisparrCapability.ReadSceneCardsInBatch,
+                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
@@ -150,6 +161,9 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.RegisterOwnedSites,
                 WhisparrCapability.ReadSiteSceneRows,
                 WhisparrCapability.ReadHeldSites,
+                WhisparrCapability.ReadEntityCardsInBatch,
+                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
@@ -318,7 +332,9 @@ public sealed class GenerationCapabilitiesTests
             "[\"outOfBandCallbackSecret\",\"monitorStudio\",\"monitorPerformer\","
                 + "\"registerMissingScenes\",\"reflectOwnedFiles\",\"searchMonitored\","
                 + "\"readSceneStatus\",\"readSceneExclusions\",\"searchScene\","
-                + "\"monitorScene\",\"excludeScene\",\"readInstanceFilesystem\"]",
+                + "\"monitorScene\",\"excludeScene\",\"readEntityCardsInBatch\","
+                + "\"readSceneCardsInBatch\",\"trackEntityCatalogue\",\"readEntityCatalogue\","
+                + "\"readInstanceFilesystem\"]",
             JsonSerializer.Serialize(
                 GenerationCapabilities.For(WhisparrGeneration.V3).Held, HostJsonOptions));
 

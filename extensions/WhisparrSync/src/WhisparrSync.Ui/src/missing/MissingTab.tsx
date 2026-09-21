@@ -10,6 +10,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { NO_PROVIDER_ID_FOR_ENTITY, THE_METADATA_SOURCE } from "../common/ui/copy";
+import { trackRefusal } from "./missingTrackLogic";
+import { fillNames } from "./missingStatesLogic";
 import type { WhisparrEntityKind } from "../wire/api";
 import { readEntityKind } from "./entityKindLogic";
 import { useMultiSelect } from "./hostComponents";
@@ -86,7 +88,8 @@ function MissingTabFor({
     searchScene,
     monitorSelection,
     monitorAll,
-    searchFacetValues,
+    trackEntity,
+    track,
   } = useMissing(kind, coveId, { ...view, filters });
   const entityName = `this ${kind}`;
   const page = state.view;
@@ -120,7 +123,6 @@ function MissingTabFor({
       <MissingToolbar
         onRefresh={refresh}
         onMonitorAll={monitorAll}
-        onSearchFacetValues={searchFacetValues}
         catalogue={page === null ? undefined : { kind, view: page }}
       />
       <MissingSelectionBar
@@ -142,6 +144,14 @@ function MissingTabFor({
           searchActive: view.q !== "",
           subStudioContentIsExcluded: kind === "studio" && !includeSubStudios,
           onRefresh: refresh,
+          add: {
+            onAdd: trackEntity,
+            inFlight: track.kind === "inFlight",
+            refusal:
+              track.kind === "refused"
+                ? fillNames(trackRefusal(track.outcome), THE_METADATA_SOURCE, entityName)
+                : null,
+          },
           onClearFilters: () => {
             setView({ ...view, filters: {} });
           },

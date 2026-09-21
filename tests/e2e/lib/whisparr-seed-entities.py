@@ -96,6 +96,19 @@ def write_scene(connection, args) -> int:
         "SortTitle": args.title.lower(),
         **SCENE_METADATA_REQUIRED,
     }
+
+    # Written only where the caller named one, so a seed that says nothing about a studio leaves the
+    # column as the instance's own default rather than an empty link.
+    if args.studio_foreign_id:
+        metadata["StudioForeignId"] = args.studio_foreign_id
+        metadata["StudioTitle"] = args.studio_title or args.studio_foreign_id
+    if args.performer_foreign_ids:
+        metadata["PerformerForeignIds"] = json.dumps(args.performer_foreign_ids.split(","))
+        metadata["PerformerNames"] = json.dumps(
+            (args.performer_names or args.performer_foreign_ids).split(",")
+        )
+    if args.release_date:
+        metadata["ReleaseDateUtc"] = args.release_date
     names = ", ".join(f'"{column}"' for column in metadata)
     placeholders = ", ".join("?" for _ in metadata)
     metadata_id = connection.execute(
@@ -129,6 +142,13 @@ def main() -> None:
     parser.add_argument("--quality-profile-id", required=True, type=int)
     parser.add_argument("--root-folder-path", required=True)
     parser.add_argument("--monitored", default="false", choices=["true", "false"])
+    # A scene the instance lists under a studio or a performer. The catalogue surface reads an
+    # entity's own scenes, and an instance lists a scene under an entity only through these columns.
+    parser.add_argument("--studio-foreign-id", default=None)
+    parser.add_argument("--studio-title", default=None)
+    parser.add_argument("--performer-foreign-ids", default=None, help="comma separated")
+    parser.add_argument("--performer-names", default=None, help="comma separated")
+    parser.add_argument("--release-date", default=None, help="yyyy-mm-dd")
     args = parser.parse_args()
 
     if args.kind == "scene":

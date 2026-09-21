@@ -25,12 +25,14 @@ public sealed class MissingKindCoverageTests
         var catalogue = new StubProviderCatalogue(ScenesNamed("one", "two"));
         var names = new StubEntityNames();
 
+        var instance = new StubInstanceCatalogue("one", "two");
+
         var view = await PlannerOver(catalogue, identity: "an-entity", names: names)
-            .PlanAsync(Request(kind), Context(), NullLogger.Instance, TestCt);
+            .PlanAsync(Request(kind), Context(instance), NullLogger.Instance, TestCt);
 
         Assert.Equal(MissingRefusalKind.None, view.Refusal);
         Assert.Equal(2, view.Cards.Count);
-        Assert.Equal(1, catalogue.PageReads);
+        Assert.Equal(1, instance.Reads);
 
         // The library already named it, so the name lookup is not the step that answered.
         Assert.Empty(names.Reads);
@@ -45,7 +47,7 @@ public sealed class MissingKindCoverageTests
         var names = new StubEntityNames(new EntityName("Vixen", ["Vixen Media"]));
 
         var view = await PlannerOver(catalogue, identity: null, names: names)
-            .PlanAsync(Request(kind), Context(), NullLogger.Instance, TestCt);
+            .PlanAsync(Request(kind), Context(new StubInstanceCatalogue("one")), NullLogger.Instance, TestCt);
 
         Assert.Equal(MissingRefusalKind.None, view.Refusal);
         Assert.Single(view.Cards);
@@ -86,23 +88,6 @@ public sealed class MissingKindCoverageTests
     }
 
     // The instance publishes no tag entity, so a tag has nothing to probe.
-    [Theory]
-    [InlineData(WhisparrEntityKind.Studio, 1)]
-    [InlineData(WhisparrEntityKind.Performer, 1)]
-    [InlineData(WhisparrEntityKind.Tag, 0)]
-    public async Task TheEntityProbeIsSpentOnlyWhereTheInstancePublishesAnEntity(
-        WhisparrEntityKind kind, int expectedProbes)
-    {
-        var reading = new StubSceneStatusReading();
-        var catalogue = new StubProviderCatalogue(ScenesNamed("one", "two", "three"));
-
-        await PlannerOver(catalogue, identity: "an-entity", names: new StubEntityNames())
-            .PlanAsync(Request(kind), Context(reading), NullLogger.Instance, TestCt);
-
-        Assert.Equal(expectedProbes, reading.PresenceReads);
-        Assert.Equal(3, reading.SceneReads);
-    }
-
     private static MissingPageRequest Request(WhisparrEntityKind kind)
         => new(
             kind,
@@ -114,14 +99,15 @@ public sealed class MissingKindCoverageTests
             Filters: new Dictionary<string, string>(),
             MenusAlreadyHeld: true);
 
-    private static MissingPageContext Context(StubSceneStatusReading? reading = null)
+    private static MissingPageContext Context(StubInstanceCatalogue? instance = null)
         => new(
             SomeInstance,
             SomeKey,
             WhisparrGeneration.V3,
             new ResolvedProvider(StashDb, "a-key", 240),
-            reading ?? new StubSceneStatusReading(presence: 404),
-            ExclusionReading: null);
+            StatusReading: null,
+            ExclusionReading: null,
+            instance ?? new StubInstanceCatalogue());
 
     private static MissingPagePlanner PlannerOver(
         StubProviderCatalogue catalogue, string? identity, StubEntityNames names)
@@ -131,7 +117,8 @@ public sealed class MissingKindCoverageTests
                 TestProviderCatalogues.Naming(catalogue),
                 names),
             TestProviderCatalogues.Naming(catalogue),
-            new StubOwnedScenes());
+            new StubOwnedScenes(),
+            new InstanceCatalogueCache(TimeProvider.System));
 
     private static List<ProviderScene> ScenesNamed(params string[] ids)
         => [.. ids.Select(id => new ProviderScene(id, id, null, null, null, null, [], []))];

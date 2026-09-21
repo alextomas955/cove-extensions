@@ -145,6 +145,16 @@ public static class GenerationCapabilities
             WhisparrCapability.ReadSiteSceneRows, static (_, roles) => roles?.SiteSceneReading),
         RoleEntry.Of<IWhisparrHeldSiteReading>(
             WhisparrCapability.ReadHeldSites, static (_, roles) => roles?.HeldSiteReading),
+        RoleEntry.Of<IWhisparrEntityBatchReading>(
+            WhisparrCapability.ReadEntityCardsInBatch, static (_, roles) => roles?.EntityBatchReading),
+        RoleEntry.Of<IWhisparrSceneBatchReading>(
+            WhisparrCapability.ReadSceneCardsInBatch, static (_, roles) => roles?.SceneBatchReading),
+        RoleEntry.Of<IWhisparrEntityTrackingActing>(
+            WhisparrCapability.TrackEntityCatalogue,
+            static (_, roles) => roles?.EntityTrackingActing),
+        RoleEntry.Of<IWhisparrEntityCatalogueReading>(
+            WhisparrCapability.ReadEntityCatalogue,
+            static (_, roles) => roles?.EntityCatalogueReading),
         RoleEntry.Of<IWhisparrInstanceFilesystemReading>(
             WhisparrCapability.ReadInstanceFilesystem,
             static (_, roles) => roles?.InstanceFilesystemReading),
@@ -172,6 +182,10 @@ public static class GenerationCapabilities
         WhisparrCapability.SearchScene,
         WhisparrCapability.MonitorScene,
         WhisparrCapability.ExcludeScene,
+        WhisparrCapability.ReadEntityCardsInBatch,
+        WhisparrCapability.ReadSceneCardsInBatch,
+        WhisparrCapability.TrackEntityCatalogue,
+        WhisparrCapability.ReadEntityCatalogue,
         WhisparrCapability.ReadInstanceFilesystem,
     ];
 
@@ -199,6 +213,9 @@ public static class GenerationCapabilities
         WhisparrCapability.RegisterOwnedSites,
         WhisparrCapability.ReadSiteSceneRows,
         WhisparrCapability.ReadHeldSites,
+        WhisparrCapability.ReadEntityCardsInBatch,
+        WhisparrCapability.TrackEntityCatalogue,
+        WhisparrCapability.ReadEntityCatalogue,
         WhisparrCapability.ReadInstanceFilesystem,
     ];
 
@@ -289,6 +306,10 @@ internal sealed record WhisparrRoleSet(
     IWhisparrSiteRegistrationActing SiteRegistrationActing,
     IWhisparrSiteSceneReading SiteSceneReading,
     IWhisparrHeldSiteReading HeldSiteReading,
+    IWhisparrEntityBatchReading EntityBatchReading,
+    IWhisparrSceneBatchReading SceneBatchReading,
+    IWhisparrEntityCatalogueReading EntityCatalogueReading,
+    IWhisparrEntityTrackingActing EntityTrackingActing,
     IWhisparrInstanceFilesystemReading InstanceFilesystemReading)
 {
     // The acting roles are implemented on the one type holding the HTTP client, so a client
@@ -309,6 +330,10 @@ internal sealed record WhisparrRoleSet(
             and IWhisparrSiteRegistrationActing siteRegistrationActing
             and IWhisparrSiteSceneReading siteSceneReading
             and IWhisparrHeldSiteReading heldSiteReading
+            and IWhisparrEntityBatchReading entityBatchReading
+            and IWhisparrSceneBatchReading sceneBatchReading
+            and IWhisparrEntityCatalogueReading entityCatalogueReading
+            and IWhisparrEntityTrackingActing entityTrackingActing
             and IWhisparrInstanceFilesystemReading instanceFilesystemReading
             ? new WhisparrRoleSet(
                 studioActing,
@@ -324,6 +349,10 @@ internal sealed record WhisparrRoleSet(
                 siteRegistrationActing,
                 siteSceneReading,
                 heldSiteReading,
+                entityBatchReading,
+                sceneBatchReading,
+                entityCatalogueReading,
+                entityTrackingActing,
                 instanceFilesystemReading)
             : throw new InvalidOperationException(
                 $"{client.GetType()} holds this product's HTTP client but implements only part of "

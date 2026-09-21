@@ -4,7 +4,12 @@
  * The reason is rendered once rather than on every card, so `RefusalNotice` takes a count of the
  * controls it covers instead of being mounted per card.
  */
-import { ACTION_REFRESH } from "../common/ui/copy";
+import {
+  ACTION_REFRESH,
+  ADDING_TO_WHISPARR,
+  ADD_TO_WHISPARR,
+  ADD_TO_WHISPARR_TRACKS_ONLY,
+} from "../common/ui/copy";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { describeGridState, type MissingGridStateKind } from "./missingStatesLogic";
 
@@ -12,6 +17,12 @@ export interface MissingGridStateActions {
   readonly onRefresh: (() => void) | null;
   readonly onClearFilters: (() => void) | null;
   readonly onClearSearch: (() => void) | null;
+  /** Adds the entity so Whisparr lists its scenes. Null where the caller offers no add. */
+  readonly onAdd: (() => void) | null;
+  /** The add is in flight, so the control says so and is not pressed twice. */
+  readonly addInFlight: boolean;
+  /** What the add answered, or null while it has answered nothing. */
+  readonly addRefusal: string | null;
 }
 
 const CLEAR_FILTERS = "Clear filters";
@@ -42,6 +53,14 @@ export function MissingGridStates({
   return (
     <div className="mt-8 flex flex-col items-center justify-center gap-3 p-8 text-center">
       <p className="text-sm text-muted">{sentence}</p>
+      {state.addIsOffered ? (
+        <p className="max-w-prose text-xs text-muted">{ADD_TO_WHISPARR_TRACKS_ONLY}</p>
+      ) : null}
+      {actions.addRefusal === null ? null : (
+        <p role="status" aria-live="polite" className="text-xs text-red-400">
+          {actions.addRefusal}
+        </p>
+      )}
       <div className="flex items-center gap-2">
         {state.clearFiltersIsOffered && actions.onClearFilters !== null ? (
           <button type="button" onClick={actions.onClearFilters} className={CONTROL_CLASS}>
@@ -51,6 +70,16 @@ export function MissingGridStates({
         {state.clearSearchIsOffered && actions.onClearSearch !== null ? (
           <button type="button" onClick={actions.onClearSearch} className={CONTROL_CLASS}>
             {CLEAR_SEARCH}
+          </button>
+        ) : null}
+        {state.addIsOffered && actions.onAdd !== null ? (
+          <button
+            type="button"
+            onClick={actions.onAdd}
+            disabled={actions.addInFlight}
+            className={`${CONTROL_CLASS} disabled:opacity-60`}
+          >
+            {actions.addInFlight ? ADDING_TO_WHISPARR : ADD_TO_WHISPARR}
           </button>
         ) : null}
         {state.refreshIsOffered && actions.onRefresh !== null ? (

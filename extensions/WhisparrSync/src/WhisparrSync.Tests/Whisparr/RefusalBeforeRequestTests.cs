@@ -83,6 +83,10 @@ public sealed class RefusalBeforeRequestTests
                 WhisparrCapability.RegisterOwnedSites,
                 WhisparrCapability.ReadSiteSceneRows,
                 WhisparrCapability.ReadHeldSites,
+                WhisparrCapability.ReadEntityCardsInBatch,
+                WhisparrCapability.ReadSceneCardsInBatch,
+                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
             Enum.GetValues<WhisparrCapability>());
@@ -99,6 +103,10 @@ public sealed class RefusalBeforeRequestTests
                 WhisparrCapability.SearchScene,
                 WhisparrCapability.MonitorScene,
                 WhisparrCapability.ExcludeScene,
+                WhisparrCapability.ReadEntityCardsInBatch,
+                WhisparrCapability.ReadSceneCardsInBatch,
+                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
@@ -112,6 +120,9 @@ public sealed class RefusalBeforeRequestTests
                 WhisparrCapability.RegisterOwnedSites,
                 WhisparrCapability.ReadSiteSceneRows,
                 WhisparrCapability.ReadHeldSites,
+                WhisparrCapability.ReadEntityCardsInBatch,
+                WhisparrCapability.TrackEntityCatalogue,
+                WhisparrCapability.ReadEntityCatalogue,
                 WhisparrCapability.ReadInstanceFilesystem,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);

@@ -3,12 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { createElement } from "react";
 import { render, press } from "../common/lib/testRender";
 
-import type {
-  MissingFacetMenu,
-  MissingFacetSearchView,
-  MissingPageView,
-  MissingSortOption,
-} from "../wire/api";
+import type { MissingFacetMenu, MissingPageView, MissingSortOption } from "../wire/api";
 
 vi.mock("./hostComponents", () => ({
   ConfirmDialog: ({
@@ -34,12 +29,6 @@ vi.mock("./hostComponents", () => ({
 const { MissingToolbar } = await import("./MissingToolbar");
 
 const SORTS: MissingSortOption[] = [{ value: "DATE-DESC", label: "Newest first" }];
-
-const NOT_SEARCHABLE: MissingFacetSearchView = {
-  values: [],
-  reportedValueCount: 0,
-  outcome: "notSearchable",
-};
 
 const PERFORMER: MissingFacetMenu = {
   key: "performer",
@@ -98,7 +87,6 @@ async function mountToolbar(
     createElement(MissingToolbar, {
       onRefresh: () => undefined,
       onMonitorAll,
-      onSearchFacetValues: () => Promise.resolve(NOT_SEARCHABLE),
       catalogue: {
         kind: over.kind ?? "studio",
         view: {
@@ -111,23 +99,26 @@ async function mountToolbar(
   );
 }
 
-async function openMenu(container: Element, label: string) {
-  const trigger = [...container.querySelectorAll('[aria-haspopup="menu"]')].find((candidate) =>
-    candidate.textContent.includes(label),
+function dropdownNamed(container: Element, label: string) {
+  return [...container.querySelectorAll("select")].find(
+    (candidate) => candidate.getAttribute("aria-label") === label,
   );
-  if (trigger === undefined) throw new Error(`the toolbar drew no trigger named ${label}`);
-
-  await press(trigger);
-  expect(document.body.querySelector('[role="menu"]')).not.toBeNull();
-  return document.body.querySelector('[role="menu"]');
 }
 
-test("a menu draws the values the source handed it", async () => {
+/** The option a dropdown is settled on, which is what a reader sees on the closed control. */
+function valueShown(dropdown: HTMLSelectElement | undefined): string | undefined {
+  return dropdown?.options[dropdown.selectedIndex]?.textContent ?? undefined;
+}
+
+test("a dropdown offers the values the source handed it", async () => {
   const container = await mountToolbar([YEAR]);
 
-  const panel = await openMenu(container, "Year");
+  const options = [...(dropdownNamed(container, "Year")?.options ?? [])].map(
+    (option) => option.textContent,
+  );
 
-  expect(panel?.textContent).toContain("2024");
+  expect(options).toContain("2024");
+  expect(options).toContain("2023");
 });
 
 function control(container: Element, label: string) {
@@ -199,32 +190,26 @@ test("an empty catalogue is given no range", async () => {
   expect(container.textContent).not.toContain(" of ");
 });
 
-function menuNamed(container: Element, label: string) {
-  return [...container.querySelectorAll('[aria-haspopup="menu"]')].find((candidate) =>
-    candidate.textContent.startsWith(label),
-  );
-}
-
-test("a facet control names what the menu covers while nothing is picked in it", async () => {
+test("a facet control names what the facet covers while nothing is picked in it", async () => {
   const container = await mountToolbar([YEAR]);
 
-  expect(menuNamed(container, "Year")?.textContent).toBe("YearAll year");
+  expect(valueShown(dropdownNamed(container, "Year"))).toBe("All year");
 });
 
 test("a facet control names the value in force once one is picked", async () => {
   window.history.replaceState(null, "", "/?wsmFilters=year%3A2024");
   const container = await mountToolbar([YEAR]);
 
-  expect(menuNamed(container, "Year")?.textContent).toBe("Year2024");
+  expect(valueShown(dropdownNamed(container, "Year"))).toBe("2024");
   window.history.replaceState(null, "", "/");
 });
 
-test("the ordering control names the ordering in force rather than what it opens", async () => {
+test("the ordering control names the ordering in force", async () => {
   const container = await mountToolbar([YEAR], {
     view: { sortInForce: "DATE-DESC" },
   });
 
-  expect(menuNamed(container, "Sort")?.textContent).toBe("SortNewest first");
+  expect(valueShown(dropdownNamed(container, "Sort"))).toBe("Newest first");
 });
 
 // jsdom applies no host stylesheet, so what a control draws is only readable from its classes.
@@ -235,9 +220,9 @@ function fillUtilities(drawn: Element): string[] {
   );
 }
 
-// Refresh and Monitor all read no value, so they take no fill of their own. A menu control is a
+// Refresh and Monitor all read no value, so they take no fill of their own. A dropdown is a
 // field, and Cove fills one.
-test("the actions draw no fill of their own, and the menu controls do", async () => {
+test("the actions draw no fill of their own, and the dropdowns do", async () => {
   const container = await mountToolbar([YEAR], { catalogueSize: 665 });
 
   for (const label of ["Refresh", "Monitor all"]) {
@@ -246,15 +231,15 @@ test("the actions draw no fill of their own, and the menu controls do", async ()
     expect(fillUtilities(action), `${label} draws a fill`).toEqual([]);
   }
 
-  const menu = menuNamed(container, "Year");
-  if (menu === undefined) throw new Error("the toolbar drew no facet control");
-  expect(fillUtilities(menu).length, "the facet control draws no fill").toBeGreaterThan(0);
+  const dropdown = dropdownNamed(container, "Year");
+  if (dropdown === undefined) throw new Error("the toolbar drew no facet control");
+  expect(fillUtilities(dropdown).length, "the facet control draws no fill").toBeGreaterThan(0);
 });
 
 test("no year control is offered when the source provides no year facet", async () => {
   const container = await mountToolbar([PERFORMER]);
-  expect(menuNamed(container, "Performer")).toBeDefined();
-  expect(menuNamed(container, "Year")).toBeUndefined();
+  expect(dropdownNamed(container, "Performer")).toBeDefined();
+  expect(dropdownNamed(container, "Year")).toBeUndefined();
 });
 
 test("a performer page offers an enabled whole-catalogue control", async () => {
