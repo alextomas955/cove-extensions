@@ -140,8 +140,9 @@ internal sealed class ThePornDbCatalogue
         var meta = Meta(answered.Value);
         var size = Number(meta, "total") ?? 0;
 
-        // The last page is the provider's own. Derived from the size it would offer pages past the
-        // ceiling that silently re-serve the last one.
+        // The last page is read from the provider, never derived from the size: past the ceiling
+        // the provider silently re-serves its last page, so a derived number would offer pages that
+        // answer rows already shown.
         return ProviderCatalogueAnswer.Answered(
             new ProviderCataloguePage(
                 scenes,
