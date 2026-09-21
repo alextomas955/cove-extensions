@@ -1,7 +1,6 @@
 using System.Net;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
-using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;

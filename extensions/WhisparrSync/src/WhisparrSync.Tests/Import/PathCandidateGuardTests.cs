@@ -1,3 +1,4 @@
+using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 
 namespace WhisparrSync.Tests.Import;

@@ -1,9 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
-using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
-using WhisparrSync.Import;
 
 namespace WhisparrSync.Options;
 
