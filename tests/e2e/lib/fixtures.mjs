@@ -18,15 +18,21 @@ export { createApiClient };
  * `baseUrl` is overridden so the `page` fixture opens and diagnoses this instance. Left on the worker
  * default, `page` would boot the worker's own instance just to navigate to it, and a failure would be
  * reported against a host the test never drove.
+ *
+ * `env` reaches the compose invocation, so it can set any variable docker-compose.yml substitutes,
+ * including one an extension reads for itself. An extension passes its own through a wrapper of its
+ * own, so the value is decided once rather than at each fixture that names it.
  */
-export function isolatedHarnessFixtures(extension) {
+export function isolatedHarnessFixtures(extension, env) {
   return {
     isolatedHarness: [
       async ({}, use, testInfo) => {
         // The container pair exists from startHarness() onward, so every later step belongs inside the
-        // try: a bootstrap or install failure would unwind past stop() and strand a Cove instance and
-        // a Postgres instance until Ryuk reaps them.
-        const isolatedHarness = await startHarness();
+        // try: a bootstrap or install failure would unwind past stop() and strand a Cove instance, a
+        // Postgres instance and their compose network until Ryuk reaps them. Enough of those in one run
+        // exhausts Docker's address pool, and the tests that then fail name neither this fixture nor
+        // the one that actually broke.
+        const isolatedHarness = await startHarness({ env });
         try {
           isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
           await isolatedHarness.installExtension(extension);
@@ -42,6 +48,9 @@ export function isolatedHarnessFixtures(extension) {
     ],
     baseUrl: async ({ isolatedHarness }, use) => {
       await use(isolatedHarness.baseUrl);
+    },
+  };
+}
     },
   };
 }

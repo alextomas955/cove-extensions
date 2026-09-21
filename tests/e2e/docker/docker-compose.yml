@@ -82,6 +82,10 @@ services:
       # `startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } })`. The flip is instance-global, so it
       # belongs to an isolated harness and never to a worker-shared one.
       COVE__Auth__Enabled: "${COVE_E2E_AUTH_ENABLED:-false}"
+      # Read by the Whisparr Sync extension, not by Cove, which is why it carries no COVE__ prefix.
+      # Empty unless that extension's fixtures set it, and the extension honours it downward only, so
+      # an empty or absent value leaves its shipped default standing.
+      WHISPARRSYNC_BACKSTOP_FLOOR_SECONDS: "${WHISPARRSYNC_BACKSTOP_FLOOR_SECONDS:-}"
     volumes:
       # Mounted unconditionally, and empty in almost every spec. See the top-level `volumes` block.
       - shared:/shared

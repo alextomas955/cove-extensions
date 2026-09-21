@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
@@ -471,8 +472,33 @@ public sealed record WhisparrSyncOptions
     /// <remarks>
     /// A pass cannot run more often than the worker wakes, and the worker builds its wake period from
     /// this.
+    /// <para>
+    /// Thirty seconds, unless <c>WHISPARRSYNC_BACKSTOP_FLOOR_SECONDS</c> names fewer. That variable is
+    /// for the containerized end-to-end suite, which drives the whole backstop path in a real
+    /// container against a real clock and otherwise spends a wake period waiting on each pass. It is
+    /// read once, and only downward: a larger value, an unparsable one, or none at all leaves the
+    /// thirty standing, so nothing an operator sets can make a deployment sweep less often than it
+    /// does today.
+    /// </para>
     /// </remarks>
-    public const int BackstopIntervalFloorSeconds = 30;
+    public static int BackstopIntervalFloorSeconds { get; } =
+        ShortenedFloorSeconds(Environment.GetEnvironmentVariable(BackstopFloorVariable));
+
+    internal const string BackstopFloorVariable = "WHISPARRSYNC_BACKSTOP_FLOOR_SECONDS";
+
+    internal const int StandardBackstopIntervalFloorSeconds = 30;
+
+    /// <summary>The floor <paramref name="named"/> asks for, where it asks for a shorter one.</summary>
+    /// <remarks>
+    /// Takes the value rather than reading the variable, because the floor is read once into a static
+    /// and a test that set the variable would be testing whichever test ran first.
+    /// </remarks>
+    internal static int ShortenedFloorSeconds(string? named)
+        => int.TryParse(named, NumberStyles.None, CultureInfo.InvariantCulture, out var seconds)
+            && seconds >= 1
+            && seconds < StandardBackstopIntervalFloorSeconds
+                ? seconds
+                : StandardBackstopIntervalFloorSeconds;
 
     /// <summary>The generation the settings page is acting on.</summary>
     public WhisparrGeneration SelectedGeneration { get; init; } = WhisparrGeneration.V3;

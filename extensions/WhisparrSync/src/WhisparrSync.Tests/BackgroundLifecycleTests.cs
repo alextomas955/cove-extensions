@@ -16,9 +16,9 @@ public sealed class BackgroundLifecycleTests
     private static readonly TimeSpan WorkerPeriod =
         TimeSpan.FromSeconds(WhisparrSyncOptions.BackstopIntervalFloorSeconds);
 
-    private const int EveryWake = WhisparrSyncOptions.BackstopIntervalFloorSeconds;
+    private static readonly int EveryWake = WhisparrSyncOptions.BackstopIntervalFloorSeconds;
 
-    private const int EveryThirdWake = 3 * WhisparrSyncOptions.BackstopIntervalFloorSeconds;
+    private static readonly int EveryThirdWake = 3 * WhisparrSyncOptions.BackstopIntervalFloorSeconds;
 
     private static readonly TimeSpan DefaultInterval =
         TimeSpan.FromSeconds(WhisparrSyncOptions.DefaultBackstopIntervalSeconds);

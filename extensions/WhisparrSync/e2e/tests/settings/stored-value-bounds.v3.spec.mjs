@@ -9,22 +9,18 @@
 // setting and would have to be rewritten by whoever added it, which is how a check stops checking.
 // The ceiling is a number transcribed by hand, and a bound that only held for a small run would be
 // no bound at all - so the same enumeration is repeated after twenty further imports.
-import {
-  test as base,
-  expect,
-  createApiClient,
-  isolatedHarnessFixture,
-} from "@cove-extensions/e2e";
+import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
 import { addCoveLibraryRoot, placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { randomUUID } from "node:crypto";
-import { WHISPARR_SYNC_EXTENSION } from "../../lib/whisparr-sync-fixtures.mjs";
+import { isolatedCoveFixture } from "../../lib/whisparr-sync-fixtures.mjs";
 import {
   CALLBACK_ROUTE,
   COVE_ROOT,
   DATA_ROUTE,
   OPTIONS_KEY,
+  BACKSTOP_INTERVAL_FLOOR_SECONDS,
   SECRET_HEADER,
   SETTINGS_ROUTE,
   USER_AGENT,
@@ -41,9 +37,6 @@ const STORED_BYTES_CEILING = 8192;
 const GROWTH_SLACK_BYTES = 512;
 
 const FURTHER_IMPORTS = 20;
-
-// Transcribed by hand from the extension's own floor. A stored value below it is read as it.
-const FLOOR_SECONDS = 30;
 
 // The history route's own spelling of the event this product acts on, transcribed from the
 // extension's constant.
@@ -62,7 +55,7 @@ const PASS_BUDGET_MS = 240_000;
 const IMPORT_BUDGET_MS = 180_000;
 
 const test = base.extend({
-  isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
+  isolatedHarness: isolatedCoveFixture(),
 });
 
 /** Points the extension at the fixture instance and stores its key. */
@@ -202,7 +195,10 @@ test("what the extension persists is one bounded key, after a run that exercised
     // The interval has no control in the page, so it is written through Cove's own extension-data
     // route. Driving it to the floor is what makes the whole backstop path reachable in a container
     // that cannot fake a clock.
-    await writeOptions(api, { ...initial, BackstopIntervalSeconds: FLOOR_SECONDS });
+    await writeOptions(api, {
+      ...initial,
+      BackstopIntervalSeconds: BACKSTOP_INTERVAL_FLOOR_SECONDS,
+    });
     await restartWorker(api);
 
     const firstPass = await pollUntil(
