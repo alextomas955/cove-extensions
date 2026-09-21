@@ -39,13 +39,22 @@ EMPTY_JSON_OBJECT = "{}"
 EMPTY_JSON_ARRAY = "[]"
 
 
+# Where each generation keeps its catalogue, as the image lays it out. Chosen here rather than
+# passed in, so the caller holds no second copy of a path that belongs to this image.
+V3_DATABASE = "/config/whisparr3.db"
+V2_DATABASE = "/config/whisparr2.db"
+
+
+def database_for(generation):
+    return V2_DATABASE if generation == "v2" else V3_DATABASE
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--generation", required=True, choices=("v3", "v2"))
     parser.add_argument("--count", required=True, type=int)
     # Taken as an argument rather than derived from the generation: the one database this process may
     # open is named by its caller, so no default can ever point it at something it does not own.
-    parser.add_argument("--db", required=True)
     # A JSON array, one entry per row from the newest down. An entry is the object written into
     # that row's Data column; a null entry, or a row past the end of the array, gets an empty
     # object. Every value inside an entry must be a string: the reader binds the column to a
@@ -67,7 +76,7 @@ def main():
             f"--count must be at least {len(event_types)} so the written rows span every event type"
         )
 
-    connection = sqlite3.connect(args.db, timeout=30)
+    connection = sqlite3.connect(database_for(args.generation), timeout=30)
     try:
         # The app is running and holds the database in WAL mode, so a writer can meet a busy lock
         # that resolves on its own.
@@ -78,7 +87,7 @@ def main():
     finally:
         connection.close()
 
-    print(json.dumps({"generation": args.generation, "database": args.db, "rows": rows}))
+    print(json.dumps({"generation": args.generation, "database": database_for(args.generation), "rows": rows}))
 
 
 def seed_v3(connection, count, per_row=None, event_types=EVENT_TYPES):
