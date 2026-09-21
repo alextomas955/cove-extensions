@@ -18,6 +18,7 @@
 // nothing. That bounds what an absence of downloads would mean, which is why the roster and not the
 // filesystem is the observation.
 import { attemptUntil } from "../../lib/poll.mjs";
+import { byText } from "../lib/ordering.mjs";
 
 const QUEUE_PATH = "/api/v3/queue";
 const COMMAND_PATH = "/api/v3/command";
@@ -71,7 +72,7 @@ const V2_CANDIDATE_SPELLINGS = [
 
 const VERDICTS = "suppressed | search-started | unmeasured";
 
-const joinNames = (names) => [...new Set(names)].sort().join(" ");
+const joinNames = (names) => [...new Set(names)].sort(byText).join(" ");
 
 /**
  * What the instance could acquire with, which is what bounds every verdict below.
@@ -494,7 +495,7 @@ async function probeV2(ctx) {
     acquisition,
     evidence:
       "This generation publishes no contract, so the property names below are the ones the server echoed back after an add, and a spelling is called confirmed only where sending it changed what the instance did.",
-    addOptionsPropertiesEchoed: [...echoedProperties].sort().join(" "),
+    addOptionsPropertiesEchoed: [...echoedProperties].sort(byText).join(" "),
     optionsOmitted,
     spellings,
   };

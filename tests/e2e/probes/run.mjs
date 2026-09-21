@@ -14,6 +14,7 @@ import process from "node:process";
 
 import { aggregateRequirements, startProbeContext } from "./lib/context.mjs";
 import { buildRecord, redactRecord, writeRecord } from "./lib/record.mjs";
+import { byText } from "./lib/ordering.mjs";
 
 const ROWS_DIR = join(import.meta.dirname, "rows");
 
@@ -94,7 +95,7 @@ export function skipReasonFor(row, { live }) {
 async function discoverRows() {
   const files = readdirSync(ROWS_DIR)
     .filter((name) => name.endsWith(".mjs") && !name.endsWith(".unit.test.mjs"))
-    .sort();
+    .sort(byText);
   const rows = [];
   for (const name of files) {
     const module = await import(pathToFileURL(join(ROWS_DIR, name)).href);

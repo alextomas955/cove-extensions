@@ -57,8 +57,8 @@ export const row = {
     );
     for (const line of lines(probed.output)) {
       const [name, dir] = line.split(" ");
+      if (!Object.hasOwn(assemblies, name)) continue;
       const entry = assemblies[name];
-      if (entry === undefined) continue;
       entry.present = true;
       entry.in.push(dir.replace(`${SHARED_ROOT}/`, "").replace(/\/$/, ""));
     }

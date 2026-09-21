@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { attemptUntil } from "../../lib/poll.mjs";
 import { APP_USER } from "../../lib/whisparr-images.mjs";
 import { writeCompanion } from "../lib/record.mjs";
+import { byText } from "../lib/ordering.mjs";
 
 const SCHEMA_PATH = "/api/v3/notification/schema";
 const NOTIFICATION_PATH = "/api/v3/notification";
@@ -110,7 +111,7 @@ function shapeOf(value) {
  * later edit from widening that.
  */
 export function headerNames(headers) {
-  const names = Object.keys(headers ?? {}).sort();
+  const names = Object.keys(headers ?? {}).sort(byText);
   const offending = names.filter((name) => !HEADER_NAME.test(name));
   if (offending.length > 0) {
     throw new Error(
