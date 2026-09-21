@@ -17,6 +17,7 @@
 // generations answer some unmatched paths with their own single-page frontend and a 200, so a
 // status-only reading reports absent routes as present.
 import { attemptUntil } from "../../lib/poll.mjs";
+import { byText } from "../lib/ordering.mjs";
 
 const OPENAPI_PATH = "/docs/v3/openapi.json";
 const COMMAND_PATH = "/api/v3/command";
@@ -81,7 +82,9 @@ function describeListing(response) {
     isArray: listing !== null,
     length: listing?.length ?? null,
     firstElementKeys:
-      listing?.[0] === undefined ? null : Object.keys(listing[0]).sort().join(" ") || "<no keys>",
+      listing?.[0] === undefined
+        ? null
+        : Object.keys(listing[0]).sort(byText).join(" ") || "<no keys>",
     bodyPolicy: "length and the first element's key names only; no element of the body is recorded",
   };
 }
@@ -115,7 +118,7 @@ async function declaredWorksRoutes(api) {
   const declared = {};
   for (const [path, operations] of Object.entries(paths)) {
     if (!path.endsWith("/works")) continue;
-    declared[path] = Object.keys(operations).sort().join(" ");
+    declared[path] = Object.keys(operations).sort(byText).join(" ");
   }
   return { source: OPENAPI_PATH, ...describeResponse(response), declared };
 }
@@ -237,7 +240,7 @@ async function commandRefresh(api, body) {
     request: { name: body.name, idsSent: true },
     accepted: describeResponse(posted),
     // What the model kept of the request, which is how a property name it does not carry shows.
-    echoedKeys: posted.json === undefined ? null : Object.keys(posted.json).sort().join(" "),
+    echoedKeys: posted.json === undefined ? null : Object.keys(posted.json).sort(byText).join(" "),
     reachedTheRoster: settled,
     newCommands: (value ?? []).map((command) => `${command.name}/${command.status}`).join(" "),
     settledBecause: settled ? "every command this refresh started reached a terminal status" : null,
@@ -320,7 +323,7 @@ async function probeKind({ api, kind, term, declared, qualityProfileId, rootFold
   const loopSafety = {
     queueTotalRecords: await queueTotal(api),
     commandRosterNames: [...new Set((await commandRoster(api)).map((command) => command.name))]
-      .sort()
+      .sort(byText)
       .join(" "),
     note: "The instance's whole command roster once this add has settled, and its queue. The baseline a later phase inherits: what an unmonitored add with the search flag off leaves behind.",
   };

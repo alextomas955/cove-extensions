@@ -18,6 +18,7 @@ import { createApiClient } from "../../lib/apiClient.mjs";
 import { installConfigFingerprint, liftLibraryPathCount } from "../../lib/cove-providers.mjs";
 import { attemptUntil } from "../../lib/poll.mjs";
 import { libraryRootsContaining, registerRootFolder } from "../../lib/whisparr-fixture.mjs";
+import { byText } from "../lib/ordering.mjs";
 
 const COVE_CONFIG_PATH = "/api/system/config";
 const ROOT_FOLDER_PATH = "/api/v3/rootfolder";
@@ -91,7 +92,7 @@ async function whisparrSide(ctx, generation, roots) {
       // The generations carry different extra fields, and which ones they are is part of the answer.
       extraFields: Object.keys(entry ?? {})
         .filter((key) => !["path", "id", "accessible"].includes(key))
-        .sort()
+        .sort(byText)
         .join(" "),
     };
   });

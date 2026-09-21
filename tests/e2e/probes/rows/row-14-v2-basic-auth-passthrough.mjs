@@ -25,6 +25,7 @@
 // no header VALUE is: a record outlives the run that produced it.
 import { resolveCoveImage, startHarness } from "../../lib/harness.mjs";
 import { resolveExtensionPaths } from "../../lib/resolve-extension.mjs";
+import { byText } from "../lib/ordering.mjs";
 
 const SCHEMA_PATH = "/api/v3/notification/schema";
 const NOTIFICATION_PATH = "/api/v3/notification";
@@ -143,7 +144,7 @@ async function measureV2Delivery(api, listener) {
     fieldsSet: ["url", "method", "username", "password"],
     syntheticUser: SYNTHETIC_USER,
     passwordRecorded: false,
-    deliveredHeaderNames: [...new Set(headerNames)].sort().join(" "),
+    deliveredHeaderNames: [...new Set(headerNames)].sort(byText).join(" "),
     // The whole answer, read off the inbound request rather than off the save's echo.
     sendsAuthorizationHeader: headerNames.includes("authorization"),
     capturedAt: capture.ts,
@@ -175,7 +176,7 @@ async function callCove(baseUrl, path, { authorization } = {}) {
     byteLength: text.length,
     headerNames: [...response.headers.keys()]
       .map((name) => name.toLowerCase())
-      .sort()
+      .sort(byText)
       .join(" "),
     // The one header value taken, because it is the pipeline naming itself rather than anything
     // belonging to the caller.
