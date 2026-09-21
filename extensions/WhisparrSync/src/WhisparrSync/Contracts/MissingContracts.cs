@@ -24,6 +24,40 @@ public enum MissingSceneState
     StatusUnknown,
 }
 
+/// <summary>What adding an entity for its catalogue turned out to be.</summary>
+/// <remarks>
+/// The backend answers with a kind, and the sentence a reader sees is a frontend constant.
+/// </remarks>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
+public enum MissingTrackOutcome
+{
+    /// <summary>The instance now holds the entity and is tracking its catalogue.</summary>
+    Added,
+
+    /// <summary>No instance is configured, so nothing was sent.</summary>
+    NoInstanceConnected,
+
+    /// <summary>The connected generation addresses no entity of this kind.</summary>
+    GenerationCannotTrackThisKind,
+
+    /// <summary>The library names no identifier the instance could be told about.</summary>
+    NoIdentifier,
+
+    /// <summary>
+    /// The instance declares no quality profile or no library root, so no add could be composed.
+    /// </summary>
+    NoAddDefaults,
+
+    /// <summary>The add was sent and the instance refused it.</summary>
+    Refused,
+
+    /// <summary>Nothing whole arrived, so whether the add took is unknown.</summary>
+    NotStarted,
+}
+
+/// <summary>What the add answered.</summary>
+public sealed record MissingTrackResult(MissingTrackOutcome Outcome);
+
 /// <summary>Why the whole catalogue surface cannot answer, or that it can.</summary>
 /// <remarks>
 /// Stated once above the grid. Why one card's verb did not take is a separate vocabulary,
@@ -54,6 +88,19 @@ public enum MissingRefusalKind
 
     /// <summary>The provider was asked and no whole answer arrived.</summary>
     ProviderUnreachable,
+
+    /// <summary>
+    /// The connected instance holds no entry for this entity, so it lists no scenes under it.
+    /// </summary>
+    /// <remarks>
+    /// Not an empty catalogue and not a fault: the instance has simply never been told about the
+    /// entity. A reader clears it by adding the entity, which the surface offers.
+    /// </remarks>
+    EntityNotInWhisparr,
+
+    /// <summary>The instance was asked for the entity's scenes and no whole answer arrived.</summary>
+    /// <remarks>Clears on a retry, which the surface offers.</remarks>
+    WhisparrCatalogueNotRead,
 
     /// <summary>
     /// The catalogue was read and the instance was not, so every card carries an unknown status.

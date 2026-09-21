@@ -8,7 +8,6 @@ import type { MissingPageView } from "../wire/api";
 import type { MultiSelectToggleHandler } from "@cove/runtime/components";
 import { MissingCard } from "./MissingCard";
 import type { CardActionState } from "./missingCardLogic";
-import { MissingCountLine } from "./MissingCountLine";
 import { MissingGridStates } from "./MissingGridStates";
 import { GRID_CLASS, GRID_TEMPLATE_COLUMNS } from "./missingClasses";
 import {
@@ -18,6 +17,14 @@ import {
   fillNames,
   type MissingGridStateKind,
 } from "./missingStatesLogic";
+
+interface MissingGridAdd {
+  /** Adds the entity so Whisparr lists its scenes, or null where no add is offered. */
+  readonly onAdd: (() => void) | null;
+  readonly inFlight: boolean;
+  /** What the last add answered, or null while it has answered nothing. */
+  readonly refusal: string | null;
+}
 
 export interface MissingGridSurroundings {
   readonly provider: string;
@@ -29,6 +36,7 @@ export interface MissingGridSurroundings {
   readonly onRefresh: (() => void) | null;
   readonly onClearFilters: (() => void) | null;
   readonly onClearSearch: (() => void) | null;
+  readonly add: MissingGridAdd;
 }
 
 export interface MissingGridCards {
@@ -75,6 +83,9 @@ export function MissingGrid({
           onRefresh: surroundings.onRefresh,
           onClearFilters: surroundings.onClearFilters,
           onClearSearch: surroundings.onClearSearch,
+          onAdd: surroundings.add.onAdd,
+          addInFlight: surroundings.add.inFlight,
+          addRefusal: surroundings.add.refusal,
         }}
       />
     );
@@ -101,12 +112,6 @@ export function MissingGrid({
         outageNotice={kind === "readIsStale" ? stated : null}
         content={
           <>
-            {view === null ? null : (
-              <MissingCountLine
-                provider={surroundings.provider}
-                entityName={surroundings.entityName}
-              />
-            )}
             <div className={GRID_CLASS} style={{ gridTemplateColumns: GRID_TEMPLATE_COLUMNS }}>
               {cards.map((card) => (
                 <MissingCard

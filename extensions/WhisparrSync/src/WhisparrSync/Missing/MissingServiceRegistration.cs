@@ -10,6 +10,11 @@ internal static class MissingServiceRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // One slot for the last entity's catalogue, shared by every request, so the count beside a
+        // tab and the page under it are one read of the instance.
+        services.AddSingleton(
+            provider => new InstanceCatalogueCache(
+                provider.GetService<TimeProvider>() ?? TimeProvider.System));
         services.AddScoped<IOwnedScenePort, OwnedScenePort>();
         services.AddScoped<IEntityNamePort, EntityNamePort>();
         services.AddScoped<MissingIdentityResolver>();

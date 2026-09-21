@@ -855,7 +855,9 @@ public sealed class SafetyInvariantTests
 
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
-    public async Task AStatusCostsAtMostOneReadPerCardAndNeverOnePerLibraryRow()
+    // A page of cards costs one read of the entity's own list and no per-scene read at all: the
+    // state each card shows is the flag on the row it came from.
+    public async Task APageCostsOneReadAndNeverOnePerCard()
     {
         var scenes = PageOfScenes(40);
         var statusReading = new StubSceneStatusReading();
@@ -863,10 +865,9 @@ public sealed class SafetyInvariantTests
         var view = await DeriveAsync(
             scenes, [], new RecordingExclusionReading([]), statusReading);
 
-        Assert.Equal(1, statusReading.PresenceReads);
-        Assert.True(
-            statusReading.SceneReads <= view.Cards.Count,
-            $"{statusReading.SceneReads} per-scene reads were spent on {view.Cards.Count} cards.");
+        Assert.Equal(40, view.Cards.Count);
+        Assert.Equal(0, statusReading.PresenceReads);
+        Assert.Equal(0, statusReading.SceneReads);
     }
 
     // Fields and constructor parameters alike, so a type taking one and not storing it still
@@ -899,7 +900,8 @@ public sealed class SafetyInvariantTests
                 TestProviderCatalogues.Naming(catalogue),
                 new StubEntityNames()),
             TestProviderCatalogues.Naming(catalogue),
-            new StubOwnedScenes(owned));
+            new StubOwnedScenes(owned),
+            new InstanceCatalogueCache(TimeProvider.System));
 
         return planner.PlanAsync(
             new MissingPageRequest(
@@ -917,7 +919,9 @@ public sealed class SafetyInvariantTests
                 WhisparrGeneration.V3,
                 new ResolvedProvider("https://stashdb.org/graphql", "a-key", 240),
                 statusReading,
-                exclusionReading),
+                exclusionReading,
+                new StubInstanceCatalogue(
+                    [.. scenes.Select(scene => StubInstanceCatalogue.Scene(scene.ProviderSceneId))])),
             NullLogger.Instance,
             TestContext.Current.CancellationToken);
     }

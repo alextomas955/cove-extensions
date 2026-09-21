@@ -271,6 +271,9 @@ public sealed partial class WhisparrSync
         var exclusions = capabilities
             .Obtain<IWhisparrSceneExclusionReading>()
             .Match<IWhisparrSceneExclusionReading?>(held => held, _ => null);
+        var catalogue = capabilities
+            .Obtain<IWhisparrEntityCatalogueReading>()
+            .Match<IWhisparrEntityCatalogueReading?>(held => held, _ => null);
 
         return new MissingPageContext(
             baseAddress,
@@ -278,7 +281,8 @@ public sealed partial class WhisparrSync
             generation,
             endpoints.Resolve(generation, stored.MetadataProviderEndpoints),
             reading,
-            exclusions);
+            exclusions,
+            catalogue);
     }
 
     private static async Task<MissingPageView> RefusedPageAsync(

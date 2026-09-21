@@ -4,6 +4,7 @@
  * A grid with no cards always names a cause, and only a cause a retry could clear offers one.
  */
 import {
+  ENTITY_NOT_IN_WHISPARR,
   EVERY_SCENE_ON_THIS_PAGE_IS_OWNED,
   NOTHING_MISSING,
   NO_INSTANCE_CONNECTED,
@@ -14,6 +15,7 @@ import {
   NO_TITLES_MATCH,
   PROVIDER_UNREACHABLE,
   READ_IS_STALE,
+  WHISPARR_CATALOGUE_NOT_READ,
   WHISPARR_KEEPS_NO_SCENE_RECORDS,
   WHISPARR_STATUS_NOT_READ,
 } from "../common/ui/copy";
@@ -32,6 +34,8 @@ export type MissingGridStateKind =
   | "noMetadataProviderConfigured"
   | "noProviderIdForEntity"
   | "noInstanceConnected"
+  | "entityNotInWhisparr"
+  | "whisparrCatalogueNotRead"
   | "readIsStale";
 
 export interface MissingGridState {
@@ -44,9 +48,15 @@ export interface MissingGridState {
   readonly clearFiltersIsOffered: boolean;
   /** The reason is cleared by dropping the title search. */
   readonly clearSearchIsOffered: boolean;
+  /** The reason is cleared by adding the entity to Whisparr, which the surface offers. */
+  readonly addIsOffered: boolean;
 }
 
-const NEITHER_ESCAPE = { clearFiltersIsOffered: false, clearSearchIsOffered: false } as const;
+const NEITHER_ESCAPE = {
+  clearFiltersIsOffered: false,
+  clearSearchIsOffered: false,
+  addIsOffered: false,
+} as const;
 
 // Total by type, so a kind added to the union fails this build.
 const STATES: Record<MissingGridStateKind, MissingGridState> = {
@@ -76,6 +86,7 @@ const STATES: Record<MissingGridStateKind, MissingGridState> = {
     replacesTheGrid: true,
     clearFiltersIsOffered: true,
     clearSearchIsOffered: false,
+    addIsOffered: false,
   },
   noTitlesMatch: {
     sentence: NO_TITLES_MATCH,
@@ -83,6 +94,7 @@ const STATES: Record<MissingGridStateKind, MissingGridState> = {
     replacesTheGrid: true,
     clearFiltersIsOffered: false,
     clearSearchIsOffered: true,
+    addIsOffered: false,
   },
   providerUnreachable: {
     sentence: PROVIDER_UNREACHABLE,
@@ -119,6 +131,22 @@ const STATES: Record<MissingGridStateKind, MissingGridState> = {
   noInstanceConnected: {
     sentence: NO_INSTANCE_CONNECTED,
     refreshIsOffered: false,
+    replacesTheGrid: true,
+    ...NEITHER_ESCAPE,
+  },
+  // The one state a reader clears by adding the entity: Whisparr lists scenes only for an entity it
+  // holds, so nothing else here can produce a list.
+  entityNotInWhisparr: {
+    sentence: ENTITY_NOT_IN_WHISPARR,
+    refreshIsOffered: false,
+    replacesTheGrid: true,
+    clearFiltersIsOffered: false,
+    clearSearchIsOffered: false,
+    addIsOffered: true,
+  },
+  whisparrCatalogueNotRead: {
+    sentence: WHISPARR_CATALOGUE_NOT_READ,
+    refreshIsOffered: true,
     replacesTheGrid: true,
     ...NEITHER_ESCAPE,
   },
@@ -172,6 +200,10 @@ export function deriveGridState(situation: MissingGridSituation): MissingGridSta
       return "noInstanceConnected";
     case "providerUnreachable":
       return "providerUnreachable";
+    case "entityNotInWhisparr":
+      return "entityNotInWhisparr";
+    case "whisparrCatalogueNotRead":
+      return "whisparrCatalogueNotRead";
     case "whisparrStatusNotRead":
     case "whisparrKeepsNoSceneRecords":
       // Stated above the cards, so it is only the answer while there are cards.

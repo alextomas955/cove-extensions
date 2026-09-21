@@ -22,6 +22,7 @@ public sealed class AbsentCapabilityTests
     [
         "api/v3/notification",
         "api/v3/studio",
+        "api/v3/performer",
         "api/v3/exclusions",
     ];
 

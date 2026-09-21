@@ -32,7 +32,6 @@ const SEARCH_PLACEHOLDER = "Search titles";
 const REFRESH_LABEL = "Refresh";
 
 /** The placeholder in a menu's own search box, transcribed the same way. */
-const MENU_SEARCH_PLACEHOLDER = "Search values";
 
 /**
  * The keys Cove deletes from the address on every tab change, including the change into this tab.
@@ -65,12 +64,6 @@ const TYPED_SEARCH = "sunrise";
  */
 const ANSWERED_SOURCE = "ThePornDB";
 const OTHER_SOURCE = "StashDB";
-
-/**
- * What the line under the bar says the total counts, transcribed by hand with its two slots filled.
- * The total itself is stated in the bar.
- */
-const COUNT_LINE = `That total is the scenes ${ANSWERED_SOURCE} lists for this studio, not the number you are missing.`;
 
 /** The range the answered page below covers, in the wording the bar states it in. */
 const RANGE_IN_THE_BAR = "1–40 of 272";
@@ -116,16 +109,9 @@ const refreshControl = (page) => page.getByRole("button", { name: REFRESH_LABEL 
  */
 const toolbar = (page) => page.getByRole("toolbar", { name: TAB_LABEL });
 
-/**
- * The ordering control, named by the menu it belongs to and then by the ordering in force. The
- * leading name is off screen and is the half that does not change with the ordering.
- */
-const sortControl = (page) => toolbar(page).getByRole("button", { name: /^Sort/ });
-// By the facet's own label, not by the attribute that opens a menu: the ordering control carries
-// that attribute too and is drawn first, so a locator on the attribute alone opens the ordering menu
-// while claiming to be about a facet.
-const facetChip = (page) =>
-  toolbar(page).getByRole("button", { name: new RegExp(`^${FACET_MENUS[0].label}`) });
+// Each dropdown carries its own name, so neither is reached through the value it happens to show.
+const sortControl = (page) => toolbar(page).getByLabel("Sort");
+const facetControl = (page) => toolbar(page).getByLabel(FACET_MENUS[0].label);
 
 /** Opens the entity page and clicks into the catalogue tab. */
 async function openTheTab(page, baseUrl, path, where) {
@@ -195,20 +181,6 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
       body: JSON.stringify(answeredPage({ facets: FACET_MENUS, sorts: SORT_OPTIONS })),
     });
   });
-  // The menu searches its own values through this route. Left unanswered, the rows it is asked to
-  // step into never arrive and the keyboard assertions below would be about an empty menu.
-  await page.route(/\/missing\/facet\//, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        values: FACET_MENUS[0].values,
-        reportedValueCount: FACET_MENUS[0].reportedValueCount,
-        outcome: "matched",
-      }),
-    });
-  });
-
   const studioPath = `/studio/${String(studio.id)}`;
   await openTheTab(page, baseUrl, studioPath, "the studio detail page");
   expect(
@@ -245,9 +217,7 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
     sortControl(page),
     "the answered page offered an ordering and the bar drew no control for it",
   ).toHaveCount(1);
-  await sortControl(page).first().click();
-  await expect(page.getByRole("menu")).toBeVisible();
-  await page.getByRole("menuitemcheckbox").nth(1).click();
+  await sortControl(page).first().selectOption(SORT_OPTIONS[1].value);
   await expect
     .poll(async () => (await tabState(page)).wsmSort, {
       timeout: SETTLE_BUDGET_MS,
@@ -293,50 +263,24 @@ test("the toolbar round-trips through the page URL, and its controls are reachab
     "leaving the tab and returning lost this tab's own state",
   ).toBe(TYPED_SEARCH);
 
-  // 6. A menu meets Cove's keyboard bar: a menu role, a caret that lands in its search box, arrow-key
-  //    roving focus into the rows, Escape closing it and returning focus to the control that opened it.
+  // 6. The facet dropdown narrows the view, and the narrowing reaches the address like the rest.
   await expect(
-    facetChip(page),
-    "the answered page offered a facet and the bar drew no menu for it",
+    facetControl(page),
+    "the answered page offered a facet and the bar drew no control for it",
   ).toHaveCount(1);
-  {
-    const trigger = facetChip(page).first();
-    await trigger.click();
-    const menu = page.getByRole("menu");
-    await expect(menu).toBeVisible();
-
-    const search = page.getByPlaceholder(MENU_SEARCH_PLACEHOLDER);
-    await expect(search, "the menu opened with the caret somewhere else").toBeFocused();
-
-    // Typed rather than filled: a keystroke is what the roving focus could swallow.
-    await page.keyboard.type("zz");
-    await expect(search, "the menu's own arrow-key handling took the typed characters").toHaveValue(
-      "zz",
-    );
-
-    await search.fill("");
-    await page.keyboard.press("ArrowDown");
-    const focusedRole = await page.evaluate(
-      () => document.activeElement?.getAttribute("role") ?? "",
-    );
-    expect(focusedRole, "the arrow keys did not step from the search box into the rows").toBe(
-      "menuitemcheckbox",
-    );
-
-    await page.keyboard.press("Escape");
-    await expect(menu).toBeHidden();
-    await expect(trigger, "Escape closed the menu and left focus nowhere").toBeFocused();
-
-    await trigger.click();
-    await expect(page.getByRole("menu")).toBeVisible();
-    await page.mouse.click(5, 5);
-    await expect(page.getByRole("menu")).toBeHidden();
-  }
+  await facetControl(page).first().selectOption(FACET_MENUS[0].values[0].value);
+  await expect
+    .poll(async () => (await tabState(page)).wsmFilters, {
+      timeout: SETTLE_BUDGET_MS,
+      message: "picking a facet value did not reach the address, so a shared link loses it",
+    })
+    .toContain(FACET_MENUS[0].values[0].value);
 
   // 7. Every control shows where the keyboard is. `focus-visible:ring-*` is absent from the host
   //    stylesheet and paints nothing, so this reads the rendered treatment.
   for (const [name, locator] of [
     ["the search field", searchField(page)],
+    ["the ordering control", sortControl(page).first()],
     [REFRESH_LABEL, refreshControl(page)],
   ]) {
     const treatment = await focusTreatment(locator);
@@ -407,7 +351,7 @@ test("an answered page decides the source a sentence names", async ({ page, base
 
   const studioPath = `/studio/${String(studio.id)}`;
   await openTheTab(page, baseUrl, studioPath, "the studio detail page");
-  await expect(page.getByText(COUNT_LINE)).toBeVisible({ timeout: SETTLE_BUDGET_MS });
+  await expect(page.getByText(RANGE_IN_THE_BAR)).toBeVisible({ timeout: SETTLE_BUDGET_MS });
   expect(
     pageReadWasIntercepted,
     "the answered page never arrived, so the assertion below would have run against a refusal",

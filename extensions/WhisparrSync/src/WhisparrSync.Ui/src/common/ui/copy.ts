@@ -105,10 +105,6 @@ export const REFLECT_OWNED_SKIPPED_SETTING_UNREADABLE =
  */
 export const STOP_MONITORING_IN_WHISPARR = "Stop monitoring in Whisparr";
 
-/** Where the result of a selection appears. */
-export const BULK_REPORTS_IN_THE_JOB_DRAWER =
-  "This runs in the background. Its progress, and its result for each entity, appear in Cove's job list.";
-
 /** Nothing could be offered, because what the connected Whisparr can do was not read. */
 export const BULK_ACTIONS_COULD_NOT_BE_OFFERED =
   "Cove could not read what the connected Whisparr can do, so it offered nothing. Nothing was changed; try again shortly.";
@@ -278,7 +274,40 @@ export const NO_METADATA_PROVIDER_CONFIGURED =
 
 /** The entity carries no identifier the provider issued, and its name matched nothing exactly. */
 export const NO_PROVIDER_ID_FOR_ENTITY =
-  "No {provider} id for {entity}, so there is no catalogue to check.";
+  "No {provider} id for {entity}, so Whisparr cannot be told which entity this is. Identify it in Cove first.";
+
+/**
+ * Whisparr holds no entry for the entity, so it lists no scenes under it. The surface offers the
+ * add that makes the list exist.
+ */
+export const ENTITY_NOT_IN_WHISPARR =
+  "Whisparr does not have {entity} yet, so it lists no scenes to compare against your library.";
+
+/** What the add offered beside that sentence does, stated before it is pressed. */
+export const ADD_TO_WHISPARR_TRACKS_ONLY =
+  "Adding it lets Whisparr list every scene it knows of. Nothing is wanted and nothing is downloaded until you monitor it.";
+
+/** The control that adds the entity for its catalogue alone. */
+export const ADD_TO_WHISPARR = "Add to Whisparr";
+
+/** The same control while the add is in flight. */
+export const ADDING_TO_WHISPARR = "Adding...";
+
+/** The instance was asked for the entity's scenes and nothing whole arrived. */
+export const WHISPARR_CATALOGUE_NOT_READ =
+  "Cove could not read what Whisparr lists for {entity}. That is not the same as Whisparr listing nothing - try again shortly.";
+
+/** The connected generation addresses no entity of this kind, so it can track none. */
+export const WHISPARR_CANNOT_TRACK_THIS_KIND =
+  "The connected Whisparr does not hold entries of this kind, so it cannot list scenes for {entity}.";
+
+/** The instance declares no profile or no root, so no add could be composed. */
+export const WHISPARR_HOLDS_NO_ADD_DEFAULTS =
+  "Whisparr declares no quality profile or no library root, so nothing could be added. Set both in Whisparr first.";
+
+/** The add was sent and did not take, said on the control that sent it. */
+export const ADD_TO_WHISPARR_DID_NOT_TAKE =
+  "Whisparr did not add {entity}. Nothing was changed; try again shortly.";
 
 /** A title search over the whole catalogue that matched nothing. Renders with a way to clear it. */
 export const NO_TITLES_MATCH = "No titles match that search.";
@@ -294,10 +323,6 @@ export const WHISPARR_STATUS_NOT_READ =
 /** The connected Whisparr holds no per-scene records at all. */
 export const WHISPARR_KEEPS_NO_SCENE_RECORDS =
   "The connected Whisparr keeps no per-scene records, so Cove cannot read a status for these. The catalogue below is still complete.";
-
-/** What the figure beside a catalogue counts. */
-export const COUNT_IS_THE_CATALOGUE_SIZE =
-  "That total is the scenes {provider} lists for {entity}, not the number you are missing.";
 
 /** The catalogue tab's own name, drawn at the left of its toolbar. */
 export const MISSING_TAB_HEADING = "Missing";

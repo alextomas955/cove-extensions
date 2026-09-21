@@ -5,8 +5,8 @@ sidebar_position: 3
 ---
 
 Whisparr Sync adds a **Missing** tab to a studio page, a performer page and a tag page in Cove. It
-lists the scenes your metadata source knows about for that entity and your library does not hold,
-tells you whether each one is already in your Whisparr, and lets you mark them wanted.
+lists the scenes your Whisparr knows about for that entity and your library does not hold, tells you
+whether Whisparr is monitoring each one, and lets you mark them wanted.
 
 Connect an instance first. See the [Settings reference](./settings.md).
 
@@ -17,29 +17,40 @@ the name. Cove asks for that number when the page loads, so it is there before y
 
 ## Where the list comes from
 
-From the metadata source Cove is already configured with, under Settings → Scraping → Metadata
-servers. Whisparr Sync reads it with the key Cove holds for that source and asks you for no key of
-its own. The list does not come from Whisparr.
+**From your Whisparr.** The tab asks the connected instance which scenes it lists for that entity,
+and takes out the ones your library already holds. Your metadata source is not asked for a scene
+list at all.
 
-Which source is read follows the Whisparr generation Cove uses: StashDB for Whisparr v3 (Eros) and
-ThePornDB for Whisparr v2. Your browser also loads each cover image straight from that source.
+How the instance answers depends on the generation:
 
-If Cove names no metadata source, the tab says so and names the setting to fill in.
+- **Whisparr v3 (Eros)** lists a studio's or a performer's own works. It holds those only for an
+  entity it has been told about, which the tab offers to do; see below.
+- **Whisparr v2** lists a site's scenes. It has no performer entity, so a performer page has nothing
+  to ask about there.
+
+Cove's metadata source is still what says which scene in Whisparr is which video in your library, so
+one has to be configured under Settings → Scraping → Metadata servers. If Cove names none, the tab
+says so and names the setting to fill in.
+
+## An entity Whisparr does not have yet
+
+Whisparr lists scenes only for an entity it holds, so a studio or performer it has never been told
+about has no list to compare against. The tab says so and offers **Add to Whisparr**.
+
+That add asks Whisparr to track the entity's catalogue and **wants none of it**: every scene it
+pulls in arrives unmonitored and nothing is searched or downloaded. You then monitor what you choose,
+one scene at a time or as a selection.
+
+If Cove holds no StashDB id for the entity on v3, or no ThePornDB id on v2, the tab says that
+instead: Whisparr cannot be told which entity it is, so there is nothing to add.
 
 ## What the number means
 
-**The number is the size of the catalogue your metadata source lists for that entity. It is not the
-number of scenes you are missing.** A studio with four thousand scenes reads four thousand whether
-you own all of them or none of them. The count line above the grid says the same thing in words,
-because the number on the tab has no room for it.
+**The number is how many scenes you are missing**: what Whisparr lists for the entity, minus what
+your library already holds. A studio whose scenes you all own reads zero.
 
-A number ending in a plus, such as `10,000+`, means the source will not serve a list past that
-point. The real figure is larger, and the pages stop where the source stops.
-
-The range at the left of the bar above the grid, such as `41-80 of 4,231`, is the source's own range
-for the page you are on. Scenes you already own are taken out after the page arrives, so a page can
-show thirty-one cards while its range still reads `41-80`. That is the range of the catalogue, not a
-count of what is drawn.
+The range at the left of the bar above the grid, such as `41-80 of 1,205`, is your position in that
+same set, so the cards on screen and the figure beside them always agree.
 
 A page holds at most forty scenes.
 
@@ -51,12 +62,13 @@ scene with no cover gets a placeholder tile carrying the title.
 
 One pill on each card says what your Whisparr holds for that scene:
 
-| Pill           | What it means                                                    |
-| -------------- | ---------------------------------------------------------------- |
-| Not added      | Whisparr has no entry for this scene.                            |
-| Wanted         | Whisparr holds the scene and is monitoring it.                   |
-| Unmonitored    | Whisparr holds the scene and is not monitoring it.               |
-| Status unknown | No status was established, so nothing about Whisparr is claimed. |
+| Pill        | What it means                                      |
+| ----------- | -------------------------------------------------- |
+| Wanted      | Whisparr holds the scene and is monitoring it.     |
+| Unmonitored | Whisparr holds the scene and is not monitoring it. |
+
+Every scene on this tab is one Whisparr already has an entry for, since the list is Whisparr's own,
+so no card reads "not added" and none reads an unknown status.
 
 A scene you excluded in Whisparr v3 (Eros) is not on the list at all, so there is no pill for it.
 
@@ -69,6 +81,9 @@ where they are.
 This works on StashDB, which is the source Whisparr v3 (Eros) reads from. On ThePornDB the cover and
 the title are plain, because the identifier the source hands Cove does not address a page on that
 site and a link built from it would lead nowhere.
+
+A cover is drawn where Whisparr holds one for the scene. Whisparr v2 often holds none for an
+episode, and those cards carry the placeholder tile.
 
 ## What each card's two buttons do
 
@@ -90,30 +105,30 @@ permission (`videos.read`).
 
 ## What Whisparr v2 can do here
 
-Whisparr v2 keeps no per-scene records at all. On a v2 connection the tab still lists the
-catalogue, and:
+Whisparr v2 keeps a row per scene under a site, so the tab lists a site's scenes and each card reads
+the state Whisparr holds for it. What v2 cannot do here:
 
-- Every pill reads **Status unknown**, and a line above the grid says why. No retry changes it.
-- A scene you excluded in Whisparr is still listed, because v2 keeps no scene exclusions to read.
-- **Monitor** and **Search** are still drawn on each card and neither can take. A press changes
-  nothing and says the action is currently available on Whisparr v3 (Eros). Your instance is never
-  asked, so it did not decline.
-- A selection's **Monitor** and the toolbar's **Monitor all** are both refused before the run
-  starts, and the page says the connected Whisparr keeps no per-scene records.
+- **A performer page has nothing to ask about.** v2 has no performer entity, so only studio pages
+  carry a usable list.
+- **A card's Monitor and Search are refused.** Both are built on the v3 route that adds a scene to
+  the catalogue, and v2 needs neither: the scene is already in its catalogue. Pressing either says
+  the action is available on Whisparr v3 (Eros), and your instance is never asked.
+- **A selection's Monitor and the toolbar's Monitor all** are refused for the same reason.
+- v2 keeps no scene exclusions, so a scene you excluded elsewhere is still listed.
 
-Monitoring a whole studio or performer is not affected. That lives on the Whisparr button beside the
-entity's name. See [Monitor a studio or a performer](./monitoring.md).
+Monitoring a whole studio is not affected. That lives on the Whisparr button beside the entity's
+name. See [Monitor a studio or a performer](./monitoring.md).
 
 ## Act on several scenes at once
 
 Tick the checkbox on a card to start a selection. A bar appears above the grid with the number
 selected and three gestures:
 
-| Gesture          | Keys  |
-| ---------------- | ----- |
-| Select all       | `s a` |
-| Select none      | `s n` |
-| Invert selection | `s i` |
+| Gesture      | Keys  |
+| ------------ | ----- |
+| Select all   | `s a` |
+| Invert       | `s i` |
+| Deselect all | `s n` |
 
 Those are Cove's own list gestures, so a key sequence you rebound elsewhere in Cove works here too.
 The keys work without clicking in the grid first.
@@ -163,24 +178,14 @@ One bar above the grid carries the tab's name, the range you are looking at and 
 - The ordering control offers the orderings the source itself declares. It reads the ordering in
   force, such as **Newest first**, from the moment the page loads: with none picked the source
   applies its own, and the control names that one.
-- One menu per facet the source filled. A menu opens on the values the source served, and you can
-  narrow by any of them. Its control reads what it covers while nothing is picked, such as **All
-  tags**, and reads the value once you pick one. Pick that value again to clear it. The source
-  decides how many values it serves, so a menu can carry fewer than the source lists, and it says how
-  many of how many it carries.
-- Type two or more characters in the box at the top of a menu to ask the source which of its values
-  match. The matches replace the rows the menu opened on, so a value the menu never carried can be
-  picked. Matching ignores case and matches anywhere in a name. Typing waits for you to stop before
-  it asks, so a typed word costs one read.
-- A menu shows how many matches it is drawing out of how many the source counted. Type more of the
-  name to reach the rest.
-- A menu says which of three things happened: it is looking, the source matched nothing, or the
-  values could not be read. A read that failed never reads as a value that does not exist.
-- A value you picked stays in the menu while a search leaves it out, so you can always clear it.
+- One dropdown per facet the source filled, listing the values the source served. It reads what it
+  covers while nothing is picked, such as **All tags**, and reads the value once you pick one.
+  Choose the first entry again to clear it. The source decides how many values it serves, so a
+  dropdown can carry fewer values than the source lists.
+- A value in force the served list does not carry stays in the dropdown, so you can always clear it.
 - **Year**, where the source filters by one. It lists every year between the oldest and the newest
   scene the source holds for that entity, so a year with nothing in it is not offered. Its years are
-  worked out from those two dates rather than listed by the source, so typing in that one menu
-  narrows the years it holds instead of asking.
+  worked out from those two dates rather than listed by the source.
 - **Refresh** reads the page again.
 
 Every one of these travels in the page address, so the link you copy shows the reader what you were
@@ -194,15 +199,15 @@ source your Whisparr generation reads from.
 
 - **A sort one source does not declare.** Title A-Z is offered on StashDB and not on ThePornDB,
   which declares no title ordering.
-- **A facet menu one source cannot scope to the entity.** On StashDB a studio page offers
+- **A facet one source cannot scope to the entity.** On StashDB a studio page offers
   Performers, Sub-studios and Tags, and a performer page offers Tags. On ThePornDB a studio page and
   a performer page each offer Tags.
-- **A tag page carries no facet menu on either source**, because the only menu left would narrow a
+- **A tag page carries no facet control on either source**, because the only control left would narrow a
   tag to itself.
 - **Monitor all on a tag page.** A studio's and a performer's list is bounded by that entity; a
   tag's spans the whole library, so there is no run of a knowable size to offer.
 - **A year filter is offered on ThePornDB and not on StashDB.** ThePornDB narrows to an exact year.
-  StashDB carries one date bound that cannot express a year, so no year menu is drawn there.
+  StashDB carries one date bound that cannot express a year, so no year control is drawn there.
 
 ## When a studio page shows nothing
 

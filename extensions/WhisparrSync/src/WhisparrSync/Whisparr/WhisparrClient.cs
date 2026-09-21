@@ -203,6 +203,10 @@ internal sealed class WhisparrClient(
         IWhisparrSceneSearchGrabbing,
         IWhisparrSceneStatusReading,
         IWhisparrSceneExclusionReading,
+        IWhisparrEntityBatchReading,
+        IWhisparrSceneBatchReading,
+        IWhisparrEntityCatalogueReading,
+        IWhisparrEntityTrackingActing,
         IWhisparrSceneMonitorActing,
         IWhisparrSceneExclusionActing,
         IWhisparrSiteSceneReading,
@@ -219,6 +223,7 @@ internal sealed class WhisparrClient(
     // Every self-composed route is declared on this type, whichever role issues it: the route
     // invariant reads this type's own literals, so a constant declared elsewhere is invisible to it.
     internal const string StudioPath = "api/v3/studio";
+    internal const string PerformerPath = "api/v3/performer";
     internal const string ExclusionsPath = "api/v3/exclusions";
 
     // The one status composed rather than received. Whisparr v2 answers "do you hold this site" only
@@ -544,6 +549,310 @@ internal sealed class WhisparrClient(
 
         return rows.Keys.ToHashSet();
     }
+
+    // Adds the entity so the instance tracks its catalogue and wants none of it. The two generations
+    // express that differently: one carries a flag governing whether an arrival is wanted, the other
+    // adds the site with its monitor rules set to none.
+    public Task<WhisparrResponse> TrackEntityAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        WhisparrEntityKind kind,
+        string foreignId,
+        AddDefaults defaults,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
+        ArgumentNullException.ThrowIfNull(defaults);
+
+        if (generation != WhisparrGeneration.V3)
+        {
+            return TrackSiteAsync(baseAddress, apiKey, foreignId, defaults, ct);
+        }
+
+        var path = kind == WhisparrEntityKind.Studio ? StudioPath : PerformerPath;
+        return SendAsync(
+            baseAddress,
+            apiKey,
+            HttpMethod.Post,
+            path,
+            V3BodyProjector.TrackEntity(foreignId, defaults),
+            ct);
+    }
+
+    private async Task<WhisparrResponse> TrackSiteAsync(
+        Uri baseAddress, string apiKey, string foreignId, AddDefaults defaults, CancellationToken ct)
+    {
+        var numbered = await siteNumbers.ResolveSiteNumberAsync(baseAddress, apiKey, foreignId, ct)
+            .ConfigureAwait(false);
+        if (numbered.Number is not { } siteNumber)
+        {
+            return NoSiteNumber(numbered);
+        }
+
+        return await GeneratedV2ActAsync(
+                baseAddress,
+                apiKey,
+                api => api.Api<V2Api.ISeriesApi>().CreateSeriesAsync(
+                    V2BodyProjector.RegisterSite(siteNumber, defaults), ct))
+            .ConfigureAwait(false);
+    }
+
+    // The catalogue an entity's own scenes are read from, so the missing surface asks the metadata
+    // source for no scene list at all. One request per entity, and on one generation one more to
+    // resolve the number that generation addresses a site by.
+    public async Task<WhisparrEntityCatalogue> ReadEntityCatalogueAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        WhisparrEntityKind kind,
+        string foreignId,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
+
+        return generation == WhisparrGeneration.V3
+            ? await ReadV3WorksAsync(baseAddress, apiKey, kind, foreignId, ct).ConfigureAwait(false)
+            : await ReadV2SiteScenesAsync(baseAddress, apiKey, foreignId, ct).ConfigureAwait(false);
+    }
+
+    // A works route answers only for an entity the instance holds, so a not-found there is the
+    // entity's absence and not an empty catalogue.
+    private async Task<WhisparrEntityCatalogue> ReadV3WorksAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrEntityKind kind,
+        string foreignId,
+        CancellationToken ct)
+    {
+        var listed = kind == WhisparrEntityKind.Studio
+            ? await GeneratedReadAsync(
+                    baseAddress,
+                    apiKey,
+                    api => api.Api<V3Api.IStudioApi>().ListStudioWorksAsync(Named(foreignId), ct))
+                .ConfigureAwait(false)
+            : await GeneratedReadAsync(
+                    baseAddress,
+                    apiKey,
+                    api => api.Api<V3Api.IPerformerApi>()
+                        .ListPerformerWorksAsync(Named(foreignId), ct))
+                .ConfigureAwait(false);
+
+        if (listed.StatusCode == 404)
+        {
+            return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.EntityNotHeld);
+        }
+
+        if (Refused(listed))
+        {
+            return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
+        }
+
+        return CatalogueSceneProjector.V3Works(listed.Body) is { } scenes
+            ? WhisparrEntityCatalogue.Listing(scenes)
+            : WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
+    }
+
+    // This generation lists a scene only under its site, so the site's own number is resolved first.
+    // A site it names no number for is one it holds no entry for.
+    private async Task<WhisparrEntityCatalogue> ReadV2SiteScenesAsync(
+        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+    {
+        var numbered = await siteNumbers.ResolveSiteNumberAsync(baseAddress, apiKey, foreignId, ct)
+            .ConfigureAwait(false);
+        if (numbered.Number is not { } siteNumber)
+        {
+            return WhisparrEntityCatalogue.Refused(
+                numbered.WasReached
+                    ? WhisparrCatalogueRefusal.EntityNotHeld
+                    : WhisparrCatalogueRefusal.NotReached);
+        }
+
+        var site = await GeneratedV2ReadAsync(
+                baseAddress,
+                apiKey,
+                api => api.Api<V2Api.ISeriesApi>().ListSeriesAsync(
+                    tvdbId: siteNumber, cancellationToken: ct),
+                LibraryReadTimeout)
+            .ConfigureAwait(false);
+
+        if (Refused(site))
+        {
+            return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
+        }
+
+        var held = V2ListProjector.HeldEntry(site.Body, siteNumber);
+        if (held is null)
+        {
+            return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.EntityNotHeld);
+        }
+
+        // The site's own row carries the instance-side id its scenes are listed under, which is not
+        // the number the metadata source issued.
+        if (held["id"] is not JsonValue identified
+            || !identified.TryGetValue<int>(out var seriesId)
+            || seriesId < 1)
+        {
+            return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.EntityNotHeld);
+        }
+
+        var listed = await GeneratedV2ReadAsync(
+                baseAddress,
+                apiKey,
+                // Images are asked for: a card draws a cover, and this generation leaves the image
+                // list off an episode row unless the read says otherwise.
+                api => api.Api<V2Api.IEpisodeApi>().ListEpisodeAsync(
+                    seriesId: seriesId, includeImages: true, cancellationToken: ct),
+                LibraryReadTimeout)
+            .ConfigureAwait(false);
+
+        if (Refused(listed))
+        {
+            return WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
+        }
+
+        var siteName = held["title"] is JsonValue titled && titled.TryGetValue<string>(out var title)
+            ? title
+            : null;
+
+        return CatalogueSceneProjector.V2Episodes(listed.Body, siteName) is { } scenes
+            ? WhisparrEntityCatalogue.Listing(scenes)
+            : WhisparrEntityCatalogue.Refused(WhisparrCatalogueRefusal.NotReached);
+    }
+
+    // One request for a page of entity cards, whatever the page holds. The alternative is a read per
+    // card, which is what this replaces: a page of forty studios cost forty requests against a third
+    // party.
+    public async Task<WhisparrHeldCards> ReadHeldEntitiesAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        WhisparrEntityKind kind,
+        IReadOnlyList<string> foreignIds,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(foreignIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+
+        if (foreignIds.Count == 0)
+        {
+            return WhisparrHeldCards.Empty;
+        }
+
+        return generation == WhisparrGeneration.V3
+            ? await ReadHeldV3EntitiesAsync(baseAddress, apiKey, kind, foreignIds, ct)
+                .ConfigureAwait(false)
+            : await ReadHeldV2SitesAsync(baseAddress, apiKey, foreignIds, ct).ConfigureAwait(false);
+    }
+
+    // Each kind has its own list route, and neither answers for the other. A kind this generation
+    // does not address at all cannot reach here: the role is registered per generation.
+    private async Task<WhisparrHeldCards> ReadHeldV3EntitiesAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrEntityKind kind,
+        IReadOnlyList<string> foreignIds,
+        CancellationToken ct)
+    {
+        // One list route per kind, and neither answers for the other, so the two reads are issued
+        // apart rather than through one call the generated client types differently per arm.
+        List<string> wanted = [.. foreignIds];
+        var answered = kind == WhisparrEntityKind.Studio
+            ? await GeneratedReadAsync(
+                    baseAddress,
+                    apiKey,
+                    api => api.Api<V3Api.IStudioApi>().CreateStudioListAsync(wanted, ct))
+                .ConfigureAwait(false)
+            : await GeneratedReadAsync(
+                    baseAddress,
+                    apiKey,
+                    api => api.Api<V3Api.IPerformerApi>().CreatePerformerListAsync(wanted, ct))
+                .ConfigureAwait(false);
+
+        return new WhisparrHeldCards(HeldIn(answered, foreignIds), NothingUnanswered);
+    }
+
+    // The site list is the one route answering whether this generation holds a site, so a page of
+    // sites is one read of it. An identifier that is not the number the metadata source issued is
+    // outside what the list can answer and is reported unanswered rather than absent.
+    private async Task<WhisparrHeldCards> ReadHeldV2SitesAsync(
+        Uri baseAddress,
+        string apiKey,
+        IReadOnlyList<string> foreignIds,
+        CancellationToken ct)
+    {
+        var (numbered, unnumbered) = HeldCardProjector.SplitBySiteNumber(foreignIds);
+        if (numbered.Count == 0)
+        {
+            return new WhisparrHeldCards(NothingHeld, unnumbered);
+        }
+
+        var listed = await GeneratedV2ReadAsync(
+                baseAddress,
+                apiKey,
+                api => api.Api<V2Api.ISeriesApi>().ListSeriesAsync(cancellationToken: ct),
+                LibraryReadTimeout)
+            .ConfigureAwait(false);
+
+        if (Refused(listed))
+        {
+            throw new HttpRequestException(
+                "The instance's own site list could not be read, so what it holds for these sites "
+                    + "was not established.");
+        }
+
+        var held = HeldCardProjector.BySiteNumber(listed.Body, numbered)
+            ?? throw new HttpRequestException(
+                "The answer to the instance's own site list is not a list of rows at all.");
+
+        return new WhisparrHeldCards(held, unnumbered);
+    }
+
+    // One request for a page of scene cards. Registered by the generation that addresses a scene
+    // without its site; the other reads a scene only as a row under one.
+    public async Task<WhisparrHeldCards> ReadHeldSceneCardsAsync(
+        Uri baseAddress, string apiKey, IReadOnlyList<string> foreignIds, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(foreignIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+
+        if (foreignIds.Count == 0)
+        {
+            return WhisparrHeldCards.Empty;
+        }
+
+        List<string> wanted = [.. foreignIds];
+        var answered = await GeneratedReadAsync(
+                baseAddress,
+                apiKey,
+                api => api.Api<V3Api.IMovieApi>().CreateMovieListAsync(wanted, ct))
+            .ConfigureAwait(false);
+
+        return new WhisparrHeldCards(HeldIn(answered, foreignIds), NothingUnanswered);
+    }
+
+    // Raised rather than reduced to an empty set, for the reason ReduceHeldScenesAsync gives.
+    private static IReadOnlyDictionary<string, WhisparrHeldCard> HeldIn(
+        WhisparrResponse answered, IReadOnlyCollection<string> asked)
+    {
+        if (Refused(answered))
+        {
+            throw new HttpRequestException(
+                "The instance did not answer what it holds for the cards asked about.");
+        }
+
+        return HeldCardProjector.ByForeignId(answered.Body, asked)
+            ?? throw new HttpRequestException(
+                "The instance's answer could not be read as the entries it holds.");
+    }
+
+    private static IReadOnlySet<string> NothingUnanswered { get; }
+        = new HashSet<string>(StringComparer.Ordinal);
+
+    private static IReadOnlyDictionary<string, WhisparrHeldCard> NothingHeld { get; }
+        = new Dictionary<string, WhisparrHeldCard>(StringComparer.Ordinal);
 
     public Task<WhisparrResponse> AddSceneExclusionAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)

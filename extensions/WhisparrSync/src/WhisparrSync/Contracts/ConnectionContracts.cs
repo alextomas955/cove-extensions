@@ -87,6 +87,29 @@ public enum WhisparrCapability
     ReadHeldSites,
 
     /// <summary>
+    /// What the instance holds for a page of entity cards can be read in one request, rather than
+    /// one request per card.
+    /// </summary>
+    ReadEntityCardsInBatch,
+
+    /// <summary>
+    /// What the instance holds for a page of scene cards can be read in one request. Held by the
+    /// generation that addresses a scene without its site.
+    /// </summary>
+    ReadSceneCardsInBatch,
+
+    /// <summary>
+    /// An entity can be added so the instance tracks its catalogue and wants none of it.
+    /// </summary>
+    TrackEntityCatalogue,
+
+    /// <summary>
+    /// The scenes the instance lists for one entity can be read, which is the catalogue the missing
+    /// surface is composed from.
+    /// </summary>
+    ReadEntityCatalogue,
+
+    /// <summary>
     /// What the instance holds at a path on its own filesystem can be read. Lets a caller establish
     /// which spelling of a folder the instance can open, rather than assuming the library's own.
     /// </summary>
