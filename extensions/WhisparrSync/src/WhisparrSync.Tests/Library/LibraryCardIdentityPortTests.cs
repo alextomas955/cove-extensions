@@ -94,7 +94,58 @@ public sealed class LibraryCardIdentityPortTests
             await ResolveAsync(host, second, first));
     }
 
+    // A page read drops a contested video, but a caller acting on one scene owes the reader the
+    // reason, so the two absences are answered apart here.
+    [Fact]
+    public async Task OneSceneNamingTwoDifferentScenesAnswersTheConflictRatherThanAnAbsence()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var videoId = await host.SeedStudioSceneAsync(
+            await host.SeedStudioAsync(null, null), MonitorHost.StoredEndpoint, FirstScene);
+        await host.AddSceneIdentityAsync(videoId, StandardStashDbAddress, SecondScene);
+
+        Assert.Equal(SceneCardIdentity.Ambiguous, await ResolveOneAsync(host, videoId));
+    }
+
+    [Fact]
+    public async Task OneSceneNamedByNothingAnswersTheAbsence()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var videoId = await host.SeedStudioSceneAsync(
+            await host.SeedStudioAsync(null, null), null, null);
+
+        Assert.Equal(SceneCardIdentity.Unmatched, await ResolveOneAsync(host, videoId));
+    }
+
+    // A row in the other generation's namespace is not part of this one's answer, so it neither
+    // names the scene nor contests it.
+    [Fact]
+    public async Task ARowInAnotherNamespaceNeitherNamesTheSceneNorContestsIt()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var videoId = await host.SeedStudioSceneAsync(
+            await host.SeedStudioAsync(null, null), MonitorHost.StoredEndpoint, FirstScene);
+        await host.AddSceneIdentityAsync(videoId, OtherNamespaceEndpoint, SecondScene);
+
+        Assert.Equal(SceneCardIdentity.At(FirstScene), await ResolveOneAsync(host, videoId));
+    }
+
+    // Two rows carrying one identifier agree, so the scene is named rather than contested.
+    [Fact]
+    public async Task TwoRowsCarryingOneIdentifierNameTheScene()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var videoId = await host.SeedStudioSceneAsync(
+            await host.SeedStudioAsync(null, null), MonitorHost.StoredEndpoint, FirstScene);
+        await host.AddSceneIdentityAsync(videoId, StandardStashDbAddress, FirstScene);
+
+        Assert.Equal(SceneCardIdentity.At(FirstScene), await ResolveOneAsync(host, videoId));
+    }
+
     private static async Task<IReadOnlyList<LibraryCardIdentity>> ResolveAsync(
         MonitorHost host, params int[] coveIds)
         => await host.CardIdentities.ResolveAsync(coveIds, WhisparrGeneration.V3, TestCt);
+
+    private static async Task<SceneCardIdentity> ResolveOneAsync(MonitorHost host, int coveId)
+        => await host.CardIdentities.ResolveOneAsync(coveId, WhisparrGeneration.V3, TestCt);
 }
