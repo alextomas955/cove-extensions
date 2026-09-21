@@ -475,7 +475,7 @@ export const FOLDER_AGREEMENT_TITLE = "Where Whisparr holds your folders";
 
 /** What the section is for, and which folders reach it. */
 export const FOLDER_AGREEMENT_DESCRIPTION =
-  "Whisparr reaches your files at a path of its own. Cove works that path out by asking Whisparr what it holds. Listed here are the folders it could not settle, and the folders you have stated a path for.";
+  "Whisparr reaches your files at paths of its own. Cove works each one out by asking Whisparr what it holds. Listed here are the folders it could not settle, and the ones you set a path for.";
 
 /** The read behind the section failed, so which folders are listed is not known. */
 export const FOLDER_AGREEMENT_UNREADABLE = "Cove could not read where Whisparr holds your folders.";
@@ -484,11 +484,13 @@ export const FOLDER_AGREEMENT_UNREADABLE = "Cove could not read where Whisparr h
 export const FOLDER_AGREEMENT_PATH = "Where Whisparr holds this folder";
 
 /** What the field takes, and what leaving it blank does. */
-export const FOLDER_AGREEMENT_PATH_HELPER =
-  "The path Whisparr itself reaches this folder at. Leave it blank to let Cove work the path out again.";
+export const FOLDER_AGREEMENT_PATH_HELPER = "Leave it blank to let Cove work the path out again.";
 
 /** The control that states the path. */
-export const FOLDER_AGREEMENT_SAVE = "Save this path";
+export const FOLDER_AGREEMENT_SAVE = "Save";
+
+/** The control that opens the path field under a folder with nothing outstanding. */
+export const FOLDER_AGREEMENT_CHANGE = "Change";
 
 /** The control on a line where withdrawing the path in force is the only thing that can be done. */
 export const FOLDER_AGREEMENT_WITHDRAW = "Withdraw this path";
@@ -497,7 +499,16 @@ export const FOLDER_AGREEMENT_WITHDRAW = "Withdraw this path";
 export const FOLDER_AGREEMENT_SAVE_IS_RUNNING = "Cove is checking this path with Whisparr.";
 
 /** The stated path is working, so the folder is listed to be reviewed rather than acted on. */
-export const FOLDER_AGREEMENT_SETTLED = "Nothing about this folder is outstanding.";
+export const FOLDER_AGREEMENT_SETTLED = "Settled";
+
+/** Cove could not work the path out, and a stated one would settle it. */
+export const FOLDER_AGREEMENT_NEEDS_A_PATH = "Needs a path";
+
+/** Nothing under the folder can be asked about, so no stated path would change anything. */
+export const FOLDER_AGREEMENT_NOTHING_TO_SETTLE = "Nothing to settle";
+
+/** Stands where a folder's Whisparr path would be, so a row always reads as a pair. */
+export const FOLDER_AGREEMENT_NO_PATH_YET = "no path yet";
 
 /** No candidate path held a file of the size the library holds. */
 export const FOLDER_NOTHING_RESOLVED =
@@ -545,9 +556,9 @@ export const FOLDER_SAVE_NOT_CONFIGURED =
 /** The save itself did not reach Cove, so nothing was established either way. */
 export const FOLDER_SAVE_DID_NOT_REACH = "Cove could not save that path. Nothing was changed.";
 
-/** Which Cove folder one prompt is about. */
-export function folderAgreementRootSentence(root: string): string {
-  return `Cove holds ${root}.`;
+/** The label on the disclosure holding the paths the instance was asked about. */
+export function folderAgreementTriedSummary(count: number): string {
+  return `Paths Cove asked Whisparr about (${String(count)})`;
 }
 
 /** The paths the instance was asked about, or a statement that it was asked about none. */
@@ -560,11 +571,6 @@ export function folderAgreementTriedSentence(tried: readonly string[]): string {
       ? tried[0]
       : `${tried.slice(0, -1).join(", ")} and ${tried[tried.length - 1]}`;
   return `Cove asked Whisparr about ${asked}.`;
-}
-
-/** The path a reader has already stated for a folder, so they can see what is being used. */
-export function folderAgreementMappingSentence(mapping: string): string {
-  return `Cove is using ${mapping} as Whisparr's path for this folder.`;
 }
 
 /** What the default upgrade behaviour does, in the terms the reader sees the result in. */

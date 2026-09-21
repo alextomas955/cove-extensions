@@ -1,17 +1,23 @@
 /**
- * One line per Cove library folder whose Whisparr path Cove cannot work out.
+ * One row per Cove library folder, pairing the folder with the path Whisparr reaches it at.
  *
- * The path field is blank even when a path is in force, because saving it blank is what withdraws
- * that path. Where no typed path can be stored, the field is replaced by a withdraw control.
+ * A settled row keeps its path field closed, because the pair on its header line is the whole of
+ * what it has to say. The field is blank even when a path is in force, because saving it blank is
+ * what withdraws that path. Where no typed path can be stored, the field is replaced by a withdraw
+ * control.
  */
-import { Field, INPUT_CLASS, SectionCard, StatusText } from "@cove-extensions/ui-shared";
+import { INPUT_CLASS, SectionCard, StatusPill, StatusText } from "@cove-extensions/ui-shared";
+import { useState } from "react";
 
 import type { FolderAgreementRootLine, FolderAgreementView } from "../wire/api";
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { OptionallyDisabled } from "../common/ui/DisabledControl";
 import { deriveAsyncRegionState, type AsyncRead } from "../common/ui/asyncRegionLogic";
 import {
+  folderAgreementTriedSummary,
+  FOLDER_AGREEMENT_CHANGE,
   FOLDER_AGREEMENT_DESCRIPTION,
+  FOLDER_AGREEMENT_NO_PATH_YET,
   FOLDER_AGREEMENT_PATH,
   FOLDER_AGREEMENT_PATH_HELPER,
   FOLDER_AGREEMENT_SAVE,
@@ -24,12 +30,20 @@ import {
   agreementLines,
   asksForAPath,
   hasAnythingToShow,
-  mappingSentenceFor,
+  reasonFor,
   saveAnswerSentence,
-  sentenceFor,
+  stateLabel,
+  stateOf,
   withdrawsOnly,
+  type FolderAgreementState,
   type FolderSaveAnswer,
 } from "./folderAgreementLogic";
+
+const PILL_VARIANT: Record<FolderAgreementState, "green" | "amber" | "gray"> = {
+  settled: "green",
+  needsAPath: "amber",
+  nothingToSettle: "gray",
+};
 
 export interface FolderAgreementSectionProps {
   read: AsyncRead;
@@ -71,7 +85,7 @@ export function FolderAgreementSection({
       }
       content={
         <SectionCard title={FOLDER_AGREEMENT_TITLE} description={FOLDER_AGREEMENT_DESCRIPTION}>
-          <ul className="list-none space-y-5">
+          <ul className="list-none space-y-2">
             {lines.map((line) => (
               <Prompt
                 key={line.root}
@@ -112,31 +126,74 @@ function Prompt({
   onSave: (root: string) => void;
   onWithdraw: (root: string) => void;
 }) {
-  const mapping = mappingSentenceFor(line);
-  const reason = saving || blocked ? FOLDER_AGREEMENT_SAVE_IS_RUNNING : null;
+  const [opened, setOpened] = useState(false);
+  const state = stateOf(line);
+  const reason = reasonFor(line);
+  const blockedReason = saving || blocked ? FOLDER_AGREEMENT_SAVE_IS_RUNNING : null;
+  // A settled folder asks for nothing, so its field stays closed until the reader opens it.
+  const fieldShown = asksForAPath(line) && (state !== "settled" || opened);
 
   return (
-    <li data-root={line.root} className="space-y-2">
-      <p className="text-sm text-secondary">{sentenceFor(line)}</p>
-      {mapping === null ? null : <p className="text-xs text-muted">{mapping}</p>}
+    <li
+      data-root={line.root}
+      className="space-y-2 rounded-lg border border-border bg-card/40 px-3 py-2"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusPill variant={PILL_VARIANT[state]} shape="tag">
+          {stateLabel(state)}
+        </StatusPill>
+        <span className="font-mono text-sm text-primary">{line.root}</span>
+        <span className="text-muted">→</span>
+        {line.mapping === null ? (
+          <span className="text-sm text-muted">{FOLDER_AGREEMENT_NO_PATH_YET}</span>
+        ) : (
+          <span className="font-mono text-sm text-primary">{line.mapping}</span>
+        )}
+        {state === "settled" && !opened ? (
+          <button
+            type="button"
+            className="ml-auto rounded px-2 py-0.5 text-xs text-secondary hover:text-primary"
+            onClick={() => {
+              setOpened(true);
+            }}
+          >
+            {FOLDER_AGREEMENT_CHANGE}
+          </button>
+        ) : null}
+      </div>
 
-      {asksForAPath(line) ? (
-        <div className="space-y-2">
-          <Field label={FOLDER_AGREEMENT_PATH} helper={FOLDER_AGREEMENT_PATH_HELPER}>
-            <input
-              type="text"
-              value={draft}
-              disabled={reason !== null}
-              onChange={(e) => {
-                onPathChange(line.root, e.target.value);
-              }}
-              className={`${INPUT_CLASS} font-mono`}
-            />
-          </Field>
+      {reason === null ? null : <p className="text-xs text-secondary">{reason}</p>}
+
+      {line.pathsTried.length === 0 ? null : (
+        <details className="text-xs text-muted">
+          <summary className="cursor-pointer">
+            {folderAgreementTriedSummary(line.pathsTried.length)}
+          </summary>
+          <ul className="mt-1 list-none space-y-0.5 font-mono">
+            {line.pathsTried.map((path) => (
+              <li key={path}>{path}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {fieldShown ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            aria-label={`${FOLDER_AGREEMENT_PATH}: ${line.root}`}
+            placeholder={FOLDER_AGREEMENT_PATH_HELPER}
+            value={draft}
+            disabled={blockedReason !== null}
+            onChange={(e) => {
+              onPathChange(line.root, e.target.value);
+            }}
+            className={`${INPUT_CLASS} flex-1 font-mono`}
+          />
           <OptionallyDisabled
             name={FOLDER_AGREEMENT_SAVE}
             variant="ghost"
-            reason={reason}
+            reason={blockedReason}
             onClick={() => {
               onSave(line.root);
             }}
@@ -148,7 +205,7 @@ function Prompt({
         <OptionallyDisabled
           name={FOLDER_AGREEMENT_WITHDRAW}
           variant="ghost"
-          reason={reason}
+          reason={blockedReason}
           onClick={() => {
             onWithdraw(line.root);
           }}
