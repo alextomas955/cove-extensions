@@ -86,6 +86,11 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
     public static BodyRecordingHandler AnsweringWithAByteOrderMarkAhead(string answer)
         => new(BodyShape.PrefixedWithAMark, (HttpStatusCode.OK, answer));
 
+    // Raises the exception a connection that reached nothing raises, after recording the attempt. A
+    // request the client re-issues therefore appears as a second recorded attempt.
+    public static BodyRecordingHandler ReachingNothing()
+        => new(BodyShape.ReachesNothing, (HttpStatusCode.OK, string.Empty));
+
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -97,6 +102,11 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
         var path = request.RequestUri?.AbsolutePath ?? string.Empty;
         Requests.Add((request.Method, path, body));
         Targets.Add(request.RequestUri?.PathAndQuery ?? string.Empty);
+
+        if (_shape == BodyShape.ReachesNothing)
+        {
+            throw new HttpRequestException("the handler reached nothing");
+        }
 
         if (_byPath is not null)
         {
@@ -138,6 +148,8 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
         StopsPartWay,
 
         PrefixedWithAMark,
+
+        ReachesNothing,
     }
 
     private sealed class StoppingPartWayStream : Stream
