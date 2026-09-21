@@ -68,6 +68,10 @@ const SEEDED_CARDS = 45;
 /** How many times the end of the list is scrolled to before the loop gives up. */
 const SCROLL_STEPS = 8;
 
+// Bounds a window that never settles. Every read below is for something the host does as soon as it
+// has painted, so this paces nothing that works.
+const WINDOW_SETTLE_BUDGET_MS = 30_000;
+
 /**
  * The five words a badge may read, transcribed by hand from the shipped vocabulary.
  *
@@ -696,14 +700,27 @@ test.describe("library status", () => {
     await openList(page, baseUrl, "/videos?perPage=0", videoCards(page), "the videos page");
 
     // The window the host settles on. It renders what its own viewport reaches, so what is on screen
-    // is a fact about the run rather than a number to transcribe.
+    // is a fact about the run rather than a number to transcribe. Settled means two reads running to
+    // the same count, which is the only signal the host offers: it names no total and fires no event
+    // when a window stops growing. Polled under a deadline, so a host that never settles says so
+    // here rather than running out the whole test budget.
     const settledTitles = async () => {
       let held = [];
-      for (let read = await cardTitles(page); read.length !== held.length;) {
-        held = read;
-        await page.waitForTimeout(1_000);
-        read = await cardTitles(page);
-      }
+      await expect
+        .poll(
+          async () => {
+            const read = await cardTitles(page);
+            const settled = read.length === held.length;
+            held = read;
+            return settled;
+          },
+          {
+            message: "the host kept mounting cards, so no window ever settled",
+            timeout: WINDOW_SETTLE_BUDGET_MS,
+            intervals: [250, 250, 500, 1_000],
+          },
+        )
+        .toBe(true);
       return held;
     };
 
@@ -731,9 +748,13 @@ test.describe("library status", () => {
       const now = await settledTitles();
       const fresh = now.filter((title) => !seen.has(title));
       for (const title of now) seen.add(title);
-      await page.waitForTimeout(SETTLE_DWELL_MS);
       if (fresh.length === 0) break;
     }
+
+    // Once, after the last window, rather than once per scroll step. Each step already waited for
+    // its own window to settle; what remains is the request that window provoked, and only the last
+    // one can still be in flight when the loop ends.
+    await page.waitForTimeout(SETTLE_DWELL_MS);
 
     expect(
       seen.size,
