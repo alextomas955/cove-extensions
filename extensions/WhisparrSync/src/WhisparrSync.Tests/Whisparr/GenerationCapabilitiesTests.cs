@@ -117,6 +117,10 @@ public sealed class GenerationCapabilitiesTests
         => Assert.Throws<InvalidOperationException>(
             () => GenerationCapabilities.For(WhisparrGeneration.V3).Obtain<IWhisparrStudioActing>());
 
+    // Both lists are the whole claim rather than a sample, so a capability added to a generation
+    // fails here rather than arriving unnoticed. v2 addresses no performer, adds no catalogue item
+    // and keeps no scene records, which is why the six capabilities resting on those are absent
+    // from its list.
     [Fact]
     public void EachGenerationsCapabilitiesAreWrittenDownPerGeneration()
     {
@@ -150,39 +154,6 @@ public sealed class GenerationCapabilitiesTests
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
         Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
-    }
-
-    // v2 addresses no performer, adds no catalogue item, and keeps no scene records. It honours
-    // everything else, so both lists are the whole claim rather than a sample.
-    [Fact]
-    public void TheOlderGenerationHoldsExactlyTheCapabilitiesItCanHonour()
-    {
-        var held = GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2);
-
-        Assert.Equal(
-            [
-                WhisparrCapability.OutOfBandCallbackSecret,
-                WhisparrCapability.MonitorStudio,
-                WhisparrCapability.ReflectOwnedFiles,
-                WhisparrCapability.SearchMonitored,
-                WhisparrCapability.MonitorScene,
-                WhisparrCapability.RegisterOwnedSites,
-                WhisparrCapability.ReadSiteSceneRows,
-                WhisparrCapability.ReadHeldSites,
-                WhisparrCapability.ReadInstanceFilesystem,
-            ],
-            held);
-        Assert.All(
-            new[]
-            {
-                WhisparrCapability.MonitorPerformer,
-                WhisparrCapability.RegisterMissingScenes,
-                WhisparrCapability.ReadSceneStatus,
-                WhisparrCapability.ReadSceneExclusions,
-                WhisparrCapability.SearchScene,
-                WhisparrCapability.ExcludeScene,
-            },
-            absent => Assert.DoesNotContain(absent, held));
     }
 
     // v2 keeps no scene records, so it has no scene to search for. Both generations are asserted

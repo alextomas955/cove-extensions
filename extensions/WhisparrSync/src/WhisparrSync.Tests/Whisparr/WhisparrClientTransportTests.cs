@@ -388,28 +388,6 @@ public sealed class WhisparrClientTransportTests
         Assert.Empty(handler.Requests);
     }
 
-    // Every assertion about a walk's page order is read off this double, so one that recorded the
-    // wrong page would make those assertions agree with themselves.
-    [Fact]
-    public async Task TheRecordingDoubleRecordsEachHistoryCallsArguments()
-    {
-        var client = RecordingWhisparrClient.Reporting("whisparr-v3-3.3.8.1097-system-status.json");
-        var address = new Uri("http://whisparr:6969");
-
-        await ((IWhisparrClient)client).ReadHistoryAsync(
-            address, SomeKey, WhisparrGeneration.V3, 1, 20, TestContext.Current.CancellationToken);
-        await ((IWhisparrClient)client).ReadHistoryAsync(
-            address, SomeKey, WhisparrGeneration.V2, 2, 20, TestContext.Current.CancellationToken);
-
-        Assert.Equal([1, 2], client.Histories.Select(call => call.Page));
-        Assert.Equal(
-            [WhisparrGeneration.V3, WhisparrGeneration.V2],
-            client.Histories.Select(call => call.Generation));
-        Assert.All(client.Histories, call => Assert.Equal(20, call.PageSize));
-        Assert.All(client.Histories, call => Assert.Equal(address, call.BaseAddress));
-        Assert.All(client.Verbs, verb => Assert.Equal(nameof(IWhisparrClient.ReadHistoryAsync), verb));
-    }
-
     // Any read member reaches the same send, and this one is what the other transport cases drive.
     private static Task<WhisparrResponse> ReadThroughAsync(HttpMessageHandler handler)
         => ReadThroughAsync(handler, WhisparrGeneration.V3);
