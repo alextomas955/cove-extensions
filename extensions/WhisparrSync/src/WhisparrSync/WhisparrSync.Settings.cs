@@ -138,8 +138,9 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(clock);
 
         // The key is written before the options blob. They are separate stores with no transaction
-        // between them, so an interrupted save leaves a stored key beside the address it was
-        // entered against rather than beside an address nothing was entered for.
+        // between them, so a save interrupted between the two leaves the new key beside the stored
+        // address, which the next save corrects. Only a request changing both at once opens that
+        // window: a request leaving one of them alone writes to one store.
         var now = clock.GetUtcNow();
         await credentials.ApplyAsync(
             WhisparrGeneration.V3, SettingsProjector.CredentialWriteFor(request.V3), now, ct)
