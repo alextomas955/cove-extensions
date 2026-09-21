@@ -15,7 +15,7 @@
 // through a hosted service of the vendor's, which no sealed run can reach, so without a stand-in
 // every entity read answers "the instance refused". The stub answers only for the rows this fixture
 // seeded and reaches nothing.
-import { createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
+import { createApiClient } from "@cove-extensions/e2e";
 import {
   registerRootFolder,
   startWhisparr,
@@ -30,7 +30,7 @@ import {
   test as base,
   connectWhisparr,
   seedCoveStudio,
-  WHISPARR_SYNC_EXTENSION,
+  isolatedCoveFixture,
 } from "./whisparr-sync-fixtures.mjs";
 
 /**
@@ -69,7 +69,7 @@ export const SPEC_BUDGET_MS = 900_000;
  * would make the second one depend on what the first left behind.
  */
 export const test = base.extend({
-  isolatedHarness: isolatedHarnessFixture(WHISPARR_SYNC_EXTENSION),
+  isolatedHarness: isolatedCoveFixture(),
 
   v2: async ({ isolatedHarness }, use) => {
     const cleanup = cleanupStack();
