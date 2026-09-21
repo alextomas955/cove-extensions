@@ -11,10 +11,12 @@ that would change before anything touches disk.
 
 - **`$resolution` now reads the same as the resolution shown on the item.** The filename and the
   badge no longer disagree.
-- **More resolutions get their own label.** Sizes that were rounded down to the nearest of five
-  labels now have their own: `144p`, `240p`, `360p`, `540p`, `5K`, `6K`, `7K`, and `HUGE` for
-  anything wider than 8K. A very small frame still gets no label, so the bracketed group in your
-  template drops as before.
+- **Large sizes get their own label.** `5K`, `6K`, `7K` and `HUGE` replace the single `4k` that
+  every size above 1440p used to collapse into, and `540p` is no longer rounded down to `480p`.
+- **Small frames are labelled more coarsely.** A size under 480 used to render its exact height,
+  such as `432p`; it now takes the nearest standard label, `360p`. A frame under 144 on its long
+  edge gets no label at all where it used to get one, so the bracketed group in your template
+  drops instead of rendering.
 - **A portrait video is no longer labelled as if it were landscape.** A 1080 x 1920 video is
   `1080p`, matching the landscape video of the same shape, rather than `1440p`. This needs a width
   stored for the file; without one Renamer still reads the height alone.

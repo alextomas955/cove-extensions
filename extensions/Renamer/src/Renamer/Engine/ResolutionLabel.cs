@@ -49,8 +49,9 @@ public static class ResolutionLabel
     public static readonly IReadOnlyList<string> KnownLabels =
         Buckets.Select(b => b.Label).Union(StandardLabels.Select(s => s.Label), StringComparer.Ordinal).ToArray();
 
-    // The label follows the short edge, so a portrait file reads the same as the landscape file of
-    // the same shape. A frame below the smallest bucket has no label and renders empty.
+    // The larger of the two labels wins, so a portrait file reads the same as the landscape file of
+    // the same shape while a very wide frame keeps its long-edge label. A frame below the smallest
+    // bucket has no label and renders empty.
     public static string FromDimensions(int width, int height)
     {
         if (width <= 0 || height <= 0)
@@ -74,7 +75,7 @@ public static class ResolutionLabel
         return Buckets[bucket].Label;
     }
 
-    // For a caller that stored only one dimension. It reads that height as the short edge, so a
+    // For a caller that stored only one dimension. It reads that height as both edges, so a
     // portrait file of unknown width gets the label of the landscape file of that height.
     public static string FromHeight(int height) => FromDimensions(height, height);
 
