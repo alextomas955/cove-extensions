@@ -50,10 +50,10 @@ const AUTH_SWITCH = "COVE_E2E_AUTH_ENABLED";
 
 // Files inside the caller container, so a store response is never carried back through the exec's
 // stdout.
-const BODY_FILE = "/tmp/r12-body";
-const HEADER_FILE = "/tmp/r12-headers";
-const META_FILE = "/tmp/r12-meta";
-const ERROR_FILE = "/tmp/r12-error";
+const BODY_FILE = "/opt/harness/r12-body";
+const HEADER_FILE = "/opt/harness/r12-headers";
+const META_FILE = "/opt/harness/r12-meta";
+const ERROR_FILE = "/opt/harness/r12-error";
 
 const HEADER_MARKER = "HEADERS";
 

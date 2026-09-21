@@ -8,7 +8,7 @@
 // It also seeds the catalogue entry a grab lands on. A scene is one row on one generation and two
 // on the other, and each addresses a release search by a different entity, so the seeding is a
 // table here rather than a branch in the spec that grabs.
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 
 import { pollUntil } from "@cove-extensions/e2e/poll";
 
@@ -175,7 +175,7 @@ const ACQUIRABLE = {
   async v2({ whisparr, rootFolder, run }) {
     const instance = whisparr.apiFor("v2");
     const seeded = await seedV2Scene(whisparr.v2.container, instance, {
-      siteId: Math.floor(Math.random() * 1_000_000) + 1,
+      siteId: randomInt(1, 1_000_001),
       siteTitle: SCENE_SITE,
       rootFolderPath: rootFolder,
       sceneExternalId: randomUUID(),

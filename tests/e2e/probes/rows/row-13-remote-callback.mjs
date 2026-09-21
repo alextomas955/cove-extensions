@@ -26,10 +26,10 @@ const COVE_PORT = 5073;
 
 // Files inside the container the client writes to, so a response body is never carried back through
 // the exec's stdout.
-const BODY_FILE = "/tmp/rc-body";
-const HEADER_FILE = "/tmp/rc-headers";
-const META_FILE = "/tmp/rc-meta";
-const ERROR_FILE = "/tmp/rc-error";
+const BODY_FILE = "/opt/harness/rc-body";
+const HEADER_FILE = "/opt/harness/rc-headers";
+const META_FILE = "/opt/harness/rc-meta";
+const ERROR_FILE = "/opt/harness/rc-error";
 
 const HEADER_MARKER = "HEADERS";
 const BODY_HEAD_BYTES = 300;
