@@ -38,8 +38,7 @@ export const SCENE_SITE = "Tushy Raw";
  * them the interactive search answers an empty list having asked no indexer anything.
  */
 export async function dateSeededScene(container, generation, foreignId) {
-  const database = DATABASES[generation];
-  if (database === undefined) {
+  if (!Object.hasOwn(DATABASES, generation)) {
     throw new Error(`dateSeededScene: no database is declared for generation "${generation}".`);
   }
 
@@ -52,8 +51,8 @@ export async function dateSeededScene(container, generation, foreignId) {
     [
       "python3",
       DATER_TARGET,
-      "--db",
-      database,
+      "--generation",
+      generation,
       "--foreign-id",
       foreignId,
       "--release-date",
