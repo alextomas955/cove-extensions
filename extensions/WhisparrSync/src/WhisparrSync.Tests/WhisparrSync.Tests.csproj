@@ -27,6 +27,12 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
     <!--
+      The Sonar job runs this suite with the platform's coverage switch. Without this extension that
+      switch is not recognised, and what the run reports is "Zero tests ran" rather than an unknown
+      argument, so the suite reads as empty instead of as misconfigured.
+    -->
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <!--
       TEST-ONLY runtime closure, not a compile dependency: the extension base class binds to EF Core
       types, so merely constructing the extension loads the assembly. The host supplies it at runtime
       and the extension therefore consumes it with the runtime assets excluded, which leaves it out of
