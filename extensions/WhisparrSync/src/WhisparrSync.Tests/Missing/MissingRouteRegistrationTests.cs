@@ -14,7 +14,9 @@ namespace WhisparrSync.Tests.Missing;
 // and reports nothing wrong.
 public sealed class MissingRouteRegistrationTests
 {
-    private static readonly string[] PageTypes = ["studio", "performer", "tag"];
+    // A tag names no entity either metadata source publishes a catalogue for, so no tag page
+    // carries the tab.
+    private static readonly string[] PageTypes = ["studio", "performer"];
 
     [Fact]
     public void TheTabIsRegisteredOncePerPageTypeUnderOneComponent()
@@ -40,7 +42,7 @@ public sealed class MissingRouteRegistrationTests
             Assert.Contains(
                 $"/entity/{tab.PageType}/", endpoint, StringComparison.Ordinal);
 
-            // The other two kinds are absent, so a registration cannot carry one page type and ask
+            // The other page type is absent, so a registration cannot carry one page type and ask
             // about another while still ending in the right segment.
             Assert.All(
                 PageTypes.Where(other => !string.Equals(other, tab.PageType, StringComparison.Ordinal)),
