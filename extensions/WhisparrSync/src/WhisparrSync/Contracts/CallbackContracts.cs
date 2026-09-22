@@ -52,6 +52,12 @@ public enum CallbackSecretPosition
 /// only after a registration whose read-back did not find the address that was sent, so it reports
 /// what the notification now says rather than what the write answered.
 /// </para>
+/// <para>
+/// <c>HostAuthenticationRequired</c> false means registering would sign the operator out of this
+/// Cove, so the surface states that before the gesture rather than after it. Whisparr verifies a
+/// webhook by posting to it, and a Cove with authentication off reads that post as an instance
+/// reachable from outside its own machine and turns authentication on for good.
+/// </para>
 /// </remarks>
 public sealed record CallbackView(
     WhisparrGeneration Generation,
@@ -61,7 +67,8 @@ public sealed record CallbackView(
     bool SecretTravelsOutOfBand,
     CallbackSecretPosition? LastEventSecretPosition,
     ConnectionSetting? MissingSetting,
-    string? Refusal);
+    string? Refusal,
+    bool HostAuthenticationRequired);
 
 /// <summary>One request to register the callback in the connected instance.</summary>
 /// <remarks>
