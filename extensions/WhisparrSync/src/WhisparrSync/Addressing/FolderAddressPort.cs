@@ -57,8 +57,8 @@ internal sealed class FolderAgreementCache(TimeProvider clock)
     private static (WhisparrGeneration, string, string) KeyFor(
         FolderAddressTarget target, string coveRoot)
         => (
-            target.Generation,
-            target.BaseAddress.GetLeftPart(UriPartial.Path).TrimEnd('/'),
+            target.Binding.Generation,
+            target.Binding.BaseAddress.GetLeftPart(UriPartial.Path).TrimEnd('/'),
             coveRoot);
 }
 
@@ -173,7 +173,7 @@ internal sealed class FolderAddressPort(
         // A root list that could not be read and an instance declaring none reach the same refusal
         // here, which names the instance's own list either way.
         var declared = string.IsNullOrWhiteSpace(mapping)
-            ? await instanceRoots.ReadAsync(target.Generation, ct).ConfigureAwait(false) ?? []
+            ? await instanceRoots.ReadAsync(target.Binding.Generation, ct).ConfigureAwait(false) ?? []
             : [];
         var candidates = FolderAgreement.CandidatesFor(sample.Path, coveRoot, declared, mapping);
         if (candidates.Refusal is { } refused)
@@ -212,7 +212,7 @@ internal sealed class FolderAddressPort(
         try
         {
             answer = await target.Filesystem.ReadInstanceFolderAsync(
-                target.BaseAddress, target.ApiKey, target.Generation, candidate[..separator], ct)
+                target.Binding.BaseAddress, target.Binding.ApiKey, target.Binding.Generation, candidate[..separator], ct)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -223,7 +223,7 @@ internal sealed class FolderAddressPort(
         catch (Exception failure)
             when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
-            WhisparrSyncLog.FolderProbeFailed(log, target.Generation, target.BaseAddress.Host);
+            WhisparrSyncLog.FolderProbeFailed(log, target.Binding.Generation, target.Binding.BaseAddress.Host);
             return null;
         }
 
