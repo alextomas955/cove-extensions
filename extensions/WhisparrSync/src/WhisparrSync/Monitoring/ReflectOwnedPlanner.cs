@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using WhisparrSync.Addressing;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
 
@@ -88,10 +89,6 @@ internal static class ReflectOwnedPlanner
 
     internal const string HardLinkSetting = "copyUsingHardlinks";
 
-    private const string V3MatchedMember = "movie";
-
-    private const string V2MatchedMember = "series";
-
     internal static ReflectOwnedDecision Decide(string? mediaManagement)
     {
         if (MonitoringProjector.AsObject(mediaManagement) is not { } settings
@@ -124,16 +121,17 @@ internal static class ReflectOwnedPlanner
             return PlannedFiles.Nothing;
         }
 
+        var reading = WhisparrInstanceFactory.ReadingFor(generation);
         var files = new JsonArray();
         var leftUnderAnotherRoot = 0;
         foreach (var row in rows.OfType<JsonObject>())
         {
-            if (Entry(generation, row) is not { } entry)
+            if (Entry(reading, row) is not { } entry)
             {
                 continue;
             }
 
-            if (UnderDifferentRoots(generation, row, instanceRoots))
+            if (UnderDifferentRoots(reading, row, instanceRoots))
             {
                 leftUnderAnotherRoot++;
                 continue;
@@ -256,10 +254,10 @@ internal static class ReflectOwnedPlanner
     // taking the first declared root would answer the parent for both paths and see one root where
     // there are two.
     private static bool UnderDifferentRoots(
-        WhisparrGeneration generation, JsonObject row, IReadOnlyList<string> instanceRoots)
+        IWhisparrPayloadReading reading, JsonObject row, IReadOnlyList<string> instanceRoots)
     {
         var file = RootOf(Text(row, "path"), instanceRoots);
-        var site = RootOf(Text(row[MatchedMember(generation)] as JsonObject, "path"), instanceRoots);
+        var site = RootOf(Text(row[reading.MatchedMember] as JsonObject, "path"), instanceRoots);
 
         return file is not null
             && site is not null
@@ -274,14 +272,6 @@ internal static class ReflectOwnedPlanner
                 .OrderByDescending(root => PathCandidateGuard.Normalize(root).Length)
                 .FirstOrDefault();
 
-    private static string MatchedMember(WhisparrGeneration generation)
-        => generation switch
-        {
-            WhisparrGeneration.V3 => V3MatchedMember,
-            WhisparrGeneration.V2 => V2MatchedMember,
-            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
-        };
-
     private static string? Text(JsonObject? owner, string member)
         => owner?[member] is JsonValue value
             && value.TryGetValue<string>(out var text)
@@ -289,9 +279,9 @@ internal static class ReflectOwnedPlanner
                 ? text
                 : null;
 
-    // Both spellings are transcribed from the interface bundle each build ships. v3 names one scene;
-    // v2 names a series and the episodes matched inside it.
-    private static JsonObject? Entry(WhisparrGeneration generation, JsonObject row)
+    // The members every generation carries are composed here; the matched entity and its file are
+    // the reader's, which answers null for a row it can attach nothing from.
+    private static JsonObject? Entry(IWhisparrPayloadReading reading, JsonObject row)
     {
         if (row["quality"] is not JsonObject quality
             || row["languages"] is not JsonArray languages
@@ -311,56 +301,8 @@ internal static class ReflectOwnedPlanner
             ["downloadId"] = row["downloadId"]?.DeepClone(),
         };
 
-        switch (generation)
-        {
-            case WhisparrGeneration.V3:
-                if (MatchedId(row, V3MatchedMember) is not { } movieId)
-                {
-                    return null;
-                }
-
-                entry["movieId"] = movieId;
-                entry["movieFileId"] = row["movieFileId"]?.DeepClone();
-                return entry;
-
-            case WhisparrGeneration.V2:
-                if (MatchedId(row, V2MatchedMember) is not { } seriesId
-                    || row["episodes"] is not JsonArray episodes)
-                {
-                    return null;
-                }
-
-                var episodeIds = new JsonArray();
-                foreach (var episode in episodes.OfType<JsonObject>())
-                {
-                    if (episode["id"] is JsonValue named && named.TryGetValue<int>(out var episodeId))
-                    {
-                        episodeIds.Add(episodeId);
-                    }
-                }
-
-                if (episodeIds.Count == 0)
-                {
-                    return null;
-                }
-
-                entry["seriesId"] = seriesId;
-                entry["episodeIds"] = episodeIds;
-                entry["episodeFileId"] = row["episodeFileId"]?.DeepClone();
-                return entry;
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(generation));
-        }
+        return reading.MatchedEntry(row, entry);
     }
-
-    private static int? MatchedId(JsonObject row, string member)
-        => row[member] is JsonObject matched
-            && matched["id"] is JsonValue named
-            && named.TryGetValue<int>(out var id)
-            && id > 0
-                ? id
-                : null;
 
     private static JsonArray? AsArray(string? body)
     {
