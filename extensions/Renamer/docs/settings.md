@@ -42,6 +42,9 @@ it here.
 The **preset** chips set the filename template to a starter pattern; the **live preview** beside the
 card shows the result on sample items as you type.
 
+The token list under this field is the only one on the page. Clicking a token inserts it at the
+cursor of whichever template field you used last — _Filename template_ or _Folder template_.
+
 ### Where files go
 
 This is the destination for an item no routing rule matched.
@@ -95,15 +98,17 @@ instead of the one in the card above.
 touched the row. It is off while a kind is excluded: an excluded kind returns through **Include**,
 which is the only button that starts renaming it again.
 
-## Scope & run
+## What gets renamed
 
-### What gets renamed
+| Setting                                | What it does                                                                                                                                               | Default |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Only rename organized items            | Skip items whose _Organized_ flag is off, so unorganized items don't get names. (Turning on the _Unorganized destination_ overrides this for those items.) | Off     |
+| Use filename as title when none is set | When an item has no title, derive `$title` from the item's first filename (without extension) instead of skipping it, and record it as the item's title.   | On      |
+| Required fields                        | Token names that must resolve to a non-empty value, or the item is skipped. Empty = no gate.                                                               | `title` |
 
-| Setting                                | What it does                                                                                                                                              | Default |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| Only rename organized items            | Skip items whose _Organized_ flag is off, so un-curated items don't get names. (Turning on the _Unorganized destination_ overrides this for those items.) | Off     |
-| Use filename as title when none is set | When an item has no title, derive `$title` from the item's first filename (without extension) instead of skipping it, and record it as the item's title.  | On      |
-| Required fields                        | Token names that must resolve to a non-empty value, or the item is skipped. Empty = no gate.                                                              | `title` |
+Type in the _Required fields_ box to search the token list, then pick one with the arrow keys or the
+mouse. _Drop order_ under [Advanced](#length--collisions) works the same way. The list is a
+suggestion, not a limit: a name outside it is still accepted, and the panel flags it.
 
 _Use filename as title when none is set_ saves the derived title onto the item, in the same save as the
 rename. It is the only setting that makes Renamer change metadata rather than only move files, and it
@@ -118,7 +123,7 @@ Undoing a rename puts the file back under its old name; the recorded title stays
 that item therefore renders the same name again rather than deriving a new one from whatever the file
 is called at the time.
 
-### Run & automation
+## Run & automation
 
 | Setting               | What it does                                                                                | Default |
 | --------------------- | ------------------------------------------------------------------------------------------- | ------- |
@@ -151,11 +156,11 @@ Both are multi-value lists shaped by the same options (a few apply to performers
 | Setting                            | What it does                                                                                                                             | Default         |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
 | Separator                          | Text inserted between joined items.                                                                                                      | `" "` (a space) |
-| Max count                          | Maximum items to include; `0` = unlimited.                                                                                               | `0`             |
+| Max count                          | Maximum items to include. Leave the field empty and it reads _No limit_; the stored value is `0`.                                        | `0`             |
 | On overflow                        | When over the max: _Drop all when over the max_ or _Keep the first N_.                                                                   | Drop all        |
 | Sort                               | Order before joining: Name (A→Z), Keep original order, and - performers only - By internal id, Favorites first, then name.               | Name (A→Z)      |
-| Whitelist                          | If non-empty, only the performers or tags you pick here are kept. Each is stored as a stable id, so renaming one in Cove keeps the rule. | _(empty)_       |
-| Blacklist                          | The performers or tags you pick here are removed. Stored as stable ids, the same way as the whitelist.                                   | _(empty)_       |
+| Only include                       | If non-empty, only the performers or tags you pick here are kept. Each is stored as a stable id, so renaming one in Cove keeps the rule. | _(empty)_       |
+| Never include                      | The performers or tags you pick here are removed. Stored as stable ids, the same way as _Only include_.                                  | _(empty)_       |
 | Ignore genders _(performers only)_ | Genders to drop before the max-count limit. A performer with no gender set is always kept.                                               | _(empty)_       |
 | Gender order _(performers only)_   | Preferred gender order, most-preferred first; controls who survives the max-count limit.                                                 | _(empty)_       |
 
@@ -166,16 +171,17 @@ Both are multi-value lists shaped by the same options (a few apply to performers
 | Date format     | .NET date format for `$date`. Options include `yyyy-MM-dd`, `yyyy`, `MM-dd-yyyy`, `dd.MM.yyyy`, `yyyy.MM.dd`.                                                                                                               | `yyyy-MM-dd` |
 | Duration format | .NET duration format for `$duration`: `hh\-mm\-ss`, `hh\.mm\.ss`, `mm\-ss`, or your own. The backslashes escape the separators. A format .NET rejects falls back to the duration in seconds rather than failing the rename. | `hh\-mm\-ss` |
 
-## Routing
+## Destination routing
 
 Renamer decides where each item goes by checking rules in a fixed **precedence order**:
 
-> **Excludes → Unorganized → Tag → Studio (including parent studios) → Source path**
+> **Excludes → Unorganized → Tag → Studio (including parent studios) → Source path → Per kind →
+> Default**
 
-An item that matches no rule at all takes the default destination — the _Under_ and _Folder
-template_ pair in [Where files go](#where-files-go). A rule that does match replaces
-that default outright: its own folder template is the only one rendered, never appended to the
-default's.
+An item that matches no rule at all takes its kind's own destination when that kind has one, and the
+default destination — the _Under_ and _Folder template_ pair in
+[Where files go](#where-files-go) — when it does not. A rule that does match replaces both outright:
+its own folder template is the only one rendered, never appended to the default's.
 
 Excludes always run first. What decides the winner within a category depends on the category, and
 only one of them uses an order you control:
@@ -194,7 +200,7 @@ The order of the cards below in the UI is for convenience and does not change an
 
 Two consequences of the order that surprise people, both correct:
 
-- **_Unorganized_ outranks everything except excludes**, so an un-curated item goes to the unorganized
+- **_Unorganized_ outranks everything except excludes**, so an unorganized item goes to the unorganized
   destination even when a studio or tag rule matches it. Curate the item - or turn the unorganized
   route off - if you want its other rules to decide.
 - **A token that renders empty does not disqualify a rule.** An unorganized item with no studio and a
@@ -263,14 +269,14 @@ never overwritten. The captions Cove tracks for an item always move, whatever th
 
 ### Clean up the name
 
-| Setting                        | What it does                                                                                                                                                                                    | Default |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| Illegal-char replacement       | What to do with characters the OS forbids in a filename: **strip** them, or **replace** each with a string you provide.                                                                         | Strip   |
-| Space replacement              | **Keep** spaces, or **replace** each space with a string (e.g. `.` or `_`).                                                                                                                     | Keep    |
-| Remove characters              | Literal characters deleted from the name outright (not a regex).                                                                                                                                | `,#`    |
-| Case                           | Case transform applied to the whole name: None, lower case, or Title Case.                                                                                                                      | None    |
-| ASCII transliterate            | Convert accented characters to their ASCII equivalents (e.g. `é` → `e`).                                                                                                                        | Off     |
-| Normalize punctuation to ASCII | Fold typographic punctuation to plain ASCII: curly quotes → straight quotes, en/em dashes → a hyphen, ellipsis → three dots. Letters and accents are untouched (that is _ASCII transliterate_). | On      |
+| Setting                        | What it does                                                                                                                                                                                               | Default |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Illegal-char replacement       | What to do with characters the OS forbids in a filename: **strip** them, or **replace** each with a string you provide.                                                                                    | Strip   |
+| Space replacement              | **Keep** spaces, or **replace** each space with a string (e.g. `.` or `_`).                                                                                                                                | Keep    |
+| Remove characters              | Literal characters deleted from the name outright (not a regex).                                                                                                                                           | `,#`    |
+| Case                           | Case transform applied to the whole name: None, lower case, or Title Case.                                                                                                                                 | None    |
+| Convert accents to plain ASCII | Convert accented characters to their ASCII equivalents (e.g. `é` → `e`).                                                                                                                                   | Off     |
+| Normalize punctuation to ASCII | Fold typographic punctuation to plain ASCII: curly quotes → straight quotes, en/em dashes → a hyphen, ellipsis → three dots. Letters and accents are untouched (that is _Convert accents to plain ASCII_). | On      |
 
 ### Length & collisions
 
@@ -298,14 +304,14 @@ never overwritten. The captions Cove tracks for an item always move, whatever th
 
 ### Field rewriting & name shaping
 
-| Setting                               | What it does                                                                                          | Default      |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------ |
-| Per-token replacements                | Literal find/replace rules applied to a specific token's value before other shaping (not a regex).    | _(none)_     |
-| Strip leading article                 | Remove one leading article from `$title` (`The Matrix` → `Matrix`).                                   | Off          |
-| Articles                              | The articles eligible for stripping.                                                                  | `The, A, An` |
-| Squeeze studio names                  | Remove all spaces from `$studio` (`Studio Ghibli` → `StudioGhibli`) so one studio maps to one folder. | Off          |
-| Drop a performer already in the title | Drop a performer whose name appears as a whole word in `$title`.                                      | Off          |
-| Collapse repeated folder segments     | Collapse consecutive duplicate folder segments (`/Foo/Foo/Bar` → `/Foo/Bar`). Folder path only.       | On           |
+| Setting                               | What it does                                                                                       | Default      |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------ |
+| Per-token replacements                | Literal find/replace rules applied to a specific token's value before other shaping (not a regex). | _(none)_     |
+| Strip leading article                 | Remove one leading article from `$title` (`The Matrix` → `Matrix`).                                | Off          |
+| Articles                              | The articles eligible for stripping.                                                               | `The, A, An` |
+| Remove spaces from studio names       | `Studio Ghibli` → `StudioGhibli`, so one studio maps to one folder.                                | Off          |
+| Drop a performer already in the title | Drop a performer whose name appears as a whole word in `$title`.                                   | Off          |
+| Collapse repeated folder segments     | Collapse consecutive duplicate folder segments (`/Foo/Foo/Bar` → `/Foo/Bar`). Folder path only.    | On           |
 
 ## Advanced settings not shown in the UI
 

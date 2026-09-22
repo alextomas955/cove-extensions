@@ -157,6 +157,6 @@ lengthening it.
 ## Shaping multi-value tokens
 
 `$performers` and `$tags` are lists. How they join into the name — the separator between items, a
-maximum count, sort order, and include/exclude lists — is controlled by the **Performers** and
+maximum count, sort order, and the _Only include_ and _Never include_ lists — is controlled by the **Performers** and
 **Tags** cards under **Token settings**, which appear only when your template uses that token. See
 the [Settings reference](./settings#token-settings) for every option.
