@@ -742,7 +742,10 @@ export function TagListInput({
             }}
           >
             {offered.map((option, i) => (
-              <li
+              // The input owns the keyboard: it carries role="combobox" and handles ArrowDown,
+              // ArrowUp, Enter and Escape. An option has no tabIndex, so it never takes focus and a
+              // key handler on it could not fire, hence the suppression rather than a missing listener.
+              <li // NOSONAR
                 key={option}
                 id={`${listId}-${i}`}
                 role="option"
