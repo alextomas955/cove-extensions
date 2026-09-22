@@ -64,7 +64,7 @@ const SCOPE_FUTURE_SCENES = "Monitor - new releases only";
 const SCOPE_ALL_SCENES = "Monitor - all scenes (queue back-catalogue)";
 const UNMONITOR = "Unmonitor";
 const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
-  "Narrowing the scope back to new releases only does not undo this: a scene that is already wanted stays wanted.";
+  "Narrowing the scope back to new releases only does not undo this: a scene already monitored stays monitored.";
 
 // The refusal kind meaning nothing was refused, in the wire spelling the server answers it in.
 const MONITOR_REFUSAL_NONE = "none";
@@ -307,7 +307,7 @@ test("the control renders and works on both real detail pages, and the instance 
   });
   await expect(
     confirm.getByText(ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE, { exact: false }),
-    "the confirmation does not call the wider scope a one-way door, though a scope change on this generation leaves what it already made wanted",
+    "the confirmation does not call the wider scope a one-way door, though a scope change on this generation leaves what it already monitored",
   ).toBeVisible();
   await confirm.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(confirm, "cancelling left the confirmation on screen").toHaveCount(0);
