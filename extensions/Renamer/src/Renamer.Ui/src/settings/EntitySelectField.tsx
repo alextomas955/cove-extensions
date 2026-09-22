@@ -10,11 +10,16 @@
  * The input class is the shared one so an embedded host control matches every other input in the
  * panel. It is imported, never retyped.
  *
- * The wrapper is deliberately not a label element. The host draws each chip's Remove button ahead of
- * its input, so a label around it names that button and a click on the heading removes a chip. The
- * block carries the name instead, and the input is handed the same string through the host's own
- * `inputAriaLabel`. There is no input id to point `htmlFor` at, and a host predating `inputAriaLabel`
- * drops the prop, leaving that input on its placeholder.
+ * The wrapper is a `FieldGroup`, not a label element. The host draws each chip's Remove button ahead
+ * of its input, so a label around it would name that button and a click on the heading would remove
+ * a chip. The block carries the name instead.
+ *
+ * The input the host draws therefore carries no accessible name of its own: the selector exposes
+ * neither an id to point `htmlFor` at nor a name hook on the Cove floor this extension declares, and
+ * a group's name does not reach a textbox nested inside it. That gap is recorded twice — here, and
+ * executably as the named allowance in `settingsFieldNaming.test.ts`, which fails when it matches
+ * nothing. A Cove release exposing a name hook on the selector closes it: pass the label through,
+ * then delete the allowance, which will by then be failing.
  *
  * No state, no searching, no filtering, no results list and no chip rendering live here. All of that
  * is the host's.
@@ -56,17 +61,9 @@ export function EntitySelectField({
     inputClassName: INPUT_CLASS,
   };
 
-  // The host gained `inputAriaLabel` after the 1.4.1 floor this extension declares, so it is absent
-  // from the shared declaration and reaches the control through this one widening. A host predating
-  // it ignores the unknown prop.
-  const withName = {
-    ...declared,
-    inputAriaLabel: label,
-  } as SelectorProps & { inputAriaLabel: string };
-
   return (
     <FieldGroup label={label} labelStyle={labelStyle} helper={helper}>
-      <EntityReferenceMultiSelector {...withName} />
+      <EntityReferenceMultiSelector {...declared} />
     </FieldGroup>
   );
 }

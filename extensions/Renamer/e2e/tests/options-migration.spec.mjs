@@ -287,7 +287,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   ).toHaveCount(1);
   await expect(
     excludeTagCard,
-    "the field's block carries no accessible name, so the heading a user reads names nothing and the control is announced by whatever its own contents happen to say",
+    "the field's block carries no accessible name, so the heading a user reads names nothing — the host's own input inside it is named by neither, which is a known gap on the declared floor",
   ).toHaveAccessibleName("Exclude by tag");
 
   // ── The name-keyed destination map re-keyed to ids, and reads back as a name ────────────────────
