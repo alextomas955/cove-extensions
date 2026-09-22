@@ -47,10 +47,6 @@ import {
   CARD_TITLE_CLASS,
 } from "./missingClasses";
 
-// This tab's word for a monitored scene. The state, glyph and tint are unchanged; only the word
-// differs.
-const MONITORED_LABEL = "Wanted";
-
 // `focus:` and not `focus-visible:`, which is the spelling the host stylesheet emits.
 const FOCUS_RING = "focus:outline-none focus:ring-2 focus:ring-accent";
 
@@ -115,10 +111,7 @@ export function MissingCard({
         </h3>
         <CardBodyRows rows={rows} />
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-          <StateChip
-            state={pillState}
-            label={pillState === "monitored" ? MONITORED_LABEL : undefined}
-          />
+          <StateChip state={pillState} />
           {onMonitor === undefined || onSearch === undefined ? null : (
             <div className="flex shrink-0 items-center gap-1.5">
               <CardAction
