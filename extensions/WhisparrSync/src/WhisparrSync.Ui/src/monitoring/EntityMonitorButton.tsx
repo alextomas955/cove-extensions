@@ -44,7 +44,17 @@ import { useMonitoring } from "./useMonitoring";
  * grey.
  */
 const HERO_ACTION_BUTTON_CLASS =
-  "inline-flex h-10 w-10 items-center justify-center rounded-lg border bg-card transition-colors hover:border-accent hover:text-foreground disabled:cursor-not-allowed";
+  "inline-flex h-10 w-10 items-center justify-center rounded-lg border bg-card transition-colors";
+
+// What the control looks like when there is nothing it can do: dimmed, with its hover response
+// held back, so it does not read as pressable. The reason is the hover text, which Chrome shows on
+// a disabled button.
+const HERO_ACTION_ENABLED_CLASS = "hover:border-accent hover:text-foreground";
+const HERO_ACTION_DISABLED_CLASS = "opacity-50";
+
+// The cursor cannot come from a class. The host declares `cursor: pointer` on every button outside
+// any layer, and an unlayered declaration beats every layered utility whatever its specificity.
+const CURSOR_FOR_A_DEAD_CONTROL = { cursor: "not-allowed" } as const;
 
 // An item expressing no scope sends none rather than a default.
 function bodyFor(item: MonitorMenuItem): unknown {
@@ -93,6 +103,8 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
   // the reason follows it. The hover text is that same string.
   const spoken = unavailable === null ? name : `${name}, ${unavailable}`;
 
+  const cannotBePressed = unavailable !== null || region.status === "reading";
+
   // A press refusal outranks the view's own, and a failed read contributes none: the control
   // already says the read failed. Which refusal speaks where is decided in `controlNotice` alone.
   const outcome = controlNotice({
@@ -115,12 +127,14 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
       <button
         ref={triggerRef}
         type="button"
-        className={
-          monitored
-            ? `relative ${HERO_ACTION_BUTTON_CLASS} border-accent`
-            : `relative ${HERO_ACTION_BUTTON_CLASS} border-border`
-        }
-        disabled={unavailable !== null || region.status === "reading"}
+        className={[
+          "relative",
+          HERO_ACTION_BUTTON_CLASS,
+          monitored ? "border-accent" : "border-border",
+          cannotBePressed ? HERO_ACTION_DISABLED_CLASS : HERO_ACTION_ENABLED_CLASS,
+        ].join(" ")}
+        style={cannotBePressed ? CURSOR_FOR_A_DEAD_CONTROL : undefined}
+        disabled={cannotBePressed}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={spoken}
