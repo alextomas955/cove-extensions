@@ -122,7 +122,7 @@ public sealed class CollisionTests
 
         // The fake hands back the entity's files as the fixture listed them, so first and second are
         // deterministic here. The same assumption would be wrong at a tier reading a real database.
-        Assert.Equal(2, plan.Items.Count);
+        Assert.Equal([1, 2], plan.Items.Select(i => i.FileId));
         var first = plan.Items[0];
         var second = plan.Items[1];
 
@@ -137,6 +137,5 @@ public sealed class CollisionTests
 
         Assert.False(first.Suffixed);
         Assert.True(second.Suffixed);
-
     }
 }

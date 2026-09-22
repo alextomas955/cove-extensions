@@ -1,11 +1,11 @@
 using System.Text.Json;
 using Renamer.Options;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
 public sealed class RenamerOptionsJsonTests
 {
-
     [Fact]
     public void DurationFormat_Default_SerializesWithEscapedBackslashes_AndIsValidJson()
     {
@@ -22,18 +22,6 @@ public sealed class RenamerOptionsJsonTests
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
         Assert.Equal(@"hh\-mm\-ss", reloaded!.DurationFormat);
     }
-
-
-
-
-    [Fact]
-    public void AutoRenamerOnUpdate_Defaults_Off()
-    {
-        Assert.False(new RenamerOptions().AutoRenamerOnUpdate); // opt-in, default OFF
-    }
-
-
-
 
     [Fact]
     public void PersistedEnums_KeepTheMemberNameSpelling_NotTheWireSpelling()
@@ -56,163 +44,52 @@ public sealed class RenamerOptionsJsonTests
         Assert.Contains(@"""Sort"":""FavoriteFirst""", json, StringComparison.Ordinal);
     }
 
+    // A changed default changes behavior for every install that never set the member.
     [Fact]
-    public void SqueezeStudioNames_Defaults_Off()
-    {
-        Assert.False(new RenamerOptions().SqueezeStudioNames); // opt-in, default OFF
-    }
-
-
-
-
-    [Fact]
-    public void GatingAndSuffix_Defaults_Match_ContextDecisions()
+    public void Defaults_AreTheShippedValues()
     {
         var o = new RenamerOptions();
 
-        Assert.False(o.OnlyOrganized);                 // gate off by default
-        Assert.Equal(new List<string> { "title" }, o.RequiredFields); // Title required by default
-        Assert.Contains("{n}", o.DuplicateSuffixFormat); // counter placeholder present
+        Assert.Equal("{$date - }$title{ [$resolution]}", o.FilenameTemplate);
+        Assert.Equal("", o.FolderTemplate);
+        Assert.Equal(255, o.FilenameMax);
+        Assert.Equal(259, o.FullPathMax);
+        Assert.Equal(CaseTransform.None, o.Case);
+        Assert.False(o.AsciiTransliterate);
+        Assert.False(o.AutoRenamerOnUpdate);
+        Assert.False(o.OnlyOrganized);
+        Assert.Equal(["title"], o.RequiredFields);
+        Assert.Contains("{n}", o.DuplicateSuffixFormat);
+        Assert.False(o.SqueezeStudioNames);
+        Assert.False(o.StripLeadingArticles);
+        Assert.Equal(["The", "A", "An"], o.Articles);
+        Assert.False(o.PreventTitlePerformer);
+        Assert.True(o.PreventConsecutiveSegments);
+        Assert.True(o.NormalizePunctuation);
+        Assert.Equal(",#", o.RemoveCharacters);
+        Assert.True(o.FilenameAsTitle);
+        Assert.Empty(o.FieldReplacers);
+        Assert.Empty(o.ExcludeTagIds);
+        Assert.Empty(o.ExcludeStudioIds);
+        Assert.Empty(o.ExcludePaths);
+
+        Assert.Equal(" ", o.Performers.Separator);
+        Assert.Equal(" ", o.Tags.Separator);
+        Assert.Equal(0, o.Performers.MaxCount);
+        Assert.Equal(OverflowPolicy.DropAll, o.Performers.OnOverflow);
+        Assert.Equal(SortOrder.NameAsc, o.Performers.Sort);
+        Assert.Equal(
+            ["videoCodec", "audioCodec", "frameRate", "resolution", "tags", "studioCode", "studio", "performers", "date"],
+            o.DropOrder);
     }
 
-    // ---- field_replacer ----
-
-
+    // A blob saved before a member existed carries no value for it.
     [Fact]
-    public void FieldReplacers_Default_Empty()
+    public void AnEmptyBlob_LoadsEveryDefault()
     {
-        Assert.Empty(new RenamerOptions().FieldReplacers); // default empty
-    }
+        var loaded = JsonSerializer.Deserialize<RenamerOptions>("{}", RenamerOptions.JsonOptions);
 
-
-    // ---- prepositions_removal ----
-
-    [Fact]
-    public void StripLeadingArticles_And_Articles_Defaults()
-    {
-        var o = new RenamerOptions();
-        Assert.False(o.StripLeadingArticles); // opt-in, default OFF
-        Assert.Equal(new List<string> { "The", "A", "An" }, o.Articles); // default list
-    }
-
-
-
-
-    // ---- prevent_title_performer ----
-
-    [Fact]
-    public void PreventTitlePerformer_Defaults_Off()
-    {
-        Assert.False(new RenamerOptions().PreventTitlePerformer); // opt-in, default OFF
-    }
-
-
-
-    // ---- prevent_consecutive ----
-
-    [Fact]
-    public void PreventConsecutiveSegments_Defaults_On()
-    {
-        Assert.True(new RenamerOptions().PreventConsecutiveSegments); // on for a fresh install (cosmetic)
-    }
-
-
-
-    [Fact]
-    public void NewFields_OmittedFromJson_LoadWithDefaults()
-    {
-        // forward-compat: a blob that predates these fields still loads, with the absent fields
-        // taking their current defaults.
-        const string json = """{"FilenameTemplate":"$title"}""";
-
-        var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.NotNull(loaded);
-        Assert.Empty(loaded!.FieldReplacers);
-        Assert.False(loaded.StripLeadingArticles);
-        Assert.Equal(new List<string> { "The", "A", "An" }, loaded.Articles);
-        Assert.False(loaded.PreventTitlePerformer);     // opt-in, defaults off
-        Assert.True(loaded.PreventConsecutiveSegments); // defaults on for a fresh install
-    }
-
-    // ---- the exclude system ----
-
-    [Fact]
-    public void ExcludeConfig_Defaults_Empty()
-    {
-        var o = new RenamerOptions();
-        Assert.Empty(o.ExcludeTagIds);     // default empty = no excludes
-        Assert.Empty(o.ExcludeStudioIds);  // default empty
-        Assert.Empty(o.ExcludePaths);      // default empty
-    }
-
-
-
-
-
-    [Fact]
-    public void ExcludeConfig_OmittedFromJson_LoadsWithDefaults()
-    {
-        // A blob predating the exclude fields still loads with empty excludes.
-        const string json = """{"FilenameTemplate":"$title"}""";
-
-        var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.NotNull(loaded);
-        Assert.Empty(loaded!.ExcludeTagIds);
-        Assert.Empty(loaded.ExcludeStudioIds);
-        Assert.Empty(loaded.ExcludePaths);
-    }
-
-    // ---- NormalizePunctuation ----
-
-    [Fact]
-    public void NormalizePunctuation_Defaults_On()
-    {
-        Assert.True(new RenamerOptions().NormalizePunctuation); // on for a fresh install (folds smart quotes to ASCII)
-    }
-
-
-
-    [Fact]
-    public void NormalizePunctuation_OmittedFromJson_LoadsTrue_ExplicitFalsePreserved()
-    {
-        // forward-compat: an old blob that predates the field loads with the true default; a blob that
-        // explicitly stores false keeps that stored value (a present value is never overwritten).
-        const string omitted = """{"FilenameTemplate":"$title"}""";
-        var loadedOmitted = JsonSerializer.Deserialize<RenamerOptions>(omitted, RenamerOptions.JsonOptions);
-        Assert.NotNull(loadedOmitted);
-        Assert.True(loadedOmitted!.NormalizePunctuation);
-
-        const string explicitFalse = """{"FilenameTemplate":"$title","NormalizePunctuation":false}""";
-        var loadedFalse = JsonSerializer.Deserialize<RenamerOptions>(explicitFalse, RenamerOptions.JsonOptions);
-        Assert.NotNull(loadedFalse);
-        Assert.False(loadedFalse!.NormalizePunctuation);
-    }
-
-    // ---- removechar + filename-as-title ----
-
-    [Fact]
-    public void RemoveCharactersAndFilenameAsTitle_DefaultValues()
-    {
-        var o = new RenamerOptions();
-        Assert.Equal(",#", o.RemoveCharacters); // default strips comma + hash out of the box
-        Assert.True(o.FilenameAsTitle);         // basename fallback on for a fresh install
-    }
-
-
-
-
-    [Fact]
-    public void RemoveCharactersAndFilenameAsTitle_OmittedFromJson_LoadWithDefaults()
-    {
-        const string json = """{"FilenameTemplate":"$title"}""";
-
-        var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.NotNull(loaded);
-        Assert.Equal(",#", loaded!.RemoveCharacters); // omitted → default (strips comma + hash)
-        Assert.True(loaded.FilenameAsTitle); // defaults on for a fresh install
+        Assert.Equal(OptionsJson.Canonical(new RenamerOptions()), OptionsJson.Canonical(loaded));
     }
 
     [Fact]
@@ -244,45 +121,5 @@ public sealed class RenamerOptionsJsonTests
         Assert.NotNull(loaded);
         Assert.Equal("$studio - $title", loaded!.FilenameTemplate);
         Assert.Equal(CaseTransform.Title, loaded.Case);
-    }
-
-    [Fact]
-    public void MissingProperty_Defaults_OnLoad()
-    {
-        // JSON that omits FilenameMax / FullPathMax - they must default.
-        const string json = """{"FilenameTemplate":"$title"}""";
-
-        var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.NotNull(loaded);
-        Assert.Equal(255, loaded!.FilenameMax);
-        Assert.Equal(259, loaded.FullPathMax);
-        Assert.Equal(CaseTransform.None, loaded.Case);
-    }
-
-
-    [Fact]
-    public void Defaults_Match_ContextDecisions()
-    {
-        var o = new RenamerOptions();
-
-        Assert.Equal(255, o.FilenameMax);
-        Assert.Equal(259, o.FullPathMax);
-        Assert.Equal(CaseTransform.None, o.Case);
-        Assert.False(o.AsciiTransliterate);
-
-        Assert.Equal(" ", o.Performers.Separator);
-        Assert.Equal(" ", o.Tags.Separator);
-        Assert.Equal(0, o.Performers.MaxCount);
-        Assert.Equal(OverflowPolicy.DropAll, o.Performers.OnOverflow);
-        Assert.Equal(SortOrder.NameAsc, o.Performers.Sort);
-
-        Assert.Equal(
-            new List<string>
-            {
-                "videoCodec", "audioCodec", "frameRate", "resolution",
-                "tags", "studioCode", "studio", "performers", "date",
-            },
-            o.DropOrder);
     }
 }

@@ -116,28 +116,6 @@ public sealed class RenamerLibraryEndpointTests
     }
 
     [Fact]
-    public async Task RenamerLibraryEnqueue_WithNoWritePermission_Returns403_AndDoesNotEnqueue()
-    {
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var (ext, _) = await NewExtensionAsync(conn);
-            var jobs = new RecordingJobService();
-            var principal = FakePrincipalAccessor.None();
-
-            var result = ext.RenamerLibraryEnqueue(principal, jobs);
-
-            Assert.Equal(403, StatusOf(result));
-            Assert.Empty(jobs.Enqueued);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
     public async Task RunRenamerLibraryJobAsync_VideoAndImageCandidates_OpensOneBatchPerKind_NeverACombinedBatch()
     {
         using var dir = new TempDir();

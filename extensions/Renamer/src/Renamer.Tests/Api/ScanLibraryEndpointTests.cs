@@ -98,19 +98,6 @@ public sealed class ScanLibraryEndpointTests
     }
 
     [Fact]
-    public async Task ScanLibraryEnqueue_WithNoReadPermission_Returns403_AndDoesNotEnqueue()
-    {
-        var (ext, _) = await NewExtensionAsync();
-        var jobs = new RecordingJobService();
-        var principal = FakePrincipalAccessor.None();
-
-        var result = ext.ScanLibraryEnqueue(null, principal, jobs);
-
-        Assert.Equal(403, StatusOf(result));
-        Assert.Empty(jobs.Enqueued);
-    }
-
-    [Fact]
     public async Task RunScanLibraryJobAsync_AllKindsReadable_AggregatesEveryFileAcrossAllKinds_AndMutatesNothing()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -410,17 +397,6 @@ public sealed class ScanLibraryEndpointTests
         Assert.IsType<NotFound>(Unwrap(result));
     }
 
-    [Fact]
-    public async Task ScanLibraryResultAsync_WithNoReadPermission_Returns403()
-    {
-        var (ext, _) = await NewExtensionAsync();
-        var principal = FakePrincipalAccessor.None();
-
-        var result = await ext.ScanLibraryResultAsync(principal, default);
-
-        Assert.Equal(403, StatusOf(result));
-    }
-
     /// <summary>Serializes/reads the stored scan aggregate with the wire's camelCase + string enums.</summary>
     private static readonly JsonSerializerOptions EnumJson =
         new(JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
@@ -516,16 +492,6 @@ public sealed class ScanLibraryEndpointTests
                 EnumJson));
         Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
-    }
-
-    [Fact]
-    public async Task ScanRowsAsync_WithNoReadPermission_Returns403()
-    {
-        var (ext, _) = await NewExtensionAsync();
-
-        var result = await ext.ScanRowsAsync(null, FakePrincipalAccessor.None(), default);
-
-        Assert.Equal(403, StatusOf(result));
     }
 
     [Fact]

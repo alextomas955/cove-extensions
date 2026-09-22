@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
  * Which chips the legend marks as in use. The tint is the only thing on screen that says a token is
- * already in a template.
+ * already in a template. Which names count as used is `templateUsesToken`'s, and its suite owns
+ * those cases.
  *
  * The shared primitives stand in, because their `react` import resolves only inside a consuming
  * bundle.
@@ -51,17 +52,4 @@ test("a token in either template is marked, and nothing else is", async () => {
     "$year",
     "$resolution",
   ]);
-});
-
-test("a token whose name starts another token's name marks only the one named", async () => {
-  expect(await marked("$title", "$studio")).toEqual(["$title", "$studio"]);
-  expect(await marked("$title", "$studioCode")).toEqual(["$title", "$studioCode"]);
-});
-
-test("a token behind the literal-dollar escape marks nothing", async () => {
-  expect(await marked("$$title", "$$studio")).toEqual([]);
-});
-
-test("empty templates mark nothing", async () => {
-  expect(await marked("", "")).toEqual([]);
 });

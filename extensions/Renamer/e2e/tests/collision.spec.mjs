@@ -1,65 +1,25 @@
-// Verifies no-clobber collision handling on a real disk - a class of bug (e.g. a case-only rename on
-// a case-insensitive filesystem) that only manifests against a real filesystem, which is exactly
-// what E2E protects and temp-dir-based unit tests can miss.
+// Verifies no-clobber collision handling on the released host: its Postgres unique index and the file
+// rows its own routes return, which the SQLite tier stands in for.
 //
 // Renamer's actual collision contract: a target-name collision does not skip the second item - it
 // auto-suffixes it via DuplicateSuffixFormat (default " ({n})") so both items end up renamed, never
 // one clobbering the other. `SkipCollision` exists as a status but is not what a plain
 // duplicate-title collision produces; auto-suffix is the default and expected outcome here.
 //
-// Uses its own harness instance per test, not the shared per-worker harness: it persists a global
-// "$title" filename template so both items' computed target names are deterministic, and a global
-// option would otherwise leak into every other test sharing that worker's instance.
+// It saves a global "$title" filename template, so it takes `restoredOptions`.
 // `@smoke` - part of the selection core-paths.spec.mjs explains.
-import { test as base, expect, pollUntil, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { seedVideo } from "@cove-extensions/e2e/seed-media";
+import { test, expect, pollUntil, seedVideo } from "../lib/renamer-fixtures.mjs";
 import { assertRenamedTo, basename } from "../lib/rename-assertions.mjs";
 import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
 
-const test = base.extend({
-  isolatedHarness: [
-    async ({}, use) => {
-      const isolatedHarness = await startHarness();
-      isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
-      await isolatedHarness.installExtension(RENAMER_EXTENSION);
-      await use(isolatedHarness);
-      await isolatedHarness.stop();
-    },
-    { scope: "test" },
-  ],
-});
-
-async function callApi(baseUrl, method, path, body) {
-  const res = await fetch(`${baseUrl}${path}`, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let json;
-  try {
-    json = text ? JSON.parse(text) : undefined;
-  } catch {
-    json = undefined;
-  }
-  return { status: res.status, ok: res.ok, json, text };
-}
-
 test(
   "renaming two items to the same computed target name auto-suffixes rather than clobbering",
   { tag: "@smoke" },
-  async ({ isolatedHarness }) => {
-    const baseUrl = isolatedHarness.baseUrl;
-    const container = isolatedHarness.container;
-    const api = {
-      get: (p) => callApi(baseUrl, "GET", p),
-      post: (p, b) => callApi(baseUrl, "POST", p, b),
-      put: (p, b) => callApi(baseUrl, "PUT", p, b),
-    };
+  async ({ harness, baseUrl, api, restoredOptions: _restoredOptions }) => {
+    const container = harness.container;
 
     // A "$title"-only template makes both items' computed target basename exactly "<title>.mp4" - a
     // deterministic collision whose auto-suffixed second name (" (1)") can then be asserted exactly.

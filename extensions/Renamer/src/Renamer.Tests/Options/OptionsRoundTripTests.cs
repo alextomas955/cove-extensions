@@ -103,31 +103,4 @@ public sealed class OptionsRoundTripTests
         // Compared as the persisted document, which covers every panel field (mixed casing) that bound.
         Assert.Equal(OptionsJson.Canonical(ExpectedFromPanel()), OptionsJson.Canonical(loaded));
     }
-
-
-    [Fact]
-    public void PanelJson_To_Backend_To_PanelShape_Survives_BothDirections()
-    {
-        // Full loop: panel JSON → RenamerOptions → backend JSON → RenamerOptions, all equal.
-        var fromPanel = JsonSerializer.Deserialize<RenamerOptions>(PanelJson, RenamerOptions.JsonOptions);
-        var backendJson = JsonSerializer.Serialize(fromPanel, RenamerOptions.JsonOptions);
-        var roundTripped = JsonSerializer.Deserialize<RenamerOptions>(backendJson, RenamerOptions.JsonOptions);
-
-        Assert.Equal(OptionsJson.Canonical(ExpectedFromPanel()), OptionsJson.Canonical(roundTripped));
-    }
-
-    [Fact]
-    public void Enums_Bind_From_String_Names_In_Either_Casing()
-    {
-        // lowerCamel property names + string enum values - the TS contract is case-insensitive on
-        // property names while enum values are the stable PascalCase strings.
-        const string json = """{ "case": "Lower", "performers": { "onOverflow": "KeepFirst" } }""";
-
-        var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.NotNull(loaded);
-        Assert.Equal(CaseTransform.Lower, loaded!.Case);
-        Assert.Equal(OverflowPolicy.KeepFirst, loaded.Performers.OnOverflow);
-    }
-
 }

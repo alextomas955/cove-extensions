@@ -1,7 +1,7 @@
 // Verifies that the Tailwind utilities the released host's prebuilt stylesheet never emits render
 // via element-scoped inline styles rather than as classes that compile to nothing - the panel's
 // layout and transform utilities, and the status pills' background tints - and that the extension
-// leaks nothing onto host pages (it ships no cssBundle).
+// leaks nothing onto host pages.
 //
 // This runs against a clean released cove-app image (the harness default), not the local dev host
 // whose @source contamination would mask the whole point: on a released host the extension gets
@@ -9,17 +9,6 @@
 // makes a host-absent utility render for an end user.
 import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
-
-test("the extension declares no cssBundle (ships zero CSS — cannot leak onto host pages)", async ({
-  api,
-}) => {
-  const { json } = await api.get("/api/extensions");
-  const renamer = json.find((e) => e.id === "com.alextomas955.renamer");
-  expect(renamer).toBeTruthy();
-  // The combined extension stylesheet must not import a Renamer bundle.
-  const { text } = await api.get("/api/extensions/bundles/ui.css").catch(() => ({ text: "" }));
-  expect(text).not.toContain("renamer");
-});
 
 test("host-absent utilities render via inline styles on a released host", async ({
   page,

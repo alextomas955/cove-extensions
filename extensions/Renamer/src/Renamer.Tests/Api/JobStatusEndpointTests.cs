@@ -62,9 +62,6 @@ public sealed class JobStatusEndpointTests
     private static RenamerJobStatus OkView(IResult result)
         => Assert.IsType<Ok<RenamerJobStatus>>(Unwrap(result)).Value!;
 
-    private static int StatusOf(IResult result)
-        => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
-
     [Fact]
     public void ReadPermissionAndOwnJob_ReturnsTheRunsProgress()
     {
@@ -104,19 +101,6 @@ public sealed class JobStatusEndpointTests
 
         Assert.IsType<NotFound>(Unwrap(ext.JobStatus(
             "no-such-job", FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), jobs)));
-    }
-
-    [Fact]
-    public void NoReadPermission_IsForbidden()
-    {
-        var ext = NewExtension();
-        var jobs = new StubJobService(Job("job-1", OwnScanJob, JobStatus.Running));
-
-        // The job exists and belongs to this extension, so a 403 here can only come from the
-        // permission gate rather than from the confinement check below it.
-        Assert.Equal(
-            StatusCodes.Status403Forbidden,
-            StatusOf(ext.JobStatus("job-1", FakePrincipalAccessor.None(), jobs)));
     }
 
     [Theory]

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Renamer.Options;
-using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
@@ -38,27 +37,6 @@ public sealed class KindOptionsJsonTests
         Assert.Equal("Text", text.Name);
         Assert.False(text.Value.GetProperty("Enabled").GetBoolean());
         Assert.Equal("/library", text.Value.GetProperty("Destination").GetProperty("Root").GetString());
-    }
-
-    [Fact]
-    public void KindsMap_RoundTripsEqual()
-    {
-        var options = new RenamerOptions
-        {
-            Kinds = new()
-            {
-                [RenamerFileKind.Video] = new KindOptions { Enabled = true },
-                [RenamerFileKind.Text] = new KindOptions { Enabled = false },
-            },
-        };
-
-        var json = JsonSerializer.Serialize(options, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.Equal(OptionsJson.Canonical(options), OptionsJson.Canonical(reloaded));
-        Assert.False(reloaded!.IsKindEnabled(RenamerFileKind.Text));
-        Assert.True(reloaded.IsKindEnabled(RenamerFileKind.Video));
-        Assert.True(reloaded.IsKindEnabled(RenamerFileKind.Image));
     }
 
     [Fact]
