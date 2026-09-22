@@ -58,27 +58,12 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(instances);
 
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        var generation = stored.SelectedGeneration;
-        var held = await credentials.ReadConnectionAsync(generation, ct).ConfigureAwait(false);
-        var apiKey = held?.ApiKey;
-        // The address comes from the row that holds the key, so the two cannot be observed from
-        // either side of a save that changed both. A row written before the address was stored there
-        // carries none, and the stored options answer for that installation until its next save.
-        var address = string.IsNullOrWhiteSpace(held?.Address)
-            ? stored.ConnectionFor(generation)?.Address
-            : held.Address;
+        var binding = await OutboundPair.ResolveAsync(stored, credentials, ct).ConfigureAwait(false);
 
-        // Refused here rather than by building a binding from an empty pair, so an unconfigured
-        // connection reaches nothing that could make a request.
-        if (!ConnectionTester.TryReadConnection(address, apiKey, out var baseAddress, out _))
-        {
-            return null;
-        }
-
-        var binding = new WhisparrBinding(generation, baseAddress, apiKey);
-
-        return new MonitoringTarget(
-            binding, instances.Bound(binding), stored.DefaultMonitorScope);
+        return binding is null
+            ? null
+            : new MonitoringTarget(
+                binding, instances.Bound(binding), stored.DefaultMonitorScope);
     }
 
     private sealed record KindActing(
