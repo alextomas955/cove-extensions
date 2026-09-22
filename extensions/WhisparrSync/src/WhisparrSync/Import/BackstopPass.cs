@@ -27,10 +27,15 @@ internal sealed class BackstopPass(
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
         var generation = stored.SelectedGeneration;
         var connection = stored.ConnectionFor(generation);
-        var apiKey = await credentials.ReadAsync(generation, ct).ConfigureAwait(false);
+        var held = await credentials.ReadConnectionAsync(generation, ct).ConfigureAwait(false);
+        var apiKey = held?.ApiKey;
+        // The address comes from the row that holds the key, so the two cannot be observed from
+        // either side of a save that changed both. A row written before the address was stored there
+        // carries none, and the stored options answer for that installation until its next save.
+        var address = string.IsNullOrWhiteSpace(held?.Address) ? connection?.Address : held.Address;
 
         // Refused here, so an unconfigured connection reaches nothing that could make a request.
-        if (!ConnectionTester.TryReadConnection(connection?.Address, apiKey, out var baseAddress, out _))
+        if (!ConnectionTester.TryReadConnection(address, apiKey, out var baseAddress, out _))
         {
             return new BackstopPassResult(BackstopPassOutcome.NotConfigured, null, 0, 0, 0, 0, 0);
         }

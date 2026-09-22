@@ -29,6 +29,40 @@ public sealed class CredentialStorageTests
         Assert.Equal("first-key", await database.ReadAsync(WhisparrGeneration.V3));
     }
 
+    // The pair an outbound request is built from. Held in one row so a reader cannot take the
+    // address from one store and the key from another and observe one from either side of a save
+    // that moved both: that pairing would post the new key to the instance the old address named.
+    [Fact]
+    public async Task AWriteStoresTheAddressBesideTheKey()
+    {
+        await using var database = await CredentialDatabase.CreateAsync();
+
+        await database.ApplyAsync(
+            WhisparrGeneration.V3, CredentialWrite.Replace("key-b"), FirstWriteAt, "http://b:6969");
+
+        Assert.Equal(
+            new WhisparrStoredConnection("http://b:6969", "key-b"),
+            await database.ReadConnectionAsync(WhisparrGeneration.V3));
+    }
+
+    // The case the two-store arrangement could not express. A save that moves the instance and
+    // leaves the key alone has to move the address this row names, or every later request pairs the
+    // stored key with the instance before the move.
+    [Fact]
+    public async Task AnAddressMovesEvenWhereTheKeyIsKept()
+    {
+        await using var database = await CredentialDatabase.CreateAsync();
+        await database.ApplyAsync(
+            WhisparrGeneration.V3, CredentialWrite.Replace("key-a"), FirstWriteAt, "http://a:6969");
+
+        await database.ApplyAsync(
+            WhisparrGeneration.V3, CredentialWrite.Keep, SecondWriteAt, "http://b:6969");
+
+        Assert.Equal(
+            new WhisparrStoredConnection("http://b:6969", "key-a"),
+            await database.ReadConnectionAsync(WhisparrGeneration.V3));
+    }
+
     // An append would leave two keys for one instance with nothing to say which is current.
     [Fact]
     public async Task ASecondWriteForTheSameGenerationLeavesExactlyOneRow()
@@ -205,12 +239,23 @@ public sealed class CredentialStorageTests
             await connection.OpenAsync(TestContext.Current.CancellationToken);
             var database = new CredentialDatabase(connection);
             await database.ApplyMigrationAsync();
+            // Applied in the order the host applies them, so this database is the shape an upgraded
+            // installation has rather than one only a fresh install would ever see.
+            await using var context = database.NewContext();
+            await context.Database.ExecuteSqlRawAsync(
+                WhisparrCredentialSchema.Migration003UpSql, TestContext.Current.CancellationToken);
             return database;
         }
 
         public CredentialContext NewContext()
             => new(new DbContextOptionsBuilder<CredentialContext>().UseSqlite(_connection).Options);
 
+        /// <summary>Re-applies the create-if-absent statement alone.</summary>
+        /// <remarks>
+        /// The column migration is not among them, and cannot be: SQLite has no add-column-if-absent
+        /// and a second application of one raises a duplicate column. That one rests on the host's
+        /// receipt, which is why this asks only what the create-if-absent statement promises.
+        /// </remarks>
         public async Task ApplyMigrationAsync()
         {
             await using var context = NewContext();
@@ -225,11 +270,22 @@ public sealed class CredentialStorageTests
                 .ReadAsync(generation, TestContext.Current.CancellationToken);
         }
 
-        public async Task ApplyAsync(WhisparrGeneration generation, CredentialWrite write, DateTimeOffset nowUtc)
+        public async Task ApplyAsync(
+            WhisparrGeneration generation,
+            CredentialWrite write,
+            DateTimeOffset nowUtc,
+            string address = "")
         {
             await using var context = NewContext();
             await new CredentialPort(context)
-                .ApplyAsync(generation, write, nowUtc, TestContext.Current.CancellationToken);
+                .ApplyAsync(generation, write, address, nowUtc, TestContext.Current.CancellationToken);
+        }
+
+        public async Task<WhisparrStoredConnection?> ReadConnectionAsync(WhisparrGeneration generation)
+        {
+            await using var context = NewContext();
+            return await new CredentialPort(context)
+                .ReadConnectionAsync(generation, TestContext.Current.CancellationToken);
         }
 
         public async Task<int> CountRowsAsync(string storedGeneration)

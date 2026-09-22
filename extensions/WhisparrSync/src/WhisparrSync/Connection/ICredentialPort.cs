@@ -59,6 +59,9 @@ public sealed record CredentialWrite
 /// The key is here rather than in the options blob because Cove's bulk extension-data route returns
 /// an extension's stored values whole, to any caller its permission filter admits.
 /// </remarks>
+/// <summary>One generation's outbound target, as one value.</summary>
+public sealed record WhisparrStoredConnection(string Address, string ApiKey);
+
 public interface ICredentialPort
 {
     /// <summary>The key stored for <paramref name="generation"/>, or null when none is.</summary>
@@ -75,7 +78,31 @@ public interface ICredentialPort
     /// </remarks>
     Task<bool> HasKeyAsync(WhisparrGeneration generation, CancellationToken ct);
 
-    /// <summary>Applies <paramref name="write"/> to <paramref name="generation"/>'s stored key.</summary>
+    /// <summary>The instance and key stored together for <paramref name="generation"/>.</summary>
+    /// <remarks>
+    /// The pair an outbound request is built from, read in one go. Taking the address from the
+    /// options blob and the key from here lets a reader observe one from either side of a save that
+    /// changed both, and post the new key to the instance the old address names.
+    /// <para>
+    /// The address is empty for an installation whose credential row predates it being stored here;
+    /// such a row carries the key alone until the next settings save, and a caller falling back to
+    /// the stored options keeps that installation working.
+    /// </para>
+    /// </remarks>
+    Task<WhisparrStoredConnection?> ReadConnectionAsync(
+        WhisparrGeneration generation, CancellationToken ct);
+
+    /// <summary>Applies <paramref name="write"/> and <paramref name="address"/> as one row.</summary>
+    /// <remarks>
+    /// The address is written whatever the write does to the key, including
+    /// <see cref="CredentialWriteKind.Keep"/>: a save that moves the instance and leaves the key
+    /// alone would otherwise leave this row naming the instance before it, which is the pair an
+    /// outbound request is built from.
+    /// </remarks>
     Task ApplyAsync(
-        WhisparrGeneration generation, CredentialWrite write, DateTimeOffset nowUtc, CancellationToken ct);
+        WhisparrGeneration generation,
+        CredentialWrite write,
+        string address,
+        DateTimeOffset nowUtc,
+        CancellationToken ct);
 }
