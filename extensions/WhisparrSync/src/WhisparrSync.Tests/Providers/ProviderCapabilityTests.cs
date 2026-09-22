@@ -120,6 +120,26 @@ public sealed class ProviderCapabilityTests
         Assert.Equal("StashDB", refused.Provider);
     }
 
+    // ThePornDB's scene route carries a picture beside the row Cove stores. StashDB was measured
+    // for no single-scene read, so it holds the role for nothing to read through.
+    [Fact]
+    public void OnlyThePornDbReadsASceneCover()
+    {
+        Assert.Contains(ProviderCapability.ReadSceneCover, ThePornDb().Capabilities.Held);
+        Assert.DoesNotContain(ProviderCapability.ReadSceneCover, StashDb().Capabilities.Held);
+
+        var refused = StashDb()
+            .Capabilities.Obtain<IReadsSceneCover>()
+            .Match<ProviderCapabilityRefusal?>(_ => null, refusal => refusal);
+
+        Assert.Equal(ProviderCapability.ReadSceneCover, refused!.Capability);
+        Assert.Equal("StashDB", refused.Provider);
+        Assert.NotNull(
+            ThePornDb()
+                .Capabilities.Obtain<IReadsSceneCover>()
+                .Match<object?>(role => role, _ => null));
+    }
+
     [Fact]
     public async Task StashDbSendsNoRequestToResolveASceneToANumber()
     {
@@ -162,6 +182,7 @@ public sealed class ProviderCapabilityTests
     [InlineData(typeof(ILooksUpByName))]
     [InlineData(typeof(IResolvesNumericSceneId))]
     [InlineData(typeof(IResolvesNumericSiteId))]
+    [InlineData(typeof(IReadsSceneCover))]
     public void EveryDeclaredRoleIsAnsweredByBothProviders(Type role)
     {
         foreach (var catalogue in (IProviderCatalogue[])[StashDb(), ThePornDb()])
