@@ -5,7 +5,7 @@ import { isValidElement } from "react";
 
 import { badgesFor, type Badgeable } from "./warningBadgeLogic";
 import { WarningBadges } from "./WarningBadge";
-import { IN_FLIGHT_OVERFLOW_LABEL } from "./dryRunLogic";
+import { IN_FLIGHT_OVERFLOW_LABEL, classifyItem } from "./dryRunLogic";
 import type { PreviewItemView, RenamerStatus, ScanRow } from "../../wire/api";
 
 /**
@@ -21,20 +21,21 @@ const EXPECTED_LABEL: Record<RenamerStatus, string | null> = {
   renamer: null, // the rename is happening; there is nothing to warn about
   move: null,
   noOp: "No change needed",
-  skipGated: "Skipped — needs a required field",
-  skipCollision: "Skipped — name conflict",
-  skipExcluded: "Skipped — an exclude rule matched",
-  skipLocked: "Skipped — file in use",
-  skipMissingSource: "Skipped — file missing on disk",
+  skipGated: "Needs a required field",
+  skipCollision: "Name conflict",
+  skipExcluded: "An exclude rule matched",
+  skipLocked: "File in use",
+  skipMissingSource: "File missing on disk",
   failed: "Failed — rolled back",
-  skipUnanchored: "Skipped — file is outside your Cove library",
-  skipRootMissing: "Skipped — the rule's destination is no longer a library path",
-  skipNotAllowed: "Skipped — destination outside its own root",
-  skipTooLong: "Skipped — path too long",
-  skipPermissionDenied: "Skipped — permission denied",
-  skipVerifyFailed: "Skipped — copy did not verify",
-  skipCancelled: "Skipped — cancelled",
-  skipNoSpace: null, // log-only, never an item result
+  skipUnanchored: "File is outside your Cove library",
+  skipRootMissing: "The rule's destination is no longer a library path",
+  skipNotAllowed: "Destination outside its own root",
+  skipTooLong: "Path too long",
+  skipPermissionDenied: "Permission denied",
+  skipVerifyFailed: "Copy did not verify",
+  skipCancelled: "Cancelled",
+  // the batch runner assigns this at move time, so no row a badge is drawn for can carry it
+  skipNoSpace: null,
 };
 
 function row(status: RenamerStatus, flags: Partial<Badgeable> = {}): Badgeable {
@@ -58,7 +59,7 @@ test("every status earns the label transcribed for it, and no other", () => {
 test("a skipped row's variant marks whether the user lost the file or only the rename", () => {
   assert.deepEqual(badgesFor(row("noOp")), [{ label: "No change needed", variant: "gray" }]);
   assert.deepEqual(badgesFor(row("skipExcluded")), [
-    { label: "Skipped — an exclude rule matched", variant: "amber" },
+    { label: "An exclude rule matched", variant: "amber" },
   ]);
   assert.deepEqual(badgesFor(row("failed")), [{ label: "Failed — rolled back", variant: "red" }]);
 });
@@ -88,9 +89,7 @@ test("a status this bundle was never built for is surfaced, not hidden and not t
     suffixed: false,
     sanitized: false,
   } as unknown as Badgeable;
-  assert.deepEqual(badgesFor(unknown), [
-    { label: "Skipped — unrecognised status", variant: "amber" },
-  ]);
+  assert.deepEqual(badgesFor(unknown), [{ label: "Unrecognised status", variant: "amber" }]);
 });
 
 /**
@@ -165,4 +164,73 @@ test("both wire row shapes satisfy Badgeable", () => {
   const fromScan: Badgeable = scanRow;
   assert.equal(typeof fromPreview, "object");
   assert.equal(typeof fromScan, "object");
+});
+
+/**
+ * The statuses a row this module badges can actually carry.
+ *
+ * Every `ScanRow` is built from a `RenamerPlanItem` (`Planner/ScanRowPager.cs`), and `WarningBadge` is
+ * rendered only by `DryRunRows`, so the whole input here is planner output. Derived by reading every
+ * `RenamerStatus` the planner assigns - `grep -o "RenamerStatus\.[A-Za-z]*"
+ * `extensions/Renamer/src/Renamer/Planner/RenamerPlanner.cs` - and cross-checking the origin comment
+ * on each member of the enum in `Planner/RenamerPlan.cs`, which marks the rest executor-only,
+ * batch-only or log-only. Re-run that pair rather than trust this list.
+ *
+ * Typed on the wire union so a status the server grows forces a decision here too, instead of being
+ * quietly left out of the set.
+ */
+const PLANNER_EMITS: Record<RenamerStatus, boolean> = {
+  renamer: true,
+  move: true,
+  noOp: true,
+  skipCollision: true,
+  skipExcluded: true,
+  skipGated: true,
+  skipMissingSource: true,
+  skipNotAllowed: true,
+  skipRootMissing: true,
+  skipTooLong: true,
+  skipUnanchored: true,
+  // Execution/MoveOutcome.cs, at move time
+  skipLocked: false,
+  skipCancelled: false,
+  skipPermissionDenied: false,
+  skipVerifyFailed: false,
+  // Execution/RenamerExecutor.cs, after a disk move whose DB save was rolled back
+  failed: false,
+  // Renamer.Batch.cs, reported through the run log and never becoming an item result
+  skipNoSpace: false,
+};
+
+/**
+ * A row in the attention bucket never reaches the user saying nothing. Its new-name cell is empty by
+ * design, so the badge is the row's only statement of why it will not be renamed.
+ *
+ * Bounded by what the planner emits, not by the whole enum: iterating the enum treats a status no row
+ * can carry as one that owes the user a badge, which is how an impossible one was added.
+ */
+test("every planner-emittable attention status earns a badge", () => {
+  const silent = (Object.keys(PLANNER_EMITS) as RenamerStatus[])
+    .filter((status) => PLANNER_EMITS[status])
+    .filter((status) => classifyItem({ status }) === "attention")
+    .filter((status) => badgesFor(row(status)).length === 0);
+
+  assert.deepEqual(silent, []);
+});
+
+/**
+ * The other half of that bound, named rather than left implicit: a dry run cannot run out of disk,
+ * because the check that produces this status happens at move time, so no row can say it did.
+ */
+test("a free-space skip earns no badge, because no row this module renders can carry it", () => {
+  assert.equal(PLANNER_EMITS.skipNoSpace, false);
+  assert.deepEqual(labels(row("skipNoSpace")), []);
+});
+
+test("no badge label carries an outcome prefix the badge column already implies", () => {
+  const prefixed = (Object.keys(EXPECTED_LABEL) as RenamerStatus[])
+    .flatMap((status) => labels(row(status)))
+    .filter((label) => label.startsWith("Skipped — "));
+
+  assert.deepEqual(prefixed, []);
 });

@@ -18,6 +18,7 @@ import {
   IN_FLIGHT_OVERFLOW_LABEL,
   inFlightOverflowLabel,
   shouldContinueWalk,
+  rowsFooterText,
   type DryRunBucket,
 } from "./dryRunLogic";
 import type { RenamerStatus } from "../../wire/api";
@@ -42,6 +43,8 @@ const SERVER_BUCKETS: Record<RenamerStatus, DryRunBucket> = {
   skipExcluded: "attention",
   skipLocked: "attention",
   skipMissingSource: "attention",
+  // `ScanBucket.Of` classifies this like any other, and nothing a scan counts ever carries it: the
+  // batch runner assigns it at move time, past the plan every scan row and status count is built from.
   skipNoSpace: "attention",
   failed: "attention",
   skipUnanchored: "attention",
@@ -123,7 +126,9 @@ test("summaryCounts partitions the aggregate's status counts into three buckets 
       { status: "move", count: 4 },
       { status: "noOp", count: 5 },
       { status: "skipGated", count: 2 },
-      { status: "skipNoSpace", count: 1 },
+      // A status a scan can actually count. The aggregate is summed over plan items, so a free-space
+      // skip cannot reach it.
+      { status: "skipTooLong", count: 1 },
       { status: "skipExcluded", count: 6 },
       { status: "failed", count: 7 },
     ],
@@ -361,4 +366,37 @@ test("a row that arrives without the overflow field reads as unflagged, not as f
   // put a red pill on every row of the dry-run table.
   assert.equal(inFlightOverflowLabel({}), null);
   assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: undefined }), null);
+});
+
+test("a finished walk states its total once, from the rows it actually loaded", () => {
+  assert.equal(
+    rowsFooterText({ loaded: 5, total: 5, searching: false, complete: true, examined: 40 }),
+    "All 5 rows, in scan order",
+  );
+  assert.equal(
+    rowsFooterText({ loaded: 5, total: 5, searching: true, complete: true, examined: 40 }),
+    "All 5 matching rows, in scan order",
+  );
+  assert.equal(
+    rowsFooterText({ loaded: 1, total: 1, searching: false, complete: true, examined: 40 }),
+    "All 1 row, in scan order",
+  );
+});
+
+test("a finished walk prefers the rows it loaded over the count the scan predicted", () => {
+  assert.equal(
+    rowsFooterText({ loaded: 7, total: 3, searching: false, complete: true, examined: 40 }),
+    "All 7 rows, in scan order",
+  );
+});
+
+test("an unfinished walk keeps the denominator and the progress clause", () => {
+  assert.equal(
+    rowsFooterText({ loaded: 2, total: 5, searching: false, complete: false, examined: 40 }),
+    "2 of 5 rows loaded, in scan order (by type, then by item). Checked 40 items so far…",
+  );
+  assert.equal(
+    rowsFooterText({ loaded: 2, total: 5, searching: true, complete: false, examined: 40 }),
+    "2 matching rows loaded, in scan order (by type, then by item). Checked 40 items so far…",
+  );
 });

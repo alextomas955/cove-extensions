@@ -4,9 +4,43 @@
  * the `set` callback the panel threads in from useRenamerOptions.
  */
 import { type RenamerOptions } from "./options";
-import { Field, Toggle, TagListInput, SectionCard, TokenPicker } from "@cove-extensions/ui-shared";
+import { Toggle, TagListInput, SectionCard } from "@cove-extensions/ui-shared";
 import { BARE_TOKENS } from "./templateValidation";
 import { TokenAdvisory } from "./templateAdvisories";
+
+/**
+ * The required-fields token list, headed and explained. The heading is a plain element, not a label:
+ * a label forwards a click inside it to its first labelable descendant, which for a chip list is a
+ * chip's Remove button, so a click on the heading would delete a token.
+ *
+ * `FieldGroup` is the shared primitive for exactly that, and this block still hand-rolls its heading:
+ * the DOM and classes here differ from `FieldGroup`'s, and the e2e field selector reads that DOM.
+ * With no label element the input takes its name from `ariaLabel`.
+ */
+function RequiredFields({
+  values,
+  onChange,
+}: Readonly<{
+  values: string[];
+  onChange: (values: string[]) => void;
+}>) {
+  return (
+    <div>
+      <span className="block text-sm text-secondary">Required fields</span>
+      <p className="mt-1 text-xs text-secondary">An item missing any of these is skipped.</p>
+      <div className="mt-2 space-y-2">
+        <TagListInput
+          values={values}
+          onChange={onChange}
+          suggestions={BARE_TOKENS}
+          placeholder="Add a token — type to search"
+          ariaLabel="Required fields"
+        />
+        <TokenAdvisory values={values} />
+      </div>
+    </div>
+  );
+}
 
 export interface WhatGetsRenamedSectionProps {
   options: RenamerOptions;
@@ -18,6 +52,7 @@ export function WhatGetsRenamedSection({ options, set }: WhatGetsRenamedSectionP
     <SectionCard title="What gets renamed">
       <Toggle
         label="Only rename organized items"
+        helper="Skips anything not marked organized, unless an unorganized destination is set."
         checked={options.onlyOrganized}
         onChange={(v) => {
           set("onlyOrganized", v);
@@ -31,31 +66,12 @@ export function WhatGetsRenamedSection({ options, set }: WhatGetsRenamedSectionP
         }}
         helper="The filename without its extension, saved onto the item so later renames read the stored title."
       />
-      <Field
-        label="Required fields"
-        helper="An item whose listed tokens resolve to nothing is skipped."
-      >
-        <TagListInput
-          values={options.requiredFields}
-          onChange={(v) => {
-            set("requiredFields", v);
-          }}
-          placeholder="Add token, press Enter"
-        />
-        <TokenPicker
-          tokens={BARE_TOKENS}
-          values={options.requiredFields}
-          onAdd={(name) => {
-            set(
-              "requiredFields",
-              options.requiredFields.includes(name)
-                ? options.requiredFields
-                : [...options.requiredFields, name],
-            );
-          }}
-        />
-        <TokenAdvisory values={options.requiredFields} />
-      </Field>
+      <RequiredFields
+        values={options.requiredFields}
+        onChange={(v) => {
+          set("requiredFields", v);
+        }}
+      />
     </SectionCard>
   );
 }

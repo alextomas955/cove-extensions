@@ -38,13 +38,12 @@ export class RenamerSettingsPage {
     this.baseUrl = baseUrl;
     this.panelUrl = `${baseUrl}${SETTINGS_PATH}`;
     this.filenameTemplateInput = page.getByRole("textbox", { name: "Filename template" });
-    // Scoped to the default destination's own card: every destination on the panel draws a
-    // folder-template input, so the page-wide name is not unique once any rule exists. SectionCard
-    // renders a <section>, which is the structural handle that scopes this; a change there fails
-    // this locator loudly rather than silently matching the wrong input.
+    // Scoped to the default destination's own block: every destination on the panel draws a
+    // folder-template input, so the page-wide name is not unique once any rule exists. That block
+    // nests inside the "Filename & folder" card and both render a <section>, so the handle is the
+    // accessible name only the inner one carries.
     this.folderTemplateInput = page
-      .locator("section")
-      .filter({ has: page.getByRole("heading", { name: "Where files go" }) })
+      .getByRole("region", { name: "Where files go" })
       .getByRole("textbox", { name: "Folder template" });
     this.saveChangesButton = page.getByRole("button", { name: "Save changes" });
     this.unsavedChangesIndicator = page.getByText("Unsaved changes");
@@ -279,9 +278,9 @@ export class RenamerSettingsPage {
     await this.dryRunDialog.waitFor({ state: "visible", timeout: 10_000 });
   }
 
-  /** The "Sample: Video" live-preview card's full text, used to assert the debounced preview updated. */
+  /** The video live-preview card's full text, used to assert the debounced preview updated. */
   liveVideoSampleCard() {
-    return this.page.getByText("SAMPLE: VIDEO", { exact: false }).locator("..");
+    return this.page.getByText("Video", { exact: true }).locator("..");
   }
 
   hasUndoAvailable() {

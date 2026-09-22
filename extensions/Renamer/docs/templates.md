@@ -47,7 +47,7 @@ extension afterwards either way. It cannot be moved.
   collapse.
 - **Folders**: in a folder template, use `/` to separate sub-folders, e.g. `$studio/$year`. Only `/`
   separates; a backslash is treated as a character the filesystem forbids and is removed (or
-  replaced, per _Illegal-char replacement_). A folder template is always relative to its
+  replaced, per _Illegal characters_). A folder template is always relative to its
   destination's root, so it never starts with a drive or a `/`. A level whose tokens all render empty
   is dropped rather than made as a folder with no name.
 
@@ -157,6 +157,6 @@ lengthening it.
 ## Shaping multi-value tokens
 
 `$performers` and `$tags` are lists. How they join into the name — the separator between items, a
-maximum count, sort order, and include/exclude lists — is controlled by the **Performers** and
+maximum count, sort order, and the _Only include_ and _Never include_ lists — is controlled by the **Performers** and
 **Tags** cards under **Token settings**, which appear only when your template uses that token. See
 the [Settings reference](./settings#token-settings) for every option.

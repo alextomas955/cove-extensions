@@ -19,6 +19,7 @@ import {
 } from "./options";
 import {
   Field,
+  FieldGroup,
   TextInput,
   Toggle,
   TagListInput,
@@ -69,13 +70,17 @@ export function DestinationRoutingSection({
   const orphaned = useOrphanedRules();
 
   return (
-    <SectionCard description="Per-studio and per-tag rules override the default.">
+    <SectionCard
+      title="Destination routing"
+      description="First match wins: excludes → unorganized → tag → studio → source path. An item no rule matches takes its kind's own folder, then the default in Where files go."
+    >
       <GroupCard
         title="Unorganized destination"
-        description="Where un-curated items go instead of being skipped."
+        description="Where unorganized items go instead of being skipped."
       >
         <Toggle
           label="Route unorganized items to their own destination"
+          helper="When off, Only rename organized items decides whether they are skipped."
           checked={options.unorganizedDestination !== null}
           onChange={(on) => {
             // Off is the absent destination, not one naming nothing: only the absent one falls
@@ -96,7 +101,7 @@ export function DestinationRoutingSection({
 
       <ToggleHeaderCard
         title="Per-studio destinations"
-        description="Route a studio's items to their own destination."
+        description="Send a studio's items to their own destination."
         enabled={showStudioRules}
         onToggle={setShowStudioRules}
       >
@@ -111,7 +116,7 @@ export function DestinationRoutingSection({
 
       <ToggleHeaderCard
         title="Per-tag destinations"
-        description="Route a tag's items to their own destination."
+        description="Send a tag's items to their own destination."
         enabled={showTagRules}
         onToggle={setShowTagRules}
       >
@@ -153,7 +158,7 @@ export function DestinationRoutingSection({
 
       <ToggleHeaderCard
         title="Source-path destinations"
-        description="Match an item's source path to a destination, top rule first. An exact match or a regex."
+        description="Match a source path to a destination. Exact match or regex, top rule first."
         enabled={showPathRules}
         onToggle={setShowPathRules}
       >
@@ -167,14 +172,17 @@ export function DestinationRoutingSection({
             renderRow={(row, _i, update) => (
               <>
                 <Field label="Source path">
-                  <TextInput
-                    value={row.pattern}
-                    onChange={(v) => {
-                      update({ pattern: v });
-                    }}
-                    mono
-                    placeholder="Exact path or regex"
-                  />
+                  {(id) => (
+                    <TextInput
+                      id={id}
+                      value={row.pattern}
+                      onChange={(v) => {
+                        update({ pattern: v });
+                      }}
+                      mono
+                      placeholder="Exact path or regex"
+                    />
+                  )}
                 </Field>
                 <Toggle
                   label="Match as a regex"
@@ -201,15 +209,16 @@ export function DestinationRoutingSection({
 
       <GroupCard
         title="Sidecar files"
-        description="A file sharing the primary's basename moves and renames with it; an existing target is never overwritten. Cove-tracked captions always move."
+        description="Files with the same name move and rename with the primary. An existing file is never overwritten."
       >
-        <Field label="Also move sidecar files with these extensions">
+        <FieldGroup label="Also move sidecar files with these extensions">
           <TagListInput
             values={options.associatedExtensions}
             onChange={(v) => {
               set("associatedExtensions", v);
             }}
             placeholder="Add an extension, press Enter"
+            ariaLabel="Also move sidecar files with these extensions"
             normalize={normalizeSidecarExtension}
             onReject={(candidate) => !/^[a-z0-9]+$/.test(candidate)}
             onLiveChange={(raw) => {
@@ -220,7 +229,7 @@ export function DestinationRoutingSection({
             const advisory = extensionShapeAdvisory(normalizeSidecarExtension(sidecarLiveInput));
             return advisory ? <StatusText kind="warning">{advisory}</StatusText> : null;
           })()}
-        </Field>
+        </FieldGroup>
       </GroupCard>
 
       <div className="rounded-xl border border-border bg-card p-4">
@@ -230,7 +239,7 @@ export function DestinationRoutingSection({
           onChange={(v) => {
             set("removeEmptyFolder", v);
           }}
-          helper="Never a non-empty folder or a root. Undo won't recreate it."
+          helper="Never deletes a folder that still has files in it, and never a drive root. Undo won't recreate a deleted folder."
         />
       </div>
     </SectionCard>

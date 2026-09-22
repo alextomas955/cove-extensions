@@ -18,9 +18,6 @@ export function LivePreviewPane({ preview, previewError }: LivePreviewPaneProps)
     <div>
       <div className="space-y-4 rounded-2xl border border-border bg-surface p-5 shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)] lg:sticky lg:top-16">
         <div className="text-base font-semibold text-foreground">Live preview</div>
-        <p className="mb-4 mt-1 text-sm text-secondary">
-          Old → new for sample items, before anything touches disk.
-        </p>
         {previewError ? (
           <StatusText kind="error">Preview unavailable — saved naming still works.</StatusText>
         ) : null}

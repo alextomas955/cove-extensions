@@ -42,7 +42,7 @@ export function PerKindRows({ options, set, library }: Readonly<PerKindRowsProps
         <span className="text-sm font-semibold text-foreground">Per kind</span>
         <span className="text-xs text-secondary">
           {excluded === 0 && ownFolder === 0
-            ? "Every kind follows the settings above. Nothing here needs changing."
+            ? `All ${RENAMABLE_KINDS.length} kinds follow this default.`
             : `${excluded} excluded · ${ownFolder} with their own folder`}
         </span>
       </div>

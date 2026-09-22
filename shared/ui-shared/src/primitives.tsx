@@ -30,7 +30,14 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useId, useRef, useState, useEffect } from "react";
 import { Loader2, X, ChevronUp, ChevronDown } from "lucide-react";
-import { isRegexValid, isAbsolutePathShape, listEditors } from "./primitivesLogic";
+import {
+  isRegexValid,
+  isAbsolutePathShape,
+  listEditors,
+  nextActiveIndex,
+  numberInputValue,
+  suggestionOptions,
+} from "./primitivesLogic";
 import { availableOptions, type ValueOption } from "./entityPickerLogic";
 
 /**
@@ -101,26 +108,89 @@ export function Chip({
 /** Sentinel `value` for the "Custom…" option in {@link ExampleSelect}. */
 const CUSTOM_SENTINEL = "__custom__";
 
-/** Label + control + optional helper. Matches Cove `SettingsField`. */
+/** The two entry-identity rules {@link TagListInput} chooses between. */
+const identity = (value: string) => value;
+const fold = (value: string) => value.toLowerCase();
+
+const MICRO_LABEL_CLASS = "mb-1 block text-xs font-medium uppercase tracking-wide text-muted";
+// Names a group of controls, so it stays quieter than the section title containing it.
+const GROUP_LABEL_CLASS = "mb-1 block text-sm text-secondary";
+
+/**
+ * Label + one control + optional helper. Matches Cove `SettingsField`.
+ *
+ * The label is paired to its control by an id this component owns and hands to `children`, so a
+ * caller that does not put the id on a control fails to type-check. Nesting alone would work for a
+ * single control and silently pick the wrong one for anything else; {@link FieldGroup} is what a
+ * block of several controls takes.
+ */
 export function Field({
   label,
   helper,
+  labelStyle = "micro",
   children,
 }: {
   label: string;
   helper?: string;
+  labelStyle?: "micro" | "group";
+  children: (controlId: string) => ReactNode;
+}) {
+  const controlId = useId();
+  return (
+    <label className="block text-sm" htmlFor={controlId} title={helper}>
+      {label ? (
+        <span className={labelStyle === "group" ? GROUP_LABEL_CLASS : MICRO_LABEL_CLASS}>
+          {label}
+        </span>
+      ) : null}
+      {children(controlId)}
+      {helper ? <span className="mt-1 block text-xs text-secondary">{helper}</span> : null}
+    </label>
+  );
+}
+
+/**
+ * Heading + a set of controls + optional helper, laid out exactly as {@link Field} but headed by a
+ * plain element rather than a label.
+ *
+ * For anything that is not one labelable control: a chip row, a segmented control, a chips-plus-input
+ * editor, the host's entity selector. A `<label>` forwards a click anywhere inside it to its first
+ * labelable descendant, and `button` is labelable, so a label over any of those turns a click on the
+ * heading into a click on whichever chip happens to be drawn first — a setting silently changed, or a
+ * configured value deleted. The heading names the block instead.
+ *
+ * A group name does not name a control nested inside it, so each control in here carries its own.
+ */
+export function FieldGroup({
+  label,
+  helper,
+  labelStyle = "micro",
+  children,
+}: {
+  label: string;
+  helper?: string;
+  labelStyle?: "micro" | "group";
   children: ReactNode;
 }) {
+  const labelId = useId();
   return (
-    <label className="block text-sm" title={helper}>
+    <div
+      className="block text-sm"
+      title={helper}
+      role="group"
+      aria-labelledby={label ? labelId : undefined}
+    >
       {label ? (
-        <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted">
+        <span
+          id={labelId}
+          className={labelStyle === "group" ? GROUP_LABEL_CLASS : MICRO_LABEL_CLASS}
+        >
           {label}
         </span>
       ) : null}
       {children}
       {helper ? <span className="mt-1 block text-xs text-secondary">{helper}</span> : null}
-    </label>
+    </div>
   );
 }
 
@@ -131,6 +201,8 @@ export function TextInput({
   placeholder,
   mono = false,
   inputRef,
+  ariaLabel,
+  id,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -138,13 +210,18 @@ export function TextInput({
   placeholder?: string;
   mono?: boolean;
   inputRef?: React.Ref<HTMLInputElement>;
+  // For an input inside a group rather than under a label of its own: a group's name does not reach it.
+  ariaLabel?: string;
+  id?: string;
 }) {
   return (
     <input
       ref={inputRef}
+      id={id}
       type="text"
       value={value}
       placeholder={placeholder}
+      aria-label={ariaLabel}
       onChange={(e) => {
         onChange(e.target.value);
       }}
@@ -159,16 +236,25 @@ export function NumberInput({
   onChange,
   min,
   max,
+  placeholder,
+  blankWhenZero,
+  id,
 }: {
   value: number;
   onChange: (value: number) => void;
   min?: number;
   max?: number;
+  placeholder?: string;
+  /** Set where zero is the field's "unset", so it renders blank and the placeholder names it. */
+  blankWhenZero?: boolean;
+  id?: string;
 }) {
   return (
     <input
+      id={id}
       type="number"
-      value={Number.isNaN(value) ? "" : value}
+      value={numberInputValue(value, blankWhenZero)}
+      placeholder={placeholder}
       min={min}
       max={max}
       onChange={(e) => {
@@ -192,6 +278,7 @@ export function Select<T extends string>({
   options,
   disabled = false,
   ariaLabel,
+  id,
 }: {
   value: T;
   onChange: (value: T) => void;
@@ -199,9 +286,11 @@ export function Select<T extends string>({
   disabled?: boolean;
   // A native <select> has no visible label of its own; a caller with no adjacent label names it here.
   ariaLabel?: string;
+  id?: string;
 }) {
   return (
     <select
+      id={id}
       value={value}
       disabled={disabled}
       aria-label={ariaLabel}
@@ -243,11 +332,15 @@ export function ExampleSelect({
   onChange,
   options,
   customPlaceholder,
+  ariaLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
   options: readonly ExampleOption[];
   customPlaceholder?: string;
+  // Names the select and, when it is revealed, the custom input: this control is a block, so the
+  // heading above it names the block and reaches neither.
+  ariaLabel?: string;
 }) {
   const matched = options.find((o) => o.value === value);
   const isCustom = matched === undefined;
@@ -260,6 +353,7 @@ export function ExampleSelect({
     <div>
       <select
         value={selectValue}
+        aria-label={ariaLabel}
         onChange={(e) => {
           const v = e.target.value;
           // Choosing Custom…: keep the current value if it's already custom, else seed empty so
@@ -281,7 +375,13 @@ export function ExampleSelect({
       </select>
       {isCustom ? (
         <div className="mt-2">
-          <TextInput value={value} onChange={onChange} placeholder={customPlaceholder} mono />
+          <TextInput
+            value={value}
+            onChange={onChange}
+            placeholder={customPlaceholder}
+            ariaLabel={ariaLabel}
+            mono
+          />
         </div>
       ) : (
         <span className="mt-1 block font-mono text-xs text-secondary">{helperExample}</span>
@@ -310,11 +410,14 @@ export function SeparatorChips({
   onChange,
   options,
   customPlaceholder,
+  ariaLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
   options: readonly SeparatorOption[];
   customPlaceholder?: string;
+  // Names the custom input this row reveals; the heading above the row names the row, not the input.
+  ariaLabel?: string;
 }) {
   const isCustom = !options.some((o) => o.value === value);
 
@@ -347,7 +450,13 @@ export function SeparatorChips({
       </div>
       {isCustom ? (
         <div className="mt-2">
-          <TextInput value={value} onChange={onChange} placeholder={customPlaceholder} mono />
+          <TextInput
+            value={value}
+            onChange={onChange}
+            placeholder={customPlaceholder}
+            ariaLabel={ariaLabel}
+            mono
+          />
         </div>
       ) : null}
     </div>
@@ -370,6 +479,7 @@ export function SegmentedReplace({
   stripHelper,
   replaceHelper,
   inputPlaceholder,
+  ariaLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -378,6 +488,8 @@ export function SegmentedReplace({
   stripHelper?: string;
   replaceHelper?: string;
   inputPlaceholder?: string;
+  // Names the replacement input this control reveals; the heading above it names the whole control.
+  ariaLabel?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   // replaceMode is the explicit UI mode. It is needed (not derived purely from value !== "") because
@@ -430,6 +542,7 @@ export function SegmentedReplace({
             onChange={onChange}
             placeholder={inputPlaceholder}
             inputRef={inputRef}
+            ariaLabel={ariaLabel}
             mono
           />
           {replaceHelper ? (
@@ -493,10 +606,12 @@ export function Toggle({
   helper?: string;
   ariaLabel?: string;
 }) {
+  const id = useId();
   return (
     <div>
-      <label className="flex items-center gap-2 text-sm text-secondary" title={helper}>
+      <label htmlFor={id} className="flex items-center gap-2 text-sm text-secondary" title={helper}>
         <button
+          id={id}
           type="button"
           role="switch"
           aria-checked={checked}
@@ -505,8 +620,12 @@ export function Toggle({
             onChange(!checked);
           }}
           className={`inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-            checked ? "bg-accent" : "bg-card border border-border"
+            checked ? "bg-accent" : "border border-border"
           }`}
+          // The off track has to step away from every container this panel puts a toggle in — card
+          // and surface alike — or it reads as a bare knob. Cove's border tone does, and it goes
+          // inline because the host's prebuilt stylesheet is the only source of classes here.
+          style={checked ? undefined : { backgroundColor: "var(--color-border)" }}
         >
           <span
             className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
@@ -532,6 +651,10 @@ export function Toggle({
 /**
  * String-list editor: chips above an add-on-Enter input. Used for Whitelist / Blacklist /
  * RequiredFields / DropOrder. DropOrder additionally gets up/down reordering (`ordered`).
+ *
+ * `suggestions` turns the same input into a combobox offering that set as a filtered list. The set
+ * is never closed: free text still commits, because a value outside the set is a legitimate entry
+ * the caller warns about rather than refuses.
  */
 export function TagListInput({
   values,
@@ -541,6 +664,8 @@ export function TagListInput({
   normalize,
   onReject,
   onLiveChange,
+  suggestions,
+  ariaLabel,
 }: {
   values: string[];
   onChange: (values: string[]) => void;
@@ -549,16 +674,51 @@ export function TagListInput({
   normalize?: (raw: string) => string;
   onReject?: (candidate: string) => boolean;
   onLiveChange?: (raw: string) => void;
+  suggestions?: readonly string[];
+  ariaLabel?: string;
 }) {
   const id = useId();
+  const listId = `${id}-suggestions`;
+  // When two entries are the same entry. A suggestion set is a vocabulary the rename engine resolves
+  // case-insensitively (`Engine/TemplateEngine.cs` builds its token maps with
+  // `StringComparer.OrdinalIgnoreCase`), so two spellings of one token are one token to it: a
+  // drop-order list holding both makes `Engine/LengthReducer.cs` re-render for each and report the
+  // same field dropped twice. Free-text lists keep exact match, where case is the user's own.
+  const sameEntry = suggestions === undefined ? identity : fold;
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+  // Separate from focus, so Escape can put the list away without taking the caret out of the field.
+  const [dismissed, setDismissed] = useState(false);
+  const [active, setActive] = useState(-1);
 
-  function addFrom(input: HTMLInputElement) {
-    const v = (normalize ? normalize(input.value) : input.value).trim();
+  function clearInput() {
+    setQuery("");
+    setActive(-1);
+    onLiveChange?.("");
+  }
+
+  function add(candidate: string) {
+    const taken = values.some((existing) => sameEntry(existing) === sameEntry(candidate));
+    if (!taken) onChange([...values, candidate]);
+    clearInput();
+  }
+
+  function addCurrent() {
+    const v = (normalize ? normalize(query) : query).trim();
+    // Text the control will not take stays on screen for the user to correct.
     if (v.length === 0) return;
     if (onReject?.(v)) return;
-    if (!values.includes(v)) onChange([...values, v]);
-    input.value = "";
+    add(v);
   }
+
+  function commit(option: string) {
+    add(option);
+  }
+
+  const offered = suggestions ? suggestionOptions(suggestions, values, query, sameEntry) : [];
+  const listOpen = suggestions !== undefined && focused && !dismissed && offered.length > 0;
+  const activeId =
+    listOpen && active >= 0 && active < offered.length ? `${listId}-${active}` : undefined;
 
   const { move, remove } = listEditors(values, onChange);
 
@@ -610,24 +770,87 @@ export function TagListInput({
           ))}
         </div>
       ) : null}
-      <input
-        id={id}
-        type="text"
-        placeholder={placeholder}
-        className={INPUT_CLASS}
-        onChange={(e) => {
-          onLiveChange?.(e.target.value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            addFrom(e.currentTarget);
-          }
-        }}
-        onBlur={(e) => {
-          addFrom(e.currentTarget);
-        }}
-      />
+      <div className="relative">
+        <input
+          id={id}
+          type="text"
+          value={query}
+          placeholder={placeholder}
+          className={INPUT_CLASS}
+          aria-label={ariaLabel}
+          role={suggestions ? "combobox" : undefined}
+          aria-autocomplete={suggestions ? "list" : undefined}
+          aria-expanded={suggestions ? listOpen : undefined}
+          aria-controls={suggestions ? listId : undefined}
+          aria-activedescendant={activeId}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setActive(-1);
+            setDismissed(false);
+            onLiveChange?.(e.target.value);
+          }}
+          onFocus={() => {
+            setFocused(true);
+            setDismissed(false);
+          }}
+          onKeyDown={(e) => {
+            if (listOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+              e.preventDefault();
+              setActive(nextActiveIndex(active, offered.length, e.key === "ArrowDown" ? 1 : -1));
+              return;
+            }
+            if (e.key === "Escape" && listOpen) {
+              e.preventDefault();
+              setDismissed(true);
+              return;
+            }
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const chosen = listOpen && active >= 0 ? offered[active] : undefined;
+              if (chosen === undefined) addCurrent();
+              else commit(chosen);
+            }
+          }}
+          onBlur={() => {
+            setFocused(false);
+            addCurrent();
+          }}
+        />
+        {listOpen ? (
+          <ul
+            id={listId}
+            role="listbox"
+            className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 list-none overflow-auto rounded-xl border border-border bg-card py-1 shadow-lg"
+            // The blur handler commits whatever the input holds, so without this a click would first
+            // blur (adding the half-typed query) and then add the option too.
+            onMouseDown={(e) => {
+              e.preventDefault();
+            }}
+          >
+            {offered.map((option, i) => (
+              // The input owns the keyboard: it carries role="combobox" and handles ArrowDown,
+              // ArrowUp, Enter and Escape. An option has no tabIndex, so it never takes focus and a
+              // key handler on it could not fire, hence the suppression rather than a missing listener.
+              <li // NOSONAR
+                key={option}
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={i === active}
+                onClick={() => {
+                  commit(option);
+                }}
+                className={
+                  i === active
+                    ? "cursor-pointer px-3 py-1 font-mono text-sm text-foreground bg-card-hover"
+                    : "cursor-pointer px-3 py-1 font-mono text-sm text-foreground hover:bg-card-hover"
+                }
+              >
+                {option}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -716,11 +939,14 @@ export function OrderedPickToAdd({
   values,
   onChange,
   addPrompt,
+  ariaLabel,
 }: {
   options: readonly ValueOption[];
   values: string[];
   onChange: (values: string[]) => void;
   addPrompt: string;
+  // Names the add select; the heading above this control names the chips and the select together.
+  ariaLabel?: string;
 }) {
   const labelOf = (value: string) => options.find((o) => o.value === value)?.label ?? value;
   const offerable = availableOptions(options, values);
@@ -776,6 +1002,7 @@ export function OrderedPickToAdd({
           // A select with no committed value: it returns to the prompt after each add (the value prop
           // stays the empty sentinel), so it always reads "Add a …" rather than the last pick.
           value=""
+          aria-label={ariaLabel}
           onChange={(e) => {
             const v = e.target.value;
             if (v !== "") onChange([...values, v]);
@@ -790,59 +1017,6 @@ export function OrderedPickToAdd({
           ))}
         </select>
       ) : null}
-    </div>
-  );
-}
-
-/**
- * A bespoke "Add token" affordance opening a `flex flex-wrap gap-1` click-to-add chip menu
- * of bare token names (not a dropdown, not autocomplete). It is purely additive UI around a
- * {@link TagListInput} (it does not replace it). The host has no equivalent, so this is bespoke;
- * it reuses the selectable chip class verbatim (host-compiled classes only — no arbitrary
- * `[…]` values). Clicking a chip calls `onAdd(name)`; tokens already in `values` render
- * de-emphasized (existing `text-muted`) and skip the callback, mirroring TagListInput.addFrom de-dupe.
- * Every chip label is a React text node (auto-escaped, so token names can't inject markup).
- */
-export function TokenPicker({
-  tokens,
-  values,
-  onAdd,
-}: {
-  tokens: readonly string[];
-  values: string[];
-  onAdd: (name: string) => void;
-}) {
-  return (
-    <div className="mt-1">
-      <span className="mb-1 block text-xs text-muted">Add a token:</span>
-      <div className="flex flex-wrap gap-1">
-        {tokens.map((name) => {
-          const present = values.includes(name);
-          return present ? (
-            // Already-added tokens render a distinct muted/disabled treatment (text-muted, no hover),
-            // not the standard unselected chip — so this branch stays direct markup rather than <Chip>.
-            <button
-              key={name}
-              type="button"
-              disabled
-              className={`${CHIP_BASE} border-border bg-card text-muted font-mono`}
-            >
-              {name}
-            </button>
-          ) : (
-            <Chip
-              key={name}
-              selected={false}
-              mono
-              onClick={() => {
-                onAdd(name);
-              }}
-            >
-              {name}
-            </Chip>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -1251,26 +1425,44 @@ export function StatusPill({
 }
 
 /**
- * A section-group divider header: an uppercase label, a hairline rule that fills the row, and an
- * optional muted hint on the right. Groups the flat cards beneath it (What gets renamed, Run &
- * automation, Token settings, Destination routing, Advanced) without being a collapsible itself.
+ * A titled block inside a {@link SectionCard}, for a card that holds more than one subject. The
+ * `<section>` is named through `aria-labelledby`, so it exposes a `region` an assistive-technology
+ * user (and a test locator) can address by its title — the enclosing card's own heading is not wired
+ * that way, which is what keeps a nested block unambiguous. `divided` draws the hairline that
+ * separates it from the block above.
  */
-export function SectionGroupHeader({ title, hint }: { title: string; hint?: string }) {
+export function CardSection({
+  title,
+  description,
+  divided = false,
+  children,
+}: {
+  title: string;
+  description?: string;
+  divided?: boolean;
+  children: ReactNode;
+}) {
+  const headingId = useId();
   return (
-    <div className="flex items-center gap-3">
-      <h2 className="text-xs font-bold uppercase tracking-wider text-secondary">{title}</h2>
-      <div className="h-px flex-1 bg-border" />
-      {hint ? <span className="text-xs text-muted">{hint}</span> : null}
-    </div>
+    <section
+      aria-labelledby={headingId}
+      className={divided ? "border-t border-border pt-4" : undefined}
+    >
+      <h4 id={headingId} className="text-base font-semibold text-foreground">
+        {title}
+      </h4>
+      {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
+      <div className="mt-4 space-y-4">{children}</div>
+    </section>
   );
 }
 
 /**
- * The primary settings section container. Chrome is matched to Cove's own `SettingsSection`
- * (`components/SettingsPrimitives.tsx`) so extension sections are indistinguishable from native
- * ones: same `rounded-2xl border-border bg-surface p-5` fill and long soft drop shadow, and a
- * margin header (no divider rule) — not the heavier `shadow-sm` + `border-b` header the extension
- * used before. `badge` is the one addition core lacks: an inline `$token` marker for the
+ * The primary settings section container: Cove's own `SettingsSection` fill
+ * (`rounded-2xl border-border bg-surface p-5` plus a long soft drop shadow) under a header that
+ * closes with a hairline rule. The panel is a full page of stacked titled cards rather than one
+ * embedded settings section, and the rule is what makes a card title read as a header instead of as
+ * the body's first line. `badge` is the one addition core lacks: an inline `$token` marker for the
  * token-settings cards. Presentational only.
  */
 export function SectionCard({
@@ -1286,8 +1478,6 @@ export function SectionCard({
   headerRight?: ReactNode;
   children: ReactNode;
 }) {
-  // A description with no title is a card whose section header already names it, so the header block
-  // has to render for that line alone.
   const hasHeader = Boolean(title) || Boolean(description) || badge != null || headerRight != null;
   return (
     <section
@@ -1297,7 +1487,7 @@ export function SectionCard({
       style={{ boxShadow: "0 12px 30px -20px rgba(0,0,0,0.7)" }}
     >
       {hasHeader ? (
-        <header className="mb-4 flex items-start justify-between gap-4">
+        <header className="mb-4 flex items-start justify-between gap-4 border-b border-border pb-4">
           <div className="flex min-w-0 items-start gap-3">
             {badge ? <span className="mt-0.5 shrink-0">{badge}</span> : null}
             <div className="min-w-0">

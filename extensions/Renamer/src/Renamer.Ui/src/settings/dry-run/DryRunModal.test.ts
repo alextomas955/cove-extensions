@@ -14,12 +14,15 @@
  * imports resolve only inside a consuming bundle: each stand-in renders the text-bearing props and the
  * children it is handed, so what the assertions read is this modal's own output.
  *
- * React arrives as its production build (the bundle's `process.env.NODE_ENV` define applies here too),
- * which has no `act`, so renders are flushed by waiting rather than by wrapping.
+ * A render commits on React's own schedule, so each step waits for the state its assertion is about —
+ * save one, marked where it stands, which waits on real elapsed time because it asserts that a stopped
+ * walk stays stopped.
  */
 import { test, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+
+import { waitFor } from "../../common/lib/flushRender";
 
 import { DryRunModal } from "./DryRunModal";
 import { type RenamerOptions } from "../options";
@@ -90,8 +93,11 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-/** Long enough for the whole scripted walk to run to its end without `act` to force each render. */
-const SETTLE_MS = 600;
+/** Whether the rows footer has dropped its "loaded" clause, which is what says the walk ended. */
+function walkFinished(modal: { text: () => string }): boolean {
+  const text = modal.text();
+  return text.includes("in scan order") && !text.includes("rows loaded");
+}
 
 function row(fileId: number): ScanRow {
   return {
@@ -198,12 +204,16 @@ test("the walk follows a page that carried no rows and reaches the end of the li
   );
 
   const modal = mountModal();
-  await sleep(SETTLE_MS);
+  // The finished footer, which is the unfinished one without its "loaded" clause. The unfinished form
+  // is on screen from the first render, so waiting for the shared half alone would return at once.
+  await waitFor("the walk to reach the end of the library", () => walkFinished(modal));
 
   expect(modal.text(), "the walk stopped before the end of the library").toContain(
-    "5 of 5 rows loaded",
+    "All 5 rows, in scan order",
   );
-  expect(modal.text()).toContain("That is all of them.");
+  // The unfinished form and the count it carried are what a walk that stopped early would leave.
+  expect(modal.text()).not.toContain("rows loaded");
+  expect(modal.text()).not.toContain("items so far");
   modal.unmount();
 }, 30_000);
 
@@ -213,14 +223,17 @@ test("a failed page stops the walk instead of reissuing the same request without
   host.pages.push(budgetStopped([], 500), null);
 
   const modal = mountModal();
-  await sleep(SETTLE_MS);
+  await waitFor("the walk to report the failure", () =>
+    modal.text().includes("Couldn't load more rows"),
+  );
   const readsAtRest = host.rowReads;
   expect(readsAtRest, "the walk kept reissuing a failing request").toBeLessThanOrEqual(
     MOST_READS_A_FAILING_WALK_NEEDS,
   );
 
   // One count cannot show that a walk stopped: a live one and a stopped one look alike at an instant,
-  // so let several more settle periods pass and require the count not to move.
+  // so let several more settle periods pass and require the count not to move. A duration, not a
+  // condition: the assertion is that nothing happens while it elapses.
   await sleep(1_000);
   expect(host.rowReads, "the walk resumed on its own after the failure").toBe(readsAtRest);
   expect(modal.text()).toContain("Couldn't load more rows");
@@ -233,10 +246,10 @@ test("a dry run of unsaved settings will not start the rename", async () => {
   host.pages.push(finalPage([row(1), row(2)]));
 
   const modal = mountModal({ dirty: true });
-  await sleep(SETTLE_MS);
+  await waitFor("the rows to load", () => walkFinished(modal));
 
   expect(modal.renameButton()?.disabled).toBe(true);
-  expect(modal.text()).toContain("a rename runs the saved ones");
+  expect(modal.text()).toContain("Previewing unsaved settings. Renaming uses the saved ones.");
   modal.unmount();
 }, 30_000);
 
@@ -244,7 +257,7 @@ test("a dry run of saved settings starts the rename", async () => {
   host.pages.push(finalPage([row(1), row(2)]));
 
   const modal = mountModal();
-  await sleep(SETTLE_MS);
+  await waitFor("the rows to load", () => walkFinished(modal));
 
   expect(modal.renameButton()?.disabled).toBe(false);
   expect(modal.text()).not.toContain("a rename runs the saved ones");
@@ -257,11 +270,13 @@ test("discarding the edits behind the modal does not make its stale rows renamab
   host.pages.push(finalPage([row(1), row(2)]));
 
   const modal = mountModal({ dirty: true });
-  await sleep(SETTLE_MS);
+  await waitFor("the rows to load", () => walkFinished(modal));
   expect(modal.renameButton()?.disabled).toBe(true);
 
   modal.render({ options: { ...someOptions(), filenameTemplate: "$title" }, dirty: false });
-  await sleep(SETTLE_MS);
+  await waitFor("the discard to be reflected", () =>
+    modal.text().includes("changed after these rows were scanned"),
+  );
 
   expect(modal.renameButton()?.disabled).toBe(true);
   expect(modal.text()).toContain("changed after these rows were scanned");

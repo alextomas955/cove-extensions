@@ -67,13 +67,20 @@ function toggleCard(page, title) {
   return page.getByRole("heading", { name: title, exact: true }).locator("xpath=../../..");
 }
 
+// A `Field` renders a `<label>` and a `FieldGroup` a `role="group"` block, so either shape is a
+// candidate, and a candidate containing another candidate is not one: `hasText` matches an ancestor
+// as readily as a leaf, and `PerKindRows` wraps fields of its own in a `role="group"` row.
+const FIELD_SELECTOR =
+  'label:not(:has(label, [role="group"])), [role="group"]:not(:has(label, [role="group"]))';
+
 /**
  * One `Field` within a scope. Two selector fields share the Performers card and two share the Tags
- * card, so the card alone cannot separate a whitelist chip from a blacklist chip; `Field` renders a
- * `<label>` whose first span is the field name, which is the narrowest scope that can.
+ * card, so the card alone cannot separate a whitelist chip from a blacklist chip. The exclusion in
+ * {@link FIELD_SELECTOR}, not the absence of a second match, is what keeps this the narrowest scope
+ * that can; resolving strictly is what says so when it stops being true.
  */
 function field(scope, label) {
-  return scope.locator("label").filter({ hasText: label }).first();
+  return scope.locator(FIELD_SELECTOR).filter({ hasText: label });
 }
 
 test("a legacy blob stored before the host starts converts at initialize, and the panel renders the surviving rules as entity names", async ({
@@ -202,43 +209,43 @@ test("a legacy blob stored before the host starts converts at initialize, and th
 
   // ── The surviving rules render as entity names ──────────────────────────────────────────────────
   const tagsCard = groupCard(page, "Tags");
-  const tagWhitelist = field(tagsCard, "Whitelist");
+  const tagOnlyInclude = field(tagsCard, "Only include");
   await expect(
-    tagWhitelist.getByRole("button", { name: `Remove ${names.tagKeep}`, exact: true }),
+    tagOnlyInclude.getByRole("button", { name: `Remove ${names.tagKeep}`, exact: true }),
     `the tag whitelist rule stored as the name "${names.tagKeep}" is not on the panel as a chip carrying that name`,
   ).toBeVisible({ timeout: 15_000 });
   await expect(
-    tagWhitelist.getByRole("button", { name: /^Remove / }),
+    tagOnlyInclude.getByRole("button", { name: /^Remove / }),
     "the one stored tag whitelist name must land as exactly one chip",
   ).toHaveCount(1);
   await expect(
-    field(tagsCard, "Blacklist").getByRole("button", { name: /^Remove / }),
+    field(tagsCard, "Never include").getByRole("button", { name: /^Remove / }),
     "the empty legacy Blacklist a real install always emitted must convert to an empty id list — not to a chip, and not by stranding the whole conversion on a half it had nothing to resolve",
   ).toHaveCount(0);
 
   const performersCard = groupCard(page, "Performers");
-  const performerWhitelist = field(performersCard, "Whitelist");
+  const performerOnlyInclude = field(performersCard, "Only include");
   await expect(
-    performerWhitelist.getByRole("button", {
+    performerOnlyInclude.getByRole("button", {
       name: `Remove ${names.performerKeep}`,
       exact: true,
     }),
     "the performer whitelist rule did not survive as a named chip",
   ).toBeVisible();
   await expect(
-    performerWhitelist.getByRole("button", { name: `Remove ${names.caseFirst}`, exact: true }),
+    performerOnlyInclude.getByRole("button", { name: `Remove ${names.caseFirst}`, exact: true }),
     "the surviving half of the case-variant pair must be the LOWEST id, whose name is the first-created spelling",
   ).toBeVisible();
   await expect(
-    performerWhitelist.getByRole("button", { name: `Remove ${names.caseSecond}`, exact: true }),
+    performerOnlyInclude.getByRole("button", { name: `Remove ${names.caseSecond}`, exact: true }),
     "both case variants survived as separate chips — the two stored names resolve to one id, so this rule now covers one performer where it covered two, and that narrowing is what the changelog discloses",
   ).toHaveCount(0);
   await expect(
-    performerWhitelist.getByRole("button", { name: /^Remove / }),
+    performerOnlyInclude.getByRole("button", { name: /^Remove / }),
     "three stored names must land as exactly two chips: the keep performer, plus one survivor of the case-variant pair",
   ).toHaveCount(2);
   await expect(
-    field(performersCard, "Blacklist").getByRole("button", {
+    field(performersCard, "Never include").getByRole("button", {
       name: `Remove ${names.performerBlock}`,
       exact: true,
     }),
@@ -247,7 +254,9 @@ test("a legacy blob stored before the host starts converts at initialize, and th
 
   // ── The unresolvable name is gone ───────────────────────────────────────────────────────────────
   await page.getByRole("button", { name: /^Excludes/ }).click();
-  const excludeTagCard = groupCard(page, "Exclude by tag");
+  // The tag exclude names itself through its own `Field` rather than through a card heading, so that
+  // block is the narrowest scope that holds its chips.
+  const excludeTagCard = field(page, "Exclude by tag");
   await expect(
     excludeTagCard.getByRole("button", { name: `Remove ${names.tagExclude}`, exact: true }),
     'the exclusion that DID resolve is missing, so nothing below distinguishes "the vanished name was dropped" from "the whole field was emptied"',
@@ -264,6 +273,22 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     excludeText,
     "a chip is stuck on the host loading placeholder, which is what an id resolving to no entity looks like — the conversion wrote an id the library does not have",
   ).not.toContain("Loading tag...");
+
+  // A `<label>` forwards a click anywhere inside it to the first labelable descendant, and the host
+  // selector renders each chip's Remove button ahead of its input.
+  await expect(
+    excludeTagCard,
+    "the exclusion field no longer resolves to exactly one block, so everything scoped to it below is being read off some other part of the page",
+  ).toHaveCount(1);
+  await excludeTagCard.getByText("Exclude by tag", { exact: true }).click();
+  await expect(
+    excludeTagCard.getByRole("button", { name: /^Remove / }),
+    "clicking the field's heading text deleted a configured exclusion — the rule is gone with no message shown and nothing to put it back",
+  ).toHaveCount(1);
+  await expect(
+    excludeTagCard,
+    "the field's block carries no accessible name, so the heading a user reads names nothing — the host's own input inside it is named by neither, which is a known gap on the declared floor",
+  ).toHaveAccessibleName("Exclude by tag");
 
   // ── The name-keyed destination map re-keyed to ids, and reads back as a name ────────────────────
   const tagDestinations = toggleCard(page, "Per-tag destinations");
@@ -317,6 +342,14 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     field(advancedRouting, "Folder template").getByRole("textbox"),
     "the source-path rule's destination root survived but the folder under it did not",
   ).toHaveValue("archive");
+
+  // The label element's own behaviour, kept on every field whose control does not name itself.
+  const sourcePathField = field(advancedRouting, "Source path");
+  await sourcePathField.getByText("Source path", { exact: true }).click();
+  await expect(
+    sourcePathField.getByRole("textbox"),
+    "clicking a plain field's heading text no longer put the cursor in its input, so the label element was taken off every Field rather than off the entity selectors alone",
+  ).toBeFocused();
 
   expect(errors, `the settings surface raised page errors: ${errors.join("; ")}`).toEqual([]);
 });

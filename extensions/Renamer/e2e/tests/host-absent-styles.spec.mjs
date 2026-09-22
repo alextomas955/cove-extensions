@@ -28,7 +28,37 @@ test("host-absent utilities render via inline styles on a released host", async 
   const settings = new RenamerSettingsPage(page, baseUrl);
   await settings.goto();
 
-  // 1. Toggle knob: the slide is an inline translateX, and it must actually move between states.
+  // 1. Toggle track, off: the fill is an inline tone off Cove's colour scale, because the card
+  //    colour it would otherwise carry is the colour of the container the switch sits in, where the
+  //    track disappears and the control reads as a bare knob.
+  const offSwitch = page.locator('button[role="switch"][aria-checked="false"]').first();
+  await expect(offSwitch).toBeVisible({ timeout: 15_000 });
+  // Resolve both tones through the page rather than comparing strings, so the assertion stays
+  // independent of how Chromium serializes a colour. `inert` guards the card probe itself: an
+  // undeclared --color-card would leave the probe transparent, and the comparison below would then
+  // pass because the token is missing rather than because the track stepped away from it.
+  const { card, inert } = await page.evaluate(() => {
+    const read = (apply) => {
+      const probe = document.createElement("span");
+      if (apply) apply(probe);
+      document.body.appendChild(probe);
+      const value = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return value;
+    };
+    return {
+      card: read((el) => (el.style.backgroundColor = "var(--color-card)")),
+      inert: read(null),
+    };
+  });
+  expect(
+    card,
+    "--color-card must resolve to a real fill for this comparison to mean anything",
+  ).not.toBe(inert);
+  const offTrack = await offSwitch.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(offTrack, "an off toggle track must not be filled with the card colour").not.toBe(card);
+
+  // 2. Toggle knob: the slide is an inline translateX, and it must actually move between states.
   //    Find a real Toggle knob (the <span> inside the switch <button>).
   const knob = page.locator('button[role="switch"] span, button[aria-checked] span').first();
   await expect(knob).toBeVisible({ timeout: 15_000 });

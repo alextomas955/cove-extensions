@@ -10,19 +10,30 @@
  * The input class is the shared one so an embedded host control matches every other input in the
  * panel. It is imported, never retyped.
  *
- * The host input accepts no label, no id and no aria-label, so its accessible name comes only from
- * the wrapping label element, which is why the selector stays inside {@link Field} at every instance.
+ * The wrapper is a `FieldGroup`, not a label element. The host draws each chip's Remove button ahead
+ * of its input, so a label around it would name that button and a click on the heading would remove
+ * a chip. The block carries the name instead.
+ *
+ * The input the host draws therefore carries no accessible name of its own: the selector exposes
+ * neither an id to point `htmlFor` at nor a name hook on the Cove floor this extension declares, and
+ * a group's name does not reach a textbox nested inside it. That gap is recorded twice — here, and
+ * executably as the named allowance in `settingsFieldNaming.test.ts`, which fails when it matches
+ * nothing. A Cove release exposing a name hook on the selector closes it: pass the label through,
+ * then delete the allowance, which will by then be failing.
  *
  * No state, no searching, no filtering, no results list and no chip rendering live here. All of that
  * is the host's.
  */
 import { EntityReferenceMultiSelector, type EntityReferenceType } from "@cove/runtime/components";
 
-import { Field, INPUT_CLASS } from "@cove-extensions/ui-shared";
+import { FieldGroup, INPUT_CLASS } from "@cove-extensions/ui-shared";
+
+type SelectorProps = Parameters<typeof EntityReferenceMultiSelector>[0];
 
 export function EntitySelectField({
   entityType,
   label,
+  labelStyle,
   helper,
   values,
   onChange,
@@ -31,6 +42,7 @@ export function EntitySelectField({
 }: Readonly<{
   entityType: EntityReferenceType;
   label: string;
+  labelStyle?: "micro" | "group";
   helper?: string;
   /** The stored stable ids. Controlled: persistence stays with the panel. */
   values: number[];
@@ -39,17 +51,19 @@ export function EntitySelectField({
   /** Ids to keep out of the results, e.g. entities that already key a rule elsewhere. */
   excludeIds?: Iterable<number>;
 }>) {
+  const declared: SelectorProps = {
+    entityType,
+    values,
+    onChange,
+    placeholder,
+    excludeIds,
+    allowCreate: false,
+    inputClassName: INPUT_CLASS,
+  };
+
   return (
-    <Field label={label} helper={helper}>
-      <EntityReferenceMultiSelector
-        entityType={entityType}
-        values={values}
-        onChange={onChange}
-        placeholder={placeholder}
-        excludeIds={excludeIds}
-        allowCreate={false}
-        inputClassName={INPUT_CLASS}
-      />
-    </Field>
+    <FieldGroup label={label} labelStyle={labelStyle} helper={helper}>
+      <EntityReferenceMultiSelector {...declared} />
+    </FieldGroup>
   );
 }

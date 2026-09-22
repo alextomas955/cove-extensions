@@ -1,9 +1,8 @@
 /**
- * Pure, DOM-free logic the primitive components render on top of. Kept import-free (no React, no DOM)
- * so it stays L0 — testable with no environment — and so the logic the components render on top of is
+ * Pure, DOM-free logic the primitive components render on top of. Kept free of React and the DOM so
+ * it stays L0 — testable with no environment — and so the logic the components render on top of is
  * exactly the logic the suite covers.
  */
-
 /** The outcome of validating a rule pattern. */
 export interface RegexValidity {
   valid: boolean;
@@ -112,4 +111,53 @@ export function listEditors<T>(
       onChange(values.filter((_, idx) => idx !== i));
     },
   };
+}
+
+/**
+ * What a type-to-search control still has to offer: the fixed suggestion set minus what is already a
+ * chip, narrowed by the typed query. Result order is the suggestion set's, never the match's, and an
+ * empty result is the caller's signal to render no list at all rather than an empty box.
+ *
+ * `key` decides when two values are the same value. It defaults to exact match; a caller over a
+ * vocabulary the consumer of those values resolves case-insensitively passes a folding key, so the
+ * offer rule and that consumer agree on what a duplicate is. The comparison folds, the list does not:
+ * the options returned are the originals, because the folded form is an identity, not something to
+ * show the user or commit.
+ *
+ * The exclusion is built here rather than delegated to `availableOptions`, which stays exact-match:
+ * that helper serves pickers over opaque entity ids, where folding two ids together would merge two
+ * distinct entities.
+ */
+export function suggestionOptions(
+  suggestions: readonly string[],
+  picked: readonly string[],
+  query: string,
+  key: (value: string) => string = (value) => value,
+): string[] {
+  const taken = new Set(picked.map(key));
+  const remaining = suggestions.filter((suggestion) => !taken.has(key(suggestion)));
+  return filterByText(query, remaining, (option) => option);
+}
+
+/**
+ * Where the keyboard moves the active option, wrapping at both ends. `-1` means no selection, which
+ * is what an empty list always yields and what an Enter must fall through to the free-text commit
+ * on. A `current` outside the list counts as no selection, because the list shrinks as the user types
+ * and the index it held can outlive the option it pointed at.
+ */
+export function nextActiveIndex(current: number, count: number, direction: 1 | -1): number {
+  if (count <= 0) return -1;
+  if (current < 0 || current >= count) return direction === 1 ? 0 : count - 1;
+  return (current + direction + count) % count;
+}
+
+/**
+ * What a number field puts in its `value`. A field whose zero means "unset" says so with
+ * `blankWhenZero`, and renders blank for it so a placeholder can name what the absence means; every
+ * other field shows its zero. A non-number is always blank — the field would otherwise render `NaN`.
+ */
+export function numberInputValue(value: number, blankWhenZero?: boolean): number | "" {
+  if (Number.isNaN(value)) return "";
+  if (blankWhenZero === true && value === 0) return "";
+  return value;
 }

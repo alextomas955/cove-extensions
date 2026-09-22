@@ -7,6 +7,9 @@ import {
   isRegexValid,
   isAbsolutePathShape,
   extensionShapeAdvisory,
+  nextActiveIndex,
+  numberInputValue,
+  suggestionOptions,
 } from "./primitivesLogic";
 
 const items = [{ name: "Alpha" }, { name: "beta" }, { name: "Gamma" }, { name: "alphabet" }];
@@ -93,4 +96,86 @@ test("a primary media extension gets the duplicate-of-primary-media advisory", (
 
 test("an empty extension value has no advisory", () => {
   assert.equal(extensionShapeAdvisory(""), null);
+});
+
+const TOKENS = ["title", "studio", "parentStudio", "studioCode", "date", "year"];
+
+test("with nothing picked and no query, every suggestion is offered in the set's order", () => {
+  assert.deepEqual(suggestionOptions(TOKENS, [], ""), TOKENS);
+});
+
+test("a suggestion already picked is not offered again", () => {
+  assert.deepEqual(suggestionOptions(TOKENS, ["studio", "year"], ""), [
+    "title",
+    "parentStudio",
+    "studioCode",
+    "date",
+  ]);
+});
+
+test("a folding key treats a pick in another case as the same pick", () => {
+  const fold = (value: string) => value.toLowerCase();
+  assert.deepEqual(suggestionOptions(TOKENS, ["STUDIO", "Year"], "", fold), [
+    "title",
+    "parentStudio",
+    "studioCode",
+    "date",
+  ]);
+  // The offer list is the original spellings, never the folded ones: the fold is an identity, not a
+  // value to hand back.
+  assert.deepEqual(suggestionOptions(["Title", "Studio"], [], "", fold), ["Title", "Studio"]);
+});
+
+test("without a key a pick in another case is a different pick", () => {
+  assert.deepEqual(suggestionOptions(TOKENS, ["STUDIO"], "studio"), [
+    "studio",
+    "parentStudio",
+    "studioCode",
+  ]);
+});
+
+test("the query filters case-insensitively and keeps the suggestion set's order", () => {
+  assert.deepEqual(suggestionOptions(TOKENS, [], "stud"), ["studio", "parentStudio", "studioCode"]);
+  assert.deepEqual(suggestionOptions(TOKENS, [], "STUD"), ["studio", "parentStudio", "studioCode"]);
+});
+
+test("a query matching nothing offers nothing, so the caller can hide the list", () => {
+  assert.deepEqual(suggestionOptions(TOKENS, [], "zzz"), []);
+});
+
+test("an empty list has no active index in either direction", () => {
+  assert.equal(nextActiveIndex(-1, 0, 1), -1);
+  assert.equal(nextActiveIndex(-1, 0, -1), -1);
+  assert.equal(nextActiveIndex(2, 0, 1), -1);
+});
+
+test("from no selection, forward takes the first option and back takes the last", () => {
+  assert.equal(nextActiveIndex(-1, 4, 1), 0);
+  assert.equal(nextActiveIndex(-1, 4, -1), 3);
+});
+
+test("the active index wraps at both ends", () => {
+  assert.equal(nextActiveIndex(3, 4, 1), 0);
+  assert.equal(nextActiveIndex(0, 4, -1), 3);
+});
+
+test("an index past the end of a shrunken list counts as no selection", () => {
+  assert.equal(nextActiveIndex(9, 4, 1), 0);
+  assert.equal(nextActiveIndex(9, 4, -1), 3);
+});
+
+test("a number field shows every value it holds, zero included", () => {
+  assert.equal(numberInputValue(0), 0);
+  assert.equal(numberInputValue(0, false), 0);
+  assert.equal(numberInputValue(7), 7);
+});
+
+test("a number field whose zero means unset shows nothing for it, so the placeholder reads", () => {
+  assert.equal(numberInputValue(0, true), "");
+  assert.equal(numberInputValue(7, true), 7);
+});
+
+test("a number field shows nothing for a value that is not a number", () => {
+  assert.equal(numberInputValue(Number.NaN), "");
+  assert.equal(numberInputValue(Number.NaN, true), "");
 });

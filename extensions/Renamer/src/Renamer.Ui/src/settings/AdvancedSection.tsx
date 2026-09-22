@@ -1,10 +1,11 @@
 /**
  * AdvancedSection — the "Advanced" section's panels, all collapsed by default: name cleanup
  * (illegal/space handling, case, ASCII), length & collisions, cross-drive concurrency, the
- * pre-routing excludes, and field rewriting & name shaping. Sits directly under the section header
- * rather than inside a card of its own, so the header is what names the group. Presentational —
- * every field flows up through `set`.
+ * pre-routing excludes, and field rewriting & name shaping. Presentational — every field flows up
+ * through `set`.
  */
+import { type ReactNode } from "react";
+
 import {
   type RenamerOptions,
   type CaseTransform,
@@ -13,17 +14,17 @@ import {
 } from "./options";
 import {
   Field,
+  FieldGroup,
   TextInput,
   NumberInput,
   Select,
   Toggle,
   TagListInput,
   CollapsibleSection,
-  GroupCard,
+  SectionCard,
   ObjectArrayEditor,
   RegexValidity,
   SegmentedReplace,
-  TokenPicker,
   ExampleSelect,
   type ExampleOption,
 } from "@cove-extensions/ui-shared";
@@ -34,7 +35,7 @@ import { TokenAdvisory } from "./templateAdvisories";
 
 const CASE_OPTIONS = optionsFor<CaseTransform>({
   none: "None",
-  lower: "lower case",
+  lower: "lowercase",
   title: "Title Case",
 });
 
@@ -53,6 +54,30 @@ const SUFFIX_FORMAT_OPTIONS: readonly ExampleOption[] = [
   { value: " - {n}", example: "name - 1.mp4" },
 ];
 
+// A named block inside an Advanced panel, for a block that is not one labelable control. The
+// heading is a plain element, not a label: a label forwards a click on its text to the first
+// control it wraps, which for a chip list is a chip's Remove button. `FieldGroup` is the shared
+// primitive for that, and this block still hand-rolls its heading, because its DOM and classes
+// differ from `FieldGroup`'s and the e2e field selector reads that DOM.
+
+function SubBlock({
+  heading,
+  description,
+  children,
+}: Readonly<{
+  heading: string;
+  description?: string;
+  children: ReactNode;
+}>) {
+  return (
+    <div>
+      <h4 className="text-sm text-secondary">{heading}</h4>
+      {description ? <p className="mt-1 text-xs text-secondary">{description}</p> : null}
+      <div className="mt-2 space-y-2">{children}</div>
+    </div>
+  );
+}
+
 export interface AdvancedSectionProps {
   options: RenamerOptions;
   set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
@@ -60,13 +85,13 @@ export interface AdvancedSectionProps {
 
 export function AdvancedSection({ options, set }: AdvancedSectionProps) {
   return (
-    <div className="space-y-4">
+    <SectionCard title="Advanced">
       <CollapsibleSection
         title="Clean up the name"
         summary="Illegal-character and space handling, case, ASCII"
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field label="Illegal-char replacement">
+          <FieldGroup label="Illegal characters">
             <SegmentedReplace
               value={options.illegalReplacement}
               onChange={(v) => {
@@ -75,11 +100,12 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
               stripLabel="Strip"
               replaceLabel="Replace with"
               stripHelper="Illegal characters are removed."
-              replaceHelper="Each illegal character becomes this."
+              replaceHelper="Blank drops them."
               inputPlaceholder="e.g. _"
+              ariaLabel="Illegal characters"
             />
-          </Field>
-          <Field label="Space replacement">
+          </FieldGroup>
+          <FieldGroup label="Space replacement">
             <SegmentedReplace
               value={options.spaceReplacement}
               onChange={(v) => {
@@ -90,37 +116,40 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
               stripHelper="Spaces are left as-is."
               replaceHelper="Each space becomes this."
               inputPlaceholder="e.g. _ or ."
+              ariaLabel="Space replacement"
             />
-          </Field>
-          <Field
-            label="Remove characters"
-            helper="Deleted before illegal-character handling, e.g. ,#"
-          >
-            <TextInput
-              value={options.removeCharacters}
-              onChange={(v) => {
-                set("removeCharacters", v);
-              }}
-              placeholder="e.g. ,#"
-            />
+          </FieldGroup>
+          <Field label="Remove characters" helper="Deleted from the name.">
+            {(id) => (
+              <TextInput
+                id={id}
+                value={options.removeCharacters}
+                onChange={(v) => {
+                  set("removeCharacters", v);
+                }}
+                placeholder="e.g. ,#"
+              />
+            )}
           </Field>
           <Field label="Case">
-            <Select
-              value={options.case}
-              onChange={(v) => {
-                set("case", v);
-              }}
-              options={CASE_OPTIONS}
-            />
+            {(id) => (
+              <Select
+                id={id}
+                value={options.case}
+                onChange={(v) => {
+                  set("case", v);
+                }}
+                options={CASE_OPTIONS}
+              />
+            )}
           </Field>
         </div>
         <Toggle
-          label="ASCII transliterate"
+          label="Convert accents to plain ASCII"
           checked={options.asciiTransliterate}
           onChange={(v) => {
             set("asciiTransliterate", v);
           }}
-          helper="Convert accented characters to plain ASCII."
         />
         <Toggle
           label="Normalize punctuation to ASCII"
@@ -138,48 +167,54 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="Filename max length">
-            <NumberInput
-              value={options.filenameMax}
-              min={1}
-              onChange={(v) => {
-                set("filenameMax", v);
-              }}
-            />
+            {(id) => (
+              <NumberInput
+                id={id}
+                value={options.filenameMax}
+                min={1}
+                onChange={(v) => {
+                  set("filenameMax", v);
+                }}
+              />
+            )}
           </Field>
           <Field label="Full-path max length">
-            <NumberInput
-              value={options.fullPathMax}
-              min={1}
-              onChange={(v) => {
-                set("fullPathMax", v);
-              }}
-            />
+            {(id) => (
+              <NumberInput
+                id={id}
+                value={options.fullPathMax}
+                min={1}
+                onChange={(v) => {
+                  set("fullPathMax", v);
+                }}
+              />
+            )}
           </Field>
         </div>
-        <Field label="Drop order" helper="Fields dropped (top first) when the name is too long.">
-          <TagListInput
-            values={options.dropOrder}
-            onChange={(v) => {
-              set("dropOrder", v);
-            }}
-            ordered
-            placeholder="Add field, press Enter"
-          />
-          <TokenPicker
-            tokens={BARE_TOKENS}
-            values={options.dropOrder}
-            onAdd={(name) => {
-              set(
-                "dropOrder",
-                options.dropOrder.includes(name) ? options.dropOrder : [...options.dropOrder, name],
-              );
-            }}
-          />
-          <TokenAdvisory values={options.dropOrder} />
-        </Field>
-        <Field
+        <div>
+          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted">
+            Drop order
+          </span>
+          <p className="mb-2 text-xs text-secondary">
+            Fields dropped (top first) when the name is too long.
+          </p>
+          <div className="space-y-2">
+            <TagListInput
+              values={options.dropOrder}
+              onChange={(v) => {
+                set("dropOrder", v);
+              }}
+              ordered
+              suggestions={BARE_TOKENS}
+              placeholder="Add a token — type to search"
+              ariaLabel="Drop order"
+            />
+            <TokenAdvisory values={options.dropOrder} />
+          </div>
+        </div>
+        <FieldGroup
           label="Duplicate suffix format"
-          helper="{n} = a counter added only when a name already exists, e.g. name (1).mp4."
+          helper="{n} is added only when a name already exists."
         >
           <ExampleSelect
             value={options.duplicateSuffixFormat}
@@ -188,8 +223,9 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             }}
             options={SUFFIX_FORMAT_OPTIONS}
             customPlaceholder=" ({n})"
+            ariaLabel="Duplicate suffix format"
           />
-        </Field>
+        </FieldGroup>
       </CollapsibleSection>
 
       <CollapsibleSection
@@ -201,27 +237,33 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             label="Cross-volume concurrency"
             helper="Files copied across drives at once. 2 for hard drives; 4–8 if both are SSDs. Higher isn't always faster."
           >
-            <NumberInput
-              value={options.crossVolumeConcurrency}
-              min={1}
-              max={16}
-              onChange={(v) => {
-                set("crossVolumeConcurrency", v);
-              }}
-            />
+            {(id) => (
+              <NumberInput
+                id={id}
+                value={options.crossVolumeConcurrency}
+                min={1}
+                max={16}
+                onChange={(v) => {
+                  set("crossVolumeConcurrency", v);
+                }}
+              />
+            )}
           </Field>
           <Field
             label="Same-volume concurrency"
             helper="Same-drive renames are instant; the default is fine."
           >
-            <NumberInput
-              value={options.sameVolumeConcurrency}
-              min={1}
-              max={16}
-              onChange={(v) => {
-                set("sameVolumeConcurrency", v);
-              }}
-            />
+            {(id) => (
+              <NumberInput
+                id={id}
+                value={options.sameVolumeConcurrency}
+                min={1}
+                max={16}
+                onChange={(v) => {
+                  set("sameVolumeConcurrency", v);
+                }}
+              />
+            )}
           </Field>
         </div>
       </CollapsibleSection>
@@ -232,33 +274,31 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             never want this extension to touch. All three flow through set() like every other control. */}
       <CollapsibleSection
         title="Excludes"
-        summary="Skip items by tag, studio, or source path — evaluated before any routing"
+        summary="Skip items by tag, studio, or source path — before any routing"
       >
-        <GroupCard title="Exclude by tag">
-          <EntitySelectField
-            entityType="tag"
-            label="Tags"
-            values={options.excludeTagIds}
-            onChange={(v) => {
-              set("excludeTagIds", v);
-            }}
-            placeholder="Search tags…"
-          />
-        </GroupCard>
+        <EntitySelectField
+          entityType="tag"
+          label="Exclude by tag"
+          labelStyle="group"
+          values={options.excludeTagIds}
+          onChange={(v) => {
+            set("excludeTagIds", v);
+          }}
+          placeholder="Search tags…"
+        />
 
-        <GroupCard title="Exclude by studio" description="A child studio counts too.">
-          <EntitySelectField
-            entityType="studio"
-            label="Studios"
-            values={options.excludeStudioIds}
-            onChange={(v) => {
-              set("excludeStudioIds", v);
-            }}
-            placeholder="Search studios…"
-          />
-        </GroupCard>
+        <EntitySelectField
+          entityType="studio"
+          label="Exclude by studio"
+          labelStyle="group"
+          values={options.excludeStudioIds}
+          onChange={(v) => {
+            set("excludeStudioIds", v);
+          }}
+          placeholder="Search studios…"
+        />
 
-        <GroupCard title="Exclude by source path" description="An exact match or a regex.">
+        <SubBlock heading="Exclude by source path">
           <ObjectArrayEditor<ExcludeRule>
             rows={options.excludePaths}
             onChange={(rows) => {
@@ -268,14 +308,17 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             renderRow={(row, _i, update) => (
               <>
                 <Field label="Source path">
-                  <TextInput
-                    value={row.pattern}
-                    onChange={(v) => {
-                      update({ pattern: v });
-                    }}
-                    mono
-                    placeholder="Exact path or regex"
-                  />
+                  {(id) => (
+                    <TextInput
+                      id={id}
+                      value={row.pattern}
+                      onChange={(v) => {
+                        update({ pattern: v });
+                      }}
+                      mono
+                      placeholder="Exact path or regex"
+                    />
+                  )}
                 </Field>
                 <Toggle
                   label="Match as a regex"
@@ -289,7 +332,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             )}
             addLabel="Add exclude rule"
           />
-        </GroupCard>
+        </SubBlock>
       </CollapsibleSection>
 
       {/* Field rewriting — shapes a token's value BEFORE the template renders (mirroring the
@@ -300,9 +343,9 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
         title="Field rewriting & name shaping"
         summary="Literal token replacements, article stripping, and name shaping"
       >
-        <GroupCard
-          title="Per-token replacements"
-          description="A literal find/replace on one token's value, before the name is shaped."
+        <SubBlock
+          heading="Per-token replacements"
+          description="Find and replace inside a single token's value."
         >
           <ObjectArrayEditor<FieldReplaceRule>
             rows={options.fieldReplacers}
@@ -323,66 +366,75 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
               return (
                 <>
                   <Field label="Target token">
-                    <Select
-                      value={row.targetToken}
-                      onChange={(v) => {
-                        update({ targetToken: v });
-                      }}
-                      options={tokenOptions}
-                    />
+                    {(id) => (
+                      <Select
+                        id={id}
+                        value={row.targetToken}
+                        onChange={(v) => {
+                          update({ targetToken: v });
+                        }}
+                        options={tokenOptions}
+                      />
+                    )}
                   </Field>
                   <Field label="Find" helper="Literal text to match. Empty does nothing.">
-                    <TextInput
-                      value={row.find}
-                      onChange={(v) => {
-                        update({ find: v });
-                      }}
-                      placeholder="Text to find"
-                    />
+                    {(id) => (
+                      <TextInput
+                        id={id}
+                        value={row.find}
+                        onChange={(v) => {
+                          update({ find: v });
+                        }}
+                        placeholder="Text to find"
+                      />
+                    )}
                   </Field>
                   <Field label="Replace with">
-                    <TextInput
-                      value={row.replace}
-                      onChange={(v) => {
-                        update({ replace: v });
-                      }}
-                      placeholder="Replacement (blank to remove)"
-                    />
+                    {(id) => (
+                      <TextInput
+                        id={id}
+                        value={row.replace}
+                        onChange={(v) => {
+                          update({ replace: v });
+                        }}
+                        placeholder="Replacement (blank to remove)"
+                      />
+                    )}
                   </Field>
                 </>
               );
             }}
             addLabel="Add replacement"
           />
-        </GroupCard>
+        </SubBlock>
 
-        <GroupCard title="Strip leading article">
+        <div>
           <Toggle
             label="Strip a leading article from the title"
             checked={options.stripLeadingArticles}
             onChange={(v) => {
               set("stripLeadingArticles", v);
             }}
-            helper="Case-insensitive, and only a whole word at the start."
+            helper="Removed once, from the start of the title."
           />
-          <Field label="Articles">
+          <div className="mt-2">
             <TagListInput
               values={options.articles}
               onChange={(v) => {
                 set("articles", v);
               }}
               placeholder="Add article, press Enter"
+              ariaLabel="Articles"
             />
-          </Field>
-        </GroupCard>
+          </div>
+        </div>
 
         <Toggle
-          label="Squeeze studio names"
+          label="Remove spaces from studio names"
           checked={options.squeezeStudioNames}
           onChange={(v) => {
             set("squeezeStudioNames", v);
           }}
-          helper="So one studio renders to one stable folder name."
         />
         <Toggle
           label="Drop a performer already in the title"
@@ -390,7 +442,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           onChange={(v) => {
             set("preventTitlePerformer", v);
           }}
-          helper="Only when the whole name appears in the title."
+          helper="Only when the name appears as a whole word."
         />
         <Toggle
           label="Collapse repeated folder segments"
@@ -401,6 +453,6 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           helper="Affects the folder path, not the filename."
         />
       </CollapsibleSection>
-    </div>
+    </SectionCard>
   );
 }

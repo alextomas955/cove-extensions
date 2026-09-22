@@ -12,6 +12,7 @@ import {
 } from "./options";
 import {
   Field,
+  FieldGroup,
   NumberInput,
   Select,
   SectionCard,
@@ -116,10 +117,10 @@ export function TokenSettingsSection({
   );
 
   return (
-    <SectionCard description="Formatting for individual tokens.">
+    <SectionCard title="Token settings" description="Formatting for individual tokens.">
       {usesPerformers ? (
         <GroupCard title="Performers" badge={<Badge mono>$performers</Badge>}>
-          <Field label="Separator">
+          <FieldGroup label="Separator">
             <SeparatorChips
               value={mv("performers").separator}
               onChange={(v) => {
@@ -127,41 +128,53 @@ export function TokenSettingsSection({
               }}
               options={SEPARATOR_OPTIONS}
               customPlaceholder="Custom separator"
+              ariaLabel="Performer separator"
             />
-          </Field>
+          </FieldGroup>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Max count" helper="0 = unlimited">
-              <NumberInput
-                value={mv("performers").maxCount}
-                min={0}
-                onChange={(v) => {
-                  setMulti("performers", { maxCount: v });
-                }}
-              />
+            <Field label="Max count">
+              {(id) => (
+                <NumberInput
+                  id={id}
+                  value={mv("performers").maxCount}
+                  min={0}
+                  placeholder="No limit"
+                  blankWhenZero
+                  onChange={(v) => {
+                    setMulti("performers", { maxCount: v });
+                  }}
+                />
+              )}
             </Field>
             <Field label="On overflow">
-              <Select
-                value={mv("performers").onOverflow}
-                onChange={(v) => {
-                  setMulti("performers", { onOverflow: v });
-                }}
-                options={OVERFLOW_OPTIONS}
-              />
+              {(id) => (
+                <Select
+                  id={id}
+                  value={mv("performers").onOverflow}
+                  onChange={(v) => {
+                    setMulti("performers", { onOverflow: v });
+                  }}
+                  options={OVERFLOW_OPTIONS}
+                />
+              )}
             </Field>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Sort" helper="The id and favorite orders apply to performers only.">
-              <Select
-                value={mv("performers").sort}
-                onChange={(v) => {
-                  setMulti("performers", { sort: v });
-                }}
-                options={PERFORMER_SORT_OPTIONS}
-              />
+              {(id) => (
+                <Select
+                  id={id}
+                  value={mv("performers").sort}
+                  onChange={(v) => {
+                    setMulti("performers", { sort: v });
+                  }}
+                  options={PERFORMER_SORT_OPTIONS}
+                />
+              )}
             </Field>
-            <Field
+            <FieldGroup
               label="Ignore genders"
-              helper="Removed before the max-count cap. Performers with no gender are always kept. None = off."
+              helper="Removed before the max-count cap. Performers with no gender are always kept."
             >
               <ChipMultiSelect
                 options={GENDER_OPTIONS}
@@ -170,9 +183,9 @@ export function TokenSettingsSection({
                   setMulti("performers", { ignoreGenders: v });
                 }}
               />
-            </Field>
+            </FieldGroup>
           </div>
-          <Field label="Gender order" helper="Most-preferred first. Empty = off.">
+          <FieldGroup label="Gender order" helper="Most-preferred first. Anyone else sorts last.">
             <OrderedPickToAdd
               options={GENDER_OPTIONS}
               values={mv("performers").genderOrder}
@@ -180,12 +193,12 @@ export function TokenSettingsSection({
                 setMulti("performers", { genderOrder: v });
               }}
               addPrompt="Add a gender…"
+              ariaLabel="Gender order"
             />
-          </Field>
+          </FieldGroup>
           <EntitySelectField
             entityType="performer"
-            label="Whitelist"
-            helper="If set, only these performers are kept."
+            label="Only include"
             values={mv("performers").whitelistIds}
             onChange={(v) => {
               setMulti("performers", { whitelistIds: v });
@@ -194,8 +207,7 @@ export function TokenSettingsSection({
           />
           <EntitySelectField
             entityType="performer"
-            label="Blacklist"
-            helper="These performers are removed."
+            label="Never include"
             values={mv("performers").blacklistIds}
             onChange={(v) => {
               setMulti("performers", { blacklistIds: v });
@@ -207,7 +219,7 @@ export function TokenSettingsSection({
 
       {usesTags ? (
         <GroupCard title="Tags" badge={<Badge mono>$tags</Badge>}>
-          <Field label="Separator">
+          <FieldGroup label="Separator">
             <SeparatorChips
               value={mv("tags").separator}
               onChange={(v) => {
@@ -215,41 +227,52 @@ export function TokenSettingsSection({
               }}
               options={SEPARATOR_OPTIONS}
               customPlaceholder="Custom separator"
+              ariaLabel="Tag separator"
             />
-          </Field>
+          </FieldGroup>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Max count" helper="0 = unlimited">
-              <NumberInput
-                value={mv("tags").maxCount}
-                min={0}
-                onChange={(v) => {
-                  setMulti("tags", { maxCount: v });
-                }}
-              />
+            <Field label="Max count">
+              {(id) => (
+                <NumberInput
+                  id={id}
+                  value={mv("tags").maxCount}
+                  min={0}
+                  placeholder="No limit"
+                  blankWhenZero
+                  onChange={(v) => {
+                    setMulti("tags", { maxCount: v });
+                  }}
+                />
+              )}
             </Field>
             <Field label="On overflow">
-              <Select
-                value={mv("tags").onOverflow}
-                onChange={(v) => {
-                  setMulti("tags", { onOverflow: v });
-                }}
-                options={OVERFLOW_OPTIONS}
-              />
+              {(id) => (
+                <Select
+                  id={id}
+                  value={mv("tags").onOverflow}
+                  onChange={(v) => {
+                    setMulti("tags", { onOverflow: v });
+                  }}
+                  options={OVERFLOW_OPTIONS}
+                />
+              )}
             </Field>
           </div>
           <Field label="Sort">
-            <Select
-              value={mv("tags").sort}
-              onChange={(v) => {
-                setMulti("tags", { sort: v });
-              }}
-              options={TAG_SORT_OPTIONS}
-            />
+            {(id) => (
+              <Select
+                id={id}
+                value={mv("tags").sort}
+                onChange={(v) => {
+                  setMulti("tags", { sort: v });
+                }}
+                options={TAG_SORT_OPTIONS}
+              />
+            )}
           </Field>
           <EntitySelectField
             entityType="tag"
-            label="Whitelist"
-            helper="If set, only these tags are kept."
+            label="Only include"
             values={mv("tags").whitelistIds}
             onChange={(v) => {
               setMulti("tags", { whitelistIds: v });
@@ -258,8 +281,7 @@ export function TokenSettingsSection({
           />
           <EntitySelectField
             entityType="tag"
-            label="Blacklist"
-            helper="These tags are removed."
+            label="Never include"
             values={mv("tags").blacklistIds}
             onChange={(v) => {
               setMulti("tags", { blacklistIds: v });
@@ -285,7 +307,7 @@ export function TokenSettingsSection({
           }
         >
           {usesDate ? (
-            <Field label="Date format" helper="e.g. yyyy-MM-dd">
+            <FieldGroup label="Date format" helper="e.g. yyyy-MM-dd">
               <ExampleSelect
                 value={options.dateFormat}
                 onChange={(v) => {
@@ -293,11 +315,12 @@ export function TokenSettingsSection({
                 }}
                 options={DATE_FORMAT_OPTIONS}
                 customPlaceholder="yyyy-MM-dd"
+                ariaLabel="Date format"
               />
-            </Field>
+            </FieldGroup>
           ) : null}
           {usesDuration ? (
-            <Field label="Duration format">
+            <FieldGroup label="Duration format">
               <ExampleSelect
                 value={options.durationFormat}
                 onChange={(v) => {
@@ -305,8 +328,9 @@ export function TokenSettingsSection({
                 }}
                 options={DURATION_FORMAT_OPTIONS}
                 customPlaceholder="hh\-mm\-ss"
+                ariaLabel="Duration format"
               />
-            </Field>
+            </FieldGroup>
           ) : null}
         </GroupCard>
       ) : null}
@@ -317,8 +341,8 @@ export function TokenSettingsSection({
             No token-specific settings needed
           </h3>
           <p className="mx-auto mb-4 mt-1 max-w-md text-sm text-secondary">
-            Add $performers, $tags, $date, or $duration to your filename or folder template to
-            configure how they&apos;re formatted.
+            Your templates don&apos;t use $performers, $tags, $date or $duration. Add one and its
+            options show up here.
           </p>
           <div className="flex flex-wrap justify-center gap-1">
             <Chip

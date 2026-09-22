@@ -161,6 +161,45 @@ export function bucketTotal(counts: DryRunCounts | null, filter: DryRunFilter): 
   }
 }
 
+/** What the row list's footer reports: how far the walk got, and whether it finished. */
+export interface RowsFooter {
+  /** Rows accumulated across every page walked so far. */
+  readonly loaded: number;
+  /** How many rows the scan counted in this bucket. */
+  readonly total: number;
+  /** A search is narrowing the walk, so `total` describes a wider set than the rows can. */
+  readonly searching: boolean;
+  /** The walk reached the end of the library. */
+  readonly complete: boolean;
+  /** Library items the walk has read, including windows that matched nothing. */
+  readonly examined: number;
+}
+
+/**
+ * The footer's sentence.
+ *
+ * A finished walk states the rows it loaded, never the scan's count: the scan counted the library as
+ * it was, and a library edited since can yield more rows than that. An unfinished walk keeps the
+ * denominator and the progress clause, and must never read as "that is everything".
+ */
+export function rowsFooterText(footer: RowsFooter): string {
+  const { loaded, total, searching, complete, examined } = footer;
+  if (complete) {
+    const noun = loaded === 1 ? "row" : "rows";
+    return `All ${loaded} ${searching ? "matching " : ""}${noun}, in scan order`;
+  }
+  // A search has no known total until the walk ends, and a loaded count past the total means the
+  // library grew under the walk, so neither states a denominator.
+  const denominatorKnown = !searching && loaded <= total;
+  // Whichever figure the clause ends on decides the plural.
+  const noun = (denominatorKnown ? total : loaded) === 1 ? "row" : "rows";
+  const qualifier = searching ? "matching " : "";
+  const counted = denominatorKnown
+    ? `${loaded} of ${total} ${noun} loaded`
+    : `${loaded} ${qualifier}${noun} loaded`;
+  return `${counted}, in scan order (by type, then by item). Checked ${examined} items so far…`;
+}
+
 /**
  * Cove's asset detail-route segment for each scan kind. Enumerated (not `kind.toLowerCase()`) so an
  * unexpected kind falls through to `null` rather than fabricating a wrong URL — the href is derived

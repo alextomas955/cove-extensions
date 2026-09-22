@@ -1,5 +1,6 @@
 /**
- * The "Undo last rename" settings-panel section + its destructive confirm.
+ * The page's footer row — what the last batch was, the extension's id, and the undo control with its
+ * destructive confirm.
  *
  * Reads GET /last-batch on mount (and whenever `refreshKey` bumps — the Review dialog's success
  * callback bumps it). Gates POST /undo behind a red destructive confirm. Every sentence the user
@@ -13,7 +14,7 @@ import { Undo2 } from "lucide-react";
 
 import { Dialog } from "../common/ui/Dialog";
 import { Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
-import { api } from "../common/lib/extension";
+import { api, EXTENSION_ID } from "../common/lib/extension";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
 import {
   buildUndoFeedback,
@@ -106,31 +107,33 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <h3 className="text-base font-semibold text-foreground">Undo last rename</h3>
-      <p className="mb-4 mt-1 text-sm text-secondary">
-        Moves every file in that batch back to its original name. Only the newest rename is kept.
+    <div
+      id="rename-undo-section"
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"
+    >
+      <p className="text-xs text-secondary">
+        Reverts the most recent batch. Only one batch is kept. <span aria-hidden="true">·</span>{" "}
+        <span className="font-mono">{EXTENSION_ID}</span>
       </p>
 
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-secondary">
-          <Spinner />
-          Checking for a recent rename…
-        </div>
-      ) : summaryError ? (
-        <div className="space-y-2">
-          <StatusText kind="error">
-            Couldn&apos;t check for a recent rename — {summaryError}.
-          </StatusText>
-          <div>
+      <div className="shrink-0">
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-secondary">
+            <Spinner />
+            Checking for a recent rename…
+          </div>
+        ) : summaryError ? (
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <StatusText kind="error">
+              Couldn&apos;t check for a recent rename — {summaryError}.
+            </StatusText>
             <Button variant="ghost" onClick={() => void loadSummary()}>
               Retry
             </Button>
           </div>
-        </div>
-      ) : hasUndoable ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
+        ) : hasUndoable ? (
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {feedback ? <StatusText kind={feedback.kind}>{feedback.text}</StatusText> : null}
             <span className="text-sm text-foreground">Last rename: {status.line}</span>
             <Button
               variant="ghost"
@@ -143,20 +146,15 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
               Undo last rename
             </Button>
           </div>
-          {feedback ? <StatusText kind={feedback.kind}>{feedback.text}</StatusText> : null}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <span className="text-sm text-secondary">
-            {status ? `Last rename: ${status.line}` : "No rename to undo."}
-          </span>
-          {feedback ? (
-            <div>
-              <StatusText kind={feedback.kind}>{feedback.text}</StatusText>
-            </div>
-          ) : null}
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {feedback ? <StatusText kind={feedback.kind}>{feedback.text}</StatusText> : null}
+            <span className="text-sm text-secondary">
+              {status ? `Last rename: ${status.line}` : "No rename to undo."}
+            </span>
+          </div>
+        )}
+      </div>
 
       {confirming ? (
         <Dialog

@@ -123,31 +123,25 @@ export function DryRunModal({
 
       {scan.error === null && counts !== null && (
         <>
-          <p id={DESC_ID} className="mb-3 text-sm text-secondary">
-            <span className="text-foreground">{counts.willChange}</span> will change ·{" "}
-            {counts.attention} need attention · {counts.noChange} no change · {counts.scanned}{" "}
-            scanned
-          </p>
-
           {counts.scanned === 0 ? (
-            <p className="py-8 text-center text-sm text-secondary">
+            <p id={DESC_ID} className="py-8 text-center text-sm text-secondary">
               No items match your current settings — nothing to rename.
             </p>
           ) : (
             <>
               {/* Segmented filter: isolate "what's actually happening" from the noise. Counts are
-                  from the scan's own aggregate, so they stay put when the filter changes; a segment
-                  with 0 rows is disabled rather than hidden so the control's shape stays stable. */}
-              <div className="mb-4 flex flex-wrap gap-2">
+                  from the scan's own aggregate, so they stay put when the filter changes, and they
+                  are the only place the modal states them. `All` always renders — the row exists
+                  only once something was scanned. */}
+              <div id={DESC_ID} className="mb-4 flex flex-wrap gap-2">
                 {SEGMENTS.map((seg) => {
                   const n = bucketTotal(counts, seg.key);
                   const active = filter === seg.key;
-                  const empty = n === 0 && seg.key !== "all";
+                  if (n === 0 && seg.key !== "all") return null;
                   return (
                     <button
                       key={seg.key}
                       type="button"
-                      disabled={empty}
                       onClick={() => {
                         setFilter(seg.key);
                       }}
@@ -156,7 +150,7 @@ export function DryRunModal({
                         active
                           ? "border-accent bg-accent/15 text-foreground"
                           : "border-border bg-card text-secondary hover:text-foreground"
-                      } ${empty ? "opacity-40" : ""}`}
+                      }`}
                     >
                       {seg.label} ({n})
                     </button>
@@ -173,8 +167,8 @@ export function DryRunModal({
                   onChange={(e) => {
                     setSearch(e.target.value);
                   }}
-                  placeholder="Search names or destination…"
-                  aria-label="Search the dry-run rows"
+                  placeholder={filterPlaceholder(bucketTotal(counts, filter))}
+                  aria-label="Filter the dry-run rows"
                   className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
                 />
                 {search ? (
@@ -221,7 +215,7 @@ export function DryRunModal({
       {dirty || scanIsStale ? (
         <p className="mt-6 text-sm text-amber-400">
           {dirty
-            ? "These rows preview your unsaved settings, but a rename runs the saved ones. Save, then run the dry run again."
+            ? "Previewing unsaved settings. Renaming uses the saved ones."
             : "Your settings changed after these rows were scanned. Run the dry run again."}
         </p>
       ) : null}
@@ -242,6 +236,11 @@ export function DryRunModal({
       </div>
     </Dialog>
   );
+}
+
+/** The search field's prompt, naming how many rows the selected segment holds. */
+function filterPlaceholder(rows: number): string {
+  return `Filter ${rows} row${rows === 1 ? "" : "s"}`;
 }
 
 function Scanning({

@@ -18,6 +18,10 @@ export interface ValueOption {
  * the offer list for a pick-to-add control (order matters, so a value is added at most once). The
  * fixed-set order is preserved so the dropdown always reads top-to-bottom in the canonical order, not
  * in pick order.
+ *
+ * Exact match, deliberately: the values here are opaque — an entity id, a gender enum name — and two
+ * that differ only in case are two, not one. A control over a vocabulary whose consumer folds case
+ * carries its own identity rule instead (`suggestionOptions`).
  */
 export function availableOptions(
   options: readonly ValueOption[],

@@ -32,3 +32,11 @@ test("a longer token name does not false-positive-match a shorter target", () =>
 test("both templates empty returns false", () => {
   assert.equal(templateUsesToken("tags", "", ""), false);
 });
+
+test("a template naming $studio leaves $studioCode undetected", () => {
+  assert.equal(templateUsesToken("studioCode", "$studio", ""), false);
+});
+
+test("a template naming $studioCode leaves $studio undetected", () => {
+  assert.equal(templateUsesToken("studio", "$studioCode", ""), false);
+});

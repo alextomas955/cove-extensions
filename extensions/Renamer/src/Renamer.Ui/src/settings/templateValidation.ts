@@ -15,16 +15,16 @@
  *     (depth > 0) is unbalanced (Tokenizer.cs:81-110).
  *   - Tokens resolve case-insensitively (TemplateEngine.cs:147).
  */
-import { TOKENS } from "./TokenLegend";
+import { TOKENS } from "./tokens";
 
 /** The canonical known-token set, lower-cased, leading `$` dropped — single-sourced from TOKENS. */
 const KNOWN = new Set(TOKENS.map((t) => t.token.slice(1).toLowerCase()));
 
 /**
  * The bare token names (leading `$` stripped), in tokens declaration order — single-sourced from
- * the same `TOKENS` constant, no re-listed literals. Used by the TokenPicker menu, whose
- * fields (RequiredFields / DropOrder) take bare names (`title`), not `$title`. Preserves original
- * case for display; matching is done case-insensitively by {@link isKnownToken} / the engine.
+ * the same `TOKENS` constant, no re-listed literals. Offered by the Required fields and Drop order
+ * inputs, whose stored values are bare names (`title`), not `$title`. Preserves original case for
+ * display; matching is done case-insensitively by {@link isKnownToken} / the engine.
  */
 export const BARE_TOKENS: readonly string[] = TOKENS.map((t) => t.token.slice(1));
 

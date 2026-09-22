@@ -8,9 +8,8 @@
  * state points at nothing, which leaves the only warning they get unactionable.
  *
  * A DOM is needed because the claim is about which of two sentences is on screen, and that depends on
- * a derivation the component runs. React arrives as its production build (the bundle's
- * `process.env.NODE_ENV` define applies here too), which has no `act`, so the render is flushed by
- * waiting rather than by wrapping.
+ * a derivation the component runs. A render commits on React's own schedule, so the
+ * test waits for the field to appear rather than for a span.
  *
  * The shared primitives stand in, because their `react` import resolves only inside a consuming
  * bundle. PathShapeHint's stand-in reproduces its real gate — it renders only for an absolute-path
@@ -20,6 +19,8 @@ import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { waitFor } from "../common/lib/flushRender";
+
 import { CONTAINING_ROOT, type Destination, type LibraryPathsState } from "./options";
 
 vi.mock("@cove-extensions/ui-shared", async () => {
@@ -27,8 +28,13 @@ vi.mock("@cove-extensions/ui-shared", async () => {
   const { isAbsolutePathShape } =
     await import("../../../../../../shared/ui-shared/src/primitivesLogic");
   return {
-    Field: (props: { label?: string; helper?: string; children?: ReactNode }) =>
-      h("div", { "data-stub": "Field" }, props.label, props.helper, props.children),
+    // `Field` hands its child the id it owns, so its children arrive as a function, not a node.
+    Field: (props: {
+      label?: string;
+      helper?: string;
+      children: (controlId: string) => ReactNode;
+    }) =>
+      h("div", { "data-stub": "Field" }, props.label, props.helper, props.children("stub-control")),
     Select: (props: { options?: { label: string }[] }) =>
       h(
         "div",
@@ -48,14 +54,6 @@ vi.mock("@cove-extensions/ui-shared", async () => {
 
 const { DestinationField } = await import("./DestinationField");
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-/** Long enough for React to commit a render on the default lane without `act` to force it. */
-const COMMIT_MS = 50;
-
 /** A template a user typed as a path, which is what the hint exists to catch. */
 const TYPED_PATH = "D:/Media/Studio";
 
@@ -67,7 +65,10 @@ async function renderField(library: LibraryPathsState, template = TYPED_PATH) {
   root.render(
     createElement(DestinationField, { value, onChange: () => undefined, library, label: "Folder" }),
   );
-  await sleep(COMMIT_MS);
+  await waitFor(
+    "the field to render",
+    () => container.querySelector('[data-stub="Field"]') !== null,
+  );
 
   const hint = container.querySelector('[data-stub="PathShapeHint"]');
   return {

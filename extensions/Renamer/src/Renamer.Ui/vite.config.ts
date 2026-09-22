@@ -9,8 +9,26 @@ import { createExtensionViteConfig } from "../../../../shared/ui-shared/vite/cre
 const repoRoot = path.resolve(__dirname, "../../../..");
 const sharedUiRoot = path.resolve(repoRoot, "shared/ui-shared");
 
+const base = createExtensionViteConfig({ packageDir: __dirname, reactPlugin: react() });
+
+// Cove's import map serves these, and a bundle externalizes them, so nothing resolves them in a test
+// run: a component reaching one fails to transform rather than to render. Declared per test project
+// rather than in `resolve.alias`, which the build reads too — an alias there would defeat the
+// externals and bundle a stand-in into the shipped file.
+const hostRuntimeStubs = {
+  "@cove/runtime/api": path.resolve(sharedUiRoot, "src/coveRuntimeApiStub.ts"),
+  "@cove/runtime/components": path.resolve(sharedUiRoot, "src/coveRuntimeComponentsStub.tsx"),
+};
+
 export default defineConfig({
-  ...createExtensionViteConfig({ packageDir: __dirname, reactPlugin: react() }),
+  ...base,
+  resolve: {
+    ...base.resolve,
+    // A bundle externalizes these, so nothing resolves them there. A test run has to, and the shared
+    // package's source — including the JSX runtime the transform injects into it — would otherwise
+    // resolve them against a node_modules that package does not have.
+    dedupe: ["react", "react-dom", "lucide-react"],
+  },
   test: {
     coverage: {
       provider: "v8",
@@ -35,6 +53,11 @@ export default defineConfig({
           root: __dirname,
           include: ["src/**/*.test.ts"],
           environment: "node",
+          alias: hostRuntimeStubs,
+          // The vendored SDK ships extensionless relative imports, which a bundler resolves and
+          // Node's ESM loader refuses. Transforming it here is what lets a test render a component
+          // whose graph reaches the host request helper.
+          server: { deps: { inline: ["@cove/extension-sdk"] } },
         },
       },
       {

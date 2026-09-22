@@ -33,6 +33,47 @@ that would change before anything touches disk.
   width stored, or the frame is too small for any label, the label already in your title is left
   alone. It used to be removed with nothing put back. Where the name was too long and the label was
   dropped to make it fit, the title's label goes with it, so the drop shortens the name.
+- **The settings page reads as one stack of titled cards.** Each card now carries its own header,
+  and undo moved to a footer row at the bottom of the page.
+- **The token list appears once, under Filename.** _Required fields_ and _Drop order_ now take a
+  token by typing: search the list, pick with the arrow keys or the mouse. A name outside the list
+  is still accepted.
+- **The token list shows which tokens your templates use.** A token used by either the filename
+  template or the folder template is tinted, so you can see at a glance what is already in play.
+  Clicking it still inserts another copy.
+- **Four settings say what they do.** The performer and tag list fields are now _Only include_ and
+  _Never include_; the toggles are _Remove spaces from studio names_ and _Convert accents to plain
+  ASCII_; and a _Max count_ left empty reads _No limit_.
+- **Routing precedence is stated once, in full.** _Destination routing_ opens with the whole order -
+  excludes, unorganized, tag, studio, source path, then the kind's own folder and the default.
+  It used to appear in fragments that disagreed with each other.
+- **Settings descriptions now match what each control does.** The two toggles that decide whether
+  unorganized items are skipped each name the other, so neither reads as the whole answer on its
+  own; the empty-folder helper says it never deletes a drive root, where _a root_ used to read as
+  your library root; and the per-kind line counts the kinds instead of spelling the number.
+- **Each control under _Advanced_ is named once.** The excludes and the two rewriting blocks carried
+  a heading and then a second, smaller label for the same control. The second label is gone, and
+  each block's name now sits above its control instead of inside a card.
+- **The _Drop order_ explanation sits with the heading it explains**, above the list rather than
+  under it.
+- **A rule list no longer loses an entry when you click its heading.** Clicking the text above a
+  list of tags, performers or studios used to remove the first entry from it, with no message shown
+  and nothing to put it back.
+- **More _Advanced_ sentences say what the setting actually does.** _Illegal characters_ says that
+  leaving the replacement blank drops them; a stripped article is removed once, from the start of
+  the title; a performer is dropped from the title only on a whole-word match, so a name inside a
+  longer name is kept; and the case option is spelled _lowercase_. The claim that removing spaces
+  from a studio name only affects folders is gone - it affects the filename too.
+- **_Gender order_ says where a gender you leave out ends up.** It sorts last; it is not dropped.
+- **The dry run states each count once.** The line of totals above the table is gone, because the
+  filter buttons already carry them. A button whose outcome has no rows is no longer shown at all,
+  where it used to be shown greyed out and unclickable.
+- **A row that will not be renamed shows no new name, and its badge says why.** The badges drop the
+  _Skipped_ prefix the column already implies.
+- **The search box says how many rows it filters**, and the line under the table states the total in
+  one clause once your whole library has been read.
+- **The Save bar no longer covers the dry-run dialog.** It sat over the dialog with a clickable Save
+  button; it now steps aside while the dialog is open and returns when you close it.
 
 ## 0.5.0 - Text documents, and each kind settled on its own
 
