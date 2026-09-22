@@ -251,6 +251,11 @@ internal sealed class WhisparrClient(
     // before the first byte. Set well above that, and below where a waiting reader reads it as hung.
     internal static readonly TimeSpan LibraryReadTimeout = TimeSpan.FromSeconds(120);
 
+    // How many of a page's site lookups are in flight at once. One request per card is the
+    // cheap shape here, and an unbounded fan-out over a page would still be a burst this
+    // product has no reason to send.
+    private const int LookupLanes = 6;
+
     // A login redirect is a real deployment; an unbounded chain of them is not.
     internal const int MaxRedirects = 3;
 
@@ -774,40 +779,74 @@ internal sealed class WhisparrClient(
         return new WhisparrHeldCards(HeldIn(answered, foreignIds), NothingUnanswered);
     }
 
-    // The site list is the one route answering whether this generation holds a site, so a page of
-    // sites is one read of it. An identifier that is not the number the metadata source issued is
-    // outside what the list can answer and is reported unanswered rather than absent.
+    // The lookup answers one site by the identifier the library holds, and answers it from the
+    // instance's own row where it holds that site: its search maps each result back through
+    // FindByTvdbId, so the id, the monitored flag and the statistics are the instance's own rather
+    // than the metadata source's. A site it does not hold maps the metadata result instead and
+    // carries no id.
+    //
+    // One request per card, deliberately, against this generation's own site list which costs the
+    // whole library: the list route recomputes statistics over every site before it answers, so a
+    // page of forty cards is faster as forty lookups than as one list read. Bounded by the page and
+    // by LookupLanes, so nothing here grows with the library.
     private async Task<WhisparrHeldCards> ReadHeldV2SitesAsync(
         Uri baseAddress,
         string apiKey,
         IReadOnlyList<string> foreignIds,
         CancellationToken ct)
     {
-        var (numbered, unnumbered) = HeldCardProjector.SplitBySiteNumber(foreignIds);
-        if (numbered.Count == 0)
+        List<string> asked = [.. foreignIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal)];
+        if (asked.Count == 0)
         {
-            return new WhisparrHeldCards(NothingHeld, unnumbered);
+            return new WhisparrHeldCards(NothingHeld, NothingUnanswered);
         }
 
-        var listed = await GeneratedV2ReadAsync(
-                baseAddress,
-                apiKey,
-                api => api.Api<V2Api.ISeriesApi>().ListSeriesAsync(cancellationToken: ct),
-                LibraryReadTimeout)
-            .ConfigureAwait(false);
+        var held = new Dictionary<string, WhisparrHeldCard>(StringComparer.Ordinal);
+        var unanswered = new HashSet<string>(StringComparer.Ordinal);
+        var gate = new SemaphoreSlim(LookupLanes);
 
-        if (Refused(listed))
+        var reads = asked.Select(async id =>
         {
-            throw new HttpRequestException(
-                "The instance's own site list could not be read, so what it holds for these sites "
-                    + "was not established.");
+            await gate.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                var answered = await GeneratedV2ReadAsync(
+                        baseAddress,
+                        apiKey,
+                        api => api.Api<V2Api.ISeriesLookupApi>()
+                            .ListSeriesLookupAsync(HeldCardProjector.SiteLookupTerm(id), ct))
+                    .ConfigureAwait(false);
+
+                return (Id: id, Answered: answered);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        foreach (var (id, answered) in await Task.WhenAll(reads).ConfigureAwait(false))
+        {
+            if (Refused(answered))
+            {
+                // This one card was not established. Reported apart from an absence: an absence
+                // says the instance holds no such site, which is not what a dropped read said.
+                unanswered.Add(id);
+                continue;
+            }
+
+            var reading = HeldCardProjector.FromSiteLookup(answered.Body);
+            if (!reading.Readable)
+            {
+                unanswered.Add(id);
+            }
+            else if (reading.Held is { } card)
+            {
+                held[id] = card;
+            }
         }
 
-        var held = HeldCardProjector.BySiteNumber(listed.Body, numbered)
-            ?? throw new HttpRequestException(
-                "The answer to the instance's own site list is not a list of rows at all.");
-
-        return new WhisparrHeldCards(held, unnumbered);
+        return new WhisparrHeldCards(held, unanswered);
     }
 
     // One request for a page of scene cards. Registered by the generation that addresses a scene
