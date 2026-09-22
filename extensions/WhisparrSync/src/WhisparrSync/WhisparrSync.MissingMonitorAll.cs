@@ -122,6 +122,13 @@ public sealed partial class WhisparrSync
             .RunAsync(batch, scopes, AimAsync, ReadPageAsync, ct)
             .ConfigureAwait(false);
 
+        // The run wrote to the instance, so what the catalogue held describes a state that has
+        // moved. Left held, the page read after this run draws the flags from before it.
+        using (var scope = scopes.CreateScope())
+        {
+            scope.ServiceProvider.GetRequiredService<InstanceCatalogueCache>().Forget();
+        }
+
         // The host's progress carries no summary field, so the run's one line rides the final
         // report's sub-task.
         progress.Report(1d, MissingBulkJob.SummaryOf(run, MissingBulkVerb.Monitor));
