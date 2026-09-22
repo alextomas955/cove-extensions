@@ -40,6 +40,9 @@ const READ_IS_STALE = "Cove couldn't check this just now. These are the last val
 // offer. The uuid is what Cove stores as its remote id.
 const BRAZZERS_EXXTRA = "39cee498-a9ac-4403-910a-1a0157ad22d8";
 
+/** What one page of this catalogue holds, transcribed from the server's own page size. */
+const PAGE_CAP = 40;
+
 const TAB_BUDGET_MS = 30_000;
 const REGION_BUDGET_MS = 90_000;
 
@@ -83,7 +86,6 @@ test("the grid never blanks between reads, and the pager offers no page that rep
   page,
   baseUrl,
   connected,
-  provider,
 }) => {
   // The fixture holds the instance the read establishes a status against: with nothing connected the
   // route answers a whole-grid refusal rather than a catalogue.
@@ -137,6 +139,30 @@ test("the grid never blanks between reads, and the pager offers no page that rep
     title: studio.name,
   });
 
+  // The scenes the tab lists. A studio the instance holds with no works answers an empty catalogue,
+  // which draws the same blank region as a studio it does not hold at all.
+  // More than one page of them, because this spec reads the pager: a catalogue that fits on one page
+  // draws no next-page control and the paging assertions below have nothing to stand on. Numbered so
+  // a title sorts the way the row does, which is what makes "no page repeats another" readable.
+  const catalogue = Array.from({ length: PAGE_CAP + 5 }, (_, index) => ({
+    foreignId: `${BRAZZERS_EXXTRA}-${String(index).padStart(3, "0")}`,
+    title: `Catalogue Scene ${String(index).padStart(3, "0")} ${studio.name}`,
+  }));
+  // Written in one run. Seeded one at a time, a catalogue this size costs a file copy and a process
+  // start per scene, which is longer than this test is allowed to take.
+  const seeded = await whisparr.seedScenes("v3", {
+    scenes: catalogue,
+    studioForeignId: BRAZZERS_EXXTRA,
+    studioTitle: studio.name,
+  });
+  // The seed is the premise of every paging assertion below. Read back here so a seed that wrote
+  // fewer rows than asked reports itself, rather than surfacing as a pager control that never
+  // enables and a test that spends its whole budget waiting for it.
+  expect(
+    seeded.length,
+    `the seeder wrote ${String(seeded.length)} of ${String(catalogue.length)} scenes, so there is not more than one page to page through`,
+  ).toBe(catalogue.length);
+
   await visit(
     page,
     baseUrl,
@@ -147,19 +173,20 @@ test("the grid never blanks between reads, and the pager offers no page that rep
   await missingTab(page).click();
   await expect(
     cards(page).first(),
-    "a provider was configured, so the catalogue should have answered with cards",
+    "the instance lists a catalogue for this studio, so it should have answered with cards",
   ).toBeVisible({ timeout: REGION_BUDGET_MS });
 
-  // Read off the stub's own record. The cards on screen are evidence about this product only if the
-  // page they came from is the one this spec served.
-  expect(
-    (await provider.asked()).filter((line) => line.includes("MissingPage")),
-    "the stub was never asked for a page, so the grid is drawing something this spec did not serve",
-  ).not.toEqual([]);
+  // The cards are evidence about this product only if they came from the catalogue this spec
+  // seeded. Read against the instance's own works: this product asks the instance for what a studio
+  // lists, and the metadata stub is configured here only so the library's identifiers resolve.
+  await expect(
+    cards(page).filter({ hasText: catalogue[0].title }),
+    `no card carries a title this spec seeded, so the grid is drawing a catalogue it did not serve: ${catalogue.map((one) => one.title).join(", ")}`,
+  ).toHaveCount(1);
 
   const firstPageTop = await firstCardTitle(page);
   const drawn = await cards(page).count();
-  expect(drawn, "a page of this catalogue is capped at forty cards").toBeLessThanOrEqual(40);
+  expect(drawn, "a page of this catalogue is capped at forty cards").toBeLessThanOrEqual(PAGE_CAP);
 
   await expect(
     rangeInTheBar(page).first(),
