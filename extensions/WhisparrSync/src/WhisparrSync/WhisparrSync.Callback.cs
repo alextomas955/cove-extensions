@@ -261,25 +261,6 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(registrations);
         ArgumentNullException.ThrowIfNull(lockdown);
 
-        // Refused before the address is stored and before the instance is contacted. Whisparr
-        // verifies a webhook by posting to it, and a Cove with authentication off reads that post as
-        // an instance reachable from outside its own machine: it turns authentication on, keeps it
-        // on, and signs out whoever was setting this up. Registering first and warning afterwards
-        // would leave them locked out of the Cove they came to configure.
-        if (await lockdown.WouldLockDownAsync(ct).ConfigureAwait(false))
-        {
-            var unauthenticated = await options.LoadAsync(ct).ConfigureAwait(false);
-            return TypedResults.Ok(
-                ProjectCallback(
-                    unauthenticated,
-                    extensionId,
-                    await secrets.EnsureAsync(clock.GetUtcNow(), ct).ConfigureAwait(false),
-                    CallbackAddress.ResolveHost(unauthenticated.CallbackHost, RequestHostOf(http)),
-                    null,
-                    null,
-                    false));
-        }
-
         // Stored even when it equals the host this request arrived on. What storing it buys is that a
         // later request from a different host does not move the address.
         var edited = CallbackAddress.HostPartOf(request.CallbackAddress, extensionId);
@@ -299,7 +280,14 @@ public sealed partial class WhisparrSync
         if (!ConnectionTester.TryReadConnection(connection.Address, apiKey, out var baseAddress, out var missing))
         {
             return TypedResults.Ok(
-                ProjectCallback(stored, extensionId, secret, host, missing, null, true));
+                ProjectCallback(
+                    stored,
+                    extensionId,
+                    secret,
+                    host,
+                    missing,
+                    null,
+                    !await lockdown.WouldLockDownAsync(ct).ConfigureAwait(false)));
         }
 
         // Gated, because the port finds this product's notification and then creates or updates it:
@@ -329,7 +317,14 @@ public sealed partial class WhisparrSync
             ct).ConfigureAwait(false);
 
         return TypedResults.Ok(
-            ProjectCallback(persisted, extensionId, secret, host, null, outcome.Refusal, true));
+            ProjectCallback(
+                persisted,
+                extensionId,
+                secret,
+                host,
+                null,
+                outcome.Refusal,
+                !await lockdown.WouldLockDownAsync(ct).ConfigureAwait(false)));
     }
 
     // The status is the one a registration attempt recorded, per generation, and is not re-derived
