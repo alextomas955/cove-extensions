@@ -9,7 +9,7 @@ import prettier from "eslint-config-prettier";
 import importX from "eslint-plugin-import-x";
 import boundaries from "eslint-plugin-boundaries";
 
-// The single ESLint config for the whole monorepo — every extension's React/TS UI bundle and every
+// The single ESLint config for the whole monorepo - every extension's React/TS UI bundle and every
 // first-party .mjs/.cjs helper/build/test script. There is intentionally no per-extension ESLint
 // config: a new extension's src/ and scripts are linted here automatically by path, so the ruleset
 // never drifts between extensions. Formatting is Prettier's job (the `prettier` config last disables
@@ -58,8 +58,10 @@ export default defineConfig(
       "**/obj/**",
       "**/artifacts/**",
       "website/**",
-      // Gitignored planning scratch, not shipped source.
+      // Gitignored planning scratch and agent worktrees, not shipped source.
       ".planning/**",
+      ".gsd/**",
+      ".claude/**",
     ],
   },
 
@@ -146,9 +148,9 @@ export default defineConfig(
       // contract) and are exempted in the override block below.
       "import-x/no-default-export": "error",
       // No internal barrels: import the concrete module, not an index re-export. The pattern matches
-      // only index-file names — deliberately not ".", "./", ".." (a group containing those degenerates
+      // only index-file names - deliberately not ".", "./", ".." (a group containing those degenerates
       // via minimatch into match-everything, 127 false positives). The alias
-      // `@cove-extensions/ui-shared` is unaffected — that specifier does not end in `index`, and its
+      // `@cove-extensions/ui-shared` is unaffected - that specifier does not end in `index`, and its
       // src/index.ts is the one sanctioned barrel (the package's public entry).
       "no-restricted-imports": [
         "error",
@@ -175,7 +177,7 @@ export default defineConfig(
   {
     files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
     rules: {
-      // The three selectors are the three ways the prop can reach React — a JSX attribute, and an
+      // The three selectors are the three ways the prop can reach React - a JSX attribute, and an
       // object property under either an identifier or a string-literal key. The last two cover the
       // spread form (`<div {...{ dangerouslySetInnerHTML: … }} />`) and createElement props, which a
       // JSX-attribute-only check walks straight past.
@@ -198,14 +200,14 @@ export default defineConfig(
   },
 
   // --- Pure-logic modules: relative imports only ---
-  // These modules are the L0 tier — pure and testable with no environment. Nothing here may reach for
+  // These modules are the L0 tier - pure and testable with no environment. Nothing here may reach for
   // react, the SDK, the shared barrel, or a node: builtin; a logic module needing one of those is doing
   // I/O and belongs in an INFRA or FEAT module.
   //
   // The no-internal-barrels group is restated rather than inherited: a later `no-restricted-imports`
   // entry replaces the earlier one for a matching file, so omitting it would switch the barrels ban off
   // for exactly the modules this block covers. It still bites after the `^[^.]` regex, which stops only
-  // non-relative specifiers — the relative barrel hop (`./foo/index`) is the group's half.
+  // non-relative specifiers - the relative barrel hop (`./foo/index`) is the group's half.
   {
     files: [
       "extensions/*/src/**/*Logic.ts",
@@ -249,7 +251,7 @@ export default defineConfig(
   // Encodes the slice isolation over both UIs: each feature slice folder is an element, its
   // sibling slices are off-limits (route through common/ or the entry), and common/ is importable by
   // any slice. The src-root index.ts (each extension's defineExtension entry, the one legitimate
-  // barrel) is intentionally left unclassified — the rule does not constrain an unknown source, which
+  // barrel) is intentionally left unclassified - the rule does not constrain an unknown source, which
   // is exactly the entry's role: it may import any slice. The TS resolver classifies the
   // `@cove-extensions/ui-shared` alias (via each extension's tsconfig paths) so shared imports land as
   // the `shared` element, not an unclassified external. Authored against the v7 `policies`/object-
