@@ -25,10 +25,10 @@ public sealed partial class WhisparrSync
         // it aims the stored credential at a third party and creates items in the reader's Whisparr.
         endpoints.MapPost(AddAllMissingRoute,
             (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
+             ICredentialPort credentials, IWhisparrInstanceFactory instances, IEntityIdentityPort identities,
              IJobService jobs, IServiceScopeFactory scopes, CancellationToken ct)
                 => AddAllMissingEntityAsync(
-                    kind, coveId, principal, options, credentials, client, identities, jobs, scopes, ct))
+                    kind, coveId, principal, options, credentials, instances, identities, jobs, scopes, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -45,7 +45,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             IEntityIdentityPort identities,
             IJobService jobs,
             IServiceScopeFactory scopes,
@@ -65,7 +65,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(new AddAllMissingEnqueued(null, MonitorRefusalKind.NotConfigured));
@@ -103,7 +103,7 @@ public sealed partial class WhisparrSync
         Func<AddDefaults, CancellationToken, Task<EntityAddDefaultsResolution>> composeAdd,
         CancellationToken ct)
     {
-        var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
+        var identity = await identities.ResolveAsync(kind, coveId, target.Binding.Generation, ct)
             .ConfigureAwait(false);
         var acting = target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
             .Match<IWhisparrMissingSceneActing?>(held => held, _ => null);
@@ -130,14 +130,14 @@ public sealed partial class WhisparrSync
         }
 
         var profiles = await ContainedAsync(
-            () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, ct),
+            () => target.Reads.ReadQualityProfilesAsync(ct),
             target,
             _log,
             ct).ConfigureAwait(false);
         var roots = profiles is null
             ? null
             : await ContainedAsync(
-                () => target.Reads.ReadRootFoldersAsync(target.BaseAddress, target.ApiKey, ct),
+                () => target.Reads.ReadRootFoldersAsync(ct),
                 target,
                 _log,
                 ct).ConfigureAwait(false);
@@ -162,10 +162,10 @@ public sealed partial class WhisparrSync
 
         return new AddAllMissingResolution(
             new AddAllMissingAiming(
-                target.Generation,
+                target.Binding.Generation,
                 (foreignId, registerCt) => ContainedAsync(
                     () => acting.AddSceneAsync(
-                        target.BaseAddress, target.ApiKey, foreignId, composeWith, registerCt),
+                        foreignId, composeWith, registerCt),
                     target,
                     _log,
                     registerCt),
@@ -173,7 +173,7 @@ public sealed partial class WhisparrSync
                 {
                     await ContainedAsync(
                         () => acting.RefreshCatalogueAsync(
-                            target.BaseAddress, target.ApiKey, kind, entityId, refreshCt),
+                            kind, entityId, refreshCt),
                         target,
                         _log,
                         refreshCt).ConfigureAwait(false);
@@ -217,7 +217,7 @@ public sealed partial class WhisparrSync
                 || await ResolveTargetAsync(
                     services.GetRequiredService<OptionsStore>(),
                     services.GetRequiredService<ICredentialPort>(),
-                    services.GetRequiredService<IWhisparrClient>(),
+                    services.GetRequiredService<IWhisparrInstanceFactory>(),
                     runCt).ConfigureAwait(false) is not { } target)
             {
                 return null;

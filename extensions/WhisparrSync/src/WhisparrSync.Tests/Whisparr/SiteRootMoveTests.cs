@@ -12,10 +12,6 @@ namespace WhisparrSync.Tests.Whisparr;
 // the level a call site can see.
 public sealed class SiteRootMoveTests
 {
-    private static readonly Uri Instance = new("http://whisparr-v2:6969/");
-
-    private const string ApiKey = "7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c";
-
     private const int SiteId = 9;
 
     private const string OldRoot = "/library/rootA";
@@ -175,8 +171,9 @@ public sealed class SiteRootMoveTests
                 : (HttpStatusCode.Created, """{"id":41,"name":"RefreshSeries"}""");
         }
 
-        var client = TestWhisparrClient.Over(sent);
-        var answered = await client.MoveSiteRootAsync(Instance, ApiKey, SiteId, agreedRoot, TestCt);
+        var client = (IWhisparrSiteRegistrationActing)TestWhisparrClient.Over(
+            sent, generation: WhisparrGeneration.V2);
+        var answered = await client.MoveSiteRootAsync(SiteId, agreedRoot, TestCt);
 
         return (answered, sent);
     }

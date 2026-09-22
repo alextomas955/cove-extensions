@@ -15,19 +15,13 @@ public sealed partial class WhisparrSync
 {
     // The generation, the address and the key are read off the one binding rather than stored
     // beside each other, so a caller cannot take a generation from one instance and an address from
-    // another.
+    // another. Reads is the instance bound to that same binding, and every role obtained from the
+    // capability set is one of its own members.
     private sealed record MonitoringTarget(
         WhisparrBinding Binding,
         WhisparrCapabilitySet Capabilities,
         IWhisparrClient Reads,
-        MonitorScope DefaultMonitorScope)
-    {
-        public WhisparrGeneration Generation => Binding.Generation;
-
-        public Uri BaseAddress => Binding.BaseAddress;
-
-        public string ApiKey => Binding.ApiKey;
-    }
+        MonitorScope DefaultMonitorScope);
 
     // Written outside the run's own cancellation. What a run established about a root holds whether
     // or not the run finished.
@@ -55,10 +49,14 @@ public sealed partial class WhisparrSync
     }
 
     private static async Task<MonitoringTarget?> ResolveTargetAsync(
-        OptionsStore options, ICredentialPort credentials, IWhisparrClient client, CancellationToken ct)
+        OptionsStore options,
+        ICredentialPort credentials,
+        IWhisparrInstanceFactory instances,
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(credentials);
+        ArgumentNullException.ThrowIfNull(instances);
 
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
         var generation = stored.SelectedGeneration;
@@ -71,15 +69,21 @@ public sealed partial class WhisparrSync
             ? stored.ConnectionFor(generation)?.Address
             : held.Address;
 
-        // Refused here rather than by handing an empty pair to the client, so an unconfigured
+        // Refused here rather than by building a binding from an empty pair, so an unconfigured
         // connection reaches nothing that could make a request.
-        return ConnectionTester.TryReadConnection(address, apiKey, out var baseAddress, out _)
-            ? new MonitoringTarget(
-                new WhisparrBinding(generation, baseAddress, apiKey),
-                GenerationCapabilities.For(generation, WhisparrRoleSet.From(client)),
-                client,
-                stored.DefaultMonitorScope)
-            : null;
+        if (!ConnectionTester.TryReadConnection(address, apiKey, out var baseAddress, out _))
+        {
+            return null;
+        }
+
+        var binding = new WhisparrBinding(generation, baseAddress, apiKey);
+        var instance = instances.Bound(binding);
+
+        return new MonitoringTarget(
+            binding,
+            GenerationCapabilities.For(generation, instance),
+            instance,
+            stored.DefaultMonitorScope);
     }
 
     private sealed record KindActing(
@@ -93,35 +97,28 @@ public sealed partial class WhisparrSync
         Func<int, MonitorScope, CancellationToken, Task<WhisparrResponse>>? SetScope);
 
     private static KindActing ActingOn(
-        IWhisparrStudioActing acting, MonitoringTarget target, string foreignId, MonitorScope scope)
+        IWhisparrStudioActing acting, string foreignId, MonitorScope scope)
         => new(
-            HeldOn(acting, target, foreignId),
-            (defaults, addCt) => acting.AddMonitoredStudioAsync(
-                target.BaseAddress, target.ApiKey, target.Generation, foreignId, scope, defaults, addCt));
+            HeldOn(acting, foreignId),
+            (defaults, addCt) => acting.AddMonitoredStudioAsync(foreignId, scope, defaults, addCt));
 
-    private static KindActing ActingOn(
-        IWhisparrPerformerActing acting, MonitoringTarget target, string foreignId)
+    private static KindActing ActingOn(IWhisparrPerformerActing acting, string foreignId)
         => new(
-            HeldOn(acting, target, foreignId),
-            (defaults, addCt) => acting.AddMonitoredPerformerAsync(
-                target.BaseAddress, target.ApiKey, foreignId, defaults, addCt));
+            HeldOn(acting, foreignId),
+            (defaults, addCt) => acting.AddMonitoredPerformerAsync(foreignId, defaults, addCt));
 
-    private static HeldActing HeldOn(
-        IWhisparrStudioActing acting, MonitoringTarget target, string foreignId)
+    private static HeldActing HeldOn(IWhisparrStudioActing acting, string foreignId)
         => new(
-            readCt => acting.ReadStudioAsync(
-                target.BaseAddress, target.ApiKey, target.Generation, foreignId, readCt),
+            readCt => acting.ReadStudioAsync(foreignId, readCt),
             (entityId, monitored, flipCt) => acting.SetStudioMonitoredAsync(
-                target.BaseAddress, target.ApiKey, target.Generation, entityId, monitored, flipCt),
-            (entityId, scope, scopeCt) => acting.SetStudioScopeAsync(
-                target.BaseAddress, target.ApiKey, target.Generation, entityId, scope, scopeCt));
+                entityId, monitored, flipCt),
+            (entityId, scope, scopeCt) => acting.SetStudioScopeAsync(entityId, scope, scopeCt));
 
-    private static HeldActing HeldOn(
-        IWhisparrPerformerActing acting, MonitoringTarget target, string foreignId)
+    private static HeldActing HeldOn(IWhisparrPerformerActing acting, string foreignId)
         => new(
-            readCt => acting.ReadPerformerAsync(target.BaseAddress, target.ApiKey, foreignId, readCt),
+            readCt => acting.ReadPerformerAsync(foreignId, readCt),
             (entityId, monitored, flipCt) => acting.SetPerformerMonitoredAsync(
-                target.BaseAddress, target.ApiKey, entityId, monitored, flipCt),
+                entityId, monitored, flipCt),
             SetScope: null);
 
     private static Func<IEntityFolderPort, string, CancellationToken, Task<int>> FilesOfEntity(
@@ -208,13 +205,11 @@ public sealed partial class WhisparrSync
         {
             WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
                 .Match<Func<string, CancellationToken, Task<WhisparrResponse>>?>(
-                    acting => (foreignId, readCt) => acting.ReadStudioAsync(
-                        target.BaseAddress, target.ApiKey, target.Generation, foreignId, readCt),
+                    acting => (foreignId, readCt) => acting.ReadStudioAsync(foreignId, readCt),
                     _ => null),
             WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
                 .Match<Func<string, CancellationToken, Task<WhisparrResponse>>?>(
-                    acting => (foreignId, readCt) => acting.ReadPerformerAsync(
-                        target.BaseAddress, target.ApiKey, foreignId, readCt),
+                    acting => (foreignId, readCt) => acting.ReadPerformerAsync(foreignId, readCt),
                     _ => null),
             _ => NoArmFor<Func<string, CancellationToken, Task<WhisparrResponse>>>(kind, target),
         };
@@ -225,10 +220,10 @@ public sealed partial class WhisparrSync
         {
             WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
                 .Match<Func<string, KindActing>?>(
-                    acting => foreignId => ActingOn(acting, target, foreignId, scope), _ => null),
+                    acting => foreignId => ActingOn(acting, foreignId, scope), _ => null),
             WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
                 .Match<Func<string, KindActing>?>(
-                    acting => foreignId => ActingOn(acting, target, foreignId), _ => null),
+                    acting => foreignId => ActingOn(acting, foreignId), _ => null),
             _ => NoArmFor<Func<string, KindActing>>(kind, target),
         };
 
@@ -244,10 +239,10 @@ public sealed partial class WhisparrSync
         {
             WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
                 .Match<Func<string, HeldActing>?>(
-                    acting => foreignId => HeldOn(acting, target, foreignId), _ => null),
+                    acting => foreignId => HeldOn(acting, foreignId), _ => null),
             WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
                 .Match<Func<string, HeldActing>?>(
-                    acting => foreignId => HeldOn(acting, target, foreignId), _ => null),
+                    acting => foreignId => HeldOn(acting, foreignId), _ => null),
             _ => NoArmFor<Func<string, HeldActing>>(kind, target),
         };
 
@@ -259,14 +254,14 @@ public sealed partial class WhisparrSync
         var capability = MonitoringProjector.CapabilityFor(kind);
         return target.Capabilities.Held.Contains(capability)
             ? throw new InvalidOperationException(
-                $"{target.Generation} holds {capability}, but no route has an arm acting on a {kind}.")
+                $"{target.Binding.Generation} holds {capability}, but no route has an arm acting on a {kind}.")
             : null;
     }
 
     // A failure is contained rather than propagated, because the route's declared results hold no
     // failure. A shutdown rethrows: it is not a verdict about the instance.
-    // The filter names IOException as well as HttpRequestException. The client reads the body out
-    // of the response stream, so a connection dropped part way through an answer raises the former.
+    // The filter names IOException as well as HttpRequestException. A body is read out of the
+    // response stream, so a connection dropped part way through an answer raises the former.
     private static async Task<WhisparrResponse?> ContainedAsync(
         Func<Task<WhisparrResponse>> request,
         MonitoringTarget target,
@@ -285,7 +280,10 @@ public sealed partial class WhisparrSync
             when (failure is HttpRequestException or IOException or TaskCanceledException)
         {
             WhisparrSyncLog.MonitoringRequestContained(
-                log, target.Generation, WhisparrSyncLog.Classify(failure), target.BaseAddress.Host);
+                log,
+                target.Binding.Generation,
+                WhisparrSyncLog.Classify(failure),
+                target.Binding.BaseAddress.Host);
             return null;
         }
     }

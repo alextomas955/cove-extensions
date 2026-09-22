@@ -8,7 +8,7 @@ using WhisparrSync.Whisparr;
 namespace WhisparrSync.Import;
 
 internal sealed class BackstopPass(
-    IWhisparrClient client,
+    IWhisparrInstanceFactory instances,
     OptionsStore options,
     OptionsWriteGate gate,
     ICredentialPort credentials,
@@ -98,7 +98,7 @@ internal sealed class BackstopPass(
         DateTimeOffset? mark,
         CancellationToken ct)
     {
-        var generation = binding.Generation;
+        var instance = instances.Bound(binding);
 
         var page = 1;
         var taken = 0;
@@ -118,9 +118,7 @@ internal sealed class BackstopPass(
             WhisparrResponse answer;
             try
             {
-                answer = await client
-                    .ReadHistoryAsync(
-                        binding.BaseAddress, binding.ApiKey, generation, page, PageSize, ct)
+                answer = await instance.ReadHistoryAsync(page, PageSize, ct)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -157,7 +155,7 @@ internal sealed class BackstopPass(
             for (var index = reading.Skip; index < reading.Skip + reading.Take; index++)
             {
                 taken++;
-                switch (HistoryProjector.Read(generation, records[index] as JsonObject))
+                switch (HistoryProjector.Read(binding.Generation, records[index] as JsonObject))
                 {
                     case { Outcome: HistoryProjectionOutcome.Projected, Candidate: { } candidate }:
                         // Guarded per record: one record the ingest cannot take must not stop the
@@ -180,7 +178,7 @@ internal sealed class BackstopPass(
                         catch (Exception failure)
                         {
                             WhisparrSyncLog.BackstopRecordContained(
-                                log, generation, WhisparrSyncLog.Classify(failure));
+                                log, binding.Generation, WhisparrSyncLog.Classify(failure));
                             contained++;
                         }
 #pragma warning restore CA1031

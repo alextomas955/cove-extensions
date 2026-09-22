@@ -22,22 +22,20 @@ public interface IWhisparrNotificationPort
 {
     /// <summary>Registers <paramref name="callbackAddress"/>, creating or updating in place.</summary>
     /// <remarks>
-    /// The generation selects the carrier the secret travels in, where that generation can carry one
-    /// off the address.
+    /// The binding carries the generation, which selects the carrier the secret travels in where
+    /// that generation can carry one off the address. It is a parameter rather than held state:
+    /// which generation is connected is a stored setting, so an instance obtained ahead of the call
+    /// would be one bound before the connection it describes was known.
     /// </remarks>
     Task<CallbackRegistrationOutcome> RegisterAsync(
-        WhisparrGeneration generation,
-        Uri baseAddress,
-        string apiKey,
-        string callbackAddress,
-        string secret,
-        CancellationToken ct);
+        WhisparrBinding binding, string callbackAddress, string secret, CancellationToken ct);
 
     /// <summary>Whether the instance holds this extension's registration, as it answers now.</summary>
-    Task<CallbackRegistrationOutcome> ReadAsync(Uri baseAddress, string apiKey, CancellationToken ct);
+    Task<CallbackRegistrationOutcome> ReadAsync(WhisparrBinding binding, CancellationToken ct);
 }
 
-internal sealed class NotificationPort(IWhisparrClient client, ILogger log) : IWhisparrNotificationPort
+internal sealed class NotificationPort(IWhisparrInstanceFactory instances, ILogger log)
+    : IWhisparrNotificationPort
 {
     // The registration is found again by this name alone, so changing it leaves the old registration
     // in place and delivering, and creates a second. The instance does not refuse a second entry
@@ -67,17 +65,15 @@ internal sealed class NotificationPort(IWhisparrClient client, ILogger log) : IW
             || flag.Contains("applicationupdate", StringComparison.OrdinalIgnoreCase);
 
     public async Task<CallbackRegistrationOutcome> RegisterAsync(
-        WhisparrGeneration generation,
-        Uri baseAddress,
-        string apiKey,
-        string callbackAddress,
-        string secret,
-        CancellationToken ct)
+        WhisparrBinding binding, string callbackAddress, string secret, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(binding);
         ArgumentException.ThrowIfNullOrWhiteSpace(callbackAddress);
         ArgumentException.ThrowIfNullOrWhiteSpace(secret);
 
-        var schema = await ReadWebhookSchemaAsync(baseAddress, apiKey, ct).ConfigureAwait(false);
+        var generation = binding.Generation;
+        var instance = instances.Bound(binding);
+        var schema = await ReadWebhookSchemaAsync(instance, ct).ConfigureAwait(false);
         if (schema is null)
         {
             return new CallbackRegistrationOutcome(
@@ -89,22 +85,20 @@ internal sealed class NotificationPort(IWhisparrClient client, ILogger log) : IW
             .Obtain<IOutOfBandSecretRegistration>()
             .Match<OutOfBandSecretField?>(role => role.Carry(secret), _ => null);
 
-        var listed = await FindRegistrationAsync(baseAddress, apiKey, ct).ConfigureAwait(false);
+        var listed = await FindRegistrationAsync(instance, ct).ConfigureAwait(false);
         var created = listed is null;
 
         var written = listed is null
-            ? await client.CreateNotificationAsync(
-                baseAddress, apiKey, CreateBody(schema, callbackAddress, carried), ct).ConfigureAwait(false)
-            : await client.UpdateNotificationAsync(
-                baseAddress,
-                apiKey,
+            ? await instance.CreateNotificationAsync(
+                CreateBody(schema, callbackAddress, carried), ct).ConfigureAwait(false)
+            : await instance.UpdateNotificationAsync(
                 IdOf(listed),
                 UpdateBody(listed, callbackAddress, carried),
                 ct).ConfigureAwait(false);
 
         // The read-back is the answer. The write's status is read only to name a refusal the
         // read-back would otherwise report as a bare absence.
-        var readBack = await ReadAsync(baseAddress, apiKey, ct).ConfigureAwait(false);
+        var readBack = await ReadAsync(binding, ct).ConfigureAwait(false);
         var refusal = readBack.Status == RegistrationStatus.Registered
             && string.Equals(readBack.StoredAddress, callbackAddress, StringComparison.Ordinal)
                 ? null
@@ -125,28 +119,30 @@ internal sealed class NotificationPort(IWhisparrClient client, ILogger log) : IW
     }
 
     public async Task<CallbackRegistrationOutcome> ReadAsync(
-        Uri baseAddress, string apiKey, CancellationToken ct)
+        WhisparrBinding binding, CancellationToken ct)
     {
-        var listed = await FindRegistrationAsync(baseAddress, apiKey, ct).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(binding);
+
+        var listed = await FindRegistrationAsync(instances.Bound(binding), ct).ConfigureAwait(false);
         return listed is null
             ? new CallbackRegistrationOutcome(RegistrationStatus.NotRegistered, null, false, null)
             : new CallbackRegistrationOutcome(
                 RegistrationStatus.Registered, FieldValue(listed, UrlField)?.ToString(), false, null);
     }
 
-    private async Task<JsonObject?> ReadWebhookSchemaAsync(
-        Uri baseAddress, string apiKey, CancellationToken ct)
+    private static async Task<JsonObject?> ReadWebhookSchemaAsync(
+        IWhisparrClient instance, CancellationToken ct)
     {
-        var answered = await client.ReadNotificationSchemaAsync(baseAddress, apiKey, ct).ConfigureAwait(false);
+        var answered = await instance.ReadNotificationSchemaAsync(ct).ConfigureAwait(false);
         return ParseArray(answered)?
             .OfType<JsonObject>()
             .FirstOrDefault(entry => StringOf(entry, "implementation") == WebhookImplementation);
     }
 
-    private async Task<JsonObject?> FindRegistrationAsync(
-        Uri baseAddress, string apiKey, CancellationToken ct)
+    private static async Task<JsonObject?> FindRegistrationAsync(
+        IWhisparrClient instance, CancellationToken ct)
     {
-        var answered = await client.ListNotificationsAsync(baseAddress, apiKey, ct).ConfigureAwait(false);
+        var answered = await instance.ListNotificationsAsync(ct).ConfigureAwait(false);
         return ParseArray(answered)?
             .OfType<JsonObject>()
             .FirstOrDefault(entry => StringOf(entry, "name") == RegistrationName);

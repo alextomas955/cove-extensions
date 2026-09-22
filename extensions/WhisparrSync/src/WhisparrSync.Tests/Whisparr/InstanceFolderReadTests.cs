@@ -9,10 +9,6 @@ namespace WhisparrSync.Tests.Whisparr;
 // the route and escapes the query, so the only source for what leaves is a request it made.
 public sealed class InstanceFolderReadTests
 {
-    private static readonly Uri Address = new("http://whisparr:6969");
-
-    private const string Key = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
-
     // The shape both generations answer a directory listing with.
     private const string Listing = """
         {"parent":"/data/","directories":[],"files":[{"path":"/data/a.mp4","size":41}]}
@@ -26,9 +22,9 @@ public sealed class InstanceFolderReadTests
     public async Task AskingForADirectoryCarriesItAndAsksForFiles(WhisparrGeneration generation)
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, Listing);
-        var client = TestWhisparrClient.Over(handler);
+        var client = TestWhisparrClient.Over(handler, generation: generation);
 
-        await Role(client).ReadInstanceFolderAsync(Address, Key, generation, "/data/Blue Harbor/", TestCt);
+        await Role(client).ReadInstanceFolderAsync("/data/Blue Harbor/", TestCt);
 
         Assert.Equal("/api/v3/filesystem", Assert.Single(handler.Requests).Path);
         var target = Assert.Single(handler.Targets);
@@ -45,9 +41,9 @@ public sealed class InstanceFolderReadTests
         WhisparrGeneration generation)
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, Listing);
-        var client = TestWhisparrClient.Over(handler);
+        var client = TestWhisparrClient.Over(handler, generation: generation);
 
-        await Role(client).ReadInstanceFolderAsync(Address, Key, generation, "/data/Blue Harbor", TestCt);
+        await Role(client).ReadInstanceFolderAsync("/data/Blue Harbor", TestCt);
 
         Assert.Contains(
             "path=%2fdata%2fBlue+Harbor%2f", Assert.Single(handler.Targets), StringComparison.Ordinal);
@@ -60,8 +56,7 @@ public sealed class InstanceFolderReadTests
         var client = TestWhisparrClient.Over(handler);
 
         await Assert.ThrowsAsync<ArgumentException>(
-            () => Role(client).ReadInstanceFolderAsync(
-                Address, Key, WhisparrGeneration.V3, "  ", TestCt));
+            () => Role(client).ReadInstanceFolderAsync("  ", TestCt));
 
         Assert.Empty(handler.Requests);
     }
@@ -72,10 +67,10 @@ public sealed class InstanceFolderReadTests
     public void BothGenerationsHoldTheFilesystemRole(WhisparrGeneration generation)
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, Listing);
-        var client = TestWhisparrClient.Over(handler);
+        var client = TestWhisparrClient.Over(handler, generation: generation);
 
         var role = GenerationCapabilities
-            .For(generation, WhisparrRoleSet.From(client))
+            .For(generation, client)
             .Obtain<IWhisparrInstanceFilesystemReading>()
             .Match<IWhisparrInstanceFilesystemReading?>(filesystem => filesystem, _ => null);
 

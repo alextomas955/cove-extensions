@@ -774,7 +774,14 @@ public sealed class BackstopPassTests
         {
             Generation = generation;
             _requestBudget = requestBudget;
-            Client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, """{"records":[]}"""));
+            // A case that leaves the address empty is one where nothing is sent, so the recorder
+            // answers for the address the fixture normally carries.
+            Client = new RecordingWhisparrClient(
+                RecordingWhisparrClient.Json(200, """{"records":[]}"""),
+                new WhisparrBinding(
+                    generation,
+                    new Uri(string.IsNullOrWhiteSpace(address) ? Address : address),
+                    ApiKey));
             _options = new OptionsStore(Store);
             _options
                 .SaveAsync(
@@ -815,7 +822,7 @@ public sealed class BackstopPassTests
 
         public Task<BackstopPassResult> RunAsync()
             => new BackstopPass(
-                    ClientForRun(),
+                    new FixedInstanceFactory(ClientForRun()),
                     _options,
                     Gate,
                     new RecordingCredentialPort().Holding(Generation, ApiKey),
@@ -850,10 +857,8 @@ public sealed class BackstopPassTests
     {
         private bool _committed;
 
+
         public async Task<WhisparrResponse> ReadHistoryAsync(
-            Uri baseAddress,
-            string apiKey,
-            WhisparrGeneration generation,
             int page,
             int pageSize,
             CancellationToken ct)
@@ -864,41 +869,31 @@ public sealed class BackstopPassTests
                 await save().ConfigureAwait(false);
             }
 
-            return await inner
-                .ReadHistoryAsync(baseAddress, apiKey, generation, page, pageSize, ct)
-                .ConfigureAwait(false);
+            return await inner.ReadHistoryAsync(page, pageSize, ct).ConfigureAwait(false);
         }
 
-        public Task<WhisparrResponse> ReadStatusAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
+        public Task<WhisparrResponse> ReadNotificationSchemaAsync(CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<WhisparrResponse> ReadNotificationSchemaAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
+        public Task<WhisparrResponse> ListNotificationsAsync(CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<WhisparrResponse> ListNotificationsAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
+        public Task<WhisparrResponse> ReadRootFoldersAsync(CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<WhisparrResponse> ReadRootFoldersAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
-            => throw new NotSupportedException();
-
-        public Task<WhisparrResponse> ReadQualityProfilesAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
+        public Task<WhisparrResponse> ReadQualityProfilesAsync(CancellationToken ct)
             => throw new NotSupportedException();
 
         public Task<WhisparrResponse> ReadCommandAsync(
-            Uri baseAddress, string apiKey, int commandId, CancellationToken ct)
+            int commandId, CancellationToken ct)
             => throw new NotSupportedException();
 
         public Task<WhisparrResponse> CreateNotificationAsync(
-            Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
+            JsonNode body, CancellationToken ct)
             => throw new NotSupportedException();
 
         public Task<WhisparrResponse> UpdateNotificationAsync(
-            Uri baseAddress, string apiKey, int id, JsonNode body, CancellationToken ct)
+            int id, JsonNode body, CancellationToken ct)
             => throw new NotSupportedException();
     }
 
@@ -936,10 +931,8 @@ public sealed class BackstopPassTests
     {
         private int _reads;
 
+
         public Task<WhisparrResponse> ReadHistoryAsync(
-            Uri baseAddress,
-            string apiKey,
-            WhisparrGeneration generation,
             int page,
             int pageSize,
             CancellationToken ct)
@@ -950,39 +943,32 @@ public sealed class BackstopPassTests
                     string.Create(
                         CultureInfo.InvariantCulture,
                         $"The walk asked for more than {budget} pages."))
-                : inner.ReadHistoryAsync(baseAddress, apiKey, generation, page, pageSize, ct);
+                : inner.ReadHistoryAsync(page, pageSize, ct);
         }
 
-        public Task<WhisparrResponse> ReadStatusAsync(Uri baseAddress, string apiKey, CancellationToken ct)
-            => inner.ReadStatusAsync(baseAddress, apiKey, ct);
+        public Task<WhisparrResponse> ReadNotificationSchemaAsync(CancellationToken ct)
+            => inner.ReadNotificationSchemaAsync(ct);
 
-        public Task<WhisparrResponse> ReadNotificationSchemaAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
-            => inner.ReadNotificationSchemaAsync(baseAddress, apiKey, ct);
+        public Task<WhisparrResponse> ListNotificationsAsync(CancellationToken ct)
+            => inner.ListNotificationsAsync(ct);
 
-        public Task<WhisparrResponse> ListNotificationsAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
-            => inner.ListNotificationsAsync(baseAddress, apiKey, ct);
+        public Task<WhisparrResponse> ReadRootFoldersAsync(CancellationToken ct)
+            => inner.ReadRootFoldersAsync(ct);
 
-        public Task<WhisparrResponse> ReadRootFoldersAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
-            => inner.ReadRootFoldersAsync(baseAddress, apiKey, ct);
-
-        public Task<WhisparrResponse> ReadQualityProfilesAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
-            => inner.ReadQualityProfilesAsync(baseAddress, apiKey, ct);
+        public Task<WhisparrResponse> ReadQualityProfilesAsync(CancellationToken ct)
+            => inner.ReadQualityProfilesAsync(ct);
 
         public Task<WhisparrResponse> ReadCommandAsync(
-            Uri baseAddress, string apiKey, int commandId, CancellationToken ct)
-            => inner.ReadCommandAsync(baseAddress, apiKey, commandId, ct);
+            int commandId, CancellationToken ct)
+            => inner.ReadCommandAsync(commandId, ct);
 
         public Task<WhisparrResponse> CreateNotificationAsync(
-            Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
-            => inner.CreateNotificationAsync(baseAddress, apiKey, body, ct);
+            JsonNode body, CancellationToken ct)
+            => inner.CreateNotificationAsync(body, ct);
 
         public Task<WhisparrResponse> UpdateNotificationAsync(
-            Uri baseAddress, string apiKey, int id, JsonNode body, CancellationToken ct)
-            => inner.UpdateNotificationAsync(baseAddress, apiKey, id, body, ct);
+            int id, JsonNode body, CancellationToken ct)
+            => inner.UpdateNotificationAsync(id, body, ct);
     }
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider

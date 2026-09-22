@@ -11,8 +11,8 @@ namespace WhisparrSync.Whisparr;
 /// No member takes a caller-supplied route or verb, and the foreign id arrives already resolved from
 /// a stored identity row.
 /// <para>
-/// Every member takes the generation, because v2 and v3 do not address a studio the same way. Which
-/// routes and bodies follow from it belong to the implementation.
+/// Both generations declare this role, and each addresses a studio its own way. Which routes and
+/// bodies follow belongs to the instance the role was obtained from.
 /// </para>
 /// </remarks>
 public interface IWhisparrStudioActing
@@ -23,12 +23,7 @@ public interface IWhisparrStudioActing
     /// all is the caller's to classify. One generation answers that through no single route, so
     /// there the answer is assembled and reported in the same two spellings.
     /// </remarks>
-    Task<WhisparrResponse> ReadStudioAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
-        string foreignId,
-        CancellationToken ct);
+    Task<WhisparrResponse> ReadStudioAsync(string foreignId, CancellationToken ct);
 
     /// <summary>Adds the studio <paramref name="foreignId"/> names, monitored at <paramref name="scope"/>.</summary>
     /// <remarks>
@@ -37,13 +32,7 @@ public interface IWhisparrStudioActing
     /// caller can leave one out.
     /// </remarks>
     Task<WhisparrResponse> AddMonitoredStudioAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
-        string foreignId,
-        MonitorScope scope,
-        AddDefaults defaults,
-        CancellationToken ct);
+        string foreignId, MonitorScope scope, AddDefaults defaults, CancellationToken ct);
 
     /// <summary>Sets only the monitored flag on the studio <paramref name="entityId"/> names.</summary>
     /// <remarks>
@@ -51,13 +40,7 @@ public interface IWhisparrStudioActing
     /// applied. Setting the flag false governs what a later catalogue addition does and retracts
     /// nothing already wanted.
     /// </remarks>
-    Task<WhisparrResponse> SetStudioMonitoredAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
-        int entityId,
-        bool monitored,
-        CancellationToken ct);
+    Task<WhisparrResponse> SetStudioMonitoredAsync(int entityId, bool monitored, CancellationToken ct);
 
     /// <summary>Sets the monitor scope on the studio <paramref name="entityId"/> names.</summary>
     /// <remarks>
@@ -70,12 +53,7 @@ public interface IWhisparrStudioActing
     /// </para>
     /// </remarks>
     Task<WhisparrResponse> SetStudioScopeAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
-        int entityId,
-        MonitorScope scope,
-        CancellationToken ct);
+        int entityId, MonitorScope scope, CancellationToken ct);
 }
 
 /// <summary>Monitors a performer on the connected instance.</summary>
@@ -87,22 +65,17 @@ public interface IWhisparrPerformerActing
 {
     /// <summary>Reads the performer <paramref name="foreignId"/> names.</summary>
     /// <inheritdoc cref="IWhisparrStudioActing.ReadStudioAsync" path="/remarks"/>
-    Task<WhisparrResponse> ReadPerformerAsync(
-        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct);
+    Task<WhisparrResponse> ReadPerformerAsync(string foreignId, CancellationToken ct);
 
     /// <summary>Adds the performer <paramref name="foreignId"/> names, monitored.</summary>
     /// <inheritdoc cref="IWhisparrStudioActing.AddMonitoredStudioAsync" path="/remarks"/>
     Task<WhisparrResponse> AddMonitoredPerformerAsync(
-        Uri baseAddress,
-        string apiKey,
-        string foreignId,
-        AddDefaults defaults,
-        CancellationToken ct);
+        string foreignId, AddDefaults defaults, CancellationToken ct);
 
     /// <summary>Sets only the monitored flag on the performer <paramref name="entityId"/> names.</summary>
     /// <inheritdoc cref="IWhisparrStudioActing.SetStudioMonitoredAsync" path="/remarks"/>
     Task<WhisparrResponse> SetPerformerMonitoredAsync(
-        Uri baseAddress, string apiKey, int entityId, bool monitored, CancellationToken ct);
+        int entityId, bool monitored, CancellationToken ct);
 }
 
 /// <summary>Registers scenes an instance's catalogue does not hold.</summary>
@@ -116,11 +89,7 @@ public interface IWhisparrMissingSceneActing
     /// <summary>Adds the scene <paramref name="foreignId"/> names to the instance's catalogue.</summary>
     /// <inheritdoc cref="IWhisparrStudioActing.AddMonitoredStudioAsync" path="/remarks"/>
     Task<WhisparrResponse> AddSceneAsync(
-        Uri baseAddress,
-        string apiKey,
-        string foreignId,
-        AddDefaults defaults,
-        CancellationToken ct);
+        string foreignId, AddDefaults defaults, CancellationToken ct);
 
     /// <summary>Asks the instance to re-read the catalogue of the entity <paramref name="entityId"/> names.</summary>
     /// <remarks>
@@ -128,11 +97,7 @@ public interface IWhisparrMissingSceneActing
     /// way a catalogue arrives on one of the two generations. Sent once, like every acting request.
     /// </remarks>
     Task<WhisparrResponse> RefreshCatalogueAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrEntityKind kind,
-        int entityId,
-        CancellationToken ct);
+        WhisparrEntityKind kind, int entityId, CancellationToken ct);
 }
 
 /// <summary>Registers a site the instance's catalogue does not hold, monitoring nothing.</summary>
@@ -158,11 +123,7 @@ public interface IWhisparrSiteRegistrationActing
     /// library holds.
     /// </remarks>
     Task<WhisparrResponse> RegisterSiteAsync(
-        Uri baseAddress,
-        string apiKey,
-        string foreignId,
-        AddDefaults defaults,
-        CancellationToken ct);
+        string foreignId, AddDefaults defaults, CancellationToken ct);
 
     /// <summary>
     /// Moves the site <paramref name="siteId"/> names to <paramref name="rootFolderPath"/>, leaving
@@ -182,11 +143,7 @@ public interface IWhisparrSiteRegistrationActing
     /// </para>
     /// </remarks>
     Task<WhisparrResponse> MoveSiteRootAsync(
-        Uri baseAddress,
-        string apiKey,
-        int siteId,
-        string rootFolderPath,
-        CancellationToken ct);
+        int siteId, string rootFolderPath, CancellationToken ct);
 
     /// <summary>
     /// Asks the instance to read the catalogue of the site <paramref name="siteId"/> names again.
@@ -199,17 +156,13 @@ public interface IWhisparrSiteRegistrationActing
     /// call is repeatable and moves no file.
     /// </para>
     /// </remarks>
-    Task<WhisparrResponse> RefreshSiteCatalogueAsync(
-        Uri baseAddress,
-        string apiKey,
-        int siteId,
-        CancellationToken ct);
+    Task<WhisparrResponse> RefreshSiteCatalogueAsync(int siteId, CancellationToken ct);
 }
 
 /// <summary>Reads which of a set of scenes one site the instance holds has a row for.</summary>
 /// <remarks>
-/// A read role. Only one generation registers it, so the member takes no generation: the other names
-/// a scene by its own identifier and needs no site to find it.
+/// A read role. Only one generation declares it: the other names a scene by its own identifier and
+/// needs no site to find it.
 /// <para>
 /// The site's numeric id arrives already resolved off the answer the registering pass read, so
 /// nothing here can be aimed by an id a browser supplied.
@@ -240,16 +193,12 @@ public interface IWhisparrSiteSceneReading
     /// the instance holds no row for, which is the opposite of the truth.
     /// </exception>
     Task<IReadOnlyDictionary<int, int>> ReduceSiteSceneRowsAsync(
-        Uri baseAddress,
-        string apiKey,
-        int siteId,
-        IReadOnlyCollection<int> sceneNumbers,
-        CancellationToken ct);
+        int siteId, IReadOnlyCollection<int> sceneNumbers, CancellationToken ct);
 }
 
 /// <summary>Reads which of a set of sites an instance holds.</summary>
 /// <remarks>
-/// A read role. Only one generation registers it: the other answers presence for a site through a
+/// A read role. Only one generation declares it: the other answers presence for a site through a
 /// route naming the site. The numbers arrive already resolved from the metadata source, so nothing
 /// here can be aimed by an identifier a browser supplied.
 /// </remarks>
@@ -271,10 +220,7 @@ public interface IWhisparrHeldSiteReading
     /// otherwise report every site it asked about as one the instance does not hold.
     /// </exception>
     Task<IReadOnlySet<int>> ReduceHeldSitesAsync(
-        Uri baseAddress,
-        string apiKey,
-        IReadOnlyCollection<int> siteNumbers,
-        CancellationToken ct);
+        IReadOnlyCollection<int> siteNumbers, CancellationToken ct);
 }
 
 /// <summary>Reads what an instance holds at a path on its own filesystem.</summary>
@@ -295,12 +241,7 @@ public interface IWhisparrInstanceFilesystemReading
     /// directory itself whether or not its spelling carries a trailing separator.
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="directory"/> is blank.</exception>
-    Task<WhisparrResponse> ReadInstanceFolderAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
-        string directory,
-        CancellationToken ct);
+    Task<WhisparrResponse> ReadInstanceFolderAsync(string directory, CancellationToken ct);
 }
 
 /// <summary>Tells an instance where files the library already holds are.</summary>
@@ -312,8 +253,7 @@ public interface IWhisparrInstanceFilesystemReading
 public interface IWhisparrReflectOwnedActing
 {
     /// <summary>Reads whether the instance links a file into place rather than copying it.</summary>
-    Task<WhisparrResponse> ReadHardlinkSettingAsync(
-        Uri baseAddress, string apiKey, CancellationToken ct);
+    Task<WhisparrResponse> ReadHardlinkSettingAsync(CancellationToken ct);
 
     /// <summary>Parses <paramref name="folder"/> into one row per file the instance could take.</summary>
     /// <remarks>
@@ -322,8 +262,7 @@ public interface IWhisparrReflectOwnedActing
     /// filesystem directory and never a route segment: it reaches the instance as a query value and
     /// cannot change which route is issued.
     /// </remarks>
-    Task<WhisparrResponse> ListImportableFilesAsync(
-        Uri baseAddress, string apiKey, string folder, CancellationToken ct);
+    Task<WhisparrResponse> ListImportableFilesAsync(string folder, CancellationToken ct);
 
     /// <summary>Attaches the files <paramref name="files"/> describes to what the instance holds.</summary>
     /// <remarks>
@@ -331,13 +270,12 @@ public interface IWhisparrReflectOwnedActing
     /// carries cannot be fabricated, and the instance refuses a row missing either. Sent once, like
     /// every acting request.
     /// </remarks>
-    Task<WhisparrResponse> AttachOwnedFilesAsync(
-        Uri baseAddress, string apiKey, JsonNode files, CancellationToken ct);
+    Task<WhisparrResponse> AttachOwnedFilesAsync(JsonNode files, CancellationToken ct);
 }
 
 /// <summary>Reads what an instance holds for one catalogue scene.</summary>
 /// <remarks>
-/// A read role. Only v3 registers it: v2 answers a not-found on every per-scene route, so a caller
+/// A read role. Only v3 declares it: v2 answers a not-found on every per-scene route, so a caller
 /// there obtains no role. No member takes a route, a verb or a query key, so the one query spelling
 /// that narrows cannot be replaced with one that does not.
 /// </remarks>
@@ -349,7 +287,7 @@ public interface IWhisparrSceneStatusReading
     /// under it, so an absence here settles the whole page without a request per card.
     /// </remarks>
     Task<WhisparrResponse> ReadEntityPresenceAsync(
-        Uri baseAddress, string apiKey, WhisparrEntityKind kind, string foreignId, CancellationToken ct);
+        WhisparrEntityKind kind, string foreignId, CancellationToken ct);
 
     /// <summary>What the instance holds for the scene <paramref name="remoteId"/> names.</summary>
     /// <remarks>
@@ -357,8 +295,7 @@ public interface IWhisparrSceneStatusReading
     /// key that narrows; two other spellings this instance accepts are ignored and answer with the
     /// whole catalogue.
     /// </remarks>
-    Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
-        Uri baseAddress, string apiKey, string remoteId, CancellationToken ct);
+    Task<WhisparrResponse> ReadSceneByRemoteIdAsync(string remoteId, CancellationToken ct);
 
     /// <summary>Which of <paramref name="foreignIds"/> the instance already holds an entry for.</summary>
     /// <remarks>
@@ -376,15 +313,12 @@ public interface IWhisparrSceneStatusReading
     /// would otherwise report every scene it asked about as one the instance does not hold.
     /// </exception>
     Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
-        Uri baseAddress,
-        string apiKey,
-        IReadOnlyCollection<string> foreignIds,
-        CancellationToken ct);
+        IReadOnlyCollection<string> foreignIds, CancellationToken ct);
 }
 
 /// <summary>Reads which of a set of scenes an instance's user has excluded.</summary>
 /// <remarks>
-/// A read role. Only v3 registers it: v2 keeps no scene records and so keeps no scene exclusions, so
+/// A read role. Only v3 declares it: v2 keeps no scene records and so keeps no scene exclusions, so
 /// a caller there obtains no role rather than an empty set that would read as nothing excluded.
 /// <para>
 /// The answer is the subset of the identifiers asked about, so it is bounded by the caller's own set.
@@ -399,10 +333,7 @@ public interface IWhisparrSceneExclusionReading
     /// not arrive, or could not be read, excludes nothing.
     /// </remarks>
     Task<IReadOnlySet<string>> ReduceExclusionsAsync(
-        Uri baseAddress,
-        string apiKey,
-        IReadOnlyCollection<string> providerSceneIds,
-        CancellationToken ct);
+        IReadOnlyCollection<string> providerSceneIds, CancellationToken ct);
 
     /// <summary>
     /// The identifier of the exclusion naming <paramref name="foreignId"/>, or that the list names
@@ -420,8 +351,7 @@ public interface IWhisparrSceneExclusionReading
     /// about the instance, the other is the instance stating an absence.
     /// </para>
     /// </remarks>
-    Task<SceneExclusionLookup> FindSceneExclusionAsync(
-        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct);
+    Task<SceneExclusionLookup> FindSceneExclusionAsync(string foreignId, CancellationToken ct);
 }
 
 /// <summary>What one exclusion-list read established about one scene.</summary>

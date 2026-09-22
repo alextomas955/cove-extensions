@@ -62,10 +62,10 @@ public sealed partial class WhisparrSync
         endpoints.MapPut(FolderMappingsRoute,
             (FolderMappingSaveRequest request, ICurrentPrincipalAccessor principal,
              OptionsStore options, OptionsWriteGate gate, ICredentialPort credentials,
-             IWhisparrClient client, ICoveLibraryPort library, IFolderAddressPort addressing,
+             IWhisparrInstanceFactory instances, ICoveLibraryPort library, IFolderAddressPort addressing,
              CancellationToken ct)
                 => SaveFolderMappingAsync(
-                    request, principal, options, gate, credentials, client, library, addressing, ct))
+                    request, principal, options, gate, credentials, instances, library, addressing, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -218,7 +218,7 @@ public sealed partial class WhisparrSync
             OptionsStore options,
             OptionsWriteGate gate,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             ICoveLibraryPort library,
             IFolderAddressPort addressing,
             CancellationToken ct)
@@ -248,7 +248,7 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(Answering(FolderMappingSaveOutcome.Removed));
         }
 
-        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(Answering(FolderMappingSaveOutcome.NotConfigured));

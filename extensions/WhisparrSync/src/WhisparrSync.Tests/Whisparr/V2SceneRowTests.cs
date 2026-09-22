@@ -27,10 +27,6 @@ public sealed class V2SceneRowTests
 
     private const int SecondRowId = 813;
 
-    private static readonly Uri Address = new("http://whisparr:6969");
-
-    private const string ApiKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
-
     private const int SecondSiteNumber = 5998;
 
     private const int UnheldSiteNumber = 4242;
@@ -50,8 +46,7 @@ public sealed class V2SceneRowTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, """{"id":1}""");
         var client = SiteClient(handler, TestSiteNumbers.Numbering(StoredSiteId, SiteId));
 
-        var answered = await ((IWhisparrSiteRegistrationActing)client).RegisterSiteAsync(
-            Address, ApiKey, StoredSiteId, Defaults, TestCt);
+        var answered = await ((IWhisparrSiteRegistrationActing)client).RegisterSiteAsync(StoredSiteId, Defaults, TestCt);
 
         Assert.Equal(MonitorRefusalKind.None, MonitoringProjector.Accepted(answered));
         var sent = Assert.Single(handler.Requests);
@@ -71,8 +66,7 @@ public sealed class V2SceneRowTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, answered);
         var client = SiteClient(handler, new TestSiteNumbers());
 
-        var read = await ((IWhisparrStudioActing)client).ReadStudioAsync(
-            Address, ApiKey, WhisparrGeneration.V2, StoredSiteId, TestCt);
+        var read = await ((IWhisparrStudioActing)client).ReadStudioAsync(StoredSiteId, TestCt);
 
         // The recorded query, never the recorded path: AbsolutePath alone cannot tell a read of one
         // site from one that asked the instance for its whole catalogue.
@@ -95,8 +89,7 @@ public sealed class V2SceneRowTests
             HttpStatusCode.OK, """[{"tvdbId":5999,"title":"Jay Bank Presents"}]""");
         var client = SiteClient(handler, new TestSiteNumbers());
 
-        var read = await ((IWhisparrStudioActing)client).ReadStudioAsync(
-            Address, ApiKey, WhisparrGeneration.V2, StoredSiteId, TestCt);
+        var read = await ((IWhisparrStudioActing)client).ReadStudioAsync(StoredSiteId, TestCt);
 
         Assert.Equal(
             MonitoringProjector.EntityReading.NotHeld, MonitoringProjector.Classify(read).Reading);
@@ -111,8 +104,7 @@ public sealed class V2SceneRowTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
         var client = SiteClient(handler, new TestSiteNumbers());
 
-        var read = await ((IWhisparrStudioActing)client).ReadStudioAsync(
-            Address, ApiKey, WhisparrGeneration.V2, StoredSiteId, TestCt);
+        var read = await ((IWhisparrStudioActing)client).ReadStudioAsync(StoredSiteId, TestCt);
 
         Assert.Equal(
             MonitorRefusalKind.NoIdentityInThisNamespace,
@@ -125,11 +117,7 @@ public sealed class V2SceneRowTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, """{"id":1}""");
         var client = SiteClient(handler, TestSiteNumbers.Numbering(StoredSiteId, SiteId));
 
-        await ((IWhisparrStudioActing)client).AddMonitoredStudioAsync(
-            Address,
-            ApiKey,
-            WhisparrGeneration.V2,
-            StoredSiteId,
+        await ((IWhisparrStudioActing)client).AddMonitoredStudioAsync(StoredSiteId,
             MonitorScope.FutureScenes,
             Defaults,
             TestCt);
@@ -152,8 +140,7 @@ public sealed class V2SceneRowTests
         var client = SiteClient(
             handler, new TestSiteNumbers().Answering(StoredSiteId, WhisparrSiteNumber.NamesNone));
 
-        var answered = await ((IWhisparrSiteRegistrationActing)client).RegisterSiteAsync(
-            Address, ApiKey, StoredSiteId, Defaults, TestCt);
+        var answered = await ((IWhisparrSiteRegistrationActing)client).RegisterSiteAsync(StoredSiteId, Defaults, TestCt);
 
         Assert.Equal(
             MonitorRefusalKind.NoIdentityInThisNamespace, MonitoringProjector.Accepted(answered));
@@ -170,8 +157,7 @@ public sealed class V2SceneRowTests
         var client = SiteClient(
             handler, new TestSiteNumbers().Answering(StoredSiteId, WhisparrSiteNumber.NotReached));
 
-        var answered = await ((IWhisparrSiteRegistrationActing)client).RegisterSiteAsync(
-            Address, ApiKey, StoredSiteId, Defaults, TestCt);
+        var answered = await ((IWhisparrSiteRegistrationActing)client).RegisterSiteAsync(StoredSiteId, Defaults, TestCt);
 
         Assert.NotEqual(
             MonitorRefusalKind.NoIdentityInThisNamespace, MonitoringProjector.Accepted(answered));
@@ -188,8 +174,7 @@ public sealed class V2SceneRowTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, """{"id":1}""");
         var client = SiteClient(handler, new TestSiteNumbers());
 
-        await ((IWhisparrSiteRegistrationActing)client).RegisterSiteAsync(
-            Address, ApiKey, SiteId.ToString(CultureInfo.InvariantCulture), Defaults, TestCt);
+        await ((IWhisparrSiteRegistrationActing)client).RegisterSiteAsync(SiteId.ToString(CultureInfo.InvariantCulture), Defaults, TestCt);
 
         Assert.Equal(SiteId, Sent(Assert.Single(handler.Requests).Body)["tvdbId"]!.GetValue<int>());
     }
@@ -202,13 +187,8 @@ public sealed class V2SceneRowTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, """{"id":1}""");
         var client = SiteClient(handler, TestSiteNumbers.Numbering(StoredSiteId, SiteId));
 
-        await ((IWhisparrSiteRegistrationActing)client).RegisterSiteAsync(
-            Address, ApiKey, StoredSiteId, Defaults, TestCt);
-        await ((IWhisparrStudioActing)client).AddMonitoredStudioAsync(
-            Address,
-            ApiKey,
-            WhisparrGeneration.V2,
-            StoredSiteId,
+        await ((IWhisparrSiteRegistrationActing)client).RegisterSiteAsync(StoredSiteId, Defaults, TestCt);
+        await ((IWhisparrStudioActing)client).AddMonitoredStudioAsync(StoredSiteId,
             MonitorScope.AllScenes,
             Defaults,
             TestCt);
@@ -231,8 +211,7 @@ public sealed class V2SceneRowTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, ASiteList());
         var client = SiteClient(handler, new TestSiteNumbers());
 
-        var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync(
-            Address, ApiKey, [SiteId, SecondSiteNumber], TestCt);
+        var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync([SiteId, SecondSiteNumber], TestCt);
 
         Assert.Equal([SecondSiteNumber, SiteId], held.Order());
         Assert.Single(handler.Requests);
@@ -244,8 +223,7 @@ public sealed class V2SceneRowTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, ASiteList());
         var client = SiteClient(handler, new TestSiteNumbers());
 
-        var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync(
-            Address, ApiKey, [SiteId, UnheldSiteNumber], TestCt);
+        var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync([SiteId, UnheldSiteNumber], TestCt);
 
         Assert.Equal([SiteId], held);
     }
@@ -256,8 +234,7 @@ public sealed class V2SceneRowTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, ASiteList());
         var client = SiteClient(handler, new TestSiteNumbers());
 
-        var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync(
-            Address, ApiKey, [], TestCt);
+        var held = await ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync([], TestCt);
 
         Assert.Empty(held);
         Assert.Empty(handler.Requests);
@@ -275,8 +252,7 @@ public sealed class V2SceneRowTests
             BodyRecordingHandler.Answering(status, answered), new TestSiteNumbers());
 
         await Assert.ThrowsAsync<HttpRequestException>(
-            () => ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync(
-                Address, ApiKey, [SiteId], TestCt));
+            () => ((IWhisparrHeldSiteReading)client).ReduceHeldSitesAsync([SiteId], TestCt));
     }
 
     // Holds more rows than any case asks about, so a read answering the whole list rather than the
@@ -294,9 +270,10 @@ public sealed class V2SceneRowTests
         return rows.ToJsonString();
     }
 
-    private static WhisparrClient SiteClient(
+    private static IWhisparrClient SiteClient(
         BodyRecordingHandler handler, ISiteNumberPort siteNumbers)
-        => TestWhisparrClient.Over(handler, siteNumbers: siteNumbers);
+        => TestWhisparrClient.Over(
+            handler, siteNumbers: siteNumbers, generation: WhisparrGeneration.V2);
 
     private static JsonObject Sent(string body)
         => Assert.IsType<JsonObject>(JsonNode.Parse(body));
@@ -326,10 +303,10 @@ public sealed class V2SceneRowTests
     public async Task TheRowReadAnswersOnlyTheNumbersItWasAskedAbout()
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, ASiteListing());
-        var client = TestWhisparrClient.Over(handler);
+        var client = TestWhisparrClient.Over(handler, generation: WhisparrGeneration.V2);
 
-        var rows = await client.ReduceSiteSceneRowsAsync(
-            Address, ApiKey, SiteId, [FirstSceneNumber, SecondSceneNumber], TestCt);
+        var rows = await ((IWhisparrSiteSceneReading)client)
+            .ReduceSiteSceneRowsAsync(SiteId, [FirstSceneNumber, SecondSceneNumber], TestCt);
 
         Assert.Equal(2, rows.Count);
         Assert.Equal(FirstRowId, rows[FirstSceneNumber]);
@@ -342,10 +319,11 @@ public sealed class V2SceneRowTests
     public async Task ANumberTheListDoesNotCarryIsAbsentRatherThanZero()
     {
         var client = TestWhisparrClient.Over(
-            BodyRecordingHandler.Answering(HttpStatusCode.OK, ASiteListing()));
+            BodyRecordingHandler.Answering(HttpStatusCode.OK, ASiteListing()),
+            generation: WhisparrGeneration.V2);
 
-        var rows = await client.ReduceSiteSceneRowsAsync(
-            Address, ApiKey, SiteId, [FirstSceneNumber, UnlistedSceneNumber], TestCt);
+        var rows = await ((IWhisparrSiteSceneReading)client)
+            .ReduceSiteSceneRowsAsync(SiteId, [FirstSceneNumber, UnlistedSceneNumber], TestCt);
 
         Assert.Single(rows);
         Assert.DoesNotContain(UnlistedSceneNumber, rows.Keys);
@@ -358,20 +336,22 @@ public sealed class V2SceneRowTests
     [InlineData(HttpStatusCode.OK, "{}")]
     public async Task AnAnswerTheReadCouldNotReadRaises(HttpStatusCode status, string answered)
     {
-        var client = TestWhisparrClient.Over(BodyRecordingHandler.Answering(status, answered));
+        var client = TestWhisparrClient.Over(
+            BodyRecordingHandler.Answering(status, answered), generation: WhisparrGeneration.V2);
 
         await Assert.ThrowsAsync<HttpRequestException>(
-            () => client.ReduceSiteSceneRowsAsync(
-                Address, ApiKey, SiteId, [FirstSceneNumber], TestCt));
+            () => ((IWhisparrSiteSceneReading)client)
+                .ReduceSiteSceneRowsAsync(SiteId, [FirstSceneNumber], TestCt));
     }
 
     [Fact]
     public async Task AnEmptyInputSendsNoRequestAtAll()
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, ASiteListing());
-        var client = TestWhisparrClient.Over(handler);
+        var client = TestWhisparrClient.Over(handler, generation: WhisparrGeneration.V2);
 
-        var rows = await client.ReduceSiteSceneRowsAsync(Address, ApiKey, SiteId, [], TestCt);
+        var rows = await ((IWhisparrSiteSceneReading)client)
+            .ReduceSiteSceneRowsAsync(SiteId, [], TestCt);
 
         Assert.Empty(rows);
         Assert.Empty(handler.Requests);

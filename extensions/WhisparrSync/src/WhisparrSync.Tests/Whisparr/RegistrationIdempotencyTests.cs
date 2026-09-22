@@ -38,8 +38,8 @@ public sealed class RegistrationIdempotencyTests
     {
         var client = ClientAnswering(listBefore: "[]", listAfter: ListHolding(Address));
 
-        var outcome = await new NotificationPort(client, NullLogger.Instance)
-            .RegisterAsync(WhisparrGeneration.V3, Instance, ApiKey, Address, Secret, TestCt);
+        var outcome = await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .RegisterAsync(Bound(client), Address, Secret, TestCt);
 
         Assert.Equal(RegistrationStatus.Registered, outcome.Status);
         Assert.True(outcome.Created);
@@ -62,8 +62,8 @@ public sealed class RegistrationIdempotencyTests
         var client = ClientAnswering(
             listBefore: ListHolding(Address), listAfter: ListHolding(MovedAddress));
 
-        var outcome = await new NotificationPort(client, NullLogger.Instance)
-            .RegisterAsync(WhisparrGeneration.V3, Instance, ApiKey, MovedAddress, Secret, TestCt);
+        var outcome = await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .RegisterAsync(Bound(client), MovedAddress, Secret, TestCt);
 
         Assert.Equal(RegistrationStatus.Registered, outcome.Status);
         Assert.False(outcome.Created);
@@ -87,8 +87,8 @@ public sealed class RegistrationIdempotencyTests
         var client = ClientAnswering(
             listBefore: ListHolding(Address), listAfter: ListHolding(MovedAddress));
 
-        await new NotificationPort(client, NullLogger.Instance)
-            .RegisterAsync(WhisparrGeneration.V3, Instance, ApiKey, MovedAddress, Secret, TestCt);
+        await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .RegisterAsync(Bound(client), MovedAddress, Secret, TestCt);
 
         Assert.Equal(
             2,
@@ -104,8 +104,8 @@ public sealed class RegistrationIdempotencyTests
             listBefore: ListHolding(Address, "\"aFieldThisBuildCarries\":\"keep-me\","),
             listAfter: ListHolding(MovedAddress));
 
-        await new NotificationPort(client, NullLogger.Instance)
-            .RegisterAsync(WhisparrGeneration.V3, Instance, ApiKey, MovedAddress, Secret, TestCt);
+        await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .RegisterAsync(Bound(client), MovedAddress, Secret, TestCt);
 
         var update = client.Notifications
             .Single(call => call.Verb == nameof(IWhisparrClient.UpdateNotificationAsync))
@@ -126,8 +126,8 @@ public sealed class RegistrationIdempotencyTests
         client.Answering(
             nameof(IWhisparrClient.UpdateNotificationAsync), RecordingWhisparrClient.Json(202, "{}"));
 
-        var outcome = await new NotificationPort(client, NullLogger.Instance)
-            .RegisterAsync(WhisparrGeneration.V3, Instance, ApiKey, MovedAddress, Secret, TestCt);
+        var outcome = await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .RegisterAsync(Bound(client), MovedAddress, Secret, TestCt);
 
         Assert.Equal(RegistrationStatus.NotRegistered, outcome.Status);
         Assert.NotNull(outcome.Refusal);
@@ -151,8 +151,8 @@ public sealed class RegistrationIdempotencyTests
                   "propertyName":"Name"}]
                 """));
 
-        var outcome = await new NotificationPort(client, NullLogger.Instance)
-            .RegisterAsync(WhisparrGeneration.V3, Instance, ApiKey, Address, Secret, TestCt);
+        var outcome = await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .RegisterAsync(Bound(client), Address, Secret, TestCt);
 
         Assert.Equal(RegistrationStatus.NotRegistered, outcome.Status);
         Assert.Equal(
@@ -166,10 +166,11 @@ public sealed class RegistrationIdempotencyTests
     public async Task TheRegistrationCarriesTheSecretInTheFieldsThatGenerationUses(
         WhisparrGeneration generation, string expectedExtraFields)
     {
-        var client = ClientAnswering(listBefore: "[]", listAfter: ListHolding(Address));
+        var client = ClientAnswering(
+            listBefore: "[]", listAfter: ListHolding(Address), generation: generation);
 
-        await new NotificationPort(client, NullLogger.Instance)
-            .RegisterAsync(generation, Instance, ApiKey, Address, Secret, TestCt);
+        await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .RegisterAsync(Bound(client), Address, Secret, TestCt);
 
         var body = client.Notifications
             .Single(call => call.Verb == nameof(IWhisparrClient.CreateNotificationAsync))
@@ -188,8 +189,8 @@ public sealed class RegistrationIdempotencyTests
     {
         var client = ClientAnswering(listBefore: "[]", listAfter: ListHolding(Address));
 
-        await new NotificationPort(client, NullLogger.Instance)
-            .RegisterAsync(WhisparrGeneration.V3, Instance, ApiKey, Address, Secret, TestCt);
+        await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .RegisterAsync(Bound(client), Address, Secret, TestCt);
 
         var body = (JsonObject)client.Notifications
             .Single(call => call.Verb == nameof(IWhisparrClient.CreateNotificationAsync))
@@ -214,8 +215,8 @@ public sealed class RegistrationIdempotencyTests
                   "configContract":"AnEchoedContract","onDownload":false,"fields":[]}]
                 """));
 
-        await new NotificationPort(client, NullLogger.Instance)
-            .RegisterAsync(WhisparrGeneration.V3, Instance, ApiKey, Address, Secret, TestCt);
+        await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .RegisterAsync(Bound(client), Address, Secret, TestCt);
 
         var body = client.Notifications
             .Single(call => call.Verb == nameof(IWhisparrClient.CreateNotificationAsync))
@@ -231,15 +232,19 @@ public sealed class RegistrationIdempotencyTests
     {
         var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "[]"));
 
-        var outcome = await new NotificationPort(client, NullLogger.Instance).ReadAsync(Instance, ApiKey, TestCt);
+        var outcome = await new NotificationPort(new FixedInstanceFactory(client), NullLogger.Instance)
+            .ReadAsync(Bound(client), TestCt);
 
         Assert.Equal(RegistrationStatus.NotRegistered, outcome.Status);
         Assert.Null(outcome.StoredAddress);
     }
 
-    private static RecordingWhisparrClient ClientAnswering(string listBefore, string listAfter)
+    private static RecordingWhisparrClient ClientAnswering(
+        string listBefore, string listAfter, WhisparrGeneration generation = WhisparrGeneration.V3)
     {
-        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "[]"));
+        var client = new RecordingWhisparrClient(
+            RecordingWhisparrClient.Json(200, "[]"),
+            new WhisparrBinding(generation, Instance, ApiKey));
         client.Answering(
             nameof(IWhisparrClient.ReadNotificationSchemaAsync),
             RecordingWhisparrClient.Json(200, Schema));
@@ -253,6 +258,8 @@ public sealed class RegistrationIdempotencyTests
             nameof(IWhisparrClient.UpdateNotificationAsync), RecordingWhisparrClient.Json(202, "{}"));
         return client;
     }
+
+    private static WhisparrBinding Bound(RecordingWhisparrClient client) => client.Binding;
 
     private static string? UrlFieldOf(JsonNode body)
         => ((JsonArray)body["fields"]!)

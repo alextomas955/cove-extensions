@@ -23,21 +23,21 @@ public sealed partial class WhisparrSync
         endpoints.MapGet(MissingPageRoute,
             (string kind, int coveId, int? page, int? perPage, string? sort, string? q,
              string? filters, bool? menusHeld, ICurrentPrincipalAccessor principal,
-             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
              ProviderEndpointPort endpoints, MissingPagePlanner planner, CancellationToken ct)
                 => ReadMissingPageAsync(
                     kind, coveId, page, perPage, sort, q, filters, menusHeld, principal, options,
-                    credentials, client, endpoints, planner, _log, ct))
+                    credentials, instances, endpoints, planner, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
         endpoints.MapGet(MissingCountRoute,
             (string kind, int coveId, string? q, string? filters,
              ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
-             IWhisparrClient client, ProviderEndpointPort endpoints, MissingPagePlanner planner,
+             IWhisparrInstanceFactory instances, ProviderEndpointPort endpoints, MissingPagePlanner planner,
              CancellationToken ct)
                 => ReadMissingCountAsync(
-                    kind, coveId, q, filters, principal, options, credentials, client, endpoints,
+                    kind, coveId, q, filters, principal, options, credentials, instances, endpoints,
                     planner, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
@@ -69,7 +69,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             ProviderEndpointPort endpoints,
             MissingPagePlanner planner,
             ILogger log,
@@ -88,7 +88,7 @@ public sealed partial class WhisparrSync
         }
 
         var context = await ResolveMissingContextAsync(
-                options, credentials, client, endpoints, ct)
+                options, credentials, instances, endpoints, ct)
             .ConfigureAwait(false);
         if (context is null)
         {
@@ -133,7 +133,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             ProviderEndpointPort endpoints,
             MissingPagePlanner planner,
             ILogger log,
@@ -150,7 +150,7 @@ public sealed partial class WhisparrSync
         }
 
         var context = await ResolveMissingContextAsync(
-                options, credentials, client, endpoints, ct)
+                options, credentials, instances, endpoints, ct)
             .ConfigureAwait(false);
         if (context is null)
         {
@@ -246,7 +246,7 @@ public sealed partial class WhisparrSync
     private static async Task<MissingPageContext?> ResolveMissingContextAsync(
         OptionsStore options,
         ICredentialPort credentials,
-        IWhisparrClient client,
+        IWhisparrInstanceFactory instances,
         ProviderEndpointPort endpoints,
         CancellationToken ct)
     {
@@ -264,7 +264,8 @@ public sealed partial class WhisparrSync
             return null;
         }
 
-        var capabilities = GenerationCapabilities.For(generation, WhisparrRoleSet.From(client));
+        var binding = new WhisparrBinding(generation, baseAddress, apiKey);
+        var capabilities = GenerationCapabilities.For(generation, instances.Bound(binding));
         var exclusions = capabilities
             .Obtain<IWhisparrSceneExclusionReading>()
             .Match<IWhisparrSceneExclusionReading?>(held => held, _ => null);
@@ -273,7 +274,7 @@ public sealed partial class WhisparrSync
             .Match<IWhisparrEntityCatalogueReading?>(held => held, _ => null);
 
         return new MissingPageContext(
-            new WhisparrBinding(generation, baseAddress, apiKey),
+            binding,
             endpoints.Resolve(generation, stored.MetadataProviderEndpoints),
             exclusions,
             catalogue);

@@ -19,7 +19,7 @@ public interface IWhisparrConnectionTester
     Task<ConnectionTestView> TestAsync(string? address, string? apiKey, CancellationToken ct);
 }
 
-internal sealed class ConnectionTester(IWhisparrClient client, ILogger<ConnectionTester> logger)
+internal sealed class ConnectionTester(WhisparrTransport transport, ILogger<ConnectionTester> logger)
     : IWhisparrConnectionTester
 {
     // How much of a name the answering instance chose is echoed back. The version is bounded by the
@@ -36,7 +36,7 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
         ConnectionObservation observation;
         try
         {
-            var response = await client.ReadStatusAsync(baseAddress, apiKey, ct).ConfigureAwait(false);
+            var response = await transport.ReadStatusAsync(baseAddress, apiKey, ct).ConfigureAwait(false);
             observation = ConnectionObservation.Answered(
                 response.StatusCode,
                 response.ContentType,

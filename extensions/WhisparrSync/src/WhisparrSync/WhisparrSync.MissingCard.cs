@@ -24,11 +24,11 @@ public sealed partial class WhisparrSync
         // Configure tier, as the bulk route: one scene is no lesser act than a selection of them.
         endpoints.MapPost(MissingSceneMonitorRoute,
             (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal,
-             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
              IEntityIdentityPort identities, InstanceCatalogueCache cache,
              IServiceScopeFactory scopes, CancellationToken ct)
                 => MonitorMissingSceneAsync(
-                    kind, coveId, providerSceneId, principal, options, credentials, client,
+                    kind, coveId, providerSceneId, principal, options, credentials, instances,
                     identities, cache, scopes, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
@@ -37,10 +37,10 @@ public sealed partial class WhisparrSync
         // reader's indexer traffic and disk.
         endpoints.MapPost(MissingSceneSearchRoute,
             (string kind, int coveId, string providerSceneId, ICurrentPrincipalAccessor principal,
-             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
              CancellationToken ct)
                 => SearchMissingSceneAsync(
-                    kind, coveId, providerSceneId, principal, options, credentials, client, _log, ct))
+                    kind, coveId, providerSceneId, principal, options, credentials, instances, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -60,7 +60,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             IEntityIdentityPort identities,
             InstanceCatalogueCache cache,
             IServiceScopeFactory scopes,
@@ -81,7 +81,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.DidNotReachWhisparr));
@@ -108,14 +108,14 @@ public sealed partial class WhisparrSync
         }
 
         var profiles = await ContainedAsync(
-            () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, ct),
+            () => target.Reads.ReadQualityProfilesAsync(ct),
             target,
             log,
             ct).ConfigureAwait(false);
         var roots = profiles is null
             ? null
             : await ContainedAsync(
-                () => target.Reads.ReadRootFoldersAsync(target.BaseAddress, target.ApiKey, ct),
+                () => target.Reads.ReadRootFoldersAsync(ct),
                 target,
                 log,
                 ct).ConfigureAwait(false);
@@ -139,7 +139,7 @@ public sealed partial class WhisparrSync
 
         var added = await ContainedAsync(
             () => acting.AddSceneAsync(
-                target.BaseAddress, target.ApiKey, providerSceneId, composeWith, ct),
+                providerSceneId, composeWith, ct),
             target,
             log,
             ct).ConfigureAwait(false);
@@ -179,7 +179,7 @@ public sealed partial class WhisparrSync
                 NothingWasSent(MissingSceneActionRefusal.CapabilityAbsentOnThisGeneration));
         }
 
-        var identity = await identities.ResolveAsync(owning, coveId, target.Generation, ct)
+        var identity = await identities.ResolveAsync(owning, coveId, target.Binding.Generation, ct)
             .ConfigureAwait(false);
         if (identity.ForeignId is not { Length: > 0 } foreignId)
         {
@@ -187,13 +187,13 @@ public sealed partial class WhisparrSync
                 NothingWasSent(MissingSceneActionRefusal.CapabilityAbsentOnThisGeneration));
         }
 
-        var scenes = cache.Held(target.Generation, owning, foreignId);
+        var scenes = cache.Held(target.Binding.Generation, owning, foreignId);
         if (scenes is null)
         {
             // The catalogue read answers its own refusals rather than raising, so it is called
             // directly: there is no contained failure for the shared helper to classify.
             var answered = await reading.ReadEntityCatalogueAsync(
-                target.BaseAddress, target.ApiKey, target.Generation, owning, foreignId, ct)
+                owning, foreignId, ct)
                 .ConfigureAwait(false);
             if (answered.Scenes is not { } listed)
             {
@@ -204,7 +204,7 @@ public sealed partial class WhisparrSync
                             : MissingSceneActionRefusal.DidNotReachWhisparr));
             }
 
-            cache.Hold(target.Generation, owning, foreignId, listed);
+            cache.Hold(target.Binding.Generation, owning, foreignId, listed);
             scenes = listed;
         }
 
@@ -238,9 +238,6 @@ public sealed partial class WhisparrSync
 
         var marked = await ContainedAsync(
             () => marking.SetSceneMonitoredAsync(
-                target.BaseAddress,
-                target.ApiKey,
-                target.Generation,
                 row.InstanceSceneId,
                 monitored: true,
                 ct),
@@ -309,7 +306,7 @@ public sealed partial class WhisparrSync
 
         var answered = await ContainedAsync(
             () => acting.SetStudioMonitoredAsync(
-                target.BaseAddress, target.ApiKey, target.Generation, entityId, monitored: true, ct),
+                entityId, monitored: true, ct),
             target,
             log,
             ct).ConfigureAwait(false);
@@ -331,7 +328,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             ILogger log,
             CancellationToken ct)
     {
@@ -346,7 +343,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(NothingWasSent(MissingSceneActionRefusal.DidNotReachWhisparr));
@@ -365,7 +362,7 @@ public sealed partial class WhisparrSync
 
         var answered = await ContainedAsync(
             () => reading.ReadSceneByRemoteIdAsync(
-                target.BaseAddress, target.ApiKey, providerSceneId, ct),
+                providerSceneId, ct),
             target,
             log,
             ct).ConfigureAwait(false);
@@ -393,7 +390,7 @@ public sealed partial class WhisparrSync
         }
 
         var searched = await ContainedAsync(
-            () => searching.SearchSceneAsync(target.BaseAddress, target.ApiKey, sceneId, ct),
+            () => searching.SearchSceneAsync(sceneId, ct),
             target,
             log,
             ct).ConfigureAwait(false);
@@ -411,7 +408,7 @@ public sealed partial class WhisparrSync
         }
 
         var readBack = await ContainedAsync(
-            () => target.Reads.ReadCommandAsync(target.BaseAddress, target.ApiKey, commandId, ct),
+            () => target.Reads.ReadCommandAsync(commandId, ct),
             target,
             log,
             ct).ConfigureAwait(false);

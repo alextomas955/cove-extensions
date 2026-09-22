@@ -71,9 +71,13 @@ public sealed partial class WhisparrSync : FullExtensionBase
 
             // Built here rather than from the container, so the transport writes to this extension's
             // own logger for the same reason every other service constructed above does.
-            .AddTypedClient((client, _) => new WhisparrTransport(client, _log));
+            .AddTypedClient((http, provider) => new WhisparrTransport(
+                http, provider.GetRequiredService<Whisparr3Gateway>(), _log));
 
-        services.AddTransient<IWhisparrClient>(services => new WhisparrClient(
+        // The factory rather than an instance: which generation is connected is a stored setting
+        // read per request, so an instance registered here would predate the connection it
+        // describes.
+        services.AddTransient<IWhisparrInstanceFactory>(services => new WhisparrInstanceFactory(
             services.GetRequiredService<WhisparrTransport>(),
             services.GetRequiredService<Whisparr3Gateway>(),
             services.GetRequiredService<Whisparr2Gateway>(),
@@ -88,8 +92,8 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services.GetService<CoveConfiguration>(), services.GetService<IUserService>()));
         services.AddScoped<ICallbackSecretPort>(
             services => new CallbackSecretPort(services.GetRequiredService<DbContext>(), _log));
-        services.AddScoped<IWhisparrNotificationPort>(
-            services => new NotificationPort(services.GetRequiredService<IWhisparrClient>(), _log));
+        services.AddScoped<IWhisparrNotificationPort>(services => new NotificationPort(
+            services.GetRequiredService<IWhisparrInstanceFactory>(), _log));
         services.AddScoped(_ => NewOptionsStore());
         services.AddScoped<IEntityIdentityPort>(services => new EntityIdentityPort(
             services.GetRequiredService<DbContext>(),
@@ -115,7 +119,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddSingleton(services => new SyncPreviewCache(services.GetRequiredService<TimeProvider>()));
         services.AddScoped<IImportPathPort, ImportPathPort>();
         services.AddScoped<IReportedRootPort>(services => new ReportedRootPort(
-            services.GetRequiredService<IWhisparrClient>(),
+            services.GetRequiredService<IWhisparrInstanceFactory>(),
             services.GetRequiredService<OptionsStore>(),
             services.GetRequiredService<ICredentialPort>(),
             services.GetRequiredService<ReportedRootCache>(),
@@ -135,7 +139,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddSingleton(services => new FollowUpScanCoalescer(
             services.GetRequiredService<TimeProvider>(), _log));
         services.AddScoped<IBackstopPass>(services => new BackstopPass(
-            services.GetRequiredService<IWhisparrClient>(),
+            services.GetRequiredService<IWhisparrInstanceFactory>(),
             services.GetRequiredService<OptionsStore>(),
             services.GetRequiredService<OptionsWriteGate>(),
             services.GetRequiredService<ICredentialPort>(),

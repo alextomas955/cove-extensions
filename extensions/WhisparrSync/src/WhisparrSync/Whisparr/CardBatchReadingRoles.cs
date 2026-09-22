@@ -57,12 +57,7 @@ public interface IWhisparrEntityBatchReading
     /// of, which is the opposite of the truth.
     /// </exception>
     Task<WhisparrHeldCards> ReadHeldEntitiesAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
-        WhisparrEntityKind kind,
-        IReadOnlyList<string> foreignIds,
-        CancellationToken ct);
+        WhisparrEntityKind kind, IReadOnlyList<string> foreignIds, CancellationToken ct);
 }
 
 /// <summary>Reads what the instance holds for many scenes in one request.</summary>
@@ -72,5 +67,5 @@ public interface IWhisparrSceneBatchReading
     /// <summary>Reads which of <paramref name="foreignIds"/> the instance holds, and how.</summary>
     /// <inheritdoc cref="IWhisparrEntityBatchReading.ReadHeldEntitiesAsync" path="/exception"/>
     Task<WhisparrHeldCards> ReadHeldSceneCardsAsync(
-        Uri baseAddress, string apiKey, IReadOnlyList<string> foreignIds, CancellationToken ct);
+        IReadOnlyList<string> foreignIds, CancellationToken ct);
 }

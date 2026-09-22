@@ -24,10 +24,10 @@ public sealed partial class WhisparrSync
         // composes no write.
         endpoints.MapGet(SceneDetailRoute,
             (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrClient client,
+             ICredentialPort credentials, IWhisparrInstanceFactory instances,
              ILibraryCardIdentityPort sceneCards, CancellationToken ct)
                 => SceneDetailAsync(
-                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+                    coveId, principal, options, credentials, instances, sceneCards, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
 
@@ -36,47 +36,47 @@ public sealed partial class WhisparrSync
         // is a path segment, so a caller cannot name one in a body.
         endpoints.MapPost(SceneAddRoute,
             (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrClient client,
+             ICredentialPort credentials, IWhisparrInstanceFactory instances,
              ILibraryCardIdentityPort sceneCards, IServiceScopeFactory scopes,
              CancellationToken ct)
                 => AddSceneAsync(
-                    coveId, principal, options, credentials, client, sceneCards, scopes, _log, ct))
+                    coveId, principal, options, credentials, instances, sceneCards, scopes, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
         endpoints.MapPost(SceneMonitorRoute,
             (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrClient client,
+             ICredentialPort credentials, IWhisparrInstanceFactory instances,
              ILibraryCardIdentityPort sceneCards, CancellationToken ct)
                 => MonitorSceneAsync(
-                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+                    coveId, principal, options, credentials, instances, sceneCards, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
         endpoints.MapPost(SceneUnmonitorRoute,
             (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrClient client,
+             ICredentialPort credentials, IWhisparrInstanceFactory instances,
              ILibraryCardIdentityPort sceneCards, CancellationToken ct)
                 => UnmonitorSceneAsync(
-                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+                    coveId, principal, options, credentials, instances, sceneCards, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
         endpoints.MapPost(SceneExcludeRoute,
             (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrClient client,
+             ICredentialPort credentials, IWhisparrInstanceFactory instances,
              ILibraryCardIdentityPort sceneCards, CancellationToken ct)
                 => ExcludeSceneAsync(
-                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+                    coveId, principal, options, credentials, instances, sceneCards, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
         endpoints.MapPost(SceneRemoveExclusionRoute,
             (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrClient client,
+             ICredentialPort credentials, IWhisparrInstanceFactory instances,
              ILibraryCardIdentityPort sceneCards, CancellationToken ct)
                 => RemoveSceneExclusionAsync(
-                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+                    coveId, principal, options, credentials, instances, sceneCards, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -84,10 +84,10 @@ public sealed partial class WhisparrSync
         // and it spends the reader's indexer traffic and disk.
         endpoints.MapPost(SceneSearchRoute,
             (int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrClient client,
+             ICredentialPort credentials, IWhisparrInstanceFactory instances,
              ILibraryCardIdentityPort sceneCards, CancellationToken ct)
                 => SearchSceneNowAsync(
-                    coveId, principal, options, credentials, client, sceneCards, _log, ct))
+                    coveId, principal, options, credentials, instances, sceneCards, _log, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -102,7 +102,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             ILibraryCardIdentityPort sceneCards,
             ILogger log,
             CancellationToken ct)
@@ -121,13 +121,13 @@ public sealed partial class WhisparrSync
 
         ArgumentNullException.ThrowIfNull(sceneCards);
 
-        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(NothingWasSent(SceneRefusalKind.NoInstanceConnected));
         }
 
-        var identity = await sceneCards.ResolveOneAsync(coveId, target.Generation, ct)
+        var identity = await sceneCards.ResolveOneAsync(coveId, target.Binding.Generation, ct)
             .ConfigureAwait(false);
         if (identity.RemoteId is not { } remoteId)
         {
@@ -146,7 +146,7 @@ public sealed partial class WhisparrSync
 
         var answered = await ContainedAsync(
             () => reading.ReadSceneByRemoteIdAsync(
-                target.BaseAddress, target.ApiKey, remoteId, ct),
+                remoteId, ct),
             target,
             log,
             ct).ConfigureAwait(false);
@@ -164,7 +164,7 @@ public sealed partial class WhisparrSync
 
         // A profile read that answers nothing is not a failed tab: the scene's own facts stand.
         var profiles = await ContainedAsync(
-            () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, ct),
+            () => target.Reads.ReadQualityProfilesAsync(ct),
             target,
             log,
             ct).ConfigureAwait(false);

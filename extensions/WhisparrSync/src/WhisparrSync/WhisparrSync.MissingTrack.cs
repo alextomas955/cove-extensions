@@ -22,10 +22,10 @@ public sealed partial class WhisparrSync
         // configure the extension may not do.
         endpoints.MapPost(MissingTrackRoute,
             (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
+             ICredentialPort credentials, IWhisparrInstanceFactory instances, IEntityIdentityPort identities,
              InstanceCatalogueCache cache, CancellationToken ct)
                 => TrackEntityAsync(
-                    kind, coveId, principal, options, credentials, client, identities, cache, ct))
+                    kind, coveId, principal, options, credentials, instances, identities, cache, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -40,7 +40,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             IEntityIdentityPort identities,
             InstanceCatalogueCache cache,
             CancellationToken ct)
@@ -59,7 +59,7 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(
@@ -75,7 +75,7 @@ public sealed partial class WhisparrSync
         }
 
         var identity = await identities
-            .ResolveAsync(entityKind, coveId, target.Generation, ct)
+            .ResolveAsync(entityKind, coveId, target.Binding.Generation, ct)
             .ConfigureAwait(false);
         if (identity.ForeignId is not { Length: > 0 } foreignId)
         {
@@ -85,12 +85,12 @@ public sealed partial class WhisparrSync
         // The defaults the instance itself declares, read here rather than assumed: an add naming a
         // profile or a root the instance does not hold is refused by it.
         var profiles = await ReadOrNullAsync(
-            () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, ct))
+            () => target.Reads.ReadQualityProfilesAsync(ct))
             .ConfigureAwait(false);
         var roots = profiles is null
             ? null
             : await ReadOrNullAsync(
-                () => target.Reads.ReadRootFoldersAsync(target.BaseAddress, target.ApiKey, ct))
+                () => target.Reads.ReadRootFoldersAsync(ct))
                 .ConfigureAwait(false);
         if (profiles is null || roots is null)
         {
@@ -107,9 +107,6 @@ public sealed partial class WhisparrSync
         {
             answered = await tracking
                 .TrackEntityAsync(
-                    target.BaseAddress,
-                    target.ApiKey,
-                    target.Generation,
                     entityKind,
                     foreignId,
                     defaults,

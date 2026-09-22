@@ -23,7 +23,7 @@ internal static class BindingServices
         services.AddSingleton<ICurrentPrincipalAccessor>(_ => null!);
         services.AddSingleton<IConnectionTestRunner>(_ => null!);
         services.AddSingleton<IJobService>(_ => null!);
-        services.AddSingleton<IWhisparrClient>(_ => null!);
+        services.AddSingleton<IWhisparrInstanceFactory>(_ => null!);
         services.AddSingleton<IEntityIdentityPort>(_ => null!);
         services.AddSingleton<LibraryStatusPort>(_ => null!);
         services.AddSingleton<ILibraryCardIdentityPort>(_ => null!);

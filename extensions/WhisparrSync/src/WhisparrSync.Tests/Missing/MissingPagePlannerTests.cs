@@ -451,9 +451,6 @@ public sealed class MissingPagePlannerTests
         public string? AskedAbout { get; private set; }
 
         public Task<WhisparrEntityCatalogue> ReadEntityCatalogueAsync(
-            Uri baseAddress,
-            string apiKey,
-            WhisparrGeneration generation,
             WhisparrEntityKind kind,
             string foreignId,
             CancellationToken ct)

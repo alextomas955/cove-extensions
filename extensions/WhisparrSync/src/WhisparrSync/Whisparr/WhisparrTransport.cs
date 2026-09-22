@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Mime;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -9,7 +10,7 @@ namespace WhisparrSync.Whisparr;
 // What every outbound request crosses, whichever generation answers and whichever role issued it.
 // The bounds a request is sent under live here as one set, so an attempt's timeout, its redirect
 // cap and the size of answer that will be read are stated once rather than per generation.
-internal sealed class WhisparrTransport(HttpClient http, ILogger log)
+internal sealed class WhisparrTransport(HttpClient http, Whisparr3Gateway v3Gateway, ILogger log)
 {
     // The header both v2 and v3 authenticate an API request with.
     internal const string ApiKeyHeader = "X-Api-Key";
@@ -126,6 +127,60 @@ internal sealed class WhisparrTransport(HttpClient http, ILogger log)
         }
 
         return new Uri(builder.Uri, path);
+    }
+
+    // The read that establishes which generation answered, so it runs before one is known and cannot
+    // sit on an instance bound to one. Both generations serve this route; the version in the path is
+    // not the generation, and the Whisparr 3 generated client is what composes it for either.
+    //
+    // Returns whatever the instance answered, a non-success status included: classifying the answer
+    // belongs to the caller. Re-issued on the same failure and for the same reason every other read
+    // is, because a re-read creates nothing.
+    internal async Task<WhisparrResponse> ReadStatusAsync(
+        Uri baseAddress, string apiKey, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(baseAddress);
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+        if (!IsAddressable(baseAddress))
+        {
+            throw new ArgumentException(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"A Whisparr address must be an absolute http or https URL; the scheme given was '{baseAddress.Scheme}'."),
+                nameof(baseAddress));
+        }
+
+        var target = new Whisparr3Target(baseAddress, apiKey);
+        var attempts = WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read);
+        for (var attempt = 1; attempt < attempts; attempt++)
+        {
+            try
+            {
+                return await SendStatusAsync(target, ct).ConfigureAwait(false);
+            }
+            catch (Exception failure) when (failure is HttpRequestException or IOException)
+            {
+                // No whole answer arrived, which is the one failure a read may be re-issued after.
+            }
+        }
+
+        return await SendStatusAsync(target, ct).ConfigureAwait(false);
+    }
+
+    private async Task<WhisparrResponse> SendStatusAsync(
+        Whisparr3Target target, CancellationToken ct)
+    {
+        try
+        {
+            using var apis = v3Gateway.For(target);
+            return Whisparr3Gateway.Answered(
+                await apis.Api<Whisparr3.Net.Api.ISystemApi>().GetSystemStatusAsync(ct)
+                    .ConfigureAwait(false));
+        }
+        catch (AnswerTooLargeException beyond)
+        {
+            return BeyondReadBound(target.BaseAddress, beyond);
+        }
     }
 
     // For a read whose rows are consumed as they arrive. The bounded send buffers a whole answer

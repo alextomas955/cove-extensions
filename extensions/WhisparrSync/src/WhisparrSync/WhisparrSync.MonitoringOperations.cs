@@ -17,7 +17,7 @@ public sealed partial class WhisparrSync
         Func<string, CancellationToken, Task<WhisparrResponse>>? readEntity,
         CancellationToken ct)
     {
-        var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
+        var identity = await identities.ResolveAsync(kind, coveId, target.Binding.Generation, ct)
             .ConfigureAwait(false);
 
         if (readEntity is not { } reading || identity.ForeignId is not { } foreignId)
@@ -66,7 +66,7 @@ public sealed partial class WhisparrSync
         Func<AddDefaults, CancellationToken, Task<EntityAddDefaultsResolution>> composeAdd,
         CancellationToken ct)
     {
-        var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
+        var identity = await identities.ResolveAsync(kind, coveId, target.Binding.Generation, ct)
             .ConfigureAwait(false);
 
         if (actingFor is not { } aiming || identity.ForeignId is not { } foreignId)
@@ -95,14 +95,14 @@ public sealed partial class WhisparrSync
         }
 
         var profiles = await ContainedAsync(
-            () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, ct),
+            () => target.Reads.ReadQualityProfilesAsync(ct),
             target,
             log,
             ct).ConfigureAwait(false);
         var roots = profiles is null
             ? null
             : await ContainedAsync(
-                () => target.Reads.ReadRootFoldersAsync(target.BaseAddress, target.ApiKey, ct),
+                () => target.Reads.ReadRootFoldersAsync(ct),
                 target,
                 log,
                 ct).ConfigureAwait(false);
@@ -202,7 +202,7 @@ public sealed partial class WhisparrSync
         CancellationToken ct)
     {
         var acting = HeldActingFor(kind, target);
-        var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
+        var identity = await identities.ResolveAsync(kind, coveId, target.Binding.Generation, ct)
             .ConfigureAwait(false);
 
         if (acting is not { } actingFor || identity.ForeignId is not { } named)
@@ -311,7 +311,7 @@ public sealed partial class WhisparrSync
         CancellationToken ct)
     {
         var reading = HeldActingFor(kind, target);
-        var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
+        var identity = await identities.ResolveAsync(kind, coveId, target.Binding.Generation, ct)
             .ConfigureAwait(false);
 
         if (!searchHeld || reading is not { } actingFor || identity.ForeignId is not { } named)
@@ -336,7 +336,7 @@ public sealed partial class WhisparrSync
 
     private static EntityMonitoringView Refused(
         WhisparrEntityKind kind, MonitoringTarget target, MonitorRefusalKind refusal)
-        => EntityMonitoringView.Refused(kind, target.Generation, target.Capabilities.Held, refusal);
+        => EntityMonitoringView.Refused(kind, target.Binding.Generation, target.Capabilities.Held, refusal);
 
     private static EntityMonitoringView State(
         WhisparrEntityKind kind,
@@ -345,11 +345,11 @@ public sealed partial class WhisparrSync
         bool monitored,
         MonitorScope? scope)
         => EntityMonitoringView.State(
-            kind, target.Generation, target.Capabilities.Held, present, monitored, scope);
+            kind, target.Binding.Generation, target.Capabilities.Held, present, monitored, scope);
 
     // The instance's own answer is the only source of the scope. Neither acting path may substitute
     // the scope it asked for: this generation answers a body whose fields it dropped with a success.
     private static MonitorScope? ScopeHeld(
         WhisparrEntityKind kind, MonitoringTarget target, bool monitored, string? body)
-        => MonitoringProjector.ScopeIn(kind, target.Generation, monitored, body);
+        => MonitoringProjector.ScopeIn(kind, target.Binding.Generation, monitored, body);
 }

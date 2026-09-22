@@ -294,9 +294,7 @@ public sealed partial class WhisparrSync
         // two registrations overlapping that pair both find none and both create one.
         var outcome = await registrations.RunAsync(
             token => notifications.RegisterAsync(
-                generation,
-                baseAddress,
-                apiKey,
+                new WhisparrBinding(generation, baseAddress, apiKey),
                 TravelsOutOfBand(generation)
                     ? CallbackAddress.WithoutSecret(host, extensionId)
                     : CallbackAddress.WithSecret(host, extensionId, secret),
