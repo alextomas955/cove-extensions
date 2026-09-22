@@ -49,6 +49,7 @@ export function MissingSelectionBar({
   loadedPageIds,
   selected,
   outcome,
+  runUnderWay,
   onSelect,
   onMonitorSelection,
   onUnmonitorSelection,
@@ -57,6 +58,8 @@ export function MissingSelectionBar({
   loadedPageIds: readonly string[];
   selected: ReadonlySet<string>;
   outcome: SelectionOutcome;
+  /** Whether a run this browser started is still going. */
+  runUnderWay: boolean;
   /** The ids are always a subset of the loaded page. */
   onSelect: (ids: readonly string[]) => void;
   onMonitorSelection: () => void;
@@ -64,7 +67,9 @@ export function MissingSelectionBar({
 }) {
   const actions = selectionActionsFor(loadedPageIds, selected);
   const refusal = selectionOutcomeLine(outcome);
-  const inFlight = outcome.kind === "inFlight";
+  // The press settles in milliseconds and the run it started goes on, so the controls wait on
+  // the run: a bar that freed itself at the press would invite a second run over the same scenes.
+  const inFlight = outcome.kind === "inFlight" || runUnderWay;
 
   const bindings = useMemo(
     () =>
