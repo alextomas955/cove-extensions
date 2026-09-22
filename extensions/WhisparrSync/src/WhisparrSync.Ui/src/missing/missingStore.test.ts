@@ -154,6 +154,42 @@ describe("what the selection's own verb leaves behind", () => {
     expect(store.getSnapshot().bulk).toEqual({ kind: "atRest" });
   });
 
+  // The press's own answer is what the pill holds until a read lands. After that the read is the
+  // instance's own statement and the press's claim must not go on overriding it.
+  it("lets a page that has landed replace the state the last press claimed", () => {
+    const store = createMissingStore();
+    store.mounted(STUDIO);
+    store.beginRead(STUDIO, pageOf(1));
+    store.loaded(STUDIO, pageOf(1), answerFor(1));
+
+    const scene = "scene-on-page-1";
+    store.cardActionSettled(STUDIO, scene, { refusal: "none", state: "monitored" } as never);
+    expect(store.getSnapshot().cardActions[scene].optimistic).toBe("monitored");
+
+    store.beginRead(STUDIO, pageOf(1));
+    store.loaded(STUDIO, pageOf(1), answerFor(1));
+
+    expect(store.getSnapshot().cardActions[scene].optimistic).toBeNull();
+  });
+
+  // A press still in flight has no read of its own yet, so the state it claimed is all the pill
+  // has. A page landing underneath it must not blank the card mid-press.
+  it("keeps what an unsettled press claimed when a page lands under it", () => {
+    const store = createMissingStore();
+    store.mounted(STUDIO);
+    store.beginRead(STUDIO, pageOf(1));
+    store.loaded(STUDIO, pageOf(1), answerFor(1));
+
+    const scene = "scene-on-page-1";
+    store.beginCardAction(STUDIO, scene, "monitor");
+
+    store.beginRead(STUDIO, pageOf(1));
+    store.loaded(STUDIO, pageOf(1), answerFor(1));
+
+    expect(store.getSnapshot().cardActions[scene].optimistic).toBe("monitored");
+    expect(store.getSnapshot().cardActions[scene].inFlight).toBe("monitor");
+  });
+
   it("ignores an answer for an entity the reader has already left", () => {
     const store = createMissingStore();
     store.mounted(STUDIO);
