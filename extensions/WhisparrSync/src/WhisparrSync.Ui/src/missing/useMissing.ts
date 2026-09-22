@@ -170,15 +170,20 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
           const result = sceneActionIn(answered);
           if (result === null) {
             store.cardActionFailed(entity, providerSceneId);
-          } else {
-            store.cardActionSettled(entity, providerSceneId, result);
+            return;
           }
+
+          store.cardActionSettled(entity, providerSceneId, result);
+
+          // The pill holds what the press answered until this read lands, and then follows the
+          // read: what the instance holds is its own to state, not the press's to claim.
+          if (result.refusal === "none") refresh();
         })
         .catch(() => {
           store.cardActionFailed(entity, providerSceneId);
         });
     },
-    [store, kind, coveId],
+    [store, kind, coveId, refresh],
   );
 
   const monitorScene = useCallback(
