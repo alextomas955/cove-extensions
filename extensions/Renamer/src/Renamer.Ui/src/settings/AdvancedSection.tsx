@@ -219,7 +219,10 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             These are evaluated before any routing rule; a matching item is dropped from the batch
             entirely (neither renamed nor moved), so they are the safest way to fence off items you
             never want this extension to touch. All three flow through set() like every other control. */}
-      <CollapsibleSection title="Excludes" summary="Skip items by tag, studio, or source path">
+      <CollapsibleSection
+        title="Excludes"
+        summary="Skip items by tag, studio, or source path — before any routing"
+      >
         <GroupCard title="Exclude by tag">
           <EntitySelectField
             entityType="tag"
