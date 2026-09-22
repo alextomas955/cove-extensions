@@ -123,8 +123,6 @@ function recordedPage(count, { page: pageNumber = 1, lastPage = 1 } = {}) {
     facets: [],
     sorts: [],
     sortInForce: null,
-    statusWasRead: true,
-    statusIsPermanentlyAbsent: false,
   };
 }
 

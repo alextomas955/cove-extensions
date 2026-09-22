@@ -64,8 +64,6 @@ function pageWith(facets: MissingFacetMenu[]): MissingPageView {
     facets,
     sorts: SORTS,
     sortInForce: null,
-    statusWasRead: true,
-    statusIsPermanentlyAbsent: false,
     providerName: "a source",
   };
 }
