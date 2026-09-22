@@ -70,7 +70,7 @@ internal sealed class BodyRecordingHandler : HttpMessageHandler
     public static BodyRecordingHandler AnsweringPastTheReadBound()
         => Answering(
             HttpStatusCode.OK,
-            $"[\"{new string('a', (int)WhisparrClient.MaxResponseBytes)}\"]");
+            $"[\"{new string('a', (int)WhisparrTransport.MaxResponseBytes)}\"]");
 
     // The stream raises IOException after its first read. That is the base type the framework's own
     // HttpIOException derives from, so a filter this answer reaches is a filter a real connection

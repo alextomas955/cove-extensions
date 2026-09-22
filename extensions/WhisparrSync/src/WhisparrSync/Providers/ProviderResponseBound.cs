@@ -13,7 +13,7 @@ internal static class ProviderResponseBound
     {
         ArgumentNullException.ThrowIfNull(content);
 
-        var ceiling = WhisparrClient.MaxResponseBytes + 1;
+        var ceiling = WhisparrTransport.MaxResponseBytes + 1;
         var stream = await content.ReadAsStreamAsync(ct).ConfigureAwait(false);
         await using (stream.ConfigureAwait(false))
         {

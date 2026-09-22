@@ -10,7 +10,7 @@ namespace WhisparrSync.Whisparr;
 // per address-and-key pair rather than one per process.
 //
 // The redirect cap, the per-attempt timeout and the read bound are applied to every typed client the
-// registration creates. None is the generated client's default; each is stated in WhisparrClient.
+// registration creates. None is the generated client's default; each is stated on WhisparrTransport.
 internal sealed class Whisparr3Gateway : IDisposable
 {
     private readonly GeneratedClientRegistry<Whisparr3Target> _registry;
@@ -19,8 +19,8 @@ internal sealed class Whisparr3Gateway : IDisposable
         Func<HttpMessageHandler>? primaryHandler = null,
         Action<HttpClient>? configure = null)
     {
-        var handler = primaryHandler ?? WhisparrClient.CreateHandler;
-        var settings = configure ?? WhisparrClient.Configure;
+        var handler = primaryHandler ?? WhisparrTransport.CreateHandler;
+        var settings = configure ?? WhisparrTransport.Configure;
         _registry = new GeneratedClientRegistry<Whisparr3Target>(
             target => Register(target, handler, settings));
     }
@@ -56,7 +56,7 @@ internal sealed class Whisparr3Gateway : IDisposable
             ConfigureHttpClient = builder => builder
                 .ConfigurePrimaryHttpMessageHandler(handler)
                 .AddHttpMessageHandler(static () =>
-                    new BoundedResponseHandler(WhisparrClient.MaxResponseBytes))
+                    new BoundedResponseHandler(WhisparrTransport.MaxResponseBytes))
                 .ConfigureHttpClient(settings),
         });
 

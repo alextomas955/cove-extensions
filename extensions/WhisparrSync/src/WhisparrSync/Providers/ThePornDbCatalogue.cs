@@ -735,7 +735,7 @@ internal sealed class ThePornDbCatalogue
             if (answered is null)
             {
                 WhisparrSyncLog.ProviderAnswerBeyondReadBound(
-                    _log, ProviderName, WhisparrClient.MaxResponseBytes);
+                    _log, ProviderName, WhisparrTransport.MaxResponseBytes);
                 return ProviderSend.Nothing;
             }
 

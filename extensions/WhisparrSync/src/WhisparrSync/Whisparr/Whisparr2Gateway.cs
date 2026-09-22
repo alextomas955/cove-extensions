@@ -10,7 +10,7 @@ namespace WhisparrSync.Whisparr;
 // both and this is a twin of Whisparr3Gateway.
 //
 // The redirect cap, the read bound and the target's budget are applied to every typed client the
-// registration creates. None is the generated client's default; each is stated in WhisparrClient.
+// registration creates. None is the generated client's default; each is stated on WhisparrTransport.
 internal sealed class Whisparr2Gateway : IDisposable
 {
     private readonly GeneratedClientRegistry<Whisparr2Target> _registry;
@@ -19,7 +19,7 @@ internal sealed class Whisparr2Gateway : IDisposable
         Func<HttpMessageHandler>? primaryHandler = null,
         Action<HttpClient>? configure = null)
     {
-        var handler = primaryHandler ?? WhisparrClient.CreateHandler;
+        var handler = primaryHandler ?? WhisparrTransport.CreateHandler;
         // No default settings: the timeout comes from the target's budget below, and a supplied
         // configure runs after it so a caller can override.
         var settings = configure ?? (static _ => { });
@@ -58,7 +58,7 @@ internal sealed class Whisparr2Gateway : IDisposable
             ConfigureHttpClient = builder => builder
                 .ConfigurePrimaryHttpMessageHandler(handler)
                 .AddHttpMessageHandler(static () =>
-                    new BoundedResponseHandler(WhisparrClient.MaxResponseBytes))
+                    new BoundedResponseHandler(WhisparrTransport.MaxResponseBytes))
                 .ConfigureHttpClient(client => client.Timeout = target.Budget)
                 .ConfigureHttpClient(settings),
         });
@@ -74,7 +74,7 @@ internal sealed class Whisparr2Gateway : IDisposable
 internal readonly record struct Whisparr2Target(Uri BaseAddress, string ApiKey, TimeSpan Budget)
 {
     public Whisparr2Target(Uri baseAddress, string apiKey)
-        : this(baseAddress, apiKey, WhisparrClient.RequestTimeout)
+        : this(baseAddress, apiKey, WhisparrTransport.RequestTimeout)
     {
     }
 }

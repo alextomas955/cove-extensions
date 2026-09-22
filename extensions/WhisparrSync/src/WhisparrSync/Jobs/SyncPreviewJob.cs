@@ -33,7 +33,7 @@ public static class SyncPreviewJob
     public const string JobId = "sync-preview";
 
     // The largest batch measured to answer 200 against whisparr:v3-3.3.8-release.1097 on 2026-09-10.
-    // It also keeps a batch's worst-case answer inside WhisparrClient.MaxResponseBytes, which the
+    // It also keeps a batch's worst-case answer inside WhisparrTransport.MaxResponseBytes, which the
     // transport refuses outright rather than truncating: ChunkSize times MeasuredBytesPerHit is
     // about 2.3 MiB against an 8 MiB bound.
     internal const int ChunkSize = 1000;
