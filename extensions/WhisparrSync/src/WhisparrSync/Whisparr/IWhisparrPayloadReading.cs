@@ -1,11 +1,13 @@
 using System.Text.Json.Nodes;
+using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 
 namespace WhisparrSync.Whisparr;
 
 // The inbound half of one generation's wire vocabulary: which member of a payload its instance sent
-// names the imported file and which names the scene's catalogue identifier. A shared path holds
-// none of those spellings and reads through the reader for the generation that sent the payload.
+// names the imported file, which names the entity a file was matched to, and which names the
+// scene's catalogue identifier. A shared path holds none of those spellings and reads through the
+// reader for the generation that sent the payload.
 internal interface IWhisparrPayloadReading
 {
     // The webhook body member carrying the imported file.
@@ -13,6 +15,26 @@ internal interface IWhisparrPayloadReading
 
     // Null where the body names no identifying value.
     string? WebhookRemoteId(JsonObject body);
+
+    // Read from the same catalogue the live channel reads for this generation, so an arrival
+    // through either channel is the same scene. Null where the record embeds no entity, which is
+    // imported without an identifier rather than refused.
+    string? HistoryRemoteId(JsonObject record);
+
+    // The importable row's member naming the entity the file was matched to.
+    string MatchedMember { get; }
+
+    // The submit entry for one matched row, composed onto the members every generation carries, or
+    // null where the row names nothing this generation can attach a file to.
+    JsonObject? MatchedEntry(JsonObject row, JsonObject entry);
+}
+
+// Which monitor scope an instance's answer puts in force. Held by the generation whose resource
+// carries the date gate and by no other: a generation expressing no scope holds no reading of one,
+// which is a different fact from a reading that always answers null.
+internal interface IWhisparrScopeReading
+{
+    MonitorScope? ScopeIn(WhisparrEntityKind kind, JsonObject entity);
 }
 
 internal static class PayloadMember
@@ -30,4 +52,14 @@ internal static class PayloadMember
         return RemoteIdGuard.Identifying(
             value.TryGetValue<string>(out var text) ? text : value.ToString());
     }
+
+    // The instance-side row id of the entity a file was matched to. An absent member, one of
+    // another type and a non-positive id all read as no match.
+    internal static int? MatchedId(JsonObject row, string member)
+        => row[member] is JsonObject matched
+            && matched["id"] is JsonValue named
+            && named.TryGetValue<int>(out var id)
+            && id > 0
+                ? id
+                : null;
 }
