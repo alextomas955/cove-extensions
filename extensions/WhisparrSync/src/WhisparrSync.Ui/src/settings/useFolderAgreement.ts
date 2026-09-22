@@ -10,6 +10,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
+import { onConnectionChanged } from "./connectionChangedStore";
+
 import type {
   FolderAgreementView,
   FolderMappingSaveRequest,
@@ -53,6 +55,10 @@ export function useFolderAgreement(): UseFolderAgreement {
         setRead((held) => ({ reading: false, failed: true, hasContent: held.hasContent }));
       });
   }, []);
+
+  // With no instance stored every folder answers that it cannot be asked, and a connection is
+  // what makes the probe behind these lines possible at all.
+  useEffect(() => onConnectionChanged(load), [load]);
 
   const primed = useRef(false);
   useEffect(() => {

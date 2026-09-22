@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
+import { onConnectionChanged } from "./connectionChangedStore";
+
 import type { CallbackView } from "../wire/api";
 import { api } from "../common/lib/extension";
 
@@ -54,10 +56,7 @@ export function useRegistration(): UseRegistration {
     }
   }, []);
 
-  const primed = useRef(false);
-  useEffect(() => {
-    if (primed.current) return;
-    primed.current = true;
+  const read = useCallback(() => {
     requestJson<CallbackView>(CALLBACK_STATUS_PATH)
       .then((answer) => {
         take(answer);
@@ -66,6 +65,17 @@ export function useRegistration(): UseRegistration {
         setReadFailed(true);
       });
   }, [take]);
+
+  // With no address stored this section refuses and names the setting to fill in, so a save is
+  // exactly what clears it. A typed address survives, because `take` leaves an edited one alone.
+  useEffect(() => onConnectionChanged(read), [read]);
+
+  const primed = useRef(false);
+  useEffect(() => {
+    if (primed.current) return;
+    primed.current = true;
+    read();
+  }, [read]);
 
   const editAddress = useCallback((next: string) => {
     edited.current = true;
