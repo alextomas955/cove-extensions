@@ -71,22 +71,22 @@ export function describeRegistration(view: CallbackView): RegistrationDescriptio
 }
 
 /**
- * Why registering is refused while Cove itself lets callers in without signing in.
+ * Why registering is refused where it would lock this Cove down.
  *
  * Stated before the gesture rather than after it. Whisparr checks a webhook by posting to it, and
  * that post arrives from wherever Whisparr runs, which for a container is never this machine's own
- * loopback address. Cove reads a request from anywhere else as an instance exposed beyond its own
- * machine, turns sign-in on and keeps it on, so the person configuring this is signed out of the
- * Cove they were setting up.
+ * loopback address. A Cove that holds an owner account while sign-in is off reads a request from
+ * anywhere else as an instance exposed beyond its own machine: it turns sign-in on, keeps it on,
+ * and signs out the person configuring this.
  */
-export const HOST_AUTHENTICATION_REQUIRED =
+export const REGISTRATION_WOULD_LOCK_COVE_DOWN =
   "Turn on sign-in for this Cove before registering. Whisparr checks the address by calling it, and Cove treats a call from outside this machine as an instance that needs protecting: it turns sign-in on by itself and signs you out. Set a password under Security & Access first.";
 
 /**
  * Whether the callback can be registered at all, or a sentence saying why not.
  *
- * The host's own sign-in setting outranks the rest: the others clear on their own, and this one
- * stands until somebody changes a Cove setting.
+ * The lockdown reason outranks the rest: the others clear on their own, and this one stands until
+ * somebody changes a Cove setting.
  */
 export function registerRefusal(
   view: CallbackView | null,
@@ -96,7 +96,7 @@ export function registerRefusal(
     readonly address: string;
   },
 ): string | null {
-  if (view !== null && !view.hostAuthenticationRequired) return HOST_AUTHENTICATION_REQUIRED;
+  if (view !== null && !view.registrationIsSafe) return REGISTRATION_WOULD_LOCK_COVE_DOWN;
   if (input.sharedReason !== null) return input.sharedReason;
   if (input.registering) return "This registration is still running.";
   return input.address.trim() === "" ? "There is no callback address to register." : null;
