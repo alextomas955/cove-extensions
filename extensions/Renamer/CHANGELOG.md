@@ -51,6 +51,27 @@ that would change before anything touches disk.
   unorganized items are skipped each name the other, so neither reads as the whole answer on its
   own; the empty-folder helper says it never deletes a drive root, where _a root_ used to read as
   your library root; and the per-kind line counts the kinds instead of spelling the number.
+- **Each control under _Advanced_ is named once.** The excludes and the two rewriting blocks carried
+  a heading and then a second, smaller label for the same control. The second label is gone, and
+  each block's name now sits above its control instead of inside a card.
+- **The _Drop order_ explanation sits with the heading it explains**, above the list rather than
+  under it.
+- **More _Advanced_ sentences say what the setting actually does.** _Illegal characters_ says that
+  leaving the replacement blank drops them; a stripped article is removed once, from the start of
+  the title; a performer is dropped from the title only on a whole-word match, so a name inside a
+  longer name is kept; and the case option is spelled _lowercase_. The claim that removing spaces
+  from a studio name only affects folders is gone - it affects the filename too.
+- **_Gender order_ says where a gender you leave out ends up.** It sorts last; it is not dropped.
+- **The dry run states each count once.** The line of totals above the table is gone, because the
+  filter buttons already carry them. A button whose outcome has no rows is no longer shown at all,
+  where it used to be shown greyed out and unclickable.
+- **A row that will not be renamed shows no new name, and its badge says why.** The badges drop the
+  _Skipped_ prefix the column already implies, and a rename stopped by a full destination drive now
+  has a badge of its own - it used to leave the row saying nothing at all.
+- **The search box says how many rows it filters**, and the line under the table states the total in
+  one clause once your whole library has been read.
+- **The Save bar no longer covers the dry-run dialog.** It sat over the dialog with a clickable Save
+  button; it now steps aside while the dialog is open and returns when you close it.
 
 ## 0.5.0 - Text documents, and each kind settled on its own
 

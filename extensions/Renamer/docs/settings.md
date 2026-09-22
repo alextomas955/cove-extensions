@@ -154,16 +154,16 @@ These cards appear only when your template uses the matching token.
 
 Both are multi-value lists shaped by the same options (a few apply to performers only):
 
-| Setting                            | What it does                                                                                                                             | Default         |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| Separator                          | Text inserted between joined items.                                                                                                      | `" "` (a space) |
-| Max count                          | Maximum items to include. Leave the field empty and it reads _No limit_; the stored value is `0`.                                        | `0`             |
-| On overflow                        | When over the max: _Drop all when over the max_ or _Keep the first N_.                                                                   | Drop all        |
-| Sort                               | Order before joining: Name (A→Z), Keep original order, and - performers only - By internal id, Favorites first, then name.               | Name (A→Z)      |
-| Only include                       | If non-empty, only the performers or tags you pick here are kept. Each is stored as a stable id, so renaming one in Cove keeps the rule. | _(empty)_       |
-| Never include                      | The performers or tags you pick here are removed. Stored as stable ids, the same way as _Only include_.                                  | _(empty)_       |
-| Ignore genders _(performers only)_ | Genders to drop before the max-count limit. A performer with no gender set is always kept.                                               | _(empty)_       |
-| Gender order _(performers only)_   | Preferred gender order, most-preferred first; controls who survives the max-count limit.                                                 | _(empty)_       |
+| Setting                            | What it does                                                                                                                                          | Default         |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Separator                          | Text inserted between joined items.                                                                                                                   | `" "` (a space) |
+| Max count                          | Maximum items to include. Leave the field empty and it reads _No limit_; the stored value is `0`.                                                     | `0`             |
+| On overflow                        | When over the max: _Drop all when over the max_ or _Keep the first N_.                                                                                | Drop all        |
+| Sort                               | Order before joining: Name (A→Z), Keep original order, and - performers only - By internal id, Favorites first, then name.                            | Name (A→Z)      |
+| Only include                       | If non-empty, only the performers or tags you pick here are kept. Each is stored as a stable id, so renaming one in Cove keeps the rule.              | _(empty)_       |
+| Never include                      | The performers or tags you pick here are removed. Stored as stable ids, the same way as _Only include_.                                               | _(empty)_       |
+| Ignore genders _(performers only)_ | Genders to drop before the max-count limit. A performer with no gender set is always kept.                                                            | _(empty)_       |
+| Gender order _(performers only)_   | Preferred gender order, most-preferred first; a gender you leave out sorts last rather than being dropped. Controls who survives the max-count limit. | _(empty)_       |
 
 ### Date & duration format
 
@@ -272,10 +272,10 @@ never overwritten. The captions Cove tracks for an item always move, whatever th
 
 | Setting                        | What it does                                                                                                                                                                                               | Default |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| Illegal-char replacement       | What to do with characters the OS forbids in a filename: **strip** them, or **replace** each with a string you provide.                                                                                    | Strip   |
+| Illegal characters             | What to do with characters the OS forbids in a filename: **strip** them, or **replace** each with a string you provide.                                                                                    | Strip   |
 | Space replacement              | **Keep** spaces, or **replace** each space with a string (e.g. `.` or `_`).                                                                                                                                | Keep    |
 | Remove characters              | Literal characters deleted from the name outright (not a regex).                                                                                                                                           | `,#`    |
-| Case                           | Case transform applied to the whole name: None, lower case, or Title Case.                                                                                                                                 | None    |
+| Case                           | Case transform applied to the whole name: None, lowercase, or Title Case.                                                                                                                                  | None    |
 | Convert accents to plain ASCII | Convert accented characters to their ASCII equivalents (e.g. `é` → `e`).                                                                                                                                   | Off     |
 | Normalize punctuation to ASCII | Fold typographic punctuation to plain ASCII: curly quotes → straight quotes, en/em dashes → a hyphen, ellipsis → three dots. Letters and accents are untouched (that is _Convert accents to plain ASCII_). | On      |
 
@@ -305,14 +305,14 @@ never overwritten. The captions Cove tracks for an item always move, whatever th
 
 ### Field rewriting & name shaping
 
-| Setting                               | What it does                                                                                       | Default      |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------ |
-| Per-token replacements                | Literal find/replace rules applied to a specific token's value before other shaping (not a regex). | _(none)_     |
-| Strip leading article                 | Remove one leading article from `$title` (`The Matrix` → `Matrix`).                                | Off          |
-| Articles                              | The articles eligible for stripping.                                                               | `The, A, An` |
-| Remove spaces from studio names       | `Studio Ghibli` → `StudioGhibli`, so one studio maps to one folder.                                | Off          |
-| Drop a performer already in the title | Drop a performer whose name appears as a whole word in `$title`.                                   | Off          |
-| Collapse repeated folder segments     | Collapse consecutive duplicate folder segments (`/Foo/Foo/Bar` → `/Foo/Bar`). Folder path only.    | On           |
+| Setting                                | What it does                                                                                       | Default      |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------ |
+| Per-token replacements                 | Literal find/replace rules applied to a specific token's value before other shaping (not a regex). | _(none)_     |
+| Strip a leading article from the title | Remove one leading article from `$title` (`The Matrix` → `Matrix`).                                | Off          |
+| Articles                               | The articles eligible for stripping. The list sits under the toggle, with no label of its own.     | `The, A, An` |
+| Remove spaces from studio names        | `Studio Ghibli` → `StudioGhibli`, wherever `$studio` renders — the filename as well as the folder. | Off          |
+| Drop a performer already in the title  | Drop a performer whose name appears as a whole word in `$title`.                                   | Off          |
+| Collapse repeated folder segments      | Collapse consecutive duplicate folder segments (`/Foo/Foo/Bar` → `/Foo/Bar`). Folder path only.    | On           |
 
 ## Advanced settings not shown in the UI
 

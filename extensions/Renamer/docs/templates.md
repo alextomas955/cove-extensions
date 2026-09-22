@@ -47,7 +47,7 @@ extension afterwards either way. It cannot be moved.
   collapse.
 - **Folders**: in a folder template, use `/` to separate sub-folders, e.g. `$studio/$year`. Only `/`
   separates; a backslash is treated as a character the filesystem forbids and is removed (or
-  replaced, per _Illegal-char replacement_). A folder template is always relative to its
+  replaced, per _Illegal characters_). A folder template is always relative to its
   destination's root, so it never starts with a drive or a `/`. A level whose tokens all render empty
   is dropped rather than made as a folder with no name.
 

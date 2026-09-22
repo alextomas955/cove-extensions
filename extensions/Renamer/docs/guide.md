@@ -47,49 +47,53 @@ destination, and any warnings — without changing anything.
 
 1. In the **Run & automation** section, click **Dry run**. While the library scans, a progress bar
    shows how far along it is, the number scanned so far, and an estimated time left.
-2. When the scan finishes, the line above the table gives the exact totals: how many files will
-   change, how many need attention, how many are unchanged, and how many were scanned. Renamer keeps
-   one scan result for the whole instance, so if you share it with other people, the totals waiting
-   for you when you open the page are from whichever scan ran most recently — yours or someone
-   else's. Dry-run again when you need figures you know are your own. Those totals are also narrowed
-   to the media kinds your Cove account may read, and the page doesn't name which ones they cover — so
-   a colleague who can read images where you cannot sees larger numbers from the very same scan.
-3. Use the filter (All / Will change / Needs attention / No change) to narrow the table. The
-   counts on the buttons always describe the whole scan, so they don't move as you switch between
-   them.
-4. To find a particular file, type part of its path or its new name into the search box. The search
-   runs on the server and covers the current path, the new path, the new name and the destination
-   folder, ignoring case.
+2. When the scan finishes, the filter buttons above the table carry the totals. **All** is the whole
+   scan; the others are one per outcome, and a button appears only while its outcome has rows — a
+   scan with nothing to fix shows no **Needs attention** button at all. Renamer keeps one scan result
+   for the whole instance, so if you share it with other people, the totals waiting for you when you
+   open the page are from whichever scan ran most recently — yours or someone else's. Dry-run again
+   when you need figures you know are your own. Those totals are also narrowed to the media kinds
+   your Cove account may read, and the page doesn't name which ones they cover — so a colleague who
+   can read images where you cannot sees larger numbers from the very same scan.
+3. Click a button to narrow the table. The counts always describe the whole scan, so they don't move
+   as you switch between them.
+4. To find a particular file, type part of its path or its new name into the box above the table. It
+   is labelled with how many rows the filter you have selected holds. The search runs on the server
+   and covers the current path, the new path, the new name and the destination folder, ignoring case.
 5. Rows load as you scroll, in scan order: videos, then images, then audio, then text documents,
    each in library order. A kind you have excluded under Per kind is not scanned, so it
    contributes no rows and no counts. On a large library the server reads it in stages, and a stage can pass with nothing in it
    that matches your filter; the table keeps asking for the next stage until the rows in view are
-   covered, so a narrow filter fills in on its own. The line under the table says how many rows are
-   loaded and, until the whole library has been read, how many items have been checked so far.
-   **Load more** (**Keep searching** with a search active) asks for the next stage straight away.
+   covered, so a narrow filter fills in on its own. While the library is still being read, the line
+   under the table says how many rows are loaded and how many items have been checked so far; once
+   the whole library has been read it states the total in one clause instead, as **All 42 rows, in
+   scan order**. **Load more** (**Keep searching** with a search active) asks for the next stage
+   straight away.
 6. The dry run uses your current settings, including edits you haven't saved yet, so you can
    iterate on the template and re-run until the preview looks right. If something looks wrong,
    adjust the template or the relevant setting and dry-run again.
 
-Every row names its own outcome, so you never have to infer a skip from the destination cell. A
-row that will change carries a badge only when its name was **Numbered to avoid a clash** or
-**Cleaned for the filesystem**; a row with nothing to do carries a gray **No change needed**. A row
-that needs attention always says why:
+Every row names its own outcome. A row that will not be renamed shows no new name and carries a
+badge giving the reason, so the badge is the only thing you have to read. A row that will change
+carries a badge only when its name was **Numbered to avoid a clash** or **Cleaned for the
+filesystem**; a row with nothing to do carries a gray **No change needed**. A row that needs
+attention always says why:
 
-| Badge                                                        | Why the row stopped                                                                            |
-| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| Skipped — needs a required field                             | A token listed in _Required fields_ resolved to nothing for this item.                         |
-| Skipped — an exclude rule matched                            | One of your exclude rules covers it.                                                           |
-| Skipped — name conflict                                      | Another file already holds the computed name, and Renamer never overwrites.                    |
-| Skipped — file missing on disk                               | Cove holds a record for a file that is not there.                                              |
-| Skipped — file in use                                        | Something else held the file open, and Renamer never forces a lock.                            |
-| Skipped — permission denied                                  | Cove is not allowed to write where the row would go, or to move the file at all.               |
-| Skipped — file is outside your Cove library                  | The destination measures from the file's own library path, and the file is under none of them. |
-| Skipped — the rule's destination is no longer a library path | The root the matched rule names is no longer one of Cove's library paths.                      |
-| Skipped — destination outside its own root                   | The folder template is not relative, or it climbs out of the destination it measures from.     |
-| Skipped — path too long                                      | The full path would exceed _Full-path max length_.                                             |
+| Badge                                              | Why the row stopped                                                                            |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Needs a required field                             | A token listed in _Required fields_ resolved to nothing for this item.                         |
+| An exclude rule matched                            | One of your exclude rules covers it.                                                           |
+| Name conflict                                      | Another file already holds the computed name, and Renamer never overwrites.                    |
+| File missing on disk                               | Cove holds a record for a file that is not there.                                              |
+| File in use                                        | Something else held the file open, and Renamer never forces a lock.                            |
+| Permission denied                                  | Cove is not allowed to write where the row would go, or to move the file at all.               |
+| File is outside your Cove library                  | The destination measures from the file's own library path, and the file is under none of them. |
+| The rule's destination is no longer a library path | The root the matched rule names is no longer one of Cove's library paths.                      |
+| Destination outside its own root                   | The folder template is not relative, or it climbs out of the destination it measures from.     |
+| Path too long                                      | The full path would exceed _Full-path max length_.                                             |
+| Not enough free space                              | The destination drive has too little room for the copy this row needs.                         |
 
-A stop that is not a defect is gray instead: **Skipped — cancelled** means Cove shut down part-way
+A stop that is not a defect is gray instead: **Cancelled** means Cove shut down part-way
 through the run. Nothing was half-written, and starting the rename again picks the row up.
 
 Two badges are red rather than amber. **Too long to copy across drives** means that row moves to a
@@ -98,7 +102,7 @@ name in place. The temporary path is a little longer than the one the row shows,
 _Full-path max length_, so the move cannot complete even though the new path does fit. Shorten the
 destination folder or the filename template for that row. The confirm shown before a rename counts
 these files too, so you see the warning whether you started from the dry run or from a list.
-**Skipped — copy did not verify** means a cross-drive copy was written and then read back different, so
+**Copy did not verify** means a cross-drive copy was written and then read back different, so
 the file was left where it was — check the destination drive before running that row again.
 
 A cross-drive rename can also report **renamed** and warn that the old file is still there. The copy
