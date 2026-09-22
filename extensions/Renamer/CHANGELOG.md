@@ -2,102 +2,97 @@
 
 User-facing changes, newest first.
 
-## 0.6.0 - Resolution labels that match what Cove shows
+## 0.5.0 - Text documents, per-kind control, and resolution labels that match Cove
 
-**Do a dry run before your first rename after upgrading.** Files you already renamed under the old
-labels will compute a different name if you rename them again, because the label they carry is no
-longer the one Renamer produces. Nothing renames on its own, and the dry run shows you every name
-that would change before anything touches disk.
+**You need Cove 1.4.1.** An older host does not load Renamer at all: no Rename tab under Settings ->
+Extensions, and no "Rename selected" on your lists. Stay on 0.4.0 until you have upgraded Cove.
+Nothing below needs 1.4.1 to work; the floor moved because that is the host release this version is
+built and tested against.
 
-- **`$resolution` now reads the same as the resolution shown on the item.** The filename and the
-  badge no longer disagree.
-- **Large sizes get their own label.** `5K`, `6K`, `7K` and `HUGE` replace the single `4k` that
-  every size from 4K upwards used to collapse into, and `540p` is no longer rounded down to
-  `480p`.
-- **Small frames are labelled more coarsely.** A size under 480 used to render its exact height,
-  such as `432p`; a 768 x 432 frame is now `480p`. A frame under 144 pixels on its longer edge and
-  under about 137 on its shorter gets no label at all where it used to get one, so the bracketed
-  group in your template drops instead of rendering.
-- **A portrait video is no longer labelled as if it were landscape.** A 1080 x 1920 video is
-  `1080p`, matching the landscape video of the same shape, rather than `1440p`.
-- **A file Cove has no width for gets no resolution in its name.** A label now needs both a width
-  and a height, the same pair Cove needs for its own badge, so where either is missing the
-  bracketed group in your template drops instead of rendering.
-- **`4K` is spelled with a capital K.** It was `4k`. A title that already ends in either spelling
-  is still de-duplicated, so a name does not end up with two labels.
-- **A replacement rule applies to the token it names and to nothing else.** A rule on the width or
-  the height no longer changes the resolution written into your name, so the name and the badge stay
-  in agreement. A rule on the resolution now applies to the label Renamer computed, which it did not
-  reach before.
-- **A title's own resolution label survives when Renamer has none to write.** Where the file has no
-  width stored, or the frame is too small for any label, the label already in your title is left
-  alone. It used to be removed with nothing put back. Where the name was too long and the label was
-  dropped to make it fit, the title's label goes with it, so the drop shortens the name.
-- **The settings page reads as one stack of titled cards.** Each card now carries its own header,
-  and undo moved to a footer row at the bottom of the page.
-- **The token list appears once, under Filename.** _Required fields_ and _Drop order_ now take a
-  token by typing: search the list, pick with the arrow keys or the mouse. A name outside the list
-  is still accepted.
-- **The token list shows which tokens your templates use.** A token used by either the filename
-  template or the folder template is tinted, so you can see at a glance what is already in play.
-  Clicking it still inserts another copy.
-- **Four settings say what they do.** The performer and tag list fields are now _Only include_ and
-  _Never include_; the toggles are _Remove spaces from studio names_ and _Convert accents to plain
-  ASCII_; and a _Max count_ left empty reads _No limit_.
-- **Routing precedence is stated once, in full.** _Destination routing_ opens with the whole order -
-  excludes, unorganized, tag, studio, source path, then the kind's own folder and the default.
-  It used to appear in fragments that disagreed with each other.
-- **Settings descriptions now match what each control does.** The two toggles that decide whether
-  unorganized items are skipped each name the other, so neither reads as the whole answer on its
-  own; the empty-folder helper says it never deletes a drive root, where _a root_ used to read as
-  your library root; and the per-kind line counts the kinds instead of spelling the number.
-- **Each control under _Advanced_ is named once.** The excludes and the two rewriting blocks carried
-  a heading and then a second, smaller label for the same control. The second label is gone, and
-  each block's name now sits above its control instead of inside a card.
-- **The _Drop order_ explanation sits with the heading it explains**, above the list rather than
-  under it.
-- **A rule list no longer loses an entry when you click its heading.** Clicking the text above a
-  list of tags, performers or studios used to remove the first entry from it, with no message shown
-  and nothing to put it back.
-- **More _Advanced_ sentences say what the setting actually does.** _Illegal characters_ says that
-  leaving the replacement blank drops them; a stripped article is removed once, from the start of
-  the title; a performer is dropped from the title only on a whole-word match, so a name inside a
-  longer name is kept; and the case option is spelled _lowercase_. The claim that removing spaces
-  from a studio name only affects folders is gone - it affects the filename too.
-- **_Gender order_ says where a gender you leave out ends up.** It sorts last; it is not dropped.
-- **The dry run states each count once.** The line of totals above the table is gone, because the
-  filter buttons already carry them. A button whose outcome has no rows is no longer shown at all,
-  where it used to be shown greyed out and unclickable.
-- **A row that will not be renamed shows no new name, and its badge says why.** The badges drop the
-  _Skipped_ prefix the column already implies.
-- **The search box says how many rows it filters**, and the line under the table states the total in
-  one clause once your whole library has been read.
-- **The Save bar no longer covers the dry-run dialog.** It sat over the dialog with a clickable Save
-  button; it now steps aside while the dialog is open and returns when you close it.
+**Do a dry run before your first rename.** Resolution labels have changed, so a file you renamed
+under an older version can work out to a different name if you rename it again. Nothing renames on
+its own, and the dry run shows you every name that would change before anything touches disk.
 
-## 0.5.0 - Text documents, and each kind settled on its own
+### Text documents
 
-**Needs Cove 1.4.1.** An older host does not load Renamer at all - no Rename tab under Settings ->
-Extensions, no "Rename selected" on your lists - so stay on 0.4.0 until you have upgraded Cove. No
-feature below needs 1.4.1; the floor moved because 1.4.1 is the host release this version is built
-and tested against. If you are on 1.3.1 and do not want to upgrade Cove, 0.4.0 keeps working.
+Renamer now renames text documents, alongside videos, images and audio: the same templates, the
+same dry run, the same undo. A **Rename selected** action appears on your text lists, and you need
+the `texts.write` permission in Cove to use it. Nothing about the other kinds changes.
 
-- **Renamer now renames text documents.** They join videos, images and audio: the same templates,
-  the same dry run, the same undo. A **Rename selected** action appears on your text lists, and you
-  need `texts.write` in Cove to use it. Nothing about the other kinds changes.
-- **Each kind can be turned off on its own.** A new _Per kind_ list inside _Where files go_ has one
-  row per kind, with an **Exclude** button on each. A kind turned off is left out of the dry run and out of **Rename all files** entirely, so
-  it adds nothing to the counts; selecting items of that kind and using **Rename selected** reports
+### Turn kinds off, and give each one its own home
+
+A new **Per kind** list inside **Where files go** has one row per kind.
+
+- **Exclude** leaves that kind out of the dry run and out of **Rename all files** entirely, so it
+  adds nothing to the counts. Selecting items of that kind and using **Rename selected** reports
   them as skipped and names the kind in the reason. Every kind starts on, which is what Renamer did
   before.
-- **Each kind can have its own destination folder.** Press **Own folder** on a kind's row and its
-  items go there when no routing rule matches them - text documents to one tree and
-  videos to another, say. This is a default, not an override: an item matched by a tag, studio,
-  source-path or unorganized rule still goes where that rule says, so nothing you have already routed
-  by hand moves.
-- **Undoing a text rename now announces the right kind.** The undo path published a video-updated
-  event for every kind. Nothing was renamed wrongly, but other parts of Cove watching for the change
-  were told about the wrong sort of item.
+- **Own folder** sends that kind's items somewhere of their own when no routing rule matches them,
+  so you can keep text documents in one tree and videos in another. This is a default, not an
+  override: an item matched by a tag, studio, source-path or unorganized rule still goes where that
+  rule says, so nothing you have already routed by hand moves.
+
+### Resolution labels now match the badge Cove shows
+
+`$resolution` reads the same as the resolution shown on the item, so your filename and the badge no
+longer disagree.
+
+- Large sizes get their own labels. `4K`, `5K`, `6K`, `7K`, `8K` and `HUGE` replace the single `4k`
+  that every size from 4K upwards used to collapse into. Note the capital K.
+- `540p` stays `540p` instead of rounding down to `480p`.
+- Small frames are labelled more coarsely. A 768 x 432 frame is now `480p`, where it used to render
+  its exact height as `432p`. A frame under 144 pixels on its longer edge gets no label at all.
+- A portrait video is labelled like the landscape video of the same shape. A 1080 x 1920 video is
+  `1080p`, not `1440p`.
+- A file Cove has no width and height for gets no label, the same pair Cove needs for its own badge.
+
+Where Renamer has no label to write, the bracketed group in your template drops instead of
+rendering, and a label already in your title is left alone rather than removed with nothing put
+back. If the name was too long and the label had to be dropped to fit, the title's label goes with
+it, so the drop shortens the name.
+
+A find-and-replace rule now applies only to the token it names. A rule on the width or the height no
+longer rewrites the resolution in your name, and a rule on the resolution reaches the label Renamer
+computed, which it could not before.
+
+### A settings page you can scan
+
+- The page is one stack of titled cards, each with its own header. Undo moved to a footer row at the
+  bottom.
+- The token list appears once, under **Filename**, and tints the tokens your filename or folder
+  template already uses, so you can see what is in play at a glance. **Required fields** and **Drop
+  order** now take a token by typing: search the list, then pick with the arrow keys or the mouse. A
+  name outside the list is still accepted.
+- **Destination routing** states the whole precedence order in one place: excludes, unorganized,
+  tag, studio, source path, then the kind's own folder and the default. It used to appear in
+  fragments that disagreed with each other.
+- Settings that did not say what they do were renamed. The performer and tag lists are now **Only
+  include** and **Never include**, the toggles are **Remove spaces from studio names** and
+  **Convert accents to plain ASCII**, and a **Max count** left empty reads **No limit**.
+- Descriptions now match what each control actually does. Removing spaces from a studio name affects
+  the filename too, not only folders. A stripped article is removed once, from the start of the
+  title. A performer is dropped from the title only on a whole-word match, so a name sitting inside
+  a longer name is kept. A gender you leave out of **Gender order** sorts last rather than being
+  dropped. Under **Advanced**, each control is named once instead of carrying a heading and a second
+  label for the same thing.
+
+### A dry run that states each number once
+
+- The row of totals above the table is gone, because the filter buttons already carry them. A button
+  with no rows behind it is hidden rather than shown greyed out and unclickable.
+- A row that will not be renamed shows no new name, and its badge says why.
+- The search box says how many rows it is filtering, and the line under the table states the total
+  once your whole library has been read.
+- The Save bar steps aside while the dry-run dialog is open, instead of sitting over it with a
+  clickable Save button.
+
+### Fixes
+
+- Clicking the heading above a list of tags, performers or studios no longer deletes the first entry
+  from it. It used to remove one with no message shown and nothing to put it back.
+- Undoing a text rename announces the right kind. The undo path published a video-updated event for
+  every kind, so other parts of Cove watching for the change were told about the wrong sort of item.
+  Nothing was renamed wrongly.
 
 ## 0.4.0 — Undo you can retry, and one that survives the next rename
 
