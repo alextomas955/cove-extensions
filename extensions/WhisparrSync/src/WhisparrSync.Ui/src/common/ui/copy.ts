@@ -81,11 +81,11 @@ export const SCOPE_ALL_SCENES = "Monitor - all scenes (queue back-catalogue)";
 
 /** What the wider scope costs, stated where the scope is chosen rather than after it is taken. */
 export const ALL_SCENES_MARKS_THE_BACK_CATALOGUE =
-  "Monitoring all scenes marks every scene Whisparr already lists for this entity as wanted, which spends indexer traffic and disk.";
+  "Monitoring all scenes monitors every scene Whisparr already lists for this entity, which spends indexer traffic and disk.";
 
 /** That the wider scope is a one-way door, stated where the scope is chosen. */
 export const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
-  "Narrowing the scope back to new releases only does not undo this: a scene that is already wanted stays wanted.";
+  "Narrowing the scope back to new releases only does not undo this: a scene already monitored stays monitored.";
 
 /** What the search costs, stated where it is chosen rather than after it is taken. */
 export const SEARCH_ALL_MONITORED_SPENDS_TRAFFIC_AND_DISK =
@@ -191,7 +191,7 @@ export const CAP_UNAVAILABLE_ON_THIS_GENERATION = "Currently available on Whispa
  * renders differently from a failed request.
  */
 export const SEARCH_WITH_NO_ENTRY =
-  "Whisparr has no entry for this scene yet, so there is nothing to search for - mark it wanted first.";
+  "Whisparr has no entry for this scene yet, so there is nothing to search for - monitor it first.";
 
 /** The product's own name, drawn beside the state chip in the scene tab's header. */
 export const SCENE_HEADER_WHISPARR = "Whisparr";
@@ -285,7 +285,7 @@ export const ENTITY_NOT_IN_WHISPARR =
 
 /** What the add offered beside that sentence does, stated before it is pressed. */
 export const ADD_TO_WHISPARR_TRACKS_ONLY =
-  "Adding it lets Whisparr list every scene it knows of. Nothing is wanted and nothing is downloaded until you monitor it.";
+  "Adding it lets Whisparr list every scene it knows of. Nothing is monitored and nothing is downloaded until you say so.";
 
 /** The control that adds the entity for its catalogue alone. */
 export const ADD_TO_WHISPARR = "Add to Whisparr";
@@ -327,7 +327,7 @@ export const WHISPARR_KEEPS_NO_SCENE_RECORDS =
 /** The catalogue tab's own name, drawn at the left of its toolbar. */
 export const MISSING_TAB_HEADING = "Missing";
 
-/** The name of the card control that marks one scene wanted. */
+/** The name of the card control that monitors one scene. */
 export function monitorSceneName(title: string): string {
   return `Monitor ${title} in Whisparr`;
 }
@@ -397,7 +397,7 @@ export function entitiesCovered(n: number): string {
  * What the confirmation in front of the wider scope states.
  *
  * @param count how many entities the choice covers
- * @param oneWayDoor whether a later scope change leaves what the wider scope already made wanted
+ * @param oneWayDoor whether a later scope change leaves what the wider scope already monitored
  */
 export function allScenesConfirmation(count: number, oneWayDoor: boolean): string {
   return [
@@ -409,7 +409,7 @@ export function allScenesConfirmation(count: number, oneWayDoor: boolean): strin
 
 /** What marking a catalogue does not do, stated where the whole catalogue is about to be marked. */
 export const MONITOR_ALL_DOWNLOADS_NOTHING_BY_ITSELF =
-  "Marking a scene wanted downloads nothing by itself.";
+  "Monitoring a scene downloads nothing by itself.";
 
 /**
  * What the confirmation in front of the whole catalogue states.

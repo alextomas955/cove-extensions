@@ -52,14 +52,6 @@ export function describeState(state: WhisparrEntityState): StateDescription {
   return STATE_VOCABULARY[state];
 }
 
-/**
- * The same state under a label its view uses for it. The Missing tab shows a monitored, file-less
- * scene as Wanted. The glyph and the tint carry over, so both chips read as the same fact.
- */
-export function renameState(state: WhisparrEntityState, label: string): StateDescription {
-  return { ...describeState(state), label };
-}
-
 /** No file field: file presence is not on this axis. */
 export interface EntityStateInput {
   /** On Whisparr's exclusion list. */

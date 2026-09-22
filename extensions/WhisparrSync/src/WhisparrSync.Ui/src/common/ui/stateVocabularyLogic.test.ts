@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   deriveState,
   describeState,
-  renameState,
   STATE_VOCABULARY,
   type EntityStateInput,
   type WhisparrEntityState,
@@ -115,22 +114,5 @@ describe("deriving a state", () => {
     const first = deriveState(PRESENT_AND_MONITORED);
     deriveState({ excluded: true, present: false, monitored: null });
     expect(deriveState(PRESENT_AND_MONITORED)).toBe(first);
-  });
-});
-
-describe("a view that renames a state", () => {
-  it("keeps the mark so both read as the same underlying fact", () => {
-    expect(renameState("monitored", "Wanted").iconKey).toBe(describeState("monitored").iconKey);
-  });
-
-  it("keeps the tint and takes the new label", () => {
-    const renamed = renameState("monitored", "Wanted");
-    expect(renamed.label).toBe("Wanted");
-    expect(renamed.variant).toBe(describeState("monitored").variant);
-  });
-
-  it("leaves the shared entry alone", () => {
-    renameState("monitored", "Wanted");
-    expect(describeState("monitored").label).toBe(EXPECTED_LABEL.monitored);
   });
 });

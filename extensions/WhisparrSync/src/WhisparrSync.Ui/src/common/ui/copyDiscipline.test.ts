@@ -163,7 +163,7 @@ describe("the whole-catalogue confirmation names the figure and what it is not",
   it("names the catalogue's size, the source, and that the held scenes are not in the run", () => {
     expect(copy.monitorAllConfirmation(665, "a source")).toBe(
       "This covers all 665 scenes a source lists here, minus the ones you already have. " +
-        "Marking a scene wanted downloads nothing by itself.",
+        "Monitoring a scene downloads nothing by itself.",
     );
   });
 
