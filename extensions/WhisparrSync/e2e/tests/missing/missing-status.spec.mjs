@@ -6,7 +6,7 @@
 // its own fields, and this spec is the evidence that a real host and a real instance produce them.
 //
 // WHAT IS DRIVEN, AND WHAT IS READ. The tab is driven in the browser, because whether it mounts on
-// each page type is only observable there. The status fields are read off the extension's own route
+// each page type is only observable there. The refusal is read off the extension's own route
 // through the host, because a pill's four words are the same string for two of the cases and the
 // field beside them is what tells them apart.
 //
@@ -204,8 +204,8 @@ test("the two reasons a status is unknown are different answers, in a real host"
       `a page reported a component the bundle does not register: ${missingComponent.join(" | ")}`,
     ).toEqual([]);
 
-    // A CONNECTED INSTANCE. The catalogue is read, the instance answers, and the page reports a
-    // status it actually read.
+    // A CONNECTED INSTANCE. The catalogue is read, the instance answers, and the page draws cards
+    // rather than stating a reason.
     const connectedPage = await readMissingPage(coveApi, "studio", studio.id);
     expect(
       connectedPage.cards.length,
@@ -219,10 +219,6 @@ test("the two reasons a status is unknown are different answers, in a real host"
       connectedPage.cards.map((card) => card.title),
       `no card carries a title this spec seeded, so the grid is drawing a catalogue it did not serve: ${catalogue.map((one) => one.title).join(", ")}`,
     ).toContain(catalogue[0].title);
-    expect(
-      connectedPage.statusIsPermanentlyAbsent,
-      "a connected instance of this generation keeps per-scene records, so nothing about the status is permanent",
-    ).toBe(false);
 
     const firstCard = cards(page).first();
     await visit(
@@ -264,19 +260,11 @@ test("the two reasons a status is unknown are different answers, in a real host"
       v2Page.refusal,
       `v2 stated a reason for a site its instance holds: ${String(v2Page.refusal)}`,
     ).toBe("none");
-    expect(
-      v2Page.statusWasRead,
-      "v2 read a site its instance holds and reported that no status was read",
-    ).toBe(true);
-    expect(
-      v2Page.statusIsPermanentlyAbsent,
-      "a connected instance of this generation keeps per-scene records, so nothing about the status is permanent",
-    ).toBe(false);
 
     test.info().annotations.push({
       type: "narrowed-assertion",
       description:
-        "the number of scenes v2 lists for the site is not asserted. This suite has no recipe that produces a listed v2 catalogue: every card-level spec runs on v3, and a site seeded with a scene reads back an empty catalogue here. What is asserted is the status pair this spec exists for, which the read answers either way. The projection over a v2 catalogue is covered in the backend suite.",
+        "the number of scenes v2 lists for the site is not asserted. This suite has no recipe that produces a listed v2 catalogue: every card-level spec runs on v3, and a site seeded with a scene reads back an empty catalogue here. What is asserted is the refusal this spec exists for, which the read answers either way. The projection over a v2 catalogue is covered in the backend suite.",
     });
 
     // The stub standing in for v2's source is never asked, and that is the point: this generation
@@ -303,14 +291,6 @@ test("the two reasons a status is unknown are different answers, in a real host"
       unreachable.cards.length,
       "the instance was stopped, so there is nothing to list its scenes from",
     ).toBe(0);
-    expect(
-      unreachable.statusWasRead,
-      "the instance was stopped, so no status can have been read",
-    ).toBe(false);
-    expect(
-      unreachable.statusIsPermanentlyAbsent,
-      "the instance was stopped rather than replaced, so a retry could still answer",
-    ).toBe(false);
 
     // The same fact in the browser: a stated reason in place of a grid, never a blank region.
     await visit(

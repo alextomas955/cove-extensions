@@ -104,8 +104,6 @@ function recordedPage(sceneList) {
     facets: [],
     sorts: [],
     sortInForce: null,
-    statusWasRead: true,
-    statusIsPermanentlyAbsent: false,
     providerName: "StashDB",
   };
 }
