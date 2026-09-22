@@ -135,6 +135,7 @@ export function TokenSettingsSection({
                 value={mv("performers").maxCount}
                 min={0}
                 placeholder="No limit"
+                blankWhenZero
                 onChange={(v) => {
                   setMulti("performers", { maxCount: v });
                 }}
@@ -222,6 +223,7 @@ export function TokenSettingsSection({
                 value={mv("tags").maxCount}
                 min={0}
                 placeholder="No limit"
+                blankWhenZero
                 onChange={(v) => {
                   setMulti("tags", { maxCount: v });
                 }}

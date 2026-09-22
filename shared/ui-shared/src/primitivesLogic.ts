@@ -146,12 +146,12 @@ export function nextActiveIndex(current: number, count: number, direction: 1 | -
 }
 
 /**
- * What a number field puts in its `value`. A blank is the only state that lets a placeholder read,
- * so a field carrying one treats zero as the absent value it stands for; a field with no placeholder
- * shows its zero. A non-number is always blank — the field would otherwise render `NaN`.
+ * What a number field puts in its `value`. A field whose zero means "unset" says so with
+ * `blankWhenZero`, and renders blank for it so a placeholder can name what the absence means; every
+ * other field shows its zero. A non-number is always blank — the field would otherwise render `NaN`.
  */
-export function numberInputValue(value: number, placeholder?: string): number | "" {
+export function numberInputValue(value: number, blankWhenZero?: boolean): number | "" {
   if (Number.isNaN(value)) return "";
-  if (placeholder !== undefined && value === 0) return "";
+  if (blankWhenZero === true && value === 0) return "";
   return value;
 }

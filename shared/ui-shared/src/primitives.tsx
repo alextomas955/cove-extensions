@@ -202,17 +202,20 @@ export function NumberInput({
   min,
   max,
   placeholder,
+  blankWhenZero,
 }: {
   value: number;
   onChange: (value: number) => void;
   min?: number;
   max?: number;
   placeholder?: string;
+  /** Set where zero is the field's "unset", so it renders blank and the placeholder names it. */
+  blankWhenZero?: boolean;
 }) {
   return (
     <input
       type="number"
-      value={numberInputValue(value, placeholder)}
+      value={numberInputValue(value, blankWhenZero)}
       placeholder={placeholder}
       min={min}
       max={max}

@@ -143,17 +143,18 @@ test("an index past the end of a shrunken list counts as no selection", () => {
   assert.equal(nextActiveIndex(9, 4, -1), 3);
 });
 
-test("a number field with no placeholder shows every value it holds, zero included", () => {
+test("a number field shows every value it holds, zero included", () => {
   assert.equal(numberInputValue(0), 0);
+  assert.equal(numberInputValue(0, false), 0);
   assert.equal(numberInputValue(7), 7);
 });
 
-test("a number field with a placeholder shows nothing for zero, so the placeholder reads", () => {
-  assert.equal(numberInputValue(0, "No limit"), "");
-  assert.equal(numberInputValue(7, "No limit"), 7);
+test("a number field whose zero means unset shows nothing for it, so the placeholder reads", () => {
+  assert.equal(numberInputValue(0, true), "");
+  assert.equal(numberInputValue(7, true), 7);
 });
 
 test("a number field shows nothing for a value that is not a number", () => {
   assert.equal(numberInputValue(Number.NaN), "");
-  assert.equal(numberInputValue(Number.NaN, "No limit"), "");
+  assert.equal(numberInputValue(Number.NaN, true), "");
 });
