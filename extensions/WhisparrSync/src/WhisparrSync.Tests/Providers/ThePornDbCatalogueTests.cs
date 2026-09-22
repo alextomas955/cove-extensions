@@ -694,10 +694,46 @@ public sealed class ThePornDbCatalogueTests
             await catalogue.ResolveNumericSiteIdAsync(StudioUuid, TestCt));
     }
 
-    // The two picture fields and the status are the whole subject of these four, so the answers are
-    // written here rather than taken from a recording of one scene that happens to carry both.
+    // The picture fields and the status are the whole subject of these, so the answers are written
+    // here rather than taken from a recording of one scene that happens to carry every field.
+    // Measured 2026-09-22: `background` is 16:9 and `poster` is 2:3, and the card's tile is 16:9.
     [Fact]
-    public async Task ASceneCarryingBothPicturesIsCoveredByItsPoster()
+    public async Task ASceneCarryingEveryPictureIsCoveredByTheWidescreenOne()
+    {
+        var (catalogue, _) = CatalogueOver(
+            HttpStatusCode.OK,
+            """
+            {"data":{"poster":"https://a.source.invalid/poster.jpg",
+            "image":"https://a.source.invalid/image.jpg",
+            "background":{"medium":"https://a.source.invalid/background.jpg"}}}
+            """);
+
+        Assert.Equal(
+            "https://a.source.invalid/background.jpg",
+            await catalogue.ReadSceneCoverAsync(SceneUuid, TestCt));
+    }
+
+    // The widest variant a card can use. A larger one costs a reader bytes the tile cannot show.
+    [Fact]
+    public async Task TheWidescreenPictureIsTakenAtTheSizeNearestTheCard()
+    {
+        var (catalogue, _) = CatalogueOver(
+            HttpStatusCode.OK,
+            """
+            {"data":{"background":{"small":"https://a.source.invalid/s.jpg",
+            "medium":"https://a.source.invalid/m.jpg",
+            "large":"https://a.source.invalid/l.jpg",
+            "full":"https://a.source.invalid/f.jpg"}}}
+            """);
+
+        Assert.Equal(
+            "https://a.source.invalid/m.jpg",
+            await catalogue.ReadSceneCoverAsync(SceneUuid, TestCt));
+    }
+
+    // The studio's own address, which some studios refuse, so it is never preferred to the poster.
+    [Fact]
+    public async Task ASceneCarryingNoWidescreenPictureFallsBackToItsPoster()
     {
         var (catalogue, _) = CatalogueOver(
             HttpStatusCode.OK,
@@ -708,17 +744,6 @@ public sealed class ThePornDbCatalogueTests
 
         Assert.Equal(
             "https://a.source.invalid/poster.jpg",
-            await catalogue.ReadSceneCoverAsync(SceneUuid, TestCt));
-    }
-
-    [Fact]
-    public async Task ASceneCarryingTheWiderPictureAloneIsCoveredByIt()
-    {
-        var (catalogue, _) = CatalogueOver(
-            HttpStatusCode.OK, """{"data":{"image":"https://a.source.invalid/image.jpg"}}""");
-
-        Assert.Equal(
-            "https://a.source.invalid/image.jpg",
             await catalogue.ReadSceneCoverAsync(SceneUuid, TestCt));
     }
 
