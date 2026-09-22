@@ -27,7 +27,6 @@ internal sealed record MissingPageContext(
     string ApiKey,
     WhisparrGeneration Generation,
     ResolvedProvider? Provider,
-    IWhisparrSceneStatusReading? StatusReading,
     IWhisparrSceneExclusionReading? ExclusionReading,
     IWhisparrEntityCatalogueReading? CatalogueReading);
 
@@ -126,10 +125,6 @@ internal sealed class MissingPagePlanner(
             [.. InstanceCatalogueLogic.Sorts.Select(
                 sort => new MissingSortOption(sort.Value, sort.Label))],
             request.Sort is { Length: > 0 } sort ? sort : InstanceCatalogueLogic.NewestFirst,
-            // Every card came off an entry the instance holds, so its state is read rather than
-            // asked for, and no per-scene status read is issued at all.
-            true,
-            false,
             catalogue.Capabilities.Provider);
     }
 
@@ -344,7 +339,5 @@ internal sealed class MissingPagePlanner(
             [],
             [],
             SortInForce: null,
-            StatusWasRead: false,
-            StatusIsPermanentlyAbsent: false,
             catalogue.Capabilities.Provider);
 }

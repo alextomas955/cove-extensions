@@ -275,8 +275,7 @@ public sealed record MissingSortOption(string Value, string Label);
 /// </para>
 /// <para>
 /// <c>SortInForce</c> is the ordering this page was read under, which is the provider's own where
-/// the caller named none, and is null only on a refused page. <c>StatusIsPermanentlyAbsent</c> means
-/// no retry can establish a status, because the connected generation keeps no per-scene records.
+/// the caller named none, and is null only on a refused page.
 /// <c>ProviderName</c> is carried on the page rather than held by the surface, because which source
 /// answers follows the connected generation.
 /// </para>
@@ -294,8 +293,6 @@ public sealed record MissingPageView(
     IReadOnlyList<MissingFacetMenu> Facets,
     IReadOnlyList<MissingSortOption> Sorts,
     string? SortInForce,
-    bool StatusWasRead,
-    bool StatusIsPermanentlyAbsent,
     string ProviderName);
 
 /// <summary>How large one entity's catalogue is, as the tab badge reads it.</summary>
