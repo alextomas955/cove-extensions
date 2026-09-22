@@ -23,6 +23,8 @@ import { EntityReferenceMultiSelector, type EntityReferenceType } from "@cove/ru
 
 import { Field, INPUT_CLASS } from "@cove-extensions/ui-shared";
 
+type SelectorProps = Parameters<typeof EntityReferenceMultiSelector>[0];
+
 export function EntitySelectField({
   entityType,
   label,
@@ -44,18 +46,27 @@ export function EntitySelectField({
   /** Ids to keep out of the results, e.g. entities that already key a rule elsewhere. */
   excludeIds?: Iterable<number>;
 }>) {
+  const declared: SelectorProps = {
+    entityType,
+    values,
+    onChange,
+    placeholder,
+    excludeIds,
+    allowCreate: false,
+    inputClassName: INPUT_CLASS,
+  };
+
+  // The host gained `inputAriaLabel` after the 1.4.1 floor this extension declares, so it is absent
+  // from the shared declaration and reaches the control through this one widening. A host predating
+  // it ignores the unknown prop.
+  const withName = {
+    ...declared,
+    inputAriaLabel: label,
+  } as SelectorProps & { inputAriaLabel: string };
+
   return (
     <Field label={label} labelStyle={labelStyle} helper={helper} controlNamesItself>
-      <EntityReferenceMultiSelector
-        entityType={entityType}
-        values={values}
-        onChange={onChange}
-        placeholder={placeholder}
-        excludeIds={excludeIds}
-        allowCreate={false}
-        inputClassName={INPUT_CLASS}
-        inputAriaLabel={label}
-      />
+      <EntityReferenceMultiSelector {...withName} />
     </Field>
   );
 }
