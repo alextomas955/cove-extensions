@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json.Nodes;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Import;
 
@@ -56,7 +57,8 @@ internal static class WebhookProjector
             return new WebhookReading(WebhookProjectionOutcome.Ignored, eventType, null);
         }
 
-        var file = ObjectAt(body, FileMemberOf(generation));
+        var reading = WhisparrInstanceFactory.ReadingFor(generation);
+        var file = ObjectAt(body, reading.WebhookFileMember);
         if (file is null || ValueOf(file, "path") is not { } path)
         {
             return new WebhookReading(WebhookProjectionOutcome.NoReadablePath, eventType, null);
@@ -70,7 +72,7 @@ internal static class WebhookProjector
                 eventType,
                 path,
                 LongAt(file, "size"),
-                RemoteIdOf(generation, body)));
+                reading.WebhookRemoteId(body)));
     }
 
     // Read from the user agent, not the body: it is available before the body is read, and it
@@ -86,33 +88,11 @@ internal static class WebhookProjector
         return GenerationDetector.GenerationOf(version);
     }
 
-    private static string FileMemberOf(WhisparrGeneration generation)
-        => generation switch
-        {
-            WhisparrGeneration.V3 => "movieFile",
-            WhisparrGeneration.V2 => "episodeFile",
-            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
-        };
-
-    // In a different place and of a different JSON type on each generation: v3 carries a string
-    // beside the entity, v2 a number on the scene rows the delivery lists. The first scene's is
-    // taken, because a delivery reports one imported file.
-    private static string? RemoteIdOf(WhisparrGeneration generation, JsonObject body)
-        => generation switch
-        {
-            WhisparrGeneration.V3 => RemoteIdGuard.Identifying(ValueOf(ObjectAt(body, "movie"), "stashId")),
-            WhisparrGeneration.V2 => RemoteIdGuard.Identifying(ValueOf(FirstObjectIn(body, "episodes"), "tvdbId")),
-            _ => null,
-        };
-
     private static JsonObject? ObjectAt(JsonObject? parent, string name)
         => parent?[name] as JsonObject;
 
-    private static JsonObject? FirstObjectIn(JsonObject parent, string name)
-        => (parent[name] as JsonArray)?.FirstOrDefault() as JsonObject;
-
-    // A number renders as its invariant text, so an identifier carried as a JSON number on one
-    // generation and a JSON string on the other reaches the core in one form.
+    // A member carried as a JSON number renders as its invariant text, so a body spelling one as a
+    // number and another as a string reaches the core in one form.
     private static string? ValueOf(JsonObject? parent, string name)
     {
         if (parent?[name] is not JsonValue value)
