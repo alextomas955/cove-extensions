@@ -2,6 +2,7 @@
 // read settling after a move to page four paints page three's cards under page four's address.
 import { describe, expect, it } from "vitest";
 
+import { runOver } from "./missingRunLogic";
 import { createMissingStore, INITIAL_MISSING_STATE, type MissingViewKey } from "./missingStore";
 
 const STUDIO = { kind: "studio", coveId: 7 } as const;
@@ -119,7 +120,7 @@ describe("what the selection's own verb leaves behind", () => {
     const store = createMissingStore();
     store.mounted(STUDIO);
 
-    store.beginBulk(STUDIO);
+    store.beginBulk(STUDIO, runOver([]));
     store.bulkSettled(STUDIO, { kind: "started" });
 
     const { bulk } = store.getSnapshot();

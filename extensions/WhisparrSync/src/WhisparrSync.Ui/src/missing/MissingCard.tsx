@@ -47,6 +47,12 @@ import {
   CARD_TITLE_CLASS,
 } from "./missingClasses";
 
+// What a card says while a run is still working through it. Not a state: the instance has not
+// answered yet, and what it ends up holding is read when the run stops.
+const RUNNING_LABEL = "Working";
+const RUNNING_PILL_CLASS =
+  "inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-secondary";
+
 // `focus:` and not `focus-visible:`, which is the spelling the host stylesheet emits.
 const FOCUS_RING = "focus:outline-none focus:ring-2 focus:ring-accent";
 
@@ -68,6 +74,7 @@ export function MissingCard({
   action = CARD_ACTION_AT_REST,
   onMonitor,
   onSearch,
+  inARun = false,
 }: {
   card: MissingCardView;
   selected?: boolean;
@@ -76,6 +83,8 @@ export function MissingCard({
   /** Absent where the surface offers no selection, which draws no control rather than an inert one. */
   onToggleSelect?: (options?: MultiSelectToggleOptions<string>) => void;
   action?: CardActionState;
+  /** Whether a run this browser started is still working through this scene. */
+  inARun?: boolean;
   /** Marks this scene wanted. Absent where the surface offers no verbs. */
   onMonitor?: (providerSceneId: string) => void;
   /** Asks Whisparr to look for this scene. Absent where the surface offers no verbs. */
@@ -111,7 +120,14 @@ export function MissingCard({
         </h3>
         <CardBodyRows rows={rows} />
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-          <StateChip state={pillState} />
+          {inARun ? (
+            <span className={RUNNING_PILL_CLASS} title={WAITING_FOR_WHISPARR}>
+              <Loader className="h-3 w-3 animate-spin" aria-hidden="true" />
+              {RUNNING_LABEL}
+            </span>
+          ) : (
+            <StateChip state={pillState} />
+          )}
           {onMonitor === undefined || onSearch === undefined ? null : (
             <div className="flex shrink-0 items-center gap-1.5">
               <CardAction

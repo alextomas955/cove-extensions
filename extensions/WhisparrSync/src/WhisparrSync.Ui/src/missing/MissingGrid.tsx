@@ -7,6 +7,7 @@ import { deriveAsyncRegionState, type AsyncRead } from "../common/ui/asyncRegion
 import type { MissingPageView } from "../wire/api";
 import type { MultiSelectToggleHandler } from "@cove/runtime/components";
 import { MissingCard } from "./MissingCard";
+import { runCovers, type MissingRun } from "./missingRunLogic";
 import type { CardActionState } from "./missingCardLogic";
 import { MissingGridStates } from "./MissingGridStates";
 import { GRID_CLASS, GRID_TEMPLATE_COLUMNS } from "./missingClasses";
@@ -46,6 +47,8 @@ export interface MissingGridCards {
   readonly onToggleSelect: MultiSelectToggleHandler<string>;
   /** Keyed as the provider issued the scene identifier. */
   readonly actions: Readonly<Record<string, CardActionState>>;
+  /** The run this browser started and is still waiting on, or null where none is. */
+  readonly running: MissingRun | null;
   readonly onMonitor: (providerSceneId: string) => void;
   readonly onSearch: (providerSceneId: string) => void;
 }
@@ -123,6 +126,7 @@ export function MissingGrid({
                     wiring.onToggleSelect(card.providerSceneId, options);
                   }}
                   action={wiring.actions[card.providerSceneId]}
+                  inARun={runCovers(wiring.running, card.providerSceneId)}
                   onMonitor={wiring.onMonitor}
                   onSearch={wiring.onSearch}
                 />
