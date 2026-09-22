@@ -5,7 +5,7 @@ import { isValidElement } from "react";
 
 import { badgesFor, type Badgeable } from "./warningBadgeLogic";
 import { WarningBadges } from "./WarningBadge";
-import { IN_FLIGHT_OVERFLOW_LABEL } from "./dryRunLogic";
+import { IN_FLIGHT_OVERFLOW_LABEL, classifyItem } from "./dryRunLogic";
 import type { PreviewItemView, RenamerStatus, ScanRow } from "../../wire/api";
 
 /**
@@ -21,20 +21,20 @@ const EXPECTED_LABEL: Record<RenamerStatus, string | null> = {
   renamer: null, // the rename is happening; there is nothing to warn about
   move: null,
   noOp: "No change needed",
-  skipGated: "Skipped — needs a required field",
-  skipCollision: "Skipped — name conflict",
-  skipExcluded: "Skipped — an exclude rule matched",
-  skipLocked: "Skipped — file in use",
-  skipMissingSource: "Skipped — file missing on disk",
+  skipGated: "Needs a required field",
+  skipCollision: "Name conflict",
+  skipExcluded: "An exclude rule matched",
+  skipLocked: "File in use",
+  skipMissingSource: "File missing on disk",
   failed: "Failed — rolled back",
-  skipUnanchored: "Skipped — file is outside your Cove library",
-  skipRootMissing: "Skipped — the rule's destination is no longer a library path",
-  skipNotAllowed: "Skipped — destination outside its own root",
-  skipTooLong: "Skipped — path too long",
-  skipPermissionDenied: "Skipped — permission denied",
-  skipVerifyFailed: "Skipped — copy did not verify",
-  skipCancelled: "Skipped — cancelled",
-  skipNoSpace: null, // log-only, never an item result
+  skipUnanchored: "File is outside your Cove library",
+  skipRootMissing: "The rule's destination is no longer a library path",
+  skipNotAllowed: "Destination outside its own root",
+  skipTooLong: "Path too long",
+  skipPermissionDenied: "Permission denied",
+  skipVerifyFailed: "Copy did not verify",
+  skipCancelled: "Cancelled",
+  skipNoSpace: "Not enough free space",
 };
 
 function row(status: RenamerStatus, flags: Partial<Badgeable> = {}): Badgeable {
@@ -58,7 +58,7 @@ test("every status earns the label transcribed for it, and no other", () => {
 test("a skipped row's variant marks whether the user lost the file or only the rename", () => {
   assert.deepEqual(badgesFor(row("noOp")), [{ label: "No change needed", variant: "gray" }]);
   assert.deepEqual(badgesFor(row("skipExcluded")), [
-    { label: "Skipped — an exclude rule matched", variant: "amber" },
+    { label: "An exclude rule matched", variant: "amber" },
   ]);
   assert.deepEqual(badgesFor(row("failed")), [{ label: "Failed — rolled back", variant: "red" }]);
 });
@@ -88,9 +88,7 @@ test("a status this bundle was never built for is surfaced, not hidden and not t
     suffixed: false,
     sanitized: false,
   } as unknown as Badgeable;
-  assert.deepEqual(badgesFor(unknown), [
-    { label: "Skipped — unrecognised status", variant: "amber" },
-  ]);
+  assert.deepEqual(badgesFor(unknown), [{ label: "Unrecognised status", variant: "amber" }]);
 });
 
 /**
@@ -165,4 +163,27 @@ test("both wire row shapes satisfy Badgeable", () => {
   const fromScan: Badgeable = scanRow;
   assert.equal(typeof fromPreview, "object");
   assert.equal(typeof fromScan, "object");
+});
+
+/**
+ * A row in the attention bucket never reaches the user saying nothing. Its new-name cell is empty by
+ * design, so the badge is the row's only statement of why it will not be renamed.
+ *
+ * Stated over every attention status rather than over the one that was missing a badge, because an
+ * invariant written for a single instance is that instance restated.
+ */
+test("every status in the attention bucket earns a badge", () => {
+  const silent = (Object.keys(EXPECTED_LABEL) as RenamerStatus[])
+    .filter((status) => classifyItem({ status }) === "attention")
+    .filter((status) => badgesFor(row(status)).length === 0);
+
+  assert.deepEqual(silent, []);
+});
+
+test("no badge label carries an outcome prefix the badge column already implies", () => {
+  const prefixed = (Object.keys(EXPECTED_LABEL) as RenamerStatus[])
+    .flatMap((status) => labels(row(status)))
+    .filter((label) => label.startsWith("Skipped — "));
+
+  assert.deepEqual(prefixed, []);
 });

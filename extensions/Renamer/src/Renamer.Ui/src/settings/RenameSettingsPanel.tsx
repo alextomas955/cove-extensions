@@ -257,8 +257,12 @@ export function RenamePanelBody() {
 
       <UndoSection refreshKey={undoRefreshKey} />
 
+      {/* The bar and the dialog are both fixed at the same layer, and this one is the later sibling,
+          so with the dialog open the bar paints over it and its buttons stay mouse-reachable. The
+          root's bottom padding stays keyed on `dirty` alone: that clearance is for the page behind
+          the dialog, which must not shift under an open overlay. */}
       <SaveBar
-        dirty={dirty}
+        dirty={dirty && !dryRunOpen}
         saving={saving}
         saveError={saveError}
         savedFlash={savedFlash}

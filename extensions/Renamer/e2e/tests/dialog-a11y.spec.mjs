@@ -97,3 +97,33 @@ test("while a rename is in flight the dialog suspends cancel; it closes again on
   await page.keyboard.press("Escape");
   await expect(settings.dryRunDialog).toBeHidden();
 });
+
+test("the save bar leaves the screen while the dialog is open, and comes back on close", async ({
+  page,
+  harness,
+  baseUrl,
+}) => {
+  const video = await seedVideo({ container: harness.container, baseUrl });
+  void video;
+
+  const settings = new RenamerSettingsPage(page, baseUrl);
+  await settings.goto();
+
+  // Unsaved on purpose: the save bar only exists while the panel is dirty, and the bar and the
+  // dialog are both fixed at the same layer, so the later sibling paints over the earlier one.
+  await settings.setFilenameTemplate(`$title ${Date.now()}`);
+  await expect(settings.unsavedChangesIndicator).toBeVisible();
+
+  await settings.openDryRun();
+
+  // Asserted the moment the dialog mounts, not once the scan lands: a bar that is reachable for the
+  // length of a library scan is reachable, and a wait here would hide that.
+  await expect(settings.saveChangesButton).toBeHidden();
+  await expect(settings.unsavedChangesIndicator).toBeHidden();
+  await expect(settings.dryRunDialog).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(settings.dryRunDialog).toBeHidden();
+  await expect(settings.saveChangesButton).toBeVisible();
+  await expect(settings.unsavedChangesIndicator).toBeVisible();
+});

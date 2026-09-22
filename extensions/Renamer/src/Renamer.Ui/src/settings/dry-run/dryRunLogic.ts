@@ -161,6 +161,44 @@ export function bucketTotal(counts: DryRunCounts | null, filter: DryRunFilter): 
   }
 }
 
+/** What the row list's footer reports: how far the walk got, and whether it finished. */
+export interface RowsFooter {
+  /** Rows accumulated across every page walked so far. */
+  readonly loaded: number;
+  /** How many rows the scan counted in this bucket. */
+  readonly total: number;
+  /** A search is narrowing the walk, so `total` describes a wider set than the rows can. */
+  readonly searching: boolean;
+  /** The walk reached the end of the library. */
+  readonly complete: boolean;
+  /** Library items the walk has read, including windows that matched nothing. */
+  readonly examined: number;
+}
+
+/**
+ * The footer's sentence.
+ *
+ * A finished walk states the rows it loaded, never the scan's count: the scan counted the library as
+ * it was, and a library edited since can yield more rows than that. An unfinished walk keeps the
+ * denominator and the progress clause, and must never read as "that is everything" — the walk
+ * continues on its own, and the examined count is what shows it moving through windows that match
+ * nothing.
+ */
+export function rowsFooterText(footer: RowsFooter): string {
+  const { loaded, total, searching, complete, examined } = footer;
+  if (complete) {
+    const noun = loaded === 1 ? "row" : "rows";
+    return `All ${loaded} ${searching ? "matching " : ""}${noun}, in scan order`;
+  }
+  // The denominator is shown only while it is one. A search has no known total until the walk ends,
+  // so "5 of 3 loaded" would be a worse answer than no denominator at all.
+  const counted =
+    !searching && loaded <= total
+      ? `${loaded} of ${total} row${total === 1 ? "" : "s"} loaded`
+      : `${loaded} ${searching ? "matching " : ""}row${loaded === 1 ? "" : "s"} loaded`;
+  return `${counted}, in scan order (by type, then by item). Checked ${examined} items so far…`;
+}
+
 /**
  * Cove's asset detail-route segment for each scan kind. Enumerated (not `kind.toLowerCase()`) so an
  * unexpected kind falls through to `null` rather than fabricating a wrong URL — the href is derived

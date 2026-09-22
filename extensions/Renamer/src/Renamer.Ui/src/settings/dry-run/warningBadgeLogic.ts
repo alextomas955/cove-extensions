@@ -79,71 +79,68 @@ const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
   move: { badge: null, readsAdvisoryFlags: true },
   noOp: { badge: { label: "No change needed", variant: "gray" }, readsAdvisoryFlags: false },
   skipGated: {
-    badge: { label: "Skipped — needs a required field", variant: "amber" },
+    badge: { label: "Needs a required field", variant: "amber" },
     readsAdvisoryFlags: false,
   },
   skipCollision: {
-    badge: { label: "Skipped — name conflict", variant: "amber" },
+    badge: { label: "Name conflict", variant: "amber" },
     readsAdvisoryFlags: false,
   },
   // Planner-produced, so it does reach a row. The label names the rule rather than the file, because
   // the exclude is the half the user can act on.
   skipExcluded: {
-    badge: { label: "Skipped — an exclude rule matched", variant: "amber" },
+    badge: { label: "An exclude rule matched", variant: "amber" },
     readsAdvisoryFlags: false,
   },
   skipLocked: {
-    badge: { label: "Skipped — file in use", variant: "amber" },
+    badge: { label: "File in use", variant: "amber" },
     readsAdvisoryFlags: false,
   },
   skipMissingSource: {
-    badge: { label: "Skipped — file missing on disk", variant: "amber" },
+    badge: { label: "File missing on disk", variant: "amber" },
     readsAdvisoryFlags: false,
   },
   failed: { badge: { label: "Failed — rolled back", variant: "red" }, readsAdvisoryFlags: false },
   // Planner-produced by the destination model, so each reaches a row. Each label names the half the
   // user can act on, which differs per status: the library for one, the rule for another.
   skipUnanchored: {
-    badge: { label: "Skipped — file is outside your Cove library", variant: "amber" },
+    badge: { label: "File is outside your Cove library", variant: "amber" },
     readsAdvisoryFlags: false,
   },
   skipRootMissing: {
     badge: {
-      label: "Skipped — the rule's destination is no longer a library path",
+      label: "The rule's destination is no longer a library path",
       variant: "amber",
     },
     readsAdvisoryFlags: false,
   },
   skipNotAllowed: {
-    badge: { label: "Skipped — destination outside its own root", variant: "amber" },
+    badge: { label: "Destination outside its own root", variant: "amber" },
     readsAdvisoryFlags: false,
   },
   skipTooLong: {
-    badge: { label: "Skipped — path too long", variant: "amber" },
+    badge: { label: "Path too long", variant: "amber" },
     readsAdvisoryFlags: false,
   },
   skipPermissionDenied: {
-    badge: { label: "Skipped — permission denied", variant: "amber" },
+    badge: { label: "Permission denied", variant: "amber" },
     readsAdvisoryFlags: false,
   },
   // Red rather than amber: the copy was written and then read back different, so the destination or
   // the transport is suspect, which is not the same ask as retrying a busy file.
   skipVerifyFailed: {
-    badge: { label: "Skipped — copy did not verify", variant: "red" },
+    badge: { label: "Copy did not verify", variant: "red" },
     readsAdvisoryFlags: false,
   },
   // Gray rather than amber: a clean stop on shutdown is not a defect and must not read as one.
   skipCancelled: {
-    badge: { label: "Skipped — cancelled", variant: "gray" },
+    badge: { label: "Cancelled", variant: "gray" },
     readsAdvisoryFlags: false,
   },
-  // The two below reach no preview or scan row, so neither earns copy — inventing a label for one
-  // would ship dead text, and the reason each is unreachable is recorded instead.
-  //
-  // Log-only: a disk-full skip is reported through the run log and never becomes an item result at all.
-  skipNoSpace: { badge: null, readsAdvisoryFlags: false },
-  // Executor-only, and produced only after the confirm gate: the write-boundary guard refuses a
-  // destination at move time, by which point the user has already approved.
+  skipNoSpace: {
+    badge: { label: "Not enough free space", variant: "amber" },
+    readsAdvisoryFlags: false,
+  },
 };
 
 /**
@@ -152,7 +149,7 @@ const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
  * be silently uncounted.
  */
 const UNKNOWN_STATUS_BADGING: StatusBadging = {
-  badge: { label: "Skipped — unrecognised status", variant: "amber" },
+  badge: { label: "Unrecognised status", variant: "amber" },
   readsAdvisoryFlags: false,
 };
 

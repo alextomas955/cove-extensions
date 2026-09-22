@@ -18,6 +18,7 @@ import {
   IN_FLIGHT_OVERFLOW_LABEL,
   inFlightOverflowLabel,
   shouldContinueWalk,
+  rowsFooterText,
   type DryRunBucket,
 } from "./dryRunLogic";
 import type { RenamerStatus } from "../../wire/api";
@@ -361,4 +362,46 @@ test("a row that arrives without the overflow field reads as unflagged, not as f
   // put a red pill on every row of the dry-run table.
   assert.equal(inFlightOverflowLabel({}), null);
   assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: undefined }), null);
+});
+
+/**
+ * The footer under the row list. Its two states say different things: a finished walk states the
+ * total, while an unfinished one must never read as "that's everything" and reports how far through
+ * the library the walk has got instead.
+ */
+test("a finished walk states its total once, from the rows it actually loaded", () => {
+  assert.equal(
+    rowsFooterText({ loaded: 5, total: 5, searching: false, complete: true, examined: 40 }),
+    "All 5 rows, in scan order",
+  );
+  assert.equal(
+    rowsFooterText({ loaded: 5, total: 5, searching: true, complete: true, examined: 40 }),
+    "All 5 matching rows, in scan order",
+  );
+  assert.equal(
+    rowsFooterText({ loaded: 1, total: 1, searching: false, complete: true, examined: 40 }),
+    "All 1 row, in scan order",
+  );
+});
+
+/**
+ * The scan counted the library as it was; a library edited since can yield more rows than that count.
+ * So a finished walk reports what it loaded, never what the scan predicted.
+ */
+test("a finished walk prefers the rows it loaded over the count the scan predicted", () => {
+  assert.equal(
+    rowsFooterText({ loaded: 7, total: 3, searching: false, complete: true, examined: 40 }),
+    "All 7 rows, in scan order",
+  );
+});
+
+test("an unfinished walk keeps the denominator and the progress clause", () => {
+  assert.equal(
+    rowsFooterText({ loaded: 2, total: 5, searching: false, complete: false, examined: 40 }),
+    "2 of 5 rows loaded, in scan order (by type, then by item). Checked 40 items so far…",
+  );
+  assert.equal(
+    rowsFooterText({ loaded: 2, total: 5, searching: true, complete: false, examined: 40 }),
+    "2 matching rows loaded, in scan order (by type, then by item). Checked 40 items so far…",
+  );
 });

@@ -201,9 +201,11 @@ test("the walk follows a page that carried no rows and reaches the end of the li
   await sleep(SETTLE_MS);
 
   expect(modal.text(), "the walk stopped before the end of the library").toContain(
-    "5 of 5 rows loaded",
+    "All 5 rows, in scan order",
   );
-  expect(modal.text()).toContain("That is all of them.");
+  // The unfinished form and the count it carried are what a walk that stopped early would leave.
+  expect(modal.text()).not.toContain("rows loaded");
+  expect(modal.text()).not.toContain("items so far");
   modal.unmount();
 }, 30_000);
 
@@ -236,7 +238,7 @@ test("a dry run of unsaved settings will not start the rename", async () => {
   await sleep(SETTLE_MS);
 
   expect(modal.renameButton()?.disabled).toBe(true);
-  expect(modal.text()).toContain("A rename runs the saved ones.");
+  expect(modal.text()).toContain("Previewing unsaved settings. Renaming uses the saved ones.");
   modal.unmount();
 }, 30_000);
 

@@ -18,7 +18,13 @@ import { ErrorBox } from "../../common/ui/Dialog";
 import type { ScanRow } from "../../wire/api";
 import { WarningBadges } from "./WarningBadge";
 import { useScanRows } from "./useScanRows";
-import { assetHref, classifyItem, shouldContinueWalk, type DryRunFilter } from "./dryRunLogic";
+import {
+  assetHref,
+  classifyItem,
+  rowsFooterText,
+  shouldContinueWalk,
+  type DryRunFilter,
+} from "./dryRunLogic";
 
 // The four content columns share one grid template so the sticky header and every virtualized row
 // align. Expressed inline because `grid-template-columns` with these exact tracks is host-absent
@@ -46,20 +52,11 @@ function dirname(p: string): string {
   return i < 0 ? "" : p.slice(0, i);
 }
 
+// An attention row's cell is left empty; its badge is the row's only statement of the reason.
 function newNameLabel(bucket: string, nameChanged: boolean, newName: string): string {
   if (bucket === "no-change") return "— unchanged";
-  if (bucket !== "will-change") return "— will be skipped";
+  if (bucket !== "will-change") return "";
   return nameChanged ? newName : "(name unchanged)";
-}
-
-function loadedText(loaded: number, total: number, searching: boolean): string {
-  // The denominator is shown only while it is one. A search has no known total until the walk ends,
-  // and a library edited since the scan can yield more rows than the scan counted, so "5 of 3 loaded"
-  // would be a worse answer than no denominator at all.
-  if (!searching && loaded <= total) {
-    return `${loaded} of ${total} row${total === 1 ? "" : "s"} loaded`;
-  }
-  return `${loaded} ${searching ? "matching " : ""}row${loaded === 1 ? "" : "s"} loaded`;
 }
 
 function emptyText(loading: boolean, complete: boolean, searching: boolean): string {
@@ -243,16 +240,17 @@ export function DryRunRows({
           )}
         </div>
 
-        {/* Footer: what is loaded, in what order, and whether the walk is finished. While it
-            is unfinished the line reports how much of the library has been checked, because
-            the walk continues itself and the count is what shows it moving through windows
-            that match nothing. It must never read as "that's everything", and it must never
-            ask for a gesture: a handful of rows in a virtualized list leaves nothing to
-            scroll. */}
+        {/* The footer must never ask for a gesture: a handful of rows in a virtualized list leaves
+            nothing to scroll. */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-card px-3 py-2 text-xs text-muted">
           <span>
-            {loadedText(rows.length, bucketTotal, searching)}, in scan order (by type, then by
-            item). {walkStatus(complete, searching, examined)}
+            {rowsFooterText({
+              loaded: rows.length,
+              total: bucketTotal,
+              searching,
+              complete,
+              examined,
+            })}
           </span>
           {complete ? null : (
             <Button variant="ghost" onClick={loadMore} disabled={loading}>
@@ -272,9 +270,4 @@ export function DryRunRows({
       ) : null}
     </>
   );
-}
-
-function walkStatus(complete: boolean, searching: boolean, examined: number): string {
-  if (!complete) return `Checked ${examined} items so far…`;
-  return searching ? "Your whole library has been searched." : "That is all of them.";
 }
