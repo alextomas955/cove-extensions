@@ -44,6 +44,10 @@ that would change before anything touches disk.
 - **Routing precedence is stated once, in full.** _Destination routing_ opens with the whole order -
   excludes, unorganized, tag, studio, source path, then the kind's own folder and the default.
   It used to appear in fragments that disagreed with each other.
+- **Settings descriptions now match what each control does.** The two toggles that decide whether
+  unorganized items are skipped each name the other, so neither reads as the whole answer on its
+  own; the empty-folder helper says it never deletes a drive root, where _a root_ used to read as
+  your library root; and the per-kind line counts the kinds instead of spelling the number.
 
 ## 0.5.0 - Text documents, and each kind settled on its own
 

@@ -124,7 +124,7 @@ public sealed partial class Renamer
             .AddSettingsTab(
                 key: "renamer",
                 label: "Renamer",
-                description: "Build each filename from the item's own details. See every change before anything moves.",
+                description: "Build a filename from each item's metadata. Preview before anything touches disk.",
                 order: 100,
                 layout: SettingsTabLayout.Page)
             .AddSettingsSection(targetTab: "renamer", label: "Renamer", componentName: "RenamerPage")
