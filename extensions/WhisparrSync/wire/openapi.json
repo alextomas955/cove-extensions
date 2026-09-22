@@ -2844,8 +2844,6 @@
           "facets",
           "sorts",
           "sortInForce",
-          "statusWasRead",
-          "statusIsPermanentlyAbsent",
           "providerName"
         ],
         "type": "object",
@@ -2903,12 +2901,6 @@
               "null",
               "string"
             ]
-          },
-          "statusWasRead": {
-            "type": "boolean"
-          },
-          "statusIsPermanentlyAbsent": {
-            "type": "boolean"
           },
           "providerName": {
             "type": "string"

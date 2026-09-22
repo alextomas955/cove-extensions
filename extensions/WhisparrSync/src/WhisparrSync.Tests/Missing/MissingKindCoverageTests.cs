@@ -105,7 +105,6 @@ public sealed class MissingKindCoverageTests
             SomeKey,
             WhisparrGeneration.V3,
             new ResolvedProvider(StashDb, "a-key", 240),
-            StatusReading: null,
             ExclusionReading: null,
             instance ?? new StubInstanceCatalogue());
 

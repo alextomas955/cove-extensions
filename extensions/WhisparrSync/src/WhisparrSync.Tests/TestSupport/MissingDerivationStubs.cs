@@ -2,7 +2,6 @@ using WhisparrSync.Contracts;
 using WhisparrSync.Missing;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Providers;
-using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
 
@@ -172,41 +171,4 @@ internal sealed class StubOwnedScenes(params string[] owned) : IOwnedScenePort
     public Task<IReadOnlySet<string>> ReadOwnedAsync(
         string identityEndpoint, IReadOnlyList<string> providerSceneIds, CancellationToken ct)
         => Task.FromResult<IReadOnlySet<string>>(owned.ToHashSet(StringComparer.Ordinal));
-}
-
-// The two counts are held apart because the claim they serve is about which of them was issued: a
-// kind the instance publishes no entity for has no probe to spend, and a total would hide that.
-internal sealed class StubSceneStatusReading(
-    int presence = 200, string sceneAnswer = "[]", bool unreachable = false)
-    : IWhisparrSceneStatusReading
-{
-    public int PresenceReads { get; private set; }
-
-    public int SceneReads { get; private set; }
-
-    public Task<WhisparrResponse> ReadEntityPresenceAsync(
-        Uri baseAddress, string apiKey, WhisparrEntityKind kind, string foreignId, CancellationToken ct)
-    {
-        PresenceReads++;
-        return unreachable
-            ? throw new HttpRequestException("The instance was not reached.")
-            : Task.FromResult(new WhisparrResponse(presence, "application/json", "{}"));
-    }
-
-    public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
-        Uri baseAddress, string apiKey, string remoteId, CancellationToken ct)
-    {
-        SceneReads++;
-        return unreachable
-            ? throw new HttpRequestException("The instance was not reached.")
-            : Task.FromResult(new WhisparrResponse(200, "application/json", sceneAnswer));
-    }
-
-    public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
-        Uri baseAddress,
-        string apiKey,
-        IReadOnlyCollection<string> foreignIds,
-        CancellationToken ct)
-        => throw new InvalidOperationException(
-            "This surface asks about one scene at a time and never about a batch of them.");
 }
