@@ -2178,7 +2178,8 @@
           "monitored",
           "refusal",
           "capabilities",
-          "scope"
+          "scope",
+          "scopeChangeIsRetroactive"
         ],
         "type": "object",
         "properties": {
@@ -2221,6 +2222,12 @@
               {
                 "$ref": "#/components/schemas/MonitorScope"
               }
+            ]
+          },
+          "scopeChangeIsRetroactive": {
+            "type": [
+              "null",
+              "boolean"
             ]
           }
         }
@@ -3433,7 +3440,8 @@
         "required": [
           "generation",
           "capabilities",
-          "configured"
+          "configured",
+          "scopeChangeIsRetroactive"
         ],
         "type": "object",
         "properties": {
@@ -3455,6 +3463,12 @@
           },
           "configured": {
             "type": "boolean"
+          },
+          "scopeChangeIsRetroactive": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },

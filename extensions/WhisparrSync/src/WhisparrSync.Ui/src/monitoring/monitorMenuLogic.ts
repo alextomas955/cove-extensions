@@ -55,8 +55,14 @@ export type ConnectedGeneration = NonNullable<WhisparrGeneration>;
 /** A reason the server can name. The wire type admits null, which is "nothing was skipped". */
 export type ReflectOwnedSkip = NonNullable<ReflectOwnedSkipReason>;
 
-/** The three items that appear only once the entity is monitored. */
-export type SecondaryAction = "addAllMissing" | "reflectOwned" | "searchAllMonitored";
+/**
+ * The items that appear only once the entity is monitored.
+ *
+ * Read off the values of {@link ITEM_BEHIND_CAPABILITY}, which is the one place the tie between a
+ * capability and an item is written. An action added there has to be classified in every table
+ * keyed by this type before the build passes.
+ */
+export type SecondaryAction = NonNullable<(typeof ITEM_BEHIND_CAPABILITY)[WhisparrCapability]>;
 
 /**
  * What every row carries, however it is pressed.
@@ -169,22 +175,26 @@ const OFFERS_A_SCOPE_PAIR: Record<WhisparrEntityKind, boolean> = {
 };
 
 /**
- * Whether changing the scope on this generation rewrites what is already monitored.
+ * The generations something can be connected to.
  *
- * Total by type, so a generation added to the wire enum fails this build. Where a change is not
- * retroactive, the wider scope is a one-way door and the confirmation says so.
+ * Total by type, so a generation added to the wire enum fails this build. It carries no values:
+ * nothing in this menu is decided from which generation is connected, and the member set is all
+ * its readers want.
  */
-const A_SCOPE_CHANGE_IS_RETROACTIVE: Record<ConnectedGeneration, boolean> = {
-  v3: false,
-  v2: true,
+const CONNECTED_GENERATIONS: Record<ConnectedGeneration, null> = {
+  v3: null,
+  v2: null,
 };
 
 /**
  * Which item of this menu each capability gates, or null where it gates none.
  *
- * Total by type, so a capability added to the wire enum fails this build.
+ * Total by type, so a capability added to the wire enum fails this build. It is also the one
+ * declaration of the tie: {@link SecondaryAction} is read off these values and the reverse lookup
+ * is derived, so no second copy can disagree with it. Two capabilities naming one action would make
+ * that reverse ambiguous, which is why each action is named once.
  */
-const ITEM_BEHIND_CAPABILITY: Record<WhisparrCapability, SecondaryAction | null> = {
+const ITEM_BEHIND_CAPABILITY = {
   outOfBandCallbackSecret: null,
   monitorStudio: null,
   monitorPerformer: null,
@@ -213,19 +223,19 @@ const ITEM_BEHIND_CAPABILITY: Record<WhisparrCapability, SecondaryAction | null>
   readSiteSceneRows: null,
   readHeldSites: null,
   readInstanceFilesystem: null,
-};
+} as const satisfies Record<WhisparrCapability, string | null>;
 
 /**
- * The capability each secondary action needs.
+ * The capability each secondary action needs, the other direction of {@link ITEM_BEHIND_CAPABILITY}.
  *
- * Transcribed rather than derived from {@link ITEM_BEHIND_CAPABILITY}, the other direction of the
- * same fact. A derived pair agrees with itself; a test reads these two against each other.
+ * Derived, so it cannot say anything the table does not. Every member of {@link SecondaryAction}
+ * comes from a row of that table, so every member has an entry here.
  */
-const CAPABILITY_BEHIND_ITEM: Record<SecondaryAction, WhisparrCapability> = {
-  addAllMissing: "registerMissingScenes",
-  reflectOwned: "reflectOwnedFiles",
-  searchAllMonitored: "searchMonitored",
-};
+const CAPABILITY_BEHIND_ITEM = Object.fromEntries(
+  Object.entries(ITEM_BEHIND_CAPABILITY)
+    .filter(([, action]) => action !== null)
+    .map(([capability, action]) => [action, capability]),
+) as Record<SecondaryAction, WhisparrCapability>;
 
 /** What each secondary action is called. */
 const SECONDARY_LABEL: Record<SecondaryAction, string> = {
@@ -323,7 +333,7 @@ export const ENTITY_KINDS: readonly WhisparrEntityKind[] = membersOf(MONITOR_CAP
 );
 
 /** The generations something can be connected to. */
-export const GENERATIONS: readonly ConnectedGeneration[] = membersOf(A_SCOPE_CHANGE_IS_RETROACTIVE);
+export const GENERATIONS: readonly ConnectedGeneration[] = membersOf(CONNECTED_GENERATIONS);
 
 /** How `kind` reads, and whether it leaves anything to offer. */
 export function describeMonitorRefusal(kind: MonitorRefusalKind): MonitorRefusal {
@@ -331,12 +341,15 @@ export function describeMonitorRefusal(kind: MonitorRefusalKind): MonitorRefusal
 }
 
 /**
- * Whether the wider scope cannot be taken back on `generation`.
+ * Whether the wider scope cannot be taken back on the connection `view` was read over.
  *
- * A null generation is nothing connected, which settles no scope behaviour either way.
+ * The server states this on the view, because it is a fact about how the connected generation
+ * behaves rather than about how this menu renders. A null answer is a read that named no instance,
+ * which settles the question neither way, so it reads as not a one-way door and no extra sentence
+ * is added.
  */
-export function allScenesIsAOneWayDoor(generation: WhisparrGeneration): boolean {
-  return generation !== null && !A_SCOPE_CHANGE_IS_RETROACTIVE[generation];
+export function allScenesIsAOneWayDoor(view: EntityMonitoringView | null): boolean {
+  return view?.scopeChangeIsRetroactive === false;
 }
 
 /**
@@ -583,7 +596,7 @@ export interface BulkMonitorOffer {
  * @param view what a read of one selected entity answered
  */
 export function bulkMonitorActions(view: EntityMonitoringView): BulkMonitorOffer {
-  const oneWayDoor = allScenesIsAOneWayDoor(view.generation);
+  const oneWayDoor = allScenesIsAOneWayDoor(view);
   if (view.refusal === "notConfigured") {
     return { actions: [], reason: NO_INSTANCE_CONNECTED, oneWayDoor };
   }

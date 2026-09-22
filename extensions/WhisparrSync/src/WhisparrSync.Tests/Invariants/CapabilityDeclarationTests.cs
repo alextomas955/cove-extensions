@@ -65,4 +65,14 @@ public sealed class CapabilityDeclarationTests
         => Assert.Equal(
             Enum.GetValues<WhisparrCapability>().Order(),
             RoleByCapability.Keys.Order());
+
+    // Whether a wider scope rewrites what is already monitored is declared beside the arrays and is
+    // answered to the browser on the monitoring view. A generation left out of the declaration
+    // throws where it is read, which is a monitoring read failing rather than a menu quietly
+    // dropping the warning a reader sees before a back catalogue is marked wanted.
+    [Fact]
+    public void EveryGenerationDeclaresWhetherAScopeChangeIsRetroactive()
+        => Assert.Equal(
+            Enum.GetValues<WhisparrGeneration>().Order(),
+            GenerationCapabilities.GenerationsDeclaringScopeBehaviour.Order());
 }
