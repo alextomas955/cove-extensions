@@ -186,8 +186,8 @@ public static class TemplateEngine
 
     // Template syntax has one parser, so a grammar change moves rendering and de-duplication
     // together. Segment.Text carries the bare token name, and token lookup is case-insensitive.
-    private static bool TemplateRendersResolution(string template)
-        => Tokenizer.Scan(template).Any(seg =>
+    private static bool RendersResolution(List<Segment> segs)
+        => segs.Any(seg =>
             seg.Kind == SegKind.Token
             && string.Equals(seg.Text, Tokens.Resolution, StringComparison.OrdinalIgnoreCase));
 
@@ -274,11 +274,8 @@ public static class TemplateEngine
         IReadOnlyList<(int Id, string Name)>? tags = null)
     {
         var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tags);
-        string raw = RenderRaw(
-            options.FilenameTemplate,
-            WithDeDupedTitle(resolved, options.FilenameTemplate, resolutionDropped: false),
-            suppressExt: true,
-            null);
+        string raw = RenderDeDuped(
+            options.FilenameTemplate, resolved, suppressExt: true, null, resolutionDropped: false);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options) != raw;
     }
@@ -289,10 +286,10 @@ public static class TemplateEngine
     // because the filename and folder templates render from it independently.
     private static IReadOnlyDictionary<string, string> WithDeDupedTitle(
         IReadOnlyDictionary<string, string> resolved,
-        string template,
+        bool rendersResolution,
         bool resolutionDropped)
     {
-        if (!TemplateRendersResolution(template)
+        if (!rendersResolution
             || (!resolutionDropped && Resolve(resolved, Tokens.Resolution).Length == 0)
             || !resolved.TryGetValue(Tokens.Title, out var title))
         {
@@ -320,11 +317,7 @@ public static class TemplateEngine
         Action<string>? logUnbalanced,
         bool resolutionDropped)
     {
-        string raw = RenderRaw(
-            template,
-            WithDeDupedTitle(resolved, template, resolutionDropped),
-            suppressExt: true,
-            logUnbalanced);
+        string raw = RenderDeDuped(template, resolved, suppressExt: true, logUnbalanced, resolutionDropped);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options);
     }
@@ -343,11 +336,7 @@ public static class TemplateEngine
             return string.Empty;
         }
 
-        string raw = RenderRaw(
-            template,
-            WithDeDupedTitle(resolved, template, resolutionDropped),
-            suppressExt: false,
-            logUnbalanced);
+        string raw = RenderDeDuped(template, resolved, suppressExt: false, logUnbalanced, resolutionDropped);
         raw = ApplyTransforms(raw, options);
 
         var cleaned = raw
@@ -361,17 +350,29 @@ public static class TemplateEngine
         return string.Join("/", collapsed);
     }
 
+    private static string RenderDeDuped(
+        string template,
+        IReadOnlyDictionary<string, string> resolved,
+        bool suppressExt,
+        Action<string>? logUnbalanced,
+        bool resolutionDropped)
+    {
+        var segs = Tokenizer.Scan(template, logUnbalanced);
+        return RenderRaw(
+            segs,
+            WithDeDupedTitle(resolved, RendersResolution(segs), resolutionDropped),
+            suppressExt);
+    }
+
     // A {} group span is dropped whole, inner literals included, when every token inside it resolved
     // empty. Otherwise the group renders and only the empty tokens collapse, keeping their literals.
     // An unclosed GroupOpen renders as a normal group; the tokenizer literalizes a stray GroupClose.
     private static string RenderRaw(
-        string template,
+        List<Segment> segs,
         IReadOnlyDictionary<string, string> resolved,
-        bool suppressExt,
-        Action<string>? logUnbalanced)
+        bool suppressExt)
     {
-        var segs = Tokenizer.Scan(template, logUnbalanced);
-        var sb = new StringBuilder(template.Length);
+        var sb = new StringBuilder();
 
         for (int i = 0; i < segs.Count; i++)
         {
