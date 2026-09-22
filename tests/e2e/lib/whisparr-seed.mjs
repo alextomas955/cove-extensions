@@ -201,9 +201,89 @@ export async function seedHistory({
  *
  * @param {{container: import("testcontainers").StartedTestContainer, api: {get: Function},
  *          generation: "v3", kind: "studio"|"performer"|"scene", foreignId: string, title: string,
- *          rootFolderPath: string, qualityProfileId?: number, monitored?: boolean}} options
+ *          rootFolderPath: string, qualityProfileId?: number, monitored?: boolean,
+ *          studioForeignId?: string, studioTitle?: string}} options
  * @returns {Promise<object>} the entity as the instance projects it, its row id included
  */
+/**
+ * Writes several scenes into one generation's database in a single run.
+ *
+ * The same work as calling {@link seedEntity} per scene, without paying a file copy and a process
+ * start for each: a catalogue worth paging through costs minutes that way, which is longer than the
+ * test that reads it is allowed to take.
+ *
+ * @param {{container: object, api: {get: Function}, generation: "v3",
+ *          scenes: {foreignId: string, title: string}[], rootFolderPath: string,
+ *          qualityProfileId?: number, monitored?: boolean, studioForeignId?: string,
+ *          studioTitle?: string, releaseDate?: string}} options
+ * @returns {Promise<number[]>} the row ids written, in the order given
+ */
+export async function seedScenes({
+  container,
+  api,
+  generation,
+  scenes,
+  rootFolderPath,
+  qualityProfileId,
+  monitored = false,
+  studioForeignId,
+  studioTitle,
+  releaseDate,
+}) {
+  if (!Array.isArray(scenes) || scenes.length === 0) {
+    throw new Error(
+      "seedScenes: no scenes given; a batch that writes nothing is a caller's mistake.",
+    );
+  }
+  if (!rootFolderPath) {
+    throw new Error(
+      "seedScenes: no rootFolderPath given; the column is NOT NULL and a registered root is the only value the instance accepts.",
+    );
+  }
+
+  const profileId = qualityProfileId ?? (await firstQualityProfileId(api, generation));
+  await container.copyFilesToContainer([
+    { source: ENTITY_SEEDER_SOURCE, target: ENTITY_SEEDER_TARGET },
+  ]);
+  await container.exec(["chown", APP_USER, ENTITY_SEEDER_TARGET], { user: "root" });
+
+  const written = await container.exec(
+    [
+      "python3",
+      ENTITY_SEEDER_TARGET,
+      "--generation",
+      generation,
+      "--kind",
+      "scene",
+      "--foreign-id",
+      "batch",
+      "--title",
+      "batch",
+      "--quality-profile-id",
+      String(profileId),
+      "--root-folder-path",
+      rootFolderPath,
+      "--monitored",
+      monitored ? "true" : "false",
+      "--scenes",
+      JSON.stringify(scenes),
+      ...(studioForeignId ? ["--studio-foreign-id", studioForeignId] : []),
+      ...(studioTitle ? ["--studio-title", studioTitle] : []),
+      ...(releaseDate ? ["--release-date", releaseDate] : []),
+    ],
+    { user: APP_USER },
+  );
+  if (written.exitCode !== 0) {
+    throw new Error(
+      `seedScenes: the seeder exited ${written.exitCode} writing ${String(scenes.length)} scenes on ${generation}: ${written.output}`,
+    );
+  }
+  // The seeder's own last line: a container's exec output carries whatever the image wrote
+  // before it.
+  const lines = written.output.trim().split(/\r?\n/);
+  return JSON.parse(lines[lines.length - 1]).ids;
+}
+
 export async function seedEntity({
   container,
   api,
@@ -214,6 +294,8 @@ export async function seedEntity({
   rootFolderPath,
   qualityProfileId,
   monitored = false,
+  studioForeignId,
+  studioTitle,
 }) {
   if (!ENTITY_GENERATIONS.includes(generation)) {
     throw new Error(
@@ -260,6 +342,10 @@ export async function seedEntity({
       rootFolderPath,
       "--monitored",
       monitored ? "true" : "false",
+      // An instance lists a scene under an entity through these columns alone, so a catalogue read
+      // of a studio answers empty for a scene seeded without them.
+      ...(studioForeignId ? ["--studio-foreign-id", studioForeignId] : []),
+      ...(studioTitle ? ["--studio-title", studioTitle] : []),
     ],
     { user: APP_USER },
   );
