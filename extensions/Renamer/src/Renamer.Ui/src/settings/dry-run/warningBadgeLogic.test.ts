@@ -168,9 +168,6 @@ test("both wire row shapes satisfy Badgeable", () => {
 /**
  * A row in the attention bucket never reaches the user saying nothing. Its new-name cell is empty by
  * design, so the badge is the row's only statement of why it will not be renamed.
- *
- * Stated over every attention status rather than over the one that was missing a badge, because an
- * invariant written for a single instance is that instance restated.
  */
 test("every status in the attention bucket earns a badge", () => {
   const silent = (Object.keys(EXPECTED_LABEL) as RenamerStatus[])

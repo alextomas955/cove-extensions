@@ -3,15 +3,11 @@
  * That each Advanced control is named once, that its explanation sits with the heading it explains,
  * and that every helper sentence reads as the engine behaves.
  *
- * A collapsed panel contributes no visible text, so the page cannot be judged by what a screenshot
- * or an `innerText` read returns. These claims are about text nodes, rendered order and rendered
- * attributes, which a render can see and a visible-text read cannot.
- *
  * The shared primitives stand in, because their `react` import resolves only inside a consuming
  * bundle. Each stand-in keeps the part of its real shape an assertion here depends on: `Field`
  * renders label, children then helper in that order; `SegmentedReplace` shows its replace helper
- * only for a non-empty value, as the real control does; `CollapsibleSection` renders its children,
- * standing for a panel the user has opened.
+ * only for a non-empty value; `CollapsibleSection` renders its children, standing for a panel the
+ * user has opened.
  *
  * React arrives as its production build, which has no `act`, so the render is flushed by waiting.
  */
@@ -21,10 +17,8 @@ import { createRoot } from "react-dom/client";
 
 import { someOptions } from "./testOptions";
 
-// The host selector's module specifier resolves only inside a running Cove, and a jsdom run resolves
-// it against browser conditions rather than leaving it external, so the adapter stands in whole. Its
-// stand-in keeps the shape its own header records as load-bearing: the host control takes the name
-// itself, and its `Field` is therefore not a label element.
+// The host selector's module specifier resolves only inside a running Cove, so the adapter stands in
+// whole. The host control takes the name itself, and its `Field` is therefore not a label element.
 vi.mock("./EntitySelectField", async () => {
   const { createElement: h } = await import("react");
   const { Field } = await import("@cove-extensions/ui-shared");
@@ -120,8 +114,7 @@ vi.mock("@cove-extensions/ui-shared", async () => {
         (p.options ?? []).map((o, i) => h("option", { key: i }, `${o.value} → ${o.example}`)),
       ),
     // The real control reveals its replacement input, and with it the replace helper, only once the
-    // value is non-empty. A stand-in showing both helpers at once would report a sentence the user
-    // is not being shown.
+    // value is non-empty.
     SegmentedReplace: (p: {
       value?: string;
       stripLabel?: string;
@@ -195,10 +188,7 @@ async function renderAdvanced() {
   };
 }
 
-/**
- * How many text nodes read exactly `text`. Counting elements instead would count every ancestor of
- * a match as a match, so an absence check would pass on nesting rather than on removal.
- */
+/** How many text nodes read exactly `text`. */
 function textNodes(container: HTMLElement, text: string): number {
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   let found = 0;
@@ -243,7 +233,7 @@ const SUPERSEDED = [
   "lower case",
 ];
 
-/** Every sentence and its count, so a run names each one that disagrees rather than only the first. */
+/** Every sentence and its count, so a run names each one that disagrees. */
 function counts(container: HTMLElement, sentences: readonly string[]): Record<string, number> {
   return Object.fromEntries(sentences.map((s) => [s, textNodes(container, s)]));
 }

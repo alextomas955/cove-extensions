@@ -61,7 +61,6 @@ function input(container: HTMLElement): HTMLInputElement {
   return el;
 }
 
-/** What the list is offering, read from the rendered options rather than from component state. */
 function offered(container: HTMLElement): string[] {
   return [...container.querySelectorAll('[role="option"]')].map((o) => o.textContent.trim());
 }

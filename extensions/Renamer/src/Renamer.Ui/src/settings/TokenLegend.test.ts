@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 /**
  * Which chips the legend marks as in use. The tint is the only thing on screen that says a token is
- * already in a template, so the claim is about the rendered set rather than about the predicate,
- * which `templateValidation.test.ts` pins on its own.
+ * already in a template.
  *
  * The shared primitives stand in, because their `react` import resolves only inside a consuming
- * bundle. `Chip` emits its `selected` prop so the marked set is readable from the DOM.
+ * bundle.
  */
 import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";

@@ -608,7 +608,6 @@ export function TagListInput({
   onReject?: (candidate: string) => boolean;
   onLiveChange?: (raw: string) => void;
   suggestions?: readonly string[];
-  // A caller with no label element around this control names it here.
   ariaLabel?: string;
 }) {
   const id = useId();

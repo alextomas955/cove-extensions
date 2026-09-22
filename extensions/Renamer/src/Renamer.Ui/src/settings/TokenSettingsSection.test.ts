@@ -1,10 +1,7 @@
 // @vitest-environment jsdom
 /**
  * The format examples this section shows beside each option, and the one sentence ranking genders.
- *
- * The examples are the only thing telling a user what a format string will produce, so a wrong one
- * sends them to a naming scheme they did not choose. Nothing in the panel computes them — they are
- * hand-authored strings — so nothing but a pin can catch one that is wrong.
+ * The examples are the only thing telling a user what a format string will produce.
  *
  * Every expectation below was produced by running the engine's own formatter over the reference value
  * (`TimeSpan.ToString(format, InvariantCulture)`, as `MetadataProjector.FormatDuration` calls it) and
@@ -12,12 +9,11 @@
  * with itself. The whole list is pinned rather than each entry, so an option added with no example
  * checked here fails too.
  *
- * The gender-order sentence is checked by rendering, because it says what `MultiValue.GenderRank`
- * does with a gender the user left out and a claim about the engine has to be read off the screen a
- * user sees. The shared primitives stand in, because their `react` import resolves only inside a
- * consuming bundle, and the entity adapter stands in whole because `@cove/runtime/*` resolves only
- * inside a running Cove. React arrives as its production build, which has no `act`, so the render is
- * flushed by waiting.
+ * The gender-order sentence is read off the rendered screen, because it says what
+ * `MultiValue.GenderRank` does with a gender the user left out. The shared primitives stand in,
+ * because their `react` import resolves only inside a consuming bundle, and the entity adapter
+ * stands in whole because `@cove/runtime/*` resolves only inside a running Cove. React arrives as
+ * its production build, which has no `act`, so the render is flushed by waiting.
  */
 import { test, expect, vi } from "vitest";
 import assert from "node:assert/strict";

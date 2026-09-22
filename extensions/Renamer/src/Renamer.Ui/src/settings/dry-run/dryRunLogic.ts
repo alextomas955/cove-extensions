@@ -180,9 +180,7 @@ export interface RowsFooter {
  *
  * A finished walk states the rows it loaded, never the scan's count: the scan counted the library as
  * it was, and a library edited since can yield more rows than that. An unfinished walk keeps the
- * denominator and the progress clause, and must never read as "that is everything" — the walk
- * continues on its own, and the examined count is what shows it moving through windows that match
- * nothing.
+ * denominator and the progress clause, and must never read as "that is everything".
  */
 export function rowsFooterText(footer: RowsFooter): string {
   const { loaded, total, searching, complete, examined } = footer;
@@ -190,8 +188,7 @@ export function rowsFooterText(footer: RowsFooter): string {
     const noun = loaded === 1 ? "row" : "rows";
     return `All ${loaded} ${searching ? "matching " : ""}${noun}, in scan order`;
   }
-  // The denominator is shown only while it is one. A search has no known total until the walk ends,
-  // so "5 of 3 loaded" would be a worse answer than no denominator at all.
+  // A search has no known total until the walk ends, so the denominator is dropped for one.
   const counted =
     !searching && loaded <= total
       ? `${loaded} of ${total} row${total === 1 ? "" : "s"} loaded`

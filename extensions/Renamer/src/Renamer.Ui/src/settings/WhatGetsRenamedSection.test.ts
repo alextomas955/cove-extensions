@@ -1,12 +1,10 @@
 // @vitest-environment jsdom
 /**
  * That the Required fields explanation is grouped with the heading it explains, above the control,
- * and that the control still carries a name of its own. Both claims are about rendered position and
- * rendered attributes, which no text assertion can see.
+ * and that the control still carries a name of its own.
  *
  * The shared primitives stand in, because their `react` import resolves only inside a consuming
- * bundle. `Field` stands in with its real order — label, children, helper — so wrapping this block
- * in one goes red here instead of passing against a stub that dropped the helper.
+ * bundle. `Field` stands in with its real order — label, children, helper.
  *
  * React arrives as its production build, which has no `act`, so the render is flushed by waiting.
  */
@@ -79,10 +77,7 @@ async function renderSection() {
   };
 }
 
-/**
- * The last element whose whole text is `text`. Every ancestor of a text node also contains it, so a
- * `contains` match would return a wrapper and compare it against its own descendant.
- */
+/** The last element whose whole text is `text`. */
 function innermost(container: HTMLElement, text: string): Element | undefined {
   return [...container.querySelectorAll("*")].filter((e) => e.textContent.trim() === text).at(-1);
 }
