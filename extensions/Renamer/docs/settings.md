@@ -43,7 +43,7 @@ The **preset** chips set the filename template to a starter pattern; the **live 
 card shows the result on sample items as you type.
 
 The token list under this field is the only one on the page. Clicking a token inserts it at the
-cursor of whichever template field you used last — _Filename template_ or _Folder template_. A token
+cursor of whichever template field you used last - _Filename template_ or _Folder template_. A token
 either template already uses is tinted in that list.
 
 ### Where files go
@@ -180,8 +180,8 @@ Renamer decides where each item goes by checking rules in a fixed **precedence o
 > Default**
 
 An item that matches no rule at all takes its kind's own destination when that kind has one, and the
-default destination — the _Under_ and _Folder template_ pair in
-[Where files go](#where-files-go) — when it does not. A rule that does match replaces both outright:
+default destination - the _Under_ and _Folder template_ pair in
+[Where files go](#where-files-go) - when it does not. A rule that does match replaces both outright:
 its own folder template is the only one rendered, never appended to the default's.
 
 Excludes always run first. What decides the winner within a category depends on the category, and
@@ -292,7 +292,7 @@ never overwritten. The captions Cove tracks for an item always move, whatever th
 
 | Setting                  | What it does                                                                                                                                                                                                         | Default |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| Cross-volume concurrency | How many files to copy across drives at once. Leave at 2 for regular hard drives; raise to 4–8 if both drives are SSDs. Higher is not always faster — on spinning disks it can be slower. Clamped to 1–16 in the UI. | `2`     |
+| Cross-volume concurrency | How many files to copy across drives at once. Leave at 2 for regular hard drives; raise to 4–8 if both drives are SSDs. Higher is not always faster - on spinning disks it can be slower. Clamped to 1–16 in the UI. | `2`     |
 | Same-volume concurrency  | How many same-drive renames to run at once (these are instant; the default is fine). Clamped to 1–16 in the UI.                                                                                                      | `8`     |
 
 ### Excludes
@@ -310,13 +310,13 @@ never overwritten. The captions Cove tracks for an item always move, whatever th
 | Per-token replacements                 | Literal find/replace rules applied to a specific token's value before other shaping (not a regex). | _(none)_     |
 | Strip a leading article from the title | Remove one leading article from `$title` (`The Matrix` → `Matrix`).                                | Off          |
 | Articles                               | The articles eligible for stripping. The list sits under the toggle, with no label of its own.     | `The, A, An` |
-| Remove spaces from studio names        | `Studio Ghibli` → `StudioGhibli`, wherever `$studio` renders — the filename as well as the folder. | Off          |
+| Remove spaces from studio names        | `Studio Ghibli` → `StudioGhibli`, wherever `$studio` renders - the filename as well as the folder. | Off          |
 | Drop a performer already in the title  | Drop a performer whose name appears as a whole word in `$title`.                                   | Off          |
 | Collapse repeated folder segments      | Collapse consecutive duplicate folder segments (`/Foo/Foo/Bar` → `/Foo/Bar`). Folder path only.    | On           |
 
 ## Advanced settings not shown in the UI
 
-This is persisted but has **no control in the settings panel** — it exists for unusual cross-drive
+This is persisted but has **no control in the settings panel** - it exists for unusual cross-drive
 setups and is safe to leave at its default. Changing it requires editing the extension's stored
 options directly.
 

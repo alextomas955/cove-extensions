@@ -16,14 +16,14 @@ under Per kind in the settings panel.
 
 ## In this section
 
-- [User guide](./renamer/guide) — enable Renamer, set a naming template, preview with a dry run,
+- [User guide](./renamer/guide) - enable Renamer, set a naming template, preview with a dry run,
   rename, and undo.
-- [Settings reference](./renamer/settings) — every setting, grouped by panel section, with defaults.
-- [Naming templates](./renamer/templates) — the template tokens (`$title`, `$resolution`, …),
+- [Settings reference](./renamer/settings) - every setting, grouped by panel section, with defaults.
+- [Naming templates](./renamer/templates) - the template tokens (`$title`, `$resolution`, …),
   presets, and worked examples.
-- [Architecture](./renamer/architecture) — how the extension turns an option change into a file
+- [Architecture](./renamer/architecture) - how the extension turns an option change into a file
   moved on disk and a database record updated.
-- [Changelog](./renamer/changelog) — user-facing changes, newest first.
+- [Changelog](./renamer/changelog) - user-facing changes, newest first.
 
 ## Install and build
 

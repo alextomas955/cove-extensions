@@ -5,14 +5,9 @@ sidebar_position: 6
 # Monorepo architecture
 
 This repository holds several independently released Cove extensions plus the first-party code they
-share. This page explains the seams that make that work - where each fact is declared, and which
-files read it - so you can tell what a change touches before you make it.
-
-It stops at the monorepo's own seams. For how a module inside an extension is shaped, read
-[Extension authoring patterns](./authoring-patterns). For one extension's internals, read its own
-architecture page - [Renamer's](../extensions/renamer/architecture). Branch model:
-[Branching](./branching). Cutting a release: [Releasing](./releasing). Adding an end-to-end suite:
-[Adding an extension's E2E suite](./authoring-e2e).
+share. This page covers the seams that make that work: where each fact is declared, and which files
+read it, so you can tell what a change touches before you make it. For how a module inside an
+extension is shaped, read [Extension authoring patterns](./authoring-patterns).
 
 ## The catalog is the registry
 

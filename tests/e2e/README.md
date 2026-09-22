@@ -1,8 +1,8 @@
-# Cove Extensions — Shared E2E Test Harness
+# Cove Extensions - Shared E2E Test Harness
 
 Reusable end-to-end test infrastructure for any extension in this monorepo. It brings up a real,
 isolated, official Cove instance in Docker, installs your extension's built output into it, and
-lets you drive it over plain HTTP and/or a real browser (Playwright) — no local native Cove
+lets you drive it over plain HTTP and/or a real browser (Playwright) - no local native Cove
 install required, and no state shared between test runs. Tests run in parallel by default.
 
 ## Why not test against my local Cove dev instance?
@@ -14,13 +14,13 @@ so every run starts from the same clean state and touches nothing on your machin
 
 ## Prerequisites
 
-- Docker (Docker Desktop on Windows/macOS, or native Docker on Linux) — running, with the daemon
+- Docker (Docker Desktop on Windows/macOS, or native Docker on Linux) - running, with the daemon
   reachable from your shell.
 - Node.js 22+ and npm (already required elsewhere in this repo).
-- The .NET SDK this repo builds with — `npm test` publishes each extension before the browser starts,
+- The .NET SDK this repo builds with - `npm test` publishes each extension before the browser starts,
   and that is a `dotnet publish`.
 
-No host-specific Docker configuration is required — extension install works by copying files
+No host-specific Docker configuration is required - extension install works by copying files
 directly into the running container (via Testcontainers' `copyFilesToContainer`/`exec`, not a host
 bind-mount). This means it works the same on any machine and any CI runner, regardless of which
 drives/folders that machine's Docker is configured to share.
@@ -28,19 +28,19 @@ drives/folders that machine's Docker is configured to share.
 ## Quick start
 
 ```sh
-npm install                       # run at the repo ROOT — sets up the workspaces
+npm install                       # run at the repo root - sets up the workspaces
 cd tests/e2e
 npx playwright install chromium   # one-time browser download
 npm test
 ```
 
-That's it — `npm test` runs every project in [`playwright.config.mjs`](playwright.config.mjs) (see
+That's it - `npm test` runs every project in [`playwright.config.mjs`](playwright.config.mjs) (see
 "One Playwright install, many extensions" below) across 6 parallel workers by default, each
 worker provisioning and tearing down its own isolated Cove instance.
 
 `npm test` also builds what it installs: a `pretest` hook runs
 [`scripts/publish-extensions.mjs`](../../scripts/publish-extensions.mjs), which publishes every
-extension whose catalog entry declares an e2e suite. Do not add a manual publish step back — the one
+extension whose catalog entry declares an e2e suite. Do not add a manual publish step back - the one
 non-obvious cost of not having one is that a first run is slow, because it also installs and builds
 each extension's UI bundle.
 
@@ -50,7 +50,7 @@ There is exactly **one** `node_modules`/`@playwright/test` install for the whole
 harness lives at `tests/e2e/` and is published as the npm-workspace package `@cove-extensions/e2e`;
 a root `npm install` hoists the single `@playwright/test` to the repo-root `node_modules` and
 symlinks the harness there by name. Each extension's E2E suite runs as a Playwright **project** that
-[`playwright.config.mjs`](playwright.config.mjs) derives from `extensions/catalog.json` — one per
+[`playwright.config.mjs`](playwright.config.mjs) derives from `extensions/catalog.json` - one per
 entry declaring both `e2ePath` and `e2eProject`, with `testDir` at `<e2ePath>/tests` (e.g.
 `extensions/Renamer/e2e/tests/`). The test _files_ live next to the extension they test, and each
 imports the harness **by name** (`@cove-extensions/e2e`), never by a relative `../../../e2e/...`
@@ -60,7 +60,7 @@ path.
 process break Playwright's internal module singleton (`Requiring @playwright/test second time`) the
 moment one test file imports a fixture module from the other install. Because the extension's own
 `e2e/package.json` depends on `@cove-extensions/e2e` (and never on `@playwright/test` directly),
-workspace hoisting enforces the single install structurally — adding a new extension's suite means
+workspace hoisting enforces the single install structurally - adding a new extension's suite means
 declaring it in the catalog, not running `npm install`/`npx playwright install` inside the
 extension's folder.
 
@@ -79,17 +79,17 @@ Each extension's own directory (e.g. `extensions/Renamer/e2e/`) has a minimal `p
 declares `@cove-extensions/e2e` as a dependency and whose `test` script shells out to this pattern,
 so `npm test` works the same whether you're standing in `tests/e2e/` or in the extension's own
 folder. The root `package.json`'s `extensions/*/e2e` workspace glob auto-registers a new extension's
-e2e workspace on the next root `npm install` — no root-config edit needed.
+e2e workspace on the next root `npm install` - no root-config edit needed.
 
 ## Parallel execution
 
-`fullyParallel: true` with `workers: process.env.CI ? 2 : 6` — tests run concurrently by default,
+`fullyParallel: true` with `workers: process.env.CI ? 2 : 6` - tests run concurrently by default,
 each against its own isolated Cove instance. This is safe because:
 
-- Worker-shared-harness test files (the default — see `lib/fixtures.mjs`) each seed their own
+- Worker-shared-harness test files (the default - see `lib/fixtures.mjs`) each seed their own
   uniquely-named data per test (timestamp + random suffix), so concurrent tests never collide even
   when they land in the same worker.
-- Files that mutate shared extension state itself — install/enable/disable/uninstall — opt out of
+- Files that mutate shared extension state itself - install/enable/disable/uninstall - opt out of
   the shared-per-worker harness entirely and provision a fresh, isolated instance **per test**
   instead (see `extension-lifecycle.spec.mjs`'s own `isolatedHarness` fixture). Toggling or
   removing the one shared extension install would otherwise race against any other test in the
@@ -98,7 +98,7 @@ each against its own isolated Cove instance. This is safe because:
 **Worker count is capped, not left at Playwright's CPU-based default, and CI gets fewer workers
 than local.** Each worker brings up its own Docker Compose network plus a real browser instance.
 Locally, 6 is capped because Docker's default address-pool allocation is a finite, **host-wide**
-resource shared with any other Docker projects already running on the machine — confirmed
+resource shared with any other Docker projects already running on the machine - confirmed
 directly: an uncapped run (Playwright's default, which scaled to 13 workers on the machine this was
 built on) failed 3 of 13 tests with `all predefined address pools have been fully subnetted`
 because other, unrelated Docker projects on that machine had already claimed part of the default
@@ -108,13 +108,13 @@ running no other Docker projects. In CI, each worker's fixed cost (a full Compos
 
 - a real Chromium, not a lightweight browser context against one already-running server) is high
   relative to a standard GitHub-hosted runner's 4 vCPU/16GB, and the peak is twice the worker count
-  because an isolated-harness spec starts a second stack alongside its worker's — so CI is capped at
+  because an isolated-harness spec starts a second stack alongside its worker's - so CI is capped at
   2 instead. `retries: 2` and `trace: 'on-first-retry'` are also CI-only, standard
   Playwright CI hygiene. Override with `--workers=N` if a given machine/runner can sustain more (or
   fewer) than its default.
 
 **If a run is killed or a worker crashes before `environment.up()` finishes**, Testcontainers'
-Ryuk cleanup can leave healthy containers running (confirmed directly — Ryuk reaps containers when
+Ryuk cleanup can leave healthy containers running (confirmed directly - Ryuk reaps containers when
 its own tracked session ends cleanly, but a mid-`up()` crash doesn't always trigger that promptly).
 Clean up manually with:
 
@@ -126,13 +126,13 @@ docker network ls --filter "name=testcontainers" --format "{{.Name}}" | xargs -r
 ## Writing your first test
 
 [Authoring E2E tests](https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e) is
-the add-a-suite guide, and the only one — it carries the folder to create and the two catalog fields
+the add-a-suite guide, and the only one - it carries the folder to create and the two catalog fields
 that register it. Start from [`tests/template.spec.mjs`](tests/template.spec.mjs);
 `extensions/Renamer/e2e/` is the reference implementation. What follows here is harness reference:
 what the fixtures give a test once the suite exists.
 
 The `extension` fixture option is filled by `resolveExtensionPaths(import.meta.url, …)`, which
-derives `repoRoot`/`publishDir`/`manifestPath` from the fixture file's own location — no
+derives `repoRoot`/`publishDir`/`manifestPath` from the fixture file's own location - no
 hand-rolled repo-root paths. The harness then assembles the package your extension's `catalog.json`
 entry declares in its `artifacts` array and installs that, so a test runs against the same file set a
 release ships.
@@ -149,11 +149,11 @@ test.use({
 });
 
 test("your extension does the thing", async ({ api, page }) => {
-  // api.get/post/put/delete talk straight to the running instance's REST API — no browser needed.
+  // api.get/post/put/delete talk straight to the running instance's REST API - no browser needed.
   const { json } = await api.get("/api/extensions");
 
   // page is a real Playwright page already navigated to the running instance's home page, ALREADY
-  // signed in (see "Signing in" below) — use it for anything needing the real UI.
+  // signed in (see "Signing in" below) - use it for anything needing the real UI.
   await page.goto(`${page.url()}settings`);
 });
 ```
@@ -162,14 +162,14 @@ test("your extension does the thing", async ({ api, page }) => {
 
 Setting `test.use({ extension: {...} })` at the top of a test file makes every test in that file
 run against an instance with your extension already installed (via Testcontainers'
-`copyFilesToContainer` + a restart — the same on-disk shape Cove's own bind-mount Docker install
-produces, just without depending on your machine's file-sharing configuration) — see
+`copyFilesToContainer` + a restart - the same on-disk shape Cove's own bind-mount Docker install
+produces, just without depending on your machine's file-sharing configuration) - see
 [`lib/install-extension.mjs`](lib/install-extension.mjs). If a test file has no `extension` fixture
 set, it gets a clean instance with only Cove's built-in extensions installed.
 
 The option is **worker-scoped**, and the install runs once per worker inside the `harness` fixture
 rather than once per test. The install restarts Cove, so charging it per test cost every test in
-the worker a container restart — about 5.5s each, measured. Two consequences: an override in an
+the worker a container restart - about 5.5s each, measured. Two consequences: an override in an
 extension's own fixtures file must declare `{ scope: "worker", option: true }` to match, and
 Playwright reuses a worker only across files whose worker fixtures agree, so two extensions' files
 never share one instance.
@@ -177,12 +177,12 @@ never share one instance.
 ### Signing in
 
 Cove's frontend hard-gates the **entire** app behind a first-run setup wizard until an owner
-account exists — there is no button to dismiss it while `ownerMissing` is true (confirmed directly:
+account exists - there is no button to dismiss it while `ownerMissing` is true (confirmed directly:
 clicking "Skip setup for now" does nothing in that state). The `harness` fixture calls
 `bootstrapOwner()` once per worker before any test runs, and the `page` fixture pre-seeds
 `sessionStorage`'s `cove-setup-dismissed` flag via `addInitScript` so the wizard's _other_ gate
-(`needsSetup`, true whenever no library path is configured — genuinely the case for a fresh
-container) doesn't block every UI test either. You don't need to do anything for this — every
+(`needsSetup`, true whenever no library path is configured - genuinely the case for a fresh
+container) doesn't block every UI test either. You don't need to do anything for this - every
 `page` fixture use already lands on the real app, signed in. See `lib/harness.mjs`'s
 `bootstrapOwner()` doc comment for the full mechanism if you need to touch this.
 
@@ -190,27 +190,27 @@ container) doesn't block every UI test either. You don't need to do anything for
 
 | Fixture   | What it gives you                                                                                                          |
 | --------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `baseUrl` | The running instance's URL (e.g. `http://localhost:54321`) — a fresh random port every run                                 |
+| `baseUrl` | The running instance's URL (e.g. `http://localhost:54321`) - a fresh random port every run                                 |
 | `api`     | `{ get, post, put, delete }` helpers for calling the instance's REST API directly, no browser                              |
 | `page`    | A real Playwright `Page`, already navigated to `baseUrl` and already signed in                                             |
 | `harness` | The raw harness handle, if you need lower-level control (`container` for direct `exec`/file copy, `restart`, `stop`, etc.) |
 
-One Cove instance is shared per Playwright **worker** (not per test) to keep the suite fast —
+One Cove instance is shared per Playwright **worker** (not per test) to keep the suite fast -
 booting a fresh container per test would make even a small suite slow. This means your tests must
 not depend on a clean database between tests within the same file; seed your own uniquely-named
 test data per test instead of relying on an empty instance. If your test needs to mutate the
 extension install itself (enable/disable/uninstall), give it its OWN dedicated harness instead of
-the shared one — see `extension-lifecycle.spec.mjs` for the pattern.
+the shared one - see `extension-lifecycle.spec.mjs` for the pattern.
 
 ## Running locally vs CI
 
 Locally: `npm test` (runs every project, 4 parallel workers) or `npm test -- --project=<name>` for
-one extension — see Quick start and "One Playwright install, many extensions" above.
+one extension - see Quick start and "One Playwright install, many extensions" above.
 
 CI: the `.github/workflows/build.yml` `e2e` job runs `npm test -- --project=<name>` for each
 catalog entry that declares an `e2ePath`/`e2eProject`, against that entry's own just-built publish
 output (not a downloaded zip), which the harness assembles as above. It runs that command once per
-Cove version the workflow's axis resolves, passing the image tag in `COVE_E2E_TAG` — so which Cove a
+Cove version the workflow's axis resolves, passing the image tag in `COVE_E2E_TAG` - so which Cove a
 run boots is CI's choice, and locally it is the declared floor. One axis leg runs a `@smoke`
 selection rather than the whole suite; `build.yml` states which and why, and that file is the place
 to read it rather than here. There is no CI-only fork of the harness itself; the same
@@ -219,18 +219,18 @@ to read it rather than here. There is no CI-only fork of the harness itself; the
 ## When a test fails
 
 Playwright prints which step failed (container boot / extension install / a specific assertion),
-not just a generic timeout — the harness's readiness helpers raise a specific error naming what
+not just a generic timeout - the harness's readiness helpers raise a specific error naming what
 didn't happen in time. On any failure, Playwright also retains a trace (`test-results/*/trace.zip`,
 openable with `npx playwright show-trace <path>`) and a screenshot.
 
 A failing test also reports what the browser saw, which is the difference between a page that was
 slow and one that never painted. Two annotations can appear:
 
-- `[browser]` — uncaught exceptions, `console.error` output, and requests that failed outright
+- `[browser]` - uncaught exceptions, `console.error` output, and requests that failed outright
   (a 404 is a response, so it is not one of these). A blank page with no entry here had no script
   error and no failed fetch, which points at the app not having rendered yet rather than at a defect
   in what it renders.
-- `[infrastructure]` — the host did not answer `/health`, so the failure is the container's rather
+- `[infrastructure]` - the host did not answer `/health`, so the failure is the container's rather
   than the page's. A test on its own isolated harness reports its own host, not the worker's.
 
 If a container is left running after an interrupted test run, see "Parallel execution" above for
@@ -256,38 +256,38 @@ prevent it.
 
 ## How it works (implementation notes)
 
-- [`docker/docker-compose.yml`](docker/docker-compose.yml) — the official `ghcr.io/yourcove/cove-app`
+- [`docker/docker-compose.yml`](docker/docker-compose.yml) - the official `ghcr.io/yourcove/cove-app`
   image + a `pgvector/pgvector` Postgres container, both using `tmpfs`/ephemeral state, published on
   a host port that defaults to `0`, letting Docker assign a free one, so parallel runs never collide
   (`COVE_E2E_PORT` overrides it). The
-  `cove` service also mounts a `tmpfs` at `/data2` — see `lib/harness.mjs` and
+  `cove` service also mounts a `tmpfs` at `/data2` - see `lib/harness.mjs` and
   `cross-device-move.spec.mjs` for why.
-- [`lib/harness.mjs`](lib/harness.mjs) — `startHarness()` uses
+- [`lib/harness.mjs`](lib/harness.mjs) - `startHarness()` uses
   [Testcontainers-node](https://node.testcontainers.org/)'s `DockerComposeEnvironment` (not a
-  hand-rolled `docker compose` child_process wrapper — Testcontainers' Ryuk sidecar guarantees
+  hand-rolled `docker compose` child_process wrapper - Testcontainers' Ryuk sidecar guarantees
   cleanup even on a killed process, and it owns port resolution + health-check waiting natively).
   Returns a handle with `baseUrl`, `container` (the raw Testcontainers container object), and the
-  install / auth / exec / teardown methods the fixtures drive — read that file for the current set
+  install / auth / exec / teardown methods the fixtures drive - read that file for the current set
   rather than a list here, which is free to fall behind it.
-- [`lib/stage-extension.mjs`](lib/stage-extension.mjs) — assembles the package that extension's
+- [`lib/stage-extension.mjs`](lib/stage-extension.mjs) - assembles the package that extension's
   `catalog.json` entry declares, with the repo's shared packer, into the on-disk shape Cove expects
   (`<id>/extension.json` + DLLs + optional `index.mjs`). It runs the same packer a release and a
   local dev deploy run, so a test installs the file set a release ships, not an approximation.
-- [`lib/install-extension.mjs`](lib/install-extension.mjs) — `installViaContainerCopy`, the one
+- [`lib/install-extension.mjs`](lib/install-extension.mjs) - `installViaContainerCopy`, the one
   install path: stages the extension, then copies it into the running container's
   `/config/extensions/<id>/` via Testcontainers' own container API and restarts (mirrors Cove's
   documented bind-mount install, without depending on host file-sharing config).
-- [`lib/fixtures.mjs`](lib/fixtures.mjs) — wires the harness into Playwright's `test`/`expect`,
+- [`lib/fixtures.mjs`](lib/fixtures.mjs) - wires the harness into Playwright's `test`/`expect`,
   including owner bootstrap and setup-wizard bypass for every `page` use.
-- [`lib/seed-media.mjs`](lib/seed-media.mjs) — Cove has no "create a fake DB row with no file"
+- [`lib/seed-media.mjs`](lib/seed-media.mjs) - Cove has no "create a fake DB row with no file"
   endpoint; video/image import requires a real on-disk file (`POST /api/videos/from-file` calls
   `File.Exists` before doing anything else). `seedVideo()`, `seedImage()` and `seedText()` each copy
   a tiny real fixture (see `lib/fixtures-media/`) into the container and register it through that
   real API, so tests exercise the actual import path, not a shortcut around it.
-- [`lib/poll.mjs`](lib/poll.mjs) — `pollJob()`/`pollUntil()` for polling job status and eventually-
+- [`lib/poll.mjs`](lib/poll.mjs) - `pollJob()`/`pollUntil()` for polling job status and eventually-
   consistent reads. Some write paths are not read-your-writes on the very next request (observed
   directly: a `GET` immediately after a `200` from an undo endpoint can still return the pre-undo
-  value) — poll instead of asserting on the first read, and never paper over this with a fixed
+  value) - poll instead of asserting on the first read, and never paper over this with a fixed
   `sleep()`, which is either flaky (too short) or slows every run for no reason (too long). Both are
   built on `attemptUntil()`, the one retry loop the harness's own waits also run through; a spec
   wanting a per-attempt abort bound can use it directly.
@@ -301,11 +301,11 @@ can see. For how it sits against the C# tiers, see
 
 **Authentication is off by default, and a spec that needs it on provisions its own instance.** The
 worker-shared instances run `COVE__Auth__Enabled=false`, where every request resolves to a bypass
-principal carrying wildcard permissions — so nothing about credentials or row-level authorization is
+principal carrying wildcard permissions - so nothing about credentials or row-level authorization is
 falsifiable there. The flag is instance-global, hence
 `startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } })` per test rather than per worker;
 `createRestrictedUser()` then mints the non-owner principal Cove's row-level filters actually apply
-to, which the owner's own token bypasses — pass its token to `createApiClient` to drive a spec as
+to, which the owner's own token bypasses - pass its token to `createApiClient` to drive a spec as
 that user while the harness handle keeps the owner's. Renamer's `auth-enabled.spec.mjs` is the worked
 example of the instance setup, including the anonymous-read assertion that keeps such a spec from
 passing for the trivial reason that authentication was never on.
@@ -316,4 +316,4 @@ It does not (yet):
 - Run anywhere but on Linux containers. Cove ships no Windows container image, so the containerized
   suite is Linux-only and the Windows CI job builds and runs a unit tier instead. On a GitHub-hosted
   macOS runner the limit is permanent rather than pending, since those runners ship no Docker daemon at
-  all — though no macOS job exists in this repo today.
+  all - though no macOS job exists in this repo today.

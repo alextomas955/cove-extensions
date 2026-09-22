@@ -5,22 +5,8 @@ sidebar_position: 3
 # Testing
 
 This repo has four test tiers. They run with different tools, from different directories, and prove
-very different things. This page is the reference for what each one covers, how to run it, what it
-needs before it runs at all, and which of them actually gates a merge.
-
-Pages this one does not restate:
-
-- First-time setup and the prerequisites a first build needs - [Getting
-  started](./getting-started).
-- The daily edit loop, the formatting and lint gates, and the pre-commit hook -
-  [Development](./development).
-- Every configuration knob these commands read - [Configuration reference](./configuration).
-- How to add a new extension's end-to-end suite - [Adding an extension's E2E
-  suite](./authoring-e2e).
-- The end-to-end harness itself: fixtures, parallel execution, container cleanup, and implementation
-  notes - `tests/e2e/README.md`.
-- Where a test file belongs, and the shape rules a new test follows - [Extension authoring
-  patterns](./authoring-patterns).
+different things. This page covers what each one proves, how to run it, what it needs before it runs
+at all, and which of them gates a merge.
 
 ## The test tiers
 

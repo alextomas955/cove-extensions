@@ -14,7 +14,7 @@ const config: Config = {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
 
-  // GH-Pages project-subpath values — locked verbatim from content-strategy.md / context.md.
+  // GH-Pages project-subpath values - locked verbatim from content-strategy.md / context.md.
   url: "https://alextomas955.github.io", // domain ONLY — never put the subpath here
   baseUrl: "/cove-extensions/", // subpath, leading AND trailing slash
 
@@ -34,10 +34,10 @@ const config: Config = {
   },
 
   // Parse `.md` as CommonMark and reserve MDX for `.mdx`. Docusaurus 3 defaults to `mdx`, which
-  // parses every `.md` as MDX — so an HTML comment or a bare `<Word>` anywhere in a sourced file
+  // parses every `.md` as MDX - so an HTML comment or a bare `<Word>` anywhere in a sourced file
   // fails the build. That is a live hazard here rather than a hypothetical one: this site sources
   // each extension's own `docs/` folder, and one of those pages imports the extension's
-  // `CHANGELOG.md` — a file whose primary reader is GitHub, where `{/* */}` would render as
+  // `CHANGELOG.md` - a file whose primary reader is GitHub, where `{/* */}` would render as
   // literal text and an HTML comment is the only correct way to hide a note. Under `detect` the
   // changelog stays valid CommonMark for GitHub and still builds here.
   markdown: {
@@ -62,7 +62,7 @@ const config: Config = {
 
   // Each extension owns its docs under extensions/<Name>/docs; one plugin-content-docs
   // instance per extension sources that folder so there is a single doc source (no site copy to
-  // drift from). The preset above keeps the default instance id at routeBasePath '/' — giving only
+  // drift from). The preset above keeps the default instance id at routeBasePath '/' - giving only
   // these extra instances custom ids is what avoids docusaurus#211 (which trips when every docs
   // instance carries a custom id). routeBasePath prefixes stay distinct across instances.
   plugins: [
@@ -100,7 +100,7 @@ const config: Config = {
     navbar: {
       title: "alextomas955 / Cove Extensions",
       items: [
-        // pages-02: GitHub-special files stay at repo root (never moved/duplicated into the site) —
+        // pages-02: GitHub-special files stay at repo root (never moved/duplicated into the site) -
         // reached here via canonical github.com blob links, right-aligned by default position.
         {
           href: "https://github.com/alextomas955/cove-extensions/blob/main/README.md",

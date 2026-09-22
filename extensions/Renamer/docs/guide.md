@@ -4,7 +4,7 @@ title: User guide
 sidebar_position: 2
 ---
 
-Renamer bulk-renames — and optionally relocates — your Cove library items from the metadata Cove
+Renamer bulk-renames - and optionally relocates - your Cove library items from the metadata Cove
 already has, using a naming template you control. It previews every change before touching disk,
 updates the file and its Cove database record together, and can undo the last rename.
 
@@ -23,12 +23,12 @@ This guide walks the everyday workflow. For the meaning of every setting see the
 ## Set a naming template
 
 The **filename template** decides what each file is named. It is made of plain text plus `$tokens`
-that Cove fills in from each item's metadata — for example `$title` becomes the item's title and
+that Cove fills in from each item's metadata - for example `$title` becomes the item's title and
 `$resolution` becomes `1080p`.
 
 1. In the **Filename** section, either pick a **preset** chip (for example
    _Date – Title [Resolution]_) or type your own template.
-2. Watch the **live preview** below the field — it shows the new name for a few sample items and
+2. Watch the **live preview** below the field - it shows the new name for a few sample items and
    updates as you type. Nothing is renamed yet.
 3. To move files into folders as well as rename them, fill in the **folder template** in the
    **Where files go** section (for example `$studio/$year`). Leave it blank to rename each file in
@@ -36,24 +36,24 @@ that Cove fills in from each item's metadata — for example `$title` becomes th
    whichever of Cove's library paths already holds the file.
 
 If a token might be empty for some items, wrap it in a `{ … }` group so its surrounding punctuation
-disappears when the value is missing — `$title{ [$resolution]}` produces `My Movie [1080p]` when
+disappears when the value is missing - `$title{ [$resolution]}` produces `My Movie [1080p]` when
 the resolution is known and `My Movie` when it isn't. See [Naming templates](./templates) for the
 full token list and the grouping rules.
 
 ## Preview with a dry run
 
-A dry run scans your whole library and shows exactly what _would_ happen — old name → new name, the
-destination, and any warnings — without changing anything.
+A dry run scans your whole library and shows exactly what _would_ happen - old name → new name, the
+destination, and any warnings - without changing anything.
 
 1. In the **Run & automation** section, click **Dry run**. While the library scans, a progress bar
    shows how far along it is, the number scanned so far, and an estimated time left.
 2. When the scan finishes, the filter buttons above the table carry the totals. **All** is the whole
-   scan; the others are one per outcome, and a button appears only while its outcome has rows — a
+   scan; the others are one per outcome, and a button appears only while its outcome has rows - a
    scan with nothing to fix shows no **Needs attention** button at all. Renamer keeps one scan result
    for the whole instance, so if you share it with other people, the totals waiting for you when you
-   open the page are from whichever scan ran most recently — yours or someone else's. Dry-run again
+   open the page are from whichever scan ran most recently - yours or someone else's. Dry-run again
    when you need figures you know are your own. Those totals are also narrowed to the media kinds
-   your Cove account may read, and the page doesn't name which ones they cover — so a colleague who
+   your Cove account may read, and the page doesn't name which ones they cover - so a colleague who
    can read images where you cannot sees larger numbers from the very same scan.
 3. Click a button to narrow the table. The counts always describe the whole scan, so they don't move
    as you switch between them.
@@ -102,7 +102,7 @@ _Full-path max length_, so the move cannot complete even though the new path doe
 destination folder or the filename template for that row. The confirm shown before a rename counts
 these files too, so you see the warning whether you started from the dry run or from a list.
 **Copy did not verify** means a cross-drive copy was written and then read back different, so
-the file was left where it was — check the destination drive before running that row again.
+the file was left where it was - check the destination drive before running that row again.
 
 A cross-drive rename can also report **renamed** and warn that the old file is still there. The copy
 was verified and put in place, so the rename is done, but the original could not be deleted because
@@ -111,11 +111,11 @@ something held it open or permissions refused it. Delete the old file yourself o
 ## Rename
 
 1. When the preview looks right, **save** your settings (the sticky Save bar at the bottom).
-2. Start the rename — **Rename all files** in the panel, or the footer button in the dry-run dialog,
+2. Start the rename - **Rename all files** in the panel, or the footer button in the dry-run dialog,
    which is labelled with the number of files it will rename. If you started it from the dry-run
    footer, a progress bar and the current phase (planning, then per-file) show while it runs.
 3. Renamer renames each file and updates its Cove record together. A file is never renamed onto an
-   existing file — a collision gets a numbered suffix such as `(1)` instead.
+   existing file - a collision gets a numbered suffix such as `(1)` instead.
 
 If two Cove records name the same file on disk, Renamer renames neither of them. It cannot tell which
 record owns the file, and renaming for one record would move the file the other record points to. The
@@ -135,9 +135,9 @@ you have anything to check:
   destination drive filled up stops there while the other kinds, which may be on other drives, carry
   on. The message names the kinds that stopped. What was renamed before a stop is still recorded, so
   undo reaches it.
-- **The job reported failure**: "Couldn't rename — [reason]. Nothing was changed; you can try again."
+- **The job reported failure**: "Couldn't rename - [reason]. Nothing was changed; you can try again."
   Cove reported that the work stopped, so nothing was written. Fix the cause it names and run again.
-- **The outcome is unknown**: "Couldn't confirm the rename — [reason]." Renamer stopped watching before
+- **The outcome is unknown**: "Couldn't confirm the rename - [reason]." Renamer stopped watching before
   the job reached a verdict, either because the job went ten minutes without reporting progress or
   because Cove stopped answering about it. It deliberately does _not_ say nothing changed: the job
   may still be running and may already have renamed files. Reload the page, check your library and
@@ -146,12 +146,12 @@ you have anything to check:
 ## Undo the last rename
 
 If a rename wasn't what you wanted, open the **Undo last rename** section. One line there describes
-the last rename — how many items it renamed, how long ago, and the date its undo window closes
-("undo available until" plus the date) — with the button beside it.
+the last rename - how many items it renamed, how long ago, and the date its undo window closes
+("undo available until" plus the date) - with the button beside it.
 
 Click **Undo last rename**. The confirmation quotes how many files it will move; confirm it, and
 Renamer moves those files back to the names and folders they came from and updates their Cove records
-to match. The companion files that travelled with them come back too — a same-name neighbour such as
+to match. The companion files that travelled with them come back too - a same-name neighbour such as
 a `.srt` subtitle, and the captions Cove tracks for the item.
 
 Know what undo covers:
@@ -159,7 +159,7 @@ Know what undo covers:
 - A recorded rename is kept for **7 days**, and the panel states the expiry date rather than a
   countdown. Past it the line reads "undo expired" and the button is withheld: the files may still be
   where the rename left them, but the next rename drops that record with no further warning, so
-  Renamer stops offering a restore it cannot promise. A record expires as a whole — including any
+  Renamer stops offering a restore it cannot promise. A record expires as a whole - including any
   part you had not restored yet.
 - **A whole-library rename is one record, however many media kinds it touched.** One undo puts back
   everything that run renamed. You need write permission for every kind it touched; without one of
@@ -169,13 +169,13 @@ Know what undo covers:
 - **Undo is shared across everyone on the instance.** Renamer records a rename against the library,
   not against the person who ran it, so the button offers the most recent rename _anyone_ made and
   your undo puts those files back. If other people use your instance, check the line above the button
-  before you click it — it may describe a rename that is not yours.
+  before you click it - it may describe a rename that is not yours.
 - **After a partial undo, the line and the button quote what is left rather than what the rename
-  started as** — "37 of 500 restored", "463 remaining", and a button offering those 463. Files that
+  started as** - "37 of 500 restored", "463 remaining", and a button offering those 463. Files that
   can never go back are counted separately in the same line, so a partly-undone rename describes
   itself instead of looking finished.
-- A file that cannot go back — something else now occupies the old name, the drive is unmounted, the
-  file is locked — stays pending, so undoing again after you fix the cause finishes exactly the work
+- A file that cannot go back - something else now occupies the old name, the drive is unmounted, the
+  file is locked - stays pending, so undoing again after you fix the cause finishes exactly the work
   that is left. One case is final rather than worth retrying: a file that is no longer in your library
   cannot be restored, because Renamer reads its current location from Cove.
 - **If Cove is killed in the middle of a rename, the last few hundred files may not be undoable.**
@@ -183,7 +183,7 @@ Know what undo covers:
   would cost more than the rename. A crash loses the group it had not written yet. Those files are
   renamed correctly and Cove knows where they are; only putting them back automatically is lost.
 - **A companion file can be stranded even when its media file comes back.** The result then reads
-  "Undone — 40 files moved back to their original names. 2 companion files stayed behind ([which one, and why])." The
+  "Undone - 40 files moved back to their original names. 2 companion files stayed behind ([which one, and why])." The
   video is where you wanted it; the subtitle beside it is not, and nothing else reports that.
 - A pending undo survives an update or a reinstall of Renamer, because the record lives in Cove's
   database rather than in the extension's own folder.
@@ -196,22 +196,22 @@ which described an earlier version. The list above is what the current version d
 ### If a rename can't be undone
 
 Re-running with a different template is a real recovery path: change the template, dry-run it, and
-rename again — Renamer computes each name from the item's metadata, so it will produce the new names
+rename again - Renamer computes each name from the item's metadata, so it will produce the new names
 just as reliably as it produced the ones you don't want.
 
 What it cannot do is take you back to the names your files had **before Renamer first ran**. Nothing
-records those — Renamer reads a file's current name, and Cove stores only its current name too. So a
+records those - Renamer reads a file's current name, and Cove stores only its current name too. So a
 re-run is how you change your mind about a template. Before the first run on a set of files, the
 [dry run](#preview-with-a-dry-run) is the check that matters.
 
 ## Common tasks
 
-- **Rename only curated items** — turn on _Only rename organized items_ (What gets renamed).
-- **Keep files organized into folders by studio/year** — set a folder template like
+- **Rename only curated items** - turn on _Only rename organized items_ (What gets renamed).
+- **Keep files organized into folders by studio/year** - set a folder template like
   `$studio/$year`. To put them under a different library path, pick it in **Under** beside the
   template.
-- **Route certain studios or tags to specific drives** — use _Per-studio destinations_ or
+- **Route certain studios or tags to specific drives** - use _Per-studio destinations_ or
   _Per-tag destinations_ (Routing).
-- **Skip certain items entirely** — add exclude rules by tag, studio, or path (Advanced → Excludes).
+- **Skip certain items entirely** - add exclude rules by tag, studio, or path (Advanced → Excludes).
 
 Every one of these is documented field-by-field in the [Settings reference](./settings).

@@ -38,12 +38,12 @@ extension afterwards either way. It cannot be moved.
 
 - **Tokens** are written bare with a leading `$`: `$title`, `$resolution`, `$studio`. There is no
   `${title}` form.
-- **Optional groups** use braces: `{ … }`. Everything inside a group — including its leading
-  separator and literal punctuation — disappears when **every** token inside the group is empty.
+- **Optional groups** use braces: `{ … }`. Everything inside a group - including its leading
+  separator and literal punctuation - disappears when **every** token inside the group is empty.
   Put the separator _inside_ the group (`$title{ - $studio}`, not `$title - {$studio}`) so you never
   get a dangling `-` when the studio is missing.
 - **A literal dollar sign** is written `$$`.
-- **Missing tokens are omitted**, not rendered as blank — which is what makes the `{ … }` groups
+- **Missing tokens are omitted**, not rendered as blank - which is what makes the `{ … }` groups
   collapse.
 - **Folders**: in a folder template, use `/` to separate sub-folders, e.g. `$studio/$year`. Only `/`
   separates; a backslash is treated as a character the filesystem forbids and is removed (or
@@ -156,7 +156,7 @@ lengthening it.
 
 ## Shaping multi-value tokens
 
-`$performers` and `$tags` are lists. How they join into the name — the separator between items, a
-maximum count, sort order, and the _Only include_ and _Never include_ lists — is controlled by the **Performers** and
+`$performers` and `$tags` are lists. How they join into the name - the separator between items, a
+maximum count, sort order, and the _Only include_ and _Never include_ lists - is controlled by the **Performers** and
 **Tags** cards under **Token settings**, which appear only when your template uses that token. See
 the [Settings reference](./settings#token-settings) for every option.

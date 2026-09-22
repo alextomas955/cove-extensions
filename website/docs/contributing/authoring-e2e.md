@@ -5,11 +5,11 @@ sidebar_position: 5
 # Adding an Extension's E2E Suite
 
 The shared end-to-end harness lives at [`tests/e2e/`](https://github.com/alextomas955/cove-extensions/tree/main/tests/e2e) and is published as the
-npm-workspace package `@cove-extensions/e2e`. Every extension's own E2E suite imports it **by name**
-— there is no `../../../e2e/...` relative-path archaeology and no hand-rolled repo-root math. Adding
-a new extension's suite is two steps.
+npm-workspace package `@cove-extensions/e2e`. Every extension's own E2E suite imports it **by
+name**, so there is no `../../../e2e/...` relative-path archaeology and no hand-rolled repo-root
+math. Adding a new extension's suite is two steps.
 
-Renamer is the reference implementation — copy its shape from
+Renamer is the reference implementation - copy its shape from
 [`extensions/Renamer/e2e/`](https://github.com/alextomas955/cove-extensions/tree/main/extensions/Renamer/e2e).
 
 ## Prerequisites
@@ -18,15 +18,15 @@ Renamer is the reference implementation — copy its shape from
   `extension.json`) and, if it has a frontend, a UI bundle at `src/<UiProject>/dist/index.mjs`. This
   is produced for you by the `pretest` hook described under **Run it**.
 - Your `catalog.json` entry declares an `artifacts` array. The harness installs the package that
-  array declares — not the publish directory — so a file missing from it fails the run by name.
+  array declares - not the publish directory - so a file missing from it fails the run by name.
 - Docker running (the harness boots a real Cove + Postgres instance per worker).
 
-## Step 1 — Create the extension's `e2e/` folder
+## Step 1 - Create the extension's `e2e/` folder
 
 Under your extension, create `extensions/<YourExt>/e2e/` with:
 
-**`package.json`** — depends on the harness by name; **never** its own `@playwright/test` (a second
-Playwright install breaks Playwright's module singleton — the single hoisted install is enforced by
+**`package.json`** - depends on the harness by name; **never** its own `@playwright/test` (a second
+Playwright install breaks Playwright's module singleton - the single hoisted install is enforced by
 this dependency shape):
 
 ```json
@@ -44,7 +44,7 @@ this dependency shape):
 }
 ```
 
-**`lib/<yourext>-fixtures.mjs`** — the thin wiring that pre-fills the `extension` fixture option so
+**`lib/<yourext>-fixtures.mjs`** - the thin wiring that pre-fills the `extension` fixture option so
 individual specs don't repeat build paths. `resolveExtensionPaths` derives the paths from this
 file's own location, so nothing hardcodes a distance to the repo root:
 
@@ -64,12 +64,12 @@ export const test = baseTest.extend({
 export { expect };
 ```
 
-**`tests/*.spec.mjs`** — your actual tests. Start from
+**`tests/*.spec.mjs`** - your actual tests. Start from
 [`tests/e2e/tests/template.spec.mjs`](https://github.com/alextomas955/cove-extensions/blob/main/tests/e2e/tests/template.spec.mjs) (change its imports from
 `../lib/...` to `@cove-extensions/e2e` when you copy it out of the harness), or import your own
 `../lib/<yourext>-fixtures.mjs` for the pre-wired `test`.
 
-## Step 2 — Register the suite in the catalog
+## Step 2 - Register the suite in the catalog
 
 Add `e2ePath` and `e2eProject` to your extension's entry in
 [`extensions/catalog.json`](https://github.com/alextomas955/cove-extensions/blob/main/extensions/catalog.json):
@@ -81,13 +81,13 @@ Add `e2ePath` and `e2eProject` to your extension's entry in
 
 Those two fields are the whole registration.
 [`tests/e2e/playwright.config.mjs`](https://github.com/alextomas955/cove-extensions/blob/main/tests/e2e/playwright.config.mjs)
-derives its `projects` from the catalog — one project per entry declaring both fields, named
-`e2eProject` with `testDir` at `<e2ePath>/tests` — so there is no Playwright config to edit, and CI
+derives its `projects` from the catalog - one project per entry declaring both fields, named
+`e2eProject` with `testDir` at `<e2ePath>/tests` - so there is no Playwright config to edit, and CI
 reads the same two fields to decide which `--project` to run. An entry declaring only one of them
 gets no project at all.
 
 Then run `npm install` **at the repo root** once. The root `package.json`'s `extensions/*/e2e`
-workspace glob picks up the new `e2e` folder automatically — no root-config edit is needed, and the
+workspace glob picks up the new `e2e` folder automatically - no root-config edit is needed, and the
 harness is symlinked into `node_modules` so `@cove-extensions/e2e` resolves by name.
 
 ## Run it
@@ -102,7 +102,7 @@ npm test -- --project=<yourext>
 which publishes every extension whose catalog entry declares an e2e suite. Running `npx playwright
 test` directly skips that hook, so the suite installs whatever publish output is already on disk.
 
-CI runs the same harness against every catalog entry that declares `e2ePath`/`e2eProject` — see
+CI runs the same harness against every catalog entry that declares `e2ePath`/`e2eProject` - see
 `.github/workflows/build.yml`'s `e2e` job. There is no CI-only fork of the harness. The command is not
 byte-identical across legs, though: that job is a matrix over Cove images, and the leg pinned to the
 newest released host runs only the `@smoke`-tagged subset, while the other leg runs the suite

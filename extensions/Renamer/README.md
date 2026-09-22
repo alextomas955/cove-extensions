@@ -9,12 +9,12 @@ Each kind can be left out, or sent to a folder of its own, under Per kind in the
 
 ## Documentation
 
-**User docs live on the docs site — start there:**
+**User docs live on the docs site - start there:**
 
-- **[Renamer docs](https://alextomas955.github.io/cove-extensions/extensions/renamer)** — overview and index
-- [User guide](https://alextomas955.github.io/cove-extensions/extensions/renamer/guide) — enable, set a template, dry-run, rename, undo
-- [Settings reference](https://alextomas955.github.io/cove-extensions/extensions/renamer/settings) — every setting, with defaults
-- [Naming templates](https://alextomas955.github.io/cove-extensions/extensions/renamer/templates) — tokens, presets, and examples
+- **[Renamer docs](https://alextomas955.github.io/cove-extensions/extensions/renamer)** - overview and index
+- [User guide](https://alextomas955.github.io/cove-extensions/extensions/renamer/guide) - enable, set a template, dry-run, rename, undo
+- [Settings reference](https://alextomas955.github.io/cove-extensions/extensions/renamer/settings) - every setting, with defaults
+- [Naming templates](https://alextomas955.github.io/cove-extensions/extensions/renamer/templates) - tokens, presets, and examples
 
 Design and safety model: [Architecture](https://alextomas955.github.io/cove-extensions/extensions/renamer/architecture).
 Release history: [Changelog](https://alextomas955.github.io/cove-extensions/extensions/renamer/changelog).
@@ -25,7 +25,7 @@ The rest of this file is for contributors working on the extension itself.
 
 | Path                                     | Role                                                                                   |
 | ---------------------------------------- | -------------------------------------------------------------------------------------- |
-| `src/Renamer/`                           | The extension class library (`IExtension`) — engine, planner, executor, API endpoints. |
+| `src/Renamer/`                           | The extension class library (`IExtension`) - engine, planner, executor, API endpoints. |
 | `src/Renamer.Ui/`                        | The settings/preview panel bundle (React/TypeScript → `dist/index.mjs`).               |
 | `src/Renamer.Tests/`                     | The backend suite. Needs a `../cove` source checkout.                                  |
 | `e2e/`                                   | This extension's Playwright suite (run through the shared `tests/e2e` harness).        |
@@ -71,7 +71,7 @@ npm run build     # rebuild dist/index.mjs
 `npm run typecheck` and `npm run test` regenerate the wire types themselves, so `verify` works once
 the root install exists.
 
-`dist/` is build output and is not committed — it is gitignored. CI rebuilds the bundle from source
+`dist/` is build output and is not committed - it is gitignored. CI rebuilds the bundle from source
 with `npm run build` and packages the freshly built `dist/index.mjs` into the release, so you do not
 need to build or commit the bundle for a normal source change.
 
@@ -81,14 +81,14 @@ need to build or commit the bundle for a normal source change.
 against a local Cove dev instance. It builds against a local sibling `../cove` checkout (or
 `$COVE_REPO`) so the extension is ABI-identical to the running host.
 
-Invoke it as `pwsh` on any OS — Windows PowerShell 5.1 does not define the `$IsWindows` variable the
+Invoke it as `pwsh` on any OS - Windows PowerShell 5.1 does not define the `$IsWindows` variable the
 script reads. Only the _default_ data root is Windows-specific: with no `COVE_HOME` set the script
 falls back to the per-user local-application-data `cove` folder, which exists on Windows only, so on
 macOS and Linux you must set `COVE_HOME`. It throws there rather than guessing, because a guessed data
 root deploys into a directory Cove never reads and then reports success.
 
 The assemble step is the shared `scripts/assemble-package.mjs` and installs the file set
-`extensions/catalog.json` declares for Renamer — the same set a release ships — so a bug you hit in
+`extensions/catalog.json` declares for Renamer - the same set a release ships - so a bug you hit in
 dev is a bug in the shipped shape.
 
 ## Releasing

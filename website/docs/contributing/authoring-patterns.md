@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Extension authoring patterns
 
-This page explains how an extension in this repo is _shaped_ — the folder conventions, the wire
+This page explains how an extension in this repo is _shaped_ - the folder conventions, the wire
 contract, and the correctness rules every extension shares. It is the reasoning behind the terse rules
 in the repo-root `CLAUDE.md`; when you add an extension or reshape one, follow those rules and read here
 for the why.
@@ -16,23 +16,23 @@ Every module is exactly one of six kinds:
 | Kind               | What it is                                                          |
 | ------------------ | ------------------------------------------------------------------- |
 | **Feature**        | a capability slice that coordinates one use case end-to-end         |
-| **Domain**         | pure, deterministic rules — no I/O, unit-testable with zero mocks   |
+| **Domain**         | pure, deterministic rules - no I/O, unit-testable with zero mocks   |
 | **Model**          | a data or wire shape                                                |
-| **Infrastructure** | the only code that touches I/O — HTTP, DB, disk, host store, timers |
+| **Infrastructure** | the only code that touches I/O - HTTP, DB, disk, host store, timers |
 | **UI primitive**   | business-agnostic presentation                                      |
 | **Tooling**        | runs at commit/CI/build time, never at extension runtime            |
 
 Classify a file by what it _is_, then place it by its tier's convention. Modules depend downward
-(toward models) and sideways onto shared code — never upward, and never across sibling features.
+(toward models) and sideways onto shared code - never upward, and never across sibling features.
 
 On the frontend, lint enforces the last part rather than leaving it to review: importing a sibling
 feature slice is an error, and the route between two features is `common/` or the extension entry.
-Nothing needs configuring per extension — the rule finds each UI bundle through `catalog.json`.
+Nothing needs configuring per extension - the rule finds each UI bundle through `catalog.json`.
 
 ## Structure each tier to its own idiom
 
 The backend and the frontend are separate build artifacts that talk over an HTTP wire. Their honest
-seam is the wire contract, not a shared folder layout — so do not force the two to mirror each other.
+seam is the wire contract, not a shared folder layout - so do not force the two to mirror each other.
 
 - **The C# backend** is sliced by capability at the project root, alongside foundation folders. An
   extension that is one rich capability layers it by domain instead, which is what Renamer does today:
@@ -49,7 +49,7 @@ casing. That is intended alignment - you find both halves instantly - not duplic
 
 Slices live at the tier root, not under a `features/` directory. That wrapper is a large-app pattern;
 in a plugin that is almost entirely slices it adds a level that separates nothing. A sub-concern
-reachable from only one slice nests under it — Renamer's dry-run modal is `settings/dry-run/` because
+reachable from only one slice nests under it - Renamer's dry-run modal is `settings/dry-run/` because
 you open it only from the settings panel.
 
 ### Name by capability, not by entity
@@ -72,7 +72,7 @@ section its own folder only when it holds more than one file.
 
 ## Two levels of shared code
 
-"Shared" is reserved for **repo-level, cross-extension** code — the frontend package
+"Shared" is reserved for **repo-level, cross-extension** code - the frontend package
 `shared/ui-shared` and the backend package `shared/Cove.Extensions.Shared`. A module earns a
 place there only by being business-agnostic and reusable by _every_ extension unchanged.
 
@@ -82,10 +82,10 @@ rule gets violated.
 
 The frontend package's `src/` is **flat**: `index.ts` sits beside `primitives.tsx`, `primitivesLogic.ts`,
 `actions.ts`, `postAction.ts`, `overlay.ts` and `entityPickerLogic.ts`. That is the suffix-as-kind rule
-applied, not an omission — at this size a `ui/` and `lib/` split would only restate what the filenames
+applied, not an omission - at this size a `ui/` and `lib/` split would only restate what the filenames
 already say.
 
-Code shared by several features of a _single_ extension is not "shared" — it lives in that extension's
+Code shared by several features of a _single_ extension is not "shared" - it lives in that extension's
 own `common/` folder, which _is_ split into `common/ui/` and `common/lib/`. A component carrying one
 extension's branding is local, so it belongs in that extension's `common/ui/`, not in the repo-level UI
 package.
@@ -93,7 +93,7 @@ package.
 **The deciding test is reach, not a directory name.** Ask whether every extension could use the module
 unchanged: if yes it is repo-level, if only one extension can it belongs in that extension's `common/`,
 and if only one feature can it stays inside that feature's slice. Business-agnosticism is what the test
-measures — never whether the code happens to be presentational.
+measures - never whether the code happens to be presentational.
 
 ## The wire contract
 
@@ -111,7 +111,7 @@ body an extension parses itself to answer to whatever options that parse names.
 compiler against itself and never against the server, so a wrong one still type-checks and every field
 then reads `undefined` at runtime with nothing failing anywhere. That has shipped here. Where you
 cannot derive a type, pin the wire values in a test whose expectation you transcribe by hand from the
-server's own spelling — an expectation computed from the module it checks agrees with itself forever
+server's own spelling - an expectation computed from the module it checks agrees with itself forever
 and reports nothing.
 
 The C# handler signatures are the source of truth, and each tier has one home:
@@ -122,7 +122,7 @@ The C# handler signatures are the source of truth, and each tier has one home:
   TYPE, never on a serializer options
   object: an options-level converter outranks a type attribute rather than agreeing with it, so a
   second declaration can drift and win silently.
-- **TypeScript** — `src/wire/api.ts`, generated by `npm run generate:wire` and gitignored. Import it
+- **TypeScript** - `src/wire/api.ts`, generated by `npm run generate:wire` and gitignored. Import it
   with `import type` so it erases at runtime and a consuming `*Logic.ts` module stays offline-gate
   clean. Do not hand-write a parallel `contracts.ts`; that is the restatement this rule removes.
 
@@ -139,18 +139,18 @@ foundation shared by the popovers and dialogs: a focus, keyboard and outside-cli
 navigation modes, menu and dialog. It is deliberately neither a component library nor the native
 `<dialog>` element - the two modes keep Escape and focus semantics that differ on purpose, and either
 alternative would flatten that difference or add a second focus manager. Use only the host's Tailwind token classes
-and never `dangerouslySetInnerHTML`. Where the host contract can't be read from the code — slot props
-arriving at the top level, a component key that must match a C# literal byte-for-byte — leave a short
+and never `dangerouslySetInnerHTML`. Where the host contract can't be read from the code - slot props
+arriving at the top level, a component key that must match a C# literal byte-for-byte - leave a short
 comment.
 
 ## Correctness rules that must not regress
 
-- Background database reads run as the System principal through one shared seam — under an anonymous
+- Background database reads run as the System principal through one shared seam - under an anonymous
   principal Cove's authorization filters return zero rows with no error.
 - A best-effort `catch` that swallows an error still emits exactly one structured log line; nothing
   fails silently.
 - On shutdown, work classifies as cancelled, never as failed.
-- When a backend can't honor a role or a version, it simply doesn't implement that role interface —
+- When a backend can't honor a role or a version, it simply doesn't implement that role interface -
   there is no capability probe and no version-mismatch throw to trip over.
 - A journal that must persist lives as rows in a table the extension owns, bounded by a retention
   window, never as one growing value under a host store key: a value under one key puts every writer
@@ -172,5 +172,5 @@ touched file's `Path`. Take the context as `DbContext` in a new test, and name `
 where you construct one.
 
 The containerized end-to-end job is the real safety gate. Copy-paste, dead-export, dependency-drift, and import-direction checks run as
-merge gates in the lint workflow. Only a check a CI workflow runs is a gate — an entry in the local
+merge gates in the lint workflow. Only a check a CI workflow runs is a gate - an entry in the local
 hook runner is advice a contributor can skip, so wire a check you need enforced into a workflow.
