@@ -7,23 +7,30 @@
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { StateChip } from "../common/ui/StateChip";
+import { NotLinkedChip } from "../common/ui/NotLinkedChip";
+import { WorkingChip } from "../common/ui/WorkingChip";
 import { deriveState, type WhisparrEntityState } from "../common/ui/stateVocabularyLogic";
 import type { LibraryCardKind } from "../wire/api";
+import { badgeChipFor } from "./badgeChipLogic";
 import { BADGE_STRIP_CLASS } from "./libraryClasses";
 import { useLibraryStatusOn } from "./libraryToggleStore";
 import { useCardStatus } from "./useCardStatus";
 
 export function CardStatusBadge({ kind, coveId }: { kind: LibraryCardKind; coveId: number }) {
   const on = useLibraryStatusOn();
-  const { reading, settled } = useCardStatus(kind, coveId, on);
+  const { reading, settled, running } = useCardStatus(kind, coveId, on);
 
   const state: WhisparrEntityState | null = reading === null ? null : deriveState(reading);
   const drawn = state === "statusUnknown" ? null : state;
 
+  const chip = badgeChipFor({ running, settled, state: drawn });
+
   const region = deriveAsyncRegionState({
     reading: on && !settled,
     failed: false,
-    hasContent: drawn !== null,
+    // Whatever the badge has to draw, not only a state: a card the library holds no link for has
+    // a chip of its own, and an empty region would swallow it.
+    hasContent: chip !== null,
   });
 
   return (
@@ -36,9 +43,15 @@ export function CardStatusBadge({ kind, coveId }: { kind: LibraryCardKind; coveI
       empty={null}
       failed={null}
       content={
-        drawn === null ? null : (
+        chip === null ? null : (
           <div className={BADGE_STRIP_CLASS}>
-            <StateChip state={drawn} />
+            {chip === "working" ? (
+              <WorkingChip />
+            ) : chip === "notLinked" ? (
+              <NotLinkedChip />
+            ) : drawn === null ? null : (
+              <StateChip state={drawn} />
+            )}
           </div>
         )
       }
