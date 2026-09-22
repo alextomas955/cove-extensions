@@ -4,6 +4,7 @@ import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 
 import type { SceneActionResult, SceneDetailView } from "../wire/api";
+import { announceCardsChanged } from "../common/lib/cardsChanged";
 import { api } from "../common/lib/extension";
 import {
   routeSegmentFor,
@@ -57,6 +58,11 @@ export function useSceneDetail(coveId: number): SceneDetail {
           });
           // What the instance now holds is read back, never painted from what was asked for.
           read(coveId);
+
+          // The card badge on the list this page was reached from is cached for the browser's
+          // lifetime, so without this it draws the state from before the verb once the reader
+          // navigates back.
+          announceCardsChanged("video", [coveId]);
         })
         .catch(() => {
           store.actionFailed(coveId);
