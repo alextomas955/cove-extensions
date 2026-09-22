@@ -128,6 +128,67 @@ public sealed class BackstopPassTests
         Assert.Null(stored.V3?.BackstopWatermarkUtc);
     }
 
+    // The key and the address are two writes in two stores, and the row holding the key is the one
+    // an outbound request is built from. Reading the address from the options blob instead would
+    // send this key to the instance the blob still names.
+    [Fact]
+    public async Task ThePassContactsTheAddressHeldBesideTheKeyItSends()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5), rowAddress: MovedAddress);
+        pass.Answering(Page(Descending(3)));
+
+        await pass.RunAsync();
+
+        var binding = Assert.Single(pass.Instances.Bindings);
+        Assert.True(ConnectionTester.IsSameAddress(MovedAddress, binding.BaseAddress.ToString()));
+    }
+
+    // The stored mark is a position in the history of the instance the blob names. Handing it to a
+    // walk against a different instance declares that instance's older records already read, and
+    // nothing ever goes back for them.
+    [Fact]
+    public async Task AWalkAgainstAnInstanceTheMarkIsNotAboutStartsWithNoPosition()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5), rowAddress: MovedAddress);
+        pass.Answering(Page(Descending(3)));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.FirstConnect, result.Outcome);
+        Assert.Empty(pass.Core.Ingested);
+    }
+
+    // The instant came out of the instance the row names, and the record it would be written onto
+    // describes the one the blob names.
+    [Fact]
+    public async Task AMarkReadFromOneInstanceIsNotWrittenOntoAnother()
+    {
+        var mark = Noon.AddMinutes(-5);
+        var pass = new Pass(mark, rowAddress: MovedAddress);
+        pass.Answering(Page(Descending(3)));
+
+        await pass.RunAsync();
+
+        var stored = await pass.StoredAsync();
+        Assert.Equal(Address, stored.V3?.Address);
+        Assert.Equal(mark, stored.V3?.BackstopWatermarkUtc);
+    }
+
+    // Control for the three cases above: a row naming the address the blob already holds is the
+    // ordinary shape, and a pass that treated every row address as a move would never advance.
+    [Fact]
+    public async Task ARowNamingTheStoredAddressWalksFromTheStoredMark()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5), rowAddress: Address);
+        pass.Answering(Page(Descending(3)));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.Walked, result.Outcome);
+        Assert.Equal(3, pass.Core.Ingested.Count);
+        Assert.Equal(Noon, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+    }
+
     // The failure streak is built first, so its reset is an observation rather than the value an
     // untouched aggregate already holds.
     [Fact]
@@ -764,16 +825,23 @@ public sealed class BackstopPassTests
 
         private readonly OptionsStore _options;
         private readonly int? _requestBudget;
+        private readonly RecordingCredentialPort _credentials;
         private WhisparrSyncSettingsSaveRequest? _competing;
 
+        // rowAddress null is a credential row written before the address was stored beside the key,
+        // which is what most cases here hold. Naming one holds the two stores apart.
         public Pass(
             DateTimeOffset? mark,
             string address = Address,
             WhisparrGeneration generation = WhisparrGeneration.V3,
-            int? requestBudget = null)
+            int? requestBudget = null,
+            string? rowAddress = null)
         {
             Generation = generation;
             _requestBudget = requestBudget;
+            _credentials = rowAddress is null
+                ? new RecordingCredentialPort().Holding(generation, ApiKey)
+                : new RecordingCredentialPort().Holding(generation, rowAddress, ApiKey);
             // A case that leaves the address empty is one where nothing is sent, so the recorder
             // answers for the address the fixture normally carries.
             Client = new RecordingWhisparrV3Client(
@@ -820,18 +888,24 @@ public sealed class BackstopPassTests
         // the walk meets is what a save landing mid-walk really leaves behind.
         public void SavingDuringTheWalk(WhisparrSyncSettingsSaveRequest save) => _competing = save;
 
+        // Replaced per run, so a case reads the bindings of the run it just drove.
+        public FixedInstanceFactory Instances { get; private set; } = null!;
+
         public Task<BackstopPassResult> RunAsync()
-            => new BackstopPass(
-                    new FixedInstanceFactory(ClientForRun()),
+        {
+            Instances = new FixedInstanceFactory(ClientForRun());
+            return new BackstopPass(
+                    Instances,
                     _options,
                     Gate,
-                    new RecordingCredentialPort().Holding(Generation, ApiKey),
+                    _credentials,
                     Core,
                     new FixedClock(Now),
                     FollowUp,
                     Library,
                     NullLogger.Instance)
                 .RunAsync(TestContext.Current.CancellationToken);
+        }
 
         public Task<WhisparrSyncOptions> StoredAsync()
             => _options.LoadAsync(TestContext.Current.CancellationToken);

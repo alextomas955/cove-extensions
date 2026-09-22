@@ -27,27 +27,26 @@ internal sealed class BackstopPass(
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
         var generation = stored.SelectedGeneration;
         var connection = stored.ConnectionFor(generation);
-        var held = await credentials.ReadConnectionAsync(generation, ct).ConfigureAwait(false);
-        var apiKey = held?.ApiKey;
-        // The address comes from the row that holds the key, so the two cannot be observed from
-        // either side of a save that changed both. A row written before the address was stored there
-        // carries none, and the stored options answer for that installation until its next save.
-        var address = string.IsNullOrWhiteSpace(held?.Address) ? connection?.Address : held.Address;
-
-        // Refused here, so an unconfigured connection reaches nothing that could make a request.
-        if (!ConnectionTester.TryReadConnection(address, apiKey, out var baseAddress, out _))
+        var binding = await OutboundPair.ResolveAsync(stored, credentials, ct).ConfigureAwait(false);
+        if (binding is null)
         {
             return new BackstopPassResult(BackstopPassOutcome.NotConfigured, null, 0, 0, 0, 0, 0);
         }
 
-        // Captured before the walk, not read back after it: a save committed while the walk runs
-        // moves the stored address, and the fold has to know whether the record is still this
-        // instance.
-        var walkedAddress = connection!.Address;
+        // The identity the walk is recorded under is the one it contacted, not the one the blob
+        // describes, so the two cannot disagree. It is captured before the walk rather than read
+        // back after it: a save committed while the walk runs moves the stored address, and the fold
+        // has to know whether the record is still this instance.
+        var walkedAddress = binding.BaseAddress.ToString();
+
+        // The stored mark is a position in the history of the instance the blob names. Where the row
+        // names another, the walk starts with no position rather than declaring that instance's
+        // older records read; it reaches one page, records nothing and reports the position lost.
+        var walkedElsewhere = !ConnectionTester.IsSameAddress(connection?.Address, walkedAddress);
 
         var walk = await WalkAsync(
-            new WhisparrBinding(generation, baseAddress, apiKey),
-            connection.BackstopWatermarkUtc,
+            binding,
+            walkedElsewhere ? null : connection?.BackstopWatermarkUtc,
             ct)
             .ConfigureAwait(false);
 
@@ -78,7 +77,8 @@ internal sealed class BackstopPass(
         }
         else if (IsRefusal(walk.Outcome))
         {
-            WhisparrSyncLog.BackstopPassRefused(log, generation, walk.Outcome, baseAddress.Host);
+            WhisparrSyncLog.BackstopPassRefused(
+                log, generation, walk.Outcome, binding.BaseAddress.Host);
             await RecordFailureAsync(walk.Outcome, ct).ConfigureAwait(false);
         }
 
