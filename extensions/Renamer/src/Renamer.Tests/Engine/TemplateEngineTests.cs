@@ -200,6 +200,27 @@ public class TemplateEngineTests
         Assert.Equal(expected, r.Filename);
     }
 
+    [Theory]
+    // A token name runs to the end of its letters, digits and underscores, so this template names an
+    // unknown token rather than $resolution. It resolves empty, its group collapses, and the title
+    // keeps the tag it came with.
+    [InlineData("$title{ [$resolutionx]}", "Bootie From Beijing [1080p]")]
+    // Token lookup is case-insensitive, so this template does name $resolution. The title's own tag
+    // is stripped and the derived label is appended in its place, leaving one.
+    [InlineData("$title{ [$RESOLUTION]}", "Bootie From Beijing [1080p]")]
+    public void TrailingResolution_TokenNameBoundary_DecidesWhetherTagIsStripped(
+        string template, string expected)
+    {
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Bootie From Beijing [1080p]",
+            ["width"] = "1920",
+            ["height"] = "1080",
+        };
+        var r = Render(template, tokens);
+        Assert.Equal(expected, r.Filename);
+    }
+
     [Fact]
     public void TitleHasResolution_MissingWidth_PreservesExistingTag()
     {
