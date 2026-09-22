@@ -28,6 +28,7 @@ public sealed class ThePornDbCatalogueTests
     private const string ConfiguredSpelling = "https://theporndb.net/graphql";
     private const string SomeKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
     private const string StudioUuid = "e3b61b3e-0c20-4bea-9441-b88430ed6317";
+    private const string SceneUuid = "2846feb8-f7da-4312-a3a7-a32d32d3b865";
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
@@ -691,6 +692,55 @@ public sealed class ThePornDbCatalogueTests
         Assert.Equal(
             ProviderSiteNumber.NotReached,
             await catalogue.ResolveNumericSiteIdAsync(StudioUuid, TestCt));
+    }
+
+    // The two picture fields and the status are the whole subject of these four, so the answers are
+    // written here rather than taken from a recording of one scene that happens to carry both.
+    [Fact]
+    public async Task ASceneCarryingBothPicturesIsCoveredByItsPoster()
+    {
+        var (catalogue, _) = CatalogueOver(
+            HttpStatusCode.OK,
+            """
+            {"data":{"poster":"https://a.source.invalid/poster.jpg",
+            "image":"https://a.source.invalid/image.jpg"}}
+            """);
+
+        Assert.Equal(
+            "https://a.source.invalid/poster.jpg",
+            await catalogue.ReadSceneCoverAsync(SceneUuid, TestCt));
+    }
+
+    [Fact]
+    public async Task ASceneCarryingTheWiderPictureAloneIsCoveredByIt()
+    {
+        var (catalogue, _) = CatalogueOver(
+            HttpStatusCode.OK, """{"data":{"image":"https://a.source.invalid/image.jpg"}}""");
+
+        Assert.Equal(
+            "https://a.source.invalid/image.jpg",
+            await catalogue.ReadSceneCoverAsync(SceneUuid, TestCt));
+    }
+
+    [Fact]
+    public async Task ACoverIsReadOffTheSceneRouteAddressedByTheStoredIdentifier()
+    {
+        var (catalogue, handler) = CatalogueOver(
+            HttpStatusCode.OK, """{"data":{"poster":"https://a.source.invalid/poster.jpg"}}""");
+
+        await catalogue.ReadSceneCoverAsync(SceneUuid, TestCt);
+
+        Assert.EndsWith($"/scenes/{SceneUuid}", handler.Targets[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ASceneTheProviderRefusedToServeIsCoveredByNothing()
+    {
+        var (catalogue, _) = CatalogueOver(
+            HttpStatusCode.NotFound,
+            """{"data":{"poster":"https://a.source.invalid/poster.jpg"}}""");
+
+        Assert.Null(await catalogue.ReadSceneCoverAsync(SceneUuid, TestCt));
     }
 
     private static string SingleScene(JsonNode row)
