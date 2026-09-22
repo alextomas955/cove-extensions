@@ -78,6 +78,24 @@ test("the selection asks for the bulk route and carries exactly the ticked scene
   expect(posted()[0].path.endsWith("/entity/studio/42/missing/bulk-monitor")).toBe(true);
   expect(JSON.parse(posted()[0].body ?? "{}")).toEqual({
     providerSceneIds: [FIRST_SCENE, SECOND_SCENE],
+    verb: "monitor",
+  });
+});
+
+// The same route and the same selection, differing only in the verb, so a reader who ticked a page
+// and changed their mind is not sent to another surface to undo it.
+test("unmonitoring the selection asks the same route with the other verb", async () => {
+  const missing = await mount(42);
+
+  await pressing(() => {
+    missing.unmonitorSelection([FIRST_SCENE, SECOND_SCENE]);
+  });
+
+  expect(posted()).toHaveLength(1);
+  expect(posted()[0].path.endsWith("/entity/studio/42/missing/bulk-monitor")).toBe(true);
+  expect(JSON.parse(posted()[0].body ?? "{}")).toEqual({
+    providerSceneIds: [FIRST_SCENE, SECOND_SCENE],
+    verb: "unmonitor",
   });
 });
 

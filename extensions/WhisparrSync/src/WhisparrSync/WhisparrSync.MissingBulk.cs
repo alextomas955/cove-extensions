@@ -12,6 +12,7 @@ using WhisparrSync.Contracts;
 using WhisparrSync.Jobs;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
+using WhisparrSync.Scene;
 using WhisparrSync.Whisparr;
 using CoreJobProgress = Cove.Core.Interfaces.IJobProgress;
 
@@ -74,10 +75,13 @@ public sealed partial class WhisparrSync
                 new MissingBulkEnqueued(null, MissingRefusalKind.NoInstanceConnected));
         }
 
-        // A generation registering no scene add has no implementation to hand over, so there is
-        // nothing to compose and no run to start.
+        // A generation that neither adds a catalogue item nor flips a row it already holds has no
+        // implementation to hand over, so there is nothing to compose and no run to start. One that
+        // can do either is enough: the run picks between them per generation and per verb.
         if (target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
-                .Match<IWhisparrMissingSceneActing?>(held => held, _ => null) is null)
+                .Match<IWhisparrMissingSceneActing?>(held => held, _ => null) is null
+            && target.Capabilities.Obtain<IWhisparrSceneMonitorActing>()
+                .Match<IWhisparrSceneMonitorActing?>(held => held, _ => null) is null)
         {
             return TypedResults.Ok(
                 new MissingBulkEnqueued(null, MissingRefusalKind.WhisparrKeepsNoSceneRecords));
@@ -85,7 +89,8 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             new MissingBulkEnqueued(
-                EnqueueMissingBulk(jobs, scopes, entityKind, coveId, request.ProviderSceneIds),
+                EnqueueMissingBulk(
+                    jobs, scopes, entityKind, coveId, request.ProviderSceneIds, request.Verb),
                 MissingRefusalKind.None));
     }
 
@@ -97,13 +102,15 @@ public sealed partial class WhisparrSync
         IServiceScopeFactory scopes,
         WhisparrEntityKind kind,
         int coveId,
-        IReadOnlyList<string> providerSceneIds)
+        IReadOnlyList<string> providerSceneIds,
+        MissingBulkVerb verb)
     {
-        var parameters = MissingBulkJob.Encode(kind, coveId, providerSceneIds);
+        var parameters = MissingBulkJob.Encode(kind, coveId, providerSceneIds, verb);
 
         return jobs.Enqueue(
             OwnJobTypePrefix + MissingBulkJob.JobId,
-            $"[{Name}] Mark selected scenes wanted, one {kind}",
+            $"[{Name}] {(verb == MissingBulkVerb.Monitor ? "Monitor" : "Unmonitor")} "
+                + $"selected scenes, one {kind}",
             (progress, ct) => RunMissingBulkAsync(parameters, scopes, progress, ct),
             exclusive: true);
     }
@@ -121,20 +128,108 @@ public sealed partial class WhisparrSync
             .RunAsync(
                 batch,
                 scopes,
-                (services, runCt) => ComposeSceneAddAsync(
-                    batch.Kind, batch.CoveId, services, runCt),
+                (services, runCt) => ComposeSceneMarkAsync(batch, services, runCt),
                 ct)
             .ConfigureAwait(false);
 
         // The host's progress carries no summary field, so the run's one line rides the final
         // report's sub-task.
-        progress.Report(1d, MissingBulkJob.SummaryOf(run));
+        progress.Report(1d, MissingBulkJob.SummaryOf(run, batch.Verb));
         ct.ThrowIfCancellationRequested();
     }
 
-    // Null where the run must not act at all. The verb closed over is the non-grabbing scene add, so
-    // no run built from this can make an instance download. The profile and the root are read here
-    // rather than at enqueue, because the instance may change either after a run is queued.
+    // Which marker one selection's run uses. Unmonitoring is a flip of rows the instance already
+    // holds, on either generation, and so is monitoring on the generation whose catalogue is its own
+    // rows. Only the generation that adds a catalogue item composes an add.
+    private async Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?>
+        ComposeSceneMarkAsync(
+            MissingBulkBatch batch,
+            IServiceProvider services,
+            CancellationToken runCt)
+    {
+        if (await ResolveTargetAsync(
+                services.GetRequiredService<OptionsStore>(),
+                services.GetRequiredService<ICredentialPort>(),
+                services.GetRequiredService<IWhisparrClient>(),
+                runCt).ConfigureAwait(false) is not { } target)
+        {
+            return null;
+        }
+
+        var adds = target.Capabilities.Obtain<IWhisparrMissingSceneActing>()
+            .Match<IWhisparrMissingSceneActing?>(held => held, _ => null) is not null;
+
+        return batch.Verb == MissingBulkVerb.Monitor && adds
+            ? await ComposeSceneAddAsync(batch.Kind, batch.CoveId, services, runCt)
+                .ConfigureAwait(false)
+            : await ComposeSceneFlipAsync(
+                batch.Kind, batch.CoveId, batch.Verb, target, services, runCt)
+                .ConfigureAwait(false);
+    }
+
+    // The marker for a run that flips flags on rows the instance already holds. The rows come from
+    // the entity's own catalogue, read once for the whole run and held by provider id, so the run
+    // costs one catalogue read plus one write per scene rather than a read per scene.
+    private async Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?>
+        ComposeSceneFlipAsync(
+            WhisparrEntityKind? owningKind,
+            int owningId,
+            MissingBulkVerb verb,
+            MonitoringTarget target,
+            IServiceProvider services,
+            CancellationToken runCt)
+    {
+        // A run over no one entity has no catalogue to read the instance's own row ids from.
+        if (owningKind is not { } owning
+            || target.Capabilities.Obtain<IWhisparrSceneMonitorActing>()
+                .Match<IWhisparrSceneMonitorActing?>(held => held, _ => null) is not { } marking
+            || target.Capabilities.Obtain<IWhisparrEntityCatalogueReading>()
+                .Match<IWhisparrEntityCatalogueReading?>(held => held, _ => null) is not { } reading)
+        {
+            return null;
+        }
+
+        var identity = await services.GetRequiredService<IEntityIdentityPort>()
+            .ResolveAsync(owning, owningId, target.Generation, runCt).ConfigureAwait(false);
+        if (identity.ForeignId is not { Length: > 0 } foreignId)
+        {
+            return null;
+        }
+
+        var catalogue = await reading.ReadEntityCatalogueAsync(
+            target.BaseAddress, target.ApiKey, target.Generation, owning, foreignId, runCt)
+            .ConfigureAwait(false);
+        if (catalogue.Scenes is not { } scenes)
+        {
+            return null;
+        }
+
+        var rows = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var scene in scenes)
+        {
+            if (scene.InstanceSceneId > 0)
+            {
+                rows[scene.ProviderSceneId] = scene.InstanceSceneId;
+            }
+        }
+
+        var monitored = verb == MissingBulkVerb.Monitor;
+        return (providerSceneId, markCt) => rows.TryGetValue(providerSceneId, out var rowId)
+            ? ContainedAsync(
+                () => marking.SetSceneMonitoredAsync(
+                    target.BaseAddress, target.ApiKey, target.Generation, rowId, monitored, markCt),
+                target,
+                _log,
+                markCt)
+
+            // A scene the catalogue named no row for is one the instance holds nothing to flip, and
+            // the rest of the selection is still worth marking.
+            : Task.FromResult<WhisparrResponse?>(null);
+    }
+
+    // Null where the run must not act at all. Nothing composed here grabs: the add is the
+    // non-grabbing one and the flip writes a flag, so no run built from this can make an instance
+    // download by itself.
     private async Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?>
         ComposeSceneAddAsync(
             WhisparrEntityKind? owningKind,

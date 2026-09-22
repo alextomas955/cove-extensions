@@ -5,6 +5,7 @@ import { postAction } from "@cove-extensions/ui-shared/postAction";
 
 import type {
   MissingBulkEnqueued,
+  MissingBulkVerb,
   MissingPageView,
   MissingSceneActionResult,
   MissingTrackOutcome,
@@ -48,8 +49,14 @@ export interface Missing {
   readonly monitorScene: (providerSceneId: string) => void;
   /** Asks Whisparr to look for one scene. The one verb on this surface that downloads. */
   readonly searchScene: (providerSceneId: string) => void;
-  /** Marks the ticked scenes wanted as one background run. Acquires nothing. */
+  /** Monitors the ticked scenes as one background run. Acquires nothing. */
   readonly monitorSelection: (providerSceneIds: readonly string[]) => void;
+  /**
+   * Stops monitoring the ticked scenes, as one background run.
+   *
+   * Retracts nothing already downloaded: what it changes is whether the instance goes on looking.
+   */
+  readonly unmonitorSelection: (providerSceneIds: readonly string[]) => void;
   /**
    * Marks everything the current narrowing covers wanted, as one background run. It sends no
    * scene identifiers; the server re-derives the set from the search and the facets in force.
@@ -200,21 +207,22 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
     [act],
   );
 
-  const monitorSelection = useCallback(
-    (providerSceneIds: readonly string[]) => {
+  const markSelection = useCallback(
+    (providerSceneIds: readonly string[], verb: MissingBulkVerb) => {
       const entity: MissingEntity = { kind, coveId };
       store.beginBulk(entity);
 
       // The ticked ids and nothing else. No catalogue read runs between the press and the
-      // enqueue: marking a scene wanted does not remove it from the missing set, so a fresh
-      // derivation would answer the same page at the cost of a second provider read.
+      // enqueue: marking a scene does not remove it from the missing set, so a fresh derivation
+      // would answer the same page at the cost of a second read.
       postAction<MissingBulkEnqueued>(bulkRouteFor(entity), {
         providerSceneIds: [...providerSceneIds],
+        verb,
       })
         .then((answered) => {
           store.bulkSettled(entity, selectionOutcomeIn(answered));
-          // The run marks the ticked scenes wanted one at a time, so the pills it changes are read
-          // again once it has stopped rather than painted from what was asked for.
+          // The run marks the ticked scenes one at a time, so the pills it changes are read again
+          // once it has stopped rather than painted from what was asked for.
           void whenRunEnds(answered.jobId ?? undefined).then(refresh);
         })
         .catch(() => {
@@ -222,6 +230,20 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
         });
     },
     [store, kind, coveId, refresh],
+  );
+
+  const monitorSelection = useCallback(
+    (providerSceneIds: readonly string[]) => {
+      markSelection(providerSceneIds, "monitor");
+    },
+    [markSelection],
+  );
+
+  const unmonitorSelection = useCallback(
+    (providerSceneIds: readonly string[]) => {
+      markSelection(providerSceneIds, "unmonitor");
+    },
+    [markSelection],
   );
 
   const [track, setTrack] = useState<TrackState>({ kind: "atRest" });
@@ -267,6 +289,7 @@ export function useMissing(kind: WhisparrEntityKind, coveId: number, view: Missi
     monitorScene,
     searchScene,
     monitorSelection,
+    unmonitorSelection,
     monitorAll,
     trackEntity,
     track,

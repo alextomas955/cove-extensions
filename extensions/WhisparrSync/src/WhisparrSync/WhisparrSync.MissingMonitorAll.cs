@@ -124,7 +124,7 @@ public sealed partial class WhisparrSync
 
         // The host's progress carries no summary field, so the run's one line rides the final
         // report's sub-task.
-        progress.Report(1d, MissingBulkJob.SummaryOf(run));
+        progress.Report(1d, MissingBulkJob.SummaryOf(run, MissingBulkVerb.Monitor));
         ct.ThrowIfCancellationRequested();
 
         Task<Func<string, CancellationToken, Task<WhisparrResponse?>>?> AimAsync(

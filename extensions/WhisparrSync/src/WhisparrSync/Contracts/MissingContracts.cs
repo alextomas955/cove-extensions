@@ -319,7 +319,25 @@ public sealed record MissingSceneActionResult(
 /// The route names the Cove entity and cannot name which of a page's scenes were ticked, so there is
 /// nothing on the server to read them from.
 /// </remarks>
-public sealed record MissingBulkRequest(IReadOnlyList<string> ProviderSceneIds);
+/// <summary>Which way a selection of scenes is being marked.</summary>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
+public enum MissingBulkVerb
+{
+    /// <summary>Monitor them, so the instance looks for what it does not hold.</summary>
+    Monitor,
+
+    /// <summary>Stop monitoring them. Nothing already downloaded is retracted.</summary>
+    Unmonitor,
+}
+
+/// <summary>One selection of scenes, and what to do with it.</summary>
+/// <remarks>
+/// The verb defaults to monitoring, so a body from a browser that names none still reads as the
+/// gesture this route has always carried out.
+/// </remarks>
+public sealed record MissingBulkRequest(
+    IReadOnlyList<string> ProviderSceneIds,
+    MissingBulkVerb Verb = MissingBulkVerb.Monitor);
 
 /// <summary>What asking for a selection to be marked produced.</summary>
 /// <remarks>

@@ -90,11 +90,17 @@ public sealed class MissingBulkRouteTests
         Assert.Empty(host.Jobs.Enqueued);
     }
 
+    // A generation that adds no catalogue item can still mark: its catalogue is its own rows, and
+    // every scene this tab lists already has one. Refusing on the add alone reported a gap that is
+    // real for the add and wrong for the gesture.
     [Fact]
-    public async Task AGenerationRegisteringNoSceneAddRefusesAndEnqueuesNothing()
+    public async Task AGenerationThatFlipsItsOwnRowsEnqueuesARunWithoutTheSceneAdd()
     {
         Assert.DoesNotContain(
             WhisparrCapability.RegisterMissingScenes,
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
+        Assert.Contains(
+            WhisparrCapability.MonitorScene,
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
 
         await using var host = await MonitorHost.CreateAsync(generation: WhisparrGeneration.V2);
@@ -103,9 +109,9 @@ public sealed class MissingBulkRouteTests
         var enqueued = await ReadEnqueuedAsync(
             await host.PostRawAsync("studio", studioId, BulkVerb, Ticking(FirstScene)));
 
-        Assert.Null(enqueued.JobId);
-        Assert.Equal(MissingRefusalKind.WhisparrKeepsNoSceneRecords, enqueued.Refusal);
-        Assert.Empty(host.Jobs.Enqueued);
+        Assert.NotNull(enqueued.JobId);
+        Assert.Equal(MissingRefusalKind.None, enqueued.Refusal);
+        Assert.Single(host.Jobs.Enqueued);
     }
 
     [Fact]
@@ -205,7 +211,7 @@ public sealed class MissingBulkRouteTests
 
         var reported = string.Join('\n', progress.Reports.Select(report => report.SubTask));
 
-        Assert.Contains("2 marked wanted", reported, StringComparison.Ordinal);
+        Assert.Contains("2 monitored", reported, StringComparison.Ordinal);
         Assert.DoesNotContain(FirstScene, reported, StringComparison.Ordinal);
         Assert.DoesNotContain(SecondScene, reported, StringComparison.Ordinal);
     }
