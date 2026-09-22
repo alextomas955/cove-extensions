@@ -71,16 +71,16 @@ export function describeRegistration(view: CallbackView): RegistrationDescriptio
 }
 
 /**
- * Why registering is refused where it would lock this Cove down.
+ * What this Cove may do to itself when Whisparr calls the address.
  *
- * Stated before the gesture rather than after it. Whisparr checks a webhook by posting to it, and
- * that post arrives from wherever Whisparr runs, which for a container is never this machine's own
- * loopback address. A Cove that holds an owner account while sign-in is off reads a request from
- * anywhere else as an instance exposed beyond its own machine: it turns sign-in on, keeps it on,
- * and signs out the person configuring this.
+ * Said before the gesture, not after it. Whisparr checks a webhook by posting to it. A Cove holding
+ * an owner account while sign-in is off can read that call as an instance reachable from outside
+ * its own machine: it turns sign-in on, keeps it on, and signs out the person configuring this.
+ * Whether it does depends on the address, where the call comes from and the host's own trusted-host
+ * list, so this is a warning rather than a refusal.
  */
 export const REGISTRATION_WOULD_LOCK_COVE_DOWN =
-  "Turn on sign-in for this Cove before registering. Whisparr checks the address by calling it, and Cove treats a call from outside this machine as an instance that needs protecting: it turns sign-in on by itself and signs you out. Set a password under Security & Access first.";
+  "Sign-in is off for this Cove. Whisparr checks the address by calling it, and if that call reaches Cove from outside this machine, Cove protects itself by turning sign-in on and will sign you out. Set a password under Security & Access first if you want to avoid that.";
 
 /**
  * Whether the callback can be registered at all, or a sentence saying why not.
@@ -88,15 +88,11 @@ export const REGISTRATION_WOULD_LOCK_COVE_DOWN =
  * The lockdown reason outranks the rest: the others clear on their own, and this one stands until
  * somebody changes a Cove setting.
  */
-export function registerRefusal(
-  view: CallbackView | null,
-  input: {
-    readonly sharedReason: string | null;
-    readonly registering: boolean;
-    readonly address: string;
-  },
-): string | null {
-  if (view !== null && !view.registrationIsSafe) return REGISTRATION_WOULD_LOCK_COVE_DOWN;
+export function registerRefusal(input: {
+  readonly sharedReason: string | null;
+  readonly registering: boolean;
+  readonly address: string;
+}): string | null {
   if (input.sharedReason !== null) return input.sharedReason;
   if (input.registering) return "This registration is still running.";
   return input.address.trim() === "" ? "There is no callback address to register." : null;

@@ -50,7 +50,7 @@ export function ImportWebhookSection({
   onCopy,
   onRegister,
 }: ImportWebhookSectionProps) {
-  const registerReason = registerRefusal(view, { sharedReason, registering, address });
+  const registerReason = registerRefusal({ sharedReason, registering, address });
 
   return (
     <SectionCard

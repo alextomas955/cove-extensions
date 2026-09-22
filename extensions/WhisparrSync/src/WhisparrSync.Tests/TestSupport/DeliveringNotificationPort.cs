@@ -31,26 +31,6 @@ internal sealed class DeliveringNotificationPort(
         => throw new NotSupportedException();
 }
 
-// Refuses every call, so a test using it proves the instance was never contacted. An empty list on
-// a recording double would prove the same thing only if the assertion were written, and a later
-// edit that dropped the assertion would still pass.
-internal sealed class UncontactableNotificationPort : IWhisparrNotificationPort
-{
-    public Task<CallbackRegistrationOutcome> RegisterAsync(
-        WhisparrGeneration generation,
-        Uri baseAddress,
-        string apiKey,
-        string callbackAddress,
-        string secret,
-        CancellationToken ct)
-        => throw new InvalidOperationException(
-            "the instance was contacted by a registration that should have been refused first.");
-
-    public Task<CallbackRegistrationOutcome> ReadAsync(
-        Uri baseAddress, string apiKey, CancellationToken ct)
-        => throw new NotSupportedException();
-}
-
 internal sealed class MintedSecretPort : ICallbackSecretPort
 {
     private const string Secret = "9c1f6b2e4a8d0357";
