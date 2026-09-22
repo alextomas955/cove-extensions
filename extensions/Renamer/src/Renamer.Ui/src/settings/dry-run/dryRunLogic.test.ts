@@ -43,6 +43,8 @@ const SERVER_BUCKETS: Record<RenamerStatus, DryRunBucket> = {
   skipExcluded: "attention",
   skipLocked: "attention",
   skipMissingSource: "attention",
+  // `ScanBucket.Of` classifies this like any other, and nothing a scan counts ever carries it: the
+  // batch runner assigns it at move time, past the plan every scan row and status count is built from.
   skipNoSpace: "attention",
   failed: "attention",
   skipUnanchored: "attention",
@@ -124,7 +126,9 @@ test("summaryCounts partitions the aggregate's status counts into three buckets 
       { status: "move", count: 4 },
       { status: "noOp", count: 5 },
       { status: "skipGated", count: 2 },
-      { status: "skipNoSpace", count: 1 },
+      // A status a scan can actually count. The aggregate is summed over plan items, so a free-space
+      // skip cannot reach it.
+      { status: "skipTooLong", count: 1 },
       { status: "skipExcluded", count: 6 },
       { status: "failed", count: 7 },
     ],

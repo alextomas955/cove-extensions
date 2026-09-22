@@ -91,7 +91,6 @@ attention always says why:
 | The rule's destination is no longer a library path | The root the matched rule names is no longer one of Cove's library paths.                      |
 | Destination outside its own root                   | The folder template is not relative, or it climbs out of the destination it measures from.     |
 | Path too long                                      | The full path would exceed _Full-path max length_.                                             |
-| Not enough free space                              | The destination drive has too little room for the copy this row needs.                         |
 
 A stop that is not a defect is gray instead: **Cancelled** means Cove shut down part-way
 through the run. Nothing was half-written, and starting the rename again picks the row up.
