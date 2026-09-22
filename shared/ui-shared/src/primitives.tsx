@@ -505,8 +505,12 @@ export function Toggle({
             onChange(!checked);
           }}
           className={`inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-            checked ? "bg-accent" : "bg-card border border-border"
+            checked ? "bg-accent" : "border border-border"
           }`}
+          // The off track has to step away from every container this panel puts a toggle in — card
+          // and surface alike — or it reads as a bare knob. Cove's border tone does, and it goes
+          // inline because the host's prebuilt stylesheet is the only source of classes here.
+          style={checked ? undefined : { backgroundColor: "var(--color-border)" }}
         >
           <span
             className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
@@ -1251,26 +1255,44 @@ export function StatusPill({
 }
 
 /**
- * A section-group divider header: an uppercase label, a hairline rule that fills the row, and an
- * optional muted hint on the right. Groups the flat cards beneath it (What gets renamed, Run &
- * automation, Token settings, Destination routing, Advanced) without being a collapsible itself.
+ * A titled block inside a {@link SectionCard}, for a card that holds more than one subject. The
+ * `<section>` is named through `aria-labelledby`, so it exposes a `region` an assistive-technology
+ * user (and a test locator) can address by its title — the enclosing card's own heading is not wired
+ * that way, which is what keeps a nested block unambiguous. `divided` draws the hairline that
+ * separates it from the block above.
  */
-export function SectionGroupHeader({ title, hint }: { title: string; hint?: string }) {
+export function CardSection({
+  title,
+  description,
+  divided = false,
+  children,
+}: {
+  title: string;
+  description?: string;
+  divided?: boolean;
+  children: ReactNode;
+}) {
+  const headingId = useId();
   return (
-    <div className="flex items-center gap-3">
-      <h2 className="text-xs font-bold uppercase tracking-wider text-secondary">{title}</h2>
-      <div className="h-px flex-1 bg-border" />
-      {hint ? <span className="text-xs text-muted">{hint}</span> : null}
-    </div>
+    <section
+      aria-labelledby={headingId}
+      className={divided ? "border-t border-border pt-4" : undefined}
+    >
+      <h4 id={headingId} className="text-base font-semibold text-foreground">
+        {title}
+      </h4>
+      {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
+      <div className="mt-4 space-y-4">{children}</div>
+    </section>
   );
 }
 
 /**
- * The primary settings section container. Chrome is matched to Cove's own `SettingsSection`
- * (`components/SettingsPrimitives.tsx`) so extension sections are indistinguishable from native
- * ones: same `rounded-2xl border-border bg-surface p-5` fill and long soft drop shadow, and a
- * margin header (no divider rule) — not the heavier `shadow-sm` + `border-b` header the extension
- * used before. `badge` is the one addition core lacks: an inline `$token` marker for the
+ * The primary settings section container: Cove's own `SettingsSection` fill
+ * (`rounded-2xl border-border bg-surface p-5` plus a long soft drop shadow) under a header that
+ * closes with a hairline rule. The panel is a full page of stacked titled cards rather than one
+ * embedded settings section, and the rule is what makes a card title read as a header instead of as
+ * the body's first line. `badge` is the one addition core lacks: an inline `$token` marker for the
  * token-settings cards. Presentational only.
  */
 export function SectionCard({
@@ -1286,8 +1308,6 @@ export function SectionCard({
   headerRight?: ReactNode;
   children: ReactNode;
 }) {
-  // A description with no title is a card whose section header already names it, so the header block
-  // has to render for that line alone.
   const hasHeader = Boolean(title) || Boolean(description) || badge != null || headerRight != null;
   return (
     <section
@@ -1297,7 +1317,7 @@ export function SectionCard({
       style={{ boxShadow: "0 12px 30px -20px rgba(0,0,0,0.7)" }}
     >
       {hasHeader ? (
-        <header className="mb-4 flex items-start justify-between gap-4">
+        <header className="mb-4 flex items-start justify-between gap-4 border-b border-border pb-4">
           <div className="flex min-w-0 items-start gap-3">
             {badge ? <span className="mt-0.5 shrink-0">{badge}</span> : null}
             <div className="min-w-0">

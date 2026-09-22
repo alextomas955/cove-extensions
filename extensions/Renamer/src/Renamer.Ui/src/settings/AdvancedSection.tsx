@@ -1,9 +1,8 @@
 /**
  * AdvancedSection — the "Advanced" section's panels, all collapsed by default: name cleanup
  * (illegal/space handling, case, ASCII), length & collisions, cross-drive concurrency, the
- * pre-routing excludes, and field rewriting & name shaping. Sits directly under the section header
- * rather than inside a card of its own, so the header is what names the group. Presentational —
- * every field flows up through `set`.
+ * pre-routing excludes, and field rewriting & name shaping. Presentational — every field flows up
+ * through `set`.
  */
 import {
   type RenamerOptions,
@@ -20,6 +19,7 @@ import {
   TagListInput,
   CollapsibleSection,
   GroupCard,
+  SectionCard,
   ObjectArrayEditor,
   RegexValidity,
   SegmentedReplace,
@@ -60,7 +60,7 @@ export interface AdvancedSectionProps {
 
 export function AdvancedSection({ options, set }: AdvancedSectionProps) {
   return (
-    <div className="space-y-4">
+    <SectionCard title="Advanced">
       <CollapsibleSection
         title="Clean up the name"
         summary="Illegal-character and space handling, case, ASCII"
@@ -401,6 +401,6 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           helper="Affects the folder path, not the filename."
         />
       </CollapsibleSection>
-    </div>
+    </SectionCard>
   );
 }

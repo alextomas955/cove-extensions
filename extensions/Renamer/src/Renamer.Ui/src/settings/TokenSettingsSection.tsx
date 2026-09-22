@@ -116,7 +116,7 @@ export function TokenSettingsSection({
   );
 
   return (
-    <SectionCard description="Formatting for individual tokens.">
+    <SectionCard title="Token settings" description="Formatting for individual tokens.">
       {usesPerformers ? (
         <GroupCard title="Performers" badge={<Badge mono>$performers</Badge>}>
           <Field label="Separator">

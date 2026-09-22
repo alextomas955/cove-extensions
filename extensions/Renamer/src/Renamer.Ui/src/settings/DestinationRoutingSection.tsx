@@ -69,7 +69,10 @@ export function DestinationRoutingSection({
   const orphaned = useOrphanedRules();
 
   return (
-    <SectionCard description="Per-studio and per-tag rules override the default.">
+    <SectionCard
+      title="Destination routing"
+      description="Per-studio and per-tag rules override the default."
+    >
       <GroupCard
         title="Unorganized destination"
         description="Where un-curated items go instead of being skipped."
