@@ -85,8 +85,9 @@ where they are.
 This works on both sources. Each one shows its scenes only to a reader signed in to it, so follow a
 link without an account there and you land on that site's sign-in page instead of the scene.
 
-A cover is drawn where Whisparr holds one for the scene. Whisparr v2 often holds none for an
-episode, and those cards carry the placeholder tile.
+A card whose Whisparr entry carries no cover takes one from your metadata source. This works where
+Cove is configured with ThePornDB; a Cove configured with StashDB keeps the placeholder tile. A
+scene neither your Whisparr nor your metadata source holds a picture for keeps the placeholder too.
 
 ## What each card's two buttons do
 
