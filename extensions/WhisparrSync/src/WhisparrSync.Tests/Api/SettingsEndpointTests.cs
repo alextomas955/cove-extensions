@@ -218,6 +218,32 @@ public sealed class SettingsEndpointTests
         Assert.Equal(CallbackSecretPosition.Address, view.LastEventSecretPosition);
     }
 
+    // Whisparr checks a webhook by posting to it, and that post arrives from wherever Whisparr runs.
+    // A Cove with sign-in off reads a request from anywhere but its own machine as an instance that
+    // needs protecting, turns sign-in on for good and signs out whoever was configuring it. So the
+    // registration is refused before the instance is contacted, and the port throws if it is reached,
+    // so this passes only when Whisparr was never asked.
+    [Fact]
+    public async Task ARegistrationIsRefusedWhileCoveLetsCallersInWithoutSigningIn()
+    {
+        var (_, options) = await SeededAsync();
+        using var gate = new OptionsWriteGate();
+
+        var view = await RegisterAsync(
+            options,
+            gate,
+            new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey),
+            new UncontactableNotificationPort(),
+            hostAuthenticationRequired: false);
+
+        Assert.False(view.HostAuthenticationRequired);
+
+        // Nothing was recorded as registered either, so the page does not report a registration that
+        // this instance was never told about.
+        var stored = await options.LoadAsync(TestCt);
+        Assert.NotEqual(RegistrationStatus.Registered, stored.V3?.CallbackRegistration);
+    }
+
     // The field the manifest reads is filled at load, so without a refresh on save a generation
     // switched through the page keeps the surfaces of the one before it until the extension loads
     // again.
@@ -296,11 +322,18 @@ public sealed class SettingsEndpointTests
                 new FixedClock(Now),
                 TestCt));
 
+    // A Cove that makes callers sign in, which is the only state a registration is attempted from.
+    private sealed class HostAuthentication(bool required) : IHostAuthenticationPort
+    {
+        public bool Required => required;
+    }
+
     private static async Task<CallbackView> RegisterAsync(
         OptionsStore options,
         OptionsWriteGate gate,
         RecordingCredentialPort credentials,
-        IWhisparrNotificationPort notifications)
+        IWhisparrNotificationPort notifications,
+        bool hostAuthenticationRequired = true)
         => ValueOf<CallbackView>(
             await global::WhisparrSync.WhisparrSync.RegisterCallbackAsync(
                 new RegisterCallbackRequest(null),
@@ -313,6 +346,7 @@ public sealed class SettingsEndpointTests
                 new MintedSecretPort(),
                 notifications,
                 new RegistrationGate(),
+                new HostAuthentication(hostAuthenticationRequired),
                 new FixedClock(Now),
                 TestCt));
 

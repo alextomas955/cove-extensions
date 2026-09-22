@@ -8,6 +8,7 @@ using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -36,17 +37,22 @@ public sealed partial class WhisparrSync
             (RegisterCallbackRequest request, HttpContext http, ICurrentPrincipalAccessor principal,
              OptionsStore options, OptionsWriteGate gate, ICredentialPort credentials,
              ICallbackSecretPort secrets, IWhisparrNotificationPort notifications,
-             RegistrationGate registrations, TimeProvider clock, CancellationToken ct)
+             RegistrationGate registrations,
+             [FromServices] IHostAuthenticationPort hostAuthentication,
+             TimeProvider clock, CancellationToken ct)
                 => RegisterCallbackAsync(
                     request, http, principal, Id, options, gate, credentials, secrets, notifications,
-                    registrations, clock, ct))
+                    registrations, hostAuthentication, clock, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
         endpoints.MapGet(CallbackStatusRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICallbackSecretPort secrets, TimeProvider clock, CancellationToken ct)
-                => ReadCallbackStatusAsync(http, principal, Id, options, secrets, clock, ct))
+             ICallbackSecretPort secrets,
+             [FromServices] IHostAuthenticationPort hostAuthentication,
+             TimeProvider clock, CancellationToken ct)
+                => ReadCallbackStatusAsync(
+                    http, principal, Id, options, secrets, hostAuthentication, clock, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -238,6 +244,7 @@ public sealed partial class WhisparrSync
         ICallbackSecretPort secrets,
         IWhisparrNotificationPort notifications,
         RegistrationGate registrations,
+        IHostAuthenticationPort hostAuthentication,
         TimeProvider clock,
         CancellationToken ct)
     {
@@ -252,6 +259,26 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(gate);
         ArgumentNullException.ThrowIfNull(notifications);
         ArgumentNullException.ThrowIfNull(registrations);
+        ArgumentNullException.ThrowIfNull(hostAuthentication);
+
+        // Refused before the address is stored and before the instance is contacted. Whisparr
+        // verifies a webhook by posting to it, and a Cove with authentication off reads that post as
+        // an instance reachable from outside its own machine: it turns authentication on, keeps it
+        // on, and signs out whoever was setting this up. Registering first and warning afterwards
+        // would leave them locked out of the Cove they came to configure.
+        if (!hostAuthentication.Required)
+        {
+            var unauthenticated = await options.LoadAsync(ct).ConfigureAwait(false);
+            return TypedResults.Ok(
+                ProjectCallback(
+                    unauthenticated,
+                    extensionId,
+                    await secrets.EnsureAsync(clock.GetUtcNow(), ct).ConfigureAwait(false),
+                    CallbackAddress.ResolveHost(unauthenticated.CallbackHost, RequestHostOf(http)),
+                    null,
+                    null,
+                    false));
+        }
 
         // Stored even when it equals the host this request arrived on. What storing it buys is that a
         // later request from a different host does not move the address.
@@ -271,7 +298,8 @@ public sealed partial class WhisparrSync
         // connection reaches nothing that could make a request.
         if (!ConnectionTester.TryReadConnection(connection.Address, apiKey, out var baseAddress, out var missing))
         {
-            return TypedResults.Ok(ProjectCallback(stored, extensionId, secret, host, missing, null));
+            return TypedResults.Ok(
+                ProjectCallback(stored, extensionId, secret, host, missing, null, true));
         }
 
         // Gated, because the port finds this product's notification and then creates or updates it:
@@ -301,7 +329,7 @@ public sealed partial class WhisparrSync
             ct).ConfigureAwait(false);
 
         return TypedResults.Ok(
-            ProjectCallback(persisted, extensionId, secret, host, null, outcome.Refusal));
+            ProjectCallback(persisted, extensionId, secret, host, null, outcome.Refusal, true));
     }
 
     // The status is the one a registration attempt recorded, per generation, and is not re-derived
@@ -316,6 +344,7 @@ public sealed partial class WhisparrSync
         string extensionId,
         OptionsStore options,
         ICallbackSecretPort secrets,
+        IHostAuthenticationPort hostAuthentication,
         TimeProvider clock,
         CancellationToken ct)
     {
@@ -327,6 +356,7 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(secrets);
+        ArgumentNullException.ThrowIfNull(hostAuthentication);
         ArgumentNullException.ThrowIfNull(clock);
 
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
@@ -339,7 +369,8 @@ public sealed partial class WhisparrSync
                 secret,
                 CallbackAddress.ResolveHost(stored.CallbackHost, RequestHostOf(http)),
                 null,
-                null));
+                null,
+                hostAuthentication.Required));
     }
 
     private static CallbackView ProjectCallback(
@@ -348,7 +379,8 @@ public sealed partial class WhisparrSync
         string secret,
         string host,
         ConnectionSetting? missing,
-        string? refusal)
+        string? refusal,
+        bool hostAuthenticationRequired)
     {
         var generation = stored.SelectedGeneration;
         var connection = stored.ConnectionFor(generation);
@@ -360,7 +392,8 @@ public sealed partial class WhisparrSync
             TravelsOutOfBand(generation),
             connection?.LastCallbackSecretPosition,
             missing,
-            refusal);
+            refusal,
+            hostAuthenticationRequired);
     }
 
     private static bool TravelsOutOfBand(WhisparrGeneration generation)
