@@ -28,6 +28,7 @@ public sealed class EndpointPermissionTests
         "GET /api/extensions/com.alextomas955.whisparrsync/addressing/folder-mappings",
         "GET /api/extensions/com.alextomas955.whisparrsync/host-configuration",
         "GET /api/extensions/com.alextomas955.whisparrsync/callback/status",
+        "GET /api/extensions/com.alextomas955.whisparrsync/connection/offer",
         "GET /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitoring",
         "GET /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing",
         "GET /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/missing/count",

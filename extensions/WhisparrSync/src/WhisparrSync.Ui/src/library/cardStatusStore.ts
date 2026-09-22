@@ -10,6 +10,7 @@
  */
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
+import { onCardsChanged } from "../common/lib/cardsChanged";
 import { api } from "../common/lib/extension";
 import type { LibraryCardKind, LibraryCardReading, LibraryStatusView } from "../wire/api";
 import {
@@ -111,6 +112,28 @@ export function requestCardStatus(kind: LibraryCardKind, coveId: number): () => 
     release();
     emit();
   };
+}
+
+// Subscribed at module scope, for the lifetime of the bundle: the announcement can arrive while no
+// card is mounted, and a kind nothing is on screen for is left alone by the re-read itself.
+onCardsChanged((kind, coveIds) => {
+  rereadCardStatus(kind, coveIds);
+});
+
+/**
+ * Reads the named cards again, for a caller that changed what the instance holds for them.
+ *
+ * Narrowed to those cards rather than the whole page: on one generation the read behind them is a
+ * request per card, so repainting a page over one changed card would spend the rest for nothing.
+ * The page-level reason is dropped with the answers, because the read that follows establishes its
+ * own.
+ */
+function rereadCardStatus(kind: LibraryCardKind, coveIds: readonly number[]): void {
+  const held = coalescers.get(kind);
+  if (held === undefined) return;
+
+  refusals.delete(kind);
+  held.reread(coveIds.map(String));
 }
 
 /** What the instance holds for one card, or null where nothing was established for it. */

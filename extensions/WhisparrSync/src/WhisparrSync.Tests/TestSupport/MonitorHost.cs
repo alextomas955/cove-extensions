@@ -274,6 +274,8 @@ internal sealed class MonitorHost : IAsyncDisposable
     public string RouteFor(string kind, int coveId, string verb)
         => string.Create(CultureInfo.InvariantCulture, $"{RouteBase}/entity/{kind}/{coveId}/{verb}");
 
+    public string ConnectionOfferRoute => RouteBase + "/connection/offer";
+
     public string SceneRouteFor(int coveId, string verb)
         => string.Create(CultureInfo.InvariantCulture, $"{RouteBase}/scene/{coveId}/{verb}");
 

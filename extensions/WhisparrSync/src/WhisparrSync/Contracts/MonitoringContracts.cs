@@ -258,6 +258,27 @@ public enum MonitorRefusalKind
     InstanceDidNotReportTheChange,
 }
 
+/// <summary>What the connected instance can be asked to do, with no entity named.</summary>
+/// <remarks>
+/// The selection bar's menu is a statement about the connection rather than about any one entity:
+/// which gestures it offers follows the connected generation, and a selection can hold a hundred
+/// entities the sampled one's own state is not true of. So this carries the connection's facts
+/// alone, and is answered from stored settings without reaching the instance at all.
+/// <para>
+/// <c>Generation</c> null with <c>Configured</c> false is nothing connected. Capabilities are what
+/// the browser reads its menu from, rather than a generation table of its own, so a capability that
+/// is absent is refused in one place.
+/// </para>
+/// </remarks>
+public sealed record WhisparrConnectionOffer(
+    WhisparrGeneration? Generation,
+    IReadOnlyList<WhisparrCapability> Capabilities,
+    bool Configured)
+{
+    /// <summary>No address and key are stored, so the connection can be asked for nothing.</summary>
+    public static WhisparrConnectionOffer NotConfigured { get; } = new(null, [], false);
+}
+
 /// <summary>What one entity's monitoring looks like, as the entity page reads it.</summary>
 /// <remarks>
 /// Discloses no API key and no part of any response body: only a classified kind and the named

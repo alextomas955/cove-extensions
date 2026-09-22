@@ -256,13 +256,24 @@ public sealed class MonitorPathTests
     // assembly itself is what runs. A double standing in at the seam answers the assembled reading
     // and never assembles one.
     [Fact]
-    public async Task V2HeldReadIsNotGivenTheWholeCatalogueToParse()
+    public async Task V2HeldReadCarriesOneSiteOnwardHoweverMuchTheInstanceAnswered()
     {
-        var listing = new JsonArray();
+        // The site asked about leads, which is the order the lookup ranks an exact identifier in.
+        var listing = new JsonArray
+        {
+            new JsonObject
+            {
+                ["id"] = 3373,
+                ["tvdbId"] = 3372,
+                ["title"] = "Vixen",
+                ["monitored"] = true,
+            },
+        };
+
         for (var entry = 1; entry <= 20_000; entry += 1)
         {
-            // Numbered from a base the resolved entity's own id sits below, so no unmatched entry can
-            // carry it and the match below is the only one there is.
+            // Numbered from a base the resolved entity's own id sits below, so no further entry can
+            // carry it and the row above is the only match there is.
             var unmatched = entry + 100_000;
             listing.Add(new JsonObject
             {
@@ -271,15 +282,6 @@ public sealed class MonitorPathTests
                 ["title"] = string.Create(CultureInfo.InvariantCulture, $"Entry {unmatched}"),
             });
         }
-
-        // Last, so the walk that finds it has read every other entry first.
-        listing.Add(new JsonObject
-        {
-            ["id"] = 3373,
-            ["tvdbId"] = 3372,
-            ["title"] = "Vixen",
-            ["monitored"] = true,
-        });
 
         var handler = BodyRecordingHandler.AnsweringInTurn(
             (HttpStatusCode.OK, listing.ToJsonString()));
@@ -293,7 +295,8 @@ public sealed class MonitorPathTests
                 V2StoredIdentifier,
                 TestCt);
 
-        Assert.Equal("/api/v3/series?tvdbId=3372", Assert.Single(handler.Targets));
+        Assert.StartsWith(
+            "/api/v3/series/lookup", Assert.Single(handler.Targets), StringComparison.Ordinal);
         Assert.Equal(
             3372,
             Assert.IsType<JsonObject>(JsonNode.Parse(read.Body))["tvdbId"]!.GetValue<int>());
@@ -306,14 +309,15 @@ public sealed class MonitorPathTests
             $"the read carried {read.Body.Length} characters onward out of a {listing.ToJsonString().Length}-character answer.");
     }
 
-    // The listing answer is the one the pinned build sent for an entity id it holds nothing under.
-    // The reading is the precondition for adding the entity, not a report about the instance.
+    // The answer is the one the pinned build sent for an identifier it holds no site under: a row
+    // mapped from the metadata source, carrying no id of the instance's own. The reading is the
+    // precondition for adding the entity, not a report about the instance.
     [Fact]
     public async Task V2HeldReadOfAnEntityTheInstanceDoesNotHoldIsTheFilteredAnswer()
     {
         var handler = BodyRecordingHandler.AnsweringInTurn(
             (HttpStatusCode.OK,
-                ProbeFixtures.Read("whisparr-v2-2.2.0.231-series-by-tvdbid-absent.json")));
+                ProbeFixtures.Read("whisparr-v2-2.2.0.231-series-lookup-not-held.json")));
         using var http = new HttpClient(handler);
 
         var read = await ((IWhisparrStudioActing)V2Client(http, handler))
@@ -324,7 +328,8 @@ public sealed class MonitorPathTests
                 V2StoredIdentifier,
                 TestCt);
 
-        Assert.Equal("/api/v3/series?tvdbId=3372", Assert.Single(handler.Targets));
+        Assert.StartsWith(
+            "/api/v3/series/lookup", Assert.Single(handler.Targets), StringComparison.Ordinal);
         Assert.Equal(
             MonitoringProjector.EntityReading.NotHeld, MonitoringProjector.Classify(read).Reading);
         Assert.Equal(MonitorRefusalKind.None, MonitoringProjector.Classify(read).Refusal);
