@@ -4,11 +4,6 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.Engine;
 
-/// <summary>
-/// Drives the <see cref="TemplateEngine.Render"/> orchestrator: full core token set
-/// (CoreTokens*), {} optional-group collapse incl. no-dangling-punctuation (OptionalGroup*),
-/// and independent filename/folder rendering with correct '/' handling (FolderTemplate*).
-/// </summary>
 public class TemplateEngineTests
 {
     private static IReadOnlyDictionary<string, string> NoTokens => new Dictionary<string, string>();
@@ -63,36 +58,23 @@ public class TemplateEngineTests
     }
 
     [Fact]
-    public void CoreTokens_Resolution_DerivedFromHeight()
+    public void CoreTokens_Resolution_DerivedFromBothDimensions()
     {
-        var tokens = new Dictionary<string, string> { ["height"] = "2160", ["title"] = "X" };
+        var tokens = new Dictionary<string, string>
+        {
+            ["width"] = "3840",
+            ["height"] = "2160",
+            ["title"] = "X",
+        };
         var r = Render("$title $resolution", tokens);
-        Assert.Equal("X 4k", r.Filename);
-    }
-
-    [Theory]
-    [InlineData("2160", "4k")]
-    [InlineData("1440", "1440p")]
-    [InlineData("1080", "1080p")]
-    [InlineData("720", "720p")]
-    [InlineData("480", "480p")]
-    // Sub-480 is progressive-scan-labelled ("{height}p"), not a bare number — otherwise an
-    // already-correct "[368p]" filename would be rewritten down to "[368]" (a needless rename).
-    [InlineData("432", "432p")]
-    [InlineData("368", "368p")]
-    [InlineData("240", "240p")]
-    public void CoreTokens_ResolutionBuckets(string height, string label)
-    {
-        var tokens = new Dictionary<string, string> { ["height"] = height };
-        var r = Render("$resolution", tokens);
-        Assert.Equal(label, r.Filename);
+        Assert.Equal("X 4K", r.Filename);
     }
 
     [Fact]
     public void CoreTokens_Resolution_ZeroOrMissingHeight_RendersEmpty()
     {
-        // A zero/absent height must render no resolution tag (empty), not a garbage "[0]" — the
-        // "{ [$resolution]}" group collapses when the token is empty.
+        // A zero/absent height must render no resolution tag, not a garbage "[0]": the token stays
+        // out of the map, so the "{ [$resolution]}" group collapses.
         var zero = Render("X{ [$resolution]}", new Dictionary<string, string> { ["height"] = "0" });
         Assert.Equal("X", zero.Filename);
     }
@@ -101,11 +83,11 @@ public class TemplateEngineTests
     public void TrailingResolution_InTitle_NotDoubled_WhenTemplateAppendsResolution()
     {
         // The library-migration case: the title was imported from a filename that already ends in
-        // "[1080p]", and the template also appends { [$resolution]}. The trailing tag on the title is
-        // stripped so the rendered name carries the resolution exactly once.
+        // "[1080p]", and the template also appends { [$resolution]}.
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "Bootie From Beijing [1080p]",
+            ["width"] = "1920",
             ["height"] = "1080",
         };
         var r = Render("$title{ [$resolution]}", tokens);
@@ -115,10 +97,10 @@ public class TemplateEngineTests
     [Fact]
     public void TrailingResolution_InTitle_Kept_WhenTemplateHasNoResolution()
     {
-        // No $resolution in the template → the title's own tag is the only resolution and must survive.
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "Bootie From Beijing [1080p]",
+            ["width"] = "1920",
             ["height"] = "1080",
         };
         var r = Render("$title", tokens);
@@ -128,15 +110,15 @@ public class TemplateEngineTests
     [Fact]
     public void TrailingResolution_MidTitle_Untouched()
     {
-        // Only a tag at the very end is stripped; a resolution mentioned mid-title is left alone (and
-        // the real appended resolution still renders).
+        // Only a tag at the very end is stripped; a resolution mentioned mid-title is left alone.
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "Shot in [1080p] Glory",
+            ["width"] = "3840",
             ["height"] = "2160",
         };
         var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Shot in [1080p] Glory [4k]", r.Filename);
+        Assert.Equal("Shot in [1080p] Glory [4K]", r.Filename);
     }
 
     [Fact]
@@ -147,36 +129,239 @@ public class TemplateEngineTests
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "Old Rip [720p]",
+            ["width"] = "3840",
             ["height"] = "2160",
         };
         var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Old Rip [4k]", r.Filename);
+        Assert.Equal("Old Rip [4K]", r.Filename);
     }
 
     [Fact]
-    public void TrailingResolution_SubBucketTag_NotDoubled()
+    public void TrailingResolution_ArbitraryScanTag_NotDoubled()
     {
-        // The doubled-tag regression: a title imported with a sub-480 "[368p]" tag (which the fixed
-        // KnownLabels list does not carry) plus a template that appends { [$resolution]} (now "368p")
-        // would yield "Nikki [368p] [368p]". The generic trailing-[<digits>p] strip de-dupes it.
-        var tokens = new Dictionary<string, string> { ["title"] = "Nikki [368p]", ["height"] = "368" };
+        // The doubled-tag regression: a title imported with a "[368p]" tag, which no bucket is named
+        // for, plus a template that appends { [$resolution]} would yield "Nikki [368p] [360p]". The
+        // generic trailing-[<digits>p] strip removes the imported tag and leaves one.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Nikki [368p]",
+            ["width"] = "654",
+            ["height"] = "368",
+        };
         var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Nikki [368p]", r.Filename);
+        Assert.Equal("Nikki [360p]", r.Filename);
+    }
+
+    [Theory]
+    // The stripper matches case-insensitively, so a title carrying either spelling of a K label is
+    // stripped before the derived tag is appended.
+    [InlineData("Old Rip [4k]", "Old Rip [4K]")]
+    [InlineData("Old Rip [4K]", "Old Rip [4K]")]
+    // The widest label is in the stripper's vocabulary too.
+    [InlineData("Old Rip [HUGE]", "Old Rip [4K]")]
+    public void TrailingResolution_KLabel_StrippedInEitherCase(string title, string expected)
+    {
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = title,
+            ["width"] = "3840",
+            ["height"] = "2160",
+        };
+        var r = Render("$title{ [$resolution]}", tokens);
+        Assert.Equal(expected, r.Filename);
     }
 
     [Theory]
     // A bracketed number with no 'p' is a serial/index/scene number, not a resolution — never stripped.
-    [InlineData("Calendar Audition [28]", "2160", "Calendar Audition [28] [4k]")]
+    [InlineData("Calendar Audition [28]", "3840", "2160", "Calendar Audition [28] [4K]")]
     // A hash-like bracketed token is not a resolution tag.
-    [InlineData("Blowjob [caufkb2cd9]", "1080", "Blowjob [caufkb2cd9] [1080p]")]
+    [InlineData("Blowjob [caufkb2cd9]", "1920", "1080", "Blowjob [caufkb2cd9] [1080p]")]
     // A resolution mid-title with a real serial at the end: only a trailing res-tag is stripped, and
     // there is none here, so nothing is stripped and the derived tag is appended.
-    [InlineData("Shot [720p] Take [5]", "1080", "Shot [720p] Take [5] [1080p]")]
-    public void TrailingResolution_NonResolutionBrackets_NotStripped(string title, string height, string expected)
+    [InlineData("Shot [720p] Take [5]", "1920", "1080", "Shot [720p] Take [5] [1080p]")]
+    public void TrailingResolution_NonResolutionBrackets_NotStripped(
+        string title, string width, string height, string expected)
     {
-        var tokens = new Dictionary<string, string> { ["title"] = title, ["height"] = height };
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = title,
+            ["width"] = width,
+            ["height"] = height,
+        };
         var r = Render("$title{ [$resolution]}", tokens);
         Assert.Equal(expected, r.Filename);
+    }
+
+    [Theory]
+    // A token name runs to the end of its letters, digits and underscores, so this template names an
+    // unknown token rather than $resolution. It resolves empty, its group collapses, and the title
+    // keeps the tag it came with.
+    [InlineData("$title{ [$resolutionx]}", "Bootie From Beijing [1080p]")]
+    // Token lookup is case-insensitive, so this template does name $resolution. The title's own tag
+    // is stripped and the derived label is appended in its place, leaving one.
+    [InlineData("$title{ [$RESOLUTION]}", "Bootie From Beijing [1080p]")]
+    public void TrailingResolution_TokenNameBoundary_DecidesWhetherTagIsStripped(
+        string template, string expected)
+    {
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Bootie From Beijing [1080p]",
+            ["width"] = "1920",
+            ["height"] = "1080",
+        };
+        var r = Render(template, tokens);
+        Assert.Equal(expected, r.Filename);
+    }
+
+    [Fact]
+    public void TitleHasResolution_MissingWidth_PreservesExistingTag()
+    {
+        // A height with no stored width derives no label, so the title's own tag is the only
+        // resolution the name can carry.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie [1080p]",
+            ["height"] = "1080",
+        };
+        var r = Render("$title{ [$resolution]}", tokens);
+        Assert.Equal("Movie [1080p]", r.Filename);
+    }
+
+    [Fact]
+    public void TitleHasResolution_DerivedResolutionEmpty_PreservesExistingTag()
+    {
+        // 120 x 100 sits below the smallest bucket on its long edge and below the smallest standard
+        // label's margin on its short one, so Cove names that frame no resolution at all.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Clip [100p]",
+            ["width"] = "120",
+            ["height"] = "100",
+        };
+        var r = Render("$title{ [$resolution]}", tokens);
+        Assert.Equal("Clip [100p]", r.Filename);
+    }
+
+    [Theory]
+    [InlineData("Movie [4K]", "1920", "1080", 12)]
+    // This row's title tag is longer than the label the reducer drops, so keeping it would push the
+    // name back over the budget and into a hard truncation.
+    [InlineData("Movie [1080p]", "3840", "2160", 9)]
+    public void TitleHasResolution_LengthReducerDropsResolution_DropsTheTitleTagToo(
+        string title, string width, string height, int cap)
+    {
+        // The caps are the premise: the first render is over budget, so DropOrder is walked as far as
+        // resolution and the render that survives writes no label of its own.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = title,
+            ["width"] = width,
+            ["height"] = height,
+        };
+        var options = new RenamerOptions { FilenameMax = cap, FullPathMax = cap };
+        var r = Render("$title{ [$resolution]}", tokens, options: options);
+        Assert.Equal("Movie", r.Filename);
+    }
+
+    [Fact]
+    public void TitleHasResolution_LengthReducerDropsResolution_FolderTemplate_DropsTheTitleTagToo()
+    {
+        // The filename template never renders $resolution, so nothing de-duplicated its title and the
+        // drop reaches only the folder.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie [1080p]",
+            ["width"] = "3840",
+            ["height"] = "2160",
+        };
+        var options = new RenamerOptions { FilenameMax = 20, FullPathMax = 20 };
+        var r = Render("$title", tokens, options: options, folder: "$title{ [$resolution]}");
+        Assert.Equal("Movie", r.FolderPath);
+        Assert.Equal("Movie [1080p]", r.Filename);
+    }
+
+    [Theory]
+    // The filename template renders the label and the folder template does not.
+    [InlineData("$title{ [$resolution]}", "$title")]
+    // The folder template renders the label and the filename template does not.
+    [InlineData("$title", "$title{ [$resolution]}")]
+    public void TitleHasResolution_FolderTemplate_CarriesTheLabelExactlyOnce(
+        string filenameTemplate, string folderTemplate)
+    {
+        // Each template decides the de-duplication against its own text, so neither render's decision
+        // reaches the other.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie [1080p]",
+            ["width"] = "1920",
+            ["height"] = "1080",
+        };
+        var r = Render(filenameTemplate, tokens, folder: folderTemplate);
+        Assert.Equal("Movie [1080p]", r.FolderPath);
+    }
+
+    [Fact]
+    public void Resolution_DerivedFromTheStoredDimensions_NotTheRewrittenOnes()
+    {
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie",
+            ["width"] = "1920",
+            ["height"] = "1080",
+        };
+        var options = new RenamerOptions
+        {
+            FieldReplacers =
+            [
+                new FieldReplaceRule { TargetToken = "width", Find = "1920", Replace = "1920px" },
+            ],
+        };
+        Assert.Equal("1920px", TemplateEngine.ResolveField(tokens, NoMulti, options, "width"));
+        Assert.Equal("1080p", TemplateEngine.ResolveField(tokens, NoMulti, options, "resolution"));
+    }
+
+    [Fact]
+    public void Resolution_HeightReplacementRule_DoesNotChangeTheLabel()
+    {
+        // A label read off the rewritten height would be 1440p, which is the label Cove shows for a
+        // 1920 x 2160 frame and not the one it shows for this file.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie",
+            ["width"] = "1920",
+            ["height"] = "1080",
+        };
+        var options = new RenamerOptions
+        {
+            FieldReplacers =
+            [
+                new FieldReplaceRule { TargetToken = "height", Find = "1080", Replace = "2160" },
+            ],
+        };
+        var r = Render("$title{ [$resolution]}", tokens, options: options);
+        Assert.Equal("Movie [1080p]", r.Filename);
+    }
+
+    [Fact]
+    public void Resolution_ReplacementRule_RewritesTheDerivedLabel()
+    {
+        // The strip asks whether this render writes a label, not whether the label is one the fixed
+        // vocabulary names, so a rewritten label still displaces the title's own tag.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Movie [1080p]",
+            ["width"] = "1920",
+            ["height"] = "1080",
+        };
+        var options = new RenamerOptions
+        {
+            FieldReplacers =
+            [
+                new FieldReplaceRule { TargetToken = "resolution", Find = "1080p", Replace = "FHD" },
+            ],
+        };
+        var r = Render("$title{ [$resolution]}", tokens, options: options);
+        Assert.Equal("Movie [FHD]", r.Filename);
     }
 
     [Fact]
@@ -227,7 +412,6 @@ public class TemplateEngineTests
     public void OptionalGroup_AllEmpty_RemovesEntireSpanIncludingInnerLiterals()
     {
         var tokens = new Dictionary<string, string> { ["studio"] = "Acme" };
-        // performers empty -> the whole {...} (incl. " - " inside) is removed; no dangling separator.
         var r = Render("$studio{ - $performers}", tokens);
         Assert.Equal("Acme", r.Filename);
     }
@@ -261,8 +445,6 @@ public class TemplateEngineTests
     [Fact]
     public void OptionalGroup_OneEmptyOneNonEmpty_RendersWithEmptyCollapsed()
     {
-        // studio empty, performers present -> group renders; the empty studio token contributes
-        // nothing but the inner literals stay (the engine collapses empties).
         var multi = new Dictionary<string, IReadOnlyList<string>>
         {
             ["performers"] = new[] { "Alice" },
@@ -289,8 +471,7 @@ public class TemplateEngineTests
     public void DefaultGroupedTemplate_DegradesCleanly(string date, string height, string expected)
     {
         // $height is the raw numeric token (1080), distinct from the derived $resolution bucket
-        // (which would render "1080p"); a date/height absent from the dict resolves empty so its
-        // {} group collapses without leaving a dangling separator or empty brackets.
+        // (which would render "1080p").
         var tokens = new Dictionary<string, string> { ["title"] = "Title" };
         if (date.Length > 0)
         {
@@ -383,7 +564,6 @@ public class TemplateEngineTests
     [Fact]
     public void Squeeze_TwoStudioVariants_RenderToOneStableFolder()
     {
-        // Regression through the full engine: both spacing variants render one folder key.
         var o = new RenamerOptions
         {
             FilenameTemplate = "$title",
@@ -405,13 +585,13 @@ public class TemplateEngineTests
     [Fact]
     public void DefaultOptions_RenderByteIdentical_ToPrePhaseEngine()
     {
-        // gate: with no field-rewrite settings, output must be byte-identical to the v1.3 engine.
         // Expected values are the literal strings the engine produces, copied from its output.
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "The Movie",
             ["studio"] = "Acme Studio",
             ["year"] = "2026",
+            ["width"] = "1920",
             ["height"] = "1080",
         };
         var o = new RenamerOptions
@@ -432,9 +612,6 @@ public class TemplateEngineTests
     [Fact]
     public void FieldRewrites_FlowThroughRender_TitleArticleAndStudioSqueeze()
     {
-        // Combined: prepositions_removal strips the leading article from $title and squeeze_studio_names
-        // the $studio spaces — both flow through the existing BuildResolvedMap -> render ->
-        // sanitize pipeline via the extended RewriteScalar (no new wiring).
         var tokens = new Dictionary<string, string>
         {
             ["title"] = "The Matrix",
@@ -601,8 +778,6 @@ public class TemplateEngineTests
     [Fact]
     public void Performers_RecordPath_DefaultOptions_RendersSameNamesAsNamePath()
     {
-        // Regression guard: feeding the records with default performer options renders the same
-        // joined names as the name-only path (no records) would.
         var tokens = new Dictionary<string, string> { ["title"] = "Film" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
         {
@@ -654,7 +829,6 @@ public class TemplateEngineTests
 
         var r = TemplateEngine.Render(tokens, multi, o, performers: records);
 
-        // Eve is dropped (named in the title), leaving Bob + Carol, name-ordered.
         Assert.Equal("Bob, Carol", r.Filename);
     }
 
@@ -685,16 +859,12 @@ public class TemplateEngineTests
 
         var r = TemplateEngine.Render(tokens, multi, o, performers: records);
 
-        // Bob is dropped (named in the title); both Alex records survive, in order.
         Assert.Equal("Alex, Alex", r.Filename);
     }
 
     [Fact]
     public void DropPerformersInTitleRecords_DropsOnlyTitleMatchedPositions_KeepsDuplicates()
     {
-        // Per-position proof: filtering the records (not a name-keyed set) keeps a surviving duplicate.
-        // Two performers named "Alex" plus one "Eve"; only "Eve" is in the title, so both Alex records
-        // remain — exactly the case a name-keyed all-or-nothing rejoin could not express.
         var records = new[]
         {
             new RenamerPerformer(1, "Alex", false, "Female"),

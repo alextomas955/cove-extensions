@@ -101,9 +101,9 @@ public sealed class PreviewSampleEndpointTests
 
         var video = Sample(all, "Video");
         // The default template is "{$date - }$title{ [$resolution]}"; the Video sample has date
-        // 2021-03-14 and height 2160, which the engine buckets to $resolution "4k"
-        // (ResolutionLabel.FromHeight), so both groups render: "2021-03-14 - The Example [4k]".
-        Assert.Equal("2021-03-14 - The Example [4k].mp4", video.NewName);
+        // 2021-03-14 and 3840 x 2160, which the engine buckets to $resolution "4K", so both groups
+        // render: "2021-03-14 - The Example [4K]".
+        Assert.Equal("2021-03-14 - The Example [4K].mp4", video.NewName);
         Assert.Equal("the.example.2021.WEBRip.mp4", video.OldName);
         Assert.Empty(video.Flags);
         Assert.Empty(video.DroppedFields);
@@ -125,13 +125,24 @@ public sealed class PreviewSampleEndpointTests
     }
 
     [Fact]
+    public void PreviewSample_DefaultTemplate_ImageSample_TakesItsLabelFromTheShortEdge()
+    {
+        // The Image sample's 6000 x 4000 frame takes its label from the short edge, which outranks
+        // the 6K its long edge buckets to. No other sample carries that branch through the endpoint.
+        var all = Preview(new RenamerOptions());
+
+        var image = Sample(all, "Image");
+        Assert.Equal("2022-07-01 - Sunset [7K].jpg", image.NewName);
+    }
+
+    [Fact]
     public void PreviewSample_StudioTitleResolutionTemplate_RendersVideoName()
     {
         var all = Preview(new RenamerOptions { FilenameTemplate = "$studio - $title [$resolution]" });
 
         var video = Sample(all, "Video");
-        // height 2160 → ResolutionLabel.FromHeight(2160) == "4k" (the engine is the source of truth).
-        Assert.Equal("Acme Studios - The Example [4k].mp4", video.NewName);
+        // 3840 x 2160 → $resolution "4K" (the engine is the source of truth).
+        Assert.Equal("Acme Studios - The Example [4K].mp4", video.NewName);
         Assert.Empty(video.Flags);
     }
 
@@ -197,8 +208,8 @@ public sealed class PreviewSampleEndpointTests
     {
         var all = Preview(null); // null options → new RenamerOptions()
         // The default template "{$date - }$title{ [$resolution]}" + the Video sample's date + height
-        // 2160 → $resolution "4k".
-        Assert.Equal("2021-03-14 - The Example [4k].mp4", Sample(all, "Video").NewName);
+        // 2160 → $resolution "4K".
+        Assert.Equal("2021-03-14 - The Example [4K].mp4", Sample(all, "Video").NewName);
     }
 
     [Fact]
@@ -238,9 +249,9 @@ public sealed class PreviewSampleEndpointTests
         Assert.Equal(3, all.Count);
 
         var video = Sample(all, "Video");
-        // height 2160 → "4k" (engine is source of truth); proves the string-enum body deserialized and
+        // height 2160 → "4K" (engine is source of truth); proves the string-enum body deserialized and
         // rendered (not a 400/throw).
-        Assert.Equal("Acme Studios - The Example [4k].mp4", video.NewName);
+        Assert.Equal("Acme Studios - The Example [4K].mp4", video.NewName);
     }
 
     [Fact]
@@ -270,9 +281,9 @@ public sealed class PreviewSampleEndpointTests
     {
         // No content (empty body) deserializes to null → safe defaults, not a 400.
         // The default template "{$date - }$title{ [$resolution]}" + the Video sample's date + height
-        // 2160 → $resolution "4k".
+        // 2160 → $resolution "4K".
         var video = Sample(PreviewRaw(""), "Video");
-        Assert.Equal("2021-03-14 - The Example [4k].mp4", video.NewName);
+        Assert.Equal("2021-03-14 - The Example [4K].mp4", video.NewName);
     }
 
     [Fact]

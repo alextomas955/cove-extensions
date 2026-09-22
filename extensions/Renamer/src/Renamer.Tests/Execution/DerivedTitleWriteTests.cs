@@ -78,6 +78,9 @@ public sealed class DerivedTitleWriteTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
+
+            // No stored width, which is what Cove holds for a file it never probed. The
+            // $resolution label needs both dimensions, so the rendered name carries none.
             var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
                 db, folderPath, "raw clip.mkv", title: null!,
                 date: new DateOnly(2021, 3, 14), height: 2160);
@@ -115,7 +118,7 @@ public sealed class DerivedTitleWriteTests
             // from the restored filename.
             var again = Assert.Single(
                 (await planner.PlanAsync(RenamerFileKind.Video, videoId, options, default)).Items);
-            Assert.Equal("2021-03-14 - raw clip [4k].mkv", again.NewBasename);
+            Assert.Equal("2021-03-14 - raw clip.mkv", again.NewBasename);
             Assert.Null(again.DerivedTitle);
         }
         finally

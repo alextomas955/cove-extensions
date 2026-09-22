@@ -2,6 +2,38 @@
 
 User-facing changes, newest first.
 
+## 0.6.0 - Resolution labels that match what Cove shows
+
+**Do a dry run before your first rename after upgrading.** Files you already renamed under the old
+labels will compute a different name if you rename them again, because the label they carry is no
+longer the one Renamer produces. Nothing renames on its own, and the dry run shows you every name
+that would change before anything touches disk.
+
+- **`$resolution` now reads the same as the resolution shown on the item.** The filename and the
+  badge no longer disagree.
+- **Large sizes get their own label.** `5K`, `6K`, `7K` and `HUGE` replace the single `4k` that
+  every size from 4K upwards used to collapse into, and `540p` is no longer rounded down to
+  `480p`.
+- **Small frames are labelled more coarsely.** A size under 480 used to render its exact height,
+  such as `432p`; a 768 x 432 frame is now `480p`. A frame under 144 pixels on its longer edge and
+  under about 137 on its shorter gets no label at all where it used to get one, so the bracketed
+  group in your template drops instead of rendering.
+- **A portrait video is no longer labelled as if it were landscape.** A 1080 x 1920 video is
+  `1080p`, matching the landscape video of the same shape, rather than `1440p`.
+- **A file Cove has no width for gets no resolution in its name.** A label now needs both a width
+  and a height, the same pair Cove needs for its own badge, so where either is missing the
+  bracketed group in your template drops instead of rendering.
+- **`4K` is spelled with a capital K.** It was `4k`. A title that already ends in either spelling
+  is still de-duplicated, so a name does not end up with two labels.
+- **A replacement rule applies to the token it names and to nothing else.** A rule on the width or
+  the height no longer changes the resolution written into your name, so the name and the badge stay
+  in agreement. A rule on the resolution now applies to the label Renamer computed, which it did not
+  reach before.
+- **A title's own resolution label survives when Renamer has none to write.** Where the file has no
+  width stored, or the frame is too small for any label, the label already in your title is left
+  alone. It used to be removed with nothing put back. Where the name was too long and the label was
+  dropped to make it fit, the title's label goes with it, so the drop shortens the name.
+
 ## 0.5.0 - Text documents, and each kind settled on its own
 
 **Needs Cove 1.4.1.** An older host does not load Renamer at all - no Rename tab under Settings ->

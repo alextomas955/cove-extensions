@@ -417,9 +417,10 @@ public sealed class RenamerExecutorIntegrationTests
 
             var date = new DateOnly(2021, 3, 14);
             var (_, titlelessId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, folderPath, "raw clip.mkv", title: null!, date: date, height: 2160);
+                db, folderPath, "raw clip.mkv", title: null!, date: date, height: 2160, width: 3840);
             var (_, titledId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, siblingDir.Replace('\\', '/'), "other raw.mkv", "Kept Title", date: date, height: 2160);
+                db, siblingDir.Replace('\\', '/'), "other raw.mkv", "Kept Title", date: date,
+                height: 2160, width: 3840);
             File.WriteAllText(Path.Combine(dir.Root, "raw clip.mkv"), "a");
             File.WriteAllText(Path.Combine(siblingDir, "other raw.mkv"), "b");
 
@@ -447,7 +448,7 @@ public sealed class RenamerExecutorIntegrationTests
 
             // Transcribed by hand from the arrangement above, never computed from the engine.
             Assert.True(
-                File.Exists(Path.Combine(dir.Root, "2021-03-14 - raw clip [4k].mkv")),
+                File.Exists(Path.Combine(dir.Root, "2021-03-14 - raw clip [4K].mkv")),
                 "the title-less item was not renamed to the name its derived title produces");
 
             Assert.Equal("raw clip", await ExecutorTestSeed.ReadVideoTitleAsync(db, titlelessId));

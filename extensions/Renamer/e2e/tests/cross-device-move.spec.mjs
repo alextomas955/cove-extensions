@@ -83,9 +83,13 @@ test("a move routed into a genuinely different filesystem (EXDEV) fails safely, 
     // within /data — is not silently routed cross-device (/data2), skipped as an EXDEV move, and left
     // un-renamed. Mirrors core-paths.spec.mjs restoring its template. In `finally` so a failed
     // assertion above still cannot leak routing state into the next test.
-    await api.put(
+    const reset = await api.put(
       `/api/extensions/${EXTENSION_ID}/data/options`,
       JSON.stringify({ FolderRoot: "" }),
     );
+    expect(
+      reset.ok,
+      `restoring FolderRoot returned ${reset.status}; a later spec is silently routed cross-device`,
+    ).toBe(true);
   }
 });

@@ -100,31 +100,59 @@ with no value is simply omitted.
 
 ### Media info
 
-| Token         | Produces                                                | Example  |
-| ------------- | ------------------------------------------------------- | -------- |
-| `$resolution` | A resolution label derived from the height (see below). | `1080p`  |
-| `$height`     | Frame height in pixels.                                 | `1080`   |
-| `$width`      | Frame width in pixels.                                  | `1920`   |
-| `$videoCodec` | The video codec.                                        | `h264`   |
-| `$audioCodec` | The audio codec.                                        | `aac`    |
-| `$frameRate`  | The frame rate.                                         | `23.976` |
-| `$bitrate`    | The file's bitrate in kbps.                             | `4500`   |
+| Token         | Produces                                                    | Example  |
+| ------------- | ----------------------------------------------------------- | -------- |
+| `$resolution` | A resolution label derived from the frame size (see below). | `1080p`  |
+| `$height`     | Frame height in pixels.                                     | `1080`   |
+| `$width`      | Frame width in pixels.                                      | `1920`   |
+| `$videoCodec` | The video codec.                                            | `h264`   |
+| `$audioCodec` | The audio codec.                                            | `aac`    |
+| `$frameRate`  | The frame rate.                                             | `23.976` |
+| `$bitrate`    | The file's bitrate in kbps.                                 | `4500`   |
 
 #### Resolution labels
 
-`$resolution` maps the frame height to a friendly label:
+`$resolution` is the same label Cove shows on the item itself, so the filename and the badge agree.
 
-| Height (px) | `$resolution`                                 |
-| ----------- | --------------------------------------------- |
-| ≥ 2160      | `4k`                                          |
-| ≥ 1440      | `1440p`                                       |
-| ≥ 1080      | `1080p`                                       |
-| ≥ 720       | `720p`                                        |
-| ≥ 480       | `480p`                                        |
-| below 480   | the raw height with a `p` suffix, e.g. `368p` |
+| Frame size  | `$resolution` |
+| ----------- | ------------- |
+| 256 x 144   | `144p`        |
+| 426 x 240   | `240p`        |
+| 640 x 360   | `360p`        |
+| 854 x 480   | `480p`        |
+| 960 x 540   | `540p`        |
+| 1280 x 720  | `720p`        |
+| 1920 x 1080 | `1080p`       |
+| 2560 x 1440 | `1440p`       |
+| 3840 x 2160 | `4K`          |
+| 5120 x 2880 | `5K`          |
+| 6144 x 3384 | `6K`          |
+| 7168 x 4032 | `7K`          |
+| 7680 x 4320 | `8K`          |
+| 9840 x 4100 | `HUGE`        |
+
+A frame that is not exactly one of these sizes takes the largest label it reaches, with about five
+percent of slack: 1920 x 1200 is `1080p`, and so is 1830 x 1030.
+
+Both edges count, so a portrait video gets the same label as the landscape video of the same
+shape: 1080 x 1920 is `1080p`, not `1440p`. A very wide frame is labelled for its long edge rather
+than its short one, so 2560 x 1080 is `1440p`.
+
+A label needs both a width and a height, so a file Cove has no width stored for gets none. Neither
+does a frame under 144 pixels on its longer edge and under about 137 on its shorter. The
+`{ [$resolution]}` group in your template then drops whole, so the name carries no empty
+brackets.
+
+Renamer reads the label off the width and height Cove stored, so a per-token replacement rule on
+`$width` or `$height` changes only that token in the name and leaves the label alone. A rule on
+`$resolution` rewrites the label itself, and the name then reads differently from the badge.
 
 If a title already ends with a resolution label (for example `My Movie [1080p]`) and your template
 also renders `$resolution`, Renamer removes the duplicate from the title so the label isn't repeated.
+Where the file has no width stored, or the frame is too small for any label, Renamer has no label to
+write and the one already in your title stays. Where the name was too long and `$resolution` was
+dropped to make it fit, the title's label goes with it, so the drop shortens the name instead of
+lengthening it.
 
 ## Shaping multi-value tokens
 

@@ -205,7 +205,7 @@ public sealed class MetadataProjectorTests
         var options = new RenamerOptions { FilenameTemplate = "$studio - $title [$resolution]" };
         var result = TemplateEngine.Render(tokens, multi, options);
 
-        // $resolution is derived by the engine from $height=1080 → "1080p".
+        // $resolution is derived by the engine from $width=1920 and $height=1080 → "1080p".
         Assert.Equal("Acme - My Film [1080p]", result.Filename);
         Assert.Equal(".mkv", result.Ext);
     }

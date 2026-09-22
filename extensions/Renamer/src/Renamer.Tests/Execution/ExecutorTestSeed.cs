@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Renamer.Tests.Execution;
 
 /// <summary>
-/// Shared seeding helpers for the executor integration tier (Tasks 2 + 3). Seeds a Folder + Video +
+/// Shared seeding helpers for the executor integration tier. Seeds a Folder + Video +
 /// VideoFile graph on a real <see cref="CoveContext"/> whose <c>Folder.Path</c> is the test's real
 /// temp-directory root, so the planner's relative target + the DB Path-recompute + the on-disk move
 /// all align on the same absolute location.
@@ -15,12 +15,14 @@ internal static class ExecutorTestSeed
     /// <summary>
     /// Seeds a Folder (Path = <paramref name="folderPath"/>) + a Video titled <paramref name="title"/>
     /// + a single VideoFile (<paramref name="basename"/>). Returns the (folderId, videoId, fileId).
-    /// A null <paramref name="date"/> leaves <c>$date</c>/<c>$year</c> absent, and a
-    /// <paramref name="height"/> of 0 renders no <c>$resolution</c> label.
+    /// A null <paramref name="date"/> leaves <c>$date</c>/<c>$year</c> absent. The
+    /// <c>$resolution</c> label needs both dimensions, so leaving either
+    /// <paramref name="height"/> or <paramref name="width"/> at 0 renders none.
     /// </summary>
     public static async Task<(int folderId, int videoId, int fileId)> SeedVideoAsync(
         DbContext db, string folderPath, string basename, string title,
-        bool organized = true, DateOnly? date = null, int height = 0, CancellationToken ct = default)
+        bool organized = true, DateOnly? date = null, int height = 0, int width = 0,
+        CancellationToken ct = default)
     {
         var folder = new Folder { Path = folderPath.Replace('\\', '/'), ModTime = DateTime.UtcNow };
         db.Set<Folder>().Add(folder);
@@ -37,6 +39,7 @@ internal static class ExecutorTestSeed
             Format = ExtOf(basename),
             VideoId = video.Id,
             Height = height,
+            Width = width,
         };
         db.Set<VideoFile>().Add(file);
         await db.SaveChangesAsync(ct);
@@ -137,7 +140,7 @@ internal static class ExecutorTestSeed
     /// A <paramref name="height"/> of 0 renders no <c>$resolution</c> label.
     /// </summary>
     public static async Task<int> SeedAdditionalFileAsync(
-        DbContext db, int folderId, int videoId, string basename, int height = 0,
+        DbContext db, int folderId, int videoId, string basename, int height = 0, int width = 0,
         CancellationToken ct = default)
     {
         var file = new VideoFile
@@ -147,6 +150,7 @@ internal static class ExecutorTestSeed
             Format = ExtOf(basename),
             VideoId = videoId,
             Height = height,
+            Width = width,
         };
         db.Set<VideoFile>().Add(file);
         await db.SaveChangesAsync(ct);
