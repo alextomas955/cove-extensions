@@ -696,14 +696,33 @@ public sealed class ThePornDbCatalogueTests
     private static string SingleScene(JsonNode row)
         => new JsonObject { ["data"] = row.DeepClone() }.ToJsonString();
 
-    // The identifier this product carries is the API's own, and nothing measured says it addresses
-    // a page on the provider's site. A composed address answering 404 is worse than no link.
+    // Measured 2026-09-22: this path redirected to the sign-in page rather than answering 404, and
+    // a path the site registers nothing for answered 404, so the route resolves. The whole site is
+    // behind a sign-in, so the link lands for a reader who holds an account there.
     [Fact]
-    public void NoSceneIsGivenAnAddress()
+    public void ASceneIsAddressedOnTheSiteRatherThanWhereTheCatalogueIsRead()
     {
         var (catalogue, _) = CatalogueOver(HttpStatusCode.OK, "{}");
 
-        Assert.Null(catalogue.SceneAddress("2846feb8-f7da-4312-a3a7-a32d32d3b865"));
+        Assert.Equal(
+            "https://theporndb.net/movies/2846feb8-f7da-4312-a3a7-a32d32d3b865",
+            catalogue.SceneAddress("2846feb8-f7da-4312-a3a7-a32d32d3b865"));
+    }
+
+    [Fact]
+    public void AnIdentifierCannotWidenThePathItIsPlacedIn()
+    {
+        var (catalogue, _) = CatalogueOver(HttpStatusCode.OK, "{}");
+
+        Assert.Equal("https://theporndb.net/movies/..%2Fusers", catalogue.SceneAddress("../users"));
+    }
+
+    [Fact]
+    public void ABlankIdentifierIsGivenNoAddress()
+    {
+        var (catalogue, _) = CatalogueOver(HttpStatusCode.OK, "{}");
+
+        Assert.Null(catalogue.SceneAddress("   "));
     }
 
     private static (ThePornDbCatalogue Catalogue, BodyRecordingHandler Handler) CatalogueOver(
