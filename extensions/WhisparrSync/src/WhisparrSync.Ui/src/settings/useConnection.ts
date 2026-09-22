@@ -7,6 +7,7 @@ import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionReque
 
 import type { ConnectionTestView, WhisparrSyncSettingsView } from "../wire/api";
 import { api } from "../common/lib/extension";
+import { announceConnectionChanged } from "./connectionChangedStore";
 import {
   isGenerationChange,
   testsStoredConnection,
@@ -133,9 +134,17 @@ export function useConnection(reload: () => void): UseConnection {
     })
       .then((view) => {
         store.saved(view);
+
         // After the write has landed, never before. A reload issued alongside it would race the
         // save and could discard it.
-        if (reloads) reload();
+        if (reloads) {
+          reload();
+          return;
+        }
+
+        // Every other section of this page read once, several of them under a connection this save
+        // has just changed. A generation change reloads instead, which re-reads them all anyway.
+        announceConnectionChanged();
       })
       .catch((err: unknown) => {
         store.saveFailed(messageFor(err));

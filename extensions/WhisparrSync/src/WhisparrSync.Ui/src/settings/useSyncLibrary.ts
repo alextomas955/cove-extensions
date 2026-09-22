@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
+import { onConnectionChanged } from "./connectionChangedStore";
+
 import type { BulkJobStatus, SyncEnqueued, SyncPreviewRead, SyncRunRequest } from "../wire/api";
 import { api } from "../common/lib/extension";
 import { INITIAL_ASYNC_READ, type AsyncRead } from "../common/ui/asyncRegionLogic";
@@ -91,6 +93,12 @@ export function useSyncLibrary(): UseSyncLibrary {
     setCounting(false);
     setPreview((held) => ({ reading: false, failed: true, hasContent: held.hasContent }));
   }, [stopPolling]);
+
+  // What a run would cover, and whether one can be started at all, both follow the connection.
+  useEffect(
+    () => onConnectionChanged(() => void readCounts().catch(() => undefined)),
+    [readCounts],
+  );
 
   const primed = useRef(false);
   useEffect(() => {
