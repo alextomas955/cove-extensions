@@ -56,6 +56,9 @@ that would change before anything touches disk.
   each block's name now sits above its control instead of inside a card.
 - **The _Drop order_ explanation sits with the heading it explains**, above the list rather than
   under it.
+- **A rule list no longer loses an entry when you click its heading.** Clicking the text above a
+  list of tags, performers or studios used to remove the first entry from it, with no message shown
+  and nothing to put it back.
 - **More _Advanced_ sentences say what the setting actually does.** _Illegal characters_ says that
   leaving the replacement blank drops them; a stripped article is removed once, from the start of
   the title; a performer is dropped from the title only on a whole-word match, so a name inside a
