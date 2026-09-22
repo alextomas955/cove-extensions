@@ -60,67 +60,54 @@ internal static class HeldCardProjector
     }
 
     /// <summary>
-    /// The rows of <paramref name="body"/> whose instance-side number is one of <paramref name="asked"/>.
+    /// What the instance holds for the one site a lookup answered, or null where it holds none.
     /// </summary>
     /// <remarks>
-    /// One generation addresses a site by the number its metadata source issued, which its own list
-    /// carries under a member named for a different source. The keys answered are the spellings the
-    /// caller asked with, so a caller never has to parse a number back into its own identifier.
+    /// The lookup answers the instance's own row for a site it holds, so a positive id is the
+    /// instance stating presence. A site it does not hold is answered from the metadata source and
+    /// carries no id, which is an absence rather than a refusal.
+    /// <para>
+    /// Ordered by the lookup's own relevance and asked by an exact identifier, so the first entry is
+    /// the site asked about.
+    /// </para>
     /// </remarks>
-    /// <returns>Null where the answer is not a list of rows at all.</returns>
-    internal static IReadOnlyDictionary<string, WhisparrHeldCard>? BySiteNumber(
-        string? body, IReadOnlyDictionary<int, string> asked)
+    internal static SiteLookupReading FromSiteLookup(string? body)
     {
-        ArgumentNullException.ThrowIfNull(asked);
-
         if (AsArray(body) is not { } rows)
         {
-            return null;
+            // Not a list of sites at all. Read as an absence it would report a site the instance
+            // never spoke about as one it holds none of.
+            return SiteLookupReading.Unreadable;
         }
 
-        var found = new Dictionary<string, WhisparrHeldCard>(StringComparer.Ordinal);
-        foreach (var row in rows)
+        if (rows.Count == 0
+            || rows[0] is not JsonObject site
+            || site["id"] is not JsonValue numbered
+            || !numbered.TryGetValue<int>(out var rowId)
+            || rowId <= 0)
         {
-            if (row is JsonObject entry
-                && entry["tvdbId"] is JsonValue numbered
-                && numbered.TryGetValue<int>(out var siteNumber)
-                && asked.TryGetValue(siteNumber, out var asAsked))
-            {
-                // A site row carries no file of its own: what it holds is scenes, and a scene's own
-                // row answers that. Left unestablished rather than answered false.
-                found[asAsked] = new WhisparrHeldCard(Flag(entry, "monitored"), null);
-            }
+            return SiteLookupReading.HoldsNone;
         }
 
-        return found;
+        // A site row carries no file of its own: what it holds is scenes, and a scene's own row
+        // answers that. Left unestablished rather than answered false.
+        return SiteLookupReading.Holding(new WhisparrHeldCard(Flag(site, "monitored"), null));
     }
 
-    /// <summary>The identifiers that are a positive instance-side number, keyed by that number.</summary>
+    /// <summary>The term the site lookup is asked with for <paramref name="foreignId"/>.</summary>
     /// <remarks>
-    /// An identifier that is not one is outside what a site list can answer, so it is reported apart
-    /// rather than as an absence the instance never stated.
+    /// A number the metadata source issued is asked for under the prefix the lookup reads as that
+    /// source's own id, which it answers from its own rows without reaching the source at all. Any
+    /// other spelling is passed through as the search term it is.
     /// </remarks>
-    internal static (IReadOnlyDictionary<int, string> Numbered, IReadOnlySet<string> Unnumbered)
-        SplitBySiteNumber(IReadOnlyList<string> foreignIds)
+    internal static string SiteLookupTerm(string foreignId)
     {
-        ArgumentNullException.ThrowIfNull(foreignIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
 
-        var numbered = new Dictionary<int, string>();
-        var unnumbered = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var id in foreignIds)
-        {
-            if (int.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var number)
-                && number > 0)
-            {
-                numbered[number] = id;
-            }
-            else if (!string.IsNullOrWhiteSpace(id))
-            {
-                unnumbered.Add(id);
-            }
-        }
-
-        return (numbered, unnumbered);
+        return int.TryParse(foreignId, NumberStyles.None, CultureInfo.InvariantCulture, out var number)
+            && number > 0
+                ? $"tpdb:{foreignId}"
+                : foreignId;
     }
 
     private static JsonArray? AsArray(string? body)

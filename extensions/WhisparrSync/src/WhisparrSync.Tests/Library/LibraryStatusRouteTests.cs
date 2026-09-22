@@ -217,15 +217,13 @@ public sealed class LibraryStatusRouteTests
     }
 
     // Driven by the lookup answer through the shipped client over a byte-level stub, so each case
-    // runs the real lookup and the real parse. All three answers arrive with a success status, so
-    // the page states no reason: the failure is about one card, which carries it by establishing
-    // neither member.
+    // runs the real lookup and the real parse. A lookup naming no site the instance holds is the
+    // instance answering that it holds none, which the card states rather than leaving unestablished.
     [Theory]
     [InlineData("[]")]
     [InlineData(
         """[{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen"},{"tvdbId":3373,"title":"Vixen 2","titleSlug":"vixen-2"}]""")]
-    [InlineData("""{"message":"not a list"}""")]
-    public async Task AnIdentifierResolvingToNoSingleEntityStatesNoReasonForThePage(string lookup)
+    public async Task AnIdentifierTheInstanceHoldsNoSiteUnderIsStatedAsHeldByNothing(string lookup)
     {
         await using var host = await MonitorHost.CreateAsync(
             generation: WhisparrGeneration.V2,
@@ -234,8 +232,24 @@ public sealed class LibraryStatusRouteTests
 
         var view = await ReadAsync(await host.PostLibraryStatusAsync("studio", Asking(studioId)));
 
-        Assert.Equal(new LibraryCardReading(false, null, null), Assert.Single(view.Rows).Reading);
+        Assert.Equal(new LibraryCardReading(false, false, null), Assert.Single(view.Rows).Reading);
         Assert.Equal(LibraryStatusRefusalKind.None, view.Refusal);
+    }
+
+    // An answer that is not a list of sites establishes nothing. Read as an absence it would draw a
+    // badge saying the instance holds no such site, on a body no instance spoke a site in.
+    [Fact]
+    public async Task AnAnswerThatIsNotAListOfSitesEstablishesNeitherMember()
+    {
+        await using var host = await MonitorHost.CreateAsync(
+            generation: WhisparrGeneration.V2,
+            bytes: BodyRecordingHandler.Answering(
+                HttpStatusCode.OK, """{"message":"not a list"}"""));
+        var studioId = await host.SeedStudioAsync(V2Endpoint, V2RemoteId);
+
+        var view = await ReadAsync(await host.PostLibraryStatusAsync("studio", Asking(studioId)));
+
+        Assert.Equal(new LibraryCardReading(false, null, null), Assert.Single(view.Rows).Reading);
     }
 
     // The instance answers its headers and then stops sending, so the read is contained rather

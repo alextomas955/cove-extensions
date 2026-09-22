@@ -50,8 +50,8 @@ public sealed class LibraryStatusBatchTests
         Assert.Equal(new LibraryCardReading(false, false, null), rows[0].Reading);
     }
 
-    // One generation addresses a site by a number it issues itself, so an identifier that is not one
-    // is outside what its list answers and is asked about on its own.
+    // A read that could not speak for one identifier is not the same as an absence, so that card is
+    // asked about on its own rather than drawn as one the instance holds none of.
     [Fact]
     public async Task AnIdentifierTheBatchCannotSpeakForIsAskedAboutOnItsOwn()
     {
