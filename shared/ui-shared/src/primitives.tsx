@@ -610,29 +610,34 @@ export function TagListInput({
 }) {
   const id = useId();
   const listId = `${id}-suggestions`;
-  const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
+  // Separate from focus, so Escape can put the list away without taking the caret out of the field.
+  const [dismissed, setDismissed] = useState(false);
   const [active, setActive] = useState(-1);
 
-  function addFrom(input: HTMLInputElement) {
-    const v = (normalize ? normalize(input.value) : input.value).trim();
-    if (v.length === 0) return;
-    if (onReject?.(v)) return;
-    if (!values.includes(v)) onChange([...values, v]);
-    input.value = "";
-  }
-
-  function commit(option: string) {
-    if (!values.includes(option)) onChange([...values, option]);
-    if (inputRef.current) inputRef.current.value = "";
+  function clearInput() {
     setQuery("");
     setActive(-1);
     onLiveChange?.("");
   }
 
+  function addCurrent() {
+    const v = (normalize ? normalize(query) : query).trim();
+    // Text the control will not take stays on screen for the user to correct.
+    if (v.length === 0) return;
+    if (onReject?.(v)) return;
+    if (!values.includes(v)) onChange([...values, v]);
+    clearInput();
+  }
+
+  function commit(option: string) {
+    if (!values.includes(option)) onChange([...values, option]);
+    clearInput();
+  }
+
   const offered = suggestions ? suggestionOptions(suggestions, values, query) : [];
-  const listOpen = suggestions !== undefined && focused && offered.length > 0;
+  const listOpen = suggestions !== undefined && focused && !dismissed && offered.length > 0;
   const activeId =
     listOpen && active >= 0 && active < offered.length ? `${listId}-${active}` : undefined;
 
@@ -689,8 +694,8 @@ export function TagListInput({
       <div className="relative">
         <input
           id={id}
-          ref={inputRef}
           type="text"
+          value={query}
           placeholder={placeholder}
           className={INPUT_CLASS}
           aria-label={ariaLabel}
@@ -702,10 +707,12 @@ export function TagListInput({
           onChange={(e) => {
             setQuery(e.target.value);
             setActive(-1);
+            setDismissed(false);
             onLiveChange?.(e.target.value);
           }}
           onFocus={() => {
             setFocused(true);
+            setDismissed(false);
           }}
           onKeyDown={(e) => {
             if (listOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
@@ -715,19 +722,19 @@ export function TagListInput({
             }
             if (e.key === "Escape" && listOpen) {
               e.preventDefault();
-              setFocused(false);
+              setDismissed(true);
               return;
             }
             if (e.key === "Enter") {
               e.preventDefault();
               const chosen = listOpen && active >= 0 ? offered[active] : undefined;
-              if (chosen === undefined) addFrom(e.currentTarget);
+              if (chosen === undefined) addCurrent();
               else commit(chosen);
             }
           }}
-          onBlur={(e) => {
+          onBlur={() => {
             setFocused(false);
-            addFrom(e.currentTarget);
+            addCurrent();
           }}
         />
         {listOpen ? (
