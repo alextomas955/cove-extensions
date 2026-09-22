@@ -188,11 +188,15 @@ export function rowsFooterText(footer: RowsFooter): string {
     const noun = loaded === 1 ? "row" : "rows";
     return `All ${loaded} ${searching ? "matching " : ""}${noun}, in scan order`;
   }
-  // A search has no known total until the walk ends, so the denominator is dropped for one.
-  const counted =
-    !searching && loaded <= total
-      ? `${loaded} of ${total} row${total === 1 ? "" : "s"} loaded`
-      : `${loaded} ${searching ? "matching " : ""}row${loaded === 1 ? "" : "s"} loaded`;
+  // A search has no known total until the walk ends, and a loaded count past the total means the
+  // library grew under the walk, so neither states a denominator.
+  const denominatorKnown = !searching && loaded <= total;
+  // Whichever figure the clause ends on decides the plural.
+  const noun = (denominatorKnown ? total : loaded) === 1 ? "row" : "rows";
+  const qualifier = searching ? "matching " : "";
+  const counted = denominatorKnown
+    ? `${loaded} of ${total} ${noun} loaded`
+    : `${loaded} ${qualifier}${noun} loaded`;
   return `${counted}, in scan order (by type, then by item). Checked ${examined} items so far…`;
 }
 

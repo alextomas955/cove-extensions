@@ -20,10 +20,10 @@ import { TokenAdvisory } from "./templateAdvisories";
 function RequiredFields({
   values,
   onChange,
-}: {
+}: Readonly<{
   values: string[];
   onChange: (values: string[]) => void;
-}) {
+}>) {
   return (
     <div>
       <span className="block text-sm text-secondary">Required fields</span>

@@ -64,11 +64,11 @@ function SubBlock({
   heading,
   description,
   children,
-}: {
+}: Readonly<{
   heading: string;
   description?: string;
   children: ReactNode;
-}) {
+}>) {
   return (
     <div>
       <h4 className="text-sm text-secondary">{heading}</h4>

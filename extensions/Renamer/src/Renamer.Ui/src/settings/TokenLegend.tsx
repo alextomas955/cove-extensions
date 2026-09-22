@@ -17,11 +17,11 @@ export function TokenLegend({
   onInsert,
   filenameTemplate,
   folderTemplate,
-}: {
+}: Readonly<{
   onInsert: (token: string) => void;
   filenameTemplate: string;
   folderTemplate: string;
-}) {
+}>) {
   return (
     <div>
       <p className="mb-1 text-xs text-muted">
