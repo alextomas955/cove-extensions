@@ -829,8 +829,7 @@ public sealed class SafetyInvariantTests
         var view = await DeriveAsync(
             scenes,
             [.. scenes.Take(owned).Select(scene => scene.ProviderSceneId)],
-            exclusionReading,
-            new StubSceneStatusReading(presence: 404));
+            exclusionReading);
 
         Assert.Equal(expected, view.Cards.Count);
         Assert.True(view.Cards.Count <= view.PerPage);
@@ -845,8 +844,7 @@ public sealed class SafetyInvariantTests
         var scenes = PageOfScenes(40);
         var exclusionReading = new RecordingExclusionReading([]);
 
-        await DeriveAsync(
-            scenes, [], exclusionReading, new StubSceneStatusReading(presence: 404));
+        await DeriveAsync(scenes, [], exclusionReading);
 
         Assert.Equal(1, exclusionReading.Calls);
         var asked = Assert.Single(exclusionReading.AskedAbout);
@@ -856,18 +854,18 @@ public sealed class SafetyInvariantTests
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingGrowsWithTheLibrary)]
     // A page of cards costs one read of the entity's own list and no per-scene read at all: the
-    // state each card shows is the flag on the row it came from.
+    // state each card shows is the flag on the row it came from. Neither the planner nor the context
+    // it plans against can reach the per-scene status surface, so a read per card is not a cost the
+    // derivation is able to spend.
     public async Task APageCostsOneReadAndNeverOnePerCard()
     {
         var scenes = PageOfScenes(40);
-        var statusReading = new StubSceneStatusReading();
 
-        var view = await DeriveAsync(
-            scenes, [], new RecordingExclusionReading([]), statusReading);
+        var view = await DeriveAsync(scenes, [], new RecordingExclusionReading([]));
 
         Assert.Equal(40, view.Cards.Count);
-        Assert.Equal(0, statusReading.PresenceReads);
-        Assert.Equal(0, statusReading.SceneReads);
+        Assert.False(CanReach(typeof(MissingPagePlanner), typeof(IWhisparrSceneStatusReading)));
+        Assert.False(CanReach(typeof(MissingPageContext), typeof(IWhisparrSceneStatusReading)));
     }
 
     // Fields and constructor parameters alike, so a type taking one and not storing it still
@@ -890,8 +888,7 @@ public sealed class SafetyInvariantTests
     private static Task<MissingPageView> DeriveAsync(
         List<ProviderScene> scenes,
         string[] owned,
-        RecordingExclusionReading exclusionReading,
-        StubSceneStatusReading statusReading)
+        RecordingExclusionReading exclusionReading)
     {
         var catalogue = new StubProviderCatalogue(scenes);
         var planner = new MissingPagePlanner(
@@ -918,7 +915,6 @@ public sealed class SafetyInvariantTests
                 "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e",
                 WhisparrGeneration.V3,
                 new ResolvedProvider("https://stashdb.org/graphql", "a-key", 240),
-                statusReading,
                 exclusionReading,
                 new StubInstanceCatalogue(
                     [.. scenes.Select(scene => StubInstanceCatalogue.Scene(scene.ProviderSceneId))])),

@@ -248,7 +248,6 @@ public sealed class MissingQueryBindingTests
             "0e2e0e2e0e2e0e2e",
             WhisparrGeneration.V3,
             new ResolvedProvider("https://stashdb.org/graphql", "a-key", 240),
-            StatusReading: null,
             ExclusionReading: null,
             instance);
 
