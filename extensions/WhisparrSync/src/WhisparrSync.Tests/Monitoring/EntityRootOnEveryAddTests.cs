@@ -49,7 +49,7 @@ public sealed class EntityRootOnEveryAddTests
 
         await fixture.Host.MonitorAsync("studio", fixture.StudioId);
 
-        Assert.Equal(SecondInstanceRoot, RootOn(fixture.SingleAdd(WhisparrClient.StudioPath)));
+        Assert.Equal(SecondInstanceRoot, RootOn(fixture.SingleAdd(WhisparrV3Instance.StudioPath)));
     }
 
     // The refusal names this entity's own library root, not the instance's root list. The
@@ -90,7 +90,7 @@ public sealed class EntityRootOnEveryAddTests
 
         await fixture.Host.MonitorAsync("studio", fixture.StudioId);
 
-        Assert.Equal(FirstInstanceRoot, RootOn(fixture.SingleAdd(WhisparrClient.StudioPath)));
+        Assert.Equal(FirstInstanceRoot, RootOn(fixture.SingleAdd(WhisparrV3Instance.StudioPath)));
     }
 
     [Fact]

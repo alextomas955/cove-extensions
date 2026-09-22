@@ -54,5 +54,5 @@ public interface ISiteNumberPort
     /// caller's to bound.
     /// </remarks>
     Task<WhisparrSiteNumber> ResolveSiteNumberAsync(
-        Uri baseAddress, string apiKey, string storedSiteId, CancellationToken ct);
+        WhisparrBinding binding, string storedSiteId, CancellationToken ct);
 }

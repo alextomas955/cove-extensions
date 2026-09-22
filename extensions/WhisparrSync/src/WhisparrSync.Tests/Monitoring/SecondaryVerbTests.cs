@@ -142,22 +142,44 @@ public sealed class SecondaryVerbTests
 
     // Neither generation offers an import mode that only links, so the two cases the verb decides
     // between are identical on each.
+    //
+    // The role is asserted off each instance rather than off a runtime table, and the declared
+    // capability array is asserted to agree. v2 was measured serving all three of the routes this
+    // role sends on, at 2.2.0.231 on 2026-09-22.
     [Fact]
-    public void BothGenerationsHandOutTheReflectOwnedRole()
+    public void BothGenerationsDeclareTheReflectOwnedRole()
     {
+        Assert.Contains(
+            typeof(IWhisparrReflectOwnedActing), typeof(WhisparrV3Instance).GetInterfaces());
+        Assert.Contains(
+            typeof(IWhisparrReflectOwnedActing), typeof(WhisparrV2Instance).GetInterfaces());
+
         foreach (var generation in new[] { WhisparrGeneration.V3, WhisparrGeneration.V2 })
         {
-            var client = Recorder();
-
             Assert.Contains(
                 WhisparrCapability.ReflectOwnedFiles,
                 GenerationCapabilities.CapabilitiesOf(generation));
-            Assert.Same(
-                client,
-                CapabilitiesOn(generation, client)
-                    .Obtain<IWhisparrReflectOwnedActing>()
-                    .Match<IWhisparrReflectOwnedActing?>(held => held, _ => null));
         }
+    }
+
+    // The same three routes on the generation whose own client composes them. A v2 instance holding
+    // no arm for this role would have sent nothing at all.
+    [Fact]
+    public async Task V2ReachesTheSameThreeReflectOwnedRoutes()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
+        using var http = new HttpClient(handler);
+        var acting = (IWhisparrReflectOwnedActing)TestWhisparrClient.Over(
+            http, handler, generation: WhisparrGeneration.V2);
+
+        await acting.ReadHardlinkSettingAsync(TestCt);
+        await acting.ListImportableFilesAsync("/config/library/Vixen & Co", TestCt);
+        await acting.AttachOwnedFilesAsync(
+            new JsonArray(new JsonObject { ["path"] = "/config/library/a.mp4" }), TestCt);
+
+        Assert.Equal(
+            ["/api/v3/config/mediamanagement", "/api/v3/manualimport", "/api/v3/command"],
+            handler.Requests.Select(request => request.Path));
     }
 
     // Every index rather than the last: a grab issued before the adds would be just as acquiring.
@@ -174,10 +196,10 @@ public sealed class SecondaryVerbTests
         Assert.NotNull(acting);
         foreach (var scene in new[] { SceneForeignId, "5b1f7c33-0000-4000-8000-0000000000ab" })
         {
-            await acting.AddSceneAsync(Address, Key, scene, Defaults, TestCt);
+            await acting.AddSceneAsync(scene, Defaults, TestCt);
         }
 
-        await acting.RefreshCatalogueAsync(Address, Key, WhisparrEntityKind.Studio, 1, TestCt);
+        await acting.RefreshCatalogueAsync(WhisparrEntityKind.Studio, 1, TestCt);
 
         Assert.Contains(
             client.Verbs, verb => OutboundSeam.VerbClassByMember[verb] == WhisparrVerbClass.Act);
@@ -199,10 +221,8 @@ public sealed class SecondaryVerbTests
         using var http = new HttpClient(handler);
         var client = TestWhisparrClient.Over(http, handler);
 
-        await ((IWhisparrMissingSceneActing)client).AddSceneAsync(
-            Address, Key, SceneForeignId, Defaults, TestCt);
-        await ((IWhisparrMissingSceneActing)client).RefreshCatalogueAsync(
-            Address, Key, WhisparrEntityKind.Studio, 11, TestCt);
+        await ((IWhisparrMissingSceneActing)client).AddSceneAsync(SceneForeignId, Defaults, TestCt);
+        await ((IWhisparrMissingSceneActing)client).RefreshCatalogueAsync(WhisparrEntityKind.Studio, 11, TestCt);
 
         Assert.Equal(2, handler.Requests.Count);
         Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
@@ -237,11 +257,9 @@ public sealed class SecondaryVerbTests
         using var http = new HttpClient(handler);
         var client = TestWhisparrClient.Over(http, handler);
 
-        await ((IWhisparrReflectOwnedActing)client).ReadHardlinkSettingAsync(Address, Key, TestCt);
-        await ((IWhisparrReflectOwnedActing)client).ListImportableFilesAsync(
-            Address, Key, "/config/library/Vixen & Co", TestCt);
-        await ((IWhisparrReflectOwnedActing)client).AttachOwnedFilesAsync(
-            Address, Key, new JsonArray(new JsonObject { ["path"] = "/config/library/a.mp4" }), TestCt);
+        await ((IWhisparrReflectOwnedActing)client).ReadHardlinkSettingAsync(TestCt);
+        await ((IWhisparrReflectOwnedActing)client).ListImportableFilesAsync("/config/library/Vixen & Co", TestCt);
+        await ((IWhisparrReflectOwnedActing)client).AttachOwnedFilesAsync(new JsonArray(new JsonObject { ["path"] = "/config/library/a.mp4" }), TestCt);
 
         Assert.Equal("/api/v3/config/mediamanagement", handler.Requests[0].Path);
         Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
@@ -299,12 +317,12 @@ public sealed class SecondaryVerbTests
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, EmptyEntity);
         using var http = new HttpClient(handler);
-        var client = TestWhisparrClient.Over(http, handler);
+        var v3Grabbing = (IWhisparrSearchGrabbing)TestWhisparrClient.Over(http, handler);
+        var v2Grabbing = (IWhisparrSearchGrabbing)TestWhisparrClient.Over(
+            http, handler, generation: WhisparrGeneration.V2);
 
-        await ((IWhisparrSearchGrabbing)client).SearchMonitoredAsync(
-            Address, Key, WhisparrGeneration.V3, WhisparrEntityKind.Studio, [4], TestCt);
-        await ((IWhisparrSearchGrabbing)client).SearchMonitoredAsync(
-            Address, Key, WhisparrGeneration.V2, WhisparrEntityKind.Studio, [3], TestCt);
+        await v3Grabbing.SearchMonitoredAsync(WhisparrEntityKind.Studio, [4], TestCt);
+        await v2Grabbing.SearchMonitoredAsync(WhisparrEntityKind.Studio, [3], TestCt);
 
         Assert.All(handler.Requests, request => Assert.Equal("/api/v3/command", request.Path));
 
@@ -317,10 +335,10 @@ public sealed class SecondaryVerbTests
         Assert.Equal(3, v2["seriesId"]!.GetValue<int>());
 
         // A lineage this product does not manage composes nothing rather than defaulting to either
-        // generation's shape.
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
-            () => ((IWhisparrSearchGrabbing)client).SearchMonitoredAsync(
-                Address, Key, (WhisparrGeneration)(-1), WhisparrEntityKind.Studio, [3], TestCt));
+        // generation's shape: there is no instance for it, so no grabbing role can be obtained.
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => TestWhisparrClient.Over(
+                http, handler, generation: (WhisparrGeneration)(-1)));
     }
 
     // The refusal is taken over a lineage this product does not manage. Both managed generations
@@ -362,8 +380,15 @@ public sealed class SecondaryVerbTests
                 nameof(IWhisparrSceneSearchGrabbing.SearchSceneAsync),
             ],
             OutboundSeam.MembersOf(WhisparrVerbClass.Grab));
-        Assert.Contains(typeof(IWhisparrSearchGrabbing), typeof(WhisparrClient).GetInterfaces());
-        Assert.Contains(typeof(IWhisparrSceneSearchGrabbing), typeof(WhisparrClient).GetInterfaces());
+        Assert.Contains(typeof(IWhisparrSearchGrabbing), typeof(WhisparrV3Instance).GetInterfaces());
+        Assert.Contains(
+            typeof(IWhisparrSceneSearchGrabbing), typeof(WhisparrV3Instance).GetInterfaces());
+
+        // The separation is stronger on the generation that keeps no scene record: the per-scene
+        // search is physically absent from that instance rather than absent from a lookup table.
+        Assert.Contains(typeof(IWhisparrSearchGrabbing), typeof(WhisparrV2Instance).GetInterfaces());
+        Assert.DoesNotContain(
+            typeof(IWhisparrSceneSearchGrabbing), typeof(WhisparrV2Instance).GetInterfaces());
     }
 
     // Driven through the mounted route rather than through a projector: the function stating the
@@ -404,8 +429,6 @@ public sealed class SecondaryVerbTests
 
     private static Uri Address { get; } = new(MonitorHost.StoredAddress);
 
-    private static string Key => MonitorHost.StoredKey;
-
     // The instance answers the held read as not holding the entity. The stored 404 is the instance's
     // own answer rather than one this product composed, which is what makes the reading a fact read
     // off the wire.
@@ -422,5 +445,5 @@ public sealed class SecondaryVerbTests
 
     private static WhisparrCapabilitySet CapabilitiesOn(
         WhisparrGeneration generation, RecordingWhisparrClient client)
-        => GenerationCapabilities.For(generation, WhisparrRoleSet.From(client));
+        => GenerationCapabilities.For(generation, client);
 }

@@ -13,21 +13,17 @@ internal sealed class DeliveringNotificationPort(
     : IWhisparrNotificationPort
 {
     public async Task<CallbackRegistrationOutcome> RegisterAsync(
-        WhisparrGeneration generation,
-        Uri baseAddress,
-        string apiKey,
-        string callbackAddress,
-        string secret,
-        CancellationToken ct)
+        WhisparrBinding binding, string callbackAddress, string secret, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(binding);
+
         await global::WhisparrSync.WhisparrSync.RecordSecretPositionAsync(
-            options, gate, generation, position, ct);
+            options, gate, binding.Generation, position, ct);
         return new CallbackRegistrationOutcome(
             RegistrationStatus.Registered, callbackAddress, Created: true, Refusal: null);
     }
 
-    public Task<CallbackRegistrationOutcome> ReadAsync(
-        Uri baseAddress, string apiKey, CancellationToken ct)
+    public Task<CallbackRegistrationOutcome> ReadAsync(WhisparrBinding binding, CancellationToken ct)
         => throw new NotSupportedException();
 }
 

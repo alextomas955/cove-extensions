@@ -20,14 +20,10 @@ public sealed class AddAllMissingPlannerTests
     private const string SecondScene = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
     private const string ThirdScene = "027393c9-e589-4548-8a7f-c04292a9de14";
 
-    private static readonly Uri Instance = new("http://whisparr-v3:6969");
-
     private static readonly AddDefaults Defaults = new(1, "/config/library");
 
     // Written here rather than taken from the shared monitor host: that host owns a real Cove
     // context, and this file compiles where those types are absent.
-    private const string StoredKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
-
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     // The refresh comes last: a registration reaches the instance's catalogue only once one runs.
@@ -269,11 +265,10 @@ public sealed class AddAllMissingPlannerTests
 
     private static async Task<WhisparrResponse?> Register(
         RecordingWhisparrClient client, string identity, CancellationToken ct)
-        => await client.AddSceneAsync(Instance, StoredKey, identity, Defaults, ct);
+        => await client.AddSceneAsync(identity, Defaults, ct);
 
     private static async Task Refresh(RecordingWhisparrClient client, CancellationToken ct)
-        => await client.RefreshCatalogueAsync(
-            Instance, StoredKey, WhisparrEntityKind.Studio, 31, ct);
+        => await client.RefreshCatalogueAsync(WhisparrEntityKind.Studio, 31, ct);
 
     // Asynchronous between items rather than a list dressed as one, so the run is driven through
     // the same suspension points a database read would suspend at.

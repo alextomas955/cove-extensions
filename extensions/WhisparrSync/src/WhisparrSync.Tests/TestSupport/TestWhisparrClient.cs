@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Contracts;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
@@ -9,9 +10,41 @@ namespace WhisparrSync.Tests.TestSupport;
 // own, so the handler under test is supplied to all three. A test that supplied it to one would
 // record part of the requests and assert on that part. The bound on one attempt is read off the
 // supplied client for the same reason.
+//
+// The answer is the instance bound to one address and key, because a role member takes neither. A
+// case that asserts on the address it was sent to names its own binding.
 internal static class TestWhisparrClient
 {
-    public static WhisparrClient Over(
+    public static Uri Instance { get; } = new("http://whisparr:6969/");
+
+    public const string ApiKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
+
+    public static IWhisparrClient Over(
+        HttpClient http,
+        HttpMessageHandler? handler = null,
+        ILogger? log = null,
+        ISiteNumberPort? siteNumbers = null,
+        WhisparrGeneration generation = WhisparrGeneration.V3,
+        Uri? baseAddress = null,
+        string? apiKey = null)
+        => FactoryOver(http, handler, log, siteNumbers)
+            .Bound(new WhisparrBinding(
+                generation, baseAddress ?? Instance, apiKey ?? ApiKey));
+
+    public static IWhisparrClient Over(
+        HttpMessageHandler handler,
+        ILogger? log = null,
+        ISiteNumberPort? siteNumbers = null,
+        WhisparrGeneration generation = WhisparrGeneration.V3,
+        Uri? baseAddress = null,
+        string? apiKey = null)
+    {
+        var http = new HttpClient(handler);
+        WhisparrTransport.Configure(http);
+        return Over(http, handler, log, siteNumbers, generation, baseAddress, apiKey);
+    }
+
+    public static WhisparrInstanceFactory FactoryOver(
         HttpClient http,
         HttpMessageHandler? handler = null,
         ILogger? log = null,
@@ -21,20 +54,24 @@ internal static class TestWhisparrClient
             handler is null ? WhisparrTransport.CreateHandler : () => handler;
         void Timeout(HttpClient client) => client.Timeout = http.Timeout;
 
-        return new WhisparrClient(
-            new WhisparrTransport(http, log ?? NullLogger.Instance),
-            new Whisparr3Gateway(primary, Timeout),
+        var v3Gateway = new Whisparr3Gateway(primary, Timeout);
+        return new WhisparrInstanceFactory(
+            new WhisparrTransport(http, v3Gateway, log ?? NullLogger.Instance),
+            v3Gateway,
             new Whisparr2Gateway(primary, Timeout),
             siteNumbers ?? new TestSiteNumbers(),
             log ?? NullLogger.Instance);
     }
 
-    public static WhisparrClient Over(
-        HttpMessageHandler handler, ILogger? log = null, ISiteNumberPort? siteNumbers = null)
+    public static WhisparrTransport TransportOver(
+        HttpClient http, HttpMessageHandler? handler = null, ILogger? log = null)
     {
-        var http = new HttpClient(handler);
-        WhisparrTransport.Configure(http);
-        return Over(http, handler, log, siteNumbers);
+        Func<HttpMessageHandler> primary =
+            handler is null ? WhisparrTransport.CreateHandler : () => handler;
+        void Timeout(HttpClient client) => client.Timeout = http.Timeout;
+
+        return new WhisparrTransport(
+            http, new Whisparr3Gateway(primary, Timeout), log ?? NullLogger.Instance);
     }
 }
 
@@ -59,7 +96,7 @@ internal sealed class TestSiteNumbers : ISiteNumberPort
     }
 
     public Task<WhisparrSiteNumber> ResolveSiteNumberAsync(
-        Uri baseAddress, string apiKey, string storedSiteId, CancellationToken ct)
+        WhisparrBinding binding, string storedSiteId, CancellationToken ct)
     {
         Asked.Add(storedSiteId);
 

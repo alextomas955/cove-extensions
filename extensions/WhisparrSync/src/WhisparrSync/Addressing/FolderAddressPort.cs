@@ -211,8 +211,8 @@ internal sealed class FolderAddressPort(
         WhisparrResponse answer;
         try
         {
-            answer = await target.Filesystem.ReadInstanceFolderAsync(
-                target.Binding.BaseAddress, target.Binding.ApiKey, target.Binding.Generation, candidate[..separator], ct)
+            answer = await target.Filesystem
+                .ReadInstanceFolderAsync(candidate[..separator], ct)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)

@@ -26,10 +26,10 @@ public sealed partial class WhisparrSync
         // is the one entity the route segment names, which no lesser tier expresses.
         endpoints.MapPost(ReflectOwnedRoute,
             (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
-             ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
+             ICredentialPort credentials, IWhisparrInstanceFactory instances, IEntityIdentityPort identities,
              IJobService jobs, IServiceScopeFactory scopes, CancellationToken ct)
                 => ReflectOwnedEntityAsync(
-                    kind, coveId, principal, options, credentials, client, identities, jobs, scopes, ct))
+                    kind, coveId, principal, options, credentials, instances, identities, jobs, scopes, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -47,7 +47,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             IEntityIdentityPort identities,
             IJobService jobs,
             IServiceScopeFactory scopes,
@@ -67,13 +67,13 @@ public sealed partial class WhisparrSync
             return TypedResults.BadRequest();
         }
 
-        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(Refusing(MonitorRefusalKind.NotConfigured));
         }
 
-        var identity = await identities.ResolveAsync(entityKind, coveId, target.Generation, ct)
+        var identity = await identities.ResolveAsync(entityKind, coveId, target.Binding.Generation, ct)
             .ConfigureAwait(false);
         var acting = ReflectOwnedActingOn(target);
         if (acting is null || identity.ForeignId is null)
@@ -138,7 +138,7 @@ public sealed partial class WhisparrSync
             if (await ResolveTargetAsync(
                     services.GetRequiredService<OptionsStore>(),
                     services.GetRequiredService<ICredentialPort>(),
-                    services.GetRequiredService<IWhisparrClient>(),
+                    services.GetRequiredService<IWhisparrInstanceFactory>(),
                     runCt).ConfigureAwait(false) is not { } target)
             {
                 return new ReflectOwnedAim(null, null);
@@ -163,11 +163,11 @@ public sealed partial class WhisparrSync
     private ReflectOwnedAiming AimedAt(
         MonitoringTarget target, IWhisparrReflectOwnedActing acting, IFolderAddressPort addressing)
         => new(
-            target.Generation,
+            target.Binding.Generation,
             AddressingThrough(target, addressing),
             async (folder, readCt) => (await ContainedAsync(
                     () => acting.ListImportableFilesAsync(
-                        target.BaseAddress, target.ApiKey, folder, readCt),
+                        folder, readCt),
                     target,
                     _log,
                     readCt).ConfigureAwait(false))
@@ -176,7 +176,7 @@ public sealed partial class WhisparrSync
                     : ImportableListing.Refused,
             async (files, attachCt) => (await ContainedAsync(
                     () => acting.AttachOwnedFilesAsync(
-                        target.BaseAddress, target.ApiKey, files, attachCt),
+                        files, attachCt),
                     target,
                     _log,
                     attachCt).ConfigureAwait(false))
@@ -218,7 +218,7 @@ public sealed partial class WhisparrSync
         MonitoringTarget target, IWhisparrReflectOwnedActing acting, CancellationToken ct)
     {
         var setting = await ContainedAsync(
-            () => acting.ReadHardlinkSettingAsync(target.BaseAddress, target.ApiKey, ct),
+            () => acting.ReadHardlinkSettingAsync(ct),
             target,
             _log,
             ct).ConfigureAwait(false);

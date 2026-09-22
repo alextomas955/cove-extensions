@@ -720,8 +720,7 @@ public sealed class NonGrabbingBodyTests
             {
                 var capabilities = GenerationCapabilities.For(
                     generation,
-                    WhisparrRoleSet.From(
-                        new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"))));
+                    new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}")));
 
                 Assert.NotNull(
                     capabilities.Obtain<IWhisparrSearchGrabbing>()

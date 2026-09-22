@@ -25,8 +25,6 @@ internal static class SceneStatusPort
     // by what the instance holds.
     public static async Task<IReadOnlyDictionary<string, MissingSceneState>> ReadStatesAsync(
         IWhisparrSceneStatusReading reading,
-        Uri baseAddress,
-        string apiKey,
         WhisparrEntityKind kind,
         string entityForeignId,
         IReadOnlyList<string> providerSceneIds,
@@ -40,7 +38,7 @@ internal static class SceneStatusPort
         if (HasAnEntityToProbe(kind))
         {
             var presence = await reading
-                .ReadEntityPresenceAsync(baseAddress, apiKey, kind, entityForeignId, ct)
+                .ReadEntityPresenceAsync(kind, entityForeignId, ct)
                 .ConfigureAwait(false);
 
             if (StateForWholePage(presence) is { } settled)
@@ -58,9 +56,7 @@ internal static class SceneStatusPort
                 continue;
             }
 
-            var answered = await reading
-                .ReadSceneByRemoteIdAsync(baseAddress, apiKey, id, ct)
-                .ConfigureAwait(false);
+            var answered = await reading.ReadSceneByRemoteIdAsync(id, ct).ConfigureAwait(false);
             states[id] = StateOf(answered);
         }
 

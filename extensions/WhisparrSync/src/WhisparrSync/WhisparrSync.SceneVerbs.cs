@@ -24,7 +24,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             ILibraryCardIdentityPort sceneCards,
             IServiceScopeFactory scopes,
             ILogger log,
@@ -44,7 +44,7 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             await AddSceneResolvedAsync(
-                coveId, known: null, options, credentials, client, sceneCards, scopes, log, ct)
+                coveId, known: null, options, credentials, instances, sceneCards, scopes, log, ct)
                 .ConfigureAwait(false));
     }
 
@@ -56,14 +56,14 @@ public sealed partial class WhisparrSync
         MonitoringTarget? known,
         OptionsStore options,
         ICredentialPort credentials,
-        IWhisparrClient client,
+        IWhisparrInstanceFactory instances,
         ILibraryCardIdentityPort sceneCards,
         IServiceScopeFactory scopes,
         ILogger log,
         CancellationToken ct)
     {
         var (ground, refusal) = await GroundSceneVerbAsync<IWhisparrMissingSceneActing>(
-            coveId, known, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
+            coveId, known, options, credentials, instances, sceneCards, log, ct).ConfigureAwait(false);
         if (ground is null)
         {
             return ActionRefused(refusal);
@@ -76,14 +76,14 @@ public sealed partial class WhisparrSync
 
         var target = ground.Resolved.Target;
         var profiles = await ContainedAsync(
-            () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, ct),
+            () => target.Reads.ReadQualityProfilesAsync(ct),
             target,
             log,
             ct).ConfigureAwait(false);
         var roots = profiles is null
             ? null
             : await ContainedAsync(
-                () => target.Reads.ReadRootFoldersAsync(target.BaseAddress, target.ApiKey, ct),
+                () => target.Reads.ReadRootFoldersAsync(ct),
                 target,
                 log,
                 ct).ConfigureAwait(false);
@@ -112,7 +112,7 @@ public sealed partial class WhisparrSync
 
         var added = await ContainedAsync(
             () => ground.Acting.AddSceneAsync(
-                target.BaseAddress, target.ApiKey, ground.Resolved.RemoteId, composeWith, ct),
+                ground.Resolved.RemoteId, composeWith, ct),
             target,
             log,
             ct).ConfigureAwait(false);
@@ -127,7 +127,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             ILibraryCardIdentityPort sceneCards,
             ILogger log,
             CancellationToken ct)
@@ -146,7 +146,7 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             await SetSceneMonitoringResolvedAsync(
-                monitored: true, coveId, known: null, options, credentials, client, sceneCards, log, ct)
+                monitored: true, coveId, known: null, options, credentials, instances, sceneCards, log, ct)
                 .ConfigureAwait(false));
     }
 
@@ -157,7 +157,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             ILibraryCardIdentityPort sceneCards,
             ILogger log,
             CancellationToken ct)
@@ -176,7 +176,7 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             await SetSceneMonitoringResolvedAsync(
-                monitored: false, coveId, known: null, options, credentials, client, sceneCards, log, ct)
+                monitored: false, coveId, known: null, options, credentials, instances, sceneCards, log, ct)
                 .ConfigureAwait(false));
     }
 
@@ -189,7 +189,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             ILibraryCardIdentityPort sceneCards,
             ILogger log,
             CancellationToken ct)
@@ -208,7 +208,7 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             await ExcludeSceneResolvedAsync(
-                coveId, known: null, options, credentials, client, sceneCards, log, ct)
+                coveId, known: null, options, credentials, instances, sceneCards, log, ct)
                 .ConfigureAwait(false));
     }
 
@@ -217,13 +217,13 @@ public sealed partial class WhisparrSync
         MonitoringTarget? known,
         OptionsStore options,
         ICredentialPort credentials,
-        IWhisparrClient client,
+        IWhisparrInstanceFactory instances,
         ILibraryCardIdentityPort sceneCards,
         ILogger log,
         CancellationToken ct)
     {
         var (ground, refusal) = await GroundExclusionVerbAsync(
-            coveId, known, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
+            coveId, known, options, credentials, instances, sceneCards, log, ct).ConfigureAwait(false);
         if (ground is null)
         {
             return ActionRefused(refusal);
@@ -236,8 +236,6 @@ public sealed partial class WhisparrSync
 
         var excluded = await ContainedAsync(
             () => ground.Acting.AddSceneExclusionAsync(
-                ground.Resolved.Target.BaseAddress,
-                ground.Resolved.Target.ApiKey,
                 ground.Resolved.RemoteId,
                 ct),
             ground.Resolved.Target,
@@ -255,7 +253,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             ILibraryCardIdentityPort sceneCards,
             ILogger log,
             CancellationToken ct)
@@ -273,7 +271,7 @@ public sealed partial class WhisparrSync
         }
 
         var (ground, refusal) = await GroundExclusionVerbAsync(
-            coveId, known: null, options, credentials, client, sceneCards, log, ct)
+            coveId, known: null, options, credentials, instances, sceneCards, log, ct)
             .ConfigureAwait(false);
         if (ground is null)
         {
@@ -287,8 +285,6 @@ public sealed partial class WhisparrSync
 
         var removed = await ContainedAsync(
             () => ground.Acting.RemoveSceneExclusionAsync(
-                ground.Resolved.Target.BaseAddress,
-                ground.Resolved.Target.ApiKey,
                 exclusionId,
                 ct),
             ground.Resolved.Target,
@@ -307,7 +303,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             ILibraryCardIdentityPort sceneCards,
             ILogger log,
             CancellationToken ct)
@@ -326,7 +322,7 @@ public sealed partial class WhisparrSync
 
         return TypedResults.Ok(
             await SearchSceneResolvedAsync(
-                coveId, known: null, options, credentials, client, sceneCards, log, ct)
+                coveId, known: null, options, credentials, instances, sceneCards, log, ct)
                 .ConfigureAwait(false));
     }
 
@@ -335,13 +331,13 @@ public sealed partial class WhisparrSync
         MonitoringTarget? known,
         OptionsStore options,
         ICredentialPort credentials,
-        IWhisparrClient client,
+        IWhisparrInstanceFactory instances,
         ILibraryCardIdentityPort sceneCards,
         ILogger log,
         CancellationToken ct)
     {
         var (ground, refusal) = await GroundSceneVerbAsync<IWhisparrSceneSearchGrabbing>(
-            coveId, known, options, credentials, client, sceneCards, log, ct).ConfigureAwait(false);
+            coveId, known, options, credentials, instances, sceneCards, log, ct).ConfigureAwait(false);
         if (ground is null)
         {
             return ActionRefused(refusal);
@@ -365,7 +361,7 @@ public sealed partial class WhisparrSync
         var target = ground.Resolved.Target;
         var posted = await ContainedAsync(
             () => ground.Acting.SearchSceneAsync(
-                target.BaseAddress, target.ApiKey, sceneId, ct),
+                sceneId, ct),
             target,
             log,
             ct).ConfigureAwait(false);
@@ -383,7 +379,7 @@ public sealed partial class WhisparrSync
         }
 
         var readBack = await ContainedAsync(
-            () => target.Reads.ReadCommandAsync(target.BaseAddress, target.ApiKey, commandId, ct),
+            () => target.Reads.ReadCommandAsync(commandId, ct),
             target,
             log,
             ct).ConfigureAwait(false);

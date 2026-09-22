@@ -14,10 +14,9 @@ internal sealed class InstanceSiteNumberPort(Whisparr2Gateway v2Gateway) : ISite
     private const string SiteNumberMember = "tvdbId";
 
     public async Task<WhisparrSiteNumber> ResolveSiteNumberAsync(
-        Uri baseAddress, string apiKey, string storedSiteId, CancellationToken ct)
+        WhisparrBinding binding, string storedSiteId, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(baseAddress);
-        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+        ArgumentNullException.ThrowIfNull(binding);
         ArgumentException.ThrowIfNullOrWhiteSpace(storedSiteId);
 
         // The library may already hold the number itself, and confirming it costs a request per
@@ -29,7 +28,7 @@ internal sealed class InstanceSiteNumberPort(Whisparr2Gateway v2Gateway) : ISite
         }
 
         IApiResponse answered;
-        using var apis = v2Gateway.For(new Whisparr2Target(baseAddress, apiKey));
+        using var apis = v2Gateway.For(new Whisparr2Target(binding.BaseAddress, binding.ApiKey));
         try
         {
             answered = await apis

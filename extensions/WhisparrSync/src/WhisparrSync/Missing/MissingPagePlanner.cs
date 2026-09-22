@@ -149,14 +149,7 @@ internal sealed class MissingPagePlanner(
         WhisparrEntityCatalogue answered;
         try
         {
-            answered = await reading
-                .ReadEntityCatalogueAsync(
-                    context.Binding.BaseAddress,
-                    context.Binding.ApiKey,
-                    context.Binding.Generation,
-                    kind,
-                    providerEntityId,
-                    ct)
+            answered = await reading.ReadEntityCatalogueAsync(kind, providerEntityId, ct)
                 .ConfigureAwait(false);
         }
         catch (Exception failure) when (failure is HttpRequestException or IOException)
@@ -289,12 +282,7 @@ internal sealed class MissingPagePlanner(
         }
 
         return await SceneExclusionPort
-            .ReadExcludedAsync(
-                reading,
-                context.Binding.BaseAddress,
-                context.Binding.ApiKey,
-                [.. kept.Select(scene => scene.ProviderSceneId)],
-                ct)
+            .ReadExcludedAsync(reading, [.. kept.Select(scene => scene.ProviderSceneId)], ct)
             .ConfigureAwait(false);
     }
 

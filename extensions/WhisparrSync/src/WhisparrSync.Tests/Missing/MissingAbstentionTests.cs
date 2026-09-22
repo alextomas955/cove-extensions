@@ -176,9 +176,6 @@ public sealed class MissingAbstentionTests
         internal static StubCatalogueReading Failing() => new();
 
         public Task<WhisparrEntityCatalogue> ReadEntityCatalogueAsync(
-            Uri baseAddress,
-            string apiKey,
-            WhisparrGeneration generation,
             WhisparrEntityKind kind,
             string foreignId,
             CancellationToken ct)

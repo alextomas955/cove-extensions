@@ -29,9 +29,12 @@ public sealed class MonitorPathTests
     // The number the metadata source names that site by.
     private const int V2SiteNumber = 3372;
 
-    private static WhisparrClient V2Client(HttpClient http, BodyRecordingHandler handler)
+    private static IWhisparrClient V2Client(HttpClient http, BodyRecordingHandler handler)
         => TestWhisparrClient.Over(
-            http, handler, siteNumbers: TestSiteNumbers.Numbering(V2StoredIdentifier, V2SiteNumber));
+            http,
+            handler,
+            siteNumbers: TestSiteNumbers.Numbering(V2StoredIdentifier, V2SiteNumber),
+            generation: WhisparrGeneration.V2);
 
     [Fact]
     public async Task OneStoredIdentityRowMonitorsTheStudioAndStartsNoSearch()
@@ -81,11 +84,7 @@ public sealed class MonitorPathTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, MonitorHost.AddedStudio);
         using var http = new HttpClient(handler);
 
-        await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler)).AddMonitoredStudioAsync(
-            new Uri(MonitorHost.StoredAddress),
-            MonitorHost.StoredKey,
-            WhisparrGeneration.V3,
-            MonitorHost.StudioRemoteIdValue,
+        await ((IWhisparrStudioActing)TestWhisparrClient.Over(http, handler)).AddMonitoredStudioAsync(MonitorHost.StudioRemoteIdValue,
             MonitorScope.FutureScenes,
             new AddDefaults(4, "/config/library"),
             TestCt);
@@ -237,11 +236,7 @@ public sealed class MonitorPathTests
         using var http = new HttpClient(handler);
 
         var read = await ((IWhisparrStudioActing)V2Client(http, handler))
-            .ReadStudioAsync(
-                new Uri(MonitorHost.StoredAddress),
-                MonitorHost.StoredKey,
-                WhisparrGeneration.V2,
-                V2StoredIdentifier,
+            .ReadStudioAsync(V2StoredIdentifier,
                 TestCt);
 
         Assert.Equal(
@@ -288,11 +283,7 @@ public sealed class MonitorPathTests
         using var http = new HttpClient(handler);
 
         var read = await ((IWhisparrStudioActing)V2Client(http, handler))
-            .ReadStudioAsync(
-                new Uri(MonitorHost.StoredAddress),
-                MonitorHost.StoredKey,
-                WhisparrGeneration.V2,
-                V2StoredIdentifier,
+            .ReadStudioAsync(V2StoredIdentifier,
                 TestCt);
 
         Assert.StartsWith(
@@ -321,11 +312,7 @@ public sealed class MonitorPathTests
         using var http = new HttpClient(handler);
 
         var read = await ((IWhisparrStudioActing)V2Client(http, handler))
-            .ReadStudioAsync(
-                new Uri(MonitorHost.StoredAddress),
-                MonitorHost.StoredKey,
-                WhisparrGeneration.V2,
-                V2StoredIdentifier,
+            .ReadStudioAsync(V2StoredIdentifier,
                 TestCt);
 
         Assert.StartsWith(
@@ -343,13 +330,10 @@ public sealed class MonitorPathTests
     {
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Accepted, "{}");
         using var http = new HttpClient(handler);
-        var client = TestWhisparrClient.Over(http, handler);
-        var address = new Uri(MonitorHost.StoredAddress);
+        var client = TestWhisparrClient.Over(http, handler, generation: WhisparrGeneration.V2);
 
-        await ((IWhisparrStudioActing)client).SetStudioMonitoredAsync(
-            address, MonitorHost.StoredKey, WhisparrGeneration.V2, 1, monitored: true, TestCt);
-        await ((IWhisparrStudioActing)client).SetStudioScopeAsync(
-            address, MonitorHost.StoredKey, WhisparrGeneration.V2, 1, MonitorScope.AllScenes, TestCt);
+        await ((IWhisparrStudioActing)client).SetStudioMonitoredAsync(1, monitored: true, TestCt);
+        await ((IWhisparrStudioActing)client).SetStudioScopeAsync(1, MonitorScope.AllScenes, TestCt);
 
         Assert.Equal(2, handler.Requests.Count);
         Assert.Equal(HttpMethod.Put, handler.Requests[0].Method);

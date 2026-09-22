@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
@@ -28,14 +30,14 @@ public sealed class RefusalBeforeRequestTests
     [Fact]
     public async Task APathThatDoesSendRecordsTheAddressAndKeyItSent()
     {
-        var client = RecordingWhisparrClient.Reporting(V3StatusFixture);
-        var runner = await RunnerOverAsync(client, StoredAddress, StoredKey);
+        var sent = new StatusRecordingHandler(V3StatusFixture);
+        var runner = await RunnerOverAsync(sent, StoredAddress, StoredKey);
 
         var view = await runner.TestStoredAsync(TestCt);
 
         Assert.Equal(ConnectionFailureKind.Connected, view.Kind);
-        var call = Assert.Single(client.Calls);
-        Assert.Equal(new Uri(StoredAddress + "/"), call.BaseAddress);
+        var call = Assert.Single(sent.Calls);
+        Assert.Equal(new Uri(StoredAddress + "/api/v3/system/status"), call.Target);
         Assert.Equal(StoredKey, call.ApiKey);
     }
 
@@ -45,20 +47,22 @@ public sealed class RefusalBeforeRequestTests
     public async Task ACapabilityTheSetDoesNotHoldIsRefusedWithNothingSent()
     {
         var client = RecordingWhisparrClient.Reporting(V2StatusFixture);
-        var runner = await RunnerOverAsync(client, V2Address, StoredKey, WhisparrGeneration.V2);
+        var sent = new StatusRecordingHandler(V2StatusFixture);
+        var runner = await RunnerOverAsync(sent, V2Address, StoredKey, WhisparrGeneration.V2);
 
-        var refusal = GenerationCapabilities.For(WhisparrGeneration.V2, WhisparrRoleSet.From(client))
+        var refusal = GenerationCapabilities.For(WhisparrGeneration.V2, client)
             .Obtain<IWhisparrMissingSceneActing>()
             .Match<CapabilityRefusal?>(_ => null, refused => refused);
 
         Assert.NotNull(refusal);
         Assert.Equal(WhisparrCapability.RegisterMissingScenes, refusal.Capability);
         Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
-        Assert.Empty(client.Calls);
+        Assert.Empty(client.Verbs);
+        Assert.Empty(sent.Calls);
 
-        // The same client, driven down a path that does send.
+        // The same runtime, driven down a path that does send.
         Assert.Equal(ConnectionFailureKind.Connected, (await runner.TestStoredAsync(TestCt)).Kind);
-        Assert.Single(client.Calls);
+        Assert.Single(sent.Calls);
     }
 
     // All three sets are written out, so a capability added later fails here rather than passing
@@ -135,12 +139,12 @@ public sealed class RefusalBeforeRequestTests
     public async Task ARefusalTakenBeforeAnythingWasConfiguredSendsNothing(
         string address, string? apiKey, ConnectionSetting missing)
     {
-        var client = RecordingWhisparrClient.Reporting(V3StatusFixture);
-        var runner = await RunnerOverAsync(client, address, apiKey);
+        var sent = new StatusRecordingHandler(V3StatusFixture);
+        var runner = await RunnerOverAsync(sent, address, apiKey);
 
         var view = await runner.TestStoredAsync(TestCt);
 
-        Assert.Empty(client.Calls);
+        Assert.Empty(sent.Calls);
         Assert.Equal(ConnectionFailureKind.NotConfigured, view.Kind);
         Assert.Equal(missing, view.MissingSetting);
     }
@@ -148,18 +152,18 @@ public sealed class RefusalBeforeRequestTests
     [Fact]
     public async Task ATransientTestOfAnUnconfiguredPairSendsNothing()
     {
-        var client = RecordingWhisparrClient.Reporting(V3StatusFixture);
-        var runner = await RunnerOverAsync(client, StoredAddress, StoredKey);
+        var sent = new StatusRecordingHandler(V3StatusFixture);
+        var runner = await RunnerOverAsync(sent, StoredAddress, StoredKey);
 
         var view = await runner.TestTransientAsync(" ", " ", TestCt);
 
-        Assert.Empty(client.Calls);
+        Assert.Empty(sent.Calls);
         Assert.Equal(ConnectionFailureKind.NotConfigured, view.Kind);
 
         Assert.Equal(
             ConnectionFailureKind.Connected,
             (await runner.TestTransientAsync(StoredAddress, StoredKey, TestCt)).Kind);
-        Assert.Single(client.Calls);
+        Assert.Single(sent.Calls);
     }
 
     // A read that reaches the client re-pays the client's timeout and retry inside the inbound
@@ -260,55 +264,50 @@ public sealed class RefusalBeforeRequestTests
         }
 
         return new ReportedRootPort(
-            client, options, credentials, new ReportedRootCache(clock), NullLogger.Instance);
+            new FixedInstanceFactory(client),
+            options,
+            credentials,
+            new ReportedRootCache(clock),
+            NullLogger.Instance);
     }
 
     private sealed class UnreachableRootFolders(RecordingWhisparrClient inner) : IWhisparrClient
     {
         public int Attempts { get; private set; }
 
-        public Task<WhisparrResponse> ReadRootFoldersAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
+
+        public Task<WhisparrResponse> ReadRootFoldersAsync(CancellationToken ct)
         {
             Attempts++;
             throw new HttpRequestException("the instance answered nothing");
         }
 
-        public Task<WhisparrResponse> ReadStatusAsync(Uri baseAddress, string apiKey, CancellationToken ct)
-            => inner.ReadStatusAsync(baseAddress, apiKey, ct);
+        public Task<WhisparrResponse> ReadNotificationSchemaAsync(CancellationToken ct)
+            => inner.ReadNotificationSchemaAsync(ct);
 
-        public Task<WhisparrResponse> ReadNotificationSchemaAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
-            => inner.ReadNotificationSchemaAsync(baseAddress, apiKey, ct);
+        public Task<WhisparrResponse> ListNotificationsAsync(CancellationToken ct)
+            => inner.ListNotificationsAsync(ct);
 
-        public Task<WhisparrResponse> ListNotificationsAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
-            => inner.ListNotificationsAsync(baseAddress, apiKey, ct);
-
-        public Task<WhisparrResponse> ReadQualityProfilesAsync(
-            Uri baseAddress, string apiKey, CancellationToken ct)
-            => inner.ReadQualityProfilesAsync(baseAddress, apiKey, ct);
+        public Task<WhisparrResponse> ReadQualityProfilesAsync(CancellationToken ct)
+            => inner.ReadQualityProfilesAsync(ct);
 
         public Task<WhisparrResponse> ReadHistoryAsync(
-            Uri baseAddress,
-            string apiKey,
-            WhisparrGeneration generation,
             int page,
             int pageSize,
             CancellationToken ct)
-            => inner.ReadHistoryAsync(baseAddress, apiKey, generation, page, pageSize, ct);
+            => inner.ReadHistoryAsync(page, pageSize, ct);
 
         public Task<WhisparrResponse> ReadCommandAsync(
-            Uri baseAddress, string apiKey, int commandId, CancellationToken ct)
-            => inner.ReadCommandAsync(baseAddress, apiKey, commandId, ct);
+            int commandId, CancellationToken ct)
+            => inner.ReadCommandAsync(commandId, ct);
 
         public Task<WhisparrResponse> CreateNotificationAsync(
-            Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
-            => inner.CreateNotificationAsync(baseAddress, apiKey, body, ct);
+            JsonNode body, CancellationToken ct)
+            => inner.CreateNotificationAsync(body, ct);
 
         public Task<WhisparrResponse> UpdateNotificationAsync(
-            Uri baseAddress, string apiKey, int id, JsonNode body, CancellationToken ct)
-            => inner.UpdateNotificationAsync(baseAddress, apiKey, id, body, ct);
+            int id, JsonNode body, CancellationToken ct)
+            => inner.UpdateNotificationAsync(id, body, ct);
     }
 
     private sealed class MovableClock(DateTimeOffset start) : TimeProvider
@@ -322,8 +321,31 @@ public sealed class RefusalBeforeRequestTests
 
     // The whole runtime the outbound path runs through, with the recording client at the seam every
     // request would leave by.
+    // The status read the tester makes is composed by the generated client and sent through the
+    // transport, so what a case reads back off it is the request that left rather than a call log.
+    private sealed class StatusRecordingHandler(string statusFixture) : HttpMessageHandler
+    {
+        public List<(Uri? Target, string? ApiKey)> Calls { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Calls.Add((
+                request.RequestUri,
+                request.Headers.TryGetValues(WhisparrTransport.ApiKeyHeader, out var keys)
+                    ? keys.FirstOrDefault()
+                    : null));
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    ProbeFixtures.Read(statusFixture), Encoding.UTF8, "application/json"),
+            });
+        }
+    }
+
     private static async Task<ConnectionTestRunner> RunnerOverAsync(
-        IWhisparrClient client,
+        StatusRecordingHandler sent,
         string address,
         string? apiKey,
         WhisparrGeneration generation = WhisparrGeneration.V3)
@@ -345,8 +367,13 @@ public sealed class RefusalBeforeRequestTests
             credentials.Holding(generation, apiKey);
         }
 
+        var http = new HttpClient(sent);
+        WhisparrTransport.Configure(http);
+
         return new ConnectionTestRunner(
-            new ConnectionTester(client, NullLogger<ConnectionTester>.Instance),
+            new ConnectionTester(
+                TestWhisparrClient.TransportOver(http, sent),
+                NullLogger<ConnectionTester>.Instance),
             options,
             new OptionsWriteGate(),
             credentials,

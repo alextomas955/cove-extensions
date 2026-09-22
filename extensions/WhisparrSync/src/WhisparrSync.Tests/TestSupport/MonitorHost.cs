@@ -169,14 +169,15 @@ internal sealed class MonitorHost : IAsyncDisposable
                 Permissions.VideosRead, Permissions.ExtensionsConfigure));
         if (bytes is null)
         {
-            builder.Services.AddSingleton<IWhisparrClient>(host.Client);
+            builder.Services.AddSingleton<IWhisparrInstanceFactory>(
+                new FixedInstanceFactory(host.Client));
         }
         else
         {
             host.Bytes = bytes;
             host._http = new HttpClient(bytes);
-            builder.Services.AddSingleton<IWhisparrClient>(
-                TestWhisparrClient.Over(host._http, bytes, siteNumbers: siteNumbers));
+            builder.Services.AddSingleton<IWhisparrInstanceFactory>(
+                TestWhisparrClient.FactoryOver(host._http, bytes, siteNumbers: siteNumbers));
         }
 
         builder.Services.AddSingleton<IJobService>(host.Jobs);
@@ -197,7 +198,7 @@ internal sealed class MonitorHost : IAsyncDisposable
         builder.Services.AddSingleton<ICoveLibraryPort>(libraryPort);
         builder.Services.AddSingleton<IReportedRootPort>(
             resolved => new ReportedRootPort(
-                resolved.GetRequiredService<IWhisparrClient>(),
+                resolved.GetRequiredService<IWhisparrInstanceFactory>(),
                 options,
                 credentials,
                 new ReportedRootCache(TimeProvider.System),

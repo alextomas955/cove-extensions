@@ -65,7 +65,7 @@ public sealed class WhisparrCapabilitySet
     /// </summary>
     /// <exception cref="InvalidOperationException">
     /// <typeparamref name="TRole"/> is not one of these roles, or it is one this generation holds
-    /// and this set was built without the source that implements it. Neither is a generation gap, so
+    /// and this set was built with no instance implementing it. Neither is a generation gap, so
     /// neither is expressible as a refusal.
     /// </exception>
     public Capability<TRole> Obtain<TRole>()
@@ -83,13 +83,13 @@ public sealed class WhisparrCapabilitySet
             return new Capability<TRole>((TRole)role, null);
         }
 
-        // A capability the generation holds, asked of a set built without the source implementing
-        // it, is a construction fault. As a refusal it would read as a real generation gap.
+        // A capability the generation holds, asked of a set built with no instance implementing it,
+        // is a construction fault. As a refusal it would read as a real generation gap.
         if (Held.Contains(capability))
         {
             throw new InvalidOperationException(
                 $"{Generation} holds {capability}, but this capability set was built with no source for "
-                    + $"{typeof(TRole)}. Build it through the overload taking a role set.");
+                    + $"{typeof(TRole)}. Build it through the overload taking the bound instance.");
         }
 
         return new Capability<TRole>(null, new CapabilityRefusal(capability, Generation));
@@ -108,56 +108,72 @@ public static class GenerationCapabilities
     // its own, so the role is absent rather than present and refusing when it is called.
     //
     // The role type and the source are tied by the compiler, so a row cannot name one role and hand
-    // out another. A source answering null is a role a caller supplied no implementation for.
+    // out another. Every row but the first sources its role by testing the bound instance for the
+    // interface, so a role the instance's generation does not hold has nothing to answer with.
     private static readonly RoleEntry[] Roles =
     [
         // Both generations carry a secret off the address, through fields they do not share: a
-        // list-of-headers field on v3, a user-and-password pair on v2. Neither needs an outbound
-        // client, so this row answers whether or not a caller supplied one.
+        // list-of-headers field on v3, a user-and-password pair on v2. Neither sends anything, so this
+        // row answers whether or not a bound instance was supplied.
         RoleEntry.Of<IOutOfBandSecretRegistration>(
             WhisparrCapability.OutOfBandCallbackSecret,
             static (generation, _) => generation == WhisparrGeneration.V3
                 ? new V3HeaderSecretRegistration()
                 : new V2BasicAuthSecretRegistration()),
         RoleEntry.Of<IWhisparrStudioActing>(
-            WhisparrCapability.MonitorStudio, static (_, roles) => roles?.StudioActing),
+            WhisparrCapability.MonitorStudio,
+            static (_, instance) => instance as IWhisparrStudioActing),
         RoleEntry.Of<IWhisparrPerformerActing>(
-            WhisparrCapability.MonitorPerformer, static (_, roles) => roles?.PerformerActing),
+            WhisparrCapability.MonitorPerformer,
+            static (_, instance) => instance as IWhisparrPerformerActing),
         RoleEntry.Of<IWhisparrMissingSceneActing>(
-            WhisparrCapability.RegisterMissingScenes, static (_, roles) => roles?.MissingSceneActing),
+            WhisparrCapability.RegisterMissingScenes,
+            static (_, instance) => instance as IWhisparrMissingSceneActing),
         RoleEntry.Of<IWhisparrSiteRegistrationActing>(
-            WhisparrCapability.RegisterOwnedSites, static (_, roles) => roles?.SiteRegistrationActing),
+            WhisparrCapability.RegisterOwnedSites,
+            static (_, instance) => instance as IWhisparrSiteRegistrationActing),
         RoleEntry.Of<IWhisparrReflectOwnedActing>(
-            WhisparrCapability.ReflectOwnedFiles, static (_, roles) => roles?.ReflectOwnedActing),
+            WhisparrCapability.ReflectOwnedFiles,
+            static (_, instance) => instance as IWhisparrReflectOwnedActing),
         RoleEntry.Of<IWhisparrSearchGrabbing>(
-            WhisparrCapability.SearchMonitored, static (_, roles) => roles?.SearchGrabbing),
+            WhisparrCapability.SearchMonitored,
+            static (_, instance) => instance as IWhisparrSearchGrabbing),
         RoleEntry.Of<IWhisparrSceneStatusReading>(
-            WhisparrCapability.ReadSceneStatus, static (_, roles) => roles?.SceneStatusReading),
+            WhisparrCapability.ReadSceneStatus,
+            static (_, instance) => instance as IWhisparrSceneStatusReading),
         RoleEntry.Of<IWhisparrSceneExclusionReading>(
-            WhisparrCapability.ReadSceneExclusions, static (_, roles) => roles?.SceneExclusionReading),
+            WhisparrCapability.ReadSceneExclusions,
+            static (_, instance) => instance as IWhisparrSceneExclusionReading),
         RoleEntry.Of<IWhisparrSceneSearchGrabbing>(
-            WhisparrCapability.SearchScene, static (_, roles) => roles?.SceneSearchGrabbing),
+            WhisparrCapability.SearchScene,
+            static (_, instance) => instance as IWhisparrSceneSearchGrabbing),
         RoleEntry.Of<IWhisparrSceneMonitorActing>(
-            WhisparrCapability.MonitorScene, static (_, roles) => roles?.SceneMonitorActing),
+            WhisparrCapability.MonitorScene,
+            static (_, instance) => instance as IWhisparrSceneMonitorActing),
         RoleEntry.Of<IWhisparrSceneExclusionActing>(
-            WhisparrCapability.ExcludeScene, static (_, roles) => roles?.SceneExclusionActing),
+            WhisparrCapability.ExcludeScene,
+            static (_, instance) => instance as IWhisparrSceneExclusionActing),
         RoleEntry.Of<IWhisparrSiteSceneReading>(
-            WhisparrCapability.ReadSiteSceneRows, static (_, roles) => roles?.SiteSceneReading),
+            WhisparrCapability.ReadSiteSceneRows,
+            static (_, instance) => instance as IWhisparrSiteSceneReading),
         RoleEntry.Of<IWhisparrHeldSiteReading>(
-            WhisparrCapability.ReadHeldSites, static (_, roles) => roles?.HeldSiteReading),
+            WhisparrCapability.ReadHeldSites,
+            static (_, instance) => instance as IWhisparrHeldSiteReading),
         RoleEntry.Of<IWhisparrEntityBatchReading>(
-            WhisparrCapability.ReadEntityCardsInBatch, static (_, roles) => roles?.EntityBatchReading),
+            WhisparrCapability.ReadEntityCardsInBatch,
+            static (_, instance) => instance as IWhisparrEntityBatchReading),
         RoleEntry.Of<IWhisparrSceneBatchReading>(
-            WhisparrCapability.ReadSceneCardsInBatch, static (_, roles) => roles?.SceneBatchReading),
+            WhisparrCapability.ReadSceneCardsInBatch,
+            static (_, instance) => instance as IWhisparrSceneBatchReading),
         RoleEntry.Of<IWhisparrEntityTrackingActing>(
             WhisparrCapability.TrackEntityCatalogue,
-            static (_, roles) => roles?.EntityTrackingActing),
+            static (_, instance) => instance as IWhisparrEntityTrackingActing),
         RoleEntry.Of<IWhisparrEntityCatalogueReading>(
             WhisparrCapability.ReadEntityCatalogue,
-            static (_, roles) => roles?.EntityCatalogueReading),
+            static (_, instance) => instance as IWhisparrEntityCatalogueReading),
         RoleEntry.Of<IWhisparrInstanceFilesystemReading>(
             WhisparrCapability.ReadInstanceFilesystem,
-            static (_, roles) => roles?.InstanceFilesystemReading),
+            static (_, instance) => instance as IWhisparrInstanceFilesystemReading),
     ];
 
     // Declaration order, so the list a browser reads is stable. A capability is listed only once
@@ -219,21 +235,26 @@ public static class GenerationCapabilities
         WhisparrCapability.ReadInstanceFilesystem,
     ];
 
-    /// <summary>What <paramref name="generation"/> can honour, with no acting role supplied.</summary>
+    /// <summary>What <paramref name="generation"/> can honour, with no instance supplied.</summary>
     /// <remarks>
     /// For a caller that only needs to know what the generation can do, or one of the capabilities
-    /// needing no outbound client. Asking this set for an acting role throws rather than refusing,
+    /// that sends nothing. Asking this set for an acting role throws rather than refusing,
     /// because a set built with no source for a capability the generation holds is a construction
     /// fault and not a generation gap.
     /// </remarks>
     public static WhisparrCapabilitySet For(WhisparrGeneration generation)
         => new(generation, RolesFor(generation, null));
 
-    /// <summary>What <paramref name="generation"/> can honour, acting through <paramref name="roles"/>.</summary>
-    internal static WhisparrCapabilitySet For(WhisparrGeneration generation, WhisparrRoleSet roles)
+    /// <summary>What <paramref name="generation"/> can honour, acting through the bound instance.</summary>
+    /// <remarks>
+    /// The instance declares only the roles its own generation holds, so a role this set hands out is
+    /// one the instance has a member for. A generation whose declared capabilities and whose
+    /// instance's interfaces disagree is a fault <see cref="WhisparrCapabilitySet.Obtain"/> states.
+    /// </remarks>
+    internal static WhisparrCapabilitySet For(WhisparrGeneration generation, IWhisparrClient instance)
     {
-        ArgumentNullException.ThrowIfNull(roles);
-        return new WhisparrCapabilitySet(generation, RolesFor(generation, roles));
+        ArgumentNullException.ThrowIfNull(instance);
+        return new WhisparrCapabilitySet(generation, RolesFor(generation, instance));
     }
 
     // The authoritative table, in declaration order. What a set was built with is a fact about the
@@ -262,15 +283,15 @@ public static class GenerationCapabilities
         => CapabilityByRole.TryGetValue(role, out var capability) ? capability : null;
 
     // Registered off the capability list, so what a generation holds and what it acts through
-    // cannot answer differently. A role a caller supplied no implementation for is left out, which
-    // is what makes a capability the generation holds but nothing sources a stated fault.
+    // cannot answer differently. A role the instance does not implement is left out, which is what
+    // makes a capability the generation declares but the instance cannot honour a stated fault.
     private static Dictionary<WhisparrCapability, object> RolesFor(
-        WhisparrGeneration generation, WhisparrRoleSet? roles)
+        WhisparrGeneration generation, IWhisparrClient? instance)
     {
         var registered = new Dictionary<WhisparrCapability, object>();
         foreach (var capability in CapabilitiesOf(generation))
         {
-            if (RoleByCapability[capability].Source(generation, roles) is { } role)
+            if (RoleByCapability[capability].Source(generation, instance) is { } role)
             {
                 registered[capability] = role;
             }
@@ -280,82 +301,13 @@ public static class GenerationCapabilities
     }
 
     private sealed record RoleEntry(
-        WhisparrCapability Capability, Type Role, Func<WhisparrGeneration, WhisparrRoleSet?, object?> Source)
+        WhisparrCapability Capability,
+        Type Role,
+        Func<WhisparrGeneration, IWhisparrClient?, object?> Source)
     {
         internal static RoleEntry Of<TRole>(
-            WhisparrCapability capability, Func<WhisparrGeneration, WhisparrRoleSet?, TRole?> source)
+            WhisparrCapability capability, Func<WhisparrGeneration, IWhisparrClient?, TRole?> source)
             where TRole : class
             => new(capability, typeof(TRole), source);
-    }
-}
-
-// The role implementations one capability set acts through. Constructed only where a capability set
-// is built and registered in no container, so no consumer holds a property bag handing out roles it
-// never asked for. A role joins this record with its implementation, never ahead of it.
-internal sealed record WhisparrRoleSet(
-    IWhisparrStudioActing StudioActing,
-    IWhisparrPerformerActing PerformerActing,
-    IWhisparrMissingSceneActing MissingSceneActing,
-    IWhisparrReflectOwnedActing ReflectOwnedActing,
-    IWhisparrSearchGrabbing SearchGrabbing,
-    IWhisparrSceneStatusReading SceneStatusReading,
-    IWhisparrSceneExclusionReading SceneExclusionReading,
-    IWhisparrSceneSearchGrabbing SceneSearchGrabbing,
-    IWhisparrSceneMonitorActing SceneMonitorActing,
-    IWhisparrSceneExclusionActing SceneExclusionActing,
-    IWhisparrSiteRegistrationActing SiteRegistrationActing,
-    IWhisparrSiteSceneReading SiteSceneReading,
-    IWhisparrHeldSiteReading HeldSiteReading,
-    IWhisparrEntityBatchReading EntityBatchReading,
-    IWhisparrSceneBatchReading SceneBatchReading,
-    IWhisparrEntityCatalogueReading EntityCatalogueReading,
-    IWhisparrEntityTrackingActing EntityTrackingActing,
-    IWhisparrInstanceFilesystemReading InstanceFilesystemReading)
-{
-    // The acting roles are implemented on the one type holding the HTTP client, so a client
-    // implementing only some of them is a registration fault, not a capability a generation lacks.
-    internal static WhisparrRoleSet From(IWhisparrClient client)
-    {
-        ArgumentNullException.ThrowIfNull(client);
-        return client is IWhisparrStudioActing studioActing
-            and IWhisparrPerformerActing performerActing
-            and IWhisparrMissingSceneActing missingSceneActing
-            and IWhisparrReflectOwnedActing reflectOwnedActing
-            and IWhisparrSearchGrabbing searchGrabbing
-            and IWhisparrSceneStatusReading sceneStatusReading
-            and IWhisparrSceneExclusionReading sceneExclusionReading
-            and IWhisparrSceneSearchGrabbing sceneSearchGrabbing
-            and IWhisparrSceneMonitorActing sceneMonitorActing
-            and IWhisparrSceneExclusionActing sceneExclusionActing
-            and IWhisparrSiteRegistrationActing siteRegistrationActing
-            and IWhisparrSiteSceneReading siteSceneReading
-            and IWhisparrHeldSiteReading heldSiteReading
-            and IWhisparrEntityBatchReading entityBatchReading
-            and IWhisparrSceneBatchReading sceneBatchReading
-            and IWhisparrEntityCatalogueReading entityCatalogueReading
-            and IWhisparrEntityTrackingActing entityTrackingActing
-            and IWhisparrInstanceFilesystemReading instanceFilesystemReading
-            ? new WhisparrRoleSet(
-                studioActing,
-                performerActing,
-                missingSceneActing,
-                reflectOwnedActing,
-                searchGrabbing,
-                sceneStatusReading,
-                sceneExclusionReading,
-                sceneSearchGrabbing,
-                sceneMonitorActing,
-                sceneExclusionActing,
-                siteRegistrationActing,
-                siteSceneReading,
-                heldSiteReading,
-                entityBatchReading,
-                sceneBatchReading,
-                entityCatalogueReading,
-                entityTrackingActing,
-                instanceFilesystemReading)
-            : throw new InvalidOperationException(
-                $"{client.GetType()} holds this product's HTTP client but implements only part of "
-                    + $"{nameof(WhisparrRoleSet)}.");
     }
 }

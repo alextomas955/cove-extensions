@@ -107,7 +107,8 @@ public sealed class MissingQueryBindingTests
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
             new OptionsStore(new FakeStore()),
             new RecordingCredentialPort(),
-            new RecordingWhisparrClient(new WhisparrResponse(200, "application/json", "[]")),
+            new FixedInstanceFactory(
+                new RecordingWhisparrClient(new WhisparrResponse(200, "application/json", "[]"))),
             new ProviderEndpointPort(null),
             PlannerOver(new RecordingCatalogue()),
             NullLogger.Instance,
@@ -126,7 +127,8 @@ public sealed class MissingQueryBindingTests
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
             new OptionsStore(new FakeStore()),
             new RecordingCredentialPort(),
-            new RecordingWhisparrClient(new WhisparrResponse(200, "application/json", "[]")),
+            new FixedInstanceFactory(
+                new RecordingWhisparrClient(new WhisparrResponse(200, "application/json", "[]"))),
             new ProviderEndpointPort(null),
             PlannerOver(new RecordingCatalogue()),
             NullLogger.Instance,

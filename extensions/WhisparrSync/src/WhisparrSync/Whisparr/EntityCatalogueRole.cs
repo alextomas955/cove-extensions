@@ -74,10 +74,5 @@ public interface IWhisparrEntityCatalogueReading
 {
     /// <summary>The scenes the instance lists under <paramref name="foreignId"/>.</summary>
     Task<WhisparrEntityCatalogue> ReadEntityCatalogueAsync(
-        Uri baseAddress,
-        string apiKey,
-        WhisparrGeneration generation,
-        WhisparrEntityKind kind,
-        string foreignId,
-        CancellationToken ct);
+        WhisparrEntityKind kind, string foreignId, CancellationToken ct);
 }

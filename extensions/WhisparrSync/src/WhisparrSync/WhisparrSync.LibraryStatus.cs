@@ -21,10 +21,10 @@ public sealed partial class WhisparrSync
         // library, and it composes no write.
         endpoints.MapPost(LibraryStatusRoute,
             (string kind, LibraryStatusRequest request, ICurrentPrincipalAccessor principal,
-             OptionsStore options, ICredentialPort credentials, IWhisparrClient client,
+             OptionsStore options, ICredentialPort credentials, IWhisparrInstanceFactory instances,
              LibraryStatusPort cards, ILibraryCardIdentityPort sceneCards, CancellationToken ct)
                 => ReadLibraryStatusAsync(
-                    kind, request, principal, options, credentials, client, cards, sceneCards, ct))
+                    kind, request, principal, options, credentials, instances, cards, sceneCards, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
     }
@@ -38,7 +38,7 @@ public sealed partial class WhisparrSync
             ICurrentPrincipalAccessor principal,
             OptionsStore options,
             ICredentialPort credentials,
-            IWhisparrClient client,
+            IWhisparrInstanceFactory instances,
             LibraryStatusPort cards,
             ILibraryCardIdentityPort sceneCards,
             CancellationToken ct)
@@ -65,7 +65,7 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(cards);
         ArgumentNullException.ThrowIfNull(sceneCards);
 
-        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+        if (await ResolveTargetAsync(options, credentials, instances, ct).ConfigureAwait(false)
             is not { } target)
         {
             return TypedResults.Ok(
@@ -104,9 +104,7 @@ public sealed partial class WhisparrSync
                     reading,
                     target.Capabilities.Obtain<IWhisparrEntityBatchReading>(),
                     entityKind,
-                    target.Generation,
-                    target.BaseAddress,
-                    target.ApiKey,
+                    target.Binding,
                     coveIds,
                     ct)
                 .ConfigureAwait(false)
@@ -129,16 +127,14 @@ public sealed partial class WhisparrSync
             return (null, false);
         }
 
-        var identities = await sceneCards.ResolveAsync(coveIds, target.Generation, ct)
+        var identities = await sceneCards.ResolveAsync(coveIds, target.Binding.Generation, ct)
             .ConfigureAwait(false);
 
         var answered = await cards.ReadSceneCardsAsync(
                 sceneStatus,
                 target.Capabilities.Obtain<IWhisparrSceneExclusionReading>(),
                 target.Capabilities.Obtain<IWhisparrSceneBatchReading>(),
-                target.BaseAddress,
-                target.ApiKey,
-                target.Generation,
+                target.Binding,
                 identities,
                 ct)
             .ConfigureAwait(false);

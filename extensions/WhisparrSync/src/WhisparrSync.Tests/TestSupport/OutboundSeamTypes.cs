@@ -10,7 +10,8 @@ internal static class OutboundSeamTypes
     public static IReadOnlyList<Type> All { get; } =
     [
         typeof(WhisparrTransport),
-        typeof(WhisparrClient),
+        typeof(WhisparrV3Instance),
+        typeof(WhisparrV2Instance),
     ];
 
     // Every string constant the seam declares, whichever of its types holds it.

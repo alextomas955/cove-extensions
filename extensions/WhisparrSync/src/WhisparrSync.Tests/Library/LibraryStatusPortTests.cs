@@ -244,9 +244,7 @@ public sealed class LibraryStatusPortTests
                     reading.AnswerAsync,
                     NoEntityBatch,
                     WhisparrEntityKind.Studio,
-                    WhisparrGeneration.V3,
-                    Instance,
-                    ApiKey,
+                    Bound(WhisparrGeneration.V3),
                     [1],
                     stopping.Token));
     }
@@ -264,9 +262,7 @@ public sealed class LibraryStatusPortTests
                     reading,
                     new Capability<IWhisparrSceneExclusionReading>(reading, null),
                     NoSceneBatch,
-                    Instance,
-                    ApiKey,
-                    WhisparrGeneration.V3,
+                    Bound(WhisparrGeneration.V3),
                     SceneIdentities(1),
                     stopping.Token));
     }
@@ -333,6 +329,9 @@ public sealed class LibraryStatusPortTests
     }
 
     // The instance every case reads from. Its host is what a contained line names.
+    private static WhisparrBinding Bound(WhisparrGeneration generation)
+        => new(generation, Instance, ApiKey);
+
     private static Uri Instance => new("http://whisparr.invalid");
 
     private static string ApiKey => "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
@@ -355,9 +354,7 @@ public sealed class LibraryStatusPortTests
                 reading.AnswerAsync,
                 NoEntityBatch,
                 WhisparrEntityKind.Studio,
-                WhisparrGeneration.V3,
-                Instance,
-                ApiKey,
+                Bound(WhisparrGeneration.V3),
                 coveIds,
                 TestCt)).Rows;
 
@@ -377,9 +374,7 @@ public sealed class LibraryStatusPortTests
             reading,
             exclusions,
             NoSceneBatch,
-            Instance,
-            ApiKey,
-            WhisparrGeneration.V3,
+            Bound(WhisparrGeneration.V3),
             identities,
             TestCt)).Readings;
 
@@ -406,8 +401,6 @@ public sealed class LibraryStatusPortTests
             => _excluded = new HashSet<string>(excluded, StringComparer.Ordinal);
 
         public Task<WhisparrResponse> ReadEntityPresenceAsync(
-            Uri baseAddress,
-            string apiKey,
             WhisparrEntityKind kind,
             string foreignId,
             CancellationToken ct)
@@ -415,7 +408,7 @@ public sealed class LibraryStatusPortTests
                 "The scene card path probes no entity: a page of cards names no entity they sit under.");
 
         public Task<WhisparrResponse> ReadSceneByRemoteIdAsync(
-            Uri baseAddress, string apiKey, string remoteId, CancellationToken ct)
+            string remoteId, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             SceneReads++;
@@ -426,16 +419,12 @@ public sealed class LibraryStatusPortTests
         }
 
         public Task<IReadOnlySet<string>> ReduceHeldScenesAsync(
-            Uri baseAddress,
-            string apiKey,
             IReadOnlyCollection<string> foreignIds,
             CancellationToken ct)
             => throw new InvalidOperationException(
                 "This surface asks about one scene at a time and never about a batch of them.");
 
         public Task<IReadOnlySet<string>> ReduceExclusionsAsync(
-            Uri baseAddress,
-            string apiKey,
             IReadOnlyCollection<string> providerSceneIds,
             CancellationToken ct)
         {
@@ -447,7 +436,7 @@ public sealed class LibraryStatusPortTests
         }
 
         public Task<SceneExclusionLookup> FindSceneExclusionAsync(
-            Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+            string foreignId, CancellationToken ct)
             => throw new NotSupportedException(
                 "The card path asks about a page of scenes at once and never for one exclusion "
                     + "row's own identifier.");
