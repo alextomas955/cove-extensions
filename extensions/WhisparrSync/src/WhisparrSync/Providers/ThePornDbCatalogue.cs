@@ -23,7 +23,8 @@ internal sealed class ThePornDbCatalogue
         ISearchesTitles,
         ILooksUpByName,
         IResolvesNumericSceneId,
-        IResolvesNumericSiteId
+        IResolvesNumericSiteId,
+        IReadsSceneCover
 {
     internal const string ProviderName = "ThePornDB";
 
@@ -201,6 +202,25 @@ internal sealed class ThePornDbCatalogue
             && int.TryParse(numeric, NumberStyles.None, CultureInfo.InvariantCulture, out var id)
                 ? id
                 : null;
+    }
+
+    // The scene route answers one row for the identifier Cove stores, carrying a `poster` sized for
+    // a card beside a wider `image`. Null is both a row the provider names no picture on and a read
+    // that established nothing, which the card renders the same placeholder for.
+    public async Task<string?> ReadSceneCoverAsync(string providerSceneId, CancellationToken ct)
+    {
+        var resolved = await ResolveProviderAsync(ct).ConfigureAwait(false);
+        if (resolved is null)
+        {
+            return null;
+        }
+
+        var (_, entity) = await EntityAsync(resolved, ScenesRoute, providerSceneId, ct)
+            .ConfigureAwait(false);
+
+        return entity is null
+            ? null
+            : Text(entity.Value, "poster") ?? Text(entity.Value, "image");
     }
 
     // The site route answers one row for the uuid Cove stores, carrying this provider's own `id`
