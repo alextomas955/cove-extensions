@@ -27,6 +27,10 @@ internal sealed class ThePornDbCatalogue
 {
     internal const string ProviderName = "ThePornDB";
 
+    // Where ThePornDB shows a scene to a reader, which is neither where it serves its API nor the
+    // spelling identity rows are written under.
+    internal const string SiteBase = "https://theporndb.net";
+
     // A larger page is refused with 422 rather than clamped down to this one.
     internal const int MaxPerPage = 100;
 
@@ -97,9 +101,14 @@ internal sealed class ThePornDbCatalogue
 
     public ProviderCapabilitySet Capabilities { get; }
 
-    // No address. The identifier this product carries is the API's own and does not address a page
-    // on the provider's site. A scene row's `url` is the studio's own address, not the provider's.
-    public string? SceneAddress(string providerSceneId) => null;
+    // The identifier this product carries is the one the site's own scene path takes. Whisparr
+    // composes the same path from the same uuid, so the shape is read off a client the provider
+    // already serves rather than guessed. A scene row's `url` is the studio's own address, not the
+    // provider's, so it is not this.
+    public string? SceneAddress(string providerSceneId)
+        => string.IsNullOrWhiteSpace(providerSceneId)
+            ? null
+            : $"{SiteBase}/movies/{Uri.EscapeDataString(providerSceneId)}";
 
     public async Task<ProviderCatalogueAnswer> ReadPageAsync(
         ProviderCatalogueRequest request, CancellationToken ct)
